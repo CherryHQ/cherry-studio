@@ -4,7 +4,6 @@ import {
   FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
-  HistoryOutlined,
   PauseCircleOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
@@ -22,6 +21,7 @@ import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setGenerating, setSearching } from '@renderer/store/runtime'
 import { Assistant, FileType, Message, Topic } from '@renderer/types'
 import { delay, getFileExtension, uuid } from '@renderer/utils'
+import { insertTextAtCursor } from '@renderer/utils/input'
 import { Button, Popconfirm, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
@@ -41,6 +41,7 @@ interface Props {
 }
 
 let _text = ''
+let _files: FileType[] = []
 
 const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
   const [text, setText] = useState(_text)
@@ -61,8 +62,10 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
 
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...(isVision ? imageExts : [])], [isVision])
+  const inputTokenCount = useMemo(() => estimateTextTokens(text), [text])
 
   _text = text
+  _files = files
 
   const sendMessage = useCallback(async () => {
     if (generating) {
@@ -96,8 +99,6 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
 
     setExpend(false)
   }, [assistant.id, assistant.topics, generating, files, text])
-
-  const inputTokenCount = useMemo(() => estimateTextTokens(text), [text])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
@@ -143,10 +144,7 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
   }
 
   const onNewContext = () => {
-    if (generating) {
-      onPause()
-      return
-    }
+    if (generating) return onPause()
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }
 
@@ -205,22 +203,21 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
         const item = event.clipboardData?.items[0]
         if (item && item.kind === 'string' && item.type === 'text/plain') {
           event.preventDefault()
-          item.getAsString(async (text) => {
-            if (text.length > 1500) {
-              console.debug(item.getAsFile())
+          item.getAsString(async (pasteText) => {
+            if (pasteText.length > 1500) {
               const tempFilePath = await window.api.file.create('pasted_text.txt')
-              await window.api.file.write(tempFilePath, text)
+              await window.api.file.write(tempFilePath, pasteText)
               const selectedFile = await window.api.file.get(tempFilePath)
               selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
             } else {
-              setText((prevText) => prevText + text)
+              insertTextAtCursor({ text, pasteText, textareaRef, setText })
               setTimeout(() => resizeTextArea(), 0)
             }
           })
         }
       }
     },
-    [supportExts, pasteLongTextAsFile]
+    [pasteLongTextAsFile, supportExts, text]
   )
 
   // Command or Ctrl + N create new topic
@@ -258,11 +255,6 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
     textareaRef.current?.focus()
   }, [assistant])
 
-  useEffect(() => {
-    document.addEventListener('paste', onPaste)
-    return () => document.removeEventListener('paste', onPaste)
-  }, [onPaste])
-
   return (
     <Container>
       <AttachmentPreview files={files} setFiles={setFiles} />
@@ -283,6 +275,7 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
           onBlur={() => setInputFocus(false)}
           onInput={onInput}
           disabled={searching}
+          onPaste={(e) => onPaste(e.nativeEvent)}
           onClick={() => searching && dispatch(setSearching(false))}
         />
         <Toolbar>
@@ -304,16 +297,6 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
                   <ClearOutlined />
                 </ToolbarButton>
               </Popconfirm>
-            </Tooltip>
-            <Tooltip placement="top" title={t('chat.input.topics')} arrow>
-              <ToolbarButton
-                type="text"
-                onClick={() => {
-                  !showTopics && toggleShowTopics()
-                  setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-                }}>
-                <HistoryOutlined />
-              </ToolbarButton>
             </Tooltip>
             <Tooltip placement="top" title={t('chat.input.settings')} arrow>
               <ToolbarButton
@@ -420,6 +403,10 @@ const ToolbarButton = styled(Button)`
   &.iconfont {
     transition: all 0.3s ease;
     color: var(--color-icon);
+  }
+  .icon-a-addchat {
+    font-size: 19px;
+    margin-bottom: -2px;
   }
   &:hover {
     background-color: var(--color-background-soft);

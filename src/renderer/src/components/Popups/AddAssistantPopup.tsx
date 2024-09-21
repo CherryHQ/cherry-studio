@@ -1,3 +1,4 @@
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import systemAgents from '@renderer/config/agents.json'
 import { useAgents } from '@renderer/hooks/useAgents'
@@ -5,10 +6,12 @@ import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant
 import { covertAgentToAssistant } from '@renderer/services/assistant'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/event'
 import { Agent, Assistant } from '@renderer/types'
-import { Input, Modal, Tag } from 'antd'
-import { useMemo, useState } from 'react'
+import { Divider, Input, InputRef, Modal, Tag } from 'antd'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { HStack } from '../Layout'
 
 interface Props {
   resolve: (value: Assistant | undefined) => void
@@ -21,6 +24,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [searchText, setSearchText] = useState('')
   const { defaultAssistant } = useDefaultAssistant()
   const { assistants, addAssistant } = useAssistants()
+  const inputRef = useRef<InputRef>(null)
 
   const defaultAgent: Agent = useMemo(
     () => ({
@@ -65,30 +69,52 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     AddAssistantPopup.hide()
   }
 
+  useEffect(() => {
+    open && setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+
   return (
     <Modal
       centered
-      title={t('chat.add.assistant.title')}
       open={open}
       onCancel={onCancel}
       afterClose={onClose}
       transitionName="ant-move-down"
       maskTransitionName="ant-fade"
+      styles={{ content: { borderRadius: 20, padding: 0, overflow: 'hidden', paddingBottom: 20 } }}
+      closeIcon={null}
       footer={null}>
-      <Input
-        placeholder={t('common.search')}
-        value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
-        allowClear
-        autoFocus
-        style={{ marginBottom: 16 }}
-      />
+      <HStack style={{ padding: '0 12px', marginTop: 5 }}>
+        <Input
+          prefix={
+            <SearchIcon>
+              <SearchOutlined />
+            </SearchIcon>
+          }
+          ref={inputRef}
+          placeholder={t('assistants.search')}
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          allowClear
+          autoFocus
+          style={{ paddingLeft: 0 }}
+          bordered={false}
+          size="large"
+        />
+      </HStack>
+      <Divider style={{ margin: 0 }} />
       <Container>
         {agents.map((agent) => (
-          <AgentItem key={agent.id} onClick={() => onCreateAssistant(agent)}>
-            {agent.emoji} {agent.name}
-            {agent.group === 'system' && <Tag color="orange">{t('agents.tag.system')}</Tag>}
-            {agent.group === 'user' && <Tag color="green">{t('agents.tag.user')}</Tag>}
+          <AgentItem
+            key={agent.id}
+            onClick={() => onCreateAssistant(agent)}
+            className={agent.id === 'default' ? 'default' : ''}>
+            <HStack alignItems="center" gap={5}>
+              {agent.id === 'default' && <PlusOutlined style={{ marginLeft: -2 }} />}
+              {agent.emoji} {agent.name}
+            </HStack>
+            {agent.group === 'system' && <Tag color="green">{t('agents.tag.system')}</Tag>}
+            {agent.group === 'user' && <Tag color="orange">{t('agents.tag.user')}</Tag>}
           </AgentItem>
         ))}
       </Container>
@@ -97,7 +123,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 }
 
 const Container = styled.div`
+  padding: 0 12px;
   height: 50vh;
+  margin-top: 10px;
   overflow-y: auto;
   &::-webkit-scrollbar {
     display: none;
@@ -109,12 +137,14 @@ const AgentItem = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 8px;
+  padding: 10px 15px;
   border-radius: 8px;
   user-select: none;
-  background-color: var(--color-background-soft);
   margin-bottom: 8px;
   cursor: pointer;
+  &.default {
+    background-color: var(--color-background-soft);
+  }
   .anticon {
     font-size: 16px;
     color: var(--color-icon);
@@ -122,6 +152,18 @@ const AgentItem = styled.div`
   &:hover {
     background-color: var(--color-background-mute);
   }
+`
+
+const SearchIcon = styled.div`
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--color-background-soft);
+  margin-right: 6px;
 `
 
 export default class AddAssistantPopup {

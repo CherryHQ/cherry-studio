@@ -185,7 +185,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       <Suggestions assistant={assistant} messages={messages} lastMessage={lastMessage} />
       {lastMessage && <MessageItem key={lastMessage.id} message={lastMessage} />}
       {reverse([...messages]).map((message, index) => (
-        <MessageItem key={message.id} message={message} showMenu index={index} onDeleteMessage={onDeleteMessage} />
+        <MessageItem key={message.id} message={message} index={index} onDeleteMessage={onDeleteMessage} />
       ))}
       <Prompt assistant={assistant} key={assistant.prompt} />
     </Container>

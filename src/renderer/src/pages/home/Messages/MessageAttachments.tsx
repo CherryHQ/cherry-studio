@@ -1,5 +1,5 @@
+import FileManager from '@renderer/services/file'
 import { FileTypes, Message } from '@renderer/types'
-import { getFileDirectory } from '@renderer/utils'
 import { Image as AntdImage, Upload } from 'antd'
 import { FC } from 'react'
 import styled from 'styled-components'
@@ -9,6 +9,10 @@ interface Props {
 }
 
 const MessageAttachments: FC<Props> = ({ message }) => {
+  if (!message.files) {
+    return null
+  }
+
   if (message?.files && message.files[0]?.type === FileTypes.IMAGE) {
     return (
       <Container>
@@ -22,10 +26,9 @@ const MessageAttachments: FC<Props> = ({ message }) => {
       <Upload
         listType="picture"
         disabled
-        onPreview={(item) => item.url && window.open(getFileDirectory(item.url))}
         fileList={message.files?.map((file) => ({
           uid: file.id,
-          url: 'file://' + file.path,
+          url: 'file://' + FileManager.getSafePath(file),
           status: 'done',
           name: file.origin_name
         }))}

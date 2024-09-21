@@ -56,6 +56,9 @@ export async function fetchChatCompletion({
   const timer = setInterval(() => {
     if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
       paused = true
+      message.status = 'paused'
+      EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
+      store.dispatch(setGenerating(false))
       onResponse({ ...message, status: 'paused' })
       clearInterval(timer)
     }
@@ -77,7 +80,7 @@ export async function fetchChatCompletion({
 
     message.status = 'success'
 
-    if (!message.usage) {
+    if (!message.usage || !message?.usage?.completion_tokens) {
       message.usage = await estimateMessagesUsage({
         assistant,
         messages: [..._messages, message]

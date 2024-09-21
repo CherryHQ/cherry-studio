@@ -30,6 +30,8 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
     setTimeout(() => resolve({}), 300)
   }
 
+  MinApp.onClose = onClose
+
   const onReload = () => {
     if (webviewRef.current) {
       webviewRef.current.src = app.url
@@ -163,6 +165,7 @@ const Button = styled.div`
 
 export default class MinApp {
   static topviewId = 0
+  static onClose = () => {}
   static close() {
     TopView.hide('MinApp')
     store.dispatch(setMinappShow(false))

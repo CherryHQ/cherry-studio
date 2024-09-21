@@ -1,13 +1,4 @@
-import {
-  CheckOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  ForkOutlined,
-  MenuOutlined,
-  QuestionCircleOutlined,
-  SaveOutlined,
-  SyncOutlined
-} from '@ant-design/icons'
+import { SyncOutlined } from '@ant-design/icons'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { FONT_FAMILY } from '@renderer/config/constant'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
@@ -17,62 +8,36 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/event'
-import { Message, Model } from '@renderer/types'
-import { firstLetter, removeLeadingEmoji, removeTrailingDoubleSpaces } from '@renderer/utils'
-import { Alert, Avatar, Divider, Dropdown, Popconfirm, Tooltip } from 'antd'
+import { Message } from '@renderer/types'
+import { firstLetter, removeLeadingEmoji } from '@renderer/utils'
+import { Alert, Avatar, Divider } from 'antd'
 import dayjs from 'dayjs'
 import { upperFirst } from 'lodash'
-import { FC, memo, useCallback, useMemo, useState } from 'react'
+import { FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import SelectModelDropdown from '../components/SelectModelDropdown'
 import Markdown from '../Markdown/Markdown'
 import MessageAttachments from './MessageAttachments'
+import MessageMenubar from './MessageMenubar'
 import MessgeTokens from './MessageTokens'
 
 interface Props {
   message: Message
   index?: number
   total?: number
-  showMenu?: boolean
   onDeleteMessage?: (message: Message) => void
 }
 
-const MessageItem: FC<Props> = ({ message, index, showMenu, onDeleteMessage }) => {
+const MessageItem: FC<Props> = ({ message, index, onDeleteMessage }) => {
   const avatar = useAvatar()
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(message.modelId)
   const { userName, showMessageDivider, messageFont, fontSize } = useSettings()
-  const [copied, setCopied] = useState(false)
 
   const isLastMessage = index === 0
-  const isUserMessage = message.role === 'user'
   const isAssistantMessage = message.role === 'assistant'
-  const canRegenerate = isLastMessage && isAssistantMessage
-
-  const onCopy = useCallback(() => {
-    navigator.clipboard.writeText(removeTrailingDoubleSpaces(message.content))
-    window.message.success({ content: t('message.copied'), key: 'copy-message' })
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }, [message.content, t])
-
-  const onEdit = useCallback(() => EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, message), [message])
-
-  const onRegenerate = useCallback(
-    (model: Model) => {
-      setModel(model)
-      setTimeout(() => EventEmitter.emit(EVENT_NAMES.REGENERATE_MESSAGE, model), 100)
-    },
-    [setModel]
-  )
-
-  const onNewBranch = useCallback(() => {
-    EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
-  }, [index])
 
   const getUserName = useCallback(() => {
     if (isLocalAi && message.role !== 'user') return APP_NAME
@@ -94,21 +59,6 @@ const MessageItem: FC<Props> = ({ message, index, showMenu, onDeleteMessage }) =
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
 
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
-
-  const dropdownItems = useMemo(
-    () => [
-      {
-        label: t('chat.save'),
-        key: 'save',
-        icon: <SaveOutlined />,
-        onClick: () => {
-          const fileName = message.createdAt + '.md'
-          window.api.saveFile(fileName, message.content)
-        }
-      }
-    ],
-    [t, message]
-  )
 
   const showMiniApp = () => model?.provider && startMinAppById(model?.provider)
 
@@ -154,57 +104,15 @@ const MessageItem: FC<Props> = ({ message, index, showMenu, onDeleteMessage }) =
         <MessageContent message={message} />
         <MessageFooter style={{ border: messageBorder, flexDirection: isLastMessage ? 'row-reverse' : undefined }}>
           <MessgeTokens message={message} />
-          {showMenu && (
-            <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
-              {message.role === 'user' && (
-                <Tooltip title="Edit" mouseEnterDelay={0.8}>
-                  <ActionButton onClick={onEdit}>
-                    <EditOutlined />
-                  </ActionButton>
-                </Tooltip>
-              )}
-              <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
-                <ActionButton onClick={onCopy}>
-                  {!copied && <i className="iconfont icon-copy"></i>}
-                  {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
-                </ActionButton>
-              </Tooltip>
-              {canRegenerate && (
-                <SelectModelDropdown model={model} onSelect={onRegenerate} placement="topLeft">
-                  <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
-                    <ActionButton>
-                      <SyncOutlined />
-                    </ActionButton>
-                  </Tooltip>
-                </SelectModelDropdown>
-              )}
-              {isAssistantMessage && (
-                <Tooltip title={t('chat.message.new.branch')} mouseEnterDelay={0.8}>
-                  <ActionButton onClick={onNewBranch}>
-                    <ForkOutlined />
-                  </ActionButton>
-                </Tooltip>
-              )}
-              <Popconfirm
-                title={t('message.message.delete.content')}
-                okButtonProps={{ danger: true }}
-                icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-                onConfirm={() => onDeleteMessage?.(message)}>
-                <Tooltip title={t('common.delete')} mouseEnterDelay={1}>
-                  <ActionButton>
-                    <DeleteOutlined />
-                  </ActionButton>
-                </Tooltip>
-              </Popconfirm>
-              {!isUserMessage && (
-                <Dropdown menu={{ items: dropdownItems }} trigger={['click']} placement="topRight" arrow>
-                  <ActionButton>
-                    <MenuOutlined />
-                  </ActionButton>
-                </Dropdown>
-              )}
-            </MenusBar>
-          )}
+          <MessageMenubar
+            message={message}
+            model={model}
+            index={index}
+            isLastMessage={isLastMessage}
+            isAssistantMessage={isAssistantMessage}
+            setModel={setModel}
+            onDeleteMessage={onDeleteMessage}
+          />
         </MessageFooter>
       </MessageContentContainer>
     </MessageContainer>
@@ -251,11 +159,6 @@ const MessageContainer = styled.div`
     transition: opacity 0.2s ease;
     &.show {
       opacity: 1;
-    }
-    &.user {
-      position: absolute;
-      top: 10px;
-      right: 15px;
     }
   }
   &:hover {
@@ -321,42 +224,6 @@ const MessageContentLoading = styled.div`
   flex-direction: row;
   align-items: center;
   height: 32px;
-`
-
-const MenusBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 6px;
-  margin-left: -5px;
-`
-
-const ActionButton = styled.div`
-  cursor: pointer;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  width: 30px;
-  height: 30px;
-  transition: all 0.3s ease;
-  &:hover {
-    background-color: var(--color-background-mute);
-    .anticon {
-      color: var(--color-text-1);
-    }
-  }
-  .anticon,
-  .iconfont {
-    cursor: pointer;
-    font-size: 14px;
-    color: var(--color-icon);
-  }
-  &:hover {
-    color: var(--color-text-1);
-  }
 `
 
 export default memo(MessageItem)

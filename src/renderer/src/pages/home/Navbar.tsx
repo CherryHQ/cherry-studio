@@ -1,16 +1,19 @@
+import { FormOutlined } from '@ant-design/icons'
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
-import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import AssistantSettingPopup from '@renderer/components/Popups/AssistantSettingPopup'
 import { isMac, isWindows } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import { syncAsistantToAgent } from '@renderer/services/assistant'
+import { getDefaultTopic, syncAsistantToAgent } from '@renderer/services/assistant'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/event'
 import { Assistant, Topic } from '@renderer/types'
 import { Switch } from 'antd'
 import { FC, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import SelectModelButton from './components/SelectModelButton'
@@ -18,26 +21,31 @@ import SelectModelButton from './components/SelectModelButton'
 interface Props {
   activeAssistant: Assistant
   activeTopic: Topic
-  setActiveAssistant: (assistant: Assistant) => void
+  setActiveTopic: (topic: Topic) => void
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant }) => {
-  const { assistant, updateAssistant } = useAssistant(activeAssistant.id)
+const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveTopic }) => {
+  const { assistant, updateAssistant, addTopic } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { theme, toggleTheme } = useTheme()
   const { topicPosition } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
-
-  const onCreateAssistant = async () => {
-    const assistant = await AddAssistantPopup.show()
-    assistant && setActiveAssistant(assistant)
-  }
+  const { t } = useTranslation()
 
   const onEditAssistant = useCallback(async () => {
     const _assistant = await AssistantSettingPopup.show({ assistant })
     updateAssistant(_assistant)
     syncAsistantToAgent(_assistant)
   }, [assistant, updateAssistant])
+
+  const addNewTopic = useCallback(() => {
+    const topic = getDefaultTopic()
+    addTopic(topic)
+    setActiveTopic(topic)
+    db.topics.add({ id: topic.id, messages: [] })
+    window.message.success({ content: t('message.topic.added'), key: 'topic-added' })
+    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+  }, [addTopic, setActiveTopic, t])
 
   return (
     <Navbar>
@@ -46,8 +54,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant }) => {
           <NewButton onClick={toggleShowAssistants} style={{ marginLeft: isMac ? 8 : 0 }}>
             <i className="iconfont icon-hide-sidebar" />
           </NewButton>
-          <NewButton onClick={onCreateAssistant}>
-            <i className="iconfont icon-a-addchat" />
+          <NewButton onClick={addNewTopic}>
+            <FormOutlined />
           </NewButton>
         </NavbarLeft>
       )}
@@ -85,7 +93,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant }) => {
 
 export const NewButton = styled.div`
   -webkit-app-region: none;
-  border-radius: 4px;
+  border-radius: 8px;
   height: 30px;
   padding: 0 7px;
   display: flex;

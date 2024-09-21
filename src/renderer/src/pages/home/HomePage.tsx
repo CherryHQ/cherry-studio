@@ -21,7 +21,7 @@ const HomePage: FC = () => {
 
   return (
     <Container>
-      <Navbar activeAssistant={activeAssistant} setActiveAssistant={setActiveAssistant} activeTopic={activeTopic} />
+      <Navbar activeAssistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
       <ContentContainer>
         {showAssistants && (
           <RightSidebar

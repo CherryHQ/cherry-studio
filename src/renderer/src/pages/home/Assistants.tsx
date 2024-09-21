@@ -1,4 +1,4 @@
-import { DeleteOutlined, EditOutlined, MinusCircleOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import AssistantSettingPopup from '@renderer/components/Popups/AssistantSettingPopup'
@@ -20,13 +20,20 @@ import styled from 'styled-components'
 interface Props {
   activeAssistant: Assistant
   setActiveAssistant: (assistant: Assistant) => void
+  onCreateDefaultAssistant: () => void
   onCreateAssistant: () => void
 }
 
-const Assistants: FC<Props> = ({ activeAssistant, setActiveAssistant, onCreateAssistant }) => {
+const Assistants: FC<Props> = ({
+  activeAssistant,
+  setActiveAssistant,
+  onCreateAssistant,
+  onCreateDefaultAssistant
+}) => {
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const generating = useAppSelector((state) => state.runtime.generating)
   const [search, setSearch] = useState('')
+  const [dragging, setDragging] = useState(false)
   const { updateAssistant, removeAllTopics } = useAssistant(activeAssistant.id)
   const { clickAssistantToShowTopic, topicPosition } = useSettings()
   const searchRef = useRef<InputRef>(null)
@@ -36,10 +43,10 @@ const Assistants: FC<Props> = ({ activeAssistant, setActiveAssistant, onCreateAs
   const onDelete = useCallback(
     (assistant: Assistant) => {
       const _assistant = last(assistants.filter((a) => a.id !== assistant.id))
-      _assistant ? setActiveAssistant(_assistant) : onCreateAssistant()
+      _assistant ? setActiveAssistant(_assistant) : onCreateDefaultAssistant()
       removeAssistant(assistant.id)
     },
-    [assistants, onCreateAssistant, removeAssistant, setActiveAssistant]
+    [assistants, onCreateDefaultAssistant, removeAssistant, setActiveAssistant]
   )
 
   const onEditAssistant = useCallback(
@@ -175,24 +182,38 @@ const Assistants: FC<Props> = ({ activeAssistant, setActiveAssistant, onCreateAs
           />
         </SearchContainer>
       )}
-      <DragableList list={list} onUpdate={updateAssistants} droppableProps={{ isDropDisabled: !isEmpty(search) }}>
+      <DragableList
+        list={list}
+        onUpdate={updateAssistants}
+        droppableProps={{ isDropDisabled: !isEmpty(search) }}
+        style={{ paddingBottom: dragging ? '34px' : 0 }}
+        onDragStart={() => setDragging(true)}
+        onDragEnd={() => setDragging(false)}>
         {(assistant) => {
           const isCurrent = assistant.id === activeAssistant?.id
           return (
             <Dropdown key={assistant.id} menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
               <AssistantItem onClick={() => onSwitchAssistant(assistant)} className={isCurrent ? 'active' : ''}>
                 <AssistantName className="name">{assistant.name || t('chat.default.name')}</AssistantName>
-                <ArrowRightButton
-                  className={`arrow-button ${isCurrent ? 'active' : ''}`}
-                  onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-                  <i className="iconfont icon-gridlines" />
-                </ArrowRightButton>
+                {isCurrent && (
+                  <ArrowRightButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
+                    <i className="iconfont icon-gridlines" />
+                  </ArrowRightButton>
+                )}
                 {false && <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>}
               </AssistantItem>
             </Dropdown>
           )
         }}
       </DragableList>
+      {!dragging && (
+        <AssistantItem onClick={onCreateAssistant}>
+          <AssistantName>
+            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
+            {t('chat.add.assistant.title')}
+          </AssistantName>
+        </AssistantItem>
+      )}
     </Container>
   )
 }
@@ -215,11 +236,14 @@ const AssistantItem = styled.div`
   border-radius: 4px;
   margin: 0 10px;
   padding-right: 35px;
-  cursor: pointer;
   font-family: Ubuntu;
+  cursor: pointer;
   .iconfont {
     opacity: 0;
     color: var(--color-text-3);
+  }
+  &:hover {
+    background-color: var(--color-background-soft);
   }
   &.active {
     background-color: var(--color-background-mute);

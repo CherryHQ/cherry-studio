@@ -61,11 +61,12 @@ const resources = {
         'reset.double.confirm.content': 'All data will be lost, do you want to continue?',
         'upgrade.success.title': 'Upgrade successfully',
         'upgrade.success.content': 'Please restart the application to complete the upgrade',
-        'upgrade.success.button': 'Restart'
+        'upgrade.success.button': 'Restart',
+        'topic.added': 'New topic added'
       },
       chat: {
         save: 'Save',
-        'default.name': 'Default Assistant',
+        'default.name': '⭐️ Default Assistant',
         'default.description': "Hello, I'm Default Assistant. You can start chatting with me right away",
         'default.topic.name': 'Default Topic',
         'topics.title': 'Topics',
@@ -107,6 +108,11 @@ const resources = {
         'message.new.context': 'New Context',
         'message.new.branch': 'New Branch',
         'assistant.search.placeholder': 'Search'
+      },
+      assistants: {
+        title: 'Assistants',
+        abbr: 'Assistant',
+        search: 'Search assistants...'
       },
       files: {
         title: 'Files',
@@ -333,11 +339,12 @@ const resources = {
         'reset.double.confirm.content': '你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？',
         'upgrade.success.title': '升级成功',
         'upgrade.success.content': '重启应用以完成升级',
-        'upgrade.success.button': '重启'
+        'upgrade.success.button': '重启',
+        'topic.added': '话题添加成功'
       },
       chat: {
         save: '保存',
-        'default.name': '默认助手',
+        'default.name': '⭐️ 默认助手',
         'default.description': '你好，我是默认助手。你可以立刻开始跟我聊天。',
         'default.topic.name': '默认话题',
         'topics.title': '话题',
@@ -376,10 +383,15 @@ const resources = {
         'settings.set_as_default': '应用到默认助手',
         'settings.max': '不限',
         'suggestions.title': '建议的问题',
-        'add.assistant.title': '添加智能体',
+        'add.assistant.title': '添加助手',
         'message.new.context': '清除上下文',
         'message.new.branch': '新分支',
         'assistant.search.placeholder': '搜索'
+      },
+      assistants: {
+        title: '助手',
+        abbr: '助手',
+        search: '搜索助手'
       },
       files: {
         title: '文件',

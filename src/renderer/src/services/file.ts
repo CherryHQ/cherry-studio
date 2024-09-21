@@ -55,7 +55,7 @@ class FileManager {
   }
 
   static isDangerFile(file: FileType) {
-    return ['.sh', '.bat', '.cmd', '.ps1'].includes(file.ext)
+    return ['.sh', '.bat', '.cmd', '.ps1', '.vbs', 'reg'].includes(file.ext)
   }
 
   static getSafePath(file: FileType) {

@@ -3,20 +3,20 @@ import { isMac } from '@renderer/config/constant'
 import { isLocalAi, UserAvatar } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useRuntime, useShowAssistants } from '@renderer/hooks/useStore'
+import { useRuntime } from '@renderer/hooks/useStore'
 import { Avatar } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
+import MinApp from '../MinApp'
 import UserPopup from '../Popups/UserPopup'
 
 const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const avatar = useAvatar()
   const { minappShow } = useRuntime()
-  const { toggleShowAssistants } = useShowAssistants()
   const { generating } = useRuntime()
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -37,23 +37,23 @@ const Sidebar: FC = () => {
     navigate(path)
   }
 
-  const onToggleShowAssistants = () => {
-    pathname === '/' ? toggleShowAssistants() : navigate('/')
-  }
-
   return (
-    <Container style={{ backgroundColor: minappShow ? 'var(--navbar-background)' : sidebarBgColor }}>
+    <Container
+      style={{
+        backgroundColor: minappShow ? 'var(--navbar-background)' : sidebarBgColor,
+        zIndex: minappShow ? 10000 : 'initial'
+      }}>
       <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
       <MainMenus>
-        <Menus>
-          <StyledLink onClick={onToggleShowAssistants}>
+        <Menus onClick={MinApp.onClose}>
+          <StyledLink onClick={() => to('/')}>
             <Icon className={isRoute('/')}>
-              <i className="iconfont icon-chat"></i>
+              <i className="iconfont icon-chat" />
             </Icon>
           </StyledLink>
           <StyledLink onClick={() => to('/agents')}>
             <Icon className={isRoute('/agents')}>
-              <i className="iconfont icon-business-smart-assistant"></i>
+              <i className="iconfont icon-business-smart-assistant" />
             </Icon>
           </StyledLink>
           <StyledLink onClick={() => to('/translate')}>
@@ -63,7 +63,7 @@ const Sidebar: FC = () => {
           </StyledLink>
           <StyledLink onClick={() => to('/apps')}>
             <Icon className={isRoute('/apps')}>
-              <i className="iconfont icon-appstore"></i>
+              <i className="iconfont icon-appstore" />
             </Icon>
           </StyledLink>
           <StyledLink onClick={() => to('/files')}>
@@ -73,10 +73,10 @@ const Sidebar: FC = () => {
           </StyledLink>
         </Menus>
       </MainMenus>
-      <Menus>
+      <Menus onClick={MinApp.onClose}>
         <StyledLink onClick={() => to(isLocalAi ? '/settings/assistant' : '/settings/provider')}>
           <Icon className={pathname.startsWith('/settings') ? 'active' : ''}>
-            <i className="iconfont icon-setting"></i>
+            <i className="iconfont icon-setting" />
           </Icon>
         </StyledLink>
       </Menus>
@@ -99,8 +99,8 @@ const Container = styled.div`
 `
 
 const AvatarImg = styled(Avatar)`
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   background-color: var(--color-background-soft);
   margin-bottom: ${isMac ? '12px' : '12px'};
   margin-top: ${isMac ? '5px' : '2px'};
@@ -124,10 +124,11 @@ const Icon = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  border-radius: 6px;
+  border-radius: 50%;
   margin-bottom: 5px;
   transition: background-color 0.2s ease;
   -webkit-app-region: none;
+  transition: all 0.2s ease;
   .iconfont,
   .anticon {
     color: var(--color-icon);

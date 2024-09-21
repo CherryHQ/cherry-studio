@@ -6,9 +6,25 @@
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; connect-src *; script-src 'self' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: *; frame-src * file:" />
+    <style>
+      #spinner {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+      #spinner img {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="spinner">
+      <img src="/src/assets/images/logo.png" />
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

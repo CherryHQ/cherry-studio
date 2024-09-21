@@ -136,8 +136,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           return (
             <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
               <TopicListItem className={isActive ? 'active' : ''} onClick={() => onSwitchTopic(topic)}>
-                <TopicName>{topic.name}</TopicName>
-                {assistant.topics.length > 1 && (
+                <TopicName className="name">
+                  <TopicHash>#</TopicHash>
+                  {topic.name.replace('`', '')}
+                </TopicName>
+                {assistant.topics.length > 1 && isActive && (
                   <MenuButton
                     className="menu"
                     onClick={(e) => {
@@ -162,13 +165,15 @@ const Container = styled.div`
   flex-direction: column;
   padding-top: 10px;
   overflow-y: scroll;
-  max-height: calc(100vh - var(--navbar-height) - 140px);
+  max-height: calc(100vh - var(--navbar-height) - 70px);
+  &::-webkit-scrollbar {
+    display: none;
+  }
 `
 
 const TopicListItem = styled.div`
   padding: 7px 10px;
   margin: 0 10px;
-  cursor: pointer;
   border-radius: 4px;
   font-family: Ubuntu;
   font-size: 13px;
@@ -177,13 +182,24 @@ const TopicListItem = styled.div`
   justify-content: space-between;
   align-items: center;
   position: relative;
+  font-family: Ubuntu;
+  cursor: pointer;
   .menu {
     opacity: 0;
     color: var(--color-text-3);
   }
+  &:hover {
+    background-color: var(--color-background-soft);
+    .name {
+      opacity: 1;
+    }
+  }
   &.active {
     background-color: var(--color-background-mute);
-    font-weight: 500;
+    .name {
+      opacity: 1;
+      font-weight: 500;
+    }
     .menu {
       opacity: 1;
       background-color: var(--color-background-mute);
@@ -195,12 +211,12 @@ const TopicListItem = styled.div`
 `
 
 const TopicName = styled.div`
-  color: var(--color-text);
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+  opacity: 0.6;
 `
 
 const MenuButton = styled.div`
@@ -208,17 +224,20 @@ const MenuButton = styled.div`
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  width: 30px;
-  height: 24px;
-  min-width: 24px;
-  min-height: 24px;
-  border-radius: 4px;
+  min-width: 22px;
+  min-height: 22px;
   position: absolute;
-  right: 10px;
-  top: 5px;
+  right: 8px;
+  top: 6px;
   .anticon {
     font-size: 12px;
   }
+`
+
+const TopicHash = styled.span`
+  font-size: 13px;
+  color: var(--color-text-3);
+  margin-right: 2px;
 `
 
 export default Topics

@@ -1,4 +1,5 @@
 import { BarsOutlined, SettingOutlined } from '@ant-design/icons'
+import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
@@ -43,10 +44,16 @@ const RightSidebar: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssist
   }
 
   const showTab = !(position === 'left' && topicPosition === 'right')
+
   const assistantTab = {
-    label: t('common.assistant'),
+    label: t('assistants.abbr'),
     value: 'assistants',
     icon: <i className="iconfont icon-business-smart-assistant" />
+  }
+
+  const onCreateAssistant = async () => {
+    const assistant = await AddAssistantPopup.show()
+    assistant && setActiveAssistant(assistant)
   }
 
   const onCreateDefaultAssistant = () => {
@@ -95,8 +102,16 @@ const RightSidebar: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssist
           options={
             [
               position === 'left' && topicPosition === 'left' ? assistantTab : undefined,
-              { label: t('common.topics'), value: 'topic', icon: <BarsOutlined /> },
-              { label: t('settings.title'), value: 'settings', icon: <SettingOutlined /> }
+              {
+                label: t('common.topics'),
+                value: 'topic',
+                icon: <BarsOutlined />
+              },
+              {
+                label: t('settings.title'),
+                value: 'settings',
+                icon: <SettingOutlined />
+              }
             ].filter(Boolean) as SegmentedProps['options']
           }
           onChange={(value) => setTab(value as 'topic' | 'settings')}
@@ -108,7 +123,8 @@ const RightSidebar: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssist
           <Assistants
             activeAssistant={activeAssistant}
             setActiveAssistant={setActiveAssistant}
-            onCreateAssistant={onCreateDefaultAssistant}
+            onCreateAssistant={onCreateAssistant}
+            onCreateDefaultAssistant={onCreateDefaultAssistant}
           />
         )}
         {tab === 'topic' && (

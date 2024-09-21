@@ -21,6 +21,7 @@ export function useAppInit() {
   }, [avatar, dispatch])
 
   useEffect(() => {
+    document.getElementById('spinner')?.remove()
     runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
       isPackaged && setTimeout(window.api.checkForUpdate, 3000)
