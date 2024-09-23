@@ -103,7 +103,7 @@ export const NewButton = styled.div`
   transition: all 0.2s ease-in-out;
   cursor: pointer;
   .iconfont {
-    font-size: 19px;
+    font-size: 18px;
     color: var(--color-icon);
     &.icon-a-addchat {
       font-size: 20px;
@@ -114,7 +114,7 @@ export const NewButton = styled.div`
   }
   .anticon {
     color: var(--color-icon);
-    font-size: 17px;
+    font-size: 16px;
   }
   &:hover {
     background-color: var(--color-background-mute);

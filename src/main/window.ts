@@ -27,6 +27,7 @@ export function createMainWindow() {
     autoHideMenuBar: true,
     transparent: process.platform === 'darwin',
     vibrancy: 'fullscreen-ui',
+    visualEffectState: 'active',
     titleBarStyle: 'hidden',
     titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,
     trafficLightPosition: { x: 8, y: 12 },

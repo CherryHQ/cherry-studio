@@ -47,6 +47,7 @@ const Container = styled.div`
   height: 100%;
   flex: 1;
   justify-content: space-between;
+  background-color: var(--color-background);
 `
 
 const Main = styled(Flex)`

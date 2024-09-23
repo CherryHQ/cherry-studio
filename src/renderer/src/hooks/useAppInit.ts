@@ -1,3 +1,4 @@
+import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
@@ -9,10 +10,12 @@ import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
 import { useSettings } from './useSettings'
+import { useRuntime } from './useStore'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language } = useSettings()
+  const { proxyUrl, language, windowStyle } = useSettings()
+  const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
 
@@ -35,6 +38,13 @@ export function useAppInit() {
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || 'en-US')
   }, [language])
+
+  useEffect(() => {
+    const transparentWindow = windowStyle === 'transparent' && isMac && !minappShow
+    window.document.body.style.background = transparentWindow
+      ? 'var(--navbar-background-mac)'
+      : 'var(--navbar-background)'
+  }, [windowStyle, minappShow])
 
   useEffect(() => {
     if (isLocalAi) {

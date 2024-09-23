@@ -164,7 +164,7 @@ const TranslatePage: FC = () => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer>
+      <ContentContainer id="content-container">
         <MenuContainer>
           <Select
             showSearch
@@ -239,7 +239,6 @@ const ContentContainer = styled.div`
   flex-direction: column;
   height: 100%;
   padding: 20px;
-  background-color: var(--color-background);
 `
 
 const MenuContainer = styled.div`

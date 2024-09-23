@@ -22,7 +22,7 @@ const HomePage: FC = () => {
   return (
     <Container>
       <Navbar activeAssistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
-      <ContentContainer>
+      <ContentContainer id="content-container">
         {showAssistants && (
           <RightSidebar
             activeAssistant={activeAssistant}
@@ -53,7 +53,6 @@ const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
-  background-color: var(--color-background);
 `
 
 export default HomePage

@@ -39,7 +39,7 @@ const AppsPage: FC = () => {
           <div style={{ width: 80 }} />
         </NavbarCenter>
       </Navbar>
-      <ContentContainer>
+      <ContentContainer id="content-container">
         <AppsContainer>
           {filteredApps.map((app) => (
             <App key={app.id} app={app} />
@@ -69,7 +69,6 @@ const ContentContainer = styled.div`
   justify-content: center;
   height: 100%;
   overflow-y: scroll;
-  background-color: var(--color-background);
   padding: 50px;
 `
 

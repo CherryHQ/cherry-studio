@@ -7,11 +7,19 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; connect-src *; script-src 'self' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: *; frame-src * file:" />
     <style>
+      html,
+      body {
+        margin: 0;
+      }
       #spinner {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        position: fixed;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.5);
       }
       #spinner img {
         width: 100px;

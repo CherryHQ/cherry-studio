@@ -164,7 +164,7 @@ export const PROVIDER_CONFIG = {
   },
   silicon: {
     api: {
-      url: 'https://cloud.siliconflow.cn'
+      url: 'https://api.siliconflow.cn'
     },
     websites: {
       official: 'https://www.siliconflow.cn/',

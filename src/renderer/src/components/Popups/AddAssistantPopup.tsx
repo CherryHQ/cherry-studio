@@ -99,7 +99,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           autoFocus
           style={{ paddingLeft: 0 }}
           bordered={false}
-          size="large"
+          size="middle"
         />
       </HStack>
       <Divider style={{ margin: 0 }} />
@@ -136,13 +136,13 @@ const AgentItem = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 15px;
+  padding: 8px 15px;
   border-radius: 8px;
   user-select: none;
   margin-bottom: 8px;
   cursor: pointer;
   &.default {
-    background-color: var(--color-background-soft);
+    background-color: var(--color-background-mute);
   }
   .anticon {
     font-size: 16px;
@@ -162,7 +162,7 @@ const SearchIcon = styled.div`
   justify-content: center;
   align-items: center;
   background-color: var(--color-background-soft);
-  margin-right: 6px;
+  margin-right: 2px;
 `
 
 export default class AddAssistantPopup {

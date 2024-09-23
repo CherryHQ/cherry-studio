@@ -37,7 +37,8 @@ const RightSidebar: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssist
   const { t } = useTranslation()
 
   const borderStyle = '0.5px solid var(--color-border)'
-  const border = position === 'left' ? { borderRight: borderStyle } : { borderLeft: borderStyle }
+  const border =
+    position === 'left' ? { borderRight: borderStyle } : { borderLeft: borderStyle, borderTopLeftRadius: 0 }
 
   if (position === 'left' && topicPosition === 'left') {
     _tab = tab
@@ -98,7 +99,13 @@ const RightSidebar: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssist
         <Segmented
           value={tab}
           className="segmented-tab"
-          style={{ borderRadius: 0, padding: '10px', gap: 2, borderBottom: borderStyle }}
+          style={{
+            borderRadius: 0,
+            padding: '10px 0',
+            margin: '0 10px',
+            borderBottom: '0.5px solid var(--color-border)',
+            gap: 2
+          }}
           options={
             [
               position === 'left' && topicPosition === 'left' ? assistantTab : undefined,
@@ -141,6 +148,7 @@ const Container = styled.div`
   flex-direction: column;
   width: var(--assistants-width);
   height: calc(100vh - var(--navbar-height));
+  overflow: hidden;
   .collapsed {
     width: 0;
     border-left: none;

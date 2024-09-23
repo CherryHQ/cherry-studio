@@ -354,8 +354,6 @@ const InputBarContainer = styled.div`
   position: relative;
   margin: 0 20px 15px 20px;
   border-radius: 10px;
-  &.focus {
-  }
 `
 
 const Textarea = styled(TextArea)`

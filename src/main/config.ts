@@ -21,13 +21,13 @@ export const DATA_PATH = getDataPath()
 export const appConfig = new Store()
 
 export const titleBarOverlayDark = {
-  height: 41,
+  height: 40,
   color: '#00000000',
   symbolColor: '#ffffff'
 }
 
 export const titleBarOverlayLight = {
-  height: 41,
+  height: 40,
   color: '#00000000',
   symbolColor: '#000000'
 }

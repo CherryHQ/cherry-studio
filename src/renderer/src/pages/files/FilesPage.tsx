@@ -64,7 +64,7 @@ const FilesPage: FC = () => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('files.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer>
+      <ContentContainer id="content-container">
         <VStack style={{ flex: 1 }}>
           <Table dataSource={dataSource} columns={columns} style={{ width: '100%', height: '100%' }} size="small" />
         </VStack>
@@ -87,7 +87,6 @@ const ContentContainer = styled.div`
   justify-content: center;
   height: 100%;
   overflow-y: scroll;
-  background-color: var(--color-background);
   padding: 20px;
 `
 

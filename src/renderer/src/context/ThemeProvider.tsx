@@ -1,3 +1,4 @@
+import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
 import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
@@ -36,6 +37,10 @@ export const ThemeProvider: React.FC<PropsWithChildren> = ({ children }) => {
     document.body.setAttribute('theme-mode', _theme)
     window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
   }, [_theme])
+
+  useEffect(() => {
+    document.body.setAttribute('os', isMac ? 'mac' : 'windows')
+  }, [])
 
   return <ThemeContext.Provider value={{ theme: _theme, toggleTheme }}>{children}</ThemeContext.Provider>
 }

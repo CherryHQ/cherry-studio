@@ -27,7 +27,7 @@ const Sidebar: FC = () => {
   const onEditUser = () => UserPopup.show()
 
   const macTransparentWindow = isMac && windowStyle === 'transparent'
-  const sidebarBgColor = macTransparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
+  const sidebarBgColor = macTransparentWindow ? 'transparent' : 'var(--navbar-background)'
 
   const to = (path: string) => {
     if (generating) {
@@ -39,8 +39,9 @@ const Sidebar: FC = () => {
 
   return (
     <Container
+      id="app-sidebar"
       style={{
-        backgroundColor: minappShow ? 'var(--navbar-background)' : sidebarBgColor,
+        backgroundColor: sidebarBgColor,
         zIndex: minappShow ? 10000 : 'initial'
       }}>
       <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
@@ -93,7 +94,6 @@ const Container = styled.div`
   min-width: var(--sidebar-width);
   height: ${isMac ? 'calc(100vh - var(--navbar-height))' : '100vh'};
   -webkit-app-region: drag !important;
-  border-right: 0.5px solid var(--color-border);
   margin-top: ${isMac ? 'var(--navbar-height)' : 0};
   transition: background-color 0.3s ease;
 `
@@ -103,7 +103,7 @@ const AvatarImg = styled(Avatar)`
   height: 32px;
   background-color: var(--color-background-soft);
   margin-bottom: ${isMac ? '12px' : '12px'};
-  margin-top: ${isMac ? '5px' : '2px'};
+  margin-top: ${isMac ? '-5px' : '2px'};
   border: none;
   cursor: pointer;
 `
@@ -140,7 +140,7 @@ const Icon = styled.div`
     font-size: 17px;
   }
   &:hover {
-    background-color: var(--color-background-soft);
+    background-color: var(--color-hover);
     cursor: pointer;
     .iconfont,
     .anticon {
@@ -148,7 +148,7 @@ const Icon = styled.div`
     }
   }
   &.active {
-    background-color: var(--color-background-mute);
+    background-color: var(--color-active);
     .iconfont,
     .anticon {
       color: var(--color-icon-white);

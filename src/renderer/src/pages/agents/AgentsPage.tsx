@@ -54,7 +54,7 @@ const AppsPage: FC = () => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('agents.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer>
+      <ContentContainer id="content-container">
         <AssistantsContainer>
           <HStack alignItems="center" style={{ marginBottom: 16 }}>
             <Title level={4}>{t('agents.my_agents')}</Title>
@@ -98,7 +98,6 @@ const ContentContainer = styled.div`
   justify-content: center;
   height: 100%;
   overflow-y: scroll;
-  background-color: var(--color-background);
 `
 
 const AssistantsContainer = styled.div`

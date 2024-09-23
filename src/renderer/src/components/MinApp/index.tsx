@@ -5,9 +5,10 @@ import { useBridge } from '@renderer/hooks/useBridge'
 import store from '@renderer/store'
 import { setMinappShow } from '@renderer/store/runtime'
 import { MinAppType } from '@renderer/types'
-import { Drawer } from 'antd'
+import { Avatar, Drawer } from 'antd'
 import { WebviewTag } from 'electron'
 import { useEffect, useRef, useState } from 'react'
+import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import { TopView } from '../TopView'
@@ -19,6 +20,8 @@ interface Props {
 
 const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
   const [open, setOpen] = useState(true)
+  const [opened, setOpened] = useState(false)
+  const [isReady, setIsReady] = useState(false)
   const webviewRef = useRef<WebviewTag | null>(null)
 
   useBridge()
@@ -74,14 +77,22 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
         }
       }
 
+      const onLoaded = () => setIsReady(true)
+
       webview.addEventListener('new-window', handleNewWindow)
+      webview.addEventListener('did-finish-load', onLoaded)
 
       return () => {
         webview.removeEventListener('new-window', handleNewWindow)
+        webview.removeEventListener('did-finish-load', onLoaded)
       }
     }
 
     return () => {}
+  }, [opened])
+
+  useEffect(() => {
+    setTimeout(() => setOpened(true), 350)
   }, [])
 
   return (
@@ -97,7 +108,13 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
       maskClosable={false}
       closeIcon={null}
       style={{ marginLeft: 'var(--sidebar-width)' }}>
-      <webview src={app.url} ref={webviewRef} style={WebviewStyle} allowpopups={'true' as any} />
+      {!isReady && (
+        <EmptyView>
+          <Avatar src={app.logo} size={80} style={{ border: '1px solid var(--color-border)', marginTop: -150 }} />
+          <BeatLoader color="var(--color-text-2)" size="10" style={{ marginTop: 15 }} />
+        </EmptyView>
+      )}
+      {opened && <webview src={app.url} ref={webviewRef} style={WebviewStyle} allowpopups={'true' as any} />}
     </Drawer>
   )
 }
@@ -161,6 +178,17 @@ const Button = styled.div`
     color: var(--color-text-1);
     background-color: var(--color-background-mute);
   }
+`
+
+const EmptyView = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-background);
 `
 
 export default class MinApp {
