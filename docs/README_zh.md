@@ -20,7 +20,7 @@ Cherry Studio 是一款跨平台桌面客户端，支持多个大语言模型（
 🤝简洁，友好的界面与交互设计
 
 ## 🛠️多样化的 LLM 服务模式支持
-☁️ 全面覆盖 LLM 云端服务，支持自定义 api key 与模型管理：OpenAI，Gemini，Anthropic，硅基流动...
+☁️ 全面覆盖 LLM 云服务，支持自定义 api key 与模型管理：OpenAI，Gemini，Anthropic，硅基流动...
 
 🔗汇聚流行的 AI Web 服务，并计划通过功能增强提升体验：Claude，Peplexity，Poe，腾讯元宝，知乎直答...
 
@@ -32,11 +32,11 @@ Cherry Studio 是一款跨平台桌面客户端，支持多个大语言模型（
 
 🔤持续迭代的翻译功能
 
-🤲对话记录 Markdown 与图片分享
-
-🎨透明窗口与明暗主题支持
+🤲生成结果支持 Markdown 与图片分享
 
 📎文件与图片上传，RAG 与多模态对话
+
+🎨透明窗口与明暗主题支持
 
 # 🖥️ 开发指南
 
