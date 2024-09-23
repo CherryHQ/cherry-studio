@@ -3,7 +3,8 @@ import UserPopup from '@renderer/components/Popups/UserPopup'
 import { FONT_FAMILY } from '@renderer/config/constant'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { startMinAppById } from '@renderer/config/minapp'
-import { getModelLogo } from '@renderer/config/provider'
+import { getModelLogo } from '@renderer/config/models'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useModel } from '@renderer/hooks/useModel'
@@ -35,6 +36,7 @@ const MessageItem: FC<Props> = ({ message, index, onDeleteMessage }) => {
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(message.modelId)
   const { userName, showMessageDivider, messageFont, fontSize } = useSettings()
+  const { theme } = useTheme()
 
   const isLastMessage = index === 0
   const isAssistantMessage = message.role === 'assistant'
@@ -54,7 +56,7 @@ const MessageItem: FC<Props> = ({ message, index, onDeleteMessage }) => {
   const avatarSource = useMemo(() => {
     if (isLocalAi) return AppLogo
     return message.modelId ? getModelLogo(message.modelId) : undefined
-  }, [message.modelId])
+  }, [message.modelId, theme])
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
 
@@ -81,7 +83,8 @@ const MessageItem: FC<Props> = ({ message, index, onDeleteMessage }) => {
               style={{
                 borderRadius: '20%',
                 cursor: 'pointer',
-                border: '1px solid var(--color-border)'
+                border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+                filter: theme === 'dark' ? 'invert(0.05)' : undefined
               }}
               onClick={showMiniApp}>
               {avatarName}

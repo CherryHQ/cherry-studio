@@ -1,7 +1,6 @@
 import { LoadingOutlined, MinusOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import VisionIcon from '@renderer/components/Icons/VisionIcon'
-import { isVisionModel, SYSTEM_MODELS } from '@renderer/config/models'
-import { getModelLogo } from '@renderer/config/provider'
+import { getModelLogo, isVisionModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fetchModels } from '@renderer/services/api'
 import { Model, Provider } from '@renderer/types'

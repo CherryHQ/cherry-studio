@@ -1,4 +1,4 @@
-import { getModelLogo } from '@renderer/config/provider'
+import { getModelLogo } from '@renderer/config/models'
 import { Model } from '@renderer/types'
 import { Avatar, AvatarProps } from 'antd'
 import { first } from 'lodash'

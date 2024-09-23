@@ -7,8 +7,7 @@ import {
   PlusOutlined
 } from '@ant-design/icons'
 import VisionIcon from '@renderer/components/Icons/VisionIcon'
-import { isVisionModel } from '@renderer/config/models'
-import { getModelLogo } from '@renderer/config/provider'
+import { getModelLogo, isVisionModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/provider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'

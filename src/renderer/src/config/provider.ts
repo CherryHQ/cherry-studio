@@ -1,25 +1,8 @@
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png'
-import BaichuanModelLogo from '@renderer/assets/images/models/baichuan.png'
-import ChatGLMModelLogo from '@renderer/assets/images/models/chatglm.png'
-import ChatGPTModelLogo from '@renderer/assets/images/models/chatgpt.jpeg'
-import ClaudeModelLogo from '@renderer/assets/images/models/claude.png'
-import CohereModelLogo from '@renderer/assets/images/models/cohere.webp'
-import DeepSeekModelLogo from '@renderer/assets/images/models/deepseek.png'
-import DoubaoModelLogo from '@renderer/assets/images/models/doubao.png'
-import EmbeddingModelLogo from '@renderer/assets/images/models/embedding.png'
-import GeminiModelLogo from '@renderer/assets/images/models/gemini.png'
-import GemmaModelLogo from '@renderer/assets/images/models/gemma.jpeg'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png'
-import LlamaModelLogo from '@renderer/assets/images/models/llama.jpeg'
-import MicrosoftModelLogo from '@renderer/assets/images/models/microsoft.png'
-import MinicpmModelLogo from '@renderer/assets/images/models/minicpm.webp'
-import MixtralModelLogo from '@renderer/assets/images/models/mixtral.jpeg'
-import PalmModelLogo from '@renderer/assets/images/models/palm.svg'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png'
-import StepModelLogo from '@renderer/assets/images/models/step.jpg'
-import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.jpg'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.jpeg'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
@@ -31,8 +14,7 @@ import GithubProviderLogo from '@renderer/assets/images/providers/github.svg'
 import GraphRagProviderLogo from '@renderer/assets/images/providers/graph-rag.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
-import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.jpg'
-import MoonshotModelLogo from '@renderer/assets/images/providers/moonshot.jpg'
+import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
@@ -84,47 +66,6 @@ export function getProviderLogo(providerId: string) {
     default:
       return undefined
   }
-}
-
-export function getModelLogo(modelId: string) {
-  if (!modelId) {
-    return undefined
-  }
-
-  const logoMap = {
-    o1: OpenAiProviderLogo,
-    gpt: ChatGPTModelLogo,
-    glm: ChatGLMModelLogo,
-    deepseek: DeepSeekModelLogo,
-    qwen: QwenModelLogo,
-    gemma: GemmaModelLogo,
-    'yi-': YiModelLogo,
-    llama: LlamaModelLogo,
-    mixtral: MixtralModelLogo,
-    mistral: MixtralModelLogo,
-    moonshot: MoonshotModelLogo,
-    phi: MicrosoftModelLogo,
-    baichuan: BaichuanModelLogo,
-    claude: ClaudeModelLogo,
-    gemini: GeminiModelLogo,
-    embedding: EmbeddingModelLogo,
-    bison: PalmModelLogo,
-    palm: PalmModelLogo,
-    step: StepModelLogo,
-    abab: HailuoModelLogo,
-    'ep-202': DoubaoModelLogo,
-    cohere: CohereModelLogo,
-    command: CohereModelLogo,
-    minicpm: MinicpmModelLogo
-  }
-
-  for (const key in logoMap) {
-    if (modelId.toLowerCase().includes(key)) {
-      return logoMap[key]
-    }
-  }
-
-  return undefined
 }
 
 export const PROVIDER_CONFIG = {

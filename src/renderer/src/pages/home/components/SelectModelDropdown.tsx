@@ -1,6 +1,5 @@
 import VisionIcon from '@renderer/components/Icons/VisionIcon'
-import { isVisionModel } from '@renderer/config/models'
-import { getModelLogo } from '@renderer/config/provider'
+import { getModelLogo, isVisionModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/model'
 import { Model } from '@renderer/types'
