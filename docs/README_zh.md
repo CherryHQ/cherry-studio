@@ -17,7 +17,7 @@ Cherry Studio 是一款跨平台桌面客户端，支持多个大语言模型（
 
 📦开箱即用，无需 Python 与 Docker
 
-🤝简洁，友好的界面与交互设计
+🤝简洁、友好的界面与交互设计
 
 ## 🛠️多样化的 LLM 服务模式支持
 ☁️ 全面覆盖 LLM 云服务，支持自定义 api key 与模型管理：OpenAI，Gemini，Anthropic，硅基流动...
