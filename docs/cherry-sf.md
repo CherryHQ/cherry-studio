@@ -4,12 +4,12 @@
 
 1. 访问[CherryStudio官网](https://cherry-ai.com)或官方[GitHub项目页面](https://github.com/kangfenmao/cherry-studio)下载。
 2. 安装：
-  - mac端：
-     1.下载完成后打开安装包；
+   - mac端：
+     1. 下载完成后打开安装包；
      2. 将Cherry Studio拖入Applications文件夹；
-      3. 打开启动台，等Cherry Studio的logo出现后点击打开；
+     3. 打开启动台，等Cherry Studio的logo出现后点击打开；
      4. 在弹出窗口中点击打开；
-     ![](/images/cherry-sf-mac.png)
+     ![](./images/cherry-sf-mac.png)
   
   - Windows端：直接安装即可，无特殊注意事项。
 
@@ -17,7 +17,7 @@
 
 1. 登录[SiliconCloud](https://account.siliconflow.cn/login)（已登录跳过此步）；
 2. 登录后点击左侧侧栏菜单中的“API秘钥”标签（或[点此直达](https://cloud.siliconflow.cn/account/ak)），在该页面左上角点击“新建API秘钥”；
-![](/images/cherry-sf-1.png)
+![](./images/cherry-sf-1.png)
 3. 新建后直接点击生成的API秘钥即可复制该秘钥；
 4. 获取成功后保存备用。
 
@@ -35,5 +35,5 @@
   4. “模型名称”即对话页面模型选择列表当中的模型的展示名称，不懂建议保持默认；
   5. “分组名称”即配置界面模型列表的分组，可填入已有模型分组名称，也可新建分组，按自己需求设置，不懂建议保持默认；
   6. 填写完成后点击添加模型即可。
-  ![](/images/cherry-sf-2.png)
+  ![](./images/cherry-sf-2.png)
 5. 配置完成后点击侧栏聊天气泡icon到对话界面选择模型使用即可。
