@@ -1,3 +1,10 @@
+<div align="center">
+
+<a href='https://github.com/kangfenmao/cherry-studio/releases'>
+  <img src="./docs/images/banner_en.png" alt="banner"/>
+</a>
+</div>
+
 # 🍒 Cherry Studio
 
 Cherry Studio is a desktop client that supports for multiple LLM providers, available on Windows, Mac and Linux.
