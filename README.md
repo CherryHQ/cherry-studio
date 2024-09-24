@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href='https://github.com/kangfenmao/cherry-studio/releases'>
-  <img src="./docs/images/banner_EN.png" alt="banner"/>
+  <img src="./docs/images/banner_en.png" alt="banner"/>
 </a>
 </div>
 
