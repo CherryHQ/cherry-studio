@@ -59,6 +59,7 @@ const GeneralSettings: FC = () => {
           onChange={onSelectLanguage}
           options={[
             { value: 'zh-CN', label: '中文' },
+            { value: 'zh-TW', label: '中文（繁体）' },
             { value: 'en-US', label: 'English' }
           ]}
         />
