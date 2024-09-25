@@ -1,11 +1,14 @@
 import Ai360ModelLogo from '@renderer/assets/images/models/360.png'
 import Ai360ModelLogoDark from '@renderer/assets/images/models/360_dark.png'
+import Ai21ModelLogo from '@renderer/assets/images/models/ai21.png'
+import Ai21ModelLogoDark from '@renderer/assets/images/models/ai21_dark.png'
 import AimassModelLogo from '@renderer/assets/images/models/aimass.png'
 import AimassModelLogoDark from '@renderer/assets/images/models/aimass_dark.png'
 import BaichuanModelLogo from '@renderer/assets/images/models/baichuan.png'
 import BaichuanModelLogoDark from '@renderer/assets/images/models/baichuan_dark.png'
 import ChatGLMModelLogo from '@renderer/assets/images/models/chatglm.png'
 import ChatGLMModelLogoDark from '@renderer/assets/images/models/chatglm_dark.png'
+import ChatGptModelLogo from '@renderer/assets/images/models/chatgpt.jpeg'
 import ClaudeModelLogo from '@renderer/assets/images/models/claude.png'
 import ClaudeModelLogoDark from '@renderer/assets/images/models/claude_dark.png'
 import CodegeexModelLogo from '@renderer/assets/images/models/codegeex.png'
@@ -16,7 +19,7 @@ import CopilotModelLogo from '@renderer/assets/images/models/copilot.png'
 import CopilotModelLogoDark from '@renderer/assets/images/models/copilot_dark.png'
 import DalleModelLogo from '@renderer/assets/images/models/dalle.png'
 import DalleModelLogoDark from '@renderer/assets/images/models/dalle_dark.png'
-import DbrxModalLogo from '@renderer/assets/images/models/dbrx.png'
+import DbrxModelLogo from '@renderer/assets/images/models/dbrx.png'
 import DeepSeekModelLogo from '@renderer/assets/images/models/deepseek.png'
 import DeepSeekModelLogoDark from '@renderer/assets/images/models/deepseek_dark.png'
 import DoubaoModelLogo from '@renderer/assets/images/models/doubao.png'
@@ -35,20 +38,27 @@ import GorkModelLogo from '@renderer/assets/images/models/gork.png'
 import GorkModelLogoDark from '@renderer/assets/images/models/gork_dark.png'
 import ChatGPT35ModelLogo from '@renderer/assets/images/models/gpt_3.5.png'
 import ChatGPT4ModelLogo from '@renderer/assets/images/models/gpt_4.png'
+import ChatGptModelLogoDakr from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPT35ModelLogoDark from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPT4ModelLogoDark from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPTo1ModelLogoDark from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPTo1ModelLogo from '@renderer/assets/images/models/gpt_o1.png'
+import GrypheModelLogo from '@renderer/assets/images/models/gryphe.png'
+import GrypheModelLogoDark from '@renderer/assets/images/models/gryphe_dark.png'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png'
 import HailuoModelLogoDark from '@renderer/assets/images/models/hailuo_dark.png'
 import HunyuanModelLogo from '@renderer/assets/images/models/hunyuan.png'
 import HunyuanModelLogoDark from '@renderer/assets/images/models/hunyuan_dark.png'
 import InternlmModelLogo from '@renderer/assets/images/models/internlm.png'
 import InternlmModelLogoDark from '@renderer/assets/images/models/internlm_dark.png'
+import KeLingModelLogo from '@renderer/assets/images/models/keling.png'
+import KeLingModelLogoDark from '@renderer/assets/images/models/keling_dark.png'
 import LlamaModelLogo from '@renderer/assets/images/models/llama.png'
 import LlamaModelLogoDark from '@renderer/assets/images/models/llama_dark.png'
 import LLavaModelLogo from '@renderer/assets/images/models/llava.png'
 import LLavaModelLogoDark from '@renderer/assets/images/models/llava_dark.png'
+import LumaModelLogo from '@renderer/assets/images/models/luma.png'
+import LumaModelLogoDark from '@renderer/assets/images/models/luma_dark.png'
 import MagicModelLogo from '@renderer/assets/images/models/magic.png'
 import MagicModelLogoDark from '@renderer/assets/images/models/magic_dark.png'
 import MicrosoftModelLogo from '@renderer/assets/images/models/microsoft.png'
@@ -63,14 +73,22 @@ import MistralModelLogo from '@renderer/assets/images/models/mixtral.png'
 import MistralModelLogoDark from '@renderer/assets/images/models/mixtral_dark.png'
 import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.png'
 import MoonshotModelLogoDark from '@renderer/assets/images/models/moonshot_dark.png'
+import NousResearchModelLogo from '@renderer/assets/images/models/nousresearch.png'
+import NousResearchModelLogoDark from '@renderer/assets/images/models/nousresearch.png'
 import PalmModelLogo from '@renderer/assets/images/models/palm.png'
 import PalmModelLogoDark from '@renderer/assets/images/models/palm_dark.png'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png'
 import QwenModelLogoDark from '@renderer/assets/images/models/qwen_dark.png'
+import SparkDeskModelLogo from '@renderer/assets/images/models/sparkdesk.png'
+import SparkDeskModelLogoDark from '@renderer/assets/images/models/sparkdesk_dark.png'
 import StabilityModelLogo from '@renderer/assets/images/models/stability.png'
 import StabilityModelLogoDark from '@renderer/assets/images/models/stability_dark.png'
 import StepModelLogo from '@renderer/assets/images/models/step.png'
 import StepModelLogoDark from '@renderer/assets/images/models/step_dark.png'
+import SunoModelLogo from '@renderer/assets/images/models/suno.png'
+import SunoModelLogoDark from '@renderer/assets/images/models/suno_dark.png'
+import ViduModelLogo from '@renderer/assets/images/models/vidu.png'
+import ViduModelLogoDark from '@renderer/assets/images/models/vidu_dark.png'
 import WenxinModelLogo from '@renderer/assets/images/models/wenxin.png'
 import WenxinModelLogoDark from '@renderer/assets/images/models/wenxin_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
@@ -92,7 +110,11 @@ export function getModelLogo(modelId: string) {
     'o1-': isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
-    'text-moderation': isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
+    gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
+    'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    'babbage-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    'text-embedding': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    'davinci-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     glm: isLight ? ChatGLMModelLogo : ChatGLMModelLogoDark,
     deepseek: isLight ? DeepSeekModelLogo : DeepSeekModelLogoDark,
     qwen: isLight ? QwenModelLogo : QwenModelLogoDark,
@@ -119,9 +141,12 @@ export function getModelLogo(modelId: string) {
     aimass: isLight ? AimassModelLogo : AimassModelLogoDark,
     codegeex: isLight ? CodegeexModelLogo : CodegeexModelLogoDark,
     copilot: isLight ? CopilotModelLogo : CopilotModelLogoDark,
+    creative: isLight ? CopilotModelLogo : CopilotModelLogoDark,
+    balanced: isLight ? CopilotModelLogo : CopilotModelLogoDark,
+    precise: isLight ? CopilotModelLogo : CopilotModelLogoDark,
     dalle: isLight ? DalleModelLogo : DalleModelLogoDark,
     'dall-e': isLight ? DalleModelLogo : DalleModelLogoDark,
-    dbrx: isLight ? DbrxModalLogo : DbrxModalLogo,
+    dbrx: isLight ? DbrxModelLogo : DbrxModelLogo,
     flashaudio: isLight ? FlashaudioModelLogo : FlashaudioModelLogoDark,
     flux: isLight ? FluxModelLogo : FluxModelLogoDark,
     gork: isLight ? GorkModelLogo : GorkModelLogoDark,
@@ -130,11 +155,29 @@ export function getModelLogo(modelId: string) {
     llava: isLight ? LLavaModelLogo : LLavaModelLogoDark,
     magic: isLight ? MagicModelLogo : MagicModelLogoDark,
     midjourney: isLight ? MidjourneyModelLogo : MidjourneyModelLogoDark,
-    minimax: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
-    wenxin: isLight ? WenxinModelLogo : WenxinModelLogoDark,
+    'mj-': isLight ? MidjourneyModelLogo : MidjourneyModelLogoDark,
+    abab: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
+    'ernie-': isLight ? WenxinModelLogo : WenxinModelLogoDark,
     voice: isLight ? FlashaudioModelLogo : FlashaudioModelLogoDark,
-    tts: isLight ? FlashaudioModelLogo : FlashaudioModelLogoDark,
-    stability: isLight ? StabilityModelLogo : StabilityModelLogoDark
+    'tts-1': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    'whisper-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    'stable-': isLight ? StabilityModelLogo : StabilityModelLogoDark,
+    sd2: isLight ? StabilityModelLogo : StabilityModelLogoDark,
+    sd3: isLight ? StabilityModelLogo : StabilityModelLogoDark,
+    sdxl: isLight ? StabilityModelLogo : StabilityModelLogoDark,
+    sparkdesk: isLight ? SparkDeskModelLogo : SparkDeskModelLogoDark,
+    generalv: isLight ? SparkDeskModelLogo : SparkDeskModelLogoDark,
+    wizardlm: isLight ? MicrosoftModelLogo : MicrosoftModelLogoDark,
+    hermes: isLight ? NousResearchModelLogo : NousResearchModelLogoDark,
+    gryphe: isLight ? GrypheModelLogo : GrypheModelLogoDark,
+    suno: isLight ? SunoModelLogo : SunoModelLogoDark,
+    chirp: isLight ? SunoModelLogo : SunoModelLogoDark,
+    luma: isLight ? LumaModelLogo : LumaModelLogoDark,
+    keling: isLight ? KeLingModelLogo : KeLingModelLogoDark,
+    'vidu-': isLight ? ViduModelLogo : ViduModelLogoDark,
+    ai21: isLight ? Ai21ModelLogo : Ai21ModelLogoDark,
+    'jamba-': isLight ? Ai21ModelLogo : Ai21ModelLogoDark,
+    mythomax: isLight ? GrypheModelLogo : GrypheModelLogoDark
   }
 
   for (const key in logoMap) {
@@ -264,8 +307,80 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     {
       id: 'gpt-4o',
       provider: 'ocoolai',
-      name: 'OpenAI GPT-4o',
+      name: 'gpt-4o',
       group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4o-all',
+      provider: 'ocoolai',
+      name: 'gpt-4o-all',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4-all',
+      provider: 'ocoolai',
+      name: 'gpt-4-all',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4o-mini',
+      provider: 'ocoolai',
+      name: 'gpt-4o-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4',
+      provider: 'ocoolai',
+      name: 'gpt-4',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4-turbo',
+      provider: 'ocoolai',
+      name: 'gpt-4-turbo',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o1-preview',
+      provider: 'ocoolai',
+      name: 'o1-preview',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o1-mini',
+      provider: 'ocoolai',
+      name: 'o1-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-3.5-turbo',
+      provider: 'ocoolai',
+      name: 'gpt-3.5-turbo',
+      group: 'OpenAI'
+    },
+    {
+      id: 'claude-3-5-sonnet-20240620',
+      provider: 'ocoolai',
+      name: 'claude-3-5-sonnet-20240620',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-opus-20240229',
+      provider: 'ocoolai',
+      name: 'claude-3-opus-20240229',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-sonnet-20240229',
+      provider: 'ocoolai',
+      name: 'claude-3-sonnet-20240229',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-haiku-20240307',
+      provider: 'ocoolai',
+      name: 'claude-3-haiku-20240307',
+      group: 'Anthropic'
     }
   ],
   github: [
