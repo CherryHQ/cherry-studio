@@ -10,6 +10,7 @@ import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp'
+import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png'
 import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.png'
 import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png'
@@ -24,7 +25,6 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
-import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import MinApp from '@renderer/components/MinApp'
 import { MinAppType } from '@renderer/types'
 
@@ -63,7 +63,7 @@ const _apps: MinAppType[] = [
   },
   {
     id: 'zhipu',
-    name: '智谱',
+    name: '智谱清言',
     url: 'https://chatglm.cn/main/alltoolsdetail',
     logo: ZhipuProviderLogo
   },
