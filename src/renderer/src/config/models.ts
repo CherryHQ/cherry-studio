@@ -108,7 +108,7 @@ const allowedModels = [
   'gpt-4(?:-[\\w-]+)',
   'gpt-4o(?:-[\\w-]+)?'
 ]
-const excludedModels = ['gpt-4-[\\w-]+-preview']
+const excludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k']
 const VISION_REGEX = new RegExp(`\\b(?!(?:${excludedModels.join('|')})\\b)(${allowedModels.join('|')})\\b`, 'i')
 const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview/i
 const EMBEDDING_REGEX = /(?:^text-|embed|rerank|davinci|babbage|bge-|base|retrieval|uae-)/i
