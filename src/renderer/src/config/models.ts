@@ -96,10 +96,23 @@ import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { Model } from '@renderer/types'
 import OpenAI from 'openai'
 
-const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-turbo|dall|cogview/i
-const VISION_REGEX = /llava|moondream|minicpm|gemini-1.5|claude-3|vision|glm-4v|gpt-4|qwen-vl/i
-const EMBEDDING_REGEX = /embed|rerank/i
-const NOT_SUPPORTED_REGEX = /embed|tts|rerank|whisper|speech/i
+const allowedModels = [
+  'llava',
+  'moondream',
+  'minicpm',
+  'gemini-1\\.5',
+  'claude-3',
+  'vision',
+  'glm-4v',
+  'qwen-vl',
+  'gpt-4(?:-[\\w-]+)',
+  'gpt-4o(?:-[\\w-]+)?'
+]
+const excludedModels = ['gpt-4-[\\w-]+-preview']
+const VISION_REGEX = new RegExp(`\\b(?!(?:${excludedModels.join('|')})\\b)(${allowedModels.join('|')})\\b`, 'i')
+const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview/i
+const EMBEDDING_REGEX = /(?:^text-|embed|rerank|davinci|babbage|bge-|base|retrieval|uae-)/i
+const NOT_SUPPORTED_REGEX = /(?:^text-|embed|tts|rerank|whisper|speech|davinci|babbage|bge-|base|retrieval|uae-)/i
 
 export function getModelLogo(modelId: string) {
   const isLight = true
