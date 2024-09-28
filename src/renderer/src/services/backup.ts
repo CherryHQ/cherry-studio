@@ -2,6 +2,9 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import dayjs from 'dayjs'
 import localforage from 'localforage'
+import store from '@renderer/store'
+
+import { createClient } from 'webdav'
 
 export async function backup() {
   const version = 3
@@ -40,33 +43,10 @@ export async function restore() {
         data = JSON.parse(await window.api.decompress(file.content))
       }
 
-      if (data.version === 1) {
-        await clearDatabase()
+      // 处理文件内容
+      console.log('Parsed file content:', data)
 
-        for (const { key, value } of data.indexedDB) {
-          if (key.startsWith('topic:')) {
-            await db.table('topics').add({ id: value.id, messages: value.messages })
-          }
-          if (key === 'image://avatar') {
-            await db.table('settings').add({ id: key, value })
-          }
-        }
-
-        await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
-        window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
-        setTimeout(() => window.api.reload(), 1000)
-        return
-      }
-
-      if (data.version >= 2) {
-        localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
-        await restoreDatabase(data.indexedDB)
-        window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
-        setTimeout(() => window.api.reload(), 1000)
-        return
-      }
-
-      window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
+      await handleData(data)
     } catch (error) {
       console.error(error)
       window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
@@ -96,7 +76,157 @@ export async function reset() {
   })
 }
 
+// 备份到 webdav
+export async function backupToWebdav() {
+  // 先走之前的 backup 流程，存储到临时文件
+  const version = 3
+  const time = new Date().getTime()
+
+  const data = {
+    time,
+    version,
+    localStorage,
+    indexedDB: await backupDatabase()
+  }
+
+  const filename = `cherry-studio.backup.json`
+  const fileContent = JSON.stringify(data)
+
+  // 获取 userSetting 里的 WebDAV 配置
+  const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
+  // console.log('backup.backupToWebdav', webdavHost, webdavUser, webdavPass, webdavPath)
+
+  let host = webdavHost
+  if (!host.startsWith('http://') && !host.startsWith('https://')) {
+    host = `http://${host}`
+  }
+  console.log('backup.backupToWebdav', host)
+
+  // 创建 WebDAV 客户端
+  const client = createClient(
+    host, // WebDAV 服务器地址
+    {
+      username: webdavUser, // 用户名
+      password: webdavPass // 密码
+    }
+  )
+
+  // 上传文件到 WebDAV
+  const remoteFilePath = `${webdavPath}/${filename}`
+
+  // 先检查创建目录
+  try {
+    if (!(await client.exists(webdavPath))) {
+      await client.createDirectory(webdavPath)
+    }
+  } catch (error) {
+    console.error('Error creating directory on WebDAV:', error)
+  }
+
+  // 上传文件
+  try {
+    await client.putFileContents(remoteFilePath, fileContent, { overwrite: true })
+    console.log('File uploaded successfully!')
+    window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
+  } catch (error) {
+    console.error('Error uploading file to WebDAV:', error)
+  }
+}
+
+// 从 webdav 恢复
+export async function restoreFromWebdav() {
+  const filename = `cherry-studio.backup.json`
+
+  // 获取 userSetting 里的 WebDAV 配置
+  const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
+  // console.log('backup.restoreFromWebdav', webdavHost, webdavUser, webdavPass, webdavPath)
+
+  let host = webdavHost
+  if (!host.startsWith('http://') && !host.startsWith('https://')) {
+    host = `http://${host}`
+  }
+  console.log('backup.restoreFromWebdav', host)
+
+  // 创建 WebDAV 客户端
+  const client = createClient(
+    host, // WebDAV 服务器地址
+    {
+      username: webdavUser, // 用户名
+      password: webdavPass // 密码
+    }
+  )
+
+  // 上传文件到 WebDAV
+  const remoteFilePath = `${webdavPath}/${filename}`
+
+  // 下载文件
+  try {
+    // 下载文件内容
+    const fileContent = await client.getFileContents(remoteFilePath, { format: 'text' })
+    console.log('File downloaded successfully!', fileContent)
+
+    // 处理文件内容
+    const data = parseFileContent(fileContent.toString())
+    console.log('Parsed file content:', data)
+
+    await handleData(data)
+  } catch (error) {
+    console.error('Error downloading file from WebDAV:', error)
+    window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
+  }
+}
+
 /************************************* Backup Utils ************************************** */
+
+function parseFileContent(fileContent: string | Buffer | { data: string | Buffer } | ArrayBuffer): any {
+  let fileContentString: string
+
+  if (typeof fileContent === 'string') {
+    fileContentString = fileContent
+  } else if (Buffer.isBuffer(fileContent)) {
+    fileContentString = fileContent.toString('utf-8')
+  } else if (fileContent instanceof ArrayBuffer) {
+    fileContentString = Buffer.from(fileContent).toString('utf-8')
+  } else if (fileContent && typeof fileContent.data === 'string') {
+    fileContentString = fileContent.data
+  } else if (fileContent && Buffer.isBuffer(fileContent.data)) {
+    fileContentString = fileContent.data.toString('utf-8')
+  } else {
+    throw new Error('Unsupported file content type')
+  }
+
+  return JSON.parse(fileContentString)
+}
+
+async function handleData(data: any) {
+  if (data.version === 1) {
+    await clearDatabase()
+
+    for (const { key, value } of data.indexedDB) {
+      if (key.startsWith('topic:')) {
+        await db.table('topics').add({ id: value.id, messages: value.messages })
+      }
+      if (key === 'image://avatar') {
+        await db.table('settings').add({ id: key, value })
+      }
+    }
+
+    await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
+    setTimeout(() => window.api.reload(), 1000)
+    return
+  }
+
+  if (data.version >= 2) {
+    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    await restoreDatabase(data.indexedDB)
+    window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
+    setTimeout(() => window.api.reload(), 1000)
+    return
+  }
+
+  window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
+}
 
 async function backupDatabase() {
   const tables = db.tables

@@ -20,6 +20,12 @@ export interface SettingsState {
   pasteLongTextAsFile: boolean
   clickAssistantToShowTopic: boolean
   manualUpdateCheck: boolean
+
+  // webdav 配置 host, user, pass, path
+  webdavHost: string
+  webdavUser: string
+  webdavPass: string
+  webdavPath: string
 }
 
 const initialState: SettingsState = {
@@ -38,7 +44,12 @@ const initialState: SettingsState = {
   topicPosition: 'right',
   pasteLongTextAsFile: true,
   clickAssistantToShowTopic: false,
-  manualUpdateCheck: false
+  manualUpdateCheck: false,
+
+  webdavHost: '',
+  webdavUser: '',
+  webdavPass: '',
+  webdavPath: '/cherry-studio'
 }
 
 const settingsSlice = createSlice({
@@ -99,6 +110,18 @@ const settingsSlice = createSlice({
     },
     setManualUpdateCheck: (state, action: PayloadAction<boolean>) => {
       state.manualUpdateCheck = action.payload
+    },
+    setWebdavHost: (state, action: PayloadAction<string>) => {
+      state.webdavHost = action.payload
+    },
+    setWebdavUser: (state, action: PayloadAction<string>) => {
+      state.webdavUser = action.payload
+    },
+    setWebdavPass: (state, action: PayloadAction<string>) => {
+      state.webdavPass = action.payload
+    },
+    setWebdavPath: (state, action: PayloadAction<string>) => {
+      state.webdavPath = action.payload
     }
   }
 })
@@ -121,7 +144,11 @@ export const {
   setTopicPosition,
   setPasteLongTextAsFile,
   setClickAssistantToShowTopic,
-  setManualUpdateCheck
+  setManualUpdateCheck,
+  setWebdavHost,
+  setWebdavUser,
+  setWebdavPass,
+  setWebdavPath
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

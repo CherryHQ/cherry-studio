@@ -3,10 +3,16 @@ import { HStack } from '@renderer/components/Layout'
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { backup, reset, restore } from '@renderer/services/backup'
+import { backup, reset, restore, backupToWebdav, restoreFromWebdav } from '@renderer/services/backup'
 import { useAppDispatch } from '@renderer/store'
 import { setClickAssistantToShowTopic, setLanguage, setManualUpdateCheck } from '@renderer/store/settings'
 import { setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
+import {
+  setWebdavHost as _setWebdavHost,
+  setWebdavPass as _setWebdavPass,
+  setWebdavPath as _setWebdavPath,
+  setWebdavUser as _setWebdavUser
+} from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { isValidProxyUrl } from '@renderer/utils'
 import { Button, Input, Select, Switch } from 'antd'
@@ -26,9 +32,19 @@ const GeneralSettings: FC = () => {
     manualUpdateCheck,
     setTheme,
     setWindowStyle,
-    setTopicPosition
+    setTopicPosition,
+
+    webdavHost: webDAVHost,
+    webdavUser: webDAVUser,
+    webdavPass: webDAVPass,
+    webdavPath: webDAVPath
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
+  const [webdavHost, setWebdavHost] = useState<string | undefined>(webDAVHost)
+  const [webdavUser, setWebdavUser] = useState<string | undefined>(webDAVUser)
+  const [webdavPass, setWebdavPass] = useState<string | undefined>(webDAVPass)
+  const [webdavPath, setWebdavPath] = useState<string | undefined>(webDAVPath)
+
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
@@ -46,6 +62,20 @@ const GeneralSettings: FC = () => {
 
     dispatch(_setProxyUrl(proxyUrl))
     window.api.setProxy(proxyUrl)
+  }
+
+  const onSetWebdav = () => {
+    if (!webdavHost || !webdavUser || !webdavPass || !webdavPath) {
+      window.message.error({ content: t('message.error.invalid.webdav'), key: 'webdav-error' })
+      return
+    }
+
+    console.log('webdav', webdavHost, webdavUser, webdavPass, webdavPath)
+
+    dispatch(_setWebdavHost(webdavHost))
+    dispatch(_setWebdavUser(webdavUser))
+    dispatch(_setWebdavPass(webdavPass))
+    dispatch(_setWebdavPath(webdavPath))
   }
 
   return (
@@ -148,6 +178,42 @@ const GeneralSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
+        {/* 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path */}
+        <SettingRowTitle>{t('settings.general.webdav.title')}</SettingRowTitle>
+        <HStack gap="5px">
+          <Input
+            placeholder={t('settings.general.webdav.host')}
+            value={webdavHost}
+            onChange={(e) => setWebdavHost(e.target.value)}
+            style={{ width: 280 }}
+            type="url"
+            onBlur={onSetWebdav}
+          />
+          <Input
+            placeholder={t('settings.general.webdav.user')}
+            value={webdavUser}
+            onChange={(e) => setWebdavUser(e.target.value)}
+            style={{ width: 120 }}
+            onBlur={onSetWebdav}
+          />
+          <Input
+            placeholder={t('settings.general.webdav.password')}
+            value={webdavPass}
+            onChange={(e) => setWebdavPass(e.target.value)}
+            style={{ width: 140 }}
+            onBlur={onSetWebdav}
+          />
+          <Input
+            placeholder={t('settings.general.webdav.path')}
+            value={webdavPath}
+            onChange={(e) => setWebdavPath(e.target.value)}
+            style={{ width: 220 }}
+            onBlur={onSetWebdav}
+          />
+        </HStack>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <HStack gap="5px" justifyContent="space-between">
           <Button onClick={backup} icon={<SaveOutlined />}>
@@ -155,6 +221,13 @@ const GeneralSettings: FC = () => {
           </Button>
           <Button onClick={restore} icon={<FolderOpenOutlined />}>
             {t('settings.general.restore.button')}
+          </Button>
+          {/* 添加 在线备份 在线还原 按钮 */}
+          <Button onClick={backupToWebdav} icon={<SaveOutlined />}>
+            {t('settings.general.webdav.backup.button')}
+          </Button>
+          <Button onClick={restoreFromWebdav} icon={<FolderOpenOutlined />}>
+            {t('settings.general.webdav.restore.button')}
           </Button>
         </HStack>
       </SettingRow>
