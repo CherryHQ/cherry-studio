@@ -42,6 +42,8 @@ import GeminiModelLogo from '@renderer/assets/images/models/gemini.png'
 import GeminiModelLogoDark from '@renderer/assets/images/models/gemini_dark.png'
 import GemmaModelLogo from '@renderer/assets/images/models/gemma.png'
 import GemmaModelLogoDark from '@renderer/assets/images/models/gemma_dark.png'
+import GoogleModelLogo from '@renderer/assets/images/models/google.png'
+import GoogleModelLogoDark from '@renderer/assets/images/models/google.png'
 import GorkModelLogo from '@renderer/assets/images/models/gork.png'
 import GorkModelLogoDark from '@renderer/assets/images/models/gork_dark.png'
 import ChatGPT35ModelLogo from '@renderer/assets/images/models/gpt_3.5.png'
@@ -223,7 +225,8 @@ export function getModelLogo(modelId: string) {
     mediatek: isLight ? MediatekModelLogo : MediatekModelLogoDark,
     upstage: isLight ? UpstageModelLogo : UpstageModelLogoDark,
     rakutenai: isLight ? RakutenaiModelLogo : RakutenaiModelLogoDark,
-    ibm: isLight ? IbmModelLogo : IbmModelLogoDark
+    ibm: isLight ? IbmModelLogo : IbmModelLogoDark,
+    'google/': isLight ? GoogleModelLogo : GoogleModelLogoDark
   }
 
   for (const key in logoMap) {
