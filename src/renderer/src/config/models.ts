@@ -1,11 +1,17 @@
 import Ai360ModelLogo from '@renderer/assets/images/models/360.png'
 import Ai360ModelLogoDark from '@renderer/assets/images/models/360_dark.png'
+import AdeptModelLogo from '@renderer/assets/images/models/adept.png'
+import AdeptModelLogoDark from '@renderer/assets/images/models/adept_dark.png'
 import Ai21ModelLogo from '@renderer/assets/images/models/ai21.png'
 import Ai21ModelLogoDark from '@renderer/assets/images/models/ai21_dark.png'
 import AimassModelLogo from '@renderer/assets/images/models/aimass.png'
 import AimassModelLogoDark from '@renderer/assets/images/models/aimass_dark.png'
+import AisingaporeModelLogo from '@renderer/assets/images/models/aisingapore.png'
+import AisingaporeModelLogoDark from '@renderer/assets/images/models/aisingapore_dark.png'
 import BaichuanModelLogo from '@renderer/assets/images/models/baichuan.png'
 import BaichuanModelLogoDark from '@renderer/assets/images/models/baichuan_dark.png'
+import BigcodeModelLogo from '@renderer/assets/images/models/bigcode.png'
+import BigcodeModelLogoDark from '@renderer/assets/images/models/bigcode_dark.png'
 import ChatGLMModelLogo from '@renderer/assets/images/models/chatglm.png'
 import ChatGLMModelLogoDark from '@renderer/assets/images/models/chatglm_dark.png'
 import ChatGptModelLogo from '@renderer/assets/images/models/chatgpt.jpeg'
@@ -22,6 +28,8 @@ import DalleModelLogoDark from '@renderer/assets/images/models/dalle_dark.png'
 import DbrxModelLogo from '@renderer/assets/images/models/dbrx.png'
 import DeepSeekModelLogo from '@renderer/assets/images/models/deepseek.png'
 import DeepSeekModelLogoDark from '@renderer/assets/images/models/deepseek_dark.png'
+import DianxinModelLogo from '@renderer/assets/images/models/dianxin.png'
+import DianxinModelLogoDark from '@renderer/assets/images/models/dianxin_dark.png'
 import DoubaoModelLogo from '@renderer/assets/images/models/doubao.png'
 import DoubaoModelLogoDark from '@renderer/assets/images/models/doubao_dark.png'
 import EmbeddingModelLogo from '@renderer/assets/images/models/embedding.png'
@@ -49,6 +57,8 @@ import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png'
 import HailuoModelLogoDark from '@renderer/assets/images/models/hailuo_dark.png'
 import HunyuanModelLogo from '@renderer/assets/images/models/hunyuan.png'
 import HunyuanModelLogoDark from '@renderer/assets/images/models/hunyuan_dark.png'
+import IbmModelLogo from '@renderer/assets/images/models/ibm.png'
+import IbmModelLogoDark from '@renderer/assets/images/models/ibm_dark.png'
 import InternlmModelLogo from '@renderer/assets/images/models/internlm.png'
 import InternlmModelLogoDark from '@renderer/assets/images/models/internlm_dark.png'
 import KeLingModelLogo from '@renderer/assets/images/models/keling.png'
@@ -61,6 +71,8 @@ import LumaModelLogo from '@renderer/assets/images/models/luma.png'
 import LumaModelLogoDark from '@renderer/assets/images/models/luma_dark.png'
 import MagicModelLogo from '@renderer/assets/images/models/magic.png'
 import MagicModelLogoDark from '@renderer/assets/images/models/magic_dark.png'
+import MediatekModelLogo from '@renderer/assets/images/models/mediatek.png'
+import MediatekModelLogoDark from '@renderer/assets/images/models/mediatek_dark.png'
 import MicrosoftModelLogo from '@renderer/assets/images/models/microsoft.png'
 import MicrosoftModelLogoDark from '@renderer/assets/images/models/microsoft_dark.png'
 import MidjourneyModelLogo from '@renderer/assets/images/models/midjourney.png'
@@ -75,10 +87,14 @@ import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.png'
 import MoonshotModelLogoDark from '@renderer/assets/images/models/moonshot_dark.png'
 import NousResearchModelLogo from '@renderer/assets/images/models/nousresearch.png'
 import NousResearchModelLogoDark from '@renderer/assets/images/models/nousresearch.png'
+import NvidiaModelLogo from '@renderer/assets/images/models/nvidia.png'
+import NvidiaModelLogoDark from '@renderer/assets/images/models/nvidia_dark.png'
 import PalmModelLogo from '@renderer/assets/images/models/palm.png'
 import PalmModelLogoDark from '@renderer/assets/images/models/palm_dark.png'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png'
 import QwenModelLogoDark from '@renderer/assets/images/models/qwen_dark.png'
+import RakutenaiModelLogo from '@renderer/assets/images/models/rakutenai.png'
+import RakutenaiModelLogoDark from '@renderer/assets/images/models/rakutenai_dark.png'
 import SparkDeskModelLogo from '@renderer/assets/images/models/sparkdesk.png'
 import SparkDeskModelLogoDark from '@renderer/assets/images/models/sparkdesk_dark.png'
 import StabilityModelLogo from '@renderer/assets/images/models/stability.png'
@@ -87,6 +103,10 @@ import StepModelLogo from '@renderer/assets/images/models/step.png'
 import StepModelLogoDark from '@renderer/assets/images/models/step_dark.png'
 import SunoModelLogo from '@renderer/assets/images/models/suno.png'
 import SunoModelLogoDark from '@renderer/assets/images/models/suno_dark.png'
+import TeleModelLogo from '@renderer/assets/images/models/tele.png'
+import TeleModelLogoDark from '@renderer/assets/images/models/tele_dark.png'
+import UpstageModelLogo from '@renderer/assets/images/models/upstage.png'
+import UpstageModelLogoDark from '@renderer/assets/images/models/upstage_dark.png'
 import ViduModelLogo from '@renderer/assets/images/models/vidu.png'
 import ViduModelLogoDark from '@renderer/assets/images/models/vidu_dark.png'
 import WenxinModelLogo from '@renderer/assets/images/models/wenxin.png'
@@ -183,6 +203,7 @@ export function getModelLogo(modelId: string) {
     sparkdesk: isLight ? SparkDeskModelLogo : SparkDeskModelLogoDark,
     generalv: isLight ? SparkDeskModelLogo : SparkDeskModelLogoDark,
     wizardlm: isLight ? MicrosoftModelLogo : MicrosoftModelLogoDark,
+    microsoft: isLight ? MicrosoftModelLogo : MicrosoftModelLogoDark,
     hermes: isLight ? NousResearchModelLogo : NousResearchModelLogoDark,
     gryphe: isLight ? GrypheModelLogo : GrypheModelLogoDark,
     suno: isLight ? SunoModelLogo : SunoModelLogoDark,
@@ -192,7 +213,17 @@ export function getModelLogo(modelId: string) {
     'vidu-': isLight ? ViduModelLogo : ViduModelLogoDark,
     ai21: isLight ? Ai21ModelLogo : Ai21ModelLogoDark,
     'jamba-': isLight ? Ai21ModelLogo : Ai21ModelLogoDark,
-    mythomax: isLight ? GrypheModelLogo : GrypheModelLogoDark
+    mythomax: isLight ? GrypheModelLogo : GrypheModelLogoDark,
+    nvidia: isLight ? NvidiaModelLogo : NvidiaModelLogoDark,
+    dianxin: isLight ? DianxinModelLogo : DianxinModelLogoDark,
+    tele: isLight ? TeleModelLogo : TeleModelLogoDark,
+    adept: isLight ? AdeptModelLogo : AdeptModelLogoDark,
+    aisingapore: isLight ? AisingaporeModelLogo : AisingaporeModelLogoDark,
+    bigcode: isLight ? BigcodeModelLogo : BigcodeModelLogoDark,
+    mediatek: isLight ? MediatekModelLogo : MediatekModelLogoDark,
+    upstage: isLight ? UpstageModelLogo : UpstageModelLogoDark,
+    rakutenai: isLight ? RakutenaiModelLogo : RakutenaiModelLogoDark,
+    ibm: isLight ? IbmModelLogo : IbmModelLogoDark
   }
 
   for (const key in logoMap) {
