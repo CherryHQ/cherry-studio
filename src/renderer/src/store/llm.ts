@@ -82,7 +82,7 @@ const initialState: LlmState = {
       name: 'ocoolAI',
       apiKey: '',
       apiHost: 'https://one.ooo.cool',
-      models: [],
+      models: SYSTEM_MODELS.ocoolai,
       isSystem: true,
       enabled: false
     },
@@ -191,6 +191,15 @@ const initialState: LlmState = {
       apiKey: '',
       apiHost: 'https://api.groq.com/openai',
       models: SYSTEM_MODELS.groq,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'together',
+      name: 'Together',
+      apiKey: '',
+      apiHost: 'https://api.together.xyz',
+      models: SYSTEM_MODELS.together,
       isSystem: true,
       enabled: false
     },

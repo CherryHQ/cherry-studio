@@ -18,8 +18,8 @@ const SelectModelDropdown: FC<Props & PropsWithChildren> = ({ children, model, o
   const { t } = useTranslation()
   const { providers } = useProviders()
 
-  const items: MenuProps['items'] = providers
-    .filter((p) => p.models.length > 0)
+  const items: MenuProps['items'] = (providers || [])
+    .filter((p) => p.models && p.models.length > 0)
     .map((p) => ({
       key: p.id,
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,

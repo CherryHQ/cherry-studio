@@ -16,6 +16,7 @@ import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
+import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 
@@ -61,6 +62,8 @@ export function getProviderLogo(providerId: string) {
       return GithubProviderLogo
     case 'ocoolai':
       return OcoolAiProviderLogo
+    case 'together':
+      return TogetherProviderLogo
     default:
       return undefined
   }
@@ -120,6 +123,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://one.ocoolai.com/token',
       docs: 'https://docs.ooo.cool/',
       models: 'https://docs.ooo.cool/guides/jiage/'
+    }
+  },
+  together: {
+    api: {
+      url: 'https://api.tohgether.xyz'
+    },
+    websites: {
+      official: 'https://www.together.ai/',
+      apiKey: 'https://api.together.ai/settings/api-keys',
+      docs: 'https://docs.together.ai/docs/introduction',
+      models: 'https://docs.together.ai/docs/chat-models'
     }
   },
   github: {

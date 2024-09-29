@@ -4,8 +4,6 @@ import Ai21ModelLogo from '@renderer/assets/images/models/ai21.png'
 import Ai21ModelLogoDark from '@renderer/assets/images/models/ai21_dark.png'
 import AimassModelLogo from '@renderer/assets/images/models/aimass.png'
 import AimassModelLogoDark from '@renderer/assets/images/models/aimass_dark.png'
-import MinimaxModelLogo from '@renderer/assets/images/models/minimax.png'
-import MinimaxModelLogoDark from '@renderer/assets/images/models/minimax_dark.png'
 import BaichuanModelLogo from '@renderer/assets/images/models/baichuan.png'
 import BaichuanModelLogoDark from '@renderer/assets/images/models/baichuan_dark.png'
 import ChatGLMModelLogo from '@renderer/assets/images/models/chatglm.png'
@@ -69,6 +67,8 @@ import MidjourneyModelLogo from '@renderer/assets/images/models/midjourney.png'
 import MidjourneyModelLogoDark from '@renderer/assets/images/models/midjourney_dark.png'
 import MinicpmModelLogo from '@renderer/assets/images/models/minicpm.webp'
 import MinicpmModelLogoDark from '@renderer/assets/images/models/minicpm.webp'
+import MinimaxModelLogo from '@renderer/assets/images/models/minimax.png'
+import MinimaxModelLogoDark from '@renderer/assets/images/models/minimax_dark.png'
 import MistralModelLogo from '@renderer/assets/images/models/mixtral.png'
 import MistralModelLogoDark from '@renderer/assets/images/models/mixtral_dark.png'
 import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.png'
@@ -208,6 +208,30 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ollama: [],
   silicon: [
     {
+      id: 'Qwen/Qwen2.5-72B-Instruct',
+      provider: 'silicon',
+      name: 'Qwen2.5-72B-Instruct',
+      group: 'Qwen2.5'
+    },
+    {
+      id: 'Qwen/Qwen2.5-32B-Instruct',
+      provider: 'silicon',
+      name: 'Qwen2.5-32B-Instruct',
+      group: 'Qwen2.5'
+    },
+    {
+      id: 'Qwen/Qwen2.5-14B-Instruct',
+      provider: 'silicon',
+      name: 'Qwen2.5-14B-Instruct',
+      group: 'Qwen2.5'
+    },
+    {
+      id: 'Qwen/Qwen2.5-7B-Instruct',
+      provider: 'silicon',
+      name: 'Qwen2.5-7B-Instruct',
+      group: 'Qwen2.5'
+    },
+    {
       id: 'Qwen/Qwen2-7B-Instruct',
       provider: 'silicon',
       name: 'Qwen2-7B-Instruct',
@@ -262,6 +286,24 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'openai',
       name: ' GPT-4',
       group: 'GPT 4'
+    },
+    {
+      id: 'gpt-3.5-turbo',
+      provider: 'openai',
+      name: ' GPT-3.5-turbo',
+      group: 'GPT 3.5'
+    },
+    {
+      id: 'o1-mini',
+      provider: 'openai',
+      name: ' o1-mini',
+      group: 'o1'
+    },
+    {
+      id: 'o1-preview',
+      provider: 'openai',
+      name: ' o1-preview',
+      group: 'o1'
     }
   ],
   gemini: [
@@ -316,6 +358,32 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'deepseek',
       name: 'DeepSeek Coder',
       group: 'DeepSeek Coder'
+    }
+  ],
+  together: [
+    {
+      id: 'meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo',
+      provider: 'together',
+      name: 'Llama-3.2-11B-Vision',
+      group: 'Llama-3.2'
+    },
+    {
+      id: 'meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo',
+      provider: 'together',
+      name: 'Llama-3.2-90B-Vision',
+      group: 'Llama-3.2'
+    },
+    {
+      id: 'google/gemma-2-27b-it',
+      provider: 'together',
+      name: 'gemma-2-27b-it',
+      group: 'Gemma'
+    },
+    {
+      id: 'google/gemma-2-9b-it',
+      provider: 'together',
+      name: 'gemma-2-9b-it',
+      group: 'Gemma'
     }
   ],
   ocoolai: [
@@ -396,6 +464,48 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'ocoolai',
       name: 'claude-3-haiku-20240307',
       group: 'Anthropic'
+    },
+    {
+      id: 'gemini-pro',
+      provider: 'ocoolai',
+      name: 'gemini-pro',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-1.5-pro',
+      provider: 'ocoolai',
+      name: 'gemini-1.5-pro',
+      group: 'Gemini'
+    },
+    {
+      id: 'meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo',
+      provider: 'ocoolai',
+      name: 'Llama-3.2-90B-Vision-Instruct-Turbo',
+      group: 'Llama-3.2'
+    },
+    {
+      id: 'meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo',
+      provider: 'ocoolai',
+      name: 'Llama-3.2-11B-Vision-Instruct-Turbo',
+      group: 'Llama-3.2'
+    },
+    {
+      id: 'meta-llama/Llama-3.2-3B-Vision-Instruct-Turbo',
+      provider: 'ocoolai',
+      name: 'Llama-3.2-3B-Vision-Instruct-Turbo',
+      group: 'Llama-3.2'
+    },
+    {
+      id: 'google/gemma-2-27b-it',
+      provider: 'ocoolai',
+      name: 'gemma-2-27b-it',
+      group: 'Gemma'
+    },
+    {
+      id: 'google/gemma-2-9b-it',
+      provider: 'ocoolai',
+      name: 'gemma-2-9b-it',
+      group: 'Gemma'
     }
   ],
   github: [

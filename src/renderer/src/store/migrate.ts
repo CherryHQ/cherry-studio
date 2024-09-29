@@ -437,6 +437,26 @@ const migrateConfig = {
   '27': (state: RootState) => {
     return {
       ...state,
+      llm: {
+        ...state.llm,
+        providers: [
+          ...state.llm.providers,
+          {
+            id: 'together',
+            name: 'Together',
+            apiKey: '',
+            apiHost: 'https://api.together.xyz',
+            models: [],
+            isSystem: true,
+            enabled: false
+          }
+        ]
+      }
+    }
+  },
+  '28': (state: RootState) => {
+    return {
+      ...state,
       settings: {
         ...state.settings,
         renderInputMessageAsMarkdown: true

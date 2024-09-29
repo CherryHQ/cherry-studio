@@ -142,6 +142,7 @@
       "tag.user": "Mine"
     },
     "provider": {
+      "together": "Together",
       "openai": "OpenAI",
       "gemini": "Gemini",
       "deepseek": "DeepSeek",

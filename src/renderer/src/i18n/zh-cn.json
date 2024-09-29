@@ -142,6 +142,7 @@
       "tag.user": "我的"
     },
     "provider": {
+      "together": "Together",
       "openai": "OpenAI",
       "gemini": "Gemini",
       "deepseek": "深度求索",
