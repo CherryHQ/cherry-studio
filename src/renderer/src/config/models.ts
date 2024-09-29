@@ -719,6 +719,48 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Llama3'
     }
   ],
+  fireworks: [
+    {
+      id: 'accounts/fireworks/models/mythomax-l2-13b',
+      provider: 'fireworks',
+      name: 'mythomax-l2-13b',
+      group: 'Gryphe'
+    },
+    {
+      id: 'accounts/fireworks/models/llama-v3-70b-instruct',
+      provider: 'fireworks',
+      name: 'Llama-3-70B-Instruct',
+      group: 'Llama3'
+    }
+  ],
+  zhinao: [
+    {
+      id: '360gpt-pro',
+      provider: 'zhinao',
+      name: '360gpt-pro',
+      group: '360Gpt'
+    },
+    {
+      id: '360gpt-turbo',
+      provider: 'zhinao',
+      name: '360gpt-turbo',
+      group: '360Gpt'
+    }
+  ],
+  nvidia: [
+    {
+      id: '01-ai/yi-large',
+      provider: 'nvidia',
+      name: 'yi-large',
+      group: 'Yi'
+    },
+    {
+      id: 'meta/llama-3.1-405b-instruct',
+      provider: 'nvidia',
+      name: 'llama-3.1-405b-instruct',
+      group: 'llama-3.1'
+    }
+  ],
   openrouter: [
     {
       id: 'google/gemma-2-9b-it:free',

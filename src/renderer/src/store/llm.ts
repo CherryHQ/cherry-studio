@@ -204,6 +204,33 @@ const initialState: LlmState = {
       enabled: false
     },
     {
+      id: 'fireworks',
+      name: 'Fireworks',
+      apiKey: '',
+      apiHost: 'https://api.fireworks.ai/inference',
+      models: SYSTEM_MODELS.fireworks,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'zhinao',
+      name: 'zhinao',
+      apiKey: '',
+      apiHost: 'https://api.360.cn',
+      models: SYSTEM_MODELS.zhinao,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'nvidia',
+      name: 'nvidia',
+      apiKey: '',
+      apiHost: 'https://integrate.api.nvidia.com',
+      models: SYSTEM_MODELS.nvidia,
+      isSystem: true,
+      enabled: false
+    },
+    {
       id: 'aihubmix',
       name: 'AiHubMix',
       apiKey: '',

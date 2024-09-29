@@ -1,15 +1,18 @@
+import ZhinaoProviderLogo from '@renderer/assets/images/models/360.png'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.jpg'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/bytedance.png'
 import DashScopeProviderLogo from '@renderer/assets/images/providers/dashscope.png'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
+import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
 import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
 import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
 import GraphRagProviderLogo from '@renderer/assets/images/providers/graph-rag.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
+import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
 import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
@@ -64,6 +67,13 @@ export function getProviderLogo(providerId: string) {
       return OcoolAiProviderLogo
     case 'together':
       return TogetherProviderLogo
+    case 'fireworks':
+      return FireworksProviderLogo
+    case 'zhinao':
+      return ZhinaoProviderLogo
+    case 'nvidia':
+      return NvidiaProviderLogo
+
     default:
       return undefined
   }
@@ -292,6 +302,39 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://aihubmix.com/token',
       docs: 'https://doc.aihubmix.com/',
       models: 'https://aihubmix.com/models'
+    }
+  },
+  fireworks: {
+    api: {
+      url: 'https://api.fireworks.ai/inference'
+    },
+    websites: {
+      official: 'https://fireworks.ai/',
+      apiKey: 'https://fireworks.ai/account/api-keys',
+      docs: 'https://docs.fireworks.ai/getting-started/introduction',
+      models: 'https://fireworks.ai/dashboard/models'
+    }
+  },
+  zhinao: {
+    api: {
+      url: 'https://api.360.cn'
+    },
+    websites: {
+      official: 'https://ai.360.com/',
+      apiKey: 'https://ai.360.com/platform/keys',
+      docs: 'https://ai.360.com/platform/docs/overview',
+      models: 'https://ai.360.com/platform/limit'
+    }
+  },
+  navida: {
+    api: {
+      url: 'https://integrate.api.nvidia.com'
+    },
+    websites: {
+      official: 'https://ai.360.com/',
+      apiKey: 'https://build.nvidia.com/meta/llama-3_1-405b-instruct',
+      docs: 'https://docs.api.nvidia.com/nim/reference/llm-apis',
+      models: 'https://build.nvidia.com/nim'
     }
   }
 }

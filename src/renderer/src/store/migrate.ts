@@ -457,6 +457,66 @@ const migrateConfig = {
   '28': (state: RootState) => {
     return {
       ...state,
+      llm: {
+        ...state.llm,
+        providers: [
+          ...state.llm.providers,
+          {
+            id: 'fireworks',
+            name: 'Fireworks',
+            apiKey: '',
+            apiHost: 'https://api.fireworks.ai/inference',
+            models: [],
+            isSystem: true,
+            enabled: false
+          }
+        ]
+      }
+    }
+  },
+  '29': (state: RootState) => {
+    return {
+      ...state,
+      llm: {
+        ...state.llm,
+        providers: [
+          ...state.llm.providers,
+          {
+            id: 'zhinao',
+            name: 'zhinao',
+            apiKey: '',
+            apiHost: 'https://api.360.cn',
+            models: [],
+            isSystem: true,
+            enabled: false
+          }
+        ]
+      }
+    }
+  },
+  '30': (state: RootState) => {
+    return {
+      ...state,
+      llm: {
+        ...state.llm,
+        providers: [
+          ...state.llm.providers,
+          {
+            id: 'nvidia',
+            name: 'nvidia',
+            apiKey: '',
+            apiHost: 'https://integrate.api.nvidia.com',
+            models: [],
+            isSystem: true,
+            enabled: false
+          }
+        ]
+      }
+    }
+  },
+  '31': (state: RootState) => {
+    return {
+      ...state,
       settings: {
         ...state.settings,
         renderInputMessageAsMarkdown: true

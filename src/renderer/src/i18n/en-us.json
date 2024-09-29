@@ -142,6 +142,9 @@
       "tag.user": "Mine"
     },
     "provider": {
+      "nvidia": "Nvidia",
+      "zhinao": "360AI",
+      "fireworks": "Fireworks",
       "together": "Together",
       "openai": "OpenAI",
       "gemini": "Gemini",

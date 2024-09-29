@@ -142,6 +142,9 @@
       "tag.user": "我的"
     },
     "provider": {
+      "nvidia": "輝達",
+      "zhinao": "360智腦",
+      "fireworks": "Fireworks",
       "together": "Together",
       "openai": "OpenAI",
       "gemini": "Gemini",
