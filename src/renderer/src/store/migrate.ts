@@ -437,6 +437,15 @@ const migrateConfig = {
   '27': (state: RootState) => {
     return {
       ...state,
+      settings: {
+        ...state.settings,
+        renderInputMessageAsMarkdown: true
+      }
+    }
+  },
+  '28': (state: RootState) => {
+    return {
+      ...state,
       llm: {
         ...state.llm,
         providers: [
@@ -454,7 +463,7 @@ const migrateConfig = {
       }
     }
   },
-  '28': (state: RootState) => {
+  '29': (state: RootState) => {
     return {
       ...state,
       llm: {
@@ -474,7 +483,7 @@ const migrateConfig = {
       }
     }
   },
-  '29': (state: RootState) => {
+  '30': (state: RootState) => {
     return {
       ...state,
       llm: {
@@ -494,7 +503,7 @@ const migrateConfig = {
       }
     }
   },
-  '30': (state: RootState) => {
+  '31': (state: RootState) => {
     return {
       ...state,
       llm: {
@@ -511,15 +520,6 @@ const migrateConfig = {
             enabled: false
           }
         ]
-      }
-    }
-  },
-  '31': (state: RootState) => {
-    return {
-      ...state,
-      settings: {
-        ...state.settings,
-        renderInputMessageAsMarkdown: true
       }
     }
   }
