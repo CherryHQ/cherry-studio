@@ -40,7 +40,7 @@
     "fs-extra": "^11.2.0",
     "html2canvas": "^1.4.1",
     "unzipper": "^0.12.3",
-    "webdav": "4.11.4"
+    "webdav": "^5.7.1"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
@@ -96,7 +96,7 @@
     "react-syntax-highlighter": "^15.5.0",
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
-    "rehype-katex": "^7.0.0",
+    "rehype-mathjax": "^6.0.0",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
@@ -105,7 +105,7 @@
     "tinycolor2": "^1.6.0",
     "typescript": "^5.6.2",
     "uuid": "^10.0.0",
-    "vite": "^5.0.12"
+    "vite": "^5.4.8"
   },
   "peerDependencies": {
     "react": "^17.0.0 || ^18.0.0",
@@ -114,5 +114,5 @@
   "resolutions": {
     "@electron/notarize@npm:2.2.1": "patch:@electron/notarize@npm%3A2.3.2#~/.yarn/patches/@electron-notarize-npm-2.3.2-535908a4bd.patch"
   },
-  "packageManager": "yarn@4.5.0"
+  "packageManager": "yarn@1.22.22"
 }
