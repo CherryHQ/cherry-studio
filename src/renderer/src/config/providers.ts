@@ -3,8 +3,8 @@ import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.jpg'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
+import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/bytedance.png'
-import DashScopeProviderLogo from '@renderer/assets/images/providers/dashscope.png'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
 import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
@@ -46,8 +46,8 @@ export function getProviderLogo(providerId: string) {
       return OpenRouterProviderLogo
     case 'baichuan':
       return BaichuanProviderLogo
-    case 'dashscope':
-      return DashScopeProviderLogo
+    case 'bailian':
+      return BailianProviderLogo
     case 'anthropic':
       return AnthropicProviderLogo
     case 'aihubmix':
@@ -203,15 +203,15 @@ export const PROVIDER_CONFIG = {
       models: 'https://platform.baichuan-ai.com/price'
     }
   },
-  dashscope: {
+  bailian: {
     api: {
       url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/'
     },
     websites: {
-      official: 'https://dashscope.aliyun.com/',
-      apiKey: 'https://help.aliyun.com/zh/dashscope/developer-reference/acquisition-and-configuration-of-api-key',
-      docs: 'https://help.aliyun.com/zh/dashscope/',
-      models: 'https://dashscope.console.aliyun.com/model'
+      official: 'https://www.aliyun.com/product/bailian',
+      apiKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
+      docs: 'https://help.aliyun.com/zh/model-studio/getting-started/',
+      models: 'https://bailian.console.aliyun.com/model-market#/model-market'
     }
   },
   stepfun: {

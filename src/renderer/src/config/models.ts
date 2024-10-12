@@ -695,22 +695,22 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Baichuan3'
     }
   ],
-  dashscope: [
+  bailian: [
     {
       id: 'qwen-turbo',
-      provider: 'dashscope',
+      provider: 'bailian',
       name: 'Qwen Turbo',
       group: 'Qwen'
     },
     {
       id: 'qwen-plus',
-      provider: 'dashscope',
+      provider: 'bailian',
       name: 'Qwen Plus',
       group: 'Qwen'
     },
     {
       id: 'qwen-max',
-      provider: 'dashscope',
+      provider: 'bailian',
       name: 'Qwen Max',
       group: 'Qwen'
     }
