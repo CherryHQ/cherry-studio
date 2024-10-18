@@ -9,6 +9,7 @@ export type Assistant = {
   description?: string
   model?: Model
   settings?: AssistantSettings
+  agent?: Agent
 }
 
 export type AssistantSettings = {
@@ -32,6 +33,7 @@ export type Message = {
   images?: string[]
   usage?: OpenAI.Completions.CompletionUsage
   type?: 'text' | '@' | 'clear'
+  isPreset?: boolean
 }
 
 export type Topic = {
@@ -70,6 +72,11 @@ export type Model = {
   description?: string
 }
 
+export type AgentMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export type Agent = {
   id: string
   name: string
@@ -77,6 +84,9 @@ export type Agent = {
   description?: string
   prompt: string
   group: string
+  model?: Model
+  messages?: AgentMessage[]
+  hideMessages?: boolean
 }
 
 export type Suggestion = {

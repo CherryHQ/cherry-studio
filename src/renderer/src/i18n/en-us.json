@@ -147,7 +147,17 @@
       "delete.popup.content": "Are you sure you want to delete this agent?",
       "tag.default": "Default",
       "tag.system": "System",
-      "tag.user": "Mine"
+      "tag.user": "Mine",
+      "edit.message.title": "Preset messages",
+      "edit.message.add.title": "Add",
+      "edit.message.group.title": "Message Group",
+      "edit.message.assistant.title": "Assistant",
+      "edit.message.assistant.placeholder": "Enter assistant message",
+      "edit.message.user.title": "User",
+      "edit.message.user.placeholder": "Enter user message",
+      "edit.message.empty.content": "Conversation input content cannot be empty",
+      "edit.model.select.title": "Select Model",
+      "edit.settings.hide_preset_messages": "Hide Preset"
     },
     "minapp": {
       "title": "MinApp"

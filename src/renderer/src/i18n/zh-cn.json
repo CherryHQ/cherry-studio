@@ -147,7 +147,17 @@
       "delete.popup.content": "确定要删除此智能体吗？",
       "tag.default": "默认",
       "tag.system": "系统",
-      "tag.user": "我的"
+      "tag.user": "我的",
+      "edit.message.title": "预设消息",
+      "edit.message.add.title": "添加",
+      "edit.message.group.title": "消息组",
+      "edit.message.assistant.title": "助手",
+      "edit.message.assistant.placeholder": "输入助手消息",
+      "edit.message.user.title": "用户",
+      "edit.message.user.placeholder": "输入用户消息",
+      "edit.message.empty.content": "会话输入内容不能为空",
+      "edit.model.select.title": "选择模型",
+      "edit.settings.hide_preset_messages": "隐藏预设"
     },
     "minapp": {
       "title": "小程序"

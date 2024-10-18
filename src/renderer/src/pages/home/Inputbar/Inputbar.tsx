@@ -13,7 +13,7 @@ import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useRuntime, useShowTopics } from '@renderer/hooks/useStore'
-import { getDefaultTopic } from '@renderer/services/assistant'
+import { addAgentMessagesToTopic, getDefaultTopic } from '@renderer/services/assistant'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/event'
 import FileManager from '@renderer/services/file'
 import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/tokens'
@@ -45,7 +45,7 @@ let _files: FileType[] = []
 const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
-  const { addTopic, model } = useAssistant(assistant.id)
+  const { addTopic, model, setModel } = useAssistant(assistant.id)
   const { sendMessageShortcut, fontSize, pasteLongTextAsFile, showInputEstimatedTokens } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -127,14 +127,20 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
     }
   }
 
-  const addNewTopic = useCallback(() => {
+  const addNewTopic = useCallback(async () => {
     const topic = getDefaultTopic(assistant.id)
+
+    await addAgentMessagesToTopic({ assistant, topic })
 
     addTopic(topic)
     setActiveTopic(topic)
 
+    if (assistant?.agent?.model) {
+      setModel(assistant?.agent?.model)
+    }
+
     db.topics.add({ id: topic.id, messages: [] })
-  }, [addTopic, assistant.id, setActiveTopic])
+  }, [addTopic, assistant, setActiveTopic, setModel])
 
   const clearTopic = async () => {
     if (generating) {

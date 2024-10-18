@@ -43,7 +43,7 @@ const initialState: SettingsState = {
   windowStyle: 'transparent',
   fontSize: 14,
   topicPosition: 'right',
-  pasteLongTextAsFile: true,
+  pasteLongTextAsFile: false,
   clickAssistantToShowTopic: false,
   manualUpdateCheck: false,
   renderInputMessageAsMarkdown: true,

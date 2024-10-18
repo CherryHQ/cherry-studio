@@ -1,10 +1,13 @@
 import { DEFAULT_CONEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { updateAgent } from '@renderer/store/agents'
 import { updateAssistant } from '@renderer/store/assistants'
-import { Agent, Assistant, AssistantSettings, Model, Provider, Topic } from '@renderer/types'
+import { Agent, Assistant, AssistantSettings, Message, Model, Provider, Topic } from '@renderer/types'
 import { getLeadingEmoji, removeLeadingEmoji, uuid } from '@renderer/utils'
+
+import { estimateMessageUsage } from './tokens'
 
 export function getDefaultAssistant(): Assistant {
   return {
@@ -86,16 +89,51 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   }
 }
 
-export function covertAgentToAssistant(agent: Agent): Assistant {
+export async function covertAgentToAssistant(agent: Agent): Promise<Assistant> {
   const id = agent.group === 'system' ? uuid() : String(agent.id)
-  return {
+  const topic = getDefaultTopic(id)
+
+  const assistant = {
     ...getDefaultAssistant(),
-    ...agent,
     id,
-    topics: [getDefaultTopic(id)],
     name: getAssistantNameWithAgent(agent),
-    settings: getDefaultAssistantSettings()
+    emoji: agent.emoji,
+    prompt: agent.prompt,
+    description: agent.description,
+    settings: getDefaultAssistantSettings(),
+    model: agent.model || getDefaultModel(),
+    topics: [topic],
+    agent
   }
+
+  await addAgentMessagesToTopic({ assistant, topic })
+
+  return assistant
+}
+
+export async function addAgentMessagesToTopic({ assistant, topic }: { assistant: Assistant; topic: Topic }) {
+  const messages: Message[] = []
+
+  for (const msg of assistant?.agent?.messages || []) {
+    const message: Message = {
+      id: uuid(),
+      assistantId: assistant.id,
+      role: msg.role,
+      content: msg.content,
+      topicId: topic.id,
+      createdAt: new Date().toISOString(),
+      status: 'success',
+      modelId: assistant.model?.id,
+      type: 'text',
+      isPreset: true
+    }
+    message.usage = await estimateMessageUsage(message)
+    messages.push(message)
+  }
+
+  db.topics.put({ id: topic.id, messages }, topic.id)
+
+  return messages
 }
 
 export function getAssistantNameWithAgent(agent: Agent) {
@@ -127,7 +165,8 @@ export function syncAgentToAssistant(agent: Agent) {
       updateAssistant({
         ...assistant,
         name: getAssistantNameWithAgent(agent),
-        prompt: agent.prompt
+        prompt: agent.prompt,
+        agent
       })
     )
   }

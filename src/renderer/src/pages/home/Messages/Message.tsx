@@ -20,11 +20,20 @@ interface Props {
   total?: number
   lastMessage?: boolean
   showMenu?: boolean
+  hidePresetMessages?: boolean
   onEditMessage?: (message: Message) => void
   onDeleteMessage?: (message: Message) => void
 }
 
-const MessageItem: FC<Props> = ({ message, index, lastMessage, showMenu = true, onEditMessage, onDeleteMessage }) => {
+const MessageItem: FC<Props> = ({
+  message,
+  index,
+  lastMessage,
+  showMenu = true,
+  hidePresetMessages,
+  onEditMessage,
+  onDeleteMessage
+}) => {
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(message.modelId)
@@ -58,6 +67,10 @@ const MessageItem: FC<Props> = ({ message, index, lastMessage, showMenu = true, 
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [message])
+
+  if (hidePresetMessages && message.isPreset) {
+    return null
+  }
 
   if (message.type === 'clear') {
     return (

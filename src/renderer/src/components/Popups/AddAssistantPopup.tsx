@@ -45,14 +45,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       : list
   }, [assistants, defaultAgent, searchText, userAgents])
 
-  const onCreateAssistant = (agent: Agent) => {
+  const onCreateAssistant = async (agent: Agent) => {
     if (agent.id !== 'default') {
       if (assistants.map((a) => a.id).includes(String(agent.id))) {
         return
       }
     }
 
-    const assistant = covertAgentToAssistant(agent)
+    const assistant = await covertAgentToAssistant(agent)
 
     addAssistant(assistant)
     setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)

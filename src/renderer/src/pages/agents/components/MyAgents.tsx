@@ -1,12 +1,11 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
-import { Box, HStack } from '@renderer/components/Layout'
+import { HStack } from '@renderer/components/Layout'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { Agent } from '@renderer/types'
 import { Button, Popconfirm, Typography } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import AddAgentPopup from './AddAgentPopup'
@@ -14,14 +13,14 @@ import AddAgentPopup from './AddAgentPopup'
 const { Title } = Typography
 
 interface Props {
+  onEdit: (agent: Agent) => void
   onClick: (agent: Agent) => void
 }
 
-const MyAssistants: React.FC<Props> = ({ onClick }) => {
+const MyAssistants: React.FC<Props> = ({ onClick, onEdit }) => {
   const { t } = useTranslation()
   const { agents, removeAgent, updateAgents } = useAgents()
   const [dragging, setDragging] = useState(false)
-  const navigate = useNavigate()
 
   return (
     <Container style={{ paddingBottom: dragging ? 30 : 0 }}>
@@ -36,10 +35,10 @@ const MyAssistants: React.FC<Props> = ({ onClick }) => {
           onDragEnd={() => setDragging(false)}>
           {(agent) => (
             <AgentItem onClick={() => onClick(agent)}>
-              <Box mr={8}>
+              <AgentName>
                 {agent.emoji} {agent.name}
-              </Box>
-              <HStack gap="15px" onClick={(e) => e.stopPropagation()}>
+              </AgentName>
+              <HStack gap="10px" onClick={(e) => e.stopPropagation()}>
                 <Popconfirm
                   title={t('agents.delete.popup.content')}
                   placement="bottom"
@@ -47,7 +46,7 @@ const MyAssistants: React.FC<Props> = ({ onClick }) => {
                   onConfirm={() => removeAgent(agent)}>
                   <DeleteOutlined style={{ color: 'var(--color-error)' }} />
                 </Popconfirm>
-                <EditOutlined style={{ cursor: 'pointer' }} onClick={() => navigate(`/agents/${agent.id}`)} />
+                <EditOutlined style={{ cursor: 'pointer' }} onClick={() => onEdit(agent)} />
               </HStack>
             </AgentItem>
           )}
@@ -93,6 +92,14 @@ const AgentItem = styled.div`
   &:hover {
     background-color: var(--color-background-mute);
   }
+`
+
+const AgentName = styled.div`
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 8px;
 `
 
 export default MyAssistants

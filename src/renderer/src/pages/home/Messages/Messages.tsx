@@ -227,6 +227,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
           key={message.id}
           message={message}
           index={index}
+          hidePresetMessages={assistant?.agent?.hideMessages}
           onEditMessage={onEditMessage}
           onDeleteMessage={onDeleteMessage}
         />

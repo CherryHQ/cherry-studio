@@ -147,7 +147,17 @@
       "delete.popup.content": "確定要刪除此智能體嗎？",
       "tag.default": "預設",
       "tag.system": "系統",
-      "tag.user": "我的"
+      "tag.user": "我的",
+      "edit.message.title": "預設訊息",
+      "edit.message.add.title": "添加",
+      "edit.message.group.title": "訊息組",
+      "edit.message.assistant.title": "助手",
+      "edit.message.assistant.placeholder": "輸入助手消息",
+      "edit.message.user.title": "用戶",
+      "edit.message.user.placeholder": "輸入用戶消息",
+      "edit.message.empty.content": "會話輸入內容不能為空",
+      "edit.model.select.title": "選擇模型",
+      "edit.settings.hide_preset_messages": "隱藏預設"
     },
     "minapp": {
       "title": "小程序"

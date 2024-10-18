@@ -9,7 +9,6 @@ import Sidebar from './components/app/Sidebar'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { ThemeProvider } from './context/ThemeProvider'
-import AgentEditPage from './pages/agents/AgentEditPage'
 import AgentsPage from './pages/agents/AgentsPage'
 import AppsPage from './pages/apps/AppsPage'
 import FilesPage from './pages/files/FilesPage'
@@ -31,7 +30,6 @@ function App(): JSX.Element {
                   <Route path="/" element={<HomePage />} />
                   <Route path="/files" element={<FilesPage />} />
                   <Route path="/agents" element={<AgentsPage />} />
-                  <Route path="/agents/:id" element={<AgentEditPage />} />
                   <Route path="/translate" element={<TranslatePage />} />
                   <Route path="/apps" element={<AppsPage />} />
                   <Route path="/messages/*" element={<HistoryPage />} />
