@@ -4,7 +4,7 @@
   </a>
 </div>
 <div align="center">
-  English | <a href="./docs/README.zh.md">中文</a>
+  English | <a href="./README.zh.md">中文</a>
 </div>
 
 # 🍒 Cherry Studio
