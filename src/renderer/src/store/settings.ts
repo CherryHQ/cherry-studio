@@ -41,7 +41,7 @@ const initialState: SettingsState = {
   showMessageDivider: false,
   messageFont: 'system',
   showInputEstimatedTokens: false,
-  theme: ThemeMode.light,
+  theme: ThemeMode.auto,
   windowStyle: 'transparent',
   fontSize: 14,
   topicPosition: 'right',
