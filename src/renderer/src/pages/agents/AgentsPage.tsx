@@ -1,4 +1,4 @@
-import { SearchOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import SystemAgents from '@renderer/config/agents.json'
@@ -13,6 +13,7 @@ import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
 import Agents from './Agents'
+import AddAgentPopup from './components/AddAgentPopup'
 import AgentCard from './components/AgentCard'
 
 const { Title } = Typography
@@ -43,9 +44,15 @@ const AgentsPage: FC = () => {
   const { t } = useTranslation()
 
   const filteredAgentGroups = useMemo(() => {
-    if (!search.trim()) return agentGroups
+    const groups = search.trim() ? {} : { 我的: [] }
 
-    const filtered = {}
+    if (!search.trim()) {
+      Object.entries(agentGroups).forEach(([group, agents]) => {
+        groups[group] = agents
+      })
+      return groups
+    }
+
     Object.entries(agentGroups).forEach(([group, agents]) => {
       const filteredAgents = agents.filter(
         (agent) =>
@@ -53,10 +60,10 @@ const AgentsPage: FC = () => {
           agent.description?.toLowerCase().includes(search.toLowerCase())
       )
       if (filteredAgents.length > 0) {
-        filtered[group] = filteredAgents
+        groups[group] = filteredAgents
       }
     })
-    return filtered
+    return groups
   }, [agentGroups, search])
 
   const getAgentName = (agent: Agent) => {
@@ -97,7 +104,9 @@ const AgentsPage: FC = () => {
 
   const tabItems = useMemo(() => {
     let groups = Object.keys(filteredAgentGroups)
-    groups = groups.includes('办公') ? ['办公', ...groups.filter((g) => g !== '办公')] : groups
+    groups = groups.filter((g) => g !== '我的' && g !== '办公')
+    groups = ['我的', '办公', ...groups]
+
     return groups.map((group, i) => {
       const id = String(i + 1)
       return {
@@ -108,14 +117,21 @@ const AgentsPage: FC = () => {
             <Title level={5} key={group} style={{ marginBottom: 16 }}>
               {group}
             </Title>
-            <Row gutter={16}>
-              {filteredAgentGroups[group].map((agent, index) => {
-                return (
+            <Row gutter={[32, 32]}>
+              {group === '我的' ? (
+                <>
+                  <Col span={8}>
+                    <AddAgentCard onClick={() => AddAgentPopup.show()} />
+                  </Col>
+                  <Agents onClick={onAddAgentConfirm} cardStyle="new" />
+                </>
+              ) : (
+                filteredAgentGroups[group]?.map((agent, index) => (
                   <Col span={8} key={group + index}>
                     <AgentCard onClick={() => onAddAgentConfirm(getAgentFromSystemAgent(agent))} agent={agent as any} />
                   </Col>
-                )
-              })}
+                ))
+              )}
             </Row>
           </TabContent>
         )
@@ -124,7 +140,7 @@ const AgentsPage: FC = () => {
   }, [filteredAgentGroups, onAddAgentConfirm])
 
   return (
-    <Container>
+    <StyledContainer>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none', justifyContent: 'space-between' }}>
           {t('agents.title')}
@@ -145,7 +161,6 @@ const AgentsPage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <AssistantsContainer>
-          <Agents onClick={onAddAgentConfirm} />
           {tabItems.length > 0 ? (
             <Tabs tabPosition="left" animated items={tabItems} />
           ) : (
@@ -155,11 +170,11 @@ const AgentsPage: FC = () => {
           )}
         </AssistantsContainer>
       </ContentContainer>
-    </Container>
+    </StyledContainer>
   )
 }
 
-const Container = styled.div`
+const StyledContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -245,6 +260,35 @@ const Tabs = styled(TabsAntd)`
     .ant-tabs-tab-btn {
       color: var(--color-text) !important;
     }
+  }
+`
+
+const AddAgentCard = styled(({ onClick, className }: { onClick: () => void; className?: string }) => {
+  const { t } = useTranslation()
+
+  return (
+    <div className={className} onClick={onClick}>
+      <PlusOutlined style={{ fontSize: 24 }} />
+      <span style={{ marginTop: 10 }}>{t('agents.add.title')}</span>
+    </div>
+  )
+})`
+  width: 100%;
+  height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-background);
+  border-radius: 15px;
+  border: 1px dashed var(--color-border);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--color-text-soft);
+
+  &:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
   }
 `
 
