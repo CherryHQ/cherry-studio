@@ -95,7 +95,7 @@
   }
 
   span {
-    word-break: break-all;
+    white-space: pre;
   }
 
   code {
@@ -107,6 +107,8 @@
     background: var(--color-background-mute);
     padding: 3px 5px;
     border-radius: 5px;
+    word-break: keep-all;
+    white-space: pre;
   }
 
   pre {
