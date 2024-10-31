@@ -1,6 +1,7 @@
 import { FileSearchOutlined, FolderOutlined, TranslationOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi, UserAvatar } from '@renderer/config/env'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -21,6 +22,7 @@ const Sidebar: FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { windowStyle } = useSettings()
+  const { theme, toggleTheme } = useTheme()
 
   const isRoute = (path: string): string => (pathname === path ? 'active' : '')
   const isRoutes = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
@@ -81,6 +83,14 @@ const Sidebar: FC = () => {
         </Menus>
       </MainMenus>
       <Menus onClick={MinApp.onClose}>
+        <Icon onClick={() => toggleTheme()}>
+          {theme === 'dark' ? (
+            <i className="iconfont icon-theme icon-dark1" />
+          ) : (
+            <i className="iconfont icon-theme icon-theme-light" />
+          )}
+        </Icon>
+
         <StyledLink onClick={() => to(isLocalAi ? '/settings/assistant' : '/settings/provider')}>
           <Icon className={pathname.startsWith('/settings') ? 'active' : ''}>
             <i className="iconfont icon-setting" />
