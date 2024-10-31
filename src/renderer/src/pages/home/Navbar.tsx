@@ -3,13 +3,11 @@ import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar
 import AssistantSettingsPopup from '@renderer/components/AssistantSettings'
 import { HStack } from '@renderer/components/Layout'
 import { isMac, isWindows } from '@renderer/config/constant'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/event'
 import { Assistant, Topic } from '@renderer/types'
-import { Switch } from 'antd'
 import { FC, useCallback } from 'react'
 import styled from 'styled-components'
 
@@ -109,14 +107,6 @@ const TitleText = styled.span`
   font-family: Ubuntu;
   font-size: 13px;
   font-weight: 500;
-`
-
-const ThemeSwitch = styled(Switch)`
-  -webkit-app-region: no-drag;
-  margin-right: 10px;
-  .icon-theme {
-    font-size: 14px;
-  }
 `
 
 export default HeaderNavbar
