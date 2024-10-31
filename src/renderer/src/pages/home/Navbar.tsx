@@ -24,7 +24,6 @@ interface Props {
 const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { theme, toggleTheme } = useTheme()
   const { topicPosition } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
 
