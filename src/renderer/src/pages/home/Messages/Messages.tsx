@@ -217,7 +217,6 @@ const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column-reverse;
   padding: 10px 0;
-  background-color: var(--color-background);
   padding-bottom: 20px;
   overflow-x: hidden;
 `

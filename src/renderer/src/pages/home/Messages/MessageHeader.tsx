@@ -47,7 +47,11 @@ const MessageHeader: FC<Props> = ({ assistant, model, message }) => {
 
   return (
     <Container>
-      <AvatarWrapper>
+      <AvatarWrapper
+        style={{
+          flexDirection: isAssistantMessage ? 'row' : 'row-reverse',
+          textAlign: isAssistantMessage ? 'left' : 'right'
+        }}>
         {isAssistantMessage ? (
           <Avatar
             src={avatarSource}
@@ -79,25 +83,23 @@ const MessageHeader: FC<Props> = ({ assistant, model, message }) => {
 }
 
 const Container = styled.div`
-  margin-right: 10px;
   display: flex;
   flex-direction: row;
   align-items: center;
   padding-bottom: 4px;
-  justify-content: space-between;
 `
 
 const AvatarWrapper = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
+  gap: 10px;
 `
 
 const UserWrap = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  margin-left: 12px;
 `
 
 const UserName = styled.div`

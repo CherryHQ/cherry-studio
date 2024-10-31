@@ -16,7 +16,7 @@ import styled from 'styled-components'
 import MessageContent from './MessageContent'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
-import MessgeTokens from './MessageTokens'
+import MessageTokens from './MessageTokens'
 
 interface Props {
   message: Message
@@ -131,13 +131,23 @@ const MessageItem: FC<Props> = ({
   }
 
   return (
-    <MessageContainer key={message.id} className="message" ref={messageContainerRef}>
+    <MessageContainer
+      key={message.id}
+      className="message"
+      ref={messageContainerRef}
+      style={{
+        alignItems: isAssistantMessage ? 'start' : 'end'
+      }}>
       <MessageHeader message={message} assistant={assistant} model={model} />
-      <MessageContentContainer style={{ fontFamily, fontSize }}>
+      <MessageContentContainer
+        style={{
+          fontFamily,
+          fontSize,
+          background: isAssistantMessage ? 'var(--chat-background-assistant)' : 'var(--chat-background-user)'
+        }}>
         <MessageContent message={message} model={model} />
         {showMenubar && (
-          <MessageFooter style={{ border: messageBorder, flexDirection: isLastMessage ? 'row-reverse' : undefined }}>
-            <MessgeTokens message={message} isLastMessage={isLastMessage} />
+          <MessageFooter style={{ border: messageBorder }}>
             <MessageMenubar
               message={message}
               model={model}
@@ -148,6 +158,7 @@ const MessageItem: FC<Props> = ({
               onEditMessage={onEditMessage}
               onDeleteMessage={onDeleteMessage}
             />
+            <MessageTokens message={message} isLastMessage={isLastMessage} />
           </MessageFooter>
         )}
       </MessageContentContainer>
@@ -179,12 +190,14 @@ const MessageContainer = styled.div`
 `
 
 const MessageContentContainer = styled.div`
+  max-width: 100%;
   display: flex;
   flex: 1;
   flex-direction: column;
   justify-content: space-between;
-  margin-left: 46px;
-  margin-top: 5px;
+  margin: 5px 0;
+  border-radius: 8px;
+  padding: 10px 15px 0 15px;
 `
 
 const MessageFooter = styled.div`
@@ -195,6 +208,7 @@ const MessageFooter = styled.div`
   padding: 2px 0;
   margin-top: 2px;
   border-top: 0.5px dashed var(--color-border);
+  gap: 20px;
 `
 
 export default memo(MessageItem)

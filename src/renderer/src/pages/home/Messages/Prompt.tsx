@@ -26,7 +26,7 @@ const Prompt: FC<Props> = ({ assistant }) => {
 
 const Container = styled.div`
   padding: 10px 20px;
-  background-color: var(--color-background-soft);
+  background-color: var(--chat-background-assistant);
   margin-bottom: 20px;
   margin: 0 20px 0 20px;
   border-radius: 6px;

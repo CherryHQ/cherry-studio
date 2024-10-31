@@ -52,7 +52,7 @@ const Container = styled.div`
   height: 100%;
   flex: 1;
   justify-content: space-between;
-  background-color: var(--color-background);
+  background-color: var(--chat-background);
 `
 
 const Main = styled(Flex)`

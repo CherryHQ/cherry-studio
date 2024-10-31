@@ -35,8 +35,9 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   gap: 10px;
-  margin: 10px 20px;
-  margin-right: 0;
+  padding: 10px 20px;
+  background: var(--color-background);
+  border-top: 1px solid var(--color-border-mute);
 `
 
 export default AttachmentPreview

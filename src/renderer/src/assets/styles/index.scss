@@ -34,6 +34,7 @@
   --color-icon-white: #ffffff;
   --color-border: #ffffff24;
   --color-border-soft: #ffffff20;
+  --color-border-mute: #ffffff11;
   --color-error: #f44336;
   --color-link: #1677ff;
   --color-code-background: #323232;
@@ -51,6 +52,10 @@
   --assistants-width: 275px;
   --topic-list-width: 275px;
   --settings-width: 250px;
+
+  --chat-background: #111111;
+  --chat-background-user: #28b561;
+  --chat-background-assistant: #2c2c2c;
 }
 
 body[theme-mode='light'] {
@@ -83,6 +88,7 @@ body[theme-mode='light'] {
   --color-icon-white: #000000;
   --color-border: #00000028;
   --color-border-soft: #00000028;
+  --color-border-mute: #00000011;
   --color-error: #f44336;
   --color-link: #1677ff;
   --color-code-background: #e3e3e3;
@@ -91,6 +97,10 @@ body[theme-mode='light'] {
 
   --navbar-background-mac: rgba(255, 255, 255, 0.6);
   --navbar-background: rgba(255, 255, 255);
+
+  --chat-background: #f3f3f3;
+  --chat-background-user: #95ec69;
+  --chat-background-assistant: #ffffff;
 }
 
 *,
@@ -156,7 +166,6 @@ body,
 body[os='mac'] {
   #content-container {
     border-top-left-radius: 10px;
-    border-bottom-left-radius: 10px;
     border-left: 0.5px solid var(--color-border);
     box-shadow: 0 0 15px 1px rgba(0, 0, 0, 0.05);
   }

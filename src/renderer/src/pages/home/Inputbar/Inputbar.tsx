@@ -299,7 +299,7 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
           autoFocus
           contextMenu="true"
           variant="borderless"
-          rows={1}
+          rows={2}
           ref={textareaRef}
           style={{ fontSize }}
           styles={{ textarea: TextareaStyle }}
@@ -381,11 +381,10 @@ const TextareaStyle: CSSProperties = {
 }
 
 const InputBarContainer = styled.div`
-  border: 1px solid var(--color-border-soft);
+  border-top: 1px solid var(--color-border-mute);
   transition: all 0.3s ease;
   position: relative;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
+  background: var(--color-background);
 `
 
 const Textarea = styled(TextArea)`
