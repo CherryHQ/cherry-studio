@@ -6,6 +6,7 @@ import { join } from 'path'
 import icon from '../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import { configManager } from './services/ConfigManager'
+import { locales } from './utils/locales'
 
 export function createMainWindow() {
   // Load the previous state with fallback to defaults
@@ -48,10 +49,13 @@ export function createMainWindow() {
   mainWindowState.manage(mainWindow)
 
   mainWindow.webContents.on('context-menu', () => {
+    const locale = locales[configManager.getLanguage()]
+    const { common } = locale.translation
+
     const menu = new Menu()
-    menu.append(new MenuItem({ label: '复制', role: 'copy' }))
-    menu.append(new MenuItem({ label: '粘贴', role: 'paste' }))
-    menu.append(new MenuItem({ label: '剪切', role: 'cut' }))
+    menu.append(new MenuItem({ label: common.copy, role: 'copy' }))
+    menu.append(new MenuItem({ label: common.paste, role: 'paste' }))
+    menu.append(new MenuItem({ label: common.cut, role: 'cut' }))
     menu.popup()
   })
 

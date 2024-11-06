@@ -1,6 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import { FileType } from '@renderer/types'
 import { WebDavConfig } from '@renderer/types'
+import { LanguageVarious } from '@renderer/types'
 import type { OpenDialogOptions } from 'electron'
 import { Readable } from 'stream'
 
@@ -17,6 +18,7 @@ declare global {
       checkForUpdate: () => void
       openWebsite: (url: string) => void
       setProxy: (proxy: string | undefined) => void
+      setLanguage: (theme: LanguageVarious) => void
       setTheme: (theme: 'light' | 'dark') => void
       minApp: (options: { url: string; windowOptions?: Electron.BrowserWindowConstructorOptions }) => void
       reload: () => void

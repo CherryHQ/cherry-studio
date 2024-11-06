@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { ThemeMode } from '@renderer/types'
+import { LanguageVarious, ThemeMode } from '@renderer/types'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter'
 
@@ -7,7 +7,7 @@ export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
   sendMessageShortcut: SendMessageShortcut
-  language: string
+  language: LanguageVarious
   proxyUrl?: string
   userName: string
   showMessageDivider: boolean
@@ -36,7 +36,7 @@ const initialState: SettingsState = {
   showAssistants: true,
   showTopics: true,
   sendMessageShortcut: 'Enter',
-  language: navigator.language,
+  language: navigator.language as LanguageVarious,
   proxyUrl: undefined,
   userName: '',
   showMessageDivider: false,
@@ -79,7 +79,7 @@ const settingsSlice = createSlice({
     setSendMessageShortcut: (state, action: PayloadAction<SendMessageShortcut>) => {
       state.sendMessageShortcut = action.payload
     },
-    setLanguage: (state, action: PayloadAction<string>) => {
+    setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
     },
     setProxyUrl: (state, action: PayloadAction<string | undefined>) => {

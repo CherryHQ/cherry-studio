@@ -17,6 +17,8 @@
       "edit": "Edit",
       "duplicate": "Duplicate",
       "copy": "Copy",
+      "paste": "Paste",
+      "cut": "Cut",
       "regenerate": "Regenerate",
       "provider": "Provider",
       "you": "You",

@@ -29,6 +29,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('app:reload', () => mainWindow.reload())
   ipcMain.handle('open:website', (_, url: string) => shell.openExternal(url))
 
+  // language
+  ipcMain.handle('app:set-language', (_, language) => {
+    configManager.setLanguage(language)
+  })
+
   // theme
   ipcMain.handle('app:set-theme', (_, theme: 'light' | 'dark') => {
     configManager.setTheme(theme)

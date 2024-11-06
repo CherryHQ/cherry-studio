@@ -1,4 +1,8 @@
+import { app } from 'electron'
 import Store from 'electron-store'
+
+type ThemeVarious = 'light' | 'dark'
+type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US'
 
 export class ConfigManager {
   private store: Store
@@ -7,11 +11,19 @@ export class ConfigManager {
     this.store = new Store()
   }
 
-  getTheme(): 'light' | 'dark' {
-    return this.store.get('theme', 'light') as 'light' | 'dark'
+  getLanguage(): LanguageVarious {
+    return this.store.get('language', app.getLocale()) as LanguageVarious
   }
 
-  setTheme(theme: 'light' | 'dark') {
+  setLanguage(theme: ThemeVarious) {
+    this.store.set('language', theme)
+  }
+
+  getTheme(): ThemeVarious {
+    return this.store.get('theme', 'light') as ThemeVarious
+  }
+
+  setTheme(theme: ThemeVarious) {
     this.store.set('theme', theme)
   }
 }

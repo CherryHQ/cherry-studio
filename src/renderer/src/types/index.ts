@@ -136,6 +136,7 @@ export enum ThemeMode {
   dark = 'dark',
   auto = 'auto'
 }
+export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US'
 
 export type WebDavConfig = {
   webdavHost: string

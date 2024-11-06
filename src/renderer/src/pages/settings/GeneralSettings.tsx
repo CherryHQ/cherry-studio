@@ -4,7 +4,7 @@ import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setClickAssistantToShowTopic, setLanguage, setShowTopicTime } from '@renderer/store/settings'
 import { setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
-import { ThemeMode } from '@renderer/types'
+import { LanguageVarious, ThemeMode } from '@renderer/types'
 import { isValidProxyUrl } from '@renderer/utils'
 import { Input, Select, Switch } from 'antd'
 import { FC, useState } from 'react'
@@ -30,9 +30,10 @@ const GeneralSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
-  const onSelectLanguage = (value: string) => {
+  const onSelectLanguage = (value: LanguageVarious) => {
     dispatch(setLanguage(value))
     localStorage.setItem('language', value)
+    window.api.setLanguage(value)
     i18n.changeLanguage(value)
   }
 
