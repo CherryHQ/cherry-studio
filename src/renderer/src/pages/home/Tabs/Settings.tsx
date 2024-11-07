@@ -2,12 +2,14 @@ import { CheckOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-desi
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { DEFAULT_CONEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
 import { useAppDispatch } from '@renderer/store'
 import {
   setCodeShowLineNumbers,
+  setCodeStyle,
   setFontSize,
   setMathEngine,
   setMessageFont,
@@ -29,14 +31,14 @@ interface Props {
 
 const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
-  const { fontSize } = useSettings()
+  const { messageStyle, codeStyle, fontSize } = useSettings()
+
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setConextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
-  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
-  const { messageStyle } = useSettings()
+  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -214,6 +216,21 @@ const SettingsTab: FC<Props> = (props) => {
           checked={codeShowLineNumbers}
           onChange={(checked) => dispatch(setCodeShowLineNumbers(checked))}
         />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
+        <Select
+          value={codeStyle}
+          onChange={(value) => dispatch(setCodeStyle(value))}
+          style={{ width: 160 }}
+          size="small">
+          {codeThemes.map((theme) => (
+            <Select.Option key={theme} value={theme}>
+              {theme}
+            </Select.Option>
+          ))}
+        </Select>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

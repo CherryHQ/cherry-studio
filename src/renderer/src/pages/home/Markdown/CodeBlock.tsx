@@ -1,13 +1,9 @@
 import { CheckOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useSyntaxHighlighter } from '@renderer/context/SyntaxHighlighterProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { initMermaid } from '@renderer/init'
-import { ThemeMode } from '@renderer/types'
 import React, { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { atomDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import styled from 'styled-components'
 
 import Artifacts from './Artifacts'
@@ -23,11 +19,13 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '')
   const showFooterCopyButton = children && children.length > 500
   const { codeShowLineNumbers, fontSize } = useSettings()
-  const { theme } = useTheme()
-  const language = match?.[1]
+  const language = match?.[1] ?? 'text'
+
+  const { codeToHtml } = useSyntaxHighlighter()
+
+  const html = codeToHtml(children, language)
 
   if (language === 'mermaid') {
-    initMermaid(theme)
     return <Mermaid chart={children} />
   }
 
@@ -37,20 +35,17 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
         <CodeLanguage>{'<' + match[1].toUpperCase() + '>'}</CodeLanguage>
         <CopyButton text={children} />
       </CodeHeader>
-      <SyntaxHighlighter
-        language={match[1]}
-        style={theme === ThemeMode.dark ? atomDark : oneLight}
-        wrapLongLines={false}
-        showLineNumbers={codeShowLineNumbers}
-        customStyle={{
+      <CodeContent
+        isShowLineNumbers={codeShowLineNumbers}
+        dangerouslySetInnerHTML={{ __html: html }}
+        style={{
           border: '0.5px solid var(--color-code-background)',
           borderTopLeftRadius: 0,
           borderTopRightRadius: 0,
           marginTop: 0,
           fontSize
-        }}>
-        {String(children).replace(/\n$/, '')}
-      </SyntaxHighlighter>
+        }}
+      />
       {showFooterCopyButton && (
         <CodeFooter>
           <CopyButton text={children} style={{ marginTop: -40, marginRight: 10 }} />
@@ -80,6 +75,31 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
     <CopyIcon className="copy" style={style} onClick={onCopy} />
   )
 }
+
+const CodeContent = styled.div<{ isShowLineNumbers: boolean }>`
+  .shiki {
+    padding: 1em;
+  }
+
+  ${(props) =>
+    props.isShowLineNumbers &&
+    `
+      code {
+        counter-reset: step;
+        counter-increment: step 0;
+      }
+
+      code .line::before {
+        content: counter(step);
+        counter-increment: step;
+        width: 1rem;
+        margin-right: 1rem;
+        display: inline-block;
+        text-align: right;
+        opacity: 0.35;
+      }
+    `}
+`
 
 const CodeHeader = styled.div`
   display: flex;

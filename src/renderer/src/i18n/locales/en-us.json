@@ -67,6 +67,7 @@
       "upgrade.success.button": "Restart",
       "topic.added": "New topic added",
       "save.success.title": "Saved successfully",
+      "message.code_style": "Code style",
       "message.style": "Message Style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain"

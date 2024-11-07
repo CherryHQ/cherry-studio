@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { BuiltinTheme } from 'shiki'
 
 export type Assistant = {
   id: string
@@ -137,6 +138,7 @@ export enum ThemeMode {
   auto = 'auto'
 }
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US'
+export type CodeStyleVarious = BuiltinTheme | 'auto'
 
 export type WebDavConfig = {
   webdavHost: string

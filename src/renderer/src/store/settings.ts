@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { LanguageVarious, ThemeMode } from '@renderer/types'
+import { CodeStyleVarious, LanguageVarious, ThemeMode } from '@renderer/types'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter'
 
@@ -25,6 +25,7 @@ export interface SettingsState {
   codeShowLineNumbers: boolean
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
+  codeStyle: CodeStyleVarious
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -54,6 +55,7 @@ const initialState: SettingsState = {
   codeShowLineNumbers: false,
   mathEngine: 'MathJax',
   messageStyle: 'plain',
+  codeStyle: 'auto',
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -145,6 +147,9 @@ const settingsSlice = createSlice({
     },
     setMessageStyle: (state, action: PayloadAction<'plain' | 'bubble'>) => {
       state.messageStyle = action.payload
+    },
+    setCodeStyle: (state, action: PayloadAction<CodeStyleVarious>) => {
+      state.codeStyle = action.payload
     }
   }
 })
@@ -176,7 +181,8 @@ export const {
   setWebdavPath,
   setCodeShowLineNumbers,
   setMathEngine,
-  setMessageStyle
+  setMessageStyle,
+  setCodeStyle
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
