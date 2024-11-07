@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, session, shell } from 'electron'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
@@ -35,7 +36,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // theme
-  ipcMain.handle('app:set-theme', (_, theme: 'light' | 'dark') => {
+  ipcMain.handle('app:set-theme', (_, theme: ThemeMode) => {
     configManager.setTheme(theme)
     mainWindow?.setTitleBarOverlay &&
       mainWindow.setTitleBarOverlay(theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight)
