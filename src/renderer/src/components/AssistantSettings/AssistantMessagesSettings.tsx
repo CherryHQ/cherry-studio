@@ -19,6 +19,8 @@ const AssistantMessagesSettings: FC<Props> = ({ assistant, updateAssistant, upda
   const [messages, setMessagess] = useState<AssistantMessage[]>(assistant?.messages || [])
   const [hideMessages, setHideMessages] = useState(assistant?.settings?.hideMessages || false)
 
+  const showSaveButton = (assistant?.messages || []).length !== messages.length
+
   const onSave = () => {
     // 检查是否有空对话组
     for (let i = 0; i < messages.length; i += 2) {
@@ -129,7 +131,7 @@ const AssistantMessagesSettings: FC<Props> = ({ assistant, updateAssistant, upda
         </Form.Item>
         <Divider style={{ marginBottom: 15 }} />
         <Form.Item>
-          {messages.length > 0 && (
+          {showSaveButton && (
             <Button type="primary" onClick={onSave}>
               {t('common.save')}
             </Button>

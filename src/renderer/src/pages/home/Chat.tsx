@@ -58,6 +58,13 @@ const Container = styled.div`
     #messages {
       background-color: var(--chat-background);
     }
+    #inputbar {
+      border-radius: 0;
+      margin: 0;
+      border: none;
+      border-top: 1px solid var(--color-border-mute);
+      background: var(--color-background);
+    }
     .system-prompt {
       background-color: var(--chat-background-assistant);
     }
@@ -77,12 +84,8 @@ const Container = styled.div`
         background-color: var(--color-white-soft);
       }
     }
-    #inputbar {
-      border-radius: 0;
-      margin: 0;
-      border: none;
-      border-top: 1px solid var(--color-border-mute);
-      background: var(--color-background);
+    code {
+      color: var(--color-white-soft);
     }
   }
 `

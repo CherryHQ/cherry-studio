@@ -1,0 +1,26 @@
+diff --git a/core.js b/core.js
+index 00b67a48b7b5cf0029413fc84abd0c01630c3d14..5550b58495b468060f775ca86e4d849d82573ea5 100644
+--- a/core.js
++++ b/core.js
+@@ -156,7 +156,7 @@ class APIClient {
+             Accept: 'application/json',
+             'Content-Type': 'application/json',
+             'User-Agent': this.getUserAgent(),
+-            ...getPlatformHeaders(),
++            // ...getPlatformHeaders(),
+             ...this.authHeaders(opts),
+         };
+     }
+diff --git a/core.mjs b/core.mjs
+index 8bc7a0ee10d61560d7113cf3f703355bb19f7ddd..5e4c8586ea6b13fe887a22af2de05eaa4700b5ec 100644
+--- a/core.mjs
++++ b/core.mjs
+@@ -149,7 +149,7 @@ export class APIClient {
+             Accept: 'application/json',
+             'Content-Type': 'application/json',
+             'User-Agent': this.getUserAgent(),
+-            ...getPlatformHeaders(),
++            // ...getPlatformHeaders(),
+             ...this.authHeaders(opts),
+         };
+     }

@@ -93,7 +93,7 @@
     "localforage": "^1.10.0",
     "lodash": "^4.17.21",
     "mime": "^4.0.4",
-    "openai": "^4.52.1",
+    "openai": "patch:openai@npm%3A4.71.1#~/.yarn/patches/openai-npm-4.71.1-b5940d6401.patch",
     "prettier": "^3.2.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

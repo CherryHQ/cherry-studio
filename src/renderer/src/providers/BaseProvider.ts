@@ -17,7 +17,7 @@ export default abstract class BaseProvider {
     return host.endsWith('/') ? host : `${host}/v1/`
   }
 
-  public getHeaders() {
+  public defaultHeaders() {
     return {
       'X-Api-Key': this.provider.apiKey
     }

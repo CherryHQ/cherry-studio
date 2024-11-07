@@ -1,8 +1,6 @@
+import { LanguageVarious, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
-
-type ThemeVarious = 'light' | 'dark'
-type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US'
 
 export class ConfigManager {
   private store: Store
@@ -15,15 +13,15 @@ export class ConfigManager {
     return this.store.get('language', app.getLocale()) as LanguageVarious
   }
 
-  setLanguage(theme: ThemeVarious) {
+  setLanguage(theme: LanguageVarious) {
     this.store.set('language', theme)
   }
 
-  getTheme(): ThemeVarious {
-    return this.store.get('theme', 'light') as ThemeVarious
+  getTheme(): ThemeMode {
+    return this.store.get('theme', ThemeMode.light) as ThemeMode
   }
 
-  setTheme(theme: ThemeVarious) {
+  setTheme(theme: ThemeMode) {
     this.store.set('theme', theme)
   }
 }
