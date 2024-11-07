@@ -52,8 +52,12 @@ const Container = styled.div`
   height: 100%;
   flex: 1;
   justify-content: space-between;
+  background-color: var(--color-background);
   &.bubble {
     background-color: var(--chat-background);
+    #messages {
+      background-color: var(--chat-background);
+    }
     .system-prompt {
       background-color: var(--chat-background-assistant);
     }

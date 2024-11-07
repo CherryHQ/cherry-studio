@@ -219,6 +219,7 @@ const Container = styled(Scrollbar)`
   padding: 10px 0;
   padding-bottom: 20px;
   overflow-x: hidden;
+  background-color: var(--color-background);
 `
 
 export default Messages

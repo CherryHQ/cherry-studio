@@ -264,7 +264,7 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
     try {
       const div = divRef.current
 
-      // 保存原始样式
+      // Save original styles
       const originalStyle = {
         height: div.style.height,
         maxHeight: div.style.maxHeight,
@@ -274,19 +274,38 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
 
       const originalScrollTop = div.scrollTop
 
-      // 修改样式以显示全部内容
+      // Modify styles to show full content
       div.style.height = 'auto'
       div.style.maxHeight = 'none'
       div.style.overflow = 'visible'
       div.style.position = 'static'
 
-      // 捕获整个内容
+      // Configure html2canvas options
       const canvas = await html2canvas(div, {
         scrollY: -window.scrollY,
-        windowHeight: document.documentElement.scrollHeight
+        windowHeight: document.documentElement.scrollHeight,
+        useCORS: true, // Allow cross-origin images
+        allowTaint: true, // Allow cross-origin images
+        logging: false, // Disable logging
+        imageTimeout: 0, // Disable image timeout
+        onclone: (clonedDoc) => {
+          // Ensure all images in cloned document are loaded
+          const images = clonedDoc.getElementsByTagName('img')
+          return Promise.all(
+            Array.from(images).map((img) => {
+              if (img.complete) {
+                return Promise.resolve()
+              }
+              return new Promise((resolve) => {
+                img.onload = resolve
+                img.onerror = resolve
+              })
+            })
+          )
+        }
       })
 
-      // 恢复原始样式
+      // Restore original styles
       div.style.height = originalStyle.height
       div.style.maxHeight = originalStyle.maxHeight
       div.style.overflow = originalStyle.overflow
@@ -294,7 +313,7 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
 
       const imageData = canvas.toDataURL('image/png')
 
-      // 恢复原始滚动位置
+      // Restore original scroll position
       setTimeout(() => {
         div.scrollTop = originalScrollTop
       }, 0)
