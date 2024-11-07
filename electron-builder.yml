@@ -63,6 +63,15 @@ electronDownload:
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    支持聊天气泡样式和简洁样式切换
-    支持导出对话为 Word 文档
-    错误修复
+    新功能：
+      - 增加 Mistral, Hyperbolic, Grok 服务商 @1355873789
+      - 增加 DuckDuckGo 小程序，无需登录即可使用 GPT-4o-mini 模型
+    错误修复：
+      - 修复上下文菜单多语言显示问题 @injurka
+      - 修复默认模型设置不生效问题 @injurka
+      - 修复全局快捷键注册失败报错
+      - 修复导出图片背景颜色错误
+      - 修复 Github Models 和 Groq 图片无法识别问题
+      - 修复气泡模式代码颜色问题
+      - 修复删除最后一组预设消息组后无法保存问题
+      - 修复拼写错误 @SHLE1

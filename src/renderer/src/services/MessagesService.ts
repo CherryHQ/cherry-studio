@@ -1,4 +1,4 @@
-import { DEFAULT_CONEXTCOUNT } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT } from '@renderer/config/constant'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { Assistant, Message, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
@@ -26,7 +26,7 @@ export function filterContextMessages(messages: Message[]): Message[] {
 }
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
-  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONEXTCOUNT
+  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
   const _messages = takeRight(messages, contextCount)
   const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
   const messagesCount = _messages.length

@@ -267,7 +267,7 @@ const PaintingsPage: FC = () => {
           <Select
             value={siliconProvider.id}
             disabled={true}
-            options={[{ label: siliconProvider.name, value: siliconProvider.id }]}
+            options={[{ label: t(`provider.${siliconProvider.id}`), value: siliconProvider.id }]}
           />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />

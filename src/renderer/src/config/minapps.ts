@@ -5,6 +5,7 @@ import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg'
 import DevvAppLogo from '@renderer/assets/images/apps/devv.png'
 import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png'
+import DuckDuckGoAppLogo from '@renderer/assets/images/apps/duckduckgo.webp'
 import FeloAppLogo from '@renderer/assets/images/apps/felo.png'
 import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg'
@@ -215,6 +216,12 @@ const _apps: MinAppType[] = [
     logo: BoltAppLogo,
     url: 'https://bolt.new/',
     bodered: true
+  },
+  {
+    id: 'duckduckgo',
+    name: 'DuckDuckGo',
+    logo: DuckDuckGoAppLogo,
+    url: 'https://duck.ai'
   }
 ]
 

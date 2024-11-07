@@ -86,7 +86,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
             spellCheck={false}
             maxLength={50}
             onChange={(e) => {
-              form.setFieldValue('name', e.target.value.toUpperCase())
+              form.setFieldValue('name', e.target.value)
               form.setFieldValue('group', getDefaultGroupName(e.target.value))
             }}
           />

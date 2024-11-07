@@ -11,7 +11,7 @@ const MessgeTokens: React.FC<{ message: Message; isLastMessage: boolean }> = ({ 
   }
 
   if (!message.usage) {
-    return null
+    return <div />
   }
 
   if (message.role === 'user') {
@@ -23,7 +23,7 @@ const MessgeTokens: React.FC<{ message: Message; isLastMessage: boolean }> = ({ 
   }
 
   if (isLastMessage && generating) {
-    return null
+    return <div />
   }
 
   if (message.role === 'assistant') {
