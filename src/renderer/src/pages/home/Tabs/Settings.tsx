@@ -1,7 +1,7 @@
 import { CheckOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { DEFAULT_CONEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
@@ -31,7 +31,7 @@ const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
   const { fontSize } = useSettings()
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
-  const [contextCount, setConextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONEXTCOUNT)
+  const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
@@ -63,7 +63,7 @@ const SettingsTab: FC<Props> = (props) => {
     }
   }
 
-  const onConextCountChange = (value) => {
+  const onContextCountChange = (value) => {
     if (!isNaN(value as number)) {
       onUpdateAssistantSettings({ contextCount: value })
     }
@@ -77,13 +77,13 @@ const SettingsTab: FC<Props> = (props) => {
 
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
-    setConextCount(DEFAULT_CONEXTCOUNT)
+    setContextCount(DEFAULT_CONTEXTCOUNT)
     updateAssistant({
       ...assistant,
       settings: {
         ...assistant.settings,
         temperature: DEFAULT_TEMPERATURE,
-        contextCount: DEFAULT_CONEXTCOUNT,
+        contextCount: DEFAULT_CONTEXTCOUNT,
         enableMaxTokens: false,
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
@@ -95,7 +95,7 @@ const SettingsTab: FC<Props> = (props) => {
 
   useEffect(() => {
     setTemperature(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
-    setConextCount(assistant?.settings?.contextCount ?? DEFAULT_CONEXTCOUNT)
+    setContextCount(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
     setEnableMaxTokens(assistant?.settings?.enableMaxTokens ?? false)
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
@@ -129,8 +129,8 @@ const SettingsTab: FC<Props> = (props) => {
         </Col>
       </Row>
       <Row align="middle">
-        <Label>{t('chat.settings.conext_count')}</Label>
-        <Tooltip title={t('chat.settings.conext_count.tip')}>
+        <Label>{t('chat.settings.context_count')}</Label>
+        <Tooltip title={t('chat.settings.context_count.tip')}>
           <QuestionIcon />
         </Tooltip>
       </Row>
@@ -139,8 +139,8 @@ const SettingsTab: FC<Props> = (props) => {
           <Slider
             min={0}
             max={20}
-            onChange={setConextCount}
-            onChangeComplete={onConextCountChange}
+            onChange={setContextCount}
+            onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
             step={1}
           />

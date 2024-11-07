@@ -1,6 +1,6 @@
 import { PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import { DEFAULT_CONEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { Button, Col, Divider, Row, Slider, Switch, Tooltip } from 'antd'
@@ -19,7 +19,7 @@ interface Props {
 
 const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateAssistantSettings }) => {
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
-  const [contextCount, setConextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONEXTCOUNT)
+  const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [autoResetModel, setAutoResetModel] = useState(assistant?.settings?.autoResetModel ?? false)
@@ -33,7 +33,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     }
   }
 
-  const onConextCountChange = (value) => {
+  const onContextCountChange = (value) => {
     if (!isNaN(value as number)) {
       updateAssistantSettings({ contextCount: value })
     }
@@ -47,13 +47,13 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
-    setConextCount(DEFAULT_CONEXTCOUNT)
+    setContextCount(DEFAULT_CONTEXTCOUNT)
     setEnableMaxTokens(false)
     setMaxTokens(0)
     setStreamOutput(true)
     updateAssistantSettings({
       temperature: DEFAULT_TEMPERATURE,
-      contextCount: DEFAULT_CONEXTCOUNT,
+      contextCount: DEFAULT_CONTEXTCOUNT,
       enableMaxTokens: false,
       maxTokens: 0,
       streamOutput: true
@@ -122,8 +122,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </Row>
       <Row align="middle">
         <Label>
-          {t('chat.settings.conext_count')}{' '}
-          <Tooltip title={t('chat.settings.conext_count.tip')}>
+          {t('chat.settings.context_count')}{' '}
+          <Tooltip title={t('chat.settings.context_count.tip')}>
             <QuestionIcon />
           </Tooltip>
         </Label>
@@ -133,8 +133,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Slider
             min={0}
             max={20}
-            onChange={setConextCount}
-            onChangeComplete={onConextCountChange}
+            onChange={setContextCount}
+            onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
             step={1}
           />

@@ -1,11 +1,11 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import { DEFAULT_CONEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { Button, Col, Input, InputNumber, Row, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { FC, useState } from 'react'
+import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -14,7 +14,7 @@ import { SettingContainer, SettingDivider, SettingSubtitle, SettingTitle } from 
 const AssistantSettings: FC = () => {
   const { defaultAssistant, updateDefaultAssistant } = useDefaultAssistant()
   const [temperature, setTemperature] = useState(defaultAssistant.settings?.temperature ?? DEFAULT_TEMPERATURE)
-  const [contextCount, setConextCount] = useState(defaultAssistant.settings?.contextCount ?? DEFAULT_CONEXTCOUNT)
+  const [contextCount, setContextCount] = useState(defaultAssistant.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(defaultAssistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(defaultAssistant?.settings?.maxTokens ?? 0)
 
@@ -34,27 +34,22 @@ const AssistantSettings: FC = () => {
     })
   }
 
-  const onTemperatureChange = (value) => {
-    if (!isNaN(value as number)) {
-      onUpdateAssistantSettings({ temperature: value })
+  const handleChange =
+    (setter: Dispatch<SetStateAction<number>>, updater: (value: number) => void) => (value: number | null) => {
+      if (!!value && !isNaN(value)) {
+        setter(value)
+        updater(value)
+      }
     }
-  }
-
-  const onConextCountChange = (value) => {
-    if (!isNaN(value as number)) {
-      onUpdateAssistantSettings({ contextCount: value })
-    }
-  }
-
-  const onMaxTokensChange = (value) => {
-    if (!isNaN(value as number)) {
-      onUpdateAssistantSettings({ maxTokens: value })
-    }
-  }
+  const onTemperatureChange = handleChange(setTemperature, (value) => onUpdateAssistantSettings({ temperature: value }))
+  const onContextCountChange = handleChange(setContextCount, (value) =>
+    onUpdateAssistantSettings({ contextCount: value })
+  )
+  const onMaxTokensChange = handleChange(setMaxTokens, (value) => onUpdateAssistantSettings({ maxTokens: value }))
 
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
-    setConextCount(DEFAULT_CONEXTCOUNT)
+    setContextCount(DEFAULT_CONTEXTCOUNT)
     setEnableMaxTokens(false)
     setMaxTokens(0)
     updateDefaultAssistant({
@@ -62,7 +57,7 @@ const AssistantSettings: FC = () => {
       settings: {
         ...defaultAssistant.settings,
         temperature: DEFAULT_TEMPERATURE,
-        contextCount: DEFAULT_CONEXTCOUNT,
+        contextCount: DEFAULT_CONTEXTCOUNT,
         enableMaxTokens: false,
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true
@@ -130,8 +125,8 @@ const AssistantSettings: FC = () => {
         </Col>
       </Row>
       <Row align="middle">
-        <Label>{t('chat.settings.conext_count')}</Label>
-        <Tooltip title={t('chat.settings.conext_count.tip')}>
+        <Label>{t('chat.settings.context_count')}</Label>
+        <Tooltip title={t('chat.settings.context_count.tip')}>
           <QuestionIcon />
         </Tooltip>
       </Row>
@@ -141,8 +136,8 @@ const AssistantSettings: FC = () => {
             min={0}
             max={20}
             marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
-            onChange={setConextCount}
-            onChangeComplete={onConextCountChange}
+            onChange={setContextCount}
+            onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
             step={1}
           />
@@ -153,7 +148,7 @@ const AssistantSettings: FC = () => {
             max={20}
             step={1}
             value={contextCount}
-            onChange={onConextCountChange}
+            onChange={onContextCountChange}
             style={{ width: '100%' }}
           />
         </Col>
@@ -192,6 +187,7 @@ const AssistantSettings: FC = () => {
         </Col>
         <Col span={3}>
           <InputNumber
+            disabled={!enableMaxTokens}
             min={0}
             max={32000}
             step={100}

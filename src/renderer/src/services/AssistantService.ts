@@ -1,4 +1,4 @@
-import { DEFAULT_CONEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -77,7 +77,7 @@ export function getProviderByModelId(modelId?: string) {
 }
 
 export const getAssistantSettings = (assistant: Assistant): AssistantSettings => {
-  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONEXTCOUNT
+  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
   const getAssistantMaxTokens = () => {
     if (assistant.settings?.enableMaxTokens) {
       const maxTokens = assistant.settings.maxTokens

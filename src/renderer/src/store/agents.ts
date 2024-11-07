@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { DEFAULT_CONEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { Agent, AssistantSettings } from '@renderer/types'
 
 export interface AgentsState {
@@ -37,7 +37,7 @@ const assistantsSlice = createSlice({
             if (!agent.settings) {
               agent.settings = {
                 temperature: DEFAULT_TEMPERATURE,
-                contextCount: DEFAULT_CONEXTCOUNT,
+                contextCount: DEFAULT_CONTEXTCOUNT,
                 enableMaxTokens: false,
                 maxTokens: 0,
                 streamOutput: true,
