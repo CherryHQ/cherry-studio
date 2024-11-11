@@ -50,12 +50,14 @@ export class TrayService {
         label: trayLocale.show_window,
         click: () => windowService.showMainWindow()
       },
+      { type: 'separator' },
       {
         label: trayLocale.quit,
         click: () => this.quit()
       }
     ])
 
+    this.tray.setContextMenu(contextMenu)
     this.tray.setToolTip('Cherry Studio')
 
     this.tray.on('right-click', () => {
