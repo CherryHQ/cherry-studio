@@ -9,6 +9,7 @@ const api = {
   setProxy: (proxy: string) => ipcRenderer.invoke('app:proxy', proxy),
   checkForUpdate: () => ipcRenderer.invoke('app:check-for-update'),
   setLanguage: (lang: string) => ipcRenderer.invoke('app:set-language', lang),
+  setTray: (isActive: boolean) => ipcRenderer.invoke('app:set-tray', isActive),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('app:set-theme', theme),
   openWebsite: (url: string) => ipcRenderer.invoke('open:website', url),
   minApp: (url: string) => ipcRenderer.invoke('minapp', url),

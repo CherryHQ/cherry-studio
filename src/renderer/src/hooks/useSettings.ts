@@ -4,6 +4,7 @@ import {
   setSendMessageShortcut as _setSendMessageShortcut,
   setTheme,
   setTopicPosition,
+  setTray,
   setWindowStyle
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
@@ -16,6 +17,9 @@ export function useSettings() {
     ...settings,
     setSendMessageShortcut(shortcut: SendMessageShortcut) {
       dispatch(_setSendMessageShortcut(shortcut))
+    },
+    setTray(isActive: boolean) {
+      dispatch(setTray(isActive))
     },
     setTheme(theme: ThemeMode) {
       dispatch(setTheme(theme))

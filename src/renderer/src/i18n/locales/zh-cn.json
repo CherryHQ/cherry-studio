@@ -324,6 +324,7 @@
       "about.license.button": "查看",
       "about.contact.button": "邮件",
       "proxy.title": "代理地址",
+      "tray.title": "最小化到托盘而不是关闭",
       "theme.title": "主题",
       "theme.dark": "深色主题",
       "theme.light": "浅色主题",

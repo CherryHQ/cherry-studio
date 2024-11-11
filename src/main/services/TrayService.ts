@@ -10,7 +10,8 @@ export class TrayService {
   private tray: Tray | null = null
 
   constructor() {
-    this.createTray()
+    this.updateTray()
+    this.watchTrayChanges()
   }
 
   private createTray() {
@@ -67,6 +68,25 @@ export class TrayService {
     this.tray.on('click', () => {
       windowService.showMainWindow()
     })
+  }
+
+  private updateTray() {
+    if (configManager.isTray()) {
+      this.createTray()
+    } else {
+      this.destroyTray()
+    }
+  }
+
+  private destroyTray() {
+    if (this.tray) {
+      this.tray.destroy()
+      this.tray = null
+    }
+  }
+
+  private watchTrayChanges() {
+    configManager.subscribe<boolean>('tray', () => this.updateTray())
   }
 
   private quit() {

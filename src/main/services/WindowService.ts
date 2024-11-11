@@ -1,4 +1,5 @@
 import { is } from '@electron-toolkit/utils'
+import { isTilingWindowManager } from '@main/utils/is-tiling-window-manager'
 import { app, BrowserWindow, Menu, MenuItem, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
@@ -166,6 +167,10 @@ export class WindowService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
+      if (!configManager.isTray() && isTilingWindowManager()) {
+        app.quit()
+      }
+
       if (!app.isQuitting) {
         event.preventDefault()
         mainWindow.hide()

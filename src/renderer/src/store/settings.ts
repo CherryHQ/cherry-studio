@@ -13,6 +13,7 @@ export interface SettingsState {
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
+  tray: boolean
   theme: ThemeMode
   windowStyle: 'transparent' | 'opaque'
   fontSize: number
@@ -99,6 +100,9 @@ const settingsSlice = createSlice({
     setShowInputEstimatedTokens: (state, action: PayloadAction<boolean>) => {
       state.showInputEstimatedTokens = action.payload
     },
+    setTray: (state, action: PayloadAction<boolean>) => {
+      state.tray = action.payload
+    },
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
       state.theme = action.payload
     },
@@ -166,6 +170,7 @@ export const {
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
+  setTray,
   setTheme,
   setFontSize,
   setWindowStyle,

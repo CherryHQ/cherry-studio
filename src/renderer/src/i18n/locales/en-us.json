@@ -336,6 +336,7 @@
       "about.license.button": "License",
       "about.contact.button": "Email",
       "proxy.title": "Proxy Address",
+      "tray.title": "Minimize to tray instead of closing",
       "theme.title": "Theme",
       "theme.dark": "Dark",
       "theme.light": "Light",

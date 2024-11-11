@@ -35,6 +35,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setLanguage(language)
   })
 
+  // tray
+  ipcMain.handle('app:set-tray', (_, isActive: boolean) => {
+    configManager.setTray(isActive)
+  })
+
   // theme
   ipcMain.handle('app:set-theme', (_, theme: ThemeMode) => {
     configManager.setTheme(theme)

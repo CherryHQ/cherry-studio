@@ -19,6 +19,7 @@ declare global {
       openWebsite: (url: string) => void
       setProxy: (proxy: string | undefined) => void
       setLanguage: (theme: LanguageVarious) => void
+      setTray: (isActive: boolean) => void
       setTheme: (theme: 'light' | 'dark') => void
       minApp: (options: { url: string; windowOptions?: Electron.BrowserWindowConstructorOptions }) => void
       reload: () => void

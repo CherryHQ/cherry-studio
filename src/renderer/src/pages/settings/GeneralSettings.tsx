@@ -16,16 +16,23 @@ const GeneralSettings: FC = () => {
   const {
     language,
     proxyUrl: storeProxyUrl,
+    setTheme,
     theme,
+    setTray,
+    tray,
     windowStyle,
     topicPosition,
     showTopicTime,
     clickAssistantToShowTopic,
-    setTheme,
     setWindowStyle,
     setTopicPosition
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
+
+  const updateTray = (value: boolean) => {
+    setTray(value)
+    window.api.setTray(value)
+  }
 
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
@@ -119,6 +126,11 @@ const GeneralSettings: FC = () => {
             { value: 'right', label: t('settings.topic.position.right') }
           ]}
         />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.tray.title')}</SettingRowTitle>
+        <Switch checked={tray} onChange={(checked) => updateTray(checked)} />
       </SettingRow>
       <SettingDivider />
       {topicPosition === 'left' && (
