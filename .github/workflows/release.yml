@@ -1,6 +1,12 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. v1.2.3)'
+        required: true
+        type: string
   push:
     tags:
       - v*.*.*
