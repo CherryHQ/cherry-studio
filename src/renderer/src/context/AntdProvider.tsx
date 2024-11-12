@@ -1,6 +1,10 @@
 import { useSettings } from '@renderer/hooks/useSettings'
+import { LanguageVarious } from '@renderer/types'
 import { ConfigProvider, theme } from 'antd'
+import enUS from 'antd/locale/en_US'
+import ruRU from 'antd/locale/ru_RU'
 import zhCN from 'antd/locale/zh_CN'
+import zhTW from 'antd/locale/zh_TW'
 import { FC, PropsWithChildren } from 'react'
 
 import { useTheme } from './ThemeProvider'
@@ -38,12 +42,17 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
   )
 }
 
-function getAntdLocale(language: string) {
+function getAntdLocale(language: LanguageVarious) {
   switch (language) {
     case 'zh-CN':
       return zhCN
+    case 'zh-TW':
+      return zhTW
     case 'en-US':
-      return undefined
+      return enUS
+    case 'ru-RU':
+      return ruRU
+
     default:
       return zhCN
   }

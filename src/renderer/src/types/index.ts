@@ -137,7 +137,7 @@ export enum ThemeMode {
   dark = 'dark',
   auto = 'auto'
 }
-export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US'
+export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US' | 'ru-RU'
 export type CodeStyleVarious = BuiltinTheme | 'auto'
 
 export type WebDavConfig = {

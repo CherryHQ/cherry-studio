@@ -6,7 +6,7 @@ import { setLanguage } from '@renderer/store/settings'
 import { setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
 import { LanguageVarious, ThemeMode } from '@renderer/types'
 import { isValidProxyUrl } from '@renderer/utils'
-import { Input, Select, Switch } from 'antd'
+import { Input, Select, Space, Switch } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -50,22 +50,31 @@ const GeneralSettings: FC = () => {
     window.api.setProxy(proxyUrl)
   }
 
+  const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
+    { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
+    { value: 'zh-TW', label: '中文（繁体）', flag: '🇹🇼' },
+    { value: 'en-US', label: 'English', flag: '🇺🇸' },
+    { value: 'ru-RU', label: 'Russian', flag: '🇷🇺' }
+  ]
+
   return (
     <SettingContainer>
       <SettingTitle>{t('settings.general.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-        <Select
-          defaultValue={language || 'en-US'}
-          style={{ width: 180 }}
-          onChange={onSelectLanguage}
-          options={[
-            { value: 'zh-CN', label: '中文' },
-            { value: 'zh-TW', label: '中文（繁体）' },
-            { value: 'en-US', label: 'English' }
-          ]}
-        />
+        <Select defaultValue={language || 'en-US'} style={{ width: 180 }} onChange={onSelectLanguage}>
+          {languagesOptions.map((lang) => (
+            <Select.Option key={lang.value} value={lang.value}>
+              <Space.Compact direction="horizontal" block>
+                <Space.Compact block>{lang.label}</Space.Compact>
+                <span role="img" aria-label={lang.flag}>
+                  {lang.flag}
+                </span>
+              </Space.Compact>
+            </Select.Option>
+          ))}
+        </Select>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
