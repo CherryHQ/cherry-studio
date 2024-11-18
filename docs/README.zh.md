@@ -134,7 +134,7 @@ $ yarn build:linux
 
 # 📃 许可证
 
-[LICENSE](./LICENSE)
+[LICENSE](../LICENSE)
 
 # ⭐️ Star 记录
 

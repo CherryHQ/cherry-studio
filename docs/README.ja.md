@@ -133,7 +133,7 @@ Cherry Studioへの貢献を歓迎します！以下の方法で貢献できま�
 
 # 📃 ライセンス
 
-[LICENSE](./LICENSE)
+[LICENSE](../LICENSE)
 
 # ⭐️ スター履歴
 
