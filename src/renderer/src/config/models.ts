@@ -136,7 +136,7 @@ const visionAllowedModels = [
   'qwen-vl',
   'qwen2-vl',
   'internvl2',
-  'grok',
+  'grok-vision-beta',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
   'gpt-4o(?:-[\\w-]+)?',
@@ -806,6 +806,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       id: 'grok-beta',
       provider: 'grok',
       name: 'Grok Beta',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-vision-beta',
+      provider: 'grok',
+      name: 'Grok Vision Beta',
       group: 'Grok'
     }
   ],
