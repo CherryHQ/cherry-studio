@@ -133,7 +133,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: () => handleTranslate('chinese')
           },
           {
-            label: '🇹🇼 ' + t('languages.chinese-traditional'),
+            label: '🇭🇰 ' + t('languages.chinese-traditional'),
             key: 'translate-chinese-traditional',
             onClick: () => handleTranslate('chinese-traditional')
           },
