@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode } from '@renderer/types'
 
-export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'CommandOrControl+Enter'
+export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter'
 
 export interface SettingsState {
   showAssistants: boolean

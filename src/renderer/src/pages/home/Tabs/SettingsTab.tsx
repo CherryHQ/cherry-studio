@@ -353,7 +353,7 @@ const SettingsTab: FC<Props> = (props) => {
               { value: 'Enter', label: 'Enter' },
               { value: 'Shift+Enter', label: `Shift + Enter` },
               { value: 'Ctrl+Enter', label: `Ctrl + Enter` },
-              { value: 'CommandOrControl+Enter', label: `CommandOrControl + Enter` }
+              { value: 'Command+Enter', label: `CommandOrControl + Enter` }
             ]}
             onChange={(value) => setSendMessageShortcut(value)}
             style={{ width: 135 }}

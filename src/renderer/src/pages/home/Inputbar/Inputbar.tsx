@@ -189,7 +189,7 @@ const Inputbar: FC<Props> = ({ assistant, setActiveTopic }) => {
       return event.preventDefault()
     }
 
-    if (sendMessageShortcut === 'CommandOrControl+Enter' && isEnterPressed && (event.metaKey || event.ctrlKey)) {
+    if (sendMessageShortcut === 'Command+Enter' && isEnterPressed && event.metaKey) {
       sendMessage()
       return event.preventDefault()
     }
