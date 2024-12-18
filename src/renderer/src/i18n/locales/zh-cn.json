@@ -83,6 +83,7 @@
       "input.web_search": "开启网络搜索",
       "message.new.branch": "新分支",
       "message.new.branch.created": "新分支已创建",
+      "message.regenerate.model": "切换模型",
       "message.new.context": "清除上下文",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",

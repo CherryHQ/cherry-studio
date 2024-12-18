@@ -83,6 +83,7 @@
       "input.web_search": "Включить веб-поиск",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
+      "message.regenerate.model": "Переключить модель",
       "message.new.context": "Новый контекст",
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",

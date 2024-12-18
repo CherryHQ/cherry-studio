@@ -205,13 +205,15 @@ const MessageMenubar: FC<Props> = (props) => {
           destroyTooltipOnHide
           icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
           onConfirm={onDeleteAndRegenerate}>
-          <ActionButton className="message-action-button">
-            <SyncOutlined />
-          </ActionButton>
+          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button">
+              <SyncOutlined />
+            </ActionButton>
+          </Tooltip>
         </Popconfirm>
       )}
       {canRegenerate && (
-        <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+        <Tooltip title={t('chat.message.regenerate.model')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onAtModelRegenerate}>
             <i className="iconfont icon-at1"></i>
           </ActionButton>
