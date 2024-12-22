@@ -222,6 +222,7 @@
       "assistant.added.content": "智能體添加成功",
       "backup.failed": "備份失敗",
       "backup.success": "備份成功",
+      "backup.start.success": "開始備份",
       "chat.completion.paused": "聊天完成已暫停",
       "copied": "已複製",
       "error.enter.api.host": "請先輸入您的 API 主機地址",
@@ -363,6 +364,8 @@
         "webdav.password": "WebDAV 密碼",
         "webdav.path": "WebDAV Path",
         "webdav.path.placeholder": "/backup",
+        "webdav.autoSync": "自動同步",
+        "webdav.minutes": "分鐘",
         "webdav.restore.button": "從 WebDAV 恢復",
         "webdav.title": "WebDAV",
         "webdav.user": "WebDAV 使用者名稱"

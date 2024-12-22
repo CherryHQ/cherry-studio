@@ -1,15 +1,17 @@
 import { FolderOpenOutlined, SaveOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { backupToWebdav, restoreFromWebdav } from '@renderer/services/BackupService'
+import { backupToWebdav, restoreFromWebdav, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch } from '@renderer/store'
 import {
+  setWebdavAutoSync,
   setWebdavHost as _setWebdavHost,
   setWebdavPass as _setWebdavPass,
   setWebdavPath as _setWebdavPath,
+  setWebdavSyncInterval as _setWebdavSyncInterval,
   setWebdavUser as _setWebdavUser
 } from '@renderer/store/settings'
-import { Button, Input } from 'antd'
+import { Button, Input, Select, Switch } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,13 +22,18 @@ const WebDavSettings: FC = () => {
     webdavHost: webDAVHost,
     webdavUser: webDAVUser,
     webdavPass: webDAVPass,
-    webdavPath: webDAVPath
+    webdavPath: webDAVPath,
+    webdavAutoSync: webDAVAutoSync,
+    webdavSyncInterval: webDAVSyncInterval
   } = useSettings()
 
   const [webdavHost, setWebdavHost] = useState<string | undefined>(webDAVHost)
   const [webdavUser, setWebdavUser] = useState<string | undefined>(webDAVUser)
   const [webdavPass, setWebdavPass] = useState<string | undefined>(webDAVPass)
   const [webdavPath, setWebdavPath] = useState<string | undefined>(webDAVPath)
+
+  const [autoSync, setAutoSync] = useState<boolean>(webDAVAutoSync)
+  const [syncInterval, setSyncInterval] = useState<number>(webDAVSyncInterval)
 
   const [backuping, setBackuping] = useState(false)
   const [restoring, setRestoring] = useState(false)
@@ -55,6 +62,19 @@ const WebDavSettings: FC = () => {
     setRestoring(true)
     await restoreFromWebdav()
     setRestoring(false)
+  }
+  const onToggleAutoSync = (checked: boolean) => {
+    dispatch(setWebdavAutoSync(checked))
+
+    if (checked) {
+      startAutoSync()
+    } else {
+      stopAutoSync()
+    }
+  }
+  const onSyncIntervalChange = (value: number) => {
+    setSyncInterval(value)
+    dispatch(_setWebdavSyncInterval(value))
   }
 
   return (
@@ -104,6 +124,32 @@ const WebDavSettings: FC = () => {
           style={{ width: 250 }}
           onBlur={() => dispatch(_setWebdavPath(webdavPath || ''))}
         />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.webdav.autoSync')}</SettingRowTitle>
+        <HStack gap="10px" alignItems="center">
+          <Switch
+            checked={autoSync}
+            onChange={(checked) => {
+              setAutoSync(checked)
+              onToggleAutoSync(checked)
+            }}
+            disabled={!webdavHost}
+          />
+          <Select
+            value={syncInterval}
+            onChange={onSyncIntervalChange}
+            disabled={!webdavHost || !autoSync}
+            style={{ width: 120 }}>
+            <Select.Option value={1}>1 {t('settings.data.webdav.minutes')}</Select.Option>
+            <Select.Option value={5}>5 {t('settings.data.webdav.minutes')}</Select.Option>
+            <Select.Option value={15}>15 {t('settings.data.webdav.minutes')}</Select.Option>
+            <Select.Option value={30}>30 {t('settings.data.webdav.minutes')}</Select.Option>
+            <Select.Option value={60}>60 {t('settings.data.webdav.minutes')}</Select.Option>
+            <Select.Option value={120}>120 {t('settings.data.webdav.minutes')}</Select.Option>
+          </Select>
+        </HStack>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

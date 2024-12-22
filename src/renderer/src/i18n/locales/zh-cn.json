@@ -222,6 +222,7 @@
       "assistant.added.content": "智能体添加成功",
       "backup.failed": "备份失败",
       "backup.success": "备份成功",
+      "backup.start.success": "开始备份",
       "chat.completion.paused": "会话已停止",
       "copied": "已复制",
       "error.enter.api.host": "请输入您的 API 地址",
@@ -363,6 +364,8 @@
         "webdav.password": "WebDAV 密码",
         "webdav.path": "WebDAV 路径",
         "webdav.path.placeholder": "/backup",
+        "webdav.autoSync": "自动同步",
+        "webdav.minutes": "分钟",
         "webdav.restore.button": "从 WebDAV 恢复",
         "webdav.title": "WebDAV",
         "webdav.user": "WebDAV 用户名"

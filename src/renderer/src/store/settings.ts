@@ -36,6 +36,8 @@ export interface SettingsState {
   webdavUser: string
   webdavPass: string
   webdavPath: string
+  webdavAutoSync: boolean
+  webdavSyncInterval: number
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   enableTopicNaming: boolean
@@ -75,6 +77,8 @@ const initialState: SettingsState = {
   webdavUser: '',
   webdavPass: '',
   webdavPath: '/cherry-studio',
+  webdavAutoSync: false,
+  webdavSyncInterval: 5,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   enableTopicNaming: true,
@@ -165,6 +169,12 @@ const settingsSlice = createSlice({
     setWebdavPath: (state, action: PayloadAction<string>) => {
       state.webdavPath = action.payload
     },
+    setWebdavAutoSync: (state, action: PayloadAction<boolean>) => {
+      state.webdavAutoSync = action.payload
+    },
+    setWebdavSyncInterval: (state, action: PayloadAction<number>) => {
+      state.webdavSyncInterval = action.payload
+    },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
       state.codeShowLineNumbers = action.payload
     },
@@ -228,6 +238,8 @@ export const {
   setWebdavUser,
   setWebdavPass,
   setWebdavPath,
+  setWebdavAutoSync,
+  setWebdavSyncInterval,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setMathEngine,

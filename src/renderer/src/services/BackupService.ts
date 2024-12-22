@@ -108,6 +108,49 @@ export async function restoreFromWebdav() {
   }
 }
 
+let syncInterval: NodeJS.Timeout | null = null
+export function startAutoSync() {
+  const { webdavAutoSync, webdavHost, webdavSyncInterval } = store.getState().settings
+
+  if (syncInterval) {
+    stopAutoSync()
+  }
+
+  if (webdavAutoSync && webdavHost) {
+    console.log('[AutoSync] Starting auto sync with interval:', webdavSyncInterval, 'minutes')
+
+    const performBackup = async () => {
+      try {
+        console.log('[AutoSync] Performing backup...')
+        await backupToWebdav()
+        window.message.success({
+          content: i18n.t('message.backup.start.success'),
+          key: 'webdav-sync'
+        })
+      } catch (error) {
+        console.error('[AutoSync] Backup failed:', error)
+        window.message.error({
+          content: i18n.t('message.backup.failed'),
+          key: 'webdav-sync'
+        })
+      }
+    }
+
+    performBackup()
+
+    syncInterval = setInterval(performBackup, webdavSyncInterval * 60 * 1000)
+    console.log('[AutoSync] Sync interval set up:', syncInterval)
+  }
+}
+
+export function stopAutoSync() {
+  if (syncInterval) {
+    console.log('[AutoSync] Stopping auto sync')
+    clearInterval(syncInterval)
+    syncInterval = null
+  }
+}
+
 async function getBackupData() {
   return JSON.stringify({
     time: new Date().getTime(),

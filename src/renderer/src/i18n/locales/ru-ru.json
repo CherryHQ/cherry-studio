@@ -222,6 +222,7 @@
       "assistant.added.content": "Ассистент успешно добавлен",
       "backup.failed": "Создание резервной копии не удалось",
       "backup.success": "Резервная копия успешно создана",
+      "backup.start.success": "Создание резервной копии начато",
       "chat.completion.paused": "Завершение чата приостановлено",
       "copied": "Скопировано!",
       "error.enter.api.host": "Пожалуйста, введите ваш API хост",
@@ -363,6 +364,8 @@
         "webdav.password": "Пароль WebDAV",
         "webdav.path": "Путь WebDAV",
         "webdav.path.placeholder": "/backup",
+        "webdav.autoSync": "Автоматическая синхронизация",
+        "webdav.minutes": "минут",
         "webdav.restore.button": "Восстановление с WebDAV",
         "webdav.title": "WebDAV",
         "webdav.user": "Пользователь WebDAV"

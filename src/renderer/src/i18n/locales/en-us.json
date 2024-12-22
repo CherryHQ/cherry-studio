@@ -222,6 +222,7 @@
       "assistant.added.content": "Assistant added successfully",
       "backup.failed": "Backup failed",
       "backup.success": "Backup successful",
+      "backup.start.success": "Backup started",
       "chat.completion.paused": "Chat completion paused",
       "copied": "Copied!",
       "error.enter.api.host": "Please enter your API host first",
@@ -363,6 +364,8 @@
         "webdav.password": "WebDAV Password",
         "webdav.path": "WebDAV Path",
         "webdav.path.placeholder": "/backup",
+        "webdav.autoSync": "Auto Sync",
+        "webdav.minutes": "Minutes",
         "webdav.restore.button": "Restore from WebDAV",
         "webdav.title": "WebDAV",
         "webdav.user": "WebDAV User"
