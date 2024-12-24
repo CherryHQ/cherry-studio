@@ -1,3 +1,4 @@
+import { isMac, isWindows } from '@renderer/config/constant'
 import { useAppSelector } from '@renderer/store'
 import { useCallback } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -58,4 +59,32 @@ export const useShortcut = (
 export function useShortcuts() {
   const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
   return { shortcuts }
+}
+
+export function useShortcutDisplay(key: string) {
+  const formatShortcut = useCallback((shortcut: string[]) => {
+    return shortcut
+      .map((key) => {
+        switch (key.toLowerCase()) {
+          case 'control':
+            return isMac ? '⌃' : 'Ctrl'
+          case 'ctrl':
+            return isMac ? '⌃' : 'Ctrl'
+          case 'command':
+            return isMac ? '⌘' : isWindows ? 'Win' : 'Super'
+          case 'alt':
+            return isMac ? '⌥' : 'Alt'
+          case 'shift':
+            return isMac ? '⇧' : 'Shift'
+          case 'commandorcontrol':
+            return isMac ? '⌘' : 'Ctrl'
+          default:
+            return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()
+        }
+      })
+      .join('+')
+  }, [])
+  const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
+  const shortcutConfig = shortcuts.find((s) => s.key === key)
+  return shortcutConfig?.enabled ? formatShortcut(shortcutConfig.shortcut) : ''
 }

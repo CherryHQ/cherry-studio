@@ -72,7 +72,7 @@
       "input.estimated_tokens.tip": "預估 Token 數",
       "input.expand": "展開",
       "input.new.context": "清除上下文",
-      "input.new_topic": "新話題 {{Command}}+N",
+      "input.new_topic": "新話題 {{Command}}",
       "input.pause": "暫停",
       "input.placeholder": "在此輸入您的訊息...",
       "input.send": "發送",

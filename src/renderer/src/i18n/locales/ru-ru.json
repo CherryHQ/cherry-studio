@@ -72,7 +72,7 @@
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
       "input.new.context": "Очистить контекст",
-      "input.new_topic": "Новый топик {{Command}}+N",
+      "input.new_topic": "Новый топик {{Command}}",
       "input.pause": "Остановить",
       "input.placeholder": "Введите ваше сообщение здесь...",
       "input.send": "Отправить",

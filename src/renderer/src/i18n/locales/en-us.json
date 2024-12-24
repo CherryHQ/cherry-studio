@@ -72,7 +72,7 @@
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
       "input.new.context": "Clear Context",
-      "input.new_topic": "New Topic {{Command}}+N",
+      "input.new_topic": "New Topic {{Command}}",
       "input.pause": "Pause",
       "input.placeholder": "Type your message here...",
       "input.send": "Send",
