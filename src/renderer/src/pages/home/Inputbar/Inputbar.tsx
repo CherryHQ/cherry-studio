@@ -89,6 +89,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     () => (showInputEstimatedTokens ? estimateTextTokens(text) || 0 : 0),
     [estimateTextTokens, showInputEstimatedTokens, text]
   )
+  const newTopicShortcut = useShortcutDisplay('new_topic')
 
   _text = text
   _files = files
@@ -410,10 +411,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         />
         <Toolbar>
           <ToolbarMenu>
-            <Tooltip
-              placement="top"
-              title={t('chat.input.new_topic', { Command: useShortcutDisplay('new_topic') })}
-              arrow>
+            <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
               <ToolbarButton type="text" onClick={addNewTopic}>
                 <FormOutlined />
               </ToolbarButton>
