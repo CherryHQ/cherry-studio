@@ -2,6 +2,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { LanguageVarious } from '@renderer/types'
 import { ConfigProvider, theme } from 'antd'
 import enUS from 'antd/locale/en_US'
+import jaJP from 'antd/locale/ja_JP'
 import ruRU from 'antd/locale/ru_RU'
 import zhCN from 'antd/locale/zh_CN'
 import zhTW from 'antd/locale/zh_TW'
@@ -59,6 +60,8 @@ function getAntdLocale(language: LanguageVarious) {
       return enUS
     case 'ru-RU':
       return ruRU
+    case 'ja-JP':
+      return jaJP
 
     default:
       return zhCN
