@@ -1,7 +1,7 @@
 import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { TopView } from '@renderer/components/TopView'
-import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import { KnowledgeBase } from '@renderer/types'
+import { getFileFromUrl, getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
+import { FileType, KnowledgeBase } from '@renderer/types'
 import { Input, List, Modal, Spin, Typography } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +21,7 @@ interface Props extends ShowParams {
 const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<ExtractChunkData[]>([])
+  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileType | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
 
@@ -39,7 +39,13 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
         search: value,
         base: getKnowledgeBaseParams(base)
       })
-      setResults(searchResults)
+      const results = await Promise.all(
+        searchResults.map(async (item) => {
+          const file = await getFileFromUrl(item.metadata.source)
+          return { ...item, file }
+        })
+      )
+      setResults(results)
     } catch (error) {
       console.error('Search failed:', error)
     } finally {
@@ -102,7 +108,16 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
                     <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>
                     <Paragraph>{highlightText(item.pageContent)}</Paragraph>
                     <MetadataContainer>
-                      <Text type="secondary">Source: {item.metadata.source}</Text>
+                      <Text type="secondary">
+                        {t('knowledge_base.source')}:{' '}
+                        {item.file ? (
+                          <a href={`http://file/${item.file.name}`} target="_blank" rel="noreferrer">
+                            {item.file.origin_name}
+                          </a>
+                        ) : (
+                          item.metadata.source
+                        )}
+                      </Text>
                     </MetadataContainer>
                   </ResultItem>
                 </List.Item>

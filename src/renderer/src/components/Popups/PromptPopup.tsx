@@ -14,7 +14,7 @@ interface PromptPopupShowParams {
 }
 
 interface Props extends PromptPopupShowParams {
-  resolve: (value: string) => void
+  resolve: (value: any) => void
 }
 
 const PromptPopupContainer: React.FC<Props> = ({
@@ -30,18 +30,21 @@ const PromptPopupContainer: React.FC<Props> = ({
 
   const onOk = () => {
     setOpen(false)
+    resolve(value)
   }
 
-  const handleCancel = () => {
+  const onCancel = () => {
     setOpen(false)
   }
 
   const onClose = () => {
-    resolve(value)
+    resolve(null)
   }
 
+  PromptPopup.hide = onCancel
+
   return (
-    <Modal title={title} open={open} onOk={onOk} onCancel={handleCancel} afterClose={onClose} centered>
+    <Modal title={title} open={open} onOk={onOk} onCancel={onCancel} afterClose={onClose} centered>
       <Box mb={8}>{message}</Box>
       <Input.TextArea
         placeholder={inputPlaceholder}
@@ -57,10 +60,12 @@ const PromptPopupContainer: React.FC<Props> = ({
   )
 }
 
+const TopViewKey = 'PromptPopup'
+
 export default class PromptPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('PromptPopup')
+    TopView.hide(TopViewKey)
   }
   static show(props: PromptPopupShowParams) {
     return new Promise<string>((resolve) => {
@@ -69,7 +74,7 @@ export default class PromptPopup {
           {...props}
           resolve={(v) => {
             resolve(v)
-            this.hide()
+            TopView.hide(TopViewKey)
           }}
         />,
         'PromptPopup'

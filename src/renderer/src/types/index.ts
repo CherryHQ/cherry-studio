@@ -203,6 +203,7 @@ export interface KnowledgeBase {
   id: string
   name: string
   model: Model
+  dimensions: number
   description?: string
   items: KnowledgeItem[]
   created_at: number
@@ -212,6 +213,7 @@ export interface KnowledgeBase {
 export type KnowledgeBaseParams = {
   id: string
   model: string
+  dimensions: number
   apiKey: string
   baseURL: string
 }

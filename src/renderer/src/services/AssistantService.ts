@@ -67,7 +67,7 @@ export function getAssistantProvider(assistant: Assistant): Provider {
   return provider || getDefaultProvider()
 }
 
-export function getProviderByModel(model?: Model) {
+export function getProviderByModel(model?: Model): Provider {
   const providers = store.getState().llm.providers
   const providerId = model ? model.provider : getDefaultProvider().id
   return providers.find((p) => p.id === providerId) as Provider

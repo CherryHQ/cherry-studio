@@ -9,29 +9,34 @@ exports.default = async function (context) {
   const arch = context.arch
 
   if (platform === 'mac') {
-    const nodeModulesPath = path.join(
+    const node_modules_path = path.join(
       context.appOutDir,
       'Cherry Studio.app',
       'Contents',
       'Resources',
       'app.asar.unpacked',
-      'node_modules',
-      '@libsql'
+      'node_modules'
     )
 
-    keepLibsqlNodeModules(nodeModulesPath, arch === Arch.arm64 ? ['darwin-arm64'] : ['darwin-x64'])
+    removeDifferentArchNodeFiles(
+      node_modules_path,
+      '@lancedb',
+      arch === Arch.arm64 ? ['lancedb-darwin-arm64'] : ['lancedb-darwin-x64']
+    )
   }
 
   if (platform === 'linux') {
-    const nodeModulesPath = path.join(context.appOutDir, 'resources', 'app.asar.unpacked', 'node_modules', '@libsql')
-    keepLibsqlNodeModules(
-      nodeModulesPath,
-      arch === Arch.arm64 ? ['linux-arm64-gnu', 'linux-arm64-musl'] : ['linux-x64-gnu', 'linux-x64-musl']
-    )
+    const node_modules_path = path.join(context.appOutDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    const _arch =
+      arch === Arch.arm64
+        ? ['lancedb-linux-arm64-gnu', 'lancedb-linux-arm64-musl']
+        : ['lancedb-linux-x64-gnu', 'lancedb-linux-x64-musl']
+    removeDifferentArchNodeFiles(node_modules_path, '@lancedb', _arch)
   }
 }
 
-function keepLibsqlNodeModules(modulePath, arch) {
+function removeDifferentArchNodeFiles(nodeModulesPath, packageName, arch) {
+  const modulePath = path.join(nodeModulesPath, packageName)
   const dirs = fs.readdirSync(modulePath)
   dirs
     .filter((dir) => !arch.includes(dir))

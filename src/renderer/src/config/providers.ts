@@ -358,7 +358,7 @@ export const PROVIDER_CONFIG = {
       url: 'https://aihubmix.com?aff=SJyh'
     },
     websites: {
-      official: 'https://aihubmix.com/',
+      official: 'https://aihubmix.com?aff=SJyh',
       apiKey: 'https://aihubmix.com?aff=SJyh',
       docs: 'https://doc.aihubmix.com/',
       models: 'https://aihubmix.com/models'

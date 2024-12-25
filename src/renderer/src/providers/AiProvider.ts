@@ -1,6 +1,6 @@
 import BaseProvider from '@renderer/providers/BaseProvider'
 import ProviderFactory from '@renderer/providers/ProviderFactory'
-import { Assistant, Message, Provider, Suggestion } from '@renderer/types'
+import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
@@ -59,5 +59,13 @@ export default class AiProvider {
     signal?: AbortSignal
   }): Promise<string[]> {
     return this.sdk.generateImage(params)
+  }
+
+  public async getEmbeddingDimensions(model: Model): Promise<number> {
+    return this.sdk.getEmbeddingDimensions(model)
+  }
+
+  public getBaseURL(): string {
+    return this.sdk.getBaseURL()
   }
 }

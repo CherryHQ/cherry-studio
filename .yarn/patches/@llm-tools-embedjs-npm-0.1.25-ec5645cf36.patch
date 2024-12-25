@@ -1,0 +1,17 @@
+diff --git a/src/core/rag-embedding.js b/src/core/rag-embedding.js
+index 50c3c4064af17bc4c7c46554d8f2419b3afceb0e..632c9b2e04d2e0e3bb09ef1cd8f29d2560e6afc1 100644
+--- a/src/core/rag-embedding.js
++++ b/src/core/rag-embedding.js
+@@ -1,10 +1,8 @@
+ export class RAGEmbedding {
+     static singleton;
+     static async init(embeddingModel) {
+-        if (!this.singleton) {
+-            await embeddingModel.init();
+-            this.singleton = new RAGEmbedding(embeddingModel);
+-        }
++        await embeddingModel.init();
++        this.singleton = new RAGEmbedding(embeddingModel);
+     }
+     static getInstance() {
+         return RAGEmbedding.singleton;

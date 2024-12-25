@@ -229,6 +229,7 @@
       "error.enter.api.host": "Пожалуйста, введите ваш API хост",
       "error.enter.api.key": "Пожалуйста, введите ваш API ключ",
       "error.enter.model": "Пожалуйста, выберите модель",
+      "error.enter.name": "Пожалуйста, введите название базы знаний",
       "error.invalid.proxy.url": "Неверный URL прокси",
       "error.invalid.webdav": "Неверные настройки WebDAV",
       "message.code_style": "Стиль кода",
@@ -248,7 +249,8 @@
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
       "regenerate.confirm": "Перегенерация заменит текущее сообщение",
-      "copy.success": "Скопировано!"
+      "copy.success": "Скопировано!",
+      "error.get_embedding_dimensions": "Не удалось получить размерность встраивания"
     },
     "minapp": {
       "title": "Встроенные приложения"
@@ -559,7 +561,10 @@
       "sitemap_placeholder": "Введите URL карты сайта",
       "directories": "Директории",
       "add_directory": "Добавить директорию",
-      "directory_placeholder": "Введите путь к директории"
+      "directory_placeholder": "Введите путь к директории",
+      "model_info": "Модель информации",
+      "not_support": "База знаний базы данных движок обновлен, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
+      "source": "Источник"
     },
     "models": {
       "pinned": "Закреплено",
@@ -577,7 +582,8 @@
       "free": "Бесплатные модели",
       "embedding": "Встраиваемые модели",
       "embedding_model": "Встраиваемые модели",
-      "embedding_model_tooltip": "Добавьте в настройки->модель сервиса->управление"
+      "embedding_model_tooltip": "Добавьте в настройки->модель сервиса->управление",
+      "dimensions": "{{dimensions}} мер"
     }
   }
 }

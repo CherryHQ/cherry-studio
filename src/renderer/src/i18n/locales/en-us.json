@@ -229,6 +229,7 @@
       "error.enter.api.host": "Please enter your API host first",
       "error.enter.api.key": "Please enter your API key first",
       "error.enter.model": "Please select a model first",
+      "error.enter.name": "Please enter the name of the knowledge base",
       "error.invalid.proxy.url": "Invalid proxy URL",
       "error.invalid.webdav": "Invalid WebDAV settings",
       "message.code_style": "Code style",
@@ -248,7 +249,8 @@
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
       "regenerate.confirm": "Regenerating will replace current message",
-      "copy.success": "Copied!"
+      "copy.success": "Copied!",
+      "error.get_embedding_dimensions": "Failed to get embedding dimensions"
     },
     "minapp": {
       "title": "MinApp"
@@ -559,7 +561,10 @@
       "sitemap_placeholder": "Enter Website Map URL",
       "directories": "Directories",
       "add_directory": "Add Directory",
-      "directory_placeholder": "Enter Directory Path"
+      "directory_placeholder": "Enter Directory Path",
+      "model_info": "Model Info",
+      "not_support": "Knowledge base database engine updated, the knowledge base will no longer be supported, please create a new knowledge base",
+      "source": "Source"
     },
     "models": {
       "pinned": "Pinned",
@@ -577,7 +582,8 @@
       "free": "Free",
       "embedding": "Embedding",
       "embedding_model": "Embedding Model",
-      "embedding_model_tooltip": "Add in Settings->Model Provider->Manage"
+      "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
+      "dimensions": "Dimensions {{dimensions}}"
     }
   }
 }

@@ -20,7 +20,7 @@ export default defineConfig({
           '@llm-tools/embedjs-loader-xml',
           '@llm-tools/embedjs-loader-pdf',
           '@llm-tools/embedjs-loader-sitemap',
-          '@llm-tools/embedjs-libsql'
+          '@llm-tools/embedjs-lancedb'
         ]
       }),
       ...visualizerPlugin('main')
@@ -34,7 +34,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@libsql/client']
+        external: ['@lancedb/lancedb']
       },
       minify: true
     }
@@ -51,7 +51,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['chunk-7UIZINC5.js', 'chunk-7OJJKI46.js']
+      exclude: []
     },
     build: {
       minify: true

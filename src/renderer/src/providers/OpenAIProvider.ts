@@ -378,4 +378,12 @@ export default class OpenAIProvider extends BaseProvider {
 
     return response.data.map((item) => item.url)
   }
+
+  public async getEmbeddingDimensions(model: Model): Promise<number> {
+    const data = await this.sdk.embeddings.create({
+      model: model.id,
+      input: 'hi'
+    })
+    return data.data[0].embedding.length
+  }
 }

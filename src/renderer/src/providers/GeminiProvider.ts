@@ -13,7 +13,7 @@ import { SUMMARIZE_PROMPT } from '@renderer/config/prompts'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, Message, Provider, Suggestion } from '@renderer/types'
+import { Assistant, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
 import axios from 'axios'
 import { first, isEmpty, last, takeRight } from 'lodash'
 import OpenAI from 'openai'
@@ -29,8 +29,12 @@ export default class GeminiProvider extends BaseProvider {
     super(provider)
     this.sdk = new GoogleGenerativeAI(this.apiKey)
     this.requestOptions = {
-      baseUrl: this.provider.apiHost
+      baseUrl: this.getBaseURL()
     }
+  }
+
+  public getBaseURL(): string {
+    return this.provider.apiHost
   }
 
   private async getMessageContents(message: Message): Promise<Content> {
@@ -287,5 +291,10 @@ export default class GeminiProvider extends BaseProvider {
     } catch (error) {
       return []
     }
+  }
+
+  public async getEmbeddingDimensions(model: Model): Promise<number> {
+    const data = await this.sdk.getGenerativeModel({ model: model.id }, this.requestOptions).embedContent('hi')
+    return data.embedding.values.length
   }
 }

@@ -49,7 +49,7 @@ jobs:
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
-          yarn download:npm linux
+          yarn build:npm linux
           yarn build:linux
 
         env:
@@ -58,7 +58,7 @@ jobs:
       - name: Build Mac
         if: matrix.os == 'macos-latest'
         run: |
-          yarn download:npm darwin
+          yarn build:npm mac
           yarn build:mac
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}

@@ -51,7 +51,7 @@ class FileManager {
 
     if (file) {
       const filesPath = store.getState().runtime.filesPath
-      file.path = filesPath + file.id
+      file.path = filesPath + '/' + file.id + file.ext
     }
 
     return file
@@ -91,7 +91,7 @@ class FileManager {
 
   static getFileUrl(file: FileType) {
     const filesPath = store.getState().runtime.filesPath
-    return 'file://' + filesPath + '/' + file.id + file.ext
+    return 'file://' + filesPath + '/' + file.name
   }
 }
 

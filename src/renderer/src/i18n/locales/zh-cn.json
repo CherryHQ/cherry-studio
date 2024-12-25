@@ -230,6 +230,7 @@
       "error.enter.api.host": "请输入您的 API 地址",
       "error.enter.api.key": "请输入您的 API 密钥",
       "error.enter.model": "请选择一个模型",
+      "error.enter.name": "请输入知识库名称",
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
       "message.code_style": "代码风格",
@@ -249,7 +250,8 @@
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
       "regenerate.confirm": "重新生成会覆盖当前消息",
-      "copy.success": "复制成功"
+      "copy.success": "复制成功",
+      "error.get_embedding_dimensions": "获取嵌入维度失败"
     },
     "minapp": {
       "title": "小程序"
@@ -548,7 +550,10 @@
       "sitemap_placeholder": "请输入站点地图 URL",
       "directories": "目录",
       "add_directory": "添加目录",
-      "directory_placeholder": "请输入目录路径"
+      "directory_placeholder": "请输入目录路径",
+      "model_info": "模型信息",
+      "not_support": "知识库数据库引擎已更新，该知识库将不再支持，请重新创建知识库",
+      "source": "来源"
     },
     "models": {
       "pinned": "已固定",
@@ -566,7 +571,8 @@
       "free": "免费模型",
       "embedding": "嵌入模型",
       "embedding_model": "嵌入模型",
-      "embedding_model_tooltip": "在设置->模型服务中点击管理按钮添加"
+      "embedding_model_tooltip": "在设置->模型服务中点击管理按钮添加",
+      "dimensions": "{{dimensions}} 维"
     }
   }
 }

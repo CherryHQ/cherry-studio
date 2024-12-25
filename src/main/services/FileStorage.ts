@@ -56,8 +56,6 @@ class FileStorage {
       const storedFilePath = path.join(this.storageDir, file)
       const storedStats = fs.statSync(storedFilePath)
 
-      console.debug('storedFilePath', storedFilePath)
-
       if (storedStats.size === fileSize) {
         const [originalHash, storedHash] = await Promise.all([
           this.getFileHash(filePath),

@@ -14,7 +14,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileManager from '@renderer/services/FileManager'
 import { FileType, FileTypes, KnowledgeBase } from '@renderer/types'
-import { Button, Card, message, Typography, Upload } from 'antd'
+import { Alert, Button, Card, Divider, message, Tag, Typography, Upload } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -177,6 +177,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   return (
     <MainContent>
+      {!base.dimensions && (
+        <Alert message={t('knowledge_base.not_support')} type="error" style={{ marginBottom: 20 }} showIcon />
+      )}
       <FileSection>
         <TitleWrapper>
           <Title level={5}>{t('files.title')}</Title>
@@ -323,6 +326,15 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         </FlexColumn>
       </ContentSection>
 
+      <Divider style={{ margin: '10px 0' }} />
+
+      <ModelInfo>
+        <label htmlFor="model-info">{t('knowledge_base.model_info')}</label>
+        <Tag color="blue">{base.model.name}</Tag>
+        <Tag color="cyan">{t('models.dimensions', { dimensions: base.dimensions || 0 })}</Tag>
+        <Tag color="purple">{base.model.provider}</Tag>
+      </ModelInfo>
+
       <IndexSection>
         <Button type="primary" onClick={() => KnowledgeSearchPopup.show({ base })} icon={<SearchOutlined />}>
           {t('knowledge_base.search')}
@@ -340,6 +352,7 @@ const MainContent = styled(Scrollbar)`
   flex-direction: column;
   padding-bottom: 50px;
   padding: 15px;
+  position: relative;
 `
 
 const FileSection = styled.div`
@@ -414,6 +427,17 @@ const IndexSection = styled.div`
   margin-top: 20px;
   display: flex;
   justify-content: center;
+`
+
+const ModelInfo = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 5px;
+  color: var(--color-text-3);
+  label {
+    margin-right: 8px;
+    color: var(--color-text-2);
+  }
 `
 
 export default KnowledgeContent

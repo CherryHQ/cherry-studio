@@ -2,8 +2,8 @@ import * as fs from 'node:fs'
 import path from 'node:path'
 
 import { LocalPathLoader, RAGApplication, RAGApplicationBuilder, TextLoader } from '@llm-tools/embedjs'
-import { AddLoaderReturn, ExtractChunkData } from '@llm-tools/embedjs-interfaces'
-import { LibSqlDb } from '@llm-tools/embedjs-libsql'
+import type { AddLoaderReturn, ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import { LanceDb } from '@llm-tools/embedjs-lancedb'
 import { MarkdownLoader } from '@llm-tools/embedjs-loader-markdown'
 import { DocxLoader, ExcelLoader, PptLoader } from '@llm-tools/embedjs-loader-msoffice'
 import { PdfLoader } from '@llm-tools/embedjs-loader-pdf'
@@ -26,8 +26,13 @@ class KnowledgeService {
     }
   }
 
-  private getRagApplication = async ({ id, model, apiKey, baseURL }: KnowledgeBaseParams): Promise<RAGApplication> => {
-    console.debug('getRagApplication', path.join(this.storageDir, id))
+  private getRagApplication = async ({
+    id,
+    model,
+    apiKey,
+    baseURL,
+    dimensions
+  }: KnowledgeBaseParams): Promise<RAGApplication> => {
     return new RAGApplicationBuilder()
       .setModel('NO_MODEL')
       .setEmbeddingModel(
@@ -35,19 +40,16 @@ class KnowledgeService {
           model,
           apiKey,
           configuration: { baseURL },
-          dimensions: 1024,
-          batchSize: 10
+          dimensions,
+          batchSize: 20
         })
       )
-      .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
+      .setVectorDatabase(new LanceDb({ path: path.join(this.storageDir, id) }))
       .build()
   }
 
-  public create = async (
-    _: Electron.IpcMainInvokeEvent,
-    { id, model, apiKey, baseURL }: KnowledgeBaseParams
-  ): Promise<void> => {
-    this.getRagApplication({ id, model, apiKey, baseURL })
+  public create = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
+    this.getRagApplication(base)
   }
 
   public reset = async (_: Electron.IpcMainInvokeEvent, { base }: { base: KnowledgeBaseParams }): Promise<void> => {

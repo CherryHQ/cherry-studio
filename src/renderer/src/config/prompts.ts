@@ -50,23 +50,13 @@ export const SUMMARIZE_PROMPT =
 export const TRANSLATE_PROMPT =
   'You are a translation expert. Translate from input language to {{target_language}}, provide the translation result directly without any explanation and keep original format. Do not translate if the target language is the same as the source language.'
 
-export const REFERENCE_PROMPT = `请根据参考资料回答问题，并使用脚注格式引用数据来源。参考资料可能和问题无关，请忽略无关的参考资料。
+export const REFERENCE_PROMPT = `请根据参考资料回答问题，并使用脚注格式引用数据来源。请忽略无关的参考资料。
 
 ## 脚注格式：
 
 1. **脚注标记**：在正文中使用 [^数字] 的形式标记脚注，例如 [^1]。
-2. **脚注内容**：在文档末尾使用 [^数字]: 脚注内容 的形式定义脚注的具体内容。
-
-## 脚注示例和要求：
-
-1. type 为 file 时：[^1]: [__name__](http://file/__url__)
-2. type 为 directory 时：[^1]: [__name__](http://file/__url__)
-3. type 为 url,sitemap 时：[^1]: [__name__](__url__)
-4. type 为 note 时：[^1]: __note__
-
-__url__ 替换成参考资料的 url
-__name__ 请根据参考资料的 url 进行解析和替换
-__note__ 请根据参考资料的 content 进行总结和替换
+2. **脚注内容**：在文档末尾使用 [^数字]: 脚注内容 的形式定义脚注的具体内容
+3. **脚注内容**：应该尽量简洁
 
 ## 我的问题是：
 

@@ -9,7 +9,7 @@ class KnowledgeQueue {
   private processing: Map<string, boolean> = new Map()
   private pollingInterval: NodeJS.Timeout | null = null
   // private readonly POLLING_INTERVAL = 5000
-  private readonly MAX_RETRIES = 3
+  private readonly MAX_RETRIES = 2
 
   constructor() {
     this.checkAllBases().catch(console.error)

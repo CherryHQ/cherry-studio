@@ -1,10 +1,9 @@
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
-import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
+import { getKnowledgeReferences } from '@renderer/services/KnowledgeService'
 import store from '@renderer/store'
-import { Assistant, Message, Provider, Suggestion } from '@renderer/types'
+import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { delay } from '@renderer/utils'
-import { take } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
@@ -37,6 +36,7 @@ export default abstract class BaseProvider {
     guidanceScale: number
     signal?: AbortSignal
   }): Promise<string[]>
+  abstract getEmbeddingDimensions(model: Model): Promise<number>
 
   public getBaseURL(): string {
     const host = this.provider.apiHost
@@ -94,25 +94,8 @@ export default abstract class BaseProvider {
       return message.content
     }
 
-    const searchResults = await window.api.knowledgeBase.search({
-      search: message.content,
-      base: getKnowledgeBaseParams(base)
-    })
+    const references = await getKnowledgeReferences(base, message)
 
-    const references = take(searchResults, 6).map((item, index) => {
-      const sourceUrl = item.metadata.source
-      const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
-
-      return {
-        id: index,
-        content: item.pageContent,
-        url: encodeURIComponent(sourceUrl),
-        type: baseItem?.type
-      }
-    })
-
-    const referencesContent = JSON.stringify(references, null, 2)
-
-    return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referencesContent)
+    return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', references)
   }
 }

@@ -265,4 +265,8 @@ export default class AnthropicProvider extends BaseProvider {
   public async models(): Promise<OpenAI.Models.Model[]> {
     return []
   }
+
+  public async getEmbeddingDimensions(): Promise<number> {
+    return 0
+  }
 }

@@ -7,7 +7,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { KnowledgeBase } from '@renderer/types'
 import { Dropdown, Empty, MenuProps } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -19,6 +19,7 @@ const KnowledgePage: FC = () => {
   const { bases, renameKnowledgeBase, deleteKnowledgeBase, updateKnowledgeBases } = useKnowledgeBases()
   const [selectedBase, setSelectedBase] = useState<KnowledgeBase>()
   const [isDragging, setIsDragging] = useState(false)
+  const prevLength = useRef(0)
 
   const handleAddKnowledge = async () => {
     await AddKnowledgePopup.show({ title: t('knowledge_base.add.title') })
@@ -34,6 +35,14 @@ const KnowledgePage: FC = () => {
       }
     }
   }, [bases, selectedBase])
+
+  useEffect(() => {
+    const currentLength = bases.length
+    if (currentLength > 0 && currentLength > prevLength.current) {
+      setSelectedBase(bases[currentLength - 1])
+    }
+    prevLength.current = currentLength
+  }, [bases])
 
   const getMenuItems = useCallback(
     (base: KnowledgeBase) => {
@@ -90,7 +99,7 @@ const KnowledgePage: FC = () => {
               style={{ marginBottom: 0, paddingBottom: isDragging ? 50 : 0 }}
               onDragStart={() => setIsDragging(true)}
               onDragEnd={() => setIsDragging(false)}>
-              {(base) => (
+              {(base: KnowledgeBase) => (
                 <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
                   <div>
                     <ListItem

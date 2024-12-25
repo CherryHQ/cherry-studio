@@ -5,15 +5,20 @@ interface ListItemProps {
   active?: boolean
   icon?: ReactNode
   title: string
+  subtitle?: string
   onClick?: () => void
 }
 
-const ListItem = ({ active, icon, title, onClick }: ListItemProps) => {
+const ListItem = ({ active, icon, title, subtitle, onClick }: ListItemProps) => {
+  const borderRadius = subtitle ? '10px' : '16px'
   return (
-    <ListItemContainer className={active ? 'active' : ''} onClick={onClick}>
+    <ListItemContainer className={active ? 'active' : ''} onClick={onClick} style={{ borderRadius }}>
       <ListItemContent>
-        {icon && <span style={{ marginRight: '8px' }}>{icon}</span>}
-        {title}
+        {icon && <IconWrapper>{icon}</IconWrapper>}
+        <TextContainer>
+          <TitleText>{title}</TitleText>
+          {subtitle && <SubtitleText>{subtitle}</SubtitleText>}
+        </TextContainer>
       </ListItemContent>
     </ListItemContainer>
   )
@@ -42,11 +47,38 @@ const ListItemContainer = styled.div`
 `
 
 const ListItemContent = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  font-size: 13px;
+`
+
+const IconWrapper = styled.span`
+  margin-right: 8px;
+`
+
+const TextContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`
+
+const TitleText = styled.div`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const SubtitleText = styled.div`
+  font-size: 10px;
+  color: var(--color-text-soft);
+  margin-top: 2px;
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 13px;
+  color: var(--color-text-3);
 `
 
 export default ListItem

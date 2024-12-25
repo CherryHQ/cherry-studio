@@ -2,6 +2,7 @@ import { TopView } from '@renderer/components/TopView'
 import { isEmbeddingModel } from '@renderer/config/models'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
+import AiProvider from '@renderer/providers/AiProvider'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
@@ -30,6 +31,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { addKnowledgeBase } = useKnowledgeBases()
+  const [loading, setLoading] = useState(false)
   const allModels = providers
     .map((p) => p.models)
     .flat()
@@ -55,10 +57,29 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       const selectedModel = find(allModels, JSON.parse(values.model)) as Model
 
       if (selectedModel) {
+        setLoading(true)
+        const provider = providers.find((p) => p.id === selectedModel.provider)
+
+        if (!provider) {
+          return
+        }
+
+        const aiProvider = new AiProvider(provider)
+        let dimensions = 0
+
+        try {
+          dimensions = await aiProvider.getEmbeddingDimensions(selectedModel)
+        } catch (error) {
+          console.error('Error getting embedding dimensions:', error)
+          window.message.error(t('message.error.get_embedding_dimensions'))
+          return
+        }
+
         const newBase = {
           id: nanoid(),
           name: values.name,
           model: selectedModel,
+          dimensions,
           items: [],
           created_at: Date.now(),
           updated_at: Date.now()
@@ -84,7 +105,15 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   }
 
   return (
-    <Modal title={title} open={open} onOk={onOk} onCancel={onCancel} afterClose={onClose} destroyOnClose centered>
+    <Modal
+      title={title}
+      open={open}
+      onOk={onOk}
+      onCancel={onCancel}
+      afterClose={onClose}
+      destroyOnClose
+      centered
+      okButtonProps={{ loading }}>
       <Form form={form} layout="vertical">
         <Form.Item
           name="name"
