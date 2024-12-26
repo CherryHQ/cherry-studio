@@ -9,7 +9,14 @@ import {
 } from '@ant-design/icons'
 import VisionIcon from '@renderer/components/Icons/VisionIcon'
 import WebSearchIcon from '@renderer/components/Icons/WebSearchIcon'
-import { EMBEDDING_REGEX, getModelLogo, isVisionModel, isWebSearchModel, VISION_REGEX } from '@renderer/config/models'
+import {
+  EMBEDDING_REGEX,
+  getModelLogo,
+  isEmbeddingModel,
+  isVisionModel,
+  isWebSearchModel,
+  VISION_REGEX
+} from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -20,7 +27,7 @@ import { checkApi } from '@renderer/services/ApiService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model, ModelType, Provider } from '@renderer/types'
-import { Avatar, Button, Card, Checkbox, Divider, Flex, Input, Popover, Space, Switch } from 'antd'
+import { Avatar, Button, Card, Checkbox, Divider, Flex, Input, Popover, Space, Switch, Tag } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { groupBy, isEmpty } from 'lodash'
 import { FC, useEffect, useState } from 'react'
@@ -273,6 +280,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
                 </Avatar>
                 {model.name} {isVisionModel(model) && <VisionIcon />}
                 {isWebSearchModel(model) && <WebSearchIcon />}
+                {isEmbeddingModel(model) && (
+                  <Tag style={{ marginLeft: 10 }} color="orange">
+                    {t('models.embedding')}
+                  </Tag>
+                )}
                 <Popover content={modelTypeContent(model)} title={t('models.type.select')} trigger="click">
                   <SettingIcon />
                 </Popover>

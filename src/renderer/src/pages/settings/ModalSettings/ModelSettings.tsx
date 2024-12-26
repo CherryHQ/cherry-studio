@@ -1,6 +1,7 @@
 import { EditOutlined, MessageOutlined, RedoOutlined, SettingOutlined, TranslationOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import { isEmbeddingModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -35,10 +36,12 @@ const ModelSettings: FC = () => {
     .map((p) => ({
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
-      options: sortBy(p.models, 'name').map((m) => ({
-        label: m.name,
-        value: getModelUniqId(m)
-      }))
+      options: sortBy(p.models, 'name')
+        .filter((m) => !isEmbeddingModel(m))
+        .map((m) => ({
+          label: m.name,
+          value: getModelUniqId(m)
+        }))
     }))
 
   const defaultModelValue = useMemo(

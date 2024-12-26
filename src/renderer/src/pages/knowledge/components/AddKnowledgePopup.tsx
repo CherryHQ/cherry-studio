@@ -82,7 +82,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           dimensions,
           items: [],
           created_at: Date.now(),
-          updated_at: Date.now()
+          updated_at: Date.now(),
+          version: 1
         }
 
         await window.api.knowledgeBase.create(getKnowledgeBaseParams(newBase))

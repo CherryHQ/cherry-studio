@@ -208,6 +208,7 @@ export interface KnowledgeBase {
   items: KnowledgeItem[]
   created_at: number
   updated_at: number
+  version: number
 }
 
 export type KnowledgeBaseParams = {

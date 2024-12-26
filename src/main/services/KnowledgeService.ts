@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { LocalPathLoader, RAGApplication, RAGApplicationBuilder, TextLoader } from '@llm-tools/embedjs'
 import type { AddLoaderReturn, ExtractChunkData } from '@llm-tools/embedjs-interfaces'
-import { LanceDb } from '@llm-tools/embedjs-lancedb'
+import { LibSqlDb } from '@llm-tools/embedjs-libsql'
 import { MarkdownLoader } from '@llm-tools/embedjs-loader-markdown'
 import { DocxLoader, ExcelLoader, PptLoader } from '@llm-tools/embedjs-loader-msoffice'
 import { PdfLoader } from '@llm-tools/embedjs-loader-pdf'
@@ -44,7 +44,7 @@ class KnowledgeService {
           batchSize: 20
         })
       )
-      .setVectorDatabase(new LanceDb({ path: path.join(this.storageDir, id) }))
+      .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
       .build()
   }
 

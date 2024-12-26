@@ -347,8 +347,14 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     {
       id: 'deepseek-chat',
       provider: 'deepseek',
-      name: 'DeepSeek V2.5',
-      group: 'DeepSeek V2.5'
+      name: 'DeepSeek Chat',
+      group: 'DeepSeek Chat'
+    },
+    {
+      id: 'deepseek-coder',
+      provider: 'deepseek',
+      name: 'DeepSeek Coder',
+      group: 'DeepSeek Coder'
     }
   ],
   together: [

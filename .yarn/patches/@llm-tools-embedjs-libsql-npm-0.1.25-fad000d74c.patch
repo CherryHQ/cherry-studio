@@ -1,0 +1,25 @@
+diff --git a/src/libsql-db.js b/src/libsql-db.js
+index 58c42e4910bd0e53bc497ff9b9702b1f7a961266..250bc97c50a9b790e8798441d904d040f2d2af43 100644
+--- a/src/libsql-db.js
++++ b/src/libsql-db.js
+@@ -41,9 +41,9 @@ export class LibSqlDb {
+     }
+     async similaritySearch(query, k) {
+         const statement = `SELECT id, pageContent, uniqueLoaderId, source, metadata,
+-                vector_distance_cos(vector, vector32('[${query.join(',')}]'))
++                vector_distance_cos(vector, vector32('[${query.join(',')}]')) as distance
+             FROM ${this.tableName}
+-            ORDER BY vector_distance_cos(vector, vector32('[${query.join(',')}]')) ASC
++            ORDER BY distance ASC
+             LIMIT ${k};`;
+         this.debug(`Executing statement - ${truncateCenterString(statement, 700)}`);
+         const results = await this.client.execute(statement);
+@@ -52,7 +52,7 @@ export class LibSqlDb {
+             return {
+                 metadata,
+                 pageContent: result.pageContent.toString(),
+-                score: 1,
++                score: 1 - result.distance,
+             };
+         });
+     }

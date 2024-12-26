@@ -177,7 +177,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   return (
     <MainContent>
-      {!base.dimensions && (
+      {!base?.version && (
         <Alert message={t('knowledge_base.not_support')} type="error" style={{ marginBottom: 20 }} showIcon />
       )}
       <FileSection>
