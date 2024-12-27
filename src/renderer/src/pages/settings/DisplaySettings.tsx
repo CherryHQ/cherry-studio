@@ -4,12 +4,13 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import {
   setClickAssistantToShowTopic,
+  setCustomCss,
   setShowFilesIcon,
   setShowMinappIcon,
   setShowTopicTime
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Select, Switch } from 'antd'
+import { Input, Select, Switch } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,7 +27,8 @@ const DisplaySettings: FC = () => {
     topicPosition,
     setTopicPosition,
     clickAssistantToShowTopic,
-    showTopicTime
+    showTopicTime,
+    customCss
   } = useSettings()
   const { theme: themeMode } = useTheme()
 
@@ -110,6 +112,19 @@ const DisplaySettings: FC = () => {
           <SettingRowTitle>{t('settings.display.sidebar.files.icon')}</SettingRowTitle>
           <Switch checked={showFilesIcon} onChange={(value) => dispatch(setShowFilesIcon(value))} />
         </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.custom.css')}</SettingTitle>
+        <SettingDivider />
+        <Input.TextArea
+          value={customCss}
+          onChange={(e) => dispatch(setCustomCss(e.target.value))}
+          placeholder={t('settings.display.custom.css.placeholder')}
+          style={{
+            minHeight: 200,
+            fontFamily: 'monospace'
+          }}
+        />
       </SettingGroup>
     </SettingContainer>
   )

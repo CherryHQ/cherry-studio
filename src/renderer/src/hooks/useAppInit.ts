@@ -16,8 +16,16 @@ import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, manualUpdateCheck, proxyMode, webdavAutoSync, webdavSyncInterval } =
-    useSettings()
+  const {
+    proxyUrl,
+    language,
+    windowStyle,
+    manualUpdateCheck,
+    proxyMode,
+    webdavAutoSync,
+    webdavSyncInterval,
+    customCss
+  } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -83,4 +91,18 @@ export function useAppInit() {
   useEffect(() => {
     import('@renderer/queue/KnowledgeQueue')
   }, [])
+
+  useEffect(() => {
+    const oldCustomCss = document.getElementById('user-defined-custom-css')
+    if (oldCustomCss) {
+      oldCustomCss.remove()
+    }
+
+    if (customCss) {
+      const style = document.createElement('style')
+      style.id = 'user-defined-custom-css'
+      style.textContent = customCss
+      document.head.appendChild(style)
+    }
+  }, [customCss])
 }

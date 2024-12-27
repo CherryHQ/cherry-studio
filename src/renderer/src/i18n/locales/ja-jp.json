@@ -379,6 +379,8 @@
       "display.sidebar.files.icon": "ファイルのアイコンを表示",
       "display.sidebar.title": "サイドバー設定",
       "display.topic.title": "トピック設定",
+      "display.custom.css": "カスタムCSS",
+      "display.custom.css.placeholder": "/* ここにカスタムCSSを入力 */",
       "input.auto_translate_with_space": "スペースを3回押して翻訳",
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.input.paste_long_text_as_file": "長いテキストをファイルとして貼り付け",

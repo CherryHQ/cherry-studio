@@ -382,6 +382,8 @@
       "display.sidebar.files.icon": "显示文件图标",
       "display.sidebar.title": "侧边栏设置",
       "display.topic.title": "话题设置",
+      "display.custom.css": "自定义 CSS",
+      "display.custom.css.placeholder": "/* 这里写自定义CSS */",
       "input.auto_translate_with_space": "快速敲击3次空格翻译",
       "messages.divider": "消息分割线",
       "messages.input.paste_long_text_as_file": "长文本粘贴为文件",

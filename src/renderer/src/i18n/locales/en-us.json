@@ -381,6 +381,8 @@
       "display.sidebar.files.icon": "Show Files icon",
       "display.sidebar.title": "Sidebar Settings",
       "display.topic.title": "Topic Settings",
+      "display.custom.css": "Custom CSS",
+      "display.custom.css.placeholder": "/* Put custom CSS here */",
       "input.auto_translate_with_space": "Quickly translate with 3 spaces",
       "messages.divider": "Show divider between messages",
       "messages.input.paste_long_text_as_file": "Paste long text as file",
