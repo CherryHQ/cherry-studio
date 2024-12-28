@@ -59,6 +59,10 @@ export async function reset() {
 
 // 备份到 webdav
 export async function backupToWebdav({ showMessage = true }: { showMessage?: boolean } = {}) {
+  if (isManualBackupRunning) {
+    console.log('[Backup] Manual backup already in progress')
+    return
+  }
   const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
 
   const backupData = await getBackupData()
@@ -83,6 +87,8 @@ export async function backupToWebdav({ showMessage = true }: { showMessage?: boo
         title: i18n.t('message.backup.failed'),
         content: error.message
       })
+  } finally {
+    isManualBackupRunning = false
   }
 }
 
@@ -109,40 +115,69 @@ export async function restoreFromWebdav() {
   }
 }
 
-let syncInterval: NodeJS.Timeout | null = null
-export function startAutoSync() {
-  const { webdavAutoSync, webdavHost, webdavSyncInterval } = store.getState().settings
+let autoSyncStarted = false
+let syncTimeout: NodeJS.Timeout | null = null
+let isAutoBackupRunning = false
+let isManualBackupRunning = false
 
-  if (syncInterval) {
-    stopAutoSync()
+export function startAutoSync() {
+  if (autoSyncStarted) {
+    return
   }
 
-  if (webdavAutoSync && webdavHost) {
-    console.log('[AutoSync] Starting auto sync with interval:', webdavSyncInterval, 'minutes')
+  const { webdavAutoSync, webdavHost, webdavSyncInterval } = store.getState().settings
 
-    const performBackup = async () => {
-      try {
-        console.log('[AutoSync] Performing backup...')
-        await backupToWebdav({ showMessage: false })
-        window.message.success({ content: i18n.t('message.backup.success'), key: 'webdav-sync' })
-      } catch (error) {
-        console.error('[AutoSync] Backup failed:', error)
-        window.message.error({ content: i18n.t('message.backup.failed'), key: 'webdav-sync' })
-      }
+  if (!webdavAutoSync || !webdavHost || webdavSyncInterval <= 0) {
+    console.log('[AutoSync] Invalid sync settings, auto sync disabled')
+    return
+  }
+
+  autoSyncStarted = true
+
+  stopAutoSync()
+
+  scheduleNextBackup()
+
+  function scheduleNextBackup() {
+    if (syncTimeout) {
+      clearTimeout(syncTimeout)
+      syncTimeout = null
     }
 
-    syncInterval = setInterval(performBackup, webdavSyncInterval * 60 * 1000)
+    syncTimeout = setTimeout(performAutoBackup, webdavSyncInterval * 60 * 1000)
+    console.log(`[AutoSync] Next sync scheduled in ${webdavSyncInterval} minutes`)
+  }
 
-    console.log(`[AutoSync] Sync interval set up: ${webdavSyncInterval} minutes`)
+  async function performAutoBackup() {
+    if (isAutoBackupRunning || isManualBackupRunning) {
+      console.log('[AutoSync] Backup already in progress, rescheduling')
+      scheduleNextBackup()
+      return
+    }
+
+    isAutoBackupRunning = true
+    try {
+      console.log('[AutoSync] Performing auto backup...')
+      await backupToWebdav({ showMessage: false })
+      window.message.success({ content: i18n.t('message.backup.success'), key: 'webdav-auto-sync' })
+    } catch (error) {
+      console.error('[AutoSync] Auto backup failed:', error)
+      window.message.error({ content: i18n.t('message.backup.failed'), key: 'webdav-auto-sync' })
+    } finally {
+      isAutoBackupRunning = false
+      scheduleNextBackup()
+    }
   }
 }
 
 export function stopAutoSync() {
-  if (syncInterval) {
+  if (syncTimeout) {
     console.log('[AutoSync] Stopping auto sync')
-    clearInterval(syncInterval)
-    syncInterval = null
+    clearTimeout(syncTimeout)
+    syncTimeout = null
   }
+  isAutoBackupRunning = false
+  autoSyncStarted = false
 }
 
 async function getBackupData() {
