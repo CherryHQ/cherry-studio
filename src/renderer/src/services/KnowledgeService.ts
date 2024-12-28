@@ -25,6 +25,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     model: base.model.id,
     dimensions: base.dimensions,
     apiKey: aiProvider.getApiKey(),
+    apiVersion: provider.apiVersion,
     baseURL: host
   }
 }

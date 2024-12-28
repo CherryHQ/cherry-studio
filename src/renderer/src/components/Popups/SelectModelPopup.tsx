@@ -115,7 +115,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       .flatMap((p) => p.models || [])
       .filter((m) => pinnedModels.includes(getModelUniqId(m)))
       .map((m) => ({
-        key: getModelUniqId(m),
+        key: getModelUniqId(m) + '_pinned',
         label: (
           <ModelItem>
             {m?.name} {isVisionModel(m) && <VisionIcon />}

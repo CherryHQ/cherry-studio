@@ -216,5 +216,6 @@ export type KnowledgeBaseParams = {
   model: string
   dimensions: number
   apiKey: string
+  apiVersion?: string
   baseURL: string
 }

@@ -36,8 +36,6 @@ const Container = styled.div`
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  max-width: 80px;
-  width: 72px;
   overflow: hidden;
 `
 

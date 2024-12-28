@@ -7,7 +7,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
-import { Avatar, Button, Empty, Flex, Modal, Popover, Radio, Tag } from 'antd'
+import { Avatar, Button, Empty, Flex, Modal, Popover, Radio, Tag, Tooltip } from 'antd'
 import Search from 'antd/es/input/Search'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { useEffect, useState } from 'react'
@@ -153,7 +153,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                       {model.name[0].toUpperCase()}
                     </Avatar>
                     <ListItemName>
-                      {model.name}
+                      <Tooltip title={model.id} placement="top">
+                        <span style={{ cursor: 'help' }}>{model.name}</span>
+                      </Tooltip>
                       {isVisionModel(model) && <VisionIcon />}
                       {isWebSearchModel(model) && <WebSearchIcon />}
                       {isFreeModel(model) && (
@@ -196,9 +198,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
 const SearchContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 15px;
   padding: 0 22px;
-  padding-bottom: 20px;
+  padding-bottom: 10px;
   margin-top: -10px;
 
   .ant-radio-group {

@@ -1,5 +1,6 @@
 import { ArrowRightOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { default as MessageItem } from '@renderer/pages/home/Messages/Message'
 import { locateToMessage } from '@renderer/services/MessagesService'
 import NavigationService from '@renderer/services/NavigationService'
@@ -15,6 +16,7 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 
 const SearchMessage: FC<Props> = ({ message, ...props }) => {
   const navigate = NavigationService.navigate!
+  const { messageStyle } = useSettings()
   const { t } = useTranslation()
 
   if (!message) {
@@ -22,7 +24,7 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
   }
 
   return (
-    <MessagesContainer {...props}>
+    <MessagesContainer {...props} className={messageStyle}>
       <ContainerWrapper style={{ paddingTop: 20, paddingBottom: 20, position: 'relative' }}>
         <MessageItem message={message} />
         <Button
@@ -45,6 +47,7 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
 const MessagesContainer = styled.div`
   width: 100%;
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   overflow-y: scroll;

@@ -77,4 +77,11 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    增加知识库功能
+    Azure OpenAI 嵌入模型支持
+    增加嵌入模型专用服务商 JINA
+    支持选择图片和文件后不输入内容即可发送
+    增加 GitHub Copilot 小程序
+    模型编辑支持显示模型 ID
+    模型选择按钮增加服务商显示
+    修复话题移动到不同的助手后搜索结果不能定位问题
+    修复输出包含 sub 无法正常显示问题

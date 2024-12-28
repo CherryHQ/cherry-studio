@@ -1,5 +1,7 @@
 import { PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
+import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettings } from '@renderer/types'
@@ -7,9 +9,6 @@ import { Button, Col, Divider, InputNumber, Row, Slider, Switch, Tooltip } from 
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import ModelAvatar from '../Avatar/ModelAvatar'
-import SelectModelPopup from '../Popups/SelectModelPopup'
 
 interface Props {
   assistant: Assistant
@@ -126,14 +125,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChangeComplete={onTemperatureChange}
             value={typeof temperature === 'number' ? temperature : 0}
             marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
-            step={0.1}
+            step={0.01}
           />
         </Col>
         <Col span={3}>
           <InputNumber
             min={0}
             max={2}
-            step={0.1}
+            step={0.01}
             value={temperature}
             onChange={onTemperatureChange}
             style={{ width: '100%' }}
@@ -155,7 +154,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChangeComplete={onTopPChange}
             value={typeof topP === 'number' ? topP : 1}
             marks={{ 0: '0', 1: '1' }}
-            step={0.1}
+            step={0.01}
           />
         </Col>
         <Col span={3}>

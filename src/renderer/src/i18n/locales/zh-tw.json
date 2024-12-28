@@ -381,6 +381,8 @@
       "display.sidebar.files.icon": "顯示文件圖示",
       "display.sidebar.title": "側邊欄設定",
       "display.topic.title": "話題設定",
+      "display.custom.css": "自定義 CSS",
+      "display.custom.css.placeholder": "/* 這裡寫自定義 CSS */",
       "input.auto_translate_with_space": "快速敲擊3次空格翻譯",
       "messages.divider": "訊息間顯示分隔線",
       "messages.input.paste_long_text_as_file": "將長文本貼上為檔案",

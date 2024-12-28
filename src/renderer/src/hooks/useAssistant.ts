@@ -1,3 +1,4 @@
+import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
@@ -50,8 +51,20 @@ export function useAssistant(id: string) {
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
     },
     moveTopic: (topic: Topic, toAssistant: Assistant) => {
-      dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic } }))
+      dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
+      // update topic messages in database
+      db.topics
+        .where('id')
+        .equals(topic.id)
+        .modify((dbTopic) => {
+          if (dbTopic.messages) {
+            dbTopic.messages = dbTopic.messages.map((message) => ({
+              ...message,
+              assistantId: toAssistant.id
+            }))
+          }
+        })
     },
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),

@@ -1,6 +1,6 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, SortAscendingOutlined } from '@ant-design/icons'
-import AssistantSettingsPopup from '@renderer/components/AssistantSettings'
 import { useAgents } from '@renderer/hooks/useAgents'
+import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { Agent } from '@renderer/types'
 import { Col } from 'antd'

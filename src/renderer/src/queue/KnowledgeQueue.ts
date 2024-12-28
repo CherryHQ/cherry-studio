@@ -7,44 +7,10 @@ import { KnowledgeItem } from '@renderer/types'
 
 class KnowledgeQueue {
   private processing: Map<string, boolean> = new Map()
-  private pollingInterval: NodeJS.Timeout | null = null
-  // private readonly POLLING_INTERVAL = 5000
-  private readonly MAX_RETRIES = 2
+  private readonly MAX_RETRIES = 1
 
   constructor() {
     this.checkAllBases().catch(console.error)
-    this.startPolling()
-  }
-
-  private startPolling(): void {
-    if (this.pollingInterval) return
-
-    const state = store.getState()
-    state.knowledge.bases.forEach((base) => {
-      base.items.forEach((item) => {
-        if (item.processingStatus === 'processing') {
-          store.dispatch(
-            updateItemProcessingStatus({
-              baseId: base.id,
-              itemId: item.id,
-              status: 'pending',
-              progress: 0
-            })
-          )
-        }
-      })
-    })
-
-    // this.pollingInterval = setInterval(() => {
-    //   this.checkAllBases()
-    // }, this.POLLING_INTERVAL)
-  }
-
-  private stopPolling(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval)
-      this.pollingInterval = null
-    }
   }
 
   public async checkAllBases(): Promise<void> {
@@ -111,7 +77,6 @@ class KnowledgeQueue {
   }
 
   stopAllProcessing(): void {
-    this.stopPolling()
     for (const baseId of this.processing.keys()) {
       this.processing.set(baseId, false)
     }

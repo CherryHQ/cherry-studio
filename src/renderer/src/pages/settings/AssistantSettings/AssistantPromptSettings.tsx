@@ -1,11 +1,10 @@
+import { Box, HStack } from '@renderer/components/Layout'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { Button, Input } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import { Box, HStack } from '../Layout'
 
 interface Props {
   assistant: Assistant

@@ -90,6 +90,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     [estimateTextTokens, showInputEstimatedTokens, text]
   )
   const newTopicShortcut = useShortcutDisplay('new_topic')
+  const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
   _files = files
@@ -100,7 +101,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       return
     }
 
-    if (isEmpty(text.trim())) {
+    if (inputEmpty) {
       return
     }
 
@@ -131,7 +132,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setTimeout(() => resizeTextArea(), 0)
 
     setExpend(false)
-  }, [assistant.id, assistant.topics, generating, files, text, selectedKnowledgeBase])
+  }, [generating, inputEmpty, text, assistant.id, assistant.topics, selectedKnowledgeBase, files])
 
   const translate = async () => {
     if (isTranslating) {
@@ -492,7 +493,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 </ToolbarButton>
               </Tooltip>
             )}
-            {!generating && <SendMessageButton sendMessage={sendMessage} disabled={generating || !text} />}
+            {!generating && <SendMessageButton sendMessage={sendMessage} disabled={generating || inputEmpty} />}
           </ToolbarMenu>
         </Toolbar>
       </InputBarContainer>

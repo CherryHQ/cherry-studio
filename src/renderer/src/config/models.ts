@@ -152,7 +152,7 @@ export const VISION_REGEX = new RegExp(
 )
 
 export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview/i
-export const EMBEDDING_REGEX = /(?:^text-|embed|rerank|davinci|babbage|bge-|base|retrieval|uae-|gte-)/i
+export const EMBEDDING_REGEX = /(?:^text-|embed|rerank|davinci|babbage|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina)/i
 export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
 
 export function getModelLogo(modelId: string) {
@@ -700,7 +700,56 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Mistral'
     }
   ],
-  jina: [],
+  jina: [
+    {
+      id: 'jina-clip-v1',
+      provider: 'jina',
+      name: 'jina-clip-v1',
+      group: 'Jina Clip'
+    },
+    {
+      id: 'jina-clip-v2',
+      provider: 'jina',
+      name: 'jina-clip-v2',
+      group: 'Jina Clip'
+    },
+    {
+      id: 'jina-embeddings-v2-base-en',
+      provider: 'jina',
+      name: 'jina-embeddings-v2-base-en',
+      group: 'Jina Embeddings V2'
+    },
+    {
+      id: 'jina-embeddings-v2-base-es',
+      provider: 'jina',
+      name: 'jina-embeddings-v2-base-es',
+      group: 'Jina Embeddings V2'
+    },
+    {
+      id: 'jina-embeddings-v2-base-de',
+      provider: 'jina',
+      name: 'jina-embeddings-v2-base-de',
+      group: 'Jina Embeddings V2'
+    },
+    {
+      id: 'jina-embeddings-v2-base-zh',
+      provider: 'jina',
+      name: 'jina-embeddings-v2-base-zh',
+      group: 'Jina Embeddings V2'
+    },
+    {
+      id: 'jina-embeddings-v2-base-code',
+      provider: 'jina',
+      name: 'jina-embeddings-v2-base-code',
+      group: 'Jina Embeddings V2'
+    },
+    {
+      id: 'jina-embeddings-v3',
+      provider: 'jina',
+      name: 'jina-embeddings-v3',
+      group: 'Jina Embeddings V3'
+    }
+  ],
   aihubmix: [
     {
       id: 'gpt-4o-mini',

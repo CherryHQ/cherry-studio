@@ -659,15 +659,6 @@ const migrateConfig = {
             isSystem: true,
             enabled: false
           }
-          // {
-          //   id: 'jina',
-          //   name: 'Jina',
-          //   apiKey: '',
-          //   apiHost: 'https://api.jina.ai',
-          //   models: SYSTEM_MODELS.jina,
-          //   isSystem: true,
-          //   enabled: false
-          // }
         ]
       }
     }
@@ -766,6 +757,19 @@ const migrateConfig = {
         }
       ]
     }
+    return state
+  },
+  '50': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'jina',
+      name: 'Jina',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.jina.ai',
+      models: SYSTEM_MODELS.jina,
+      isSystem: true,
+      enabled: false
+    })
     return state
   }
 }

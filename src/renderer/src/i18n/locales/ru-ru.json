@@ -381,6 +381,8 @@
       "display.sidebar.files.icon": "Показывать иконку файлов",
       "display.sidebar.title": "Настройки боковой панели",
       "display.topic.title": "Настройки топиков",
+      "display.custom.css": "Пользовательский CSS",
+      "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
       "input.auto_translate_with_space": "Быстрый перевод с помощью 3-х пробелов",
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.input.paste_long_text_as_file": "Вставлять длинный текст как файл",

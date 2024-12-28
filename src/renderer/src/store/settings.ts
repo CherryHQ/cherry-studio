@@ -44,6 +44,7 @@ export interface SettingsState {
   // Sidebar icons
   showMinappIcon: boolean
   showFilesIcon: boolean
+  customCss: string
 }
 
 const initialState: SettingsState = {
@@ -83,7 +84,8 @@ const initialState: SettingsState = {
   autoTranslateWithSpace: false,
   enableTopicNaming: true,
   showMinappIcon: true,
-  showFilesIcon: true
+  showFilesIcon: true,
+  customCss: ''
 }
 
 const settingsSlice = createSlice({
@@ -207,6 +209,9 @@ const settingsSlice = createSlice({
     },
     setPasteLongTextThreshold: (state, action: PayloadAction<number>) => {
       state.pasteLongTextThreshold = action.payload
+    },
+    setCustomCss: (state, action: PayloadAction<string>) => {
+      state.customCss = action.payload
     }
   }
 })
@@ -250,7 +255,8 @@ export const {
   setEnableTopicNaming,
   setShowMinappIcon,
   setShowFilesIcon,
-  setPasteLongTextThreshold
+  setPasteLongTextThreshold,
+  setCustomCss
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

@@ -14,3 +14,11 @@ export function getDataPath() {
   }
   return dataPath
 }
+
+export function getInstanceName(baseURL: string) {
+  try {
+    return new URL(baseURL).host.split('.')[0]
+  } catch (error) {
+    return ''
+  }
+}

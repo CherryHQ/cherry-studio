@@ -74,12 +74,12 @@ const ContentContainer = styled.div`
 
 const AppsContainer = styled.div`
   display: flex;
-  min-width: 950px;
-  max-width: 950px;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 50px;
+  min-width: 930px;
+  max-width: 930px;
+  max-height: 500px;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(90px, 1fr));
+  gap: 25px 25px;
 `
 
 export default AppsPage

@@ -9,7 +9,8 @@ import { DocxLoader, ExcelLoader, PptLoader } from '@llm-tools/embedjs-loader-ms
 import { PdfLoader } from '@llm-tools/embedjs-loader-pdf'
 import { SitemapLoader } from '@llm-tools/embedjs-loader-sitemap'
 import { WebLoader } from '@llm-tools/embedjs-loader-web'
-import { OpenAiEmbeddings } from '@llm-tools/embedjs-openai'
+import { AzureOpenAiEmbeddings, OpenAiEmbeddings } from '@llm-tools/embedjs-openai'
+import { getInstanceName } from '@main/utils'
 import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { app } from 'electron'
 
@@ -30,19 +31,29 @@ class KnowledgeService {
     id,
     model,
     apiKey,
+    apiVersion,
     baseURL,
     dimensions
   }: KnowledgeBaseParams): Promise<RAGApplication> => {
     return new RAGApplicationBuilder()
       .setModel('NO_MODEL')
       .setEmbeddingModel(
-        new OpenAiEmbeddings({
-          model,
-          apiKey,
-          configuration: { baseURL },
-          dimensions,
-          batchSize: 20
-        })
+        apiVersion
+          ? new AzureOpenAiEmbeddings({
+              azureOpenAIApiKey: apiKey,
+              azureOpenAIApiVersion: apiVersion,
+              azureOpenAIApiDeploymentName: model,
+              azureOpenAIApiInstanceName: getInstanceName(baseURL),
+              dimensions,
+              batchSize: 15
+            })
+          : new OpenAiEmbeddings({
+              model,
+              apiKey,
+              configuration: { baseURL },
+              dimensions,
+              batchSize: 15
+            })
       )
       .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
       .build()

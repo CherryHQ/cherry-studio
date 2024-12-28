@@ -21,6 +21,7 @@ let _message: Message | undefined
 const TopicsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState(_search)
+  const [searchKeywords, setSearchKeywords] = useState(_search)
   const [stack, setStack] = useState<Route[]>(_stack)
   const [topic, setTopic] = useState<Topic | undefined>(_topic)
   const [message, setMessage] = useState<Message | undefined>(_message)
@@ -40,6 +41,7 @@ const TopicsPage: FC = () => {
   }
 
   const onSearch = () => {
+    setSearchKeywords(search)
     setStack(['topics', 'search'])
     setTopic(undefined)
   }
@@ -84,7 +86,7 @@ const TopicsPage: FC = () => {
       />
       <TopicMessages topic={topic} style={{ display: isShow('topic') }} />
       <SearchResults
-        keywords={isShow('search') ? search : ''}
+        keywords={isShow('search') ? searchKeywords : ''}
         onMessageClick={onMessageClick}
         onTopicClick={onTopicClick}
         style={{ display: isShow('search') }}

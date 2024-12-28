@@ -58,8 +58,8 @@ const PopoverContent = styled(Scrollbar)``
 
 const AppsContainer = styled.div`
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 25px 35px;
+  grid-template-columns: repeat(6, minmax(90px, 1fr));
+  gap: 25px;
 `
 
 export default AppStorePopover

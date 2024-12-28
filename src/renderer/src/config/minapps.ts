@@ -6,6 +6,7 @@ import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png'
 import DuckDuckGoAppLogo from '@renderer/assets/images/apps/duckduckgo.webp'
 import FeloAppLogo from '@renderer/assets/images/apps/felo.png'
 import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png'
+import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp'
@@ -223,6 +224,12 @@ const _apps: MinAppType[] = [
     logo: ThinkAnyLogo,
     url: 'https://thinkany.ai/',
     bodered: true
+  },
+  {
+    id: 'github-copilot',
+    name: 'GitHub Copilot',
+    logo: GithubCopilotLogo,
+    url: 'https://github.com/copilot'
   }
 ]
 

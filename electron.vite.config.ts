@@ -50,7 +50,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: []
+      exclude: ['chunk-QH6N6I7P.js', 'chunk-PB73W2YU.js']
     }
   }
 })
