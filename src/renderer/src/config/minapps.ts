@@ -18,6 +18,7 @@ import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png'
 import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.png'
 import ThinkAnyLogo from '@renderer/assets/images/apps/thinkany.webp'
+import HikaLogo from '@renderer/assets/images/apps/hika.svg'
 import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.png'
@@ -224,6 +225,13 @@ const _apps: MinAppType[] = [
     name: 'ThinkAny',
     logo: ThinkAnyLogo,
     url: 'https://thinkany.ai/',
+    bodered: true
+  },
+  {
+    id: 'hika',
+    name: 'Hika',
+    logo: HikaLogo,
+    url: 'https://hika.fyi/',
     bodered: true
   },
   {
