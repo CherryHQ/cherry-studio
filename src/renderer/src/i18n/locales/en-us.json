@@ -217,6 +217,10 @@
         "png": "Download PNG",
         "svg": "Download SVG"
       },
+      "resize": {
+        "zoom-in": "Zoom In",
+        "zoom-out": "Zoom Out"
+      },
       "tabs": {
         "preview": "Preview",
         "source": "Source"

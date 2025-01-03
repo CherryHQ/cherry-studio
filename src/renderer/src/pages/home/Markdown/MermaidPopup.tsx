@@ -18,6 +18,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
   const { t } = useTranslation()
   const mermaidId = `mermaid-popup-${Date.now()}`
   const [activeTab, setActiveTab] = useState('preview')
+  const [scale, setScale] = useState(1)
 
   const onOk = () => {
     setOpen(false)
@@ -29,6 +30,25 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
 
   const onClose = () => {
     resolve({})
+  }
+
+  const handleZoom = (delta: number) => {
+    const newScale = Math.max(0.1, Math.min(3, scale + delta))
+    setScale(newScale)
+
+    const element = document.getElementById(mermaidId)
+    if (!element) return
+
+    const svg = element.querySelector('svg')
+    if (!svg) return
+
+    const container = svg.parentElement
+    if (container) {
+      container.style.overflow = 'auto'
+      container.style.position = 'relative'
+      svg.style.transformOrigin = 'top left'
+      svg.style.transform = `scale(${newScale})`
+    }
   }
 
   const handleDownload = async (format: 'svg' | 'png') => {
@@ -110,6 +130,8 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
           {activeTab === 'source' && <Button onClick={() => handleCopy()}>{t('common.copy')}</Button>}
           {activeTab === 'preview' && (
             <>
+              <Button onClick={() => handleZoom(0.1)}>{t('mermaid.resize.zoom-in')}</Button>
+              <Button onClick={() => handleZoom(-0.1)}>{t('mermaid.resize.zoom-out')}</Button>
               <Button onClick={() => handleDownload('svg')}>{t('mermaid.download.svg')}</Button>
               <Button onClick={() => handleDownload('png')}>{t('mermaid.download.png')}</Button>
             </>

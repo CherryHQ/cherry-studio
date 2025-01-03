@@ -217,6 +217,10 @@
         "png": "PNGをダウンロード",
         "svg": "SVGをダウンロード"
       },
+      "resize": {
+        "zoom-in": "拡大する",
+        "zoom-out": "ズームアウト"
+      },
       "tabs": {
         "preview": "プレビュー",
         "source": "ソース"

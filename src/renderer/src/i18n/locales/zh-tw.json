@@ -217,6 +217,10 @@
         "png": "下載 PNG",
         "svg": "下載 SVG"
       },
+      "resize": {
+        "zoom-in": "放大",
+        "zoom-out": "縮小"
+      },
       "tabs": {
         "preview": "預覽",
         "source": "原始碼"
