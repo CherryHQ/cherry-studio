@@ -13,6 +13,8 @@ import { configManager } from './ConfigManager'
 export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
+  private isQuitting: boolean = false
+  private wasFullScreen: boolean = false
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -42,7 +44,7 @@ export class WindowService {
       height: mainWindowState.height,
       minWidth: 1080,
       minHeight: 600,
-      show: true,
+      show: false, // 初始不显示
       autoHideMenuBar: true,
       transparent: isMac,
       vibrancy: 'under-window',
@@ -118,8 +120,19 @@ export class WindowService {
   }
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
-    mainWindow.on('ready-to-show', () => {
+    mainWindow.once('ready-to-show', () => {
       mainWindow.show()
+    })
+
+    // 处理全屏相关事件
+    mainWindow.on('enter-full-screen', () => {
+      this.wasFullScreen = true
+      mainWindow.webContents.send('fullscreen-status-changed', true)
+    })
+
+    mainWindow.on('leave-full-screen', () => {
+      this.wasFullScreen = false
+      mainWindow.webContents.send('fullscreen-status-changed', false)
     })
   }
 
@@ -182,6 +195,11 @@ export class WindowService {
   }
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
+    // 监听应用退出事件
+    app.on('before-quit', () => {
+      this.isQuitting = true
+    })
+
     mainWindow.on('close', (event) => {
       const notInTray = !configManager.isTray()
 
@@ -191,9 +209,15 @@ export class WindowService {
       }
 
       // Mac
-      if (!app.isQuitting) {
-        event.preventDefault()
-        mainWindow.hide()
+      if (!this.isQuitting) {
+        if (this.wasFullScreen) {
+          // 如果是全屏状态，直接退出
+          this.isQuitting = true
+          app.quit()
+        } else {
+          event.preventDefault()
+          mainWindow.hide()
+        }
       }
     })
   }
