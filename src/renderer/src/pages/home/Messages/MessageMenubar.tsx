@@ -195,7 +195,7 @@ const MessageMenubar: FC<Props> = (props) => {
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
       {message.role === 'user' && (
-        <Tooltip title="Edit" mouseEnterDelay={0.8}>
+        <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onEdit}>
             <EditOutlined />
           </ActionButton>
