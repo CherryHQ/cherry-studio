@@ -28,7 +28,10 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
 
-  const [messageApi, messageContextHolder] = message.useMessage()
+  // 消息提示默认为 1s 后关闭，使用方法 window.message 代替 antd message
+  const [messageApi, messageContextHolder] = message.useMessage({
+    duration: 1
+  })
   const [modal, modalContextHolder] = Modal.useModal()
 
   useAppInit()
