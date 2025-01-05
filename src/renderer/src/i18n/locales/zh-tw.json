@@ -2,10 +2,15 @@
   "translation": {
     "agents": {
       "add.button": "添加到助手",
+      "add.type": "類型",
+      "add.type.normal": "一般",
+      "add.type.plugin": "GPTs 外掛程式",
       "add.name": "名稱",
       "add.name.placeholder": "輸入名稱",
       "add.prompt": "提示詞",
       "add.prompt.placeholder": "輸入提示詞",
+      "add.pluginId": "外掛程式 ID",
+      "add.pluginId.placeholder": "輸入外掛程式 ID，例如：g-97gBggzBU",
       "add.title": "创建智能體",
       "delete.popup.content": "確定要刪除此智能體嗎？",
       "edit.message.add.title": "添加",
@@ -46,6 +51,7 @@
       "settings.model": "模型設定",
       "settings.preset_messages": "預設訊息",
       "settings.prompt": "提示詞設定",
+      "settings.plugin": "外掛程式設定",
       "title": "助手"
     },
     "button": {
@@ -138,6 +144,7 @@
       "name": "名稱",
       "paste": "貼上",
       "prompt": "提示詞",
+      "pluginId": "外掛程式 ID",
       "provider": "提供商",
       "regenerate": "重新生成",
       "rename": "重新命名",

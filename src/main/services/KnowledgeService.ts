@@ -89,13 +89,13 @@ class KnowledgeService {
     if (item.type === 'url') {
       const content = item.content as string
       if (content.startsWith('http')) {
-        return await ragApplication.addLoader(new WebLoader({ urlOrContent: content }), forceReload)
+        return await ragApplication.addLoader(new WebLoader({ urlOrContent: content }) as any, forceReload)
       }
     }
 
     if (item.type === 'sitemap') {
       const content = item.content as string
-      return await ragApplication.addLoader(new SitemapLoader({ url: content }), forceReload)
+      return await ragApplication.addLoader(new SitemapLoader({ url: content }) as any, forceReload)
     }
 
     if (item.type === 'note') {

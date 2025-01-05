@@ -121,10 +121,15 @@ export default class OpenAIProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    let model_name = model.id
+
+    if (assistant.subType === 'plugin') {
+      model_name = model_name + "-" + assistant.pluginId  
+    }
 
     const systemMessage = assistant.prompt ? { role: 'system', content: assistant.prompt } : undefined
     const userMessages: ChatCompletionMessageParam[] = []
-
+    
     const _messages = filterContextMessages(takeRight(messages, contextCount + 1))
     onFilterMessages(_messages)
 
@@ -134,14 +139,15 @@ export default class OpenAIProvider extends BaseProvider {
 
     const isOpenAIo1 = model.id.includes('o1-')
     const isSupportStreamOutput = streamOutput
+    const isPlugin = assistant.subType === 'plugin'
 
     let time_first_token_millsec = 0
     const start_time_millsec = new Date().getTime()
 
     // @ts-ignore key is not typed
     const stream = await this.sdk.chat.completions.create({
-      model: model.id,
-      messages: [isOpenAIo1 ? undefined : systemMessage, ...userMessages].filter(
+      model: model_name,
+      messages: [isOpenAIo1 || isPlugin ? undefined : systemMessage, ...userMessages].filter(
         Boolean
       ) as ChatCompletionMessageParam[],
       temperature: isOpenAIo1 ? 1 : assistant?.settings?.temperature,
@@ -185,7 +191,6 @@ export default class OpenAIProvider extends BaseProvider {
       })
     }
   }
-
   async translate(message: Message, assistant: Assistant) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel

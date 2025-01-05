@@ -2,10 +2,15 @@
   "translation": {
     "agents": {
       "add.button": "Добавить к ассистенту",
+      "add.type": "Тип",
+      "add.type.normal": "Обычный",
+      "add.type.plugin": "Плагины GPTs",
       "add.name": "Имя",
       "add.name.placeholder": "Введите имя",
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
+      "add.pluginId": "ID плагина",
+      "add.pluginId.placeholder": "Введите ID плагина, например: g-97gBggzBU",
       "add.title": "Создать агента",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.message.add.title": "Добавить",
@@ -46,6 +51,7 @@
       "settings.model": "Настройки модели",
       "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
+      "settings.plugin": "Настройки плагина",
       "title": "Ассистенты"
     },
     "button": {
@@ -139,6 +145,7 @@
       "name": "Имя",
       "paste": "Вставить",
       "prompt": "Промпт",
+      "pluginId": "ID плагина",
       "provider": "Провайдер",
       "regenerate": "Пересоздать",
       "rename": "Переименовать",

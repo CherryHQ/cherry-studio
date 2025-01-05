@@ -2,10 +2,15 @@
   "translation": {
     "agents": {
       "add.button": "添加到助手",
+      "add.type": "类型",
+      "add.type.normal": "普通",
+      "add.type.plugin": "GPTs插件",
       "add.name": "名称",
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
+      "add.pluginId": "插件 ID",
+      "add.pluginId.placeholder": "输入插件 ID，例如：g-97gBggzBU",
       "add.title": "创建智能体",
       "delete.popup.content": "确定要删除此智能体吗？",
       "edit.message.add.title": "添加",
@@ -46,6 +51,7 @@
       "settings.model": "模型设置",
       "settings.preset_messages": "预设消息",
       "settings.prompt": "提示词设置",
+      "settings.plugin": "插件设置",
       "title": "助手"
     },
     "button": {
@@ -139,6 +145,7 @@
       "name": "名称",
       "paste": "粘贴",
       "prompt": "提示词",
+      "pluginId": "插件 ID",
       "provider": "提供商",
       "regenerate": "重新生成",
       "rename": "重命名",

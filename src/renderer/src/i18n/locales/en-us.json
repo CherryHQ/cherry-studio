@@ -2,10 +2,15 @@
   "translation": {
     "agents": {
       "add.button": "Add to Assistant",
+      "add.type": "Type",
+      "add.type.normal": "Normal",
+      "add.type.plugin": "GPTs plugin",
       "add.name": "Name",
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
+      "add.pluginId": "Plugin ID",
+      "add.pluginId.placeholder": "Enter plugin id，example：g-97gBggzBU",
       "add.title": "Create Agent",
       "delete.popup.content": "Are you sure you want to delete this agent?",
       "edit.message.add.title": "Add",
@@ -46,6 +51,7 @@
       "settings.model": "Model Settings",
       "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
+      "settings.plugin": "Plugin Settings",
       "title": "Assistants"
     },
     "button": {
@@ -139,6 +145,7 @@
       "name": "Name",
       "paste": "Paste",
       "prompt": "Prompt",
+      "pluginId": "Plugin ID",
       "provider": "Provider",
       "regenerate": "Regenerate",
       "rename": "Rename",

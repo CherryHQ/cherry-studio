@@ -2,10 +2,15 @@
   "translation": {
     "agents": {
       "add.button": "アシスタントに追加",
+      "add.type": "タイプ",
+      "add.type.normal": "いっぱん",
+      "add.type.plugin": "GPTs プラグイン",
       "add.name": "名前",
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
+      "add.pluginId": "プラグイン ID",
+      "add.pluginId.placeholder": "输入プラグインID（例：g-97gBggzBU）",
       "add.title": "エージェントを作成",
       "delete.popup.content": "このエージェントを削除してもよろしいですか？",
       "edit.message.add.title": "追加",
@@ -46,6 +51,7 @@
       "settings.model": "モデル設定",
       "settings.preset_messages": "プリセットメッセージ",
       "settings.prompt": "プロンプト設定",
+      "settings.plugin": "插件設定",
       "title": "アシスタント"
     },
     "button": {
@@ -139,6 +145,7 @@
       "name": "名前",
       "paste": "貼り付け",
       "prompt": "プロンプト",
+      "pluginId": "プラグイン ID",
       "provider": "プロバイダー",
       "regenerate": "再生成",
       "rename": "名前を変更",

@@ -16,10 +16,11 @@ interface Props {
 const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, onOk }) => {
   const [name, setName] = useState(assistant.name)
   const [prompt, setPrompt] = useState(assistant.prompt)
+  const [pluginId, setPluginId] = useState(assistant.pluginId || '')
   const { t } = useTranslation()
 
   const onUpdate = () => {
-    const _assistant = { ...assistant, name, prompt }
+    const _assistant = { ...assistant, name, prompt, pluginId }
     updateAssistant(_assistant)
   }
 
@@ -35,16 +36,25 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
         onBlur={onUpdate}
       />
       <Box mt={8} mb={8} style={{ fontWeight: 'bold' }}>
-        {t('common.prompt')}
+        {assistant.subType === 'plugin' ? t('common.pluginId') : t('common.prompt')}
       </Box>
-      <TextArea
-        rows={10}
-        placeholder={t('common.assistant') + t('common.prompt')}
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        onBlur={onUpdate}
-        style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 150px)' }}
-      />
+      {assistant.subType === 'plugin' ? (
+        <Input
+          placeholder={t('common.assistant') + t('common.pluginId')}
+          value={pluginId}
+          onChange={(e) => setPluginId(e.target.value)}
+          onBlur={onUpdate}
+        />
+      ) : (
+        <TextArea
+          rows={10}
+          placeholder={t('common.assistant') + t('common.prompt')}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onBlur={onUpdate}
+          style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 150px)' }}
+        />
+      )}
       <HStack width="100%" justifyContent="flex-end" mt="10px">
         <Button type="primary" onClick={onOk}>
           {t('common.close')}
