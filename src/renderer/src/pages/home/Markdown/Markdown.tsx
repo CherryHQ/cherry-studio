@@ -34,7 +34,8 @@ const Markdown: FC<Props> = ({ message }) => {
   const messageContent = useMemo(() => {
     const empty = isEmpty(message.content)
     const paused = message.status === 'paused'
-    const content = empty && paused ? t('message.chat.completion.paused') : message.content
+    let content = empty && paused ? t('message.chat.completion.paused') : message.content
+    content = content.replace(/(?<!\$)\\?(mathcal|underline){([^}]+)}(?!\$)/g, '$\\$1{$2}$')
     return removeSvgEmptyLines(escapeBrackets(content))
   }, [message.content, message.status, t])
 
