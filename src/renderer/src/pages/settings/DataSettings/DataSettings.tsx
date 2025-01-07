@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import GistSettings from './GistSettings'
 import WebDavSettings from './WebDavSettings'
 
 const DataSettings: FC = () => {
@@ -78,6 +79,9 @@ const DataSettings: FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <WebDavSettings />
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <GistSettings />
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>

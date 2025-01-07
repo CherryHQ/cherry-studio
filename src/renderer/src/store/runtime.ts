@@ -11,6 +11,12 @@ export interface UpdateState {
 }
 
 export interface WebDAVSyncState {
+  syncing: boolean
+  lastSyncTime?: number
+  lastSyncError?: string | null
+}
+
+export interface GistSyncState {
   lastSyncTime: number | null
   syncing: boolean
   lastSyncError: string | null
@@ -24,6 +30,7 @@ export interface RuntimeState {
   filesPath: string
   update: UpdateState
   webdavSync: WebDAVSyncState
+  gistSync: GistSyncState
 }
 
 const initialState: RuntimeState = {
@@ -40,6 +47,11 @@ const initialState: RuntimeState = {
     available: false
   },
   webdavSync: {
+    syncing: false,
+    lastSyncTime: undefined,
+    lastSyncError: null
+  },
+  gistSync: {
     lastSyncTime: null,
     syncing: false,
     lastSyncError: null
@@ -70,6 +82,9 @@ const runtimeSlice = createSlice({
     },
     setWebDAVSyncState: (state, action: PayloadAction<Partial<WebDAVSyncState>>) => {
       state.webdavSync = { ...state.webdavSync, ...action.payload }
+    },
+    setGistSyncState: (state, action: PayloadAction<Partial<GistSyncState>>) => {
+      state.gistSync = { ...state.gistSync, ...action.payload }
     }
   }
 })
@@ -81,7 +96,8 @@ export const {
   setSearching,
   setFilesPath,
   setUpdateState,
-  setWebDAVSyncState
+  setWebDAVSyncState,
+  setGistSyncState
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer

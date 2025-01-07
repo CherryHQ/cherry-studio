@@ -378,7 +378,21 @@
         "webdav.autoSync.off": "Off",
         "webdav.noSync": "Waiting for next sync",
         "webdav.syncError": "Sync Error",
-        "webdav.lastSync": "Last Sync"
+        "webdav.lastSync": "Last Sync Time",
+        "gist": {
+          "title": "GitHub Gist",
+          "backup.button": "Backup to Gist",
+          "restore.button": "Restore from Gist",
+          "github_token": "GitHub Token",
+          "github_gist_id": "GitHub Gist ID (Optional)",
+          "github_auto_sync": "Auto Sync",
+          "github_sync_interval": "Gist Sync Interval (Minutes)",
+          "invalid_github_token": "Please configure GitHub Token first",
+          "invalid_github_settings": "Invalid Gist settings, please check Token and Gist ID",
+          "gist_created": "Gist created and saved automatically",
+          "backup.success": "Gist backup successful",
+          "restore.success": "Gist restore successful"
+        }
       },
       "display.title": "Display Settings",
       "font_size.title": "Message font size",

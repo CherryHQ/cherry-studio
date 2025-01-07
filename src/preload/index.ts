@@ -24,7 +24,8 @@ const api = {
     restore: (backupPath: string) => ipcRenderer.invoke('backup:restore', backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke('backup:backupToWebdav', data, webdavConfig),
-    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig)
+    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig),
+    restoreFromGist: (data: Buffer) => ipcRenderer.invoke('backup:restoreFromGist', data)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke('file:select', options),
@@ -43,7 +44,8 @@ const api = {
     saveImage: (name: string, data: string) => ipcRenderer.invoke('file:saveImage', name, data),
     base64Image: (fileId: string) => ipcRenderer.invoke('file:base64Image', fileId),
     download: (url: string) => ipcRenderer.invoke('file:download', url),
-    copy: (fileId: string, destPath: string) => ipcRenderer.invoke('file:copy', fileId, destPath)
+    copy: (fileId: string, destPath: string) => ipcRenderer.invoke('file:copy', fileId, destPath),
+    readRaw: (filePath: string) => ipcRenderer.invoke('file:readRaw', filePath)
   },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke('export:word', markdown, fileName)

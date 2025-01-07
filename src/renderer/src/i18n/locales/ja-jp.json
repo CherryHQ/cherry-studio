@@ -376,7 +376,21 @@
         "webdav.autoSync.off": "オフ",
         "webdav.noSync": "次回の同期を待っています",
         "webdav.syncError": "同期エラー",
-        "webdav.lastSync": "最終同期"
+        "webdav.lastSync": "最終同期時刻",
+        "gist": {
+          "title": "GitHub Gist",
+          "backup.button": "Gistにバックアップ",
+          "restore.button": "Gistから復元",
+          "github_token": "GitHub トークン",
+          "github_gist_id": "GitHub Gist ID（オプション）",
+          "github_auto_sync": "自動同期",
+          "github_sync_interval": "Gist同期間隔（分）",
+          "invalid_github_token": "GitHub トークンを設定してください",
+          "invalid_github_settings": "Gist設定が無効です。トークンとGist IDを確認してください",
+          "gist_created": "Gistが自動作成され保存されました",
+          "backup.success": "Gistバックアップ成功",
+          "restore.success": "Gist復元成功"
+        }
       },
       "display.title": "表示設定",
       "font_size.title": "メッセージのフォントサイズ",

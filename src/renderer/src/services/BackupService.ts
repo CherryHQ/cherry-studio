@@ -4,6 +4,8 @@ import store from '@renderer/store'
 import { setWebDAVSyncState } from '@renderer/store/runtime'
 import dayjs from 'dayjs'
 
+export { backupToGist, restoreFromGist, startGistAutoSync, stopGistAutoSync } from './GistService'
+
 export async function backup() {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const fileContnet = await getBackupData()
@@ -202,7 +204,7 @@ export function stopAutoSync() {
   autoSyncStarted = false
 }
 
-async function getBackupData() {
+export async function getBackupData() {
   return JSON.stringify({
     time: new Date().getTime(),
     version: 3,
@@ -212,7 +214,7 @@ async function getBackupData() {
 }
 
 /************************************* Backup Utils ************************************** */
-async function handleData(data: Record<string, any>) {
+export async function handleData(data: Record<string, any>) {
   if (data.version === 1) {
     await clearDatabase()
 
@@ -242,7 +244,7 @@ async function handleData(data: Record<string, any>) {
   window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
 }
 
-async function backupDatabase() {
+export async function backupDatabase() {
   const tables = db.tables
   const backup = {}
 
@@ -253,7 +255,7 @@ async function backupDatabase() {
   return backup
 }
 
-async function restoreDatabase(backup: Record<string, any>) {
+export async function restoreDatabase(backup: Record<string, any>) {
   await db.transaction('rw', db.tables, async () => {
     for (const tableName in backup) {
       await db.table(tableName).clear()
@@ -262,7 +264,7 @@ async function restoreDatabase(backup: Record<string, any>) {
   })
 }
 
-async function clearDatabase() {
+export async function clearDatabase() {
   const storeNames = await db.tables.map((table) => table.name)
 
   await db.transaction('rw', db.tables, async () => {

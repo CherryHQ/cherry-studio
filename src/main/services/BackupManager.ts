@@ -16,6 +16,7 @@ class BackupManager {
     this.restore = this.restore.bind(this)
     this.backupToWebdav = this.backupToWebdav.bind(this)
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
+    this.restoreFromGist = this.restoreFromGist.bind(this)
   }
 
   async backup(
@@ -114,6 +115,18 @@ class BackupManager {
 
     await fs.writeFileSync(backupedFilePath, retrievedFile as Buffer)
 
+    return await this.restore(_, backupedFilePath)
+  }
+
+  async restoreFromGist(_: Electron.IpcMainInvokeEvent, data: Buffer) {
+    const filename = 'cherry-studio.backup.zip'
+    const backupedFilePath = path.join(this.backupDir, filename)
+
+    if (!fs.existsSync(this.backupDir)) {
+      fs.mkdirSync(this.backupDir, { recursive: true })
+    }
+
+    fs.writeFileSync(backupedFilePath, data)
     return await this.restore(_, backupedFilePath)
   }
 }

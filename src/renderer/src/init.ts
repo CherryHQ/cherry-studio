@@ -1,6 +1,6 @@
 import KeyvStorage from '@kangfenmao/keyv-storage'
 
-import { startAutoSync } from './services/BackupService'
+import { startAutoSync, startGistAutoSync } from './services/BackupService'
 import store from './store'
 
 function initKeyv() {
@@ -12,6 +12,11 @@ function initAutoSync() {
   const { webdavAutoSync } = store.getState().settings
   if (webdavAutoSync) {
     startAutoSync()
+  }
+
+  const { githubGistAutoSync } = store.getState().settings
+  if (githubGistAutoSync) {
+    startGistAutoSync()
   }
 }
 

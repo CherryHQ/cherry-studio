@@ -30,6 +30,7 @@ declare global {
         restore: (backupPath: string) => Promise<string>
         backupToWebdav: (data: string, webdavConfig: WebDavConfig) => Promise<boolean>
         restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
+        restoreFromGist: (data: Buffer) => Promise<string>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
@@ -52,6 +53,7 @@ declare global {
         base64Image: (fileId: string) => Promise<{ mime: string; base64: string; data: string }>
         download: (url: string) => Promise<FileType | null>
         copy: (fileId: string, destPath: string) => Promise<void>
+        readRaw: (filePath: string | internal.Readable) => Promise<Buffer>
       }
       export: {
         toWord: (markdown: string, fileName: string) => Promise<void>

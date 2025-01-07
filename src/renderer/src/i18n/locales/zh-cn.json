@@ -379,7 +379,21 @@
         "webdav.autoSync.off": "关闭",
         "webdav.noSync": "等待下次同步",
         "webdav.syncError": "同步错误",
-        "webdav.lastSync": "上次同步时间"
+        "webdav.lastSync": "上次同步时间",
+        "gist": {
+          "title": "GitHub Gist",
+          "backup.button": "备份到 Gist",
+          "restore.button": "从 Gist 恢复",
+          "github_token": "GitHub Token",
+          "github_gist_id": "GitHub Gist ID（选填）",
+          "github_auto_sync": "自动同步",
+          "github_sync_interval": "Gist 同步间隔（分钟）",
+          "invalid_github_token": "请先配置 GitHub Token",
+          "invalid_github_settings": "Gist 配置无效，请检查 Token 和 Gist ID",
+          "gist_created": "已自动创建 Gist 并保存",
+          "backup.success": "Gist 备份成功",
+          "restore.success": "Gist 恢复成功"
+        }
       },
       "display.title": "显示设置",
       "font_size.title": "消息字体大小",

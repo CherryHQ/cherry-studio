@@ -49,6 +49,11 @@ export interface SettingsState {
   showFilesIcon: boolean
   customCss: string
   topicNamingPrompt: string
+  // GitHub Gist settings
+  githubToken: string
+  githubGistId: string
+  githubGistAutoSync: boolean
+  githubGistSyncInterval: number
 }
 
 const initialState: SettingsState = {
@@ -93,7 +98,11 @@ const initialState: SettingsState = {
   showKnowledgeIcon: true,
   showFilesIcon: true,
   customCss: '',
-  topicNamingPrompt: ''
+  topicNamingPrompt: '',
+  githubToken: '',
+  githubGistId: '',
+  githubGistAutoSync: false,
+  githubGistSyncInterval: 0
 }
 
 const settingsSlice = createSlice({
@@ -232,6 +241,18 @@ const settingsSlice = createSlice({
     },
     setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
       state.topicNamingPrompt = action.payload
+    },
+    setGithubToken: (state, action: PayloadAction<string>) => {
+      state.githubToken = action.payload
+    },
+    setGithubGistId: (state, action: PayloadAction<string>) => {
+      state.githubGistId = action.payload
+    },
+    setGithubGistAutoSync: (state, action: PayloadAction<boolean>) => {
+      state.githubGistAutoSync = action.payload
+    },
+    setGithubGistSyncInterval: (state, action: PayloadAction<number>) => {
+      state.githubGistSyncInterval = action.payload
     }
   }
 })
@@ -280,7 +301,11 @@ export const {
   setShowFilesIcon,
   setPasteLongTextThreshold,
   setCustomCss,
-  setTopicNamingPrompt
+  setTopicNamingPrompt,
+  setGithubToken,
+  setGithubGistId,
+  setGithubGistAutoSync,
+  setGithubGistSyncInterval
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

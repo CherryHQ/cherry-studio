@@ -378,7 +378,21 @@
         "webdav.autoSync.off": "Выключено",
         "webdav.noSync": "Ожидание следующей синхронизации",
         "webdav.syncError": "Ошибка синхронизации",
-        "webdav.lastSync": "Последняя синхронизация"
+        "webdav.lastSync": "Время последней синхронизации",
+        "gist": {
+          "title": "GitHub Gist",
+          "backup.button": "Резервное копирование в Gist",
+          "restore.button": "Восстановить из Gist",
+          "github_token": "GitHub токен",
+          "github_gist_id": "GitHub Gist ID (Необязательно)",
+          "github_auto_sync": "Автоматическая синхронизация",
+          "github_sync_interval": "Интервал синхронизации Gist (минуты)",
+          "invalid_github_token": "Пожалуйста, настройте GitHub токен",
+          "invalid_github_settings": "Неверные настройки Gist, проверьте токен и Gist ID",
+          "gist_created": "Gist создан и сохранен автоматически",
+          "backup.success": "Gist резервное копирование успешно",
+          "restore.success": "Gist восстановление успешно"
+        }
       },
       "display.title": "Настройки отображения",
       "font_size.title": "Размер шрифта сообщений",
