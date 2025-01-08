@@ -224,7 +224,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {canRegenerate && (
         <Tooltip title={t('chat.message.regenerate.model')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onAtModelRegenerate}>
-            <i className="iconfont icon-at1"></i>
+            <i className="iconfont icon-at"></i>
           </ActionButton>
         </Tooltip>
       )}
@@ -335,7 +335,7 @@ const ActionButton = styled.div`
   &:hover {
     color: var(--color-text-1);
   }
-  .icon-at1 {
+  .icon-at {
     font-size: 16px;
   }
 `

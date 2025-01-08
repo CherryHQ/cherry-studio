@@ -35,6 +35,7 @@ import { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } 
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
@@ -133,7 +134,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setTimeout(() => resizeTextArea(), 0)
 
     setExpend(false)
-  }, [generating, inputEmpty, text, assistant.id, assistant.topics, selectedKnowledgeBase, files])
+  }, [inputEmpty, text, assistant.id, assistant.topics, selectedKnowledgeBase, files])
 
   const translate = async () => {
     if (isTranslating) {
@@ -387,120 +388,116 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
-      <AttachmentPreview files={files} setFiles={setFiles} />
-      <InputBarContainer
-        id="inputbar"
-        className={classNames('inputbar-container', inputFocus && 'focus')}
-        ref={containerRef}>
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={isTranslating ? t('chat.input.translating') : t('chat.input.placeholder')}
-          autoFocus
-          contextMenu="true"
-          variant="borderless"
-          spellCheck={false}
-          rows={textareaRows}
-          ref={textareaRef}
-          style={{ fontSize }}
-          styles={{ textarea: TextareaStyle }}
-          onFocus={() => setInputFocus(true)}
-          onBlur={() => setInputFocus(false)}
-          onInput={onInput}
-          disabled={searching}
-          onPaste={(e) => onPaste(e.nativeEvent)}
-          onClick={() => searching && dispatch(setSearching(false))}
-        />
-        <Toolbar>
-          <ToolbarMenu>
-            <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
-              <ToolbarButton type="text" onClick={addNewTopic}>
-                <FormOutlined />
-              </ToolbarButton>
-            </Tooltip>
-            {isWebSearchModel(model) && (
-              <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
+      <NarrowLayout style={{ width: '100%' }}>
+        <AttachmentPreview files={files} setFiles={setFiles} />
+        <InputBarContainer
+          id="inputbar"
+          className={classNames('inputbar-container', inputFocus && 'focus')}
+          ref={containerRef}>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={isTranslating ? t('chat.input.translating') : t('chat.input.placeholder')}
+            autoFocus
+            contextMenu="true"
+            variant="borderless"
+            spellCheck={false}
+            rows={textareaRows}
+            ref={textareaRef}
+            style={{ fontSize }}
+            styles={{ textarea: TextareaStyle }}
+            onFocus={() => setInputFocus(true)}
+            onBlur={() => setInputFocus(false)}
+            onInput={onInput}
+            disabled={searching}
+            onPaste={(e) => onPaste(e.nativeEvent)}
+            onClick={() => searching && dispatch(setSearching(false))}
+          />
+          <Toolbar>
+            <ToolbarMenu>
+              <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
+                <ToolbarButton type="text" onClick={addNewTopic}>
+                  <FormOutlined />
+                </ToolbarButton>
+              </Tooltip>
+              {isWebSearchModel(model) && (
+                <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
+                  <ToolbarButton
+                    type="text"
+                    onClick={() => updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })}>
+                    <GlobalOutlined
+                      style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
+                    />
+                  </ToolbarButton>
+                </Tooltip>
+              )}
+              <Tooltip placement="top" title={t('chat.input.clear')} arrow>
+                <Popconfirm
+                  title={t('chat.input.clear.content')}
+                  placement="top"
+                  onConfirm={clearTopic}
+                  okButtonProps={{ danger: true }}
+                  icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+                  okText={t('chat.input.clear')}>
+                  <ToolbarButton type="text">
+                    <ClearOutlined />
+                  </ToolbarButton>
+                </Popconfirm>
+              </Tooltip>
+              <Tooltip placement="top" title={t('chat.input.settings')} arrow>
                 <ToolbarButton
                   type="text"
-                  onClick={() => updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })}>
-                  <GlobalOutlined
-                    style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
-                  />
+                  onClick={() => {
+                    !showTopics && toggleShowTopics()
+                    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_CHAT_SETTINGS), 0)
+                  }}>
+                  <ControlOutlined />
                 </ToolbarButton>
               </Tooltip>
-            )}
-            <Tooltip placement="top" title={t('chat.input.clear')} arrow>
-              <Popconfirm
-                title={t('chat.input.clear.content')}
-                placement="top"
-                onConfirm={clearTopic}
-                okButtonProps={{ danger: true }}
-                icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-                okText={t('chat.input.clear')}>
-                <ToolbarButton type="text">
-                  <ClearOutlined />
-                </ToolbarButton>
-              </Popconfirm>
-            </Tooltip>
-            <Tooltip placement="top" title={t('chat.input.settings')} arrow>
-              <ToolbarButton
-                type="text"
-                onClick={() => {
-                  !showTopics && toggleShowTopics()
-                  setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_CHAT_SETTINGS), 0)
-                }}>
-                <ControlOutlined />
+              {showKnowledgeIcon && (
+                <KnowledgeBaseButton
+                  selectedBase={selectedKnowledgeBase}
+                  onSelect={handleKnowledgeBaseSelect}
+                  ToolbarButton={ToolbarButton}
+                  disabled={files.length > 0}
+                />
+              )}
+              <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
+              <ToolbarButton type="text" onClick={onNewContext}>
+                <Tooltip placement="top" title={t('chat.input.new.context')}>
+                  <PicCenterOutlined />
+                </Tooltip>
               </ToolbarButton>
-            </Tooltip>
-            {showKnowledgeIcon && (
-              <KnowledgeBaseButton
-                selectedBase={selectedKnowledgeBase}
-                onSelect={handleKnowledgeBaseSelect}
+              <Tooltip placement="top" title={expended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
+                <ToolbarButton type="text" onClick={onToggleExpended}>
+                  {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                </ToolbarButton>
+              </Tooltip>
+              <TokenCount
+                estimateTokenCount={estimateTokenCount}
+                inputTokenCount={inputTokenCount}
+                contextCount={contextCount}
                 ToolbarButton={ToolbarButton}
-                disabled={files.length > 0}
+                onClick={onNewContext}
               />
-            )}
-            <AttachmentButton
-              model={model}
-              files={files}
-              setFiles={setFiles}
-              ToolbarButton={ToolbarButton}
-              disabled={!!selectedKnowledgeBase}
-            />
-            <ToolbarButton type="text" onClick={onNewContext}>
-              <Tooltip placement="top" title={t('chat.input.new.context')}>
-                <PicCenterOutlined />
-              </Tooltip>
-            </ToolbarButton>
-            <Tooltip placement="top" title={expended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
-              <ToolbarButton type="text" onClick={onToggleExpended}>
-                {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-              </ToolbarButton>
-            </Tooltip>
-            <TokenCount
-              estimateTokenCount={estimateTokenCount}
-              inputTokenCount={inputTokenCount}
-              contextCount={contextCount}
-              ToolbarButton={ToolbarButton}
-              onClick={onNewContext}
-            />
-          </ToolbarMenu>
-          <ToolbarMenu>
-            {!language.startsWith('en') && (
-              <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
-            )}
-            {generating && (
-              <Tooltip placement="top" title={t('chat.input.pause')} arrow>
-                <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>
-                  <PauseCircleOutlined style={{ color: 'var(--color-error)', fontSize: 20 }} />
-                </ToolbarButton>
-              </Tooltip>
-            )}
-            {!generating && <SendMessageButton sendMessage={sendMessage} disabled={generating || inputEmpty} />}
-          </ToolbarMenu>
-        </Toolbar>
-      </InputBarContainer>
+            </ToolbarMenu>
+            <ToolbarMenu>
+              {!language.startsWith('en') && (
+                <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
+              )}
+              {generating && (
+                <Tooltip placement="top" title={t('chat.input.pause')} arrow>
+                  <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>
+                    <PauseCircleOutlined style={{ color: 'var(--color-error)', fontSize: 20 }} />
+                  </ToolbarButton>
+                </Tooltip>
+              )}
+              {!generating && <SendMessageButton sendMessage={sendMessage} disabled={generating || inputEmpty} />}
+            </ToolbarMenu>
+          </Toolbar>
+        </InputBarContainer>
+      </NarrowLayout>
     </Container>
   )
 }

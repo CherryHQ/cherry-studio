@@ -81,16 +81,18 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         setLoading(true)
         const models = await fetchModels(_provider)
         setListModels(
-          models.map((model) => ({
-            id: model.id,
-            // @ts-ignore name
-            name: model.name || model.id,
-            provider: _provider.id,
-            group: getDefaultGroupName(model.id),
-            // @ts-ignore name
-            description: model?.description,
-            owned_by: model?.owned_by
-          }))
+          models
+            .map((model) => ({
+              id: model.id,
+              // @ts-ignore name
+              name: model.name || model.id,
+              provider: _provider.id,
+              group: getDefaultGroupName(model.id),
+              // @ts-ignore name
+              description: model?.description,
+              owned_by: model?.owned_by
+            }))
+            .filter((model) => !isEmpty(model.id))
         )
         setLoading(false)
       } catch (error) {

@@ -66,6 +66,9 @@ const Container = styled.div`
     font-size: 10px;
     margin-right: 3px;
   }
+  @media (max-width: 600px) {
+    display: none;
+  }
 `
 
 const Text = styled.div`

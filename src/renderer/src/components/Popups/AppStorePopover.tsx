@@ -48,7 +48,7 @@ const AppStorePopover: FC<Props> = ({ children }) => {
       content={content}
       trigger="click"
       placement="bottomRight"
-      overlayInnerStyle={{ padding: 25 }}>
+      styles={{ body: { padding: 25 } }}>
       {children}
     </Popover>
   )
@@ -59,7 +59,7 @@ const PopoverContent = styled(Scrollbar)``
 const AppsContainer = styled.div`
   display: grid;
   grid-template-columns: repeat(6, minmax(90px, 1fr));
-  gap: 25px;
+  gap: 18px;
 `
 
 export default AppStorePopover

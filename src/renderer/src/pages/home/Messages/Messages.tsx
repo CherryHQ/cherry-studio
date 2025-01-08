@@ -26,6 +26,7 @@ import styled from 'styled-components'
 
 import Suggestions from '../components/Suggestions'
 import MessageItem from './Message'
+import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
 
 interface Props {
@@ -283,33 +284,35 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       key={assistant.id}
       ref={containerRef}
       right={topicPosition === 'left'}>
-      <Suggestions assistant={assistant} messages={messages} />
-      <InfiniteScroll
-        dataLength={displayMessages.length}
-        next={loadMoreMessages}
-        hasMore={hasMore}
-        loader={null}
-        inverse={true}
-        scrollableTarget="messages">
-        <ScrollContainer>
-          <LoaderContainer $loading={isLoadingMore}>
-            <BeatLoader size={8} color="var(--color-text-2)" />
-          </LoaderContainer>
-          {displayMessages.map((message, index) => (
-            <MessageItem
-              key={message.id}
-              message={message}
-              topic={topic}
-              index={index}
-              hidePresetMessages={assistant.settings?.hideMessages}
-              onSetMessages={setMessages}
-              onDeleteMessage={onDeleteMessage}
-              onGetMessages={onGetMessages}
-            />
-          ))}
-        </ScrollContainer>
-      </InfiniteScroll>
-      <Prompt assistant={assistant} key={assistant.prompt} />
+      <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
+        <Suggestions assistant={assistant} messages={messages} />
+        <InfiniteScroll
+          dataLength={displayMessages.length}
+          next={loadMoreMessages}
+          hasMore={hasMore}
+          loader={null}
+          inverse={true}
+          scrollableTarget="messages">
+          <ScrollContainer>
+            <LoaderContainer $loading={isLoadingMore}>
+              <BeatLoader size={8} color="var(--color-text-2)" />
+            </LoaderContainer>
+            {displayMessages.map((message, index) => (
+              <MessageItem
+                key={message.id}
+                message={message}
+                topic={topic}
+                index={index}
+                hidePresetMessages={assistant.settings?.hideMessages}
+                onSetMessages={setMessages}
+                onDeleteMessage={onDeleteMessage}
+                onGetMessages={onGetMessages}
+              />
+            ))}
+          </ScrollContainer>
+        </InfiniteScroll>
+        <Prompt assistant={assistant} key={assistant.prompt} />
+      </NarrowLayout>
     </Container>
   )
 }

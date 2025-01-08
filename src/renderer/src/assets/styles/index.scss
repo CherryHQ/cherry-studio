@@ -171,9 +171,6 @@ body,
 #content-container {
   background-color: var(--color-background);
   border-top: 0.5px solid var(--color-border);
-}
-
-#content-container {
   border-top-left-radius: 12px;
   border-left: 0.5px solid var(--color-border);
   box-shadow: -2px 0px 20px -4px rgba(0, 0, 0, 0.06);
@@ -218,10 +215,7 @@ body,
     background-color: var(--chat-background);
   }
   #inputbar {
-    border-radius: 0;
-    margin: 0;
-    border: none;
-    border-top: 1px solid var(--color-border-mute);
+    margin: -5px 15px 15px 15px;
     background: var(--color-background);
   }
   .system-prompt {

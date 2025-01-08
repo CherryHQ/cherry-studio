@@ -138,8 +138,14 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     const isOpenAIo1 = model.id.includes('o1-')
-    const isSupportStreamOutput = streamOutput
     const isPlugin = assistant.subType === 'plugin'
+
+    const isSupportStreamOutput = () => {
+      if (this.provider.id === 'github' && isOpenAIo1) {
+        return false
+      }
+      return streamOutput
+    }
 
     let time_first_token_millsec = 0
     const start_time_millsec = new Date().getTime()
@@ -154,12 +160,12 @@ export default class OpenAIProvider extends BaseProvider {
       top_p: assistant?.settings?.topP,
       max_tokens: maxTokens,
       keep_alive: this.keepAliveTime,
-      stream: isSupportStreamOutput,
+      stream: isSupportStreamOutput(),
       ...(assistant.enableWebSearch ? getWebSearchParams(model) : {}),
       ...this.getCustomParameters(assistant)
     })
 
-    if (!isSupportStreamOutput) {
+    if (!isSupportStreamOutput()) {
       const time_completion_millsec = new Date().getTime() - start_time_millsec
       return onChunk({
         text: stream.choices[0].message?.content || '',

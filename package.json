@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -65,7 +65,6 @@
     "adm-zip": "^0.5.16",
     "apache-arrow": "^18.1.0",
     "docx": "^9.0.2",
-    "dompurify": "^3.2.3",
     "electron-log": "^5.1.5",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.9",

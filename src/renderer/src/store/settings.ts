@@ -60,6 +60,7 @@ export interface SettingsState {
     visible: SidebarIcon[]
     disabled: SidebarIcon[]
   }
+  narrowMode: boolean
 }
 
 const initialState: SettingsState = {
@@ -103,7 +104,8 @@ const initialState: SettingsState = {
   sidebarIcons: {
     visible: DEFAULT_SIDEBAR_ICONS,
     disabled: []
-  }
+  },
+  narrowMode: false
 }
 
 const settingsSlice = createSlice({
@@ -230,6 +232,9 @@ const settingsSlice = createSlice({
     },
     setSidebarIcons: (state, action: PayloadAction<{ visible: SidebarIcon[]; disabled: SidebarIcon[] }>) => {
       state.sidebarIcons = action.payload
+    },
+    setNarrowMode: (state, action: PayloadAction<boolean>) => {
+      state.narrowMode = action.payload
     }
   }
 })
@@ -274,7 +279,8 @@ export const {
   setPasteLongTextThreshold,
   setCustomCss,
   setTopicNamingPrompt,
-  setSidebarIcons
+  setSidebarIcons,
+  setNarrowMode
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

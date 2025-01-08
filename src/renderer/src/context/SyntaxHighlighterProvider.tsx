@@ -60,7 +60,6 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
       if (!highlighter.getLoadedLanguages().includes(language as BundledLanguage)) {
         if (language in bundledLanguages || language === 'text') {
           await highlighter.loadLanguage(language as BundledLanguage)
-          console.log(`Loaded language: ${language}`)
         } else {
           return `<pre style="padding: 10px"><code>${escapedCode}</code></pre>`
         }
