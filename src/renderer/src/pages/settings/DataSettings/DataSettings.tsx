@@ -3,7 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { backup, reset, restore } from '@renderer/services/BackupService'
 import { AppInfo } from '@renderer/types'
-import { Button, message, Modal, Typography } from 'antd'
+import { Button, Modal, Typography } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -42,9 +42,9 @@ const DataSettings: FC = () => {
       onOk: async () => {
         try {
           await window.api.clearCache()
-          message.success(t('settings.data.clear_cache.success'))
+          window.message.success(t('settings.data.clear_cache.success'))
         } catch (error) {
-          message.error(t('settings.data.clear_cache.error'))
+          window.message.error(t('settings.data.clear_cache.error'))
         }
       }
     })

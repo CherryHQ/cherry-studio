@@ -1,5 +1,5 @@
 import { electronAPI } from '@electron-toolkit/preload'
-import { KnowledgeBaseParams, KnowledgeItem, Shortcut, WebDavConfig } from '@types'
+import { FileType, KnowledgeBaseParams, KnowledgeItem, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions } from 'electron'
 
 // Custom APIs for renderer
@@ -70,6 +70,17 @@ const api = {
       ipcRenderer.invoke('knowledge-base:remove', { uniqueId, base }),
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) =>
       ipcRenderer.invoke('knowledge-base:search', { search, base })
+  },
+  window: {
+    setMinimumSize: (width: number, height: number) => ipcRenderer.invoke('window:set-minimum-size', width, height),
+    resetMinimumSize: () => ipcRenderer.invoke('window:reset-minimum-size')
+  },
+  gemini: {
+    uploadFile: (file: FileType, apiKey: string) => ipcRenderer.invoke('gemini:upload-file', file, apiKey),
+    base64File: (file: FileType) => ipcRenderer.invoke('gemini:base64-file', file),
+    retrieveFile: (file: FileType, apiKey: string) => ipcRenderer.invoke('gemini:retrieve-file', file, apiKey),
+    listFiles: (apiKey: string) => ipcRenderer.invoke('gemini:list-files', apiKey),
+    deleteFile: (apiKey: string, fileId: string) => ipcRenderer.invoke('gemini:delete-file', apiKey, fileId)
   }
 }
 

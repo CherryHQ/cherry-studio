@@ -34,6 +34,16 @@ const initialState: LlmState = {
       enabled: true
     },
     {
+      id: 'aihubmix',
+      name: 'AiHubMix',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://aihubmix.com',
+      models: SYSTEM_MODELS.aihubmix,
+      isSystem: true,
+      enabled: false
+    },
+    {
       id: 'ollama',
       name: 'Ollama',
       type: 'openai',
@@ -311,16 +321,6 @@ const initialState: LlmState = {
       apiKey: '',
       apiHost: 'https://api.jina.ai',
       models: SYSTEM_MODELS.jina,
-      isSystem: true,
-      enabled: false
-    },
-    {
-      id: 'aihubmix',
-      name: 'AiHubMix',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://aihubmix.com',
-      models: SYSTEM_MODELS.aihubmix,
       isSystem: true,
       enabled: false
     }

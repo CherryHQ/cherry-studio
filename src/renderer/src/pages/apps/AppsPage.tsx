@@ -73,14 +73,15 @@ const ContentContainer = styled.div`
 `
 
 const AppsContainer = styled.div`
-  display: flex;
-  min-width: 930px;
+  display: grid;
+  min-width: 0;
   max-width: 930px;
+  width: 100%;
   max-height: 520px;
   min-height: 520px;
-  display: grid;
-  grid-template-columns: repeat(8, minmax(90px, 1fr));
-  gap: 25px 25px;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 25px;
+  justify-content: center;
 `
 
 export default AppsPage

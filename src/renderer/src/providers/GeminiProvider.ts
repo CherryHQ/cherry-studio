@@ -1,5 +1,6 @@
 import {
   Content,
+  FileDataPart,
   GoogleGenerativeAI,
   HarmBlockThreshold,
   HarmCategory,
@@ -14,7 +15,8 @@ import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, FileType, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { removeSpecialCharacters } from '@renderer/utils'
 import axios from 'axios'
 import { first, isEmpty, last, takeRight } from 'lodash'
 import OpenAI from 'openai'
@@ -38,6 +40,43 @@ export default class GeminiProvider extends BaseProvider {
     return this.provider.apiHost
   }
 
+  private async handlePdfFile(file: FileType): Promise<Part> {
+    const smallFileSize = 20 * 1024 * 1024
+    const isSmallFile = file.size < smallFileSize
+
+    if (isSmallFile) {
+      const { data, mimeType } = await window.api.gemini.base64File(file)
+      return {
+        inlineData: {
+          data,
+          mimeType
+        }
+      } as InlineDataPart
+    }
+
+    // Retrieve file from Gemini uploaded files
+    const fileMetadata = await window.api.gemini.retrieveFile(file, this.apiKey)
+
+    if (fileMetadata) {
+      return {
+        fileData: {
+          fileUri: fileMetadata.uri,
+          mimeType: fileMetadata.mimeType
+        }
+      } as FileDataPart
+    }
+
+    // If file is not found, upload it to Gemini
+    const uploadResult = await window.api.gemini.uploadFile(file, this.apiKey)
+
+    return {
+      fileData: {
+        fileUri: uploadResult.file.uri,
+        mimeType: uploadResult.file.mimeType
+      }
+    } as FileDataPart
+  }
+
   private async getMessageContents(message: Message): Promise<Content> {
     const role = message.role === 'user' ? 'user' : 'model'
 
@@ -53,6 +92,12 @@ export default class GeminiProvider extends BaseProvider {
           }
         } as InlineDataPart)
       }
+
+      if (file.ext === '.pdf') {
+        parts.push(await this.handlePdfFile(file))
+        continue
+      }
+
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
         parts.push({
@@ -92,7 +137,7 @@ export default class GeminiProvider extends BaseProvider {
         model: model.id,
         systemInstruction: assistant.prompt,
         // @ts-ignore googleSearch is not a valid tool for Gemini
-        tools: assistant.enableWebSearch && isWebSearchModel(model) ? [{ googleSearch: {} }] : [],
+        tools: assistant.enableWebSearch && isWebSearchModel(model) ? [{ googleSearch: {} }] : undefined,
         generationConfig: {
           maxOutputTokens: maxTokens,
           temperature: assistant?.settings?.temperature,
@@ -223,7 +268,7 @@ export default class GeminiProvider extends BaseProvider {
 
     const { response } = await chat.sendMessage(userMessage.content)
 
-    return response.text()
+    return removeSpecialCharacters(response.text())
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

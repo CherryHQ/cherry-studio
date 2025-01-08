@@ -70,6 +70,7 @@ const PopupContainer: React.FC<Props> = ({ text, textareaProps, modalProps, reso
         ref={textareaRef}
         rows={2}
         autoFocus
+        spellCheck={false}
         {...textareaProps}
         value={textValue}
         onInput={resizeTextArea}

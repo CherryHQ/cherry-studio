@@ -11,6 +11,7 @@ import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
 import { ExportService } from './services/ExportService'
 import FileStorage from './services/FileStorage'
+import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { windowService } from './services/WindowService'
@@ -154,4 +155,24 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('knowledge-base:add', KnowledgeService.add)
   ipcMain.handle('knowledge-base:remove', KnowledgeService.remove)
   ipcMain.handle('knowledge-base:search', KnowledgeService.search)
+
+  // window
+  ipcMain.handle('window:set-minimum-size', (_, width: number, height: number) => {
+    mainWindow?.setMinimumSize(width, height)
+  })
+
+  ipcMain.handle('window:reset-minimum-size', () => {
+    mainWindow?.setMinimumSize(1080, 600)
+    const [width, height] = mainWindow?.getSize() ?? [1080, 600]
+    if (width < 1080) {
+      mainWindow?.setSize(1080, height)
+    }
+  })
+
+  // gemini
+  ipcMain.handle('gemini:upload-file', GeminiService.uploadFile)
+  ipcMain.handle('gemini:base64-file', GeminiService.base64File)
+  ipcMain.handle('gemini:retrieve-file', GeminiService.retrieveFile)
+  ipcMain.handle('gemini:list-files', GeminiService.listFiles)
+  ipcMain.handle('gemini:delete-file', GeminiService.deleteFile)
 }

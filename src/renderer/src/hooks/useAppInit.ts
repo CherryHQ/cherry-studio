@@ -2,7 +2,6 @@ import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
@@ -16,16 +15,7 @@ import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const {
-    proxyUrl,
-    language,
-    windowStyle,
-    manualUpdateCheck,
-    proxyMode,
-    webdavAutoSync,
-    webdavSyncInterval,
-    customCss
-  } = useSettings()
+  const { proxyUrl, language, windowStyle, manualUpdateCheck, proxyMode, customCss } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -83,10 +73,6 @@ export function useAppInit() {
       dispatch(setFilesPath(info.filesPath))
     })
   }, [dispatch])
-
-  useEffect(() => {
-    webdavAutoSync ? startAutoSync() : stopAutoSync()
-  }, [webdavAutoSync, webdavSyncInterval])
 
   useEffect(() => {
     import('@renderer/queue/KnowledgeQueue')

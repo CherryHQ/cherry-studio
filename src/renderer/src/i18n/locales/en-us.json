@@ -190,6 +190,7 @@
       "name": "Name",
       "open": "Open",
       "size": "Size",
+      "type": "Type",
       "text": "Text",
       "title": "Files",
       "edit": "Edit",
@@ -401,9 +402,16 @@
       "general.user_name.placeholder": "Enter your name",
       "general.view_webdav_settings": "View WebDAV settings",
       "general.display.title": "Display Settings",
+      "display.sidebar.translate.icon": "Show Translate icon",
+      "display.sidebar.painting.icon": "Show Painting icon",
       "display.sidebar.minapp.icon": "Show MinApp icon",
+      "display.sidebar.knowledge.icon": "Show Knowledge icon",
       "display.sidebar.files.icon": "Show Files icon",
       "display.sidebar.title": "Sidebar Settings",
+      "display.sidebar.visible": "Show my sidebar icons",
+      "display.sidebar.disabled": "Hide my sidebar icons",
+      "display.sidebar.chat.hiddenMessage": "Assistants are basic functions, not supported for hiding",
+      "display.sidebar.empty": "Drag the hidden feature from the left side here",
       "display.topic.title": "Topic Settings",
       "display.custom.css": "Custom CSS",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
@@ -414,7 +422,7 @@
       "messages.input.show_estimated_tokens": "Show estimated tokens",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.input.title": "Input Settings",
-      "messages.markdown_rendering_input_message": "Markdown render input msg",
+      "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math render engine",
       "messages.model.title": "Model Settings",
       "messages.title": "Message Settings",
@@ -508,7 +516,8 @@
         "clear_shortcut": "Clear Shortcut",
         "toggle_show_assistants": "Toggle Assistants",
         "toggle_show_topics": "Toggle Topics",
-        "copy_last_message": "Copy Last Message"
+        "copy_last_message": "Copy Last Message",
+        "search_message": "Search Message"
       },
       "theme.auto": "Auto",
       "theme.dark": "Dark",
@@ -549,7 +558,7 @@
       "show_window": "Show Window",
       "quit": "Quit"
     },
-    "knowledge_base": {
+    "knowledge": {
       "title": "Knowledge Base",
       "search": "Search knowledge base",
       "empty": "No knowledge base found",

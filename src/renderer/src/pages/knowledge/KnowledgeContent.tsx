@@ -126,9 +126,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     }
 
     const url = await PromptPopup.show({
-      title: t('knowledge_base.add_url'),
+      title: t('knowledge.add_url'),
       message: '',
-      inputPlaceholder: t('knowledge_base.url_placeholder'),
+      inputPlaceholder: t('knowledge.url_placeholder'),
       inputProps: {
         maxLength: 1000,
         rows: 1
@@ -139,7 +139,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       try {
         new URL(url)
         if (urlItems.find((item) => item.content === url)) {
-          message.success(t('knowledge_base.url_added'))
+          message.success(t('knowledge.url_added'))
           return
         }
         addUrl(url)
@@ -155,9 +155,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     }
 
     const url = await PromptPopup.show({
-      title: t('knowledge_base.add_sitemap'),
+      title: t('knowledge.add_sitemap'),
       message: '',
-      inputPlaceholder: t('knowledge_base.sitemap_placeholder'),
+      inputPlaceholder: t('knowledge.sitemap_placeholder'),
       inputProps: {
         maxLength: 1000,
         rows: 1
@@ -168,7 +168,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       try {
         new URL(url)
         if (sitemapItems.find((item) => item.content === url)) {
-          message.success(t('knowledge_base.sitemap_added'))
+          message.success(t('knowledge.sitemap_added'))
           return
         }
         addSitemap(url)
@@ -209,16 +209,16 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <MainContent>
       {!base?.version && (
-        <Alert message={t('knowledge_base.not_support')} type="error" style={{ marginBottom: 20 }} showIcon />
+        <Alert message={t('knowledge.not_support')} type="error" style={{ marginBottom: 20 }} showIcon />
       )}
       {!providerName && (
-        <Alert message={t('knowledge_base.no_provider')} type="error" style={{ marginBottom: 20 }} showIcon />
+        <Alert message={t('knowledge.no_provider')} type="error" style={{ marginBottom: 20 }} showIcon />
       )}
       <FileSection>
         <TitleWrapper>
           <Title level={5}>{t('files.title')}</Title>
           <Button icon={<PlusOutlined />} onClick={handleAddFile} disabled={disabled}>
-            {t('knowledge_base.add_file')}
+            {t('knowledge.add_file')}
           </Button>
         </TitleWrapper>
         <Dragger
@@ -227,9 +227,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           multiple={true}
           accept={fileTypes.join(',')}
           style={{ marginTop: 10, background: 'transparent' }}>
-          <p className="ant-upload-text">{t('knowledge_base.drag_file')}</p>
+          <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
           <p className="ant-upload-hint">
-            {t('knowledge_base.file_hint', { file_types: fileTypes.join(', ').replaceAll('.', '') })}
+            {t('knowledge.file_hint', { file_types: fileTypes.join(', ').replaceAll('.', '') })}
           </p>
         </Dragger>
       </FileSection>
@@ -256,9 +256,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
       <ContentSection>
         <TitleWrapper>
-          <Title level={5}>{t('knowledge_base.directories')}</Title>
+          <Title level={5}>{t('knowledge.directories')}</Title>
           <Button icon={<PlusOutlined />} onClick={handleAddDirectory} disabled={disabled}>
-            {t('knowledge_base.add_directory')}
+            {t('knowledge.add_directory')}
           </Button>
         </TitleWrapper>
         <FlexColumn>
@@ -283,9 +283,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
       <ContentSection>
         <TitleWrapper>
-          <Title level={5}>{t('knowledge_base.urls')}</Title>
+          <Title level={5}>{t('knowledge.urls')}</Title>
           <Button icon={<PlusOutlined />} onClick={handleAddUrl} disabled={disabled}>
-            {t('knowledge_base.add_url')}
+            {t('knowledge.add_url')}
           </Button>
         </TitleWrapper>
         <FlexColumn>
@@ -310,9 +310,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
       <ContentSection>
         <TitleWrapper>
-          <Title level={5}>{t('knowledge_base.sitemaps')}</Title>
+          <Title level={5}>{t('knowledge.sitemaps')}</Title>
           <Button icon={<PlusOutlined />} onClick={handleAddSitemap} disabled={disabled}>
-            {t('knowledge_base.add_sitemap')}
+            {t('knowledge.add_sitemap')}
           </Button>
         </TitleWrapper>
         <FlexColumn>
@@ -337,9 +337,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
       <ContentSection>
         <TitleWrapper>
-          <Title level={5}>{t('knowledge_base.notes')}</Title>
+          <Title level={5}>{t('knowledge.notes')}</Title>
           <Button icon={<PlusOutlined />} onClick={handleAddNote} disabled={disabled}>
-            {t('knowledge_base.add_note')}
+            {t('knowledge.add_note')}
           </Button>
         </TitleWrapper>
         <FlexColumn>
@@ -363,7 +363,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <Divider style={{ margin: '10px 0' }} />
 
       <ModelInfo>
-        <label htmlFor="model-info">{t('knowledge_base.model_info')}</label>
+        <label htmlFor="model-info">{t('knowledge.model_info')}</label>
         <Tag color="blue">{base.model.name}</Tag>
         <Tag color="cyan">{t('models.dimensions', { dimensions: base.dimensions || 0 })}</Tag>
         {providerName && <Tag color="purple">{providerName}</Tag>}
@@ -375,7 +375,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           onClick={() => KnowledgeSearchPopup.show({ base })}
           icon={<SearchOutlined />}
           disabled={disabled}>
-          {t('knowledge_base.search')}
+          {t('knowledge.search')}
         </Button>
       </IndexSection>
 

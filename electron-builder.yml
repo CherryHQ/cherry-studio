@@ -32,6 +32,10 @@ asarUnpack:
   - '**/*.{node,dll,metal,exp,lib}'
 win:
   executableName: Cherry Studio
+  artifactName: ${productName}-${version}-portable.${ext}
+  target:
+    - target: nsis
+    - target: portable
 nsis:
   artifactName: ${productName}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -43,6 +47,7 @@ nsis:
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
+  artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -57,9 +62,8 @@ mac:
       arch:
         - arm64
         - x64
-dmg:
-  artifactName: ${productName}-${version}-${arch}.${ext}
 linux:
+  artifactName: ${productName}-${version}-${arch}.${ext}
   target:
     - target: AppImage
       arch:
@@ -67,8 +71,6 @@ linux:
         - x64
   maintainer: electronjs.org
   category: Utility
-appImage:
-  artifactName: ${productName}-${version}-${arch}.${ext}
 publish:
   provider: generic
   url: https://cherrystudio.ocool.online

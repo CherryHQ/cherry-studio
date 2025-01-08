@@ -44,6 +44,13 @@ const initialState: ShortcutsState = {
       editable: true,
       enabled: false,
       system: false
+    },
+    {
+      key: 'search_message',
+      shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+      editable: true,
+      enabled: true,
+      system: false
     }
   ]
 }

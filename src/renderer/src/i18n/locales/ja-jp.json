@@ -190,6 +190,7 @@
       "name": "名前",
       "open": "開く",
       "size": "サイズ",
+      "type": "タイプ",
       "text": "テキスト",
       "title": "ファイル",
       "edit": "編集",
@@ -399,9 +400,16 @@
       "general.user_name.placeholder": "ユーザー名を入力",
       "general.view_webdav_settings": "WebDAV設定を表示",
       "general.display.title": "表示設定",
+      "display.sidebar.translate.icon": "翻訳のアイコンを表示",
+      "display.sidebar.painting.icon": "絵画のアイコンを表示",
       "display.sidebar.minapp.icon": "ミニアプリのアイコンを表示",
+      "display.sidebar.knowledge.icon": "ナレッジのアイコンを表示",
       "display.sidebar.files.icon": "ファイルのアイコンを表示",
       "display.sidebar.title": "サイドバー設定",
+      "display.sidebar.visible": "サイドバーのアイコンを表示する",
+      "display.sidebar.disabled": "サイドバーのアイコンを非表示にする",
+      "display.sidebar.chat.hiddenMessage": "アシスタントは基本的な機能であり、非表示はサポートされていません",
+      "display.sidebar.empty": "非表示にする機能を左側からここにドラッグ",
       "display.topic.title": "トピック設定",
       "display.custom.css": "カスタムCSS",
       "display.custom.css.placeholder": "/* ここにカスタムCSSを入力 */",
@@ -494,7 +502,8 @@
         "clear_shortcut": "ショートカットをクリア",
         "toggle_show_assistants": "アシスタントの表示を切り替え",
         "toggle_show_topics": "トピックの表示を切り替え",
-        "copy_last_message": "最後のメッセージをコピー"
+        "copy_last_message": "最後のメッセージをコピー",
+        "search_message": "メッセージを検索"
       },
       "theme.auto": "自動",
       "theme.dark": "ダークテーマ",
@@ -535,7 +544,7 @@
       "show_window": "ウィンドウを表示",
       "quit": "終了"
     },
-    "knowledge_base": {
+    "knowledge": {
       "title": "ナレッジベース",
       "search": "ナレッジベースを検索",
       "empty": "ナレッジベースが見つかりません",

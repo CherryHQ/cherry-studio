@@ -191,6 +191,7 @@
       "name": "文件名",
       "open": "打开",
       "size": "大小",
+      "type": "类型",
       "text": "文本",
       "title": "文件",
       "edit": "编辑",
@@ -402,9 +403,16 @@
       "general.user_name.placeholder": "请输入用户名",
       "general.view_webdav_settings": "查看 WebDAV 设置",
       "general.display.title": "显示设置",
+      "display.sidebar.translate.icon": "显示翻译图标",
+      "display.sidebar.painting.icon": "显示绘画图标",
       "display.sidebar.minapp.icon": "显示小程序图标",
+      "display.sidebar.knowledge.icon": "显示知识图标",
       "display.sidebar.files.icon": "显示文件图标",
       "display.sidebar.title": "侧边栏设置",
+      "display.sidebar.visible": "显示我的侧边栏图标",
+      "display.sidebar.disabled": "隐藏我的侧边栏图标",
+      "display.sidebar.chat.hiddenMessage": "助手是基础功能，不支持隐藏",
+      "display.sidebar.empty": "把要隐藏的功能从左侧拖拽到这里",
       "display.topic.title": "话题设置",
       "display.custom.css": "自定义 CSS",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
@@ -497,7 +505,8 @@
         "clear_shortcut": "清除快捷键",
         "toggle_show_assistants": "切换助手显示",
         "toggle_show_topics": "切换话题显示",
-        "copy_last_message": "复制上一条消息"
+        "copy_last_message": "复制上一条消息",
+        "search_message": "搜索消息"
       },
       "theme.auto": "跟随系统",
       "theme.dark": "深色主题",
@@ -538,7 +547,7 @@
       "show_window": "显示窗口",
       "quit": "退出"
     },
-    "knowledge_base": {
+    "knowledge": {
       "title": "知识库",
       "search": "搜索知识库",
       "empty": "暂无知识库",

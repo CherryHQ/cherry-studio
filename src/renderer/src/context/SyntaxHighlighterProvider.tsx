@@ -54,7 +54,7 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
   const codeToHtml = async (code: string, language: string) => {
     if (!highlighter) return ''
 
-    const escapedCode = code.replace(/[<>]/g, (char) => ({ '<': '&lt;', '>': '&gt;' })[char]!)
+    const escapedCode = code?.replace(/[<>]/g, (char) => ({ '<': '&lt;', '>': '&gt;' })[char]!)
 
     try {
       if (!highlighter.getLoadedLanguages().includes(language as BundledLanguage)) {

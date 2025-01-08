@@ -103,6 +103,7 @@ const AssistantMessagesSettings: FC<Props> = ({ assistant, updateAssistant, upda
                         value={messages[index].content}
                         onChange={(e) => updateMessages(index, 'user', e.target.value)}
                         placeholder={t('agents.edit.message.user.placeholder')}
+                        spellCheck={false}
                         rows={1}
                       />
                     </Col>
@@ -116,6 +117,7 @@ const AssistantMessagesSettings: FC<Props> = ({ assistant, updateAssistant, upda
                         value={messages[index + 1]?.content || ''}
                         onChange={(e) => updateMessages(index + 1, 'assistant', e.target.value)}
                         placeholder={t('agents.edit.message.assistant.placeholder')}
+                        spellCheck={false}
                         rows={3}
                       />
                     </Col>

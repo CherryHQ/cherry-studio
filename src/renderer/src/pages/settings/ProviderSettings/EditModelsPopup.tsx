@@ -1,13 +1,12 @@
 import { LoadingOutlined, MinusOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
-import VisionIcon from '@renderer/components/Icons/VisionIcon'
-import WebSearchIcon from '@renderer/components/Icons/WebSearchIcon'
 import { Center } from '@renderer/components/Layout'
+import ModelTags from '@renderer/components/ModelTags'
 import { getModelLogo, isEmbeddingModel, isVisionModel, isWebSearchModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
-import { Avatar, Button, Empty, Flex, Modal, Popover, Radio, Tag, Tooltip } from 'antd'
+import { Avatar, Button, Empty, Flex, Modal, Popover, Radio, Tooltip } from 'antd'
 import Search from 'antd/es/input/Search'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { useEffect, useState } from 'react'
@@ -156,18 +155,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                       <Tooltip title={model.id} placement="top">
                         <span style={{ cursor: 'help' }}>{model.name}</span>
                       </Tooltip>
-                      {isVisionModel(model) && <VisionIcon />}
-                      {isWebSearchModel(model) && <WebSearchIcon />}
-                      {isFreeModel(model) && (
-                        <Tag style={{ marginLeft: 10 }} color="green">
-                          {t('models.free')}
-                        </Tag>
-                      )}
-                      {isEmbeddingModel(model) && (
-                        <Tag style={{ marginLeft: 10 }} color="orange">
-                          {t('models.embedding')}
-                        </Tag>
-                      )}
+                      <ModelTags model={model} />
                       {!isEmpty(model.description) && (
                         <Popover
                           trigger="click"

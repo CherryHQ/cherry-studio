@@ -62,7 +62,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     showInputEstimatedTokens,
     clickAssistantToShowTopic,
     language,
-    autoTranslateWithSpace
+    autoTranslateWithSpace,
+    sidebarIcons
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -83,6 +84,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
+
+  const showKnowledgeIcon = sidebarIcons.visible.includes('knowledge')
 
   const estimateTextTokens = useCallback(debounce(estimateTxtTokens, 1000), [])
   const inputTokenCount = useMemo(
@@ -397,6 +400,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
           autoFocus
           contextMenu="true"
           variant="borderless"
+          spellCheck={false}
           rows={textareaRows}
           ref={textareaRef}
           style={{ fontSize }}
@@ -449,12 +453,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 <ControlOutlined />
               </ToolbarButton>
             </Tooltip>
-            <KnowledgeBaseButton
-              selectedBase={selectedKnowledgeBase}
-              onSelect={handleKnowledgeBaseSelect}
-              ToolbarButton={ToolbarButton}
-              disabled={files.length > 0}
-            />
+            {showKnowledgeIcon && (
+              <KnowledgeBaseButton
+                selectedBase={selectedKnowledgeBase}
+                onSelect={handleKnowledgeBaseSelect}
+                ToolbarButton={ToolbarButton}
+                disabled={files.length > 0}
+              />
+            )}
             <AttachmentButton
               model={model}
               files={files}

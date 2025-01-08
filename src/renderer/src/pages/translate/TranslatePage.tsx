@@ -211,6 +211,7 @@ const TranslatePage: FC = () => {
               value={text}
               onChange={(e) => setText(e.target.value)}
               disabled={loading}
+              spellCheck={false}
               allowClear
             />
             <TranslateButton

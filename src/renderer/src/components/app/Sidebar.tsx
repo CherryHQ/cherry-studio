@@ -21,7 +21,7 @@ const Sidebar: FC = () => {
   const { minappShow } = useRuntime()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { windowStyle, showMinappIcon, showFilesIcon } = useSettings()
+  const { windowStyle, sidebarIcons } = useSettings()
   const { theme, toggleTheme } = useTheme()
 
   const isRoute = (path: string): string => (pathname === path ? 'active' : '')
@@ -37,6 +37,41 @@ const Sidebar: FC = () => {
     navigate(path)
   }
 
+  const renderMainMenus = () => {
+    return sidebarIcons.visible.map((icon) => {
+      const iconMap = {
+        assistants: <i className="iconfont icon-chat" />,
+        agents: <i className="iconfont icon-business-smart-assistant" />,
+        paintings: <PictureOutlined style={{ fontSize: 16 }} />,
+        translate: <TranslationOutlined />,
+        minapp: <i className="iconfont icon-appstore" />,
+        knowledge: <FileSearchOutlined />,
+        files: <FolderOutlined />
+      }
+
+      const pathMap = {
+        assistants: '/',
+        agents: '/agents',
+        paintings: '/paintings',
+        translate: '/translate',
+        minapp: '/apps',
+        knowledge: '/knowledge',
+        files: '/files'
+      }
+
+      const path = pathMap[icon]
+      const isActive = path === '/' ? isRoute(path) : isRoutes(path)
+
+      return (
+        <Tooltip key={icon} title={t(`${icon}.title`)} mouseEnterDelay={0.8} placement="right">
+          <StyledLink onClick={() => to(path)}>
+            <Icon className={isActive}>{iconMap[icon]}</Icon>
+          </StyledLink>
+        </Tooltip>
+      )
+    })
+  }
+
   return (
     <Container
       id="app-sidebar"
@@ -46,61 +81,7 @@ const Sidebar: FC = () => {
       }}>
       <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
       <MainMenus>
-        <Menus onClick={MinApp.onClose}>
-          <Tooltip title={t('assistants.title')} mouseEnterDelay={0.8} placement="right">
-            <StyledLink onClick={() => to('/')}>
-              <Icon className={isRoute('/')}>
-                <i className="iconfont icon-chat" />
-              </Icon>
-            </StyledLink>
-          </Tooltip>
-          <Tooltip title={t('agents.title')} mouseEnterDelay={0.8} placement="right">
-            <StyledLink onClick={() => to('/agents')}>
-              <Icon className={isRoutes('/agents')}>
-                <i className="iconfont icon-business-smart-assistant" />
-              </Icon>
-            </StyledLink>
-          </Tooltip>
-          <Tooltip title={t('paintings.title')} mouseEnterDelay={0.8} placement="right">
-            <StyledLink onClick={() => to('/paintings')}>
-              <Icon className={isRoute('/paintings')}>
-                <PictureOutlined style={{ fontSize: 16 }} />
-              </Icon>
-            </StyledLink>
-          </Tooltip>
-          <Tooltip title={t('translate.title')} mouseEnterDelay={0.8} placement="right">
-            <StyledLink onClick={() => to('/translate')}>
-              <Icon className={isRoute('/translate')}>
-                <TranslationOutlined />
-              </Icon>
-            </StyledLink>
-          </Tooltip>
-          {showMinappIcon && (
-            <Tooltip title={t('minapp.title')} mouseEnterDelay={0.8} placement="right">
-              <StyledLink onClick={() => to('/apps')}>
-                <Icon className={isRoute('/apps')}>
-                  <i className="iconfont icon-appstore" />
-                </Icon>
-              </StyledLink>
-            </Tooltip>
-          )}
-          <Tooltip title={t('knowledge_base.title')} mouseEnterDelay={0.5} placement="right">
-            <StyledLink onClick={() => to('/knowledge')}>
-              <Icon className={isRoute('/knowledge')}>
-                <FileSearchOutlined />
-              </Icon>
-            </StyledLink>
-          </Tooltip>
-          {showFilesIcon && (
-            <Tooltip title={t('files.title')} mouseEnterDelay={0.8} placement="right">
-              <StyledLink onClick={() => to('/files')}>
-                <Icon className={isRoute('/files')}>
-                  <FolderOutlined />
-                </Icon>
-              </StyledLink>
-            </Tooltip>
-          )}
-        </Menus>
+        <Menus onClick={MinApp.onClose}>{renderMainMenus()}</Menus>
       </MainMenus>
       <Menus onClick={MinApp.onClose}>
         <Tooltip title={t('settings.theme.title')} mouseEnterDelay={0.8} placement="right">

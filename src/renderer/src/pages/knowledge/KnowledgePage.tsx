@@ -22,7 +22,7 @@ const KnowledgePage: FC = () => {
   const prevLength = useRef(0)
 
   const handleAddKnowledge = async () => {
-    await AddKnowledgePopup.show({ title: t('knowledge_base.add.title') })
+    await AddKnowledgePopup.show({ title: t('knowledge.add.title') })
   }
 
   useEffect(() => {
@@ -48,12 +48,12 @@ const KnowledgePage: FC = () => {
     (base: KnowledgeBase) => {
       const menus: MenuProps['items'] = [
         {
-          label: t('knowledge_base.rename'),
+          label: t('knowledge.rename'),
           key: 'rename',
           icon: <EditOutlined />,
           async onClick() {
             const name = await PromptPopup.show({
-              title: t('knowledge_base.rename'),
+              title: t('knowledge.rename'),
               message: '',
               defaultValue: base.name || ''
             })
@@ -70,7 +70,7 @@ const KnowledgePage: FC = () => {
           icon: <DeleteOutlined />,
           onClick: () => {
             window.modal.confirm({
-              title: t('knowledge_base.delete_confirm'),
+              title: t('knowledge.delete_confirm'),
               centered: true,
               onOk: () => {
                 deleteKnowledgeBase(base.id)
@@ -88,7 +88,7 @@ const KnowledgePage: FC = () => {
   return (
     <Container>
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge_base.title')}</NavbarCenter>
+        <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
         <SideNav>
@@ -125,7 +125,7 @@ const KnowledgePage: FC = () => {
         </SideNav>
         {bases.length === 0 ? (
           <MainContent>
-            <Empty description={t('knowledge_base.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <Empty description={t('knowledge.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </MainContent>
         ) : selectedBase ? (
           <KnowledgeContent selectedBase={selectedBase} />

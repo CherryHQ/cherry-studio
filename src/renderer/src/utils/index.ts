@@ -152,6 +152,11 @@ export function removeQuotes(str) {
   return str.replace(/['"]+/g, '')
 }
 
+export function removeSpecialCharacters(str: string) {
+  // First remove newlines and quotes, then remove other special characters
+  return str.replace(/[\n"]/g, '').replace(/[^\p{L}\p{M}\p{N}\p{P}\p{S}]/gu, '')
+}
+
 export function generateColorFromChar(char: string) {
   // 使用字符的Unicode值作为随机种子
   const seed = char.charCodeAt(0)

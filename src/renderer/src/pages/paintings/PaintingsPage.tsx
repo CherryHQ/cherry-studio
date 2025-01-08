@@ -407,6 +407,7 @@ const PaintingsPage: FC = () => {
           <TextArea
             value={painting.negativePrompt}
             onChange={(e) => updatePaintingState({ negativePrompt: e.target.value })}
+            spellCheck={false}
             rows={4}
           />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
@@ -437,6 +438,7 @@ const PaintingsPage: FC = () => {
               variant="borderless"
               disabled={isLoading}
               value={painting.prompt}
+              spellCheck={false}
               onChange={(e) => updatePaintingState({ prompt: e.target.value })}
               placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
               onKeyDown={handleKeyDown}

@@ -27,7 +27,7 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
 const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const { userName } = useSettings()
+  const { userName, sidebarIcons } = useSettings()
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
 
@@ -40,11 +40,14 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
   }, [message.modelId, message.role, model?.id, model?.name, t, userName])
 
   const isAssistantMessage = message.role === 'assistant'
+  const showMinappIcon = sidebarIcons.visible.includes('minapp')
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
 
-  const showMiniApp = useCallback(() => model?.provider && startMinAppById(model.provider), [model?.provider])
+  const showMiniApp = useCallback(() => {
+    showMinappIcon && model?.provider && startMinAppById(model.provider)
+  }, [model?.provider, showMinappIcon])
 
   const avatarStyle: CSSProperties | undefined = isBubbleStyle
     ? {
@@ -62,7 +65,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
             size={35}
             style={{
               borderRadius: '20%',
-              cursor: 'pointer',
+              cursor: showMinappIcon ? 'pointer' : 'default',
               border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
             }}

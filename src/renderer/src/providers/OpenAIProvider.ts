@@ -1,11 +1,11 @@
-import { isEmbeddingModel, isSupportedModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { getWebSearchParams, isEmbeddingModel, isSupportedModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { removeQuotes } from '@renderer/utils'
+import { removeSpecialCharacters } from '@renderer/utils'
 import { last, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
@@ -155,7 +155,7 @@ export default class OpenAIProvider extends BaseProvider {
       max_tokens: maxTokens,
       keep_alive: this.keepAliveTime,
       stream: isSupportStreamOutput,
-      ...(isWebSearchModel(model) ? { enable_enhancement: true } : {}),
+      ...(assistant.enableWebSearch ? getWebSearchParams(model) : {}),
       ...this.getCustomParameters(assistant)
     })
 
@@ -245,7 +245,7 @@ export default class OpenAIProvider extends BaseProvider {
       max_tokens: 1000
     })
 
-    return removeQuotes(response.choices[0].message?.content?.substring(0, 50) || '')
+    return removeSpecialCharacters(response.choices[0].message?.content?.substring(0, 50) || '')
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

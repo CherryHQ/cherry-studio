@@ -1,7 +1,7 @@
 import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import AiProvider from '@renderer/providers/AiProvider'
 import { FileType, KnowledgeBase, KnowledgeBaseParams, Message } from '@renderer/types'
-import { isEmpty, take } from 'lodash'
+import { take } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
@@ -9,10 +9,6 @@ import FileManager from './FileManager'
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)
   const aiProvider = new AiProvider(provider)
-
-  if (provider.id === 'ollama' && isEmpty(provider.apiKey)) {
-    provider.apiKey = 'empty'
-  }
 
   let host = aiProvider.getBaseURL()
 
@@ -24,7 +20,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     id: base.id,
     model: base.model.id,
     dimensions: base.dimensions,
-    apiKey: aiProvider.getApiKey(),
+    apiKey: aiProvider.getApiKey() || 'secret',
     apiVersion: provider.apiVersion,
     baseURL: host
   }

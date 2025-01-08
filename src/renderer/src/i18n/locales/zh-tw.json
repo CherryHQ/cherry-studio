@@ -190,6 +190,7 @@
       "name": "名稱",
       "open": "打開",
       "size": "大小",
+      "type": "類型",
       "text": "文本",
       "title": "檔案",
       "edit": "編輯",
@@ -401,10 +402,17 @@
       "general.user_name.placeholder": "輸入您的名稱",
       "general.view_webdav_settings": "查看 WebDAV 設定",
       "general.display.title": "顯示設定",
+      "display.sidebar.translate.icon": "顯示翻譯圖示",
+      "display.sidebar.painting.icon": "顯示繪圖圖示",
       "display.sidebar.minapp.icon": "顯示小程序圖示",
+      "display.sidebar.knowledge.icon": "顯示知識圖示",
       "display.sidebar.files.icon": "顯示文件圖示",
       "display.sidebar.title": "側邊欄設定",
       "display.topic.title": "話題設定",
+      "display.sidebar.chat.hiddenMessage": "助手是基礎功能，不支援隱藏",
+      "display.sidebar.empty": "把要隱藏的功能從左側拖拽到這裡",
+      "display.sidebar.visible": "顯示我的側邊欄圖標",
+      "display.sidebar.disabled": "隱藏我的側邊欄圖標",
       "display.custom.css": "自定義 CSS",
       "display.custom.css.placeholder": "/* 這裡寫自定義 CSS */",
       "input.auto_translate_with_space": "快速敲擊3次空格翻譯",
@@ -496,7 +504,8 @@
         "clear_shortcut": "清除快捷鍵",
         "toggle_show_assistants": "切換助手顯示",
         "toggle_show_topics": "切換話題顯示",
-        "copy_last_message": "複製上一条消息"
+        "copy_last_message": "複製上一条消息",
+        "search_message": "搜索消息"
       },
       "theme.auto": "自動",
       "theme.dark": "深色主題",
@@ -537,7 +546,7 @@
       "show_window": "顯示視窗",
       "quit": "退出"
     },
-    "knowledge_base": {
+    "knowledge": {
       "title": "知識庫",
       "search": "搜尋知識庫",
       "empty": "暫無知識庫",

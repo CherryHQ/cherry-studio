@@ -25,7 +25,7 @@ interface Props {
 const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { topicPosition } = useSettings()
+  const { topicPosition, sidebarIcons } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
 
   useShortcut('toggle_show_assistants', () => {
@@ -38,6 +38,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
     } else {
       EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     }
+  })
+
+  useShortcut('search_message', () => {
+    SearchPopup.show()
   })
 
   return (
@@ -75,11 +79,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
           <NavbarIcon onClick={() => SearchPopup.show()}>
             <SearchOutlined />
           </NavbarIcon>
-          <AppStorePopover>
-            <NavbarIcon style={{ marginLeft: isMac ? 5 : 10 }}>
-              <i className="iconfont icon-appstore" />
-            </NavbarIcon>
-          </AppStorePopover>
+          {sidebarIcons.visible.includes('minapp') && (
+            <AppStorePopover>
+              <NavbarIcon style={{ marginLeft: isMac ? 5 : 10 }}>
+                <i className="iconfont icon-appstore" />
+              </NavbarIcon>
+            </AppStorePopover>
+          )}
           {topicPosition === 'right' && (
             <NavbarIcon onClick={toggleShowTopics} style={{ marginLeft: isMac ? 5 : 10 }}>
               <i className={`iconfont icon-${showTopics ? 'show' : 'hide'}-sidebar`} />
@@ -130,6 +136,9 @@ const TitleText = styled.span`
   font-family: Ubuntu;
   font-size: 13px;
   user-select: none;
+  @media (max-width: 600px) {
+    display: none;
+  }
 `
 
 export default HeaderNavbar

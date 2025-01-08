@@ -1,8 +1,7 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import VisionIcon from '@renderer/components/Icons/VisionIcon'
+import ModelTags from '@renderer/components/ModelTags'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
-import { isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { Assistant } from '@renderer/types'
@@ -40,7 +39,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
         <ModelName>
           {model ? model.name : t('button.select_model')} {providerName ? '| ' + providerName : ''}
         </ModelName>
-        {isVisionModel(model) && <VisionIcon style={{ marginLeft: 0 }} />}
+        <ModelTags model={model} showFree={false} />
       </ButtonContent>
     </DropdownButton>
   )
@@ -63,7 +62,6 @@ const ButtonContent = styled.div`
 `
 
 const ModelName = styled.span`
-  margin-left: -2px;
   font-weight: 500;
 `
 

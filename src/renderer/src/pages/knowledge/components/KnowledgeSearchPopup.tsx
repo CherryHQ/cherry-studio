@@ -77,7 +77,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
 
   return (
     <Modal
-      title={t('knowledge_base.search')}
+      title={t('knowledge.search')}
       open={open}
       onOk={onOk}
       onCancel={onCancel}
@@ -88,7 +88,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       transitionName="ant-move-down">
       <SearchContainer>
         <Search
-          placeholder={t('knowledge_base.search_placeholder')}
+          placeholder={t('knowledge.search_placeholder')}
           allowClear
           enterButton
           size="large"
@@ -109,7 +109,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
                     <Paragraph>{highlightText(item.pageContent)}</Paragraph>
                     <MetadataContainer>
                       <Text type="secondary">
-                        {t('knowledge_base.source')}:{' '}
+                        {t('knowledge.source')}:{' '}
                         {item.file ? (
                           <a href={`http://file/${item.file.name}`} target="_blank" rel="noreferrer">
                             {item.file.origin_name}

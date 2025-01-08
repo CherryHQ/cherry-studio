@@ -9,6 +9,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { DEFAULT_SIDEBAR_ICONS } from './settings'
 
 const migrateConfig = {
   '2': (state: RootState) => {
@@ -742,8 +743,6 @@ const migrateConfig = {
     return state
   },
   '49': (state: RootState) => {
-    state.settings.showMinappIcon = true
-    state.settings.showFilesIcon = true
     state.settings.pasteLongTextThreshold = 1500
     if (state.shortcuts) {
       state.shortcuts.shortcuts = [
@@ -774,6 +773,22 @@ const migrateConfig = {
   },
   '51': (state: RootState) => {
     state.settings.topicNamingPrompt = ''
+    return state
+  },
+  '54': (state: RootState) => {
+    if (state.shortcuts) {
+      state.shortcuts.shortcuts.push({
+        key: 'search_message',
+        shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+        editable: true,
+        enabled: true,
+        system: false
+      })
+    }
+    state.settings.sidebarIcons = {
+      visible: DEFAULT_SIDEBAR_ICONS,
+      disabled: []
+    }
     return state
   }
 }

@@ -230,12 +230,8 @@ export async function fetchModels(provider: Provider) {
 
 function formatErrorMessage(error: any): string {
   try {
-    return (
-      '```json\n' +
-      JSON.stringify(error?.response?.data || error?.response || error?.request || error, null, 2) +
-      '\n```'
-    )
+    return '```json\n' + JSON.stringify(error, null, 2) + '\n```'
   } catch (e) {
-    return 'Error: ' + error.message
+    return 'Error: ' + error?.message
   }
 }

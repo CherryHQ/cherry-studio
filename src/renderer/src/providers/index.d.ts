@@ -1,4 +1,4 @@
-import { Metrics } from "@renderer/types"
+import type { Assistant, Metrics } from '@renderer/types'
 
 interface ChunkCallbackData {
   text?: string

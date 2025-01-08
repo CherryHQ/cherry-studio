@@ -8,6 +8,7 @@ import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@rende
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, Message, Provider, Suggestion } from '@renderer/types'
+import { removeSpecialCharacters } from '@renderer/utils'
 import { first, flatten, last, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
@@ -206,7 +207,9 @@ export default class AnthropicProvider extends BaseProvider {
       max_tokens: 4096
     })
 
-    return message.content[0].type === 'text' ? message.content[0].text : ''
+    const content = message.content[0].type === 'text' ? message.content[0].text : ''
+
+    return removeSpecialCharacters(content)
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

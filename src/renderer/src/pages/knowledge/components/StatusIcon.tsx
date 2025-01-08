@@ -21,13 +21,13 @@ const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus }
   if (!status) {
     if (item?.uniqueId) {
       return (
-        <Tooltip title={t('knowledge_base.status_completed')} placement="left">
+        <Tooltip title={t('knowledge.status_completed')} placement="left">
           <CheckCircleOutlined style={{ color: '#52c41a' }} />
         </Tooltip>
       )
     }
     return (
-      <Tooltip title={t('knowledge_base.status_new')} placement="left">
+      <Tooltip title={t('knowledge.status_new')} placement="left">
         <Center style={{ width: '16px', height: '16px' }}>
           <StatusDot $status="new" />
         </Center>
@@ -38,25 +38,25 @@ const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus }
   switch (status) {
     case 'pending':
       return (
-        <Tooltip title={t('knowledge_base.status_pending')} placement="left">
+        <Tooltip title={t('knowledge.status_pending')} placement="left">
           <StatusDot $status="pending" />
         </Tooltip>
       )
     case 'processing':
       return (
-        <Tooltip title={t('knowledge_base.status_processing')} placement="left">
+        <Tooltip title={t('knowledge.status_processing')} placement="left">
           <StatusDot $status="processing" />
         </Tooltip>
       )
     case 'completed':
       return (
-        <Tooltip title={t('knowledge_base.status_completed')} placement="left">
+        <Tooltip title={t('knowledge.status_completed')} placement="left">
           <CheckCircleOutlined style={{ color: '#52c41a' }} />
         </Tooltip>
       )
     case 'failed':
       return (
-        <Tooltip title={errorText || t('knowledge_base.status_failed')} placement="left">
+        <Tooltip title={errorText || t('knowledge.status_failed')} placement="left">
           <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
         </Tooltip>
       )

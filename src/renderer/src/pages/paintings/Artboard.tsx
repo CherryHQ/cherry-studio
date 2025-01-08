@@ -72,8 +72,8 @@ const Artboard: FC<ArtboardProps> = ({
                 preview={{ mask: false }}
                 onContextMenu={handleContextMenu}
                 style={{
-                  width: '70vh',
-                  height: '70vh',
+                  maxWidth: '70vh',
+                  maxHeight: '70vh',
                   objectFit: 'contain',
                   backgroundColor: 'var(--color-background-soft)',
                   cursor: 'pointer'

@@ -190,6 +190,7 @@
       "name": "Имя",
       "open": "Открыть",
       "size": "Размер",
+      "type": "Тип",
       "text": "Текст",
       "title": "Файлы",
       "edit": "Редактировать",
@@ -401,9 +402,16 @@
       "general.user_name.placeholder": "Введите ваше имя",
       "general.view_webdav_settings": "Просмотр настроек WebDAV",
       "general.display.title": "Настройки отображения",
+      "display.sidebar.translate.icon": "Показывать иконку перевода",
+      "display.sidebar.painting.icon": "Показывать иконку рисования",
       "display.sidebar.minapp.icon": "Показывать иконку мини-приложения",
+      "display.sidebar.knowledge.icon": "Показывать иконку знаний",
       "display.sidebar.files.icon": "Показывать иконку файлов",
       "display.sidebar.title": "Настройки боковой панели",
+      "display.sidebar.visible": "Показать мои значки на боковой панели",
+      "display.sidebar.disabled": "Скрыть значок на боковой панели",
+      "display.sidebar.chat.hiddenMessage": "Помощник является базовой функцией и не поддерживает скрытие",
+      "display.sidebar.empty": "Перетащите скрываемую функцию с левой стороны сюда",
       "display.topic.title": "Настройки топиков",
       "display.custom.css": "Пользовательский CSS",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
@@ -508,7 +516,8 @@
         "clear_shortcut": "Очистить сочетание клавиш",
         "toggle_show_assistants": "Переключить отображение ассистентов",
         "toggle_show_topics": "Переключить отображение топиков",
-        "copy_last_message": "Копировать последнее сообщение"
+        "copy_last_message": "Копировать последнее сообщение",
+        "search_message": "Поиск сообщения"
       },
       "theme.auto": "Автоматически",
       "theme.dark": "Темная",
@@ -549,7 +558,7 @@
       "show_window": "Показать окно",
       "quit": "Выйти"
     },
-    "knowledge_base": {
+    "knowledge": {
       "title": "База знаний",
       "search": "Поиск в базе знаний",
       "empty": "База знаний не найдена",

@@ -89,6 +89,7 @@ const AssistantSettings: FC = () => {
         value={defaultAssistant.prompt}
         onChange={(e) => updateDefaultAssistant({ ...defaultAssistant, prompt: e.target.value })}
         style={{ margin: '10px 0' }}
+        spellCheck={false}
       />
       <SettingSubtitle
         style={{

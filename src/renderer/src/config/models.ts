@@ -123,7 +123,10 @@ import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Model } from '@renderer/types'
+import { isEmpty } from 'lodash'
 import OpenAI from 'openai'
+
+import { getWebSearchTools } from './tools'
 
 const visionAllowedModels = [
   'llava',
@@ -262,6 +265,44 @@ export function getModelLogo(modelId: string) {
 }
 
 export const SYSTEM_MODELS: Record<string, Model[]> = {
+  aihubmix: [
+    {
+      id: 'gpt-4o',
+      provider: 'aihubmix',
+      name: 'GPT-4o',
+      group: 'GPT-4o'
+    },
+    {
+      id: 'claude-3-5-sonnet-latest',
+      provider: 'aihubmix',
+      name: 'Claude 3.5 Sonnet',
+      group: 'Claude 3.5'
+    },
+    {
+      id: 'gemini-2.0-flash-exp-search',
+      provider: 'aihubmix',
+      name: 'Gemini 2.0 Flash Exp Search',
+      group: 'Gemini 2.0'
+    },
+    {
+      id: 'deepseek-chat',
+      provider: 'aihubmix',
+      name: 'DeepSeek Chat',
+      group: 'DeepSeek Chat'
+    },
+    {
+      id: 'aihubmix-Llama-3-3-70B-Instruct',
+      provider: 'aihubmix',
+      name: 'Llama-3.3-70b',
+      group: 'Llama 3.3'
+    },
+    {
+      id: 'Qwen/QVQ-72B-Preview',
+      provider: 'aihubmix',
+      name: 'Qwen/QVQ-72B',
+      group: 'Qwen'
+    }
+  ],
   ollama: [],
   silicon: [
     {
@@ -522,9 +563,21 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   zhipu: [
     {
-      id: 'glm-4',
+      id: 'glm-zero-preview',
       provider: 'zhipu',
-      name: 'GLM-4',
+      name: 'GLM-Zero-Preview',
+      group: 'GLM-Zero'
+    },
+    {
+      id: 'glm-4-0520',
+      provider: 'zhipu',
+      name: 'GLM-4-0520',
+      group: 'GLM-4'
+    },
+    {
+      id: 'glm-4-long',
+      provider: 'zhipu',
+      name: 'GLM-4-Long',
       group: 'GLM-4'
     },
     {
@@ -568,6 +621,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'zhipu',
       name: 'GLM-4-AllTools',
       group: 'GLM-4-AllTools'
+    },
+    {
+      id: 'embedding-3',
+      provider: 'zhipu',
+      name: 'Embedding-3',
+      group: 'Embedding'
     }
   ],
   moonshot: [
@@ -749,20 +808,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'jina',
       name: 'jina-embeddings-v3',
       group: 'Jina Embeddings V3'
-    }
-  ],
-  aihubmix: [
-    {
-      id: 'gpt-4o-mini',
-      provider: 'aihubmix',
-      name: 'GPT-4o Mini',
-      group: 'GPT-4o'
-    },
-    {
-      id: 'aihubmix-Llama-3-70B-Instruct',
-      provider: 'aihubmix',
-      name: 'Llama 3 70B Instruct',
-      group: 'Llama3'
     }
   ],
   fireworks: [
@@ -1018,5 +1063,31 @@ export function isWebSearchModel(model: Model): boolean {
     return model?.id !== 'hunyuan-lite'
   }
 
+  if (provider.id === 'aihubmix') {
+    return model?.id === 'gemini-2.0-flash-exp-search'
+  }
+
+  if (provider.id === 'zhipu') {
+    return model?.id?.startsWith('glm-4-')
+  }
+
   return false
+}
+
+export function getWebSearchParams(model: Model): Record<string, any> {
+  if (isWebSearchModel(model)) {
+    if (model.provider === 'hunyuan') {
+      return { enable_enhancement: true }
+    }
+
+    if (model.provider === 'zhipu') {
+      const webSearchTools = getWebSearchTools(model)
+      return isEmpty(webSearchTools)
+        ? {}
+        : {
+            tools: webSearchTools
+          }
+    }
+  }
+  return {}
 }

@@ -15,7 +15,7 @@ import styled from 'styled-components'
 
 import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings/DataSettings'
-import DisplaySettings from './DisplaySettings'
+import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
 import ModelSettings from './ModalSettings/ModelSettings'
 import ProvidersList from './ProviderSettings'
