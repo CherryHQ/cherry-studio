@@ -1058,6 +1058,12 @@ export const TEXT_TO_IMAGES_MODELS = [
     provider: 'silicon',
     name: 'Stable Diffusion XL Base 1.0',
     group: 'Stable Diffusion'
+  },
+  {
+    id: 'dall-e-3',
+    provider: 'openai',
+    name: 'dall-e-3',
+    group: 'DALL-E'
   }
 ]
 

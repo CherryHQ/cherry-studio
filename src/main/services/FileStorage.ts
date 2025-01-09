@@ -387,8 +387,8 @@ class FileStorage {
         }
       }
 
-      // 如果URL中有文件名，使用URL中的文件名
-      const urlFilename = url.split('/').pop()
+      // 如果URL中有文件名，使用URL中的文件名，但要清理查询参数
+      const urlFilename = url.split('/').pop()?.split('?')[0]
       if (urlFilename && urlFilename.includes('.')) {
         filename = urlFilename
       }

@@ -441,14 +441,9 @@ export default class OpenAIProvider extends BaseProvider {
   public async generateImage({
     model,
     prompt,
-    negativePrompt,
     imageSize,
     batchSize,
-    seed,
-    numInferenceSteps,
-    guidanceScale,
     signal,
-    promptEnhancement
   }: GenerateImageParams): Promise<string[]> {
     const response = (await this.sdk.request({
       method: 'post',
@@ -457,13 +452,8 @@ export default class OpenAIProvider extends BaseProvider {
       body: {
         model,
         prompt,
-        negative_prompt: negativePrompt,
-        image_size: imageSize,
-        batch_size: batchSize,
-        seed: seed ? parseInt(seed) : undefined,
-        num_inference_steps: numInferenceSteps,
-        guidance_scale: guidanceScale,
-        prompt_enhancement: promptEnhancement
+        size: imageSize,
+        n: batchSize
       }
     })) as { data: Array<{ url: string }> }
 
