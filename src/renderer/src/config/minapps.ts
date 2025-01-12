@@ -8,6 +8,7 @@ import FeloAppLogo from '@renderer/assets/images/apps/felo.png'
 import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp'
+import GrokAppLogo from '@renderer/assets/images/apps/grok.png'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg'
@@ -245,6 +246,13 @@ const _apps: MinAppType[] = [
     name: 'Genspark',
     logo: GensparkLogo,
     url: 'https://www.genspark.ai/'
+  },
+  {
+    id: 'grok',
+    name: 'Grok',
+    logo: GrokAppLogo,
+    url: 'https://x.com/i/grok',
+    bodered: true
   }
 ]
 
