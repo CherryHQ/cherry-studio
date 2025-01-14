@@ -1,7 +1,7 @@
 import { SyncOutlined, TranslationOutlined } from '@ant-design/icons'
 import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
-import { Divider } from 'antd'
+import { Divider, Flex } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -37,6 +37,9 @@ const MessageContent: React.FC<{
 
   return (
     <>
+      <Flex gap="8px" wrap>
+        {message.mentions?.map((model) => <MentionTag key={model.id}>{'@' + model.name}</MentionTag>)}
+      </Flex>
       <Markdown message={message} />
       {message.translatedContent && (
         <>
@@ -63,6 +66,10 @@ const MessageContentLoading = styled.div`
   height: 32px;
   margin-top: -5px;
   margin-bottom: 5px;
+`
+
+const MentionTag = styled.span`
+  color: var(--color-link);
 `
 
 export default React.memo(MessageContent)

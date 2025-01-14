@@ -59,6 +59,8 @@ export type Message = {
   knowledgeBaseIds?: string[]
   type: 'text' | '@' | 'clear'
   isPreset?: boolean
+  mentions?: Model[]
+  model?: Model
   metadata?: {
     // Gemini
     groundingMetadata?: any

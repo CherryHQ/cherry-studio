@@ -97,10 +97,19 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
 
   const onSendMessage = useCallback(
     async (message: Message) => {
-      const assistantMessage = getAssistantMessage({ assistant, topic })
+      const assistantMessages: Message[] = []
+      if (message.mentions?.length) {
+        message.mentions.forEach((m) => {
+          const assistantMessage = getAssistantMessage({ assistant: { ...assistant, model: m }, topic })
+          assistantMessage.model = m
+          assistantMessages.push(assistantMessage)
+        })
+      } else {
+        assistantMessages.push(getAssistantMessage({ assistant, topic }))
+      }
 
       setMessages((prev) => {
-        const messages = prev.concat([message, assistantMessage])
+        const messages = prev.concat([message, ...assistantMessages])
         db.topics.put({ id: topic.id, messages })
         return messages
       })
@@ -156,7 +165,8 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       }),
       EventEmitter.on(EVENT_NAMES.REGENERATE_MESSAGE, async (model: Model) => {
         const lastUserMessage = last(filterMessages(messages).filter((m) => m.role === 'user'))
-        lastUserMessage && onSendMessage({ ...lastUserMessage, id: uuid(), type: '@', modelId: model.id })
+        lastUserMessage &&
+          onSendMessage({ ...lastUserMessage, id: uuid(), modelId: model.id, model: model, mentions: [model] })
       }),
       EventEmitter.on(EVENT_NAMES.AI_AUTO_RENAME, autoRenameTopic),
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, () => {

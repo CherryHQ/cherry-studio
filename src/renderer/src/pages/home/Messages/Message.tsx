@@ -109,6 +109,8 @@ const MessageItem: FC<Props> = ({
     if (topic && onGetMessages && onSetMessages) {
       if (message.status === 'sending') {
         const messages = onGetMessages()
+        const assistantWithModel = message.model ? { ...assistant, model: message.model } : assistant
+
         fetchChatCompletion({
           message,
           messages: messages
@@ -117,7 +119,7 @@ const MessageItem: FC<Props> = ({
               0,
               messages.findIndex((m) => m.id === message.id)
             ),
-          assistant,
+          assistant: assistantWithModel,
           topic,
           onResponse: (msg) => {
             setMessage(msg)
