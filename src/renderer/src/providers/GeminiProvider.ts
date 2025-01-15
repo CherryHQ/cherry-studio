@@ -152,7 +152,7 @@ export default class GeminiProvider extends BaseProvider {
           },
           { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: 'OFF' as HarmBlockThreshold },
           { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: 'OFF' as HarmBlockThreshold },
-          { category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory, threshold: 'OFF' as HarmBlockThreshold }
+          { category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory, threshold: 'BLOCK_NONE' as HarmBlockThreshold }
         ]
       },
       this.requestOptions
