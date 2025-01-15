@@ -191,7 +191,7 @@ export default class OpenAIProvider extends BaseProvider {
       userMessages.push(await this.getMessageParam(message, model))
     }
 
-    const isOpenAIo1 = model.id.includes('o1-')
+    const isOpenAIo1 = model.id.includes('o1-') || model.id === 'o1'
 
     const isSupportStreamOutput = () => {
       if (this.provider.id === 'github' && isOpenAIo1) {
