@@ -7,6 +7,7 @@ import {
   InlineDataPart,
   Part,
   RequestOptions,
+  SafetySetting,
   TextPart
 } from '@google/generative-ai'
 import { isWebSearchModel } from '@renderer/config/models'
@@ -112,15 +113,39 @@ export default class GeminiProvider extends BaseProvider {
     }
   }
 
-  private getModelSafetySetting(modelId: string): HarmBlockThreshold {
-    return modelId.includes('gemini-exp-') ? HarmBlockThreshold.BLOCK_NONE : "OFF" as HarmBlockThreshold
+  private getSafetySettings(modelId: string): SafetySetting[] {
+    const safetyThreshold = modelId.includes('gemini-exp-')
+      ? HarmBlockThreshold.BLOCK_NONE
+      : ('OFF' as HarmBlockThreshold)
+
+    return [
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: safetyThreshold
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: safetyThreshold
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: safetyThreshold
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: safetyThreshold
+      },
+      {
+        category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory,
+        threshold: safetyThreshold
+      }
+    ]
   }
-  
+
   public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const safetyThreshold = this.getModelSafetySetting(model.id)
 
     const userMessages = filterContextMessages(takeRight(messages, contextCount + 2))
     onFilterMessages(userMessages)
@@ -143,34 +168,13 @@ export default class GeminiProvider extends BaseProvider {
         systemInstruction: assistant.prompt,
         // @ts-ignore googleSearch is not a valid tool for Gemini
         tools: assistant.enableWebSearch && isWebSearchModel(model) ? [{ googleSearch: {} }] : undefined,
+        safetySettings: this.getSafetySettings(model.id),
         generationConfig: {
           maxOutputTokens: maxTokens,
           temperature: assistant?.settings?.temperature,
           topP: assistant?.settings?.topP,
           ...this.getCustomParameters(assistant)
-        },
-        safetySettings: [
-          { 
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, 
-            threshold: safetyThreshold
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: safetyThreshold
-          },
-          { 
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT, 
-            threshold: safetyThreshold
-          },
-          { 
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, 
-            threshold: safetyThreshold
-          },
-          { 
-            category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory, 
-            threshold: safetyThreshold
-          }
-        ]
+        }
       },
       this.requestOptions
     )
