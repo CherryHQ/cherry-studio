@@ -145,13 +145,13 @@ export default class GeminiProvider extends BaseProvider {
           ...this.getCustomParameters(assistant)
         },
         safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: 'OFF' as HarmBlockThreshold },
           {
             category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_NONE
+            threshold: 'OFF' as HarmBlockThreshold
           },
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: 'OFF' as HarmBlockThreshold },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: 'OFF' as HarmBlockThreshold }
         ]
       },
       this.requestOptions
