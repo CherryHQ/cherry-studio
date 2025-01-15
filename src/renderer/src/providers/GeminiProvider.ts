@@ -112,10 +112,15 @@ export default class GeminiProvider extends BaseProvider {
     }
   }
 
+  private getModelSafetySetting(modelId: string): HarmBlockThreshold {
+    return modelId.includes('gemini-exp-') ? HarmBlockThreshold.BLOCK_NONE : "OFF" as HarmBlockThreshold
+  }
+  
   public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    const safetyThreshold = this.getModelSafetySetting(model.id)
 
     const userMessages = filterContextMessages(takeRight(messages, contextCount + 2))
     onFilterMessages(userMessages)
@@ -145,14 +150,26 @@ export default class GeminiProvider extends BaseProvider {
           ...this.getCustomParameters(assistant)
         },
         safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: 'OFF' as HarmBlockThreshold },
+          { 
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, 
+            threshold: safetyThreshold
+          },
           {
             category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: 'OFF' as HarmBlockThreshold
+            threshold: safetyThreshold
           },
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: 'OFF' as HarmBlockThreshold },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: 'OFF' as HarmBlockThreshold },
-          { category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory, threshold: 'BLOCK_NONE' as HarmBlockThreshold }
+          { 
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT, 
+            threshold: safetyThreshold
+          },
+          { 
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, 
+            threshold: safetyThreshold
+          },
+          { 
+            category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory, 
+            threshold: safetyThreshold
+          }
         ]
       },
       this.requestOptions
