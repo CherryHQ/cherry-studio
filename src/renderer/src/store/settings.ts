@@ -95,7 +95,7 @@ const initialState: SettingsState = {
   webdavPass: '',
   webdavPath: '/cherry-studio',
   webdavAutoSync: false,
-  webdavSyncInterval: 5,
+  webdavSyncInterval: 0,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   enableTopicNaming: true,
@@ -230,8 +230,13 @@ const settingsSlice = createSlice({
     setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
       state.topicNamingPrompt = action.payload
     },
-    setSidebarIcons: (state, action: PayloadAction<{ visible: SidebarIcon[]; disabled: SidebarIcon[] }>) => {
-      state.sidebarIcons = action.payload
+    setSidebarIcons: (state, action: PayloadAction<{ visible?: SidebarIcon[]; disabled?: SidebarIcon[] }>) => {
+      if (action.payload.visible) {
+        state.sidebarIcons.visible = action.payload.visible
+      }
+      if (action.payload.disabled) {
+        state.sidebarIcons.disabled = action.payload.disabled
+      }
     },
     setNarrowMode: (state, action: PayloadAction<boolean>) => {
       state.narrowMode = action.payload

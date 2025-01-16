@@ -89,6 +89,16 @@ const knowledgeSlice = createSlice({
       }
     },
 
+    updateItem(state, action: PayloadAction<{ baseId: string; item: KnowledgeItem }>) {
+      const base = state.bases.find((b) => b.id === action.payload.baseId)
+      if (base) {
+        const index = base.items.findIndex((item) => item.id === action.payload.item.id)
+        if (index !== -1) {
+          base.items[index] = action.payload.item
+        }
+      }
+    },
+
     addFiles(state, action: PayloadAction<{ baseId: string; items: KnowledgeItem[] }>) {
       const base = state.bases.find((b) => b.id === action.payload.baseId)
       if (base) {
@@ -183,6 +193,7 @@ export const {
   addFiles,
   updateNotes,
   removeItem,
+  updateItem,
   updateItemProcessingStatus,
   clearCompletedProcessing,
   clearAllProcessing,

@@ -53,6 +53,7 @@ declare global {
         base64Image: (fileId: string) => Promise<{ mime: string; base64: string; data: string }>
         download: (url: string) => Promise<FileType | null>
         copy: (fileId: string, destPath: string) => Promise<void>
+        binaryFile: (fileId: string) => Promise<{ data: Buffer; mime: string }>
       }
       export: {
         toWord: (markdown: string, fileName: string) => Promise<void>

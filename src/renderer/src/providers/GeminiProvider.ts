@@ -7,9 +7,10 @@ import {
   InlineDataPart,
   Part,
   RequestOptions,
+  SafetySetting,
   TextPart
 } from '@google/generative-ai'
-import { isEmbeddingModel, isWebSearchModel } from '@renderer/config/models'
+import { isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -18,7 +19,7 @@ import { filterContextMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileType, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import axios from 'axios'
-import { first, isEmpty, last, takeRight } from 'lodash'
+import { first, isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
@@ -112,6 +113,35 @@ export default class GeminiProvider extends BaseProvider {
     }
   }
 
+  private getSafetySettings(modelId: string): SafetySetting[] {
+    const safetyThreshold = modelId.includes('gemini-exp-')
+      ? HarmBlockThreshold.BLOCK_NONE
+      : ('OFF' as HarmBlockThreshold)
+
+    return [
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: safetyThreshold
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: safetyThreshold
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: safetyThreshold
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: safetyThreshold
+      },
+      {
+        category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory,
+        threshold: safetyThreshold
+      }
+    ]
+  }
+
   public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -138,21 +168,13 @@ export default class GeminiProvider extends BaseProvider {
         systemInstruction: assistant.prompt,
         // @ts-ignore googleSearch is not a valid tool for Gemini
         tools: assistant.enableWebSearch && isWebSearchModel(model) ? [{ googleSearch: {} }] : undefined,
+        safetySettings: this.getSafetySettings(model.id),
         generationConfig: {
           maxOutputTokens: maxTokens,
           temperature: assistant?.settings?.temperature,
           topP: assistant?.settings?.topP,
           ...this.getCustomParameters(assistant)
-        },
-        safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_NONE
-          },
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
-        ]
+        }
       },
       this.requestOptions
     )
@@ -176,7 +198,8 @@ export default class GeminiProvider extends BaseProvider {
           completion_tokens: response.usageMetadata?.candidatesTokenCount,
           time_completion_millsec,
           time_first_token_millsec: 0
-        }
+        },
+        search: response.candidates?.[0]?.groundingMetadata
       })
       return
     }
@@ -201,7 +224,8 @@ export default class GeminiProvider extends BaseProvider {
           completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
           time_completion_millsec,
           time_first_token_millsec
-        }
+        },
+        search: chunk.candidates?.[0]?.groundingMetadata
       })
     }
   }
@@ -291,9 +315,7 @@ export default class GeminiProvider extends BaseProvider {
     return []
   }
 
-  public async check(): Promise<{ valid: boolean; error: Error | null }> {
-    const model = last(this.provider.models.filter((m) => !isEmbeddingModel(m)))
-
+  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }

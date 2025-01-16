@@ -790,6 +790,28 @@ const migrateConfig = {
       disabled: []
     }
     return state
+  },
+  '55': (state: RootState) => {
+    if (!state.settings.sidebarIcons) {
+      state.settings.sidebarIcons = {
+        visible: DEFAULT_SIDEBAR_ICONS,
+        disabled: []
+      }
+    }
+    return state
+  },
+  '56': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'qwenlm',
+      name: 'QwenLM',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://chat.qwenlm.ai/api/',
+      models: SYSTEM_MODELS.qwenlm,
+      isSystem: true,
+      enabled: false
+    })
+    return state
   }
 }
 

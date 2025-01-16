@@ -117,6 +117,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('file:base64Image', fileManager.base64Image)
   ipcMain.handle('file:download', fileManager.downloadFile)
   ipcMain.handle('file:copy', fileManager.copyFile)
+  ipcMain.handle('file:binaryFile', fileManager.binaryFile)
 
   // minapp
   ipcMain.handle('minapp', (_, args) => {

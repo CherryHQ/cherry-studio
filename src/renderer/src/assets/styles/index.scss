@@ -42,6 +42,9 @@
   --color-active: rgba(55, 55, 55, 1);
   --color-frame-border: #333;
   --color-group-background: var(--color-background-soft);
+
+  --color-reference: #404040;
+  --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
 
   --navbar-background-mac: rgba(30, 30, 30, 0.6);
@@ -102,6 +105,9 @@ body[theme-mode='light'] {
   --color-active: var(--color-white-soft);
   --color-frame-border: #ddd;
   --color-group-background: var(--color-white);
+
+  --color-reference: #cfe1ff;
+  --color-reference-text: #000000;
   --color-reference-background: #f1f7ff;
 
   --navbar-background-mac: rgba(255, 255, 255, 0.6);
@@ -171,7 +177,7 @@ body,
 #content-container {
   background-color: var(--color-background);
   border-top: 0.5px solid var(--color-border);
-  border-top-left-radius: 12px;
+  border-top-left-radius: 10px;
   border-left: 0.5px solid var(--color-border);
   box-shadow: -2px 0px 20px -4px rgba(0, 0, 0, 0.06);
 }

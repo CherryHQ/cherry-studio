@@ -7,7 +7,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { KnowledgeBase } from '@renderer/types'
 import { Dropdown, Empty, MenuProps } from 'antd'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -17,32 +17,17 @@ import KnowledgeContent from './KnowledgeContent'
 const KnowledgePage: FC = () => {
   const { t } = useTranslation()
   const { bases, renameKnowledgeBase, deleteKnowledgeBase, updateKnowledgeBases } = useKnowledgeBases()
-  const [selectedBase, setSelectedBase] = useState<KnowledgeBase>()
+  const [selectedBase, setSelectedBase] = useState<KnowledgeBase | undefined>(bases[0])
   const [isDragging, setIsDragging] = useState(false)
-  const prevLength = useRef(0)
 
   const handleAddKnowledge = async () => {
     await AddKnowledgePopup.show({ title: t('knowledge.add.title') })
   }
 
   useEffect(() => {
-    if (bases.length > 0) {
-      if (!selectedBase) {
-        return setSelectedBase(bases[0])
-      }
-      if (selectedBase && !bases.find((base) => base.id === selectedBase.id)) {
-        return setSelectedBase(bases[0])
-      }
-    }
+    const hasSelectedBase = bases.find((base) => base.id === selectedBase?.id)
+    !hasSelectedBase && setSelectedBase(bases[0])
   }, [bases, selectedBase])
-
-  useEffect(() => {
-    const currentLength = bases.length
-    if (currentLength > 0 && currentLength > prevLength.current) {
-      setSelectedBase(bases[currentLength - 1])
-    }
-    prevLength.current = currentLength
-  }, [bases])
 
   const getMenuItems = useCallback(
     (base: KnowledgeBase) => {

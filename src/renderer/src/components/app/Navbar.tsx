@@ -55,7 +55,7 @@ const NavbarCenterContainer = styled.div`
   flex: 1;
   display: flex;
   align-items: center;
-  padding: 0 ${isMac ? '20px' : '15px'};
+  padding: 0 ${isMac ? '20px' : 0};
   font-weight: bold;
   color: var(--color-text-1);
 `

@@ -1,15 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { isEmbeddingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, Message, Provider, Suggestion } from '@renderer/types'
+import { Assistant, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
-import { first, flatten, last, sum, takeRight } from 'lodash'
+import { first, flatten, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
@@ -239,9 +238,7 @@ export default class AnthropicProvider extends BaseProvider {
     return []
   }
 
-  public async check(): Promise<{ valid: boolean; error: Error | null }> {
-    const model = last(this.provider.models.filter((m) => !isEmbeddingModel(m)))
-
+  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }

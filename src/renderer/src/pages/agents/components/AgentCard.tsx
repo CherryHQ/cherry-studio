@@ -81,7 +81,7 @@ const Container = styled.div`
   text-align: center;
   gap: 10px;
   background-color: var(--color-background);
-  border-radius: 16px;
+  border-radius: 10px;
   position: relative;
   overflow: hidden;
   cursor: pointer;

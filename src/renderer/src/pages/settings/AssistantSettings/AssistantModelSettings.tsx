@@ -6,6 +6,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/cons
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { isNull } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -36,6 +37,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const { t } = useTranslation()
 
   const onTemperatureChange = (value) => {
+    console.debug('[onTemperatureChange]', value)
     if (!isNaN(value as number)) {
       updateAssistantSettings({ temperature: value })
     }
@@ -206,7 +208,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           value={autoResetModel}
           onChange={(checked) => {
             setAutoResetModel(checked)
-            updateAssistantSettings({ autoResetModel: checked })
+            setTimeout(() => updateAssistantSettings({ autoResetModel: checked }), 500)
           }}
         />
       </SettingRow>
@@ -218,7 +220,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </Tooltip>
       </Row>
       <Row align="middle" gutter={20}>
-        <Col span={21}>
+        <Col span={20}>
           <Slider
             min={0}
             max={2}
@@ -229,13 +231,19 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             step={0.01}
           />
         </Col>
-        <Col span={3}>
+        <Col span={4}>
           <InputNumber
             min={0}
             max={2}
             step={0.01}
             value={temperature}
-            onChange={onTemperatureChange}
+            changeOnBlur
+            onChange={(value) => {
+              if (!isNull(value)) {
+                setTemperature(value)
+                setTimeout(() => updateAssistantSettings({ temperature: value }), 500)
+              }
+            }}
             style={{ width: '100%' }}
           />
         </Col>
@@ -247,7 +255,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </Tooltip>
       </Row>
       <Row align="middle" gutter={20}>
-        <Col span={21}>
+        <Col span={20}>
           <Slider
             min={0}
             max={1}
@@ -258,8 +266,21 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             step={0.01}
           />
         </Col>
-        <Col span={3}>
-          <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
+        <Col span={4}>
+          <InputNumber
+            min={0}
+            max={1}
+            step={0.01}
+            value={topP}
+            changeOnBlur
+            onChange={(value) => {
+              if (!isNull(value)) {
+                setTopP(value)
+                setTimeout(() => updateAssistantSettings({ topP: value }), 500)
+              }
+            }}
+            style={{ width: '100%' }}
+          />
         </Col>
       </Row>
       <Row align="middle">
@@ -271,7 +292,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </Label>
       </Row>
       <Row align="middle" gutter={20}>
-        <Col span={21}>
+        <Col span={20}>
           <Slider
             min={0}
             max={20}
@@ -282,13 +303,19 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             step={1}
           />
         </Col>
-        <Col span={3}>
+        <Col span={4}>
           <InputNumber
             min={0}
             max={20}
             step={1}
             value={contextCount}
-            onChange={onContextCountChange}
+            changeOnBlur
+            onChange={(value) => {
+              if (!isNull(value)) {
+                setContextCount(value)
+                setTimeout(() => updateAssistantSettings({ contextCount: value }), 500)
+              }
+            }}
             style={{ width: '100%' }}
           />
         </Col>
@@ -311,7 +338,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </SettingRow>
       {enableMaxTokens && (
         <Row align="middle" gutter={20}>
-          <Col span={21}>
+          <Col span={20}>
             <Slider
               disabled={!enableMaxTokens}
               min={0}
@@ -319,21 +346,27 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               onChange={setMaxTokens}
               onChangeComplete={onMaxTokensChange}
               value={typeof maxTokens === 'number' ? maxTokens : 0}
-              step={100}
+              step={50}
               marks={{
                 0: '0',
                 32000: t('chat.settings.max')
               }}
             />
           </Col>
-          <Col span={3}>
+          <Col span={4}>
             <InputNumber
               disabled={!enableMaxTokens}
               min={0}
               max={32000}
               step={100}
               value={maxTokens}
-              onChange={onMaxTokensChange}
+              changeOnBlur
+              onChange={(value) => {
+                if (!isNull(value)) {
+                  setMaxTokens(value)
+                  setTimeout(() => updateAssistantSettings({ maxTokens: value }), 1000)
+                }
+              }}
               style={{ width: '100%' }}
             />
           </Col>

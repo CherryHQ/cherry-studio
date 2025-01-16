@@ -1,8 +1,8 @@
 import { ArrowLeftOutlined, EnterOutlined, SearchOutlined } from '@ant-design/icons'
 import { Message, Topic } from '@renderer/types'
-import { Input } from 'antd'
+import { Input, InputRef } from 'antd'
 import { last } from 'lodash'
-import { FC, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -25,6 +25,7 @@ const TopicsPage: FC = () => {
   const [stack, setStack] = useState<Route[]>(_stack)
   const [topic, setTopic] = useState<Topic | undefined>(_topic)
   const [message, setMessage] = useState<Message | undefined>(_message)
+  const inputRef = useRef<InputRef>(null)
 
   _search = search
   _stack = stack
@@ -58,6 +59,12 @@ const TopicsPage: FC = () => {
 
   const isShow = (route: Route) => (last(stack) === route ? 'flex' : 'none')
 
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [])
+
   return (
     <Container>
       <Header>
@@ -72,7 +79,9 @@ const TopicsPage: FC = () => {
           placeholder={t('history.search.placeholder')}
           type="search"
           value={search}
+          autoFocus
           allowClear
+          ref={inputRef}
           onChange={(e) => setSearch(e.target.value.trimStart())}
           suffix={search.length >= 2 ? <EnterOutlined /> : <SearchOutlined />}
           onPressEnter={onSearch}

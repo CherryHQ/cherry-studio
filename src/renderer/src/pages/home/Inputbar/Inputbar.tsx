@@ -24,7 +24,7 @@ import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/Toke
 import { translateText } from '@renderer/services/TranslateService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setGenerating, setSearching } from '@renderer/store/runtime'
-import { Assistant, FileType, KnowledgeBase, Message, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, Message, Model, Topic } from '@renderer/types'
 import { classNames, delay, getFileExtension, uuid } from '@renderer/utils'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Popconfirm, Tooltip } from 'antd'
@@ -39,6 +39,8 @@ import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
+import MentionModelsButton from './MentionModelsButton'
+import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 
@@ -82,6 +84,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const spaceClickTimer = useRef<NodeJS.Timeout>()
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBase | undefined>(_base)
+  const [mentionModels, setMentionModels] = useState<Model[]>([])
 
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
@@ -126,15 +129,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       message.files = await FileManager.uploadFiles(files)
     }
 
+    if (mentionModels.length > 0) {
+      message.mentions = mentionModels
+    }
+
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
 
     setText('')
     setFiles([])
+    setMentionModels([])
     setTimeout(() => setText(''), 500)
     setTimeout(() => resizeTextArea(), 0)
 
     setExpend(false)
-  }, [inputEmpty, text, assistant.id, assistant.topics, selectedKnowledgeBase, files])
+  }, [inputEmpty, text, assistant.id, assistant.topics, selectedKnowledgeBase, files, mentionModels])
 
   const translate = async () => {
     if (isTranslating) {
@@ -386,14 +394,31 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setSelectedKnowledgeBase(base)
   }
 
+  const onMentionModel = useCallback(
+    (model: Model) => {
+      const isSelected = mentionModels.some((m) => m.id === model.id)
+      if (isSelected) {
+        setMentionModels(mentionModels.filter((m) => m.id !== model.id))
+      } else {
+        setMentionModels([...mentionModels, model])
+      }
+    },
+    [mentionModels]
+  )
+
+  const handleRemoveModel = (model: Model) => {
+    setMentionModels(mentionModels.filter((m) => m.id !== model.id))
+  }
+
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
-        <AttachmentPreview files={files} setFiles={setFiles} />
         <InputBarContainer
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus')}
           ref={containerRef}>
+          <AttachmentPreview files={files} setFiles={setFiles} />
+          <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -421,6 +446,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   <FormOutlined />
                 </ToolbarButton>
               </Tooltip>
+              <MentionModelsButton
+                mentionModels={mentionModels}
+                onMentionModel={onMentionModel}
+                ToolbarButton={ToolbarButton}
+              />
               {isWebSearchModel(model) && (
                 <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
                   <ToolbarButton

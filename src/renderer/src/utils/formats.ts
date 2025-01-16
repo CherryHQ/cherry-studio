@@ -1,3 +1,5 @@
+import { Message } from '@renderer/types'
+
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
 
@@ -55,4 +57,26 @@ export function removeSvgEmptyLines(text: string): string {
       .filter((line) => line.trim() !== '')
       .join('\n')
   })
+}
+
+export function withGeminiGrounding(message: Message) {
+  const { groundingSupports } = message?.metadata?.groundingMetadata || {}
+
+  if (!groundingSupports) {
+    return message.content
+  }
+
+  let content = message.content
+
+  groundingSupports.forEach((support) => {
+    const text = support.segment.text
+    const indices = support.groundingChunkIndices
+    const nodes = indices.reduce((acc, index) => {
+      acc.push(`<sup>${index + 1}</sup>`)
+      return acc
+    }, [])
+    content = content.replace(text, `${text} ${nodes.join(' ')}`)
+  })
+
+  return content
 }

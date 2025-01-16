@@ -132,7 +132,7 @@ const AgentsPage: FC = () => {
         key: id,
         children: (
           <TabContent key={group}>
-            <Title level={5} key={group} style={{ marginBottom: 16 }}>
+            <Title level={5} key={group} style={{ marginBottom: 10 }}>
               {localizedGroupName}
             </Title>
             <Row gutter={[20, 20]}>
@@ -272,8 +272,8 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
     padding-right: 0 !important;
   }
   .ant-tabs-nav {
-    min-width: ${({ $language }) => ($language.startsWith('zh') ? '110px' : '140px')};
-    max-width: ${({ $language }) => ($language.startsWith('zh') ? '110px' : '140px')};
+    min-width: ${({ $language }) => ($language.startsWith('zh') ? '120px' : '140px')};
+    max-width: ${({ $language }) => ($language.startsWith('zh') ? '120px' : '140px')};
   }
   .ant-tabs-nav-list {
     padding: 10px 8px;

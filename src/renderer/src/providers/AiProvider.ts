@@ -36,8 +36,8 @@ export default class AiProvider {
     return this.sdk.generateText({ prompt, content })
   }
 
-  public async check(): Promise<{ valid: boolean; error: Error | null }> {
-    return this.sdk.check()
+  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
+    return this.sdk.check(model)
   }
 
   public async models(): Promise<OpenAI.Models.Model[]> {

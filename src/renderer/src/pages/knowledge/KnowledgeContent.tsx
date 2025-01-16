@@ -6,6 +6,7 @@ import {
   GlobalOutlined,
   LinkOutlined,
   PlusOutlined,
+  RedoOutlined,
   SearchOutlined
 } from '@ant-design/icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -32,30 +33,6 @@ interface KnowledgeContentProps {
 
 const fileTypes = ['.pdf', '.docx', '.pptx', '.xlsx', '.txt', '.md']
 
-const FlexColumn = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const FlexAlignCenter = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-`
-
-const ClickableSpan = styled.span`
-  cursor: pointer;
-`
-
-const FileIcon = styled(FileTextOutlined)`
-  font-size: 16px;
-`
-
-const BottomSpacer = styled.div`
-  min-height: 20px;
-`
-
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
   const {
@@ -67,6 +44,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     directoryItems,
     addFiles,
     updateNoteContent,
+    refreshItem,
     addUrl,
     addSitemap,
     removeItem,
@@ -245,7 +223,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                   <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>{file.origin_name}</ClickableSpan>
                 </ItemInfo>
                 <FlexAlignCenter>
-                  <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                  <StatusIconWrapper>
+                    <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  </StatusIconWrapper>
                   <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
                 </FlexAlignCenter>
               </ItemContent>
@@ -272,7 +253,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                   </ClickableSpan>
                 </ItemInfo>
                 <FlexAlignCenter>
-                  <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                  <StatusIconWrapper>
+                    <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  </StatusIconWrapper>
                   <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
                 </FlexAlignCenter>
               </ItemContent>
@@ -299,7 +283,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                   </a>
                 </ItemInfo>
                 <FlexAlignCenter>
-                  <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                  <StatusIconWrapper>
+                    <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  </StatusIconWrapper>
                   <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
                 </FlexAlignCenter>
               </ItemContent>
@@ -326,7 +313,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                   </a>
                 </ItemInfo>
                 <FlexAlignCenter>
-                  <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                  <StatusIconWrapper>
+                    <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  </StatusIconWrapper>
                   <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
                 </FlexAlignCenter>
               </ItemContent>
@@ -351,7 +341,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 </ItemInfo>
                 <FlexAlignCenter>
                   <Button type="text" onClick={() => handleEditNote(note)} icon={<EditOutlined />} />
-                  <StatusIcon sourceId={note.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  <StatusIconWrapper>
+                    <StatusIcon sourceId={note.id} base={base} getProcessingStatus={getProcessingStatus} />
+                  </StatusIconWrapper>
                   <Button type="text" danger onClick={() => removeItem(note)} icon={<DeleteOutlined />} />
                 </FlexAlignCenter>
               </ItemContent>
@@ -476,6 +468,44 @@ const ModelInfo = styled.div`
     margin-right: 8px;
     color: var(--color-text-2);
   }
+`
+
+const FlexColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const FlexAlignCenter = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`
+
+const ClickableSpan = styled.span`
+  cursor: pointer;
+`
+
+const FileIcon = styled(FileTextOutlined)`
+  font-size: 16px;
+`
+
+const BottomSpacer = styled.div`
+  min-height: 20px;
+`
+
+const StatusIconWrapper = styled.div`
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 2px;
+`
+
+const RefreshIcon = styled(RedoOutlined)`
+  font-size: 15px !important;
+  color: var(--color-text-2);
 `
 
 export default KnowledgeContent

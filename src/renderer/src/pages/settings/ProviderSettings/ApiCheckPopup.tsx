@@ -2,13 +2,16 @@ import { CheckCircleFilled, CloseCircleFilled, LoadingOutlined } from '@ant-desi
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { checkApi } from '@renderer/services/ApiService'
+import { Model } from '@renderer/types'
+import { Provider } from '@renderer/types'
 import { Button, List, Modal, Space, Spin, Typography } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
   title: string
-  provider: any
+  provider: Provider
+  model: Model
   apiKeys: string[]
 }
 
@@ -22,7 +25,7 @@ interface KeyStatus {
   checking?: boolean
 }
 
-const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, resolve }) => {
   const [open, setOpen] = useState(true)
   const [keyStatuses, setKeyStatuses] = useState<KeyStatus[]>(() => {
     const uniqueKeys = new Set(apiKeys)
@@ -39,7 +42,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
       for (let i = 0; i < newStatuses.length; i++) {
         setKeyStatuses((prev) => prev.map((status, idx) => (idx === i ? { ...status, checking: true } : status)))
 
-        const valid = await checkApi({ ...provider, apiKey: newStatuses[i].key })
+        const valid = await checkApi({ ...provider, apiKey: newStatuses[i].key }, model)
 
         setKeyStatuses((prev) =>
           prev.map((status, idx) => (idx === i ? { ...status, checking: false, isValid: valid } : status))

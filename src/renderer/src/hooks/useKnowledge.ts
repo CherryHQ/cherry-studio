@@ -15,6 +15,7 @@ import {
   renameBase,
   updateBase,
   updateBases,
+  updateItem as updateItemAction,
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
@@ -117,12 +118,17 @@ export const useKnowledge = (baseId: string) => {
       await db.knowledge_notes.put(updatedNote)
       dispatch(updateNotes({ baseId, item: updatedNote }))
     }
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    const noteItem = base?.items.find((item) => item.id === noteId)
+    noteItem && refreshItem(noteItem)
   }
 
   // 获取笔记内容
   const getNoteContent = async (noteId: string) => {
     return await db.knowledge_notes.get(noteId)
+  }
+
+  const updateItem = (item: KnowledgeItem) => {
+    dispatch(updateItemAction({ baseId, item }))
   }
 
   // 移除项目
@@ -135,6 +141,27 @@ export const useKnowledge = (baseId: string) => {
       if (item.type === 'file' && typeof item.content === 'object') {
         await FileManager.deleteFile(item.content.id)
       }
+    }
+  }
+
+  // 刷新项目
+  const refreshItem = async (item: KnowledgeItem) => {
+    const status = getProcessingStatus(item.id)
+
+    if (status === 'pending' || status === 'processing') {
+      return
+    }
+
+    if (base && item.uniqueId) {
+      await window.api.knowledgeBase.remove({ uniqueId: item.uniqueId, base: getKnowledgeBaseParams(base) })
+      updateItem({
+        ...item,
+        processingStatus: 'pending',
+        processingProgress: 0,
+        processingError: '',
+        uniqueId: undefined
+      })
+      setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
     }
   }
 
@@ -238,7 +265,9 @@ export const useKnowledge = (baseId: string) => {
     addNote,
     updateNoteContent,
     getNoteContent,
+    updateItem,
     updateItemStatus,
+    refreshItem,
     getProcessingStatus,
     getProcessingItemsByType,
     clearCompleted,

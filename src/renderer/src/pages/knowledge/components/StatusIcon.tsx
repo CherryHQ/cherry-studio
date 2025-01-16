@@ -1,5 +1,4 @@
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
-import { Center } from '@renderer/components/Layout'
 import { KnowledgeBase, ProcessingStatus } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { FC } from 'react'
@@ -28,9 +27,7 @@ const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus }
     }
     return (
       <Tooltip title={t('knowledge.status_new')} placement="left">
-        <Center style={{ width: '16px', height: '16px' }}>
-          <StatusDot $status="new" />
-        </Center>
+        <StatusDot $status="new" />
       </Tooltip>
     )
   }
@@ -66,8 +63,8 @@ const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus }
 }
 
 const StatusDot = styled.div<{ $status: 'pending' | 'processing' | 'new' }>`
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background-color: ${(props) =>
     props.$status === 'pending' ? '#faad14' : props.$status === 'new' ? '#918999' : '#1890ff'};

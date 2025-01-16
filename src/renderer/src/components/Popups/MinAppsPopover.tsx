@@ -1,5 +1,5 @@
 import { Center } from '@renderer/components/Layout'
-import { getAllMinApps } from '@renderer/config/minapps'
+import { useMinapps } from '@renderer/hooks/useMinapps'
 import App from '@renderer/pages/apps/App'
 import { Popover } from 'antd'
 import { Empty } from 'antd'
@@ -14,9 +14,9 @@ interface Props {
   children: React.ReactNode
 }
 
-const AppStorePopover: FC<Props> = ({ children }) => {
+const MinAppsPopover: FC<Props> = ({ children }) => {
   const [open, setOpen] = useState(false)
-  const apps = getAllMinApps()
+  const { minapps } = useMinapps()
 
   useHotkeys('esc', () => {
     setOpen(false)
@@ -29,10 +29,10 @@ const AppStorePopover: FC<Props> = ({ children }) => {
   const content = (
     <PopoverContent>
       <AppsContainer>
-        {apps.map((app) => (
+        {minapps.map((app) => (
           <App key={app.id} app={app} onClick={handleClose} size={50} />
         ))}
-        {isEmpty(apps) && (
+        {isEmpty(minapps) && (
           <Center>
             <Empty />
           </Center>
@@ -62,4 +62,4 @@ const AppsContainer = styled.div`
   gap: 18px;
 `
 
-export default AppStorePopover
+export default MinAppsPopover

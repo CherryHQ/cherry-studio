@@ -238,6 +238,7 @@
     "message": {
       "api.connection.failed": "Connection failed",
       "api.connection.success": "Connection successful",
+      "api.check.model.title": "Select the model to use for detection",
       "assistant.added.content": "Assistant added successfully",
       "backup.failed": "Backup failed",
       "backup.success": "Backup successful",
@@ -271,7 +272,9 @@
       "error.get_embedding_dimensions": "Failed to get embedding dimensions"
     },
     "minapp": {
-      "title": "MinApp"
+      "title": "MinApp",
+      "sidebar.add.title": "Add to sidebar",
+      "sidebar.remove.title": "Remove from sidebar"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -330,7 +333,8 @@
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "qwenlm": "QwenLM"
     },
     "settings": {
       "about": "About & Feedback",
@@ -377,16 +381,16 @@
         "webdav.password": "WebDAV Password",
         "webdav.path": "WebDAV Path",
         "webdav.path.placeholder": "/backup",
-        "webdav.autoSync": "Auto Sync",
+        "webdav.autoSync": "Auto Backup",
         "webdav.minutes": "Minutes",
         "webdav.restore.button": "Restore from WebDAV",
         "webdav.title": "WebDAV",
         "webdav.user": "WebDAV User",
-        "webdav.syncStatus": "Sync Status",
+        "webdav.syncStatus": "Backup Status",
         "webdav.autoSync.off": "Off",
-        "webdav.noSync": "Waiting for next sync",
-        "webdav.syncError": "Sync Error",
-        "webdav.lastSync": "Last Sync"
+        "webdav.noSync": "Waiting for next backup",
+        "webdav.syncError": "Backup Error",
+        "webdav.lastSync": "Last Backup"
       },
       "display.title": "Display Settings",
       "font_size.title": "Message font size",
@@ -408,10 +412,15 @@
       "display.sidebar.knowledge.icon": "Show Knowledge icon",
       "display.sidebar.files.icon": "Show Files icon",
       "display.sidebar.title": "Sidebar Settings",
-      "display.sidebar.visible": "Show my sidebar icons",
-      "display.sidebar.disabled": "Hide my sidebar icons",
+      "display.sidebar.visible": "Show icons",
+      "display.sidebar.disabled": "Hide icons",
       "display.sidebar.chat.hiddenMessage": "Assistants are basic functions, not supported for hiding",
       "display.sidebar.empty": "Drag the hidden feature from the left side here",
+      "display.minApp.title": "MinApp  Settings",
+      "display.minApp.visible": "Visible MinApp",
+      "display.minApp.disabled": "Hidden MinApp",
+      "display.minApp.empty": "Drag minApp from the left to hide them here",
+      "": "MinApp that have been added to the sidebar do not support hiding. If you want to hide them, please remove them from the sidebar first.",
       "display.topic.title": "Topic Settings",
       "display.custom.css": "Custom CSS",
       "display.custom.css.placeholder": "/* Put custom CSS here */",

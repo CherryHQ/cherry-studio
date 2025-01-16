@@ -43,7 +43,8 @@ const api = {
     saveImage: (name: string, data: string) => ipcRenderer.invoke('file:saveImage', name, data),
     base64Image: (fileId: string) => ipcRenderer.invoke('file:base64Image', fileId),
     download: (url: string) => ipcRenderer.invoke('file:download', url),
-    copy: (fileId: string, destPath: string) => ipcRenderer.invoke('file:copy', fileId, destPath)
+    copy: (fileId: string, destPath: string) => ipcRenderer.invoke('file:copy', fileId, destPath),
+    binaryFile: (fileId: string) => ipcRenderer.invoke('file:binaryFile', fileId)
   },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke('export:word', markdown, fileName)

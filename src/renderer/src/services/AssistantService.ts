@@ -90,7 +90,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     if (assistant.settings?.enableMaxTokens) {
       const maxTokens = assistant.settings.maxTokens
       if (typeof maxTokens === 'number') {
-        return maxTokens > 100 ? maxTokens : DEFAULT_MAX_TOKENS
+        return maxTokens > 0 ? maxTokens : DEFAULT_MAX_TOKENS
       }
       return DEFAULT_MAX_TOKENS
     }

@@ -39,6 +39,7 @@ import ApiCheckPopup from './ApiCheckPopup'
 import EditModelsPopup from './EditModelsPopup'
 import GraphRAGSettings from './GraphRAGSettings'
 import OllamSettings from './OllamaSettings'
+import SelectProviderModelPopup from './SelectProviderModelPopup'
 
 interface Props {
   provider: Provider
@@ -83,14 +84,23 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
+    const model = await SelectProviderModelPopup.show({ provider })
+
+    if (!model) {
+      window.message.error({ content: i18n.t('message.error.enter.model'), key: 'api-check' })
+      return
+    }
+
     if (apiKey.includes(',')) {
       const keys = apiKey
         .split(',')
         .map((k) => k.trim())
         .filter((k) => k)
+
       const result = await ApiCheckPopup.show({
         title: t('settings.provider.check_multiple_keys'),
         provider: { ...provider, apiHost },
+        model,
         apiKeys: keys
       })
 
@@ -100,7 +110,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       }
     } else {
       setApiChecking(true)
-      const valid = await checkApi({ ...provider, apiKey, apiHost })
+
+      const valid = await checkApi({ ...provider, apiKey, apiHost }, model)
       window.message[valid ? 'success' : 'error']({
         key: 'api-check',
         style: { marginTop: '3vh' },

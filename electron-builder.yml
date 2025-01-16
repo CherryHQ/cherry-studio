@@ -80,14 +80,6 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    全新的应用图标
-    首页窗口宽度支持调整
-    内容显示支持宽窄模式
-    增加搜索快捷键
-    可以自定义侧边栏图标 @hxp0618
-    Mermaid 预览增加放大缩小功能 @hxp0618
-    支持 AiHubMix 和智普联网模型
-    支持使用 Gemini PDF 附件使用官方 API 进行处理
-    文件模块增加 Gemini 文件列表
-    修复 Ollma 嵌入模型无法创建知识库问题
-    其他错误修复
+    添加模型提及功能，支持多个模型一起回答 @teojs
+    增加 QweLM 服务提供商 @Nana7mi1
+    修复删除服务商导致的数据错误白屏问题

@@ -8,6 +8,7 @@ import assistants from './assistants'
 import knowledge from './knowledge'
 import llm from './llm'
 import migrate from './migrate'
+import minapps from './minapps'
 import paintings from './paintings'
 import runtime from './runtime'
 import settings from './settings'
@@ -21,14 +22,15 @@ const rootReducer = combineReducers({
   settings,
   runtime,
   shortcuts,
-  knowledge
+  knowledge,
+  minapps
 })
 
 const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 54,
+    version: 56,
     blacklist: ['runtime'],
     migrate
   },

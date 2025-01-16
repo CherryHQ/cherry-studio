@@ -239,6 +239,7 @@
     "message": {
       "api.connection.failed": "连接失败",
       "api.connection.success": "连接成功",
+      "api.check.model.title": "请选择要检测的模型",
       "assistant.added.content": "智能体添加成功",
       "backup.failed": "备份失败",
       "backup.success": "备份成功",
@@ -272,7 +273,9 @@
       "error.get_embedding_dimensions": "获取嵌入维度失败"
     },
     "minapp": {
-      "title": "小程序"
+      "title": "小程序",
+      "sidebar.add.title": "添加到侧边栏",
+      "sidebar.remove.title": "从侧边栏移除"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -331,7 +334,8 @@
       "together": "Together",
       "yi": "零一万物",
       "zhinao": "360智脑",
-      "zhipu": "智谱AI"
+      "zhipu": "智谱AI",
+      "qwenlm": "QwenLM"
     },
     "settings": {
       "about": "关于我们",
@@ -378,16 +382,16 @@
         "webdav.password": "WebDAV 密码",
         "webdav.path": "WebDAV 路径",
         "webdav.path.placeholder": "/backup",
-        "webdav.autoSync": "自动同步",
+        "webdav.autoSync": "自动备份",
         "webdav.minutes": "分钟",
         "webdav.restore.button": "从 WebDAV 恢复",
         "webdav.title": "WebDAV",
         "webdav.user": "WebDAV 用户名",
-        "webdav.syncStatus": "同步状态",
+        "webdav.syncStatus": "备份状态",
         "webdav.autoSync.off": "关闭",
-        "webdav.noSync": "等待下次同步",
-        "webdav.syncError": "同步错误",
-        "webdav.lastSync": "上次同步时间"
+        "webdav.noSync": "等待下次备份",
+        "webdav.syncError": "备份错误",
+        "webdav.lastSync": "上次备份时间"
       },
       "display.title": "显示设置",
       "font_size.title": "消息字体大小",
@@ -409,10 +413,14 @@
       "display.sidebar.knowledge.icon": "显示知识图标",
       "display.sidebar.files.icon": "显示文件图标",
       "display.sidebar.title": "侧边栏设置",
-      "display.sidebar.visible": "显示我的侧边栏图标",
-      "display.sidebar.disabled": "隐藏我的侧边栏图标",
+      "display.sidebar.visible": "显示的图标",
+      "display.sidebar.disabled": "隐藏的图标",
       "display.sidebar.chat.hiddenMessage": "助手是基础功能，不支持隐藏",
       "display.sidebar.empty": "把要隐藏的功能从左侧拖拽到这里",
+      "display.minApp.title": "小程序显示设置",
+      "display.minApp.visible": "显示的小程序",
+      "display.minApp.disabled": "隐藏的小程序",
+      "display.minApp.empty": "把要隐藏的小程序从左侧拖拽到这里",
       "display.topic.title": "话题设置",
       "display.custom.css": "自定义 CSS",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",

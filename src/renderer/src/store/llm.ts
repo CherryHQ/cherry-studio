@@ -323,6 +323,16 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.jina,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'qwenlm',
+      name: 'QwenLM',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://chat.qwenlm.ai/api/',
+      models: SYSTEM_MODELS.qwenlm,
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {

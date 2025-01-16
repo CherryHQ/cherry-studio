@@ -1,7 +1,9 @@
-import { CheckOutlined, DownOutlined, RightOutlined } from '@ant-design/icons'
+import { CheckOutlined, DownloadOutlined, DownOutlined, RightOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import { HStack } from '@renderer/components/Layout'
 import { useSyntaxHighlighter } from '@renderer/context/SyntaxHighlighterProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
+import dayjs from 'dayjs'
 import React, { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -16,28 +18,6 @@ interface CodeBlockProps {
   [key: string]: any
 }
 
-const CollapseIcon: React.FC<{ expanded: boolean; onClick: () => void }> = ({ expanded, onClick }) => {
-  return (
-    <CollapseIconWrapper onClick={onClick}>
-      {expanded ? <DownOutlined style={{ fontSize: 12 }} /> : <RightOutlined style={{ fontSize: 12 }} />}
-    </CollapseIconWrapper>
-  )
-}
-
-const ExpandButton: React.FC<{
-  isExpanded: boolean
-  onClick: () => void
-  showButton: boolean
-}> = ({ isExpanded, onClick, showButton }) => {
-  if (!showButton) return null
-
-  return (
-    <ExpandButtonWrapper onClick={onClick}>
-      <div className="button-text">{isExpanded ? '收起' : '展开'}</div>
-    </ExpandButtonWrapper>
-  )
-}
-
 const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '')
   const { codeShowLineNumbers, fontSize, codeCollapsible } = useSettings()
@@ -49,6 +29,8 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const codeContentRef = useRef<HTMLDivElement>(null)
 
   const showFooterCopyButton = children && children.length > 500 && !codeCollapsible
+
+  const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 
   useEffect(() => {
     const loadHighlightedCode = async () => {
@@ -101,7 +83,10 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           )}
           <CodeLanguage>{'<' + match[1].toUpperCase() + '>'}</CodeLanguage>
         </div>
-        <CopyButton text={children} />
+        <HStack gap={12} alignItems="center">
+          {showDownloadButton && <DownloadButton language={language} data={children} />}
+          <CopyButton text={children} />
+        </HStack>
       </CodeHeader>
       <CodeContent
         ref={codeContentRef}
@@ -137,6 +122,28 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   )
 }
 
+const CollapseIcon: React.FC<{ expanded: boolean; onClick: () => void }> = ({ expanded, onClick }) => {
+  return (
+    <CollapseIconWrapper onClick={onClick}>
+      {expanded ? <DownOutlined style={{ fontSize: 12 }} /> : <RightOutlined style={{ fontSize: 12 }} />}
+    </CollapseIconWrapper>
+  )
+}
+
+const ExpandButton: React.FC<{
+  isExpanded: boolean
+  onClick: () => void
+  showButton: boolean
+}> = ({ isExpanded, onClick, showButton }) => {
+  if (!showButton) return null
+
+  return (
+    <ExpandButtonWrapper onClick={onClick}>
+      <div className="button-text">{isExpanded ? '收起' : '展开'}</div>
+    </ExpandButtonWrapper>
+  )
+}
+
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
   const [copied, setCopied] = useState(false)
   const { t } = useTranslation()
@@ -152,6 +159,19 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
     <CheckOutlined style={{ color: 'var(--color-primary)', ...style }} />
   ) : (
     <CopyIcon className="copy" style={style} onClick={onCopy} />
+  )
+}
+
+const DownloadButton = ({ language, data }: { language: string; data: string }) => {
+  const onDownload = () => {
+    const fileName = `${dayjs().format('YYYYMMDDHHmm')}.${language}`
+    window.api.file.save(fileName, data)
+  }
+
+  return (
+    <DownloadWrapper onClick={onDownload}>
+      <DownloadOutlined />
+    </DownloadWrapper>
   )
 }
 
@@ -260,6 +280,20 @@ const CollapseIconWrapper = styled.div`
 
   &:hover {
     background-color: var(--color-background-soft);
+    color: var(--color-text-1);
+  }
+`
+
+const DownloadWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-3);
+  transition: color 0.3s;
+  font-size: 16px;
+
+  &:hover {
     color: var(--color-text-1);
   }
 `

@@ -1,4 +1,4 @@
-import { getWebSearchParams, isEmbeddingModel, isSupportedModel, isVisionModel } from '@renderer/config/models'
+import { getOpenAIWebSearchParams, isSupportedModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -6,7 +6,7 @@ import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
-import { last, takeRight } from 'lodash'
+import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionContentPart,
@@ -44,6 +44,33 @@ export default class OpenAIProvider extends BaseProvider {
   private get isNotSupportFiles() {
     const providers = ['deepseek', 'baichuan', 'minimax']
     return providers.includes(this.provider.id)
+  }
+
+  private async uploadImageToQwenLM(image_file: Buffer, file_name: string, mime: string): Promise<string> {
+    try {
+      // 创建 FormData
+      const formData = new FormData()
+      formData.append('file', new Blob([image_file], { type: mime }), file_name)
+
+      // 发送上传请求
+      const response = await fetch(`${this.provider.apiHost}v1/files/`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`
+        },
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to upload image to QwenLM')
+      }
+
+      const data = await response.json()
+      return data.id
+    } catch (error) {
+      console.error('Error uploading image to QwenLM:', error)
+      throw error
+    }
   }
 
   private async getMessageParam(
@@ -94,6 +121,34 @@ export default class OpenAIProvider extends BaseProvider {
       }
     ]
 
+    //QwenLM上传图片
+    if (this.provider.id === 'qwenlm') {
+      const qwenlm_image_url: { type: string; image: string }[] = []
+
+      for (const file of message.files || []) {
+        if (file.type === FileTypes.IMAGE && isVision) {
+          const image = await window.api.file.binaryFile(file.id + file.ext)
+
+          const imageId = await this.uploadImageToQwenLM(image.data, file.origin_name, image.mime)
+          qwenlm_image_url.push({
+            type: 'image',
+            image: imageId
+          })
+        }
+        if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+          const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+          parts.push({
+            type: 'text',
+            text: file.origin_name + '\n' + fileContent
+          })
+        }
+      }
+      return {
+        role: message.role,
+        content: [...parts, ...qwenlm_image_url]
+      } as ChatCompletionMessageParam
+    }
+
     for (const file of message.files || []) {
       if (file.type === FileTypes.IMAGE && isVision) {
         const image = await window.api.file.base64Image(file.id + file.ext)
@@ -133,11 +188,15 @@ export default class OpenAIProvider extends BaseProvider {
     const _messages = filterContextMessages(takeRight(messages, contextCount + 1))
     onFilterMessages(_messages)
 
+    if (this.provider.id === 'qwenlm' && _messages[0]?.role !== 'user') {
+      userMessages.push({ role: 'user', content: '' })
+    }
+
     for (const message of _messages) {
       userMessages.push(await this.getMessageParam(message, model))
     }
 
-    const isOpenAIo1 = model.id.includes('o1-')
+    const isOpenAIo1 = model.id.startsWith('o1')
     const isPlugin = assistant.subType === 'plugin'
 
     const isSupportStreamOutput = () => {
@@ -161,7 +220,7 @@ export default class OpenAIProvider extends BaseProvider {
       max_tokens: maxTokens,
       keep_alive: this.keepAliveTime,
       stream: isSupportStreamOutput(),
-      ...(assistant.enableWebSearch ? getWebSearchParams(model) : {}),
+      ...(assistant.enableWebSearch ? getOpenAIWebSearchParams(model) : {}),
       ...this.getCustomParameters(assistant)
     })
 
@@ -176,6 +235,40 @@ export default class OpenAIProvider extends BaseProvider {
           time_first_token_millsec: 0
         }
       })
+    }
+
+    // 处理QwenLM的流式输出
+    if (this.provider.id === 'qwenlm') {
+      let accumulatedText = ''
+      for await (const chunk of stream) {
+        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+          break
+        }
+        if (time_first_token_millsec == 0) {
+          time_first_token_millsec = new Date().getTime() - start_time_millsec
+        }
+
+        // 获取当前块的完整内容
+        const currentContent = chunk.choices[0]?.delta?.content || ''
+
+        // 如果内容与累积的内容不同，则只发送增量部分
+        if (currentContent !== accumulatedText) {
+          const deltaText = currentContent.slice(accumulatedText.length)
+          accumulatedText = currentContent // 更新累积的文本
+
+          const time_completion_millsec = new Date().getTime() - start_time_millsec
+          onChunk({
+            text: deltaText,
+            usage: chunk.usage,
+            metrics: {
+              completion_tokens: chunk.usage?.completion_tokens,
+              time_completion_millsec,
+              time_first_token_millsec
+            }
+          })
+        }
+      }
+      return
     }
 
     for await (const chunk of stream) {
@@ -291,9 +384,7 @@ export default class OpenAIProvider extends BaseProvider {
     return response?.questions?.filter(Boolean)?.map((q: any) => ({ content: q })) || []
   }
 
-  public async check(): Promise<{ valid: boolean; error: Error | null }> {
-    const model = last(this.provider.models.filter((m) => !isEmbeddingModel(m)))
-
+  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }

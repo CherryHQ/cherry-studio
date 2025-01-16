@@ -8,6 +8,7 @@ import FeloAppLogo from '@renderer/assets/images/apps/felo.png'
 import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp'
+import GrokAppLogo from '@renderer/assets/images/apps/grok.png'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg'
@@ -16,6 +17,7 @@ import NamiAiSearchLogo from '@renderer/assets/images/apps/nm.webp'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp'
 import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png'
+import QwenlmAppLogo from '@renderer/assets/images/apps/qwenlm.webp'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png'
 import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.png'
 import ThinkAnyLogo from '@renderer/assets/images/apps/thinkany.webp'
@@ -34,7 +36,7 @@ import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.p
 import MinApp from '@renderer/components/MinApp'
 import { MinAppType } from '@renderer/types'
 
-const _apps: MinAppType[] = [
+export const DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'openai',
     name: 'ChatGPT',
@@ -245,14 +247,23 @@ const _apps: MinAppType[] = [
     name: 'Genspark',
     logo: GensparkLogo,
     url: 'https://www.genspark.ai/'
+  },
+  {
+    id: 'grok',
+    name: 'Grok',
+    logo: GrokAppLogo,
+    url: 'https://x.com/i/grok',
+    bodered: true
+  },
+  {
+    id: 'qwenlm',
+    name: 'QwenLM',
+    logo: QwenlmAppLogo,
+    url: 'https://qwenlm.ai/'
   }
 ]
 
-export function getAllMinApps() {
-  return _apps as MinAppType[]
-}
-
 export function startMinAppById(id: string) {
-  const app = getAllMinApps().find((app) => app?.id === id)
+  const app = DEFAULT_MIN_APPS.find((app) => app?.id === id)
   app && MinApp.start(app)
 }

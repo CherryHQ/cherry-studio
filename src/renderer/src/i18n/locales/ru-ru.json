@@ -238,6 +238,7 @@
     "message": {
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",
+      "api.check.model.title": "Выберите модель для проверки",
       "assistant.added.content": "Ассистент успешно добавлен",
       "backup.failed": "Создание резервной копии не удалось",
       "backup.success": "Резервная копия успешно создана",
@@ -271,7 +272,9 @@
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания"
     },
     "minapp": {
-      "title": "Встроенные приложения"
+      "title": "Встроенные приложения",
+      "sidebar.add.title": "Добавить в боковую панель",
+      "sidebar.remove.title": "Удалить из боковой панели"
     },
     "ollama": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -330,7 +333,8 @@
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "qwenlm": "QwenLM"
     },
     "settings": {
       "about": "О программе и обратная связь",
@@ -377,15 +381,15 @@
         "webdav.password": "Пароль WebDAV",
         "webdav.path": "Путь WebDAV",
         "webdav.path.placeholder": "/backup",
-        "webdav.autoSync": "Автоматическая синхронизация",
+        "webdav.autoSync": "Автоматическое резервное копирование",
         "webdav.minutes": "минут",
         "webdav.restore.button": "Восстановление с WebDAV",
         "webdav.title": "WebDAV",
         "webdav.user": "Пользователь WebDAV",
-        "webdav.syncStatus": "Статус синхронизации",
+        "webdav.syncStatus": "Статус резервного копирования",
         "webdav.autoSync.off": "Выключено",
-        "webdav.noSync": "Ожидание следующей синхронизации",
-        "webdav.syncError": "Ошибка синхронизации",
+        "webdav.noSync": "Ожидание следующего резервного копирования",
+        "webdav.syncError": "Ошибка резервного копирования",
         "webdav.lastSync": "Последняя синхронизация"
       },
       "display.title": "Настройки отображения",
@@ -408,10 +412,14 @@
       "display.sidebar.knowledge.icon": "Показывать иконку знаний",
       "display.sidebar.files.icon": "Показывать иконку файлов",
       "display.sidebar.title": "Настройки боковой панели",
-      "display.sidebar.visible": "Показать мои значки на боковой панели",
-      "display.sidebar.disabled": "Скрыть значок на боковой панели",
+      "display.sidebar.visible": "Показывать иконки",
+      "display.sidebar.disabled": "Скрыть иконки",
       "display.sidebar.chat.hiddenMessage": "Помощник является базовой функцией и не поддерживает скрытие",
       "display.sidebar.empty": "Перетащите скрываемую функцию с левой стороны сюда",
+      "display.minApp.title": "Настройки отображения мини программы",
+      "display.minApp.visible": "Отображаемый апплет",
+      "display.minApp.disabled": "скрытый апплет",
+      "display.minApp.empty": "Перетащите апплет, который хотите скрыть, слева сюда",
       "display.topic.title": "Настройки топиков",
       "display.custom.css": "Пользовательский CSS",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",

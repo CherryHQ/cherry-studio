@@ -123,7 +123,6 @@ import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Model } from '@renderer/types'
-import { isEmpty } from 'lodash'
 import OpenAI from 'openai'
 
 import { getWebSearchTools } from './tools'
@@ -265,6 +264,56 @@ export function getModelLogo(modelId: string) {
 }
 
 export const SYSTEM_MODELS: Record<string, Model[]> = {
+  qwenlm: [
+    {
+      id: 'qwen-plus-latest',
+      provider: 'qwenlm',
+      name: 'Qwen2.5-Plus',
+      group: 'Qwen 2.5'
+    },
+    {
+      id: 'qvq-72b-preview',
+      provider: 'qwenlm',
+      name: 'QVQ-72B-Preview',
+      group: 'QVQ'
+    },
+    {
+      id: 'qwq-32b-preview',
+      provider: 'qwenlm',
+      name: 'QwQ-32B-Preview',
+      group: 'QVQ'
+    },
+    {
+      id: 'qwen2.5-coder-32b-instruct',
+      provider: 'qwenlm',
+      name: 'Qwen2.5-Coder-32B-Instruct',
+      group: 'Qwen 2.5'
+    },
+    {
+      id: 'qwen-vl-max-latest',
+      provider: 'qwenlm',
+      name: 'Qwen2-VL-Max',
+      group: 'Qwen 2'
+    },
+    {
+      id: 'qwen-turbo-latest',
+      provider: 'qwenlm',
+      name: 'Qwen2.5-Turbo',
+      group: 'Qwen 2.5'
+    },
+    {
+      id: 'qwen2.5-72b-instruct',
+      provider: 'qwenlm',
+      name: 'Qwen2.5-72B-Instruct',
+      group: 'Qwen 2.5'
+    },
+    {
+      id: 'qwen2.5-32b-instruct',
+      provider: 'qwenlm',
+      name: 'Qwen2.5-32B-Instruct',
+      group: 'Qwen 2.5'
+    }
+  ],
   aihubmix: [
     {
       id: 'gpt-4o',
@@ -602,6 +651,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       id: 'glm-4-flash',
       provider: 'zhipu',
       name: 'GLM-4-Flash',
+      group: 'GLM-4'
+    },
+    {
+      id: 'glm-4-flashx',
+      provider: 'zhipu',
+      name: 'GLM-4-FlashX',
       group: 'GLM-4'
     },
     {
@@ -1055,6 +1110,12 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  if (provider?.type === 'openai') {
+    if (model?.id?.includes('gemini-2.0-flash-exp')) {
+      return true
+    }
+  }
+
   if (provider.id === 'gemini' || provider?.type === 'gemini') {
     return model?.id === 'gemini-2.0-flash-exp'
   }
@@ -1074,20 +1135,18 @@ export function isWebSearchModel(model: Model): boolean {
   return false
 }
 
-export function getWebSearchParams(model: Model): Record<string, any> {
+export function getOpenAIWebSearchParams(model: Model): Record<string, any> {
   if (isWebSearchModel(model)) {
+    const webSearchTools = getWebSearchTools(model)
+
     if (model.provider === 'hunyuan') {
       return { enable_enhancement: true }
     }
 
-    if (model.provider === 'zhipu') {
-      const webSearchTools = getWebSearchTools(model)
-      return isEmpty(webSearchTools)
-        ? {}
-        : {
-            tools: webSearchTools
-          }
+    return {
+      tools: webSearchTools
     }
   }
+
   return {}
 }

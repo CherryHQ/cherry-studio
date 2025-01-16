@@ -47,19 +47,22 @@ const DragableList: FC<Props<any>> = ({
       <Droppable droppableId="droppable" {...droppableProps}>
         {(provided) => (
           <div {...provided.droppableProps} ref={provided.innerRef} style={{ ...style }}>
-            {list.map((item, index) => (
-              <Draggable key={`draggable_${item.id}_${index}`} draggableId={item.id} index={index} {...droppableProps}>
-                {(provided) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                    style={{ ...provided.draggableProps.style, marginBottom: 8, ...listStyle }}>
-                    {children(item, index)}
-                  </div>
-                )}
-              </Draggable>
-            ))}
+            {list.map((item, index) => {
+              const id = item.id || item
+              return (
+                <Draggable key={`draggable_${id}_${index}`} draggableId={id} index={index} {...droppableProps}>
+                  {(provided) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      style={{ ...provided.draggableProps.style, marginBottom: 8, ...listStyle }}>
+                      {children(item, index)}
+                    </div>
+                  )}
+                </Draggable>
+              )
+            })}
           </div>
         )}
       </Droppable>

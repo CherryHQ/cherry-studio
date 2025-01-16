@@ -208,6 +208,14 @@
 
   sup {
     top: -0.5em;
+    border-radius: 50%;
+    background-color: var(--color-reference);
+    color: var(--color-reference-text);
+    padding: 2px 5px;
+    zoom: 0.8;
+    & > span.link {
+      color: var(--color-reference-text);
+    }
   }
 
   sub {
@@ -226,51 +234,55 @@
       text-decoration: underline;
     }
   }
+}
 
-  .footnotes {
-    margin-top: 1em;
-    margin-bottom: 1em;
-    padding-top: 1em;
+.footnotes {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-top: 1em;
 
-    background-color: var(--color-reference-background);
-    border-radius: 8px;
-    padding: 8px 12px;
+  background-color: var(--color-reference-background);
+  border-radius: 8px;
+  padding: 8px 12px;
 
-    h4 {
-      margin-bottom: 5px;
-      font-size: 12px;
+  h4 {
+    margin-bottom: 5px;
+    font-size: 12px;
+  }
+
+  a {
+    color: var(--color-link);
+  }
+
+  ol {
+    padding-left: 1em;
+    margin: 0;
+    li:last-child {
+      margin-bottom: 0;
     }
+  }
 
-    ol {
-      padding-left: 1em;
+  li {
+    font-size: 0.9em;
+    margin-bottom: 0.5em;
+    color: var(--color-text-light);
+
+    p {
+      display: inline;
       margin: 0;
-      li:last-child {
-        margin-bottom: 0;
-      }
     }
+  }
 
-    li {
-      font-size: 0.9em;
-      margin-bottom: 0.5em;
-      color: var(--color-text-light);
+  .footnote-backref {
+    font-size: 0.8em;
+    vertical-align: super;
+    line-height: 0;
+    margin-left: 5px;
+    color: var(--color-primary);
+    text-decoration: none;
 
-      p {
-        display: inline;
-        margin: 0;
-      }
-    }
-
-    .footnote-backref {
-      font-size: 0.8em;
-      vertical-align: super;
-      line-height: 0;
-      margin-left: 5px;
-      color: var(--color-primary);
-      text-decoration: none;
-
-      &:hover {
-        text-decoration: underline;
-      }
+    &:hover {
+      text-decoration: underline;
     }
   }
 }
