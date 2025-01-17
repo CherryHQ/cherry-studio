@@ -59,7 +59,7 @@ export async function reset() {
 }
 
 // 备份到 webdav
-export async function backupToWebdav({ showMessage = true }: { showMessage?: boolean } = {}) {
+export async function backupToWebdav({ showMessage = false }: { showMessage?: boolean } = {}) {
   if (isManualBackupRunning) {
     console.log('[Backup] Manual backup already in progress')
     return
