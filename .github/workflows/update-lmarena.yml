@@ -1,1 +1,50 @@
 
+name: Update LLM Arena Rankings
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 0:00 运行（北京时间 8:00）
+  workflow_dispatch:      # 允许手动触发
+
+jobs:
+  update-rankings:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      # 步骤1: 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      # 步骤2: 设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+      
+      # 步骤3: 安装依赖包
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas tabulate
+      
+      # 步骤4: 运行更新脚本
+      - name: Update Rankings
+        env:
+          LMARENA_KEY: ${{ secrets.LMARENA_KEY }}
+        run: |
+          python .github/scripts/update_lmarena.py
+      
+      # 步骤5: 提交更改（如果有）
+      - name: Commit and push if changed
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add other/model_rank/lmarena.md
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update LLM Arena Rankings $(date '+%Y-%m-%d')"
+            git push
+          fi
