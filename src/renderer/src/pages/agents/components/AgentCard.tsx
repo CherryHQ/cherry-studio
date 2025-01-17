@@ -2,8 +2,8 @@ import { EllipsisOutlined } from '@ant-design/icons'
 import { Agent } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Dropdown } from 'antd'
-import styled from 'styled-components'
 import { FC, memo } from 'react'
+import styled from 'styled-components'
 
 interface Props {
   agent: Agent

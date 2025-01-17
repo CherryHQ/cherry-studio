@@ -133,18 +133,18 @@ const AgentsPage: FC = () => {
             </Col>
           ))}
         </Row>
-      );
+      )
     },
     [onAddAgentConfirm]
-  );
+  )
 
   const tabItems = useMemo(() => {
-    const groups = Object.keys(filteredAgentGroups);
+    const groups = Object.keys(filteredAgentGroups)
 
     return groups.map((group, i) => {
-      const id = String(i + 1);
-      const localizedGroupName = getLocalizedGroupName(group);
-      const agents = filteredAgentGroups[group] || [];
+      const id = String(i + 1)
+      const localizedGroupName = getLocalizedGroupName(group)
+      const agents = filteredAgentGroups[group] || []
 
       return {
         label: localizedGroupName,
@@ -154,16 +154,12 @@ const AgentsPage: FC = () => {
             <Title level={5} key={group} style={{ marginBottom: 10 }}>
               {localizedGroupName}
             </Title>
-            {group === '我的' ? (
-              <MyAgents onClick={onAddAgentConfirm} search={search} />
-            ) : (
-              renderAgentList(agents)
-            )}
+            {group === '我的' ? <MyAgents onClick={onAddAgentConfirm} search={search} /> : renderAgentList(agents)}
           </TabContent>
         )
-      };
-    });
-  }, [filteredAgentGroups, getLocalizedGroupName, onAddAgentConfirm, search, renderAgentList]);
+      }
+    })
+  }, [filteredAgentGroups, getLocalizedGroupName, onAddAgentConfirm, search, renderAgentList])
 
   const handleSearch = () => {
     if (searchInput.trim() === '') {
@@ -195,20 +191,13 @@ const AgentsPage: FC = () => {
           <div style={{ width: 80 }} />
         </NavbarCenter>
       </Navbar>
-      <ContentContainer>
+      <ContentContainer id="content-container">
         <AssistantsContainer>
           {Object.values(filteredAgentGroups).flat().length > 0 ? (
             search.trim() ? (
-              <TabContent>
-                {renderAgentList(Object.values(filteredAgentGroups).flat())}
-              </TabContent>
+              <TabContent>{renderAgentList(Object.values(filteredAgentGroups).flat())}</TabContent>
             ) : (
-              <Tabs 
-                tabPosition="right" 
-                animated={false}
-                items={tabItems} 
-                $language={i18n.language} 
-              />
+              <Tabs tabPosition="right" animated={false} items={tabItems} $language={i18n.language} />
             )
           ) : (
             <EmptyView>
@@ -244,7 +233,6 @@ const AssistantsContainer = styled.div`
   flex: 1;
   flex-direction: row;
   height: calc(100vh - var(--navbar-height));
-  border-left: 0.5px solid var(--color-border);
 `
 
 const TabContent = styled(Scrollbar)`
@@ -277,7 +265,6 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
   display: flex;
   flex: 1;
   flex-direction: row-reverse;
-  border-right: 0.5px solid var(--color-border);
 
   .ant-tabs-tabpane {
     padding-right: 0 !important;
@@ -325,6 +312,7 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
   }
   .ant-tabs-content-holder {
     border-left: 0.5px solid var(--color-border);
+    border-right: none;
   }
   .ant-tabs-ink-bar {
     display: none;
