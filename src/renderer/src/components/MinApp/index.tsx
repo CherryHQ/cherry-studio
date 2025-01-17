@@ -140,7 +140,7 @@ const TitleContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding-left: ${isMac ? '20px' : '15px'};
+  padding-left: ${isMac ? '20px' : '10px'};
   padding-right: 10px;
   position: absolute;
   top: 0;

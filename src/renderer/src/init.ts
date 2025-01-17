@@ -9,10 +9,12 @@ function initKeyv() {
 }
 
 function initAutoSync() {
-  const { webdavAutoSync } = store.getState().settings
-  if (webdavAutoSync) {
-    startAutoSync()
-  }
+  setTimeout(() => {
+    const { webdavAutoSync } = store.getState().settings
+    if (webdavAutoSync) {
+      startAutoSync()
+    }
+  }, 2000)
 }
 
 initKeyv()
