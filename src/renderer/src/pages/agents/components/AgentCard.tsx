@@ -3,10 +3,11 @@ import { Agent } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Dropdown } from 'antd'
 import styled from 'styled-components'
+import { FC, memo } from 'react'
 
 interface Props {
   agent: Agent
-  onClick?: () => void
+  onClick: () => void
   contextMenu?: { label: string; onClick: () => void }[]
   menuItems?: {
     key: string
@@ -17,7 +18,7 @@ interface Props {
   }[]
 }
 
-const AgentCard: React.FC<Props> = ({ agent, onClick, contextMenu, menuItems }) => {
+const AgentCard: FC<Props> = ({ agent, onClick, contextMenu, menuItems }) => {
   const emoji = agent.emoji || getLeadingEmoji(agent.name)
   const prompt = (agent.description || agent.prompt).substring(0, 100).replace(/\\n/g, '')
   const content = (
@@ -205,4 +206,4 @@ const MenuContainer = styled.div`
   }
 `
 
-export default AgentCard
+export default memo(AgentCard)

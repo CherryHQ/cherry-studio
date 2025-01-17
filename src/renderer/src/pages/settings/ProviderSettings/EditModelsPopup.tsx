@@ -68,6 +68,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   }
 
   const onAddModel = (model: Model) => {
+    if (isEmpty(model.name)) {
+      return
+    }
     addModel(model)
   }
 
@@ -92,7 +95,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               description: model?.description,
               owned_by: model?.owned_by
             }))
-            .filter((model) => !isEmpty(model.id))
+            .filter((model) => !isEmpty(model.name))
         )
         setLoading(false)
       } catch (error) {
@@ -151,7 +154,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                 <ListItem key={model.id}>
                   <ListItemHeader>
                     <Avatar src={getModelLogo(model.id)} size={24}>
-                      {model.name[0].toUpperCase()}
+                      {model?.name?.[0]?.toUpperCase()}
                     </Avatar>
                     <ListItemName>
                       <Tooltip title={model.id} placement="top">
