@@ -1,7 +1,8 @@
 /* eslint-disable react/no-unknown-property */
-import { CloseOutlined, ExportOutlined, ReloadOutlined } from '@ant-design/icons'
+import { CloseOutlined, ExportOutlined, PushpinOutlined, ReloadOutlined } from '@ant-design/icons'
 import { isMac, isWindows } from '@renderer/config/constant'
 import { useBridge } from '@renderer/hooks/useBridge'
+import { useMinapps } from '@renderer/hooks/useMinapps'
 import store from '@renderer/store'
 import { setMinappShow } from '@renderer/store/runtime'
 import { MinAppType } from '@renderer/types'
@@ -20,6 +21,8 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
+  const { pinned, updatePinnedMinapps } = useMinapps()
+  const isPinned = pinned.some((p) => p.id === app.id)
   const [open, setOpen] = useState(true)
   const [opened, setOpened] = useState(false)
   const [isReady, setIsReady] = useState(false)
@@ -47,6 +50,10 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
     window.api.openWebsite(app.url)
   }
 
+  const onTogglePin = () => {
+    const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
+    updatePinnedMinapps(newPinned)
+  }
   const Title = () => {
     return (
       <TitleContainer style={{ justifyContent: 'space-between' }}>
@@ -54,6 +61,9 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
         <ButtonsGroup className={isWindows ? 'windows' : ''}>
           <Button onClick={onReload}>
             <ReloadOutlined />
+          </Button>
+          <Button onClick={onTogglePin} className={isPinned ? 'pinned' : ''}>
+            <PushpinOutlined />
           </Button>
           {canOpenExternalLink && (
             <Button onClick={onOpenLink}>
@@ -187,6 +197,10 @@ const Button = styled.div`
   &:hover {
     color: var(--color-text-1);
     background-color: var(--color-background-mute);
+  }
+  &.pinned {
+    color: var(--color-primary);
+    background-color: var(--color-primary-bg);
   }
 `
 
