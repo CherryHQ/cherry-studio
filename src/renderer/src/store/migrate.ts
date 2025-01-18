@@ -850,6 +850,27 @@ const migrateConfig = {
     state.settings.clickTrayToShowQuickAssistant = true
 
     return state
+  },
+  '58': (state: RootState) => {
+    if (state.shortcuts) {
+      state.shortcuts.shortcuts.push(
+        {
+          key: 'clear_topic',
+          shortcut: [isMac ? 'Command' : 'Ctrl', 'L'],
+          editable: true,
+          enabled: true,
+          system: false
+        },
+        {
+          key: 'toggle_new_context',
+          shortcut: [isMac ? 'Command' : 'Ctrl', 'R'],
+          editable: true,
+          enabled: true,
+          system: false
+        }
+      )
+    }
+    return state
   }
 }
 

@@ -97,6 +97,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     [estimateTextTokens, showInputEstimatedTokens, text]
   )
   const newTopicShortcut = useShortcutDisplay('new_topic')
+  const newContextShortcut = useShortcutDisplay('toggle_new_context')
+  const cleanTopicShortcut = useShortcutDisplay('clear_topic')
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
@@ -355,6 +357,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
   })
 
+  useShortcut('clear_topic', () => {
+    clearTopic()
+  })
+
+  useShortcut('toggle_new_context', () => {
+    onNewContext()
+  })
+
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
     const unsubscribes = [
@@ -468,14 +478,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   </ToolbarButton>
                 </Tooltip>
               )}
-              <Tooltip placement="top" title={t('chat.input.clear')} arrow>
+              <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}
                   placement="top"
                   onConfirm={clearTopic}
                   okButtonProps={{ danger: true }}
                   icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-                  okText={t('chat.input.clear')}>
+                  okText={t('chat.input.clear.title')}>
                   <ToolbarButton type="text">
                     <ClearOutlined />
                   </ToolbarButton>
@@ -500,11 +510,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 />
               )}
               <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
-              <ToolbarButton type="text" onClick={onNewContext}>
-                <Tooltip placement="top" title={t('chat.input.new.context')}>
+              <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
+                <ToolbarButton type="text" onClick={onNewContext}>
                   <PicCenterOutlined />
-                </Tooltip>
-              </ToolbarButton>
+                </ToolbarButton>
+              </Tooltip>
               <Tooltip placement="top" title={expended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
                 <ToolbarButton type="text" onClick={onToggleExpended}>
                   {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
