@@ -188,7 +188,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
     if (expended) {
       if (event.key === 'Escape') {
-        return setExpend(false)
+        return onToggleExpended()
       }
     }
 
