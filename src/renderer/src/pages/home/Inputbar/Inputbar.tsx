@@ -283,25 +283,31 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      for (const file of event.clipboardData?.files || []) {
-        event.preventDefault()
+      const clipboardText = event.clipboardData?.getData('text')
+      if (clipboardText) {
+        // Prioritize the text when pasting.
+        // handled by the default event
+      } else {
+        for (const file of event.clipboardData?.files || []) {
+          event.preventDefault()
 
-        if (file.path === '') {
-          if (file.type.startsWith('image/')) {
-            const tempFilePath = await window.api.file.create(file.name)
-            const arrayBuffer = await file.arrayBuffer()
-            const uint8Array = new Uint8Array(arrayBuffer)
-            await window.api.file.write(tempFilePath, uint8Array)
-            const selectedFile = await window.api.file.get(tempFilePath)
-            selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-            break
+          if (file.path === '') {
+            if (file.type.startsWith('image/')) {
+              const tempFilePath = await window.api.file.create(file.name)
+              const arrayBuffer = await file.arrayBuffer()
+              const uint8Array = new Uint8Array(arrayBuffer)
+              await window.api.file.write(tempFilePath, uint8Array)
+              const selectedFile = await window.api.file.get(tempFilePath)
+              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+              break
+            }
           }
-        }
 
-        if (file.path) {
-          if (supportExts.includes(getFileExtension(file.path))) {
-            const selectedFile = await window.api.file.get(file.path)
-            selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+          if (file.path) {
+            if (supportExts.includes(getFileExtension(file.path))) {
+              const selectedFile = await window.api.file.get(file.path)
+              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+            }
           }
         }
       }
