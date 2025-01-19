@@ -5,6 +5,7 @@ import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
 import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png?url'
 import DuckDuckGoAppLogo from '@renderer/assets/images/apps/duckduckgo.webp?url'
 import FeloAppLogo from '@renderer/assets/images/apps/felo.png?url'
+import FlowithAppLogo from '@renderer/assets/images/apps/flowith.svg?url'
 import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png?url'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg?url'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?url'
@@ -260,6 +261,12 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'QwenLM',
     logo: QwenlmAppLogo,
     url: 'https://qwenlm.ai/'
+  },
+  {
+    id: 'flowith',
+    name: 'Flowith',
+    logo: FlowithAppLogo,
+    url: 'https://www.flowith.io/'
   }
 ]
 
