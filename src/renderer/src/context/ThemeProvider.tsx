@@ -1,6 +1,7 @@
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
+import { isMiniWindow } from '@renderer/utils'
 import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
 
 interface ThemeContextType {
@@ -13,7 +14,11 @@ const ThemeContext = createContext<ThemeContextType>({
   toggleTheme: () => {}
 })
 
-export const ThemeProvider: React.FC<PropsWithChildren> = ({ children }) => {
+interface ThemeProviderProps extends PropsWithChildren {
+  defaultTheme?: ThemeMode
+}
+
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultTheme }) => {
   const { theme, setTheme } = useSettings()
   const [_theme, _setTheme] = useState(theme)
 
@@ -22,7 +27,7 @@ export const ThemeProvider: React.FC<PropsWithChildren> = ({ children }) => {
   }
 
   useEffect((): any => {
-    if (theme === ThemeMode.auto) {
+    if (theme === ThemeMode.auto || defaultTheme === ThemeMode.auto) {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
       _setTheme(mediaQuery.matches ? ThemeMode.dark : ThemeMode.light)
       const handleChange = (e: MediaQueryListEvent) => _setTheme(e.matches ? ThemeMode.dark : ThemeMode.light)
@@ -31,11 +36,13 @@ export const ThemeProvider: React.FC<PropsWithChildren> = ({ children }) => {
     } else {
       _setTheme(theme)
     }
-  }, [theme])
+  }, [defaultTheme, theme])
 
   useEffect(() => {
     document.body.setAttribute('theme-mode', _theme)
-    window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
+    if (!isMiniWindow()) {
+      window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
+    }
   }, [_theme])
 
   useEffect(() => {

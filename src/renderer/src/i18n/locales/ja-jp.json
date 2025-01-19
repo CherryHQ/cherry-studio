@@ -390,6 +390,12 @@
         "webdav.syncError": "バックアップエラー",
         "webdav.lastSync": "最終同期"
       },
+      "quickAssistant": {
+        "title": "クイックアシスタント",
+        "click_tray_to_show": "トレイアイコンをクリックして起動",
+        "enable_quick_assistant": "クイックアシスタントを有効にする",
+        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます"
+      },
       "display.title": "表示設定",
       "font_size.title": "メッセージのフォントサイズ",
       "general": "一般設定",
@@ -511,7 +517,8 @@
         "toggle_show_assistants": "アシスタントの表示を切り替え",
         "toggle_show_topics": "トピックの表示を切り替え",
         "copy_last_message": "最後のメッセージをコピー",
-        "search_message": "メッセージを検索"
+        "search_message": "メッセージを検索",
+        "mini_window": "クイックアシスタント"
       },
       "theme.auto": "自動",
       "theme.dark": "ダークテーマ",
@@ -544,7 +551,8 @@
     },
     "tray": {
       "quit": "終了",
-      "show_window": "ウィンドウを表示"
+      "show_window": "ウィンドウを表示",
+      "show_mini_window": "クイックアシスタント"
     },
     "words": {
       "knowledgeGraph": "ナレッジグラフ",
@@ -626,7 +634,31 @@
       }
     },
     "prompts": {
-      "summarize": "あなたは会話を得意とするアシスタントです。ユーザーの会話を10文字以内のタイトルに要約し、ユーザーの主言語と一致していることを確認してください。句読点や特殊記号は使用しないでください。"
+      "title": "あなたは会話を得意とするアシスタントです。ユーザーの会話を10文字以内のタイトルに要約し、ユーザーの主言語と一致していることを確認してください。句読点や特殊記号は使用しないでください。",
+      "explanation": "この概念を説明してください",
+      "summarize": "このテキストを要約してください"
+    },
+    "miniwindow": {
+      "feature": {
+        "chat": "この質問に回答",
+        "translate": "テキスト翻訳",
+        "summary": "内容要約",
+        "explanation": "説明"
+      },
+      "clipboard": {
+        "empty": "クリップボードが空です"
+      },
+      "input": {
+        "placeholder": {
+          "title": "下のテキストに対して何をしますか？",
+          "empty": "{{model}} に質問してください..."
+        }
+      },
+      "footer": {
+        "esc": "ESC キーを押して{{action}}",
+        "esc_close": "ウィンドウを閉じる",
+        "esc_back": "戻る"
+      }
     }
   }
 }

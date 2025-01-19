@@ -80,6 +80,9 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    添加模型提及功能，支持多个模型一起回答 @teojs
-    增加 QweLM 服务提供商 @Nana7mi1
-    修复删除服务商导致的数据错误白屏问题
+    新增快捷助手弹窗
+    翻译默认使用流输出
+    小程序弹窗顶部增加固定按钮 @ousugo
+    Gemini 安全设置更新 @magicdmer
+    智能体页面性能优化 @magicdmer
+    修复 WebDAV 不能自动备份问题

@@ -103,7 +103,7 @@ export type Provider = {
   isSystem?: boolean
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'gemini'
+export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm'
 
 export type ModelType = 'text' | 'vision' | 'embedding'
 

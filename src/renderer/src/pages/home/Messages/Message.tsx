@@ -120,7 +120,6 @@ const MessageItem: FC<Props> = ({
               messages.findIndex((m) => m.id === message.id)
             ),
           assistant: assistantWithModel,
-          topic,
           onResponse: (msg) => {
             setMessage(msg)
             if (msg.status !== 'pending') {

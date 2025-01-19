@@ -1,4 +1,5 @@
 import { isMac } from '@renderer/config/constant'
+import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
@@ -811,6 +812,43 @@ const migrateConfig = {
       isSystem: true,
       enabled: false
     })
+    return state
+  },
+  '57': (state: RootState) => {
+    if (state.shortcuts) {
+      state.shortcuts.shortcuts.push({
+        key: 'mini_window',
+        shortcut: [isMac ? 'Command' : 'Ctrl', 'E'],
+        editable: true,
+        enabled: false,
+        system: true
+      })
+    }
+
+    if (state.minapps) {
+      state.minapps.enabled = state.minapps.enabled.map((app) => {
+        const _app = DEFAULT_MIN_APPS.find((m) => m.id === app.id)
+        return _app || app
+      })
+      state.minapps.disabled = state.minapps.disabled.map((app) => {
+        const _app = DEFAULT_MIN_APPS.find((m) => m.id === app.id)
+        return _app || app
+      })
+      state.minapps.pinned = state.minapps.pinned.map((app) => {
+        const _app = DEFAULT_MIN_APPS.find((m) => m.id === app.id)
+        return _app || app
+      })
+    }
+
+    state.llm.providers.forEach((provider) => {
+      if (provider.id === 'qwenlm') {
+        provider.type = 'qwenlm'
+      }
+    })
+
+    state.settings.enableQuickAssistant = false
+    state.settings.clickTrayToShowQuickAssistant = true
+
     return state
   }
 }

@@ -392,6 +392,12 @@
         "webdav.syncError": "Backup Error",
         "webdav.lastSync": "Last Backup"
       },
+      "quickAssistant": {
+        "title": "Quick Assistant",
+        "click_tray_to_show": "Click the tray icon to start",
+        "enable_quick_assistant": "Enable Quick Assistant",
+        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+      },
       "display.title": "Display Settings",
       "font_size.title": "Message font size",
       "general": "General Settings",
@@ -526,7 +532,8 @@
         "toggle_show_assistants": "Toggle Assistants",
         "toggle_show_topics": "Toggle Topics",
         "copy_last_message": "Copy Last Message",
-        "search_message": "Search Message"
+        "search_message": "Search Message",
+        "mini_window": "Quick Assistant"
       },
       "theme.auto": "Auto",
       "theme.dark": "Dark",
@@ -559,7 +566,8 @@
     },
     "tray": {
       "quit": "Quit",
-      "show_window": "Show Window"
+      "show_window": "Show Window",
+      "show_mini_window": "Quick Assistant"
     },
     "words": {
       "knowledgeGraph": "Knowledge Graph",
@@ -641,7 +649,31 @@
       }
     },
     "prompts": {
-      "summarize": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols."
+      "title": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols.",
+      "explanation": "Explain this concept to me",
+      "summarize": "Summarize this text"
+    },
+    "miniwindow": {
+      "feature": {
+        "chat": "Answer this question",
+        "translate": "Text translation",
+        "summary": "Content summary",
+        "explanation": "Explanation"
+      },
+      "clipboard": {
+        "empty": "Clipboard is empty"
+      },
+      "input": {
+        "placeholder": {
+          "title": "What do you want to do with this text?",
+          "empty": "Ask {{model}} for help..."
+        }
+      },
+      "footer": {
+        "esc": "Press ESC {{action}}",
+        "esc_close": "close the window",
+        "esc_back": "back"
+      }
     }
   }
 }

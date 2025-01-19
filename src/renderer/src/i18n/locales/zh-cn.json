@@ -393,6 +393,12 @@
         "webdav.syncError": "备份错误",
         "webdav.lastSync": "上次备份时间"
       },
+      "quickAssistant": {
+        "title": "快捷助手",
+        "click_tray_to_show": "点击托盘图标启动",
+        "enable_quick_assistant": "启用快捷助手",
+        "use_shortcut_to_show": "右键点击托盘图标或使用快捷键启动"
+      },
       "display.title": "显示设置",
       "font_size.title": "消息字体大小",
       "general": "常规设置",
@@ -514,7 +520,8 @@
         "toggle_show_assistants": "切换助手显示",
         "toggle_show_topics": "切换话题显示",
         "copy_last_message": "复制上一条消息",
-        "search_message": "搜索消息"
+        "search_message": "搜索消息",
+        "mini_window": "快捷助手"
       },
       "theme.auto": "跟随系统",
       "theme.dark": "深色主题",
@@ -547,7 +554,8 @@
     },
     "tray": {
       "quit": "退出",
-      "show_window": "显示窗口"
+      "show_window": "显示窗口",
+      "show_mini_window": "快捷助手"
     },
     "words": {
       "knowledgeGraph": "知识图谱",
@@ -629,7 +637,31 @@
       }
     },
     "prompts": {
-      "summarize": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号"
+      "title": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号",
+      "explanation": "帮我解释一下这个概念",
+      "summarize": "帮我总结一下这段话"
+    },
+    "miniwindow": {
+      "feature": {
+        "chat": "回答此问题",
+        "translate": "文本翻译",
+        "summary": "内容总结",
+        "explanation": "解释说明"
+      },
+      "clipboard": {
+        "empty": "剪贴板为空"
+      },
+      "input": {
+        "placeholder": {
+          "title": "你想对下方文字做什么",
+          "empty": "询问 {{model}} 获取帮助..."
+        }
+      },
+      "footer": {
+        "esc": "按 ESC {{action}}",
+        "esc_close": "关闭窗口",
+        "esc_back": "返回"
+      }
     }
   }
 }

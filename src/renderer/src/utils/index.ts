@@ -381,4 +381,8 @@ export const compareVersions = (v1: string, v2: string): number => {
   return 0
 }
 
+export function isMiniWindow() {
+  return window.location.hash === '#/mini'
+}
+
 export { classNames }

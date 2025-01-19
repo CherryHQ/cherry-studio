@@ -56,9 +56,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <div style={{ marginBottom: 10 }}>{t('settings.models.topic_naming_prompt')}</div>
         <Input.TextArea
           rows={4}
-          value={topicNamingPrompt || t('prompts.summarize')}
+          value={topicNamingPrompt || t('prompts.title')}
           onChange={(e) => dispatch(setTopicNamingPrompt(e.target.value.trim()))}
-          placeholder={t('prompts.summarize')}
+          placeholder={t('prompts.title')}
         />
         {topicNamingPrompt && (
           <Button style={{ marginTop: 10 }} onClick={handleReset}>

@@ -279,9 +279,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             <ModelListItem key={model.id}>
               <ModelListHeader>
                 <Avatar src={getModelLogo(model.id)} size={22} style={{ marginRight: '8px' }}>
-                  {model.name[0].toUpperCase()}
+                  {model?.name?.[0]?.toUpperCase()}
                 </Avatar>
-                {model.name}
+                {model?.name}
                 <ModelTags model={model} />
                 <Popover content={modelTypeContent(model)} title={t('models.type.select')} trigger="click">
                   <SettingIcon />

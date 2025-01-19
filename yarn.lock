@@ -3011,6 +3011,7 @@ __metadata:
     adm-zip: "npm:^0.5.16"
     antd: "npm:^5.22.5"
     apache-arrow: "npm:^18.1.0"
+    applescript: "npm:^1.0.0"
     axios: "npm:^1.7.3"
     browser-image-compression: "npm:^2.0.2"
     dayjs: "npm:^1.11.11"
@@ -3387,6 +3388,13 @@ __metadata:
     dmg-builder: 24.13.3
     electron-builder-squirrel-windows: 24.13.3
   checksum: 10c0/a3ff90e63f738e8a0d8a2f52fc336cd130adf1c00c7fe8e575a3b2bbb23b733135d530589882b45735fb8e43ff9ad8ed19d5992b4ac81029371efbb4bc6ffdb2
+  languageName: node
+  linkType: hard
+
+"applescript@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "applescript@npm:1.0.0"
+  checksum: 10c0/b535e7df97a3e1272d1b8e8c832494ba3933fbad879847cb83c8990c08aed5bcb097d2af200ba2e0754c3467c2367441706b7864173e1aa9ee4132f5189287f0
   languageName: node
   linkType: hard
 

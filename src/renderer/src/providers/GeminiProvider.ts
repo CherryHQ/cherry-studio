@@ -230,7 +230,7 @@ export default class GeminiProvider extends BaseProvider {
     }
   }
 
-  async translate(message: Message, assistant: Assistant) {
+  async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const { maxTokens } = getAssistantSettings(assistant)
     const model = assistant.model || defaultModel
@@ -247,9 +247,21 @@ export default class GeminiProvider extends BaseProvider {
       this.requestOptions
     )
 
-    const { response } = await geminiModel.generateContent(message.content)
+    if (!onResponse) {
+      const { response } = await geminiModel.generateContent(message.content)
+      return response.text()
+    }
 
-    return response.text()
+    const response = await geminiModel.generateContentStream(message.content)
+
+    let text = ''
+
+    for await (const chunk of response.stream) {
+      text += chunk.text()
+      onResponse(text)
+    }
+
+    return text
   }
 
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
@@ -269,7 +281,7 @@ export default class GeminiProvider extends BaseProvider {
 
     const systemMessage = {
       role: 'system',
-      content: (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.summarize')
+      content: (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
     }
 
     const userMessage = {

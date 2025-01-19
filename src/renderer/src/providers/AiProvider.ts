@@ -20,8 +20,8 @@ export default class AiProvider {
     return this.sdk.completions({ messages, assistant, onChunk, onFilterMessages })
   }
 
-  public async translate(message: Message, assistant: Assistant): Promise<string> {
-    return this.sdk.translate(message, assistant)
+  public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void): Promise<string> {
+    return this.sdk.translate(message, assistant, onResponse)
   }
 
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {

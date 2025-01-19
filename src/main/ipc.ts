@@ -14,6 +14,7 @@ import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
+import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { compress, decompress } from './utils/zip'
 
@@ -50,6 +51,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // tray
   ipcMain.handle('app:set-tray', (_, isActive: boolean) => {
     configManager.setTray(isActive)
+  })
+
+  ipcMain.handle('app:restart-tray', () => TrayService.getInstance().restartTray())
+
+  ipcMain.handle('config:set', (_, key: string, value: any) => {
+    configManager.set(key, value)
+  })
+
+  ipcMain.handle('config:get', (_, key: string) => {
+    return configManager.get(key)
   })
 
   // theme
@@ -176,4 +187,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('gemini:retrieve-file', GeminiService.retrieveFile)
   ipcMain.handle('gemini:list-files', GeminiService.listFiles)
   ipcMain.handle('gemini:delete-file', GeminiService.deleteFile)
+
+  // mini window
+  ipcMain.handle('miniwindow:show', () => windowService.showMiniWindow())
+  ipcMain.handle('miniwindow:hide', () => windowService.hideMiniWindow())
+  ipcMain.handle('miniwindow:close', () => windowService.closeMiniWindow())
+  ipcMain.handle('miniwindow:toggle', () => windowService.toggleMiniWindow())
 }

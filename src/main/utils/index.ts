@@ -22,3 +22,15 @@ export function getInstanceName(baseURL: string) {
     return ''
   }
 }
+
+export function debounce(func: (...args: any[]) => void, wait: number, immediate: boolean = false) {
+  let timeout: NodeJS.Timeout | null = null
+  return function (...args: any[]) {
+    if (timeout) clearTimeout(timeout)
+    if (immediate) {
+      func(...args)
+    } else {
+      timeout = setTimeout(() => func(...args), wait)
+    }
+  }
+}

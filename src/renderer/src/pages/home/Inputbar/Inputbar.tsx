@@ -388,6 +388,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
   }, [])
 
+  useEffect(() => {
+    window.addEventListener('focus', () => {
+      textareaRef.current?.focus()
+    })
+  }, [])
+
   const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
 
   const handleKnowledgeBaseSelect = (base?: KnowledgeBase) => {

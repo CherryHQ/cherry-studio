@@ -32,6 +32,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const inputRef = useRef<InputRef>(null)
   const { providers } = useProviders()
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const loadPinnedModels = async () => {
@@ -162,6 +163,17 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     open && setTimeout(() => inputRef.current?.focus(), 0)
   }, [open])
 
+  useEffect(() => {
+    if (open && model) {
+      setTimeout(() => {
+        const selectedElement = document.querySelector('.ant-menu-item-selected')
+        if (selectedElement && scrollContainerRef.current) {
+          selectedElement.scrollIntoView({ block: 'center', behavior: 'auto' })
+        }
+      }, 100) // Small delay to ensure menu is rendered
+    }
+  }, [open, model])
+
   return (
     <Modal
       centered
@@ -199,7 +211,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         />
       </HStack>
       <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
-      <Scrollbar style={{ height: '50vh' }}>
+      <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
         <Container>
           {filteredItems.length > 0 ? (
             <StyledMenu

@@ -1,6 +1,6 @@
 import { is } from '@electron-toolkit/utils'
 import { isLinux, isWin } from '@main/constant'
-import { app, BrowserWindow, Menu, MenuItem, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
@@ -13,8 +13,11 @@ import { configManager } from './ConfigManager'
 export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
+  private miniWindow: BrowserWindow | null = null
   private isQuitting: boolean = false
   private wasFullScreen: boolean = false
+  private selectionMenuWindow: BrowserWindow | null = null
+  private lastSelectedText: string = ''
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -63,6 +66,7 @@ export class WindowService {
     })
 
     this.setupMainWindow(this.mainWindow, mainWindowState)
+
     return this.mainWindow
   }
 
@@ -201,7 +205,7 @@ export class WindowService {
     })
 
     mainWindow.on('close', (event) => {
-      const notInTray = !configManager.isTray()
+      const notInTray = !configManager.getTray()
 
       // Windows and Linux
       if ((isWin || isLinux) && notInTray) {
@@ -232,6 +236,164 @@ export class WindowService {
     } else {
       this.createMainWindow()
     }
+  }
+
+  public showMiniWindow() {
+    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+
+    if (!enableQuickAssistant) {
+      return
+    }
+
+    if (this.selectionMenuWindow) {
+      this.selectionMenuWindow.hide()
+    }
+
+    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      if (this.miniWindow.isMinimized()) {
+        this.miniWindow.restore()
+      }
+      this.miniWindow.show()
+      this.miniWindow.center()
+      this.miniWindow.focus()
+      return
+    }
+
+    const isMac = process.platform === 'darwin'
+
+    this.miniWindow = new BrowserWindow({
+      width: 500,
+      height: 520,
+      show: true,
+      autoHideMenuBar: true,
+      transparent: isMac,
+      vibrancy: 'under-window',
+      visualEffectState: 'followWindow',
+      center: true,
+      frame: false,
+      alwaysOnTop: true,
+      resizable: false,
+      useContentSize: true,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true
+      }
+    })
+
+    this.miniWindow.on('blur', () => {
+      this.miniWindow?.hide()
+    })
+
+    this.miniWindow.on('closed', () => {
+      this.miniWindow = null
+    })
+
+    this.miniWindow.on('hide', () => {
+      this.miniWindow?.webContents.send('hide-mini-window')
+    })
+
+    this.miniWindow.on('show', () => {
+      this.miniWindow?.webContents.send('show-mini-window')
+    })
+
+    ipcMain.on('miniwindow-reload', () => {
+      this.miniWindow?.reload()
+    })
+
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/mini')
+    } else {
+      this.miniWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+        hash: '#/mini'
+      })
+    }
+  }
+
+  public hideMiniWindow() {
+    this.miniWindow?.hide()
+  }
+
+  public closeMiniWindow() {
+    this.miniWindow?.close()
+  }
+
+  public toggleMiniWindow() {
+    if (this.miniWindow) {
+      this.miniWindow.isVisible() ? this.miniWindow.hide() : this.miniWindow.show()
+    } else {
+      this.showMiniWindow()
+    }
+  }
+
+  public showSelectionMenu(bounds: { x: number; y: number }) {
+    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
+      this.selectionMenuWindow.setPosition(bounds.x, bounds.y)
+      this.selectionMenuWindow.show()
+      return
+    }
+
+    const theme = configManager.getTheme()
+    const isMac = process.platform === 'darwin'
+
+    this.selectionMenuWindow = new BrowserWindow({
+      width: 280,
+      height: 40,
+      x: bounds.x,
+      y: bounds.y,
+      show: true,
+      autoHideMenuBar: true,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: false,
+      skipTaskbar: true,
+      backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
+      resizable: false,
+      vibrancy: 'popover',
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        webSecurity: false
+      }
+    })
+
+    // 点击其他地方时隐藏窗口
+    this.selectionMenuWindow.on('blur', () => {
+      this.selectionMenuWindow?.hide()
+      this.miniWindow?.webContents.send('selection-action', {
+        action: 'home',
+        selectedText: this.lastSelectedText
+      })
+    })
+
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      this.selectionMenuWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/src/windows/menu/menu.html')
+    } else {
+      this.selectionMenuWindow.loadFile(join(__dirname, '../renderer/src/windows/menu/menu.html'))
+    }
+
+    this.setupSelectionMenuEvents()
+  }
+
+  private setupSelectionMenuEvents() {
+    if (!this.selectionMenuWindow) return
+
+    ipcMain.removeHandler('selection-menu:action')
+    ipcMain.handle('selection-menu:action', (_, action) => {
+      this.selectionMenuWindow?.hide()
+      this.showMiniWindow()
+      setTimeout(() => {
+        this.miniWindow?.webContents.send('selection-action', {
+          action,
+          selectedText: this.lastSelectedText
+        })
+      }, 100)
+    })
+  }
+
+  public setLastSelectedText(text: string) {
+    this.lastSelectedText = text
   }
 }
 

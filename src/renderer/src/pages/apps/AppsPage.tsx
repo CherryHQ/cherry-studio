@@ -15,8 +15,6 @@ const AppsPage: FC = () => {
   const [search, setSearch] = useState('')
   const { minapps } = useMinapps()
 
-  console.debug('minapps', minapps)
-
   const filteredApps = search
     ? minapps.filter(
         (app) => app.name.toLowerCase().includes(search.toLowerCase()) || app.url.includes(search.toLowerCase())

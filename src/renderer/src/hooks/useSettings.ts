@@ -22,6 +22,7 @@ export function useSettings() {
     },
     setTray(isActive: boolean) {
       dispatch(setTray(isActive))
+      window.api.setTray(isActive)
     },
     setTheme(theme: ThemeMode) {
       dispatch(setTheme(theme))

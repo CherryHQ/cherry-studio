@@ -4,6 +4,7 @@ import AnthropicProvider from './AnthropicProvider'
 import BaseProvider from './BaseProvider'
 import GeminiProvider from './GeminiProvider'
 import OpenAIProvider from './OpenAIProvider'
+import QwenLMProvider from './QwenLMProvider'
 
 export default class ProviderFactory {
   static create(provider: Provider): BaseProvider {
@@ -12,6 +13,8 @@ export default class ProviderFactory {
         return new AnthropicProvider(provider)
       case 'gemini':
         return new GeminiProvider(provider)
+      case 'qwenlm':
+        return new QwenLMProvider(provider)
       default:
         return new OpenAIProvider(provider)
     }
