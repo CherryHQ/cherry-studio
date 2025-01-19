@@ -31,6 +31,7 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
   useBridge()
 
   const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
+  const canPinned = !!app.id
 
   const onClose = async (_delay = 0.3) => {
     setOpen(false)
@@ -63,9 +64,11 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
           <Button onClick={onReload}>
             <ReloadOutlined />
           </Button>
-          <Button onClick={onTogglePin} className={isPinned ? 'pinned' : ''}>
-            <PushpinOutlined style={{ fontSize: 16 }} />
-          </Button>
+          {canPinned && (
+            <Button onClick={onTogglePin} className={isPinned ? 'pinned' : ''}>
+              <PushpinOutlined style={{ fontSize: 16 }} />
+            </Button>
+          )}
           {canOpenExternalLink && (
             <Button onClick={onOpenLink}>
               <ExportOutlined />
