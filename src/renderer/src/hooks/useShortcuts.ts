@@ -1,5 +1,6 @@
 import { isMac, isWindows } from '@renderer/config/constant'
 import { useAppSelector } from '@renderer/store'
+import { orderBy } from 'lodash'
 import { useCallback } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
@@ -58,7 +59,7 @@ export const useShortcut = (
 
 export function useShortcuts() {
   const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
-  return { shortcuts }
+  return { shortcuts: orderBy(shortcuts, 'system', 'desc') }
 }
 
 export function useShortcutDisplay(key: string) {

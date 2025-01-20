@@ -29,16 +29,16 @@ const minAppsSlice = createSlice({
   initialState,
   reducers: {
     setMinApps: (state, action: PayloadAction<MinAppType[]>) => {
-      state.enabled = action.payload
+      state.enabled = action.payload.map((app) => ({ ...app, logo: undefined }))
     },
     addMinApp: (state, action: PayloadAction<MinAppType>) => {
       state.enabled.push(action.payload)
     },
     setDisabledMinApps: (state, action: PayloadAction<MinAppType[]>) => {
-      state.disabled = action.payload
+      state.disabled = action.payload.map((app) => ({ ...app, logo: undefined }))
     },
     setPinnedMinApps: (state, action: PayloadAction<MinAppType[]>) => {
-      state.pinned = action.payload
+      state.pinned = action.payload.map((app) => ({ ...app, logo: undefined }))
     }
   }
 })

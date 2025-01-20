@@ -97,6 +97,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     [estimateTextTokens, showInputEstimatedTokens, text]
   )
   const newTopicShortcut = useShortcutDisplay('new_topic')
+  const newContextShortcut = useShortcutDisplay('toggle_new_context')
+  const cleanTopicShortcut = useShortcutDisplay('clear_topic')
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
@@ -188,7 +190,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
     if (expended) {
       if (event.key === 'Escape') {
-        return setExpend(false)
+        return onToggleExpended()
       }
     }
 
@@ -281,25 +283,31 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      for (const file of event.clipboardData?.files || []) {
-        event.preventDefault()
+      const clipboardText = event.clipboardData?.getData('text')
+      if (clipboardText) {
+        // Prioritize the text when pasting.
+        // handled by the default event
+      } else {
+        for (const file of event.clipboardData?.files || []) {
+          event.preventDefault()
 
-        if (file.path === '') {
-          if (file.type.startsWith('image/')) {
-            const tempFilePath = await window.api.file.create(file.name)
-            const arrayBuffer = await file.arrayBuffer()
-            const uint8Array = new Uint8Array(arrayBuffer)
-            await window.api.file.write(tempFilePath, uint8Array)
-            const selectedFile = await window.api.file.get(tempFilePath)
-            selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-            break
+          if (file.path === '') {
+            if (file.type.startsWith('image/')) {
+              const tempFilePath = await window.api.file.create(file.name)
+              const arrayBuffer = await file.arrayBuffer()
+              const uint8Array = new Uint8Array(arrayBuffer)
+              await window.api.file.write(tempFilePath, uint8Array)
+              const selectedFile = await window.api.file.get(tempFilePath)
+              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+              break
+            }
           }
-        }
 
-        if (file.path) {
-          if (supportExts.includes(getFileExtension(file.path))) {
-            const selectedFile = await window.api.file.get(file.path)
-            selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+          if (file.path) {
+            if (supportExts.includes(getFileExtension(file.path))) {
+              const selectedFile = await window.api.file.get(file.path)
+              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+            }
           }
         }
       }
@@ -355,6 +363,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
   })
 
+  useShortcut('clear_topic', () => {
+    clearTopic()
+  })
+
+  useShortcut('toggle_new_context', () => {
+    onNewContext()
+  })
+
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
     const unsubscribes = [
@@ -386,6 +402,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         clearTimeout(spaceClickTimer.current)
       }
     }
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('focus', () => {
+      textareaRef.current?.focus()
+    })
   }, [])
 
   const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
@@ -462,14 +484,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   </ToolbarButton>
                 </Tooltip>
               )}
-              <Tooltip placement="top" title={t('chat.input.clear')} arrow>
+              <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}
                   placement="top"
                   onConfirm={clearTopic}
                   okButtonProps={{ danger: true }}
                   icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-                  okText={t('chat.input.clear')}>
+                  okText={t('chat.input.clear.title')}>
                   <ToolbarButton type="text">
                     <ClearOutlined />
                   </ToolbarButton>
@@ -494,11 +516,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 />
               )}
               <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
-              <ToolbarButton type="text" onClick={onNewContext}>
-                <Tooltip placement="top" title={t('chat.input.new.context')}>
+              <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
+                <ToolbarButton type="text" onClick={onNewContext}>
                   <PicCenterOutlined />
-                </Tooltip>
-              </ToolbarButton>
+                </ToolbarButton>
+              </Tooltip>
               <Tooltip placement="top" title={expended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
                 <ToolbarButton type="text" onClick={onToggleExpended}>
                   {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}

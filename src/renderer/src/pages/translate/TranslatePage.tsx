@@ -2,6 +2,7 @@ import { CheckOutlined, SendOutlined, SettingOutlined, SwapOutlined, WarningOutl
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { isLocalAi } from '@renderer/config/env'
+import { TranslateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { fetchTranslate } from '@renderer/services/ApiService'
@@ -33,64 +34,6 @@ const TranslatePage: FC = () => {
   _result = result
   _targetLanguage = targetLanguage
 
-  const languageOptions = [
-    {
-      value: 'english',
-      label: t('languages.english'),
-      emoji: '🇬🇧'
-    },
-    {
-      value: 'chinese',
-      label: t('languages.chinese'),
-      emoji: '🇨🇳'
-    },
-    {
-      value: 'chinese-traditional',
-      label: t('languages.chinese-traditional'),
-      emoji: '🇭🇰'
-    },
-    {
-      value: 'japanese',
-      label: t('languages.japanese'),
-      emoji: '🇯🇵'
-    },
-    {
-      value: 'korean',
-      label: t('languages.korean'),
-      emoji: '🇰🇷'
-    },
-    {
-      value: 'russian',
-      label: t('languages.russian'),
-      emoji: '🇷🇺'
-    },
-    {
-      value: 'spanish',
-      label: t('languages.spanish'),
-      emoji: '🇪🇸'
-    },
-    {
-      value: 'french',
-      label: t('languages.french'),
-      emoji: '🇫🇷'
-    },
-    {
-      value: 'italian',
-      label: t('languages.italian'),
-      emoji: '🇮🇹'
-    },
-    {
-      value: 'portuguese',
-      label: t('languages.portuguese'),
-      emoji: '🇵🇹'
-    },
-    {
-      value: 'arabic',
-      label: t('languages.arabic'),
-      emoji: '🇸🇦'
-    }
-  ]
-
   const onTranslate = async () => {
     if (!text.trim()) {
       return
@@ -119,8 +62,7 @@ const TranslatePage: FC = () => {
     }
 
     setLoading(true)
-    const translateText = await fetchTranslate({ message, assistant })
-    setResult(translateText)
+    await fetchTranslate({ message, assistant, onResponse: (text) => setResult(text) })
     setLoading(false)
   }
 
@@ -187,7 +129,7 @@ const TranslatePage: FC = () => {
             value={targetLanguage}
             style={{ width: 180 }}
             optionFilterProp="label"
-            options={languageOptions}
+            options={TranslateLanguageOptions}
             onChange={(value) => {
               setTargetLanguage(value)
               db.settings.put({ id: 'translate:target:language', value })

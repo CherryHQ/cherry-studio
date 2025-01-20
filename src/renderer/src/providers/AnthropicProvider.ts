@@ -149,7 +149,7 @@ export default class AnthropicProvider extends BaseProvider {
     })
   }
 
-  public async translate(message: Message, assistant: Assistant) {
+  public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const messages = [
@@ -157,16 +157,33 @@ export default class AnthropicProvider extends BaseProvider {
       { role: 'user', content: message.content }
     ]
 
-    const response = await this.sdk.messages.create({
+    const stream = onResponse ? true : false
+
+    const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: messages.filter((m) => m.role === 'user') as MessageParam[],
       max_tokens: 4096,
       temperature: assistant?.settings?.temperature,
-      system: assistant.prompt,
-      stream: false
-    })
+      system: assistant.prompt
+    }
 
-    return response.content[0].type === 'text' ? response.content[0].text : ''
+    if (!stream) {
+      const response = await this.sdk.messages.create({ ...body, stream: false })
+      return response.content[0].type === 'text' ? response.content[0].text : ''
+    }
+
+    let text = ''
+
+    return new Promise<string>((resolve, reject) => {
+      this.sdk.messages
+        .stream({ ...body, stream: true })
+        .on('text', (_text) => {
+          text += _text
+          onResponse?.(text)
+        })
+        .on('finalMessage', () => resolve(text))
+        .on('error', (error) => reject(error))
+    })
   }
 
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
@@ -190,7 +207,7 @@ export default class AnthropicProvider extends BaseProvider {
 
     const systemMessage = {
       role: 'system',
-      content: (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.summarize')
+      content: (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
     }
 
     const userMessage = {

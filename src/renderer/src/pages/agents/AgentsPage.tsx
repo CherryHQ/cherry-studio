@@ -120,12 +120,31 @@ const AgentsPage: FC = () => {
     [i18n.language]
   )
 
+  const renderAgentList = useCallback(
+    (agents: Agent[]) => {
+      return (
+        <Row gutter={[20, 20]}>
+          {agents.map((agent, index) => (
+            <Col span={6} key={agent.id || index}>
+              <AgentCard
+                onClick={() => onAddAgentConfirm(getAgentFromSystemAgent(agent as any))}
+                agent={agent as any}
+              />
+            </Col>
+          ))}
+        </Row>
+      )
+    },
+    [onAddAgentConfirm]
+  )
+
   const tabItems = useMemo(() => {
     const groups = Object.keys(filteredAgentGroups)
 
     return groups.map((group, i) => {
       const id = String(i + 1)
       const localizedGroupName = getLocalizedGroupName(group)
+      const agents = filteredAgentGroups[group] || []
 
       return {
         label: localizedGroupName,
@@ -135,25 +154,12 @@ const AgentsPage: FC = () => {
             <Title level={5} key={group} style={{ marginBottom: 10 }}>
               {localizedGroupName}
             </Title>
-            <Row gutter={[20, 20]}>
-              {group === '我的' ? (
-                <MyAgents onClick={onAddAgentConfirm} search={search} />
-              ) : (
-                filteredAgentGroups[group]?.map((agent, index) => (
-                  <Col span={6} key={group + index}>
-                    <AgentCard
-                      onClick={() => onAddAgentConfirm(getAgentFromSystemAgent(agent as any))}
-                      agent={agent as any}
-                    />
-                  </Col>
-                ))
-              )}
-            </Row>
+            {group === '我的' ? <MyAgents onClick={onAddAgentConfirm} search={search} /> : renderAgentList(agents)}
           </TabContent>
         )
       }
     })
-  }, [filteredAgentGroups, getLocalizedGroupName, onAddAgentConfirm, search])
+  }, [filteredAgentGroups, getLocalizedGroupName, onAddAgentConfirm, search, renderAgentList])
 
   const handleSearch = () => {
     if (searchInput.trim() === '') {
@@ -189,22 +195,9 @@ const AgentsPage: FC = () => {
         <AssistantsContainer>
           {Object.values(filteredAgentGroups).flat().length > 0 ? (
             search.trim() ? (
-              <TabContent>
-                <Row gutter={[20, 20]}>
-                  {Object.values(filteredAgentGroups)
-                    .flat()
-                    .map((agent, index, array) => (
-                      <Col span={array.length === 1 ? 12 : 6} key={index}>
-                        <AgentCard
-                          onClick={() => onAddAgentConfirm(getAgentFromSystemAgent(agent as any))}
-                          agent={agent as any}
-                        />
-                      </Col>
-                    ))}
-                </Row>
-              </TabContent>
+              <TabContent>{renderAgentList(Object.values(filteredAgentGroups).flat())}</TabContent>
             ) : (
-              <Tabs tabPosition="right" animated items={tabItems} $language={i18n.language} />
+              <Tabs tabPosition="right" animated={false} items={tabItems} $language={i18n.language} />
             )
           ) : (
             <EmptyView>
@@ -232,6 +225,7 @@ const ContentContainer = styled.div`
   height: 100%;
   padding: 0 10px;
   padding-left: 0;
+  border-top: 0.5px solid var(--color-border);
 `
 
 const AssistantsContainer = styled.div`
@@ -247,6 +241,9 @@ const TabContent = styled(Scrollbar)`
   margin-right: -4px;
   padding-bottom: 20px !important;
   overflow-x: hidden;
+  transform: translateZ(0);
+  will-change: transform;
+  -webkit-font-smoothing: antialiased;
 `
 
 const AgentPrompt = styled.div`
@@ -268,12 +265,15 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
   display: flex;
   flex: 1;
   flex-direction: row-reverse;
+
   .ant-tabs-tabpane {
     padding-right: 0 !important;
   }
   .ant-tabs-nav {
     min-width: ${({ $language }) => ($language.startsWith('zh') ? '120px' : '140px')};
     max-width: ${({ $language }) => ($language.startsWith('zh') ? '120px' : '140px')};
+    position: relative;
+    overflow: hidden;
   }
   .ant-tabs-nav-list {
     padding: 10px 8px;
@@ -291,11 +291,14 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
     border: 0.5px solid transparent;
     justify-content: ${({ $language }) => ($language.startsWith('zh') ? 'center' : 'flex-start')};
     user-select: none;
+    transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+
     .ant-tabs-tab-btn {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 100px;
+      transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
     }
     &:hover {
       color: var(--color-text) !important;
@@ -304,8 +307,8 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
   }
   .ant-tabs-tab-active {
     background-color: var(--color-background-soft);
-    border-right: none;
     border: 0.5px solid var(--color-border);
+    transform: scale(1.02);
   }
   .ant-tabs-content-holder {
     border-left: 0.5px solid var(--color-border);
@@ -321,6 +324,9 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
     .ant-tabs-tab-btn {
       color: var(--color-text) !important;
     }
+  }
+  .ant-tabs-content {
+    transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
   }
 `
 

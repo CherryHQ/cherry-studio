@@ -3,8 +3,10 @@ import { BrowserWindow, globalShortcut } from 'electron'
 import Logger from 'electron-log'
 
 import { configManager } from './ConfigManager'
+import { windowService } from './WindowService'
 
 let showAppAccelerator: string | null = null
+let showMiniWindowAccelerator: string | null = null
 
 function getShortcutHandler(shortcut: Shortcut) {
   switch (shortcut.key) {
@@ -25,6 +27,10 @@ function getShortcutHandler(shortcut: Shortcut) {
           window.show()
           window.focus()
         }
+      }
+    case 'mini_window':
+      return () => {
+        windowService.toggleMiniWindow()
       }
     default:
       return null
@@ -73,6 +79,10 @@ export function registerShortcuts(window: BrowserWindow) {
           showAppAccelerator = accelerator
         }
 
+        if (shortcut.key === 'mini_window') {
+          showMiniWindowAccelerator = accelerator
+        }
+
         if (shortcut.key.includes('zoom')) {
           switch (shortcut.key) {
             case 'zoom_in':
@@ -90,7 +100,7 @@ export function registerShortcuts(window: BrowserWindow) {
         }
 
         if (shortcut.enabled) {
-          globalShortcut.register(accelerator, () => handler(window))
+          globalShortcut.register(formatShortcutKey(shortcut.shortcut), () => handler(window))
         }
       } catch (error) {
         Logger.error(`[ShortcutService] Failed to register shortcut ${shortcut.key}`)
@@ -108,6 +118,11 @@ export function registerShortcuts(window: BrowserWindow) {
         const handler = getShortcutHandler({ key: 'show_app' } as Shortcut)
         handler && globalShortcut.register(showAppAccelerator, () => handler(window))
       }
+
+      if (showMiniWindowAccelerator) {
+        const handler = getShortcutHandler({ key: 'mini_window' } as Shortcut)
+        handler && globalShortcut.register(showMiniWindowAccelerator, () => handler(window))
+      }
     } catch (error) {
       Logger.error('[ShortcutService] Failed to unregister shortcuts')
     }
@@ -124,6 +139,7 @@ export function registerShortcuts(window: BrowserWindow) {
 export function unregisterAllShortcuts() {
   try {
     showAppAccelerator = null
+    showMiniWindowAccelerator = null
     globalShortcut.unregisterAll()
   } catch (error) {
     Logger.error('[ShortcutService] Failed to unregister all shortcuts')

@@ -101,7 +101,7 @@ export type Provider = {
   isSystem?: boolean
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'gemini'
+export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm'
 
 export type ModelType = 'text' | 'vision' | 'embedding'
 
@@ -137,7 +137,7 @@ export interface Painting {
 export type MinAppType = {
   id?: string | number
   name: string
-  logo: string
+  logo?: string
   url: string
   bodered?: boolean
   background?: string

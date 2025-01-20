@@ -1,7 +1,9 @@
 /* eslint-disable react/no-unknown-property */
-import { CloseOutlined, ExportOutlined, ReloadOutlined } from '@ant-design/icons'
+import { CloseOutlined, ExportOutlined, PushpinOutlined, ReloadOutlined } from '@ant-design/icons'
 import { isMac, isWindows } from '@renderer/config/constant'
+import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
+import { useMinapps } from '@renderer/hooks/useMinapps'
 import store from '@renderer/store'
 import { setMinappShow } from '@renderer/store/runtime'
 import { MinAppType } from '@renderer/types'
@@ -20,6 +22,8 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
+  const { pinned, updatePinnedMinapps } = useMinapps()
+  const isPinned = pinned.some((p) => p.id === app.id)
   const [open, setOpen] = useState(true)
   const [opened, setOpened] = useState(false)
   const [isReady, setIsReady] = useState(false)
@@ -28,6 +32,7 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
   useBridge()
 
   const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
+  const canPinned = DEFAULT_MIN_APPS.some((i) => i.id === app?.id)
 
   const onClose = async (_delay = 0.3) => {
     setOpen(false)
@@ -47,6 +52,11 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
     window.api.openWebsite(app.url)
   }
 
+  const onTogglePin = () => {
+    const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
+    updatePinnedMinapps(newPinned)
+  }
+
   const Title = () => {
     return (
       <TitleContainer style={{ justifyContent: 'space-between' }}>
@@ -55,6 +65,11 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
           <Button onClick={onReload}>
             <ReloadOutlined />
           </Button>
+          {canPinned && (
+            <Button onClick={onTogglePin} className={isPinned ? 'pinned' : ''}>
+              <PushpinOutlined style={{ fontSize: 16 }} />
+            </Button>
+          )}
           {canOpenExternalLink && (
             <Button onClick={onOpenLink}>
               <ExportOutlined />
@@ -140,7 +155,7 @@ const TitleContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding-left: ${isMac ? '20px' : '15px'};
+  padding-left: ${isMac ? '20px' : '10px'};
   padding-right: 10px;
   position: absolute;
   top: 0;
@@ -187,6 +202,10 @@ const Button = styled.div`
   &:hover {
     color: var(--color-text-1);
     background-color: var(--color-background-mute);
+  }
+  &.pinned {
+    color: var(--color-primary);
+    background-color: var(--color-primary-bg);
   }
 `
 

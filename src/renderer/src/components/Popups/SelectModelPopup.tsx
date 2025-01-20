@@ -1,7 +1,6 @@
 import { PushpinOutlined, SearchOutlined } from '@ant-design/icons'
-import VisionIcon from '@renderer/components/Icons/VisionIcon'
 import { TopView } from '@renderer/components/TopView'
-import { getModelLogo, isEmbeddingModel, isVisionModel } from '@renderer/config/models'
+import { getModelLogo, isEmbeddingModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -33,6 +32,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const inputRef = useRef<InputRef>(null)
   const { providers } = useProviders()
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const loadPinnedModels = async () => {
@@ -118,7 +118,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         key: getModelUniqId(m) + '_pinned',
         label: (
           <ModelItem>
-            {m?.name} {isVisionModel(m) && <VisionIcon />}
+            {m?.name} <ModelTags model={m} />
             <PinIcon
               onClick={(e) => {
                 e.stopPropagation()
@@ -163,6 +163,17 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     open && setTimeout(() => inputRef.current?.focus(), 0)
   }, [open])
 
+  useEffect(() => {
+    if (open && model) {
+      setTimeout(() => {
+        const selectedElement = document.querySelector('.ant-menu-item-selected')
+        if (selectedElement && scrollContainerRef.current) {
+          selectedElement.scrollIntoView({ block: 'center', behavior: 'auto' })
+        }
+      }, 100) // Small delay to ensure menu is rendered
+    }
+  }, [open, model])
+
   return (
     <Modal
       centered
@@ -200,7 +211,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         />
       </HStack>
       <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
-      <Scrollbar style={{ height: '50vh' }}>
+      <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
         <Container>
           {filteredItems.length > 0 ? (
             <StyledMenu

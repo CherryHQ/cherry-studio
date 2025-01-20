@@ -52,7 +52,7 @@ const WebDavSettings: FC = () => {
       return
     }
     setBackuping(true)
-    await backupToWebdav()
+    await backupToWebdav({ showMessage: true })
     setBackuping(false)
   }
 

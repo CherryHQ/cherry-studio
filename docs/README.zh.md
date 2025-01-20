@@ -9,8 +9,6 @@
 
 # 🍒 Cherry Studio
 
-![](https://github.com/user-attachments/assets/995910f3-177a-4d1e-97ea-04e3b009ba36)
-
 Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客户端，兼容 Windows、Mac 和 Linux 系统。
 
 👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)
@@ -22,6 +20,8 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 ![](https://github.com/user-attachments/assets/790790d7-b462-48dd-bde1-91c1697a4648)
 
 # 🌟 主要特性
+
+![](https://github.com/user-attachments/assets/995910f3-177a-4d1e-97ea-04e3b009ba36)
 
 1. **多样化 LLM 服务支持**：
 

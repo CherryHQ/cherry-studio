@@ -64,14 +64,14 @@
       "default.description": "你好，我是默认助手。你可以立刻开始跟我聊天。",
       "default.name": "⭐️ 默认助手",
       "default.topic.name": "默认话题",
-      "input.clear": "清空消息",
+      "input.clear": "清空消息 {{Command}}",
       "input.clear.content": "确定要清除当前会话所有消息吗?",
       "input.clear.title": "清空消息",
       "input.collapse": "收起",
       "input.context_count.tip": "上下文数",
       "input.estimated_tokens.tip": "预估 token 数",
       "input.expand": "展开",
-      "input.new.context": "清除上下文",
+      "input.new.context": "清除上下文 {{Command}}",
       "input.new_topic": "新话题 {{Command}}",
       "input.pause": "暂停",
       "input.placeholder": "在这里输入消息...",
@@ -386,6 +386,12 @@
         "webdav.syncError": "备份错误",
         "webdav.lastSync": "上次备份时间"
       },
+      "quickAssistant": {
+        "title": "快捷助手",
+        "click_tray_to_show": "点击托盘图标启动",
+        "enable_quick_assistant": "启用快捷助手",
+        "use_shortcut_to_show": "右键点击托盘图标或使用快捷键启动"
+      },
       "display.title": "显示设置",
       "font_size.title": "消息字体大小",
       "general": "常规设置",
@@ -507,7 +513,10 @@
         "toggle_show_assistants": "切换助手显示",
         "toggle_show_topics": "切换话题显示",
         "copy_last_message": "复制上一条消息",
-        "search_message": "搜索消息"
+        "search_message": "搜索消息",
+        "mini_window": "快捷助手",
+        "clear_topic": "清空消息",
+        "toggle_new_context": "清除上下文"
       },
       "theme.auto": "跟随系统",
       "theme.dark": "深色主题",
@@ -540,7 +549,8 @@
     },
     "tray": {
       "quit": "退出",
-      "show_window": "显示窗口"
+      "show_window": "显示窗口",
+      "show_mini_window": "快捷助手"
     },
     "words": {
       "knowledgeGraph": "知识图谱",
@@ -622,7 +632,32 @@
       }
     },
     "prompts": {
-      "summarize": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号"
+      "title": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号",
+      "explanation": "帮我解释一下这个概念",
+      "summarize": "帮我总结一下这段话"
+    },
+    "miniwindow": {
+      "feature": {
+        "chat": "回答此问题",
+        "translate": "文本翻译",
+        "summary": "内容总结",
+        "explanation": "解释说明"
+      },
+      "clipboard": {
+        "empty": "剪贴板为空"
+      },
+      "input": {
+        "placeholder": {
+          "title": "你想对下方文字做什么",
+          "empty": "询问 {{model}} 获取帮助..."
+        }
+      },
+      "footer": {
+        "esc": "按 ESC {{action}}",
+        "esc_close": "关闭窗口",
+        "esc_back": "返回",
+        "copy_last_message": "按 C 键复制"
+      }
     }
   }
 }

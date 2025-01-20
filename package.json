@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "0.9.10",
+  "version": "0.9.14",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -95,6 +95,7 @@
     "@types/tinycolor2": "^1",
     "@vitejs/plugin-react": "^4.2.1",
     "antd": "^5.22.5",
+    "applescript": "^1.0.0",
     "axios": "^1.7.3",
     "browser-image-compression": "^2.0.2",
     "dayjs": "^1.11.11",

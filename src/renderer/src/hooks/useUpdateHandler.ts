@@ -9,7 +9,10 @@ export default function useUpdateHandler() {
   const { t } = useTranslation()
 
   useEffect(() => {
+    if (!window.electron) return
+
     const ipcRenderer = window.electron.ipcRenderer
+
     const removers = [
       ipcRenderer.on('update-not-available', () => {
         dispatch(setUpdateState({ checking: false }))

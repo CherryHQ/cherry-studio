@@ -18,6 +18,13 @@ const initialState: ShortcutsState = {
       system: true
     },
     {
+      key: 'mini_window',
+      shortcut: [isMac ? 'Command' : 'Ctrl', 'E'],
+      editable: true,
+      enabled: false,
+      system: true
+    },
+    {
       key: 'new_topic',
       shortcut: [isMac ? 'Command' : 'Ctrl', 'N'],
       editable: true,
@@ -48,6 +55,20 @@ const initialState: ShortcutsState = {
     {
       key: 'search_message',
       shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'clear_topic',
+      shortcut: [isMac ? 'Command' : 'Ctrl', 'L'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'toggle_new_context',
+      shortcut: [isMac ? 'Command' : 'Ctrl', 'K'],
       editable: true,
       enabled: true,
       system: false

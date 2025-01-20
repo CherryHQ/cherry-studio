@@ -30,7 +30,7 @@ export class ConfigManager {
     this.store.set('theme', theme)
   }
 
-  isTray(): boolean {
+  getTray(): boolean {
     return !!this.store.get('tray', true)
   }
 
@@ -82,6 +82,30 @@ export class ConfigManager {
       shortcuts.filter((shortcut) => shortcut.system)
     )
     this.notifySubscribers('shortcuts', shortcuts)
+  }
+
+  getClickTrayToShowQuickAssistant(): boolean {
+    return this.store.get('clickTrayToShowQuickAssistant', false) as boolean
+  }
+
+  setClickTrayToShowQuickAssistant(value: boolean) {
+    this.store.set('clickTrayToShowQuickAssistant', value)
+  }
+
+  getEnableQuickAssistant(): boolean {
+    return this.store.get('enableQuickAssistant', false) as boolean
+  }
+
+  setEnableQuickAssistant(value: boolean) {
+    this.store.set('enableQuickAssistant', value)
+  }
+
+  set(key: string, value: any) {
+    this.store.set(key, value)
+  }
+
+  get(key: string) {
+    return this.store.get(key)
   }
 }
 

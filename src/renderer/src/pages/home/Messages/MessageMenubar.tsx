@@ -96,9 +96,9 @@ const MessageMenubar: FC<Props> = (props) => {
       })
     }
 
-    if (!nextMessage) {
-      onDeleteMessage?.(message)
+    if (!nextMessage || nextMessage.role === 'user') {
       EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { ...message, id: uuid() })
+      onDeleteMessage?.(message)
     }
   }, [assistantModel?.id, message, model?.id, onDeleteMessage, onGetMessages])
 

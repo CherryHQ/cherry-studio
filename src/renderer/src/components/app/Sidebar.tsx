@@ -166,6 +166,7 @@ const Container = styled.div`
   flex-direction: column;
   align-items: center;
   padding: 8px 0;
+  padding-bottom: 12px;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   height: ${isMac ? 'calc(100vh - var(--navbar-height))' : '100vh'};

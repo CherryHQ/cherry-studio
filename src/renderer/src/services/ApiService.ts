@@ -1,7 +1,7 @@
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import { Assistant, Message, Model, Provider, Suggestion, Topic } from '@renderer/types'
+import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -24,7 +24,6 @@ export async function fetchChatCompletion({
 }: {
   message: Message
   messages: Message[]
-  topic: Topic
   assistant: Assistant
   onResponse: (message: Message) => void
 }) {
@@ -102,7 +101,13 @@ export async function fetchChatCompletion({
   return message
 }
 
-export async function fetchTranslate({ message, assistant }: { message: Message; assistant: Assistant }) {
+interface FetchTranslateProps {
+  message: Message
+  assistant: Assistant
+  onResponse?: (text: string) => void
+}
+
+export async function fetchTranslate({ message, assistant, onResponse }: FetchTranslateProps) {
   const model = getTranslateModel()
 
   if (!model) {
@@ -118,7 +123,7 @@ export async function fetchTranslate({ message, assistant }: { message: Message;
   const AI = new AiProvider(provider)
 
   try {
-    return await AI.translate(message, assistant)
+    return await AI.translate(message, assistant, onResponse)
   } catch (error: any) {
     return ''
   }

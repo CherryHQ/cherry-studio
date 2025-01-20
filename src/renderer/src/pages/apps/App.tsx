@@ -30,6 +30,7 @@ const App: FC<Props> = ({ app, onClick, size = 60 }) => {
       key: 'togglePin',
       label: isPinned ? t('minapp.sidebar.remove.title') : t('minapp.sidebar.add.title'),
       onClick: () => {
+        console.debug('togglePin', app)
         const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...(pinned || []), app]
         updatePinnedMinapps(newPinned)
       }

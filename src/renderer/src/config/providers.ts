@@ -23,12 +23,12 @@ import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
+import QwenLMProviderLogo from '@renderer/assets/images/providers/qwenlm.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import QwenLMProviderLogo from '@renderer/assets/images/providers/qwenlm.png'
 
 export function getProviderLogo(providerId: string) {
   switch (providerId) {
@@ -405,7 +405,7 @@ export const PROVIDER_CONFIG = {
       url: 'https://integrate.api.nvidia.com'
     },
     websites: {
-      official: 'https://ai.360.com/',
+      official: 'https://build.nvidia.com/explore/discover',
       apiKey: 'https://build.nvidia.com/meta/llama-3_1-405b-instruct',
       docs: 'https://docs.api.nvidia.com/nim/reference/llm-apis',
       models: 'https://build.nvidia.com/nim'

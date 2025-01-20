@@ -1,4 +1,5 @@
 import { isMac } from '@renderer/config/constant'
+import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
@@ -10,6 +11,15 @@ import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
 import { DEFAULT_SIDEBAR_ICONS } from './settings'
+
+// remove logo base64 data to reduce the size of the state
+function removeMiniAppIconsFromState(state: RootState) {
+  if (state.minapps) {
+    state.minapps.enabled = state.minapps.enabled.map((app) => ({ ...app, logo: undefined }))
+    state.minapps.disabled = state.minapps.disabled.map((app) => ({ ...app, logo: undefined }))
+    state.minapps.pinned = state.minapps.pinned.map((app) => ({ ...app, logo: undefined }))
+  }
+}
 
 const migrateConfig = {
   '2': (state: RootState) => {
@@ -811,6 +821,61 @@ const migrateConfig = {
       isSystem: true,
       enabled: false
     })
+    return state
+  },
+  '57': (state: RootState) => {
+    if (state.shortcuts) {
+      state.shortcuts.shortcuts.push({
+        key: 'mini_window',
+        shortcut: [isMac ? 'Command' : 'Ctrl', 'E'],
+        editable: true,
+        enabled: false,
+        system: true
+      })
+    }
+
+    removeMiniAppIconsFromState(state)
+
+    state.llm.providers.forEach((provider) => {
+      if (provider.id === 'qwenlm') {
+        provider.type = 'qwenlm'
+      }
+    })
+
+    state.settings.enableQuickAssistant = false
+    state.settings.clickTrayToShowQuickAssistant = true
+
+    return state
+  },
+  '58': (state: RootState) => {
+    if (state.shortcuts) {
+      state.shortcuts.shortcuts.push(
+        {
+          key: 'clear_topic',
+          shortcut: [isMac ? 'Command' : 'Ctrl', 'L'],
+          editable: true,
+          enabled: true,
+          system: false
+        },
+        {
+          key: 'toggle_new_context',
+          shortcut: [isMac ? 'Command' : 'Ctrl', 'R'],
+          editable: true,
+          enabled: true,
+          system: false
+        }
+      )
+    }
+    return state
+  },
+  '59': (state: RootState) => {
+    if (state.minapps) {
+      const flowith = DEFAULT_MIN_APPS.find((app) => app.id === 'flowith')
+      if (flowith) {
+        state.minapps.enabled.push(flowith)
+      }
+    }
+    removeMiniAppIconsFromState(state)
     return state
   }
 }

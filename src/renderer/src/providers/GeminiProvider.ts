@@ -7,6 +7,7 @@ import {
   InlineDataPart,
   Part,
   RequestOptions,
+  SafetySetting,
   TextPart
 } from '@google/generative-ai'
 import { isWebSearchModel } from '@renderer/config/models'
@@ -112,6 +113,35 @@ export default class GeminiProvider extends BaseProvider {
     }
   }
 
+  private getSafetySettings(modelId: string): SafetySetting[] {
+    const safetyThreshold = modelId.includes('gemini-2.0-flash-exp')
+      ? ('OFF' as HarmBlockThreshold)
+      : HarmBlockThreshold.BLOCK_NONE
+
+    return [
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: safetyThreshold
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: safetyThreshold
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: safetyThreshold
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: safetyThreshold
+      },
+      {
+        category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory,
+        threshold: safetyThreshold
+      }
+    ]
+  }
+
   public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -138,21 +168,13 @@ export default class GeminiProvider extends BaseProvider {
         systemInstruction: assistant.prompt,
         // @ts-ignore googleSearch is not a valid tool for Gemini
         tools: assistant.enableWebSearch && isWebSearchModel(model) ? [{ googleSearch: {} }] : undefined,
+        safetySettings: this.getSafetySettings(model.id),
         generationConfig: {
           maxOutputTokens: maxTokens,
           temperature: assistant?.settings?.temperature,
           topP: assistant?.settings?.topP,
           ...this.getCustomParameters(assistant)
-        },
-        safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_NONE
-          },
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
-        ]
+        }
       },
       this.requestOptions
     )
@@ -208,7 +230,7 @@ export default class GeminiProvider extends BaseProvider {
     }
   }
 
-  async translate(message: Message, assistant: Assistant) {
+  async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const { maxTokens } = getAssistantSettings(assistant)
     const model = assistant.model || defaultModel
@@ -225,9 +247,21 @@ export default class GeminiProvider extends BaseProvider {
       this.requestOptions
     )
 
-    const { response } = await geminiModel.generateContent(message.content)
+    if (!onResponse) {
+      const { response } = await geminiModel.generateContent(message.content)
+      return response.text()
+    }
 
-    return response.text()
+    const response = await geminiModel.generateContentStream(message.content)
+
+    let text = ''
+
+    for await (const chunk of response.stream) {
+      text += chunk.text()
+      onResponse(text)
+    }
+
+    return text
   }
 
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
@@ -247,7 +281,7 @@ export default class GeminiProvider extends BaseProvider {
 
     const systemMessage = {
       role: 'system',
-      content: (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.summarize')
+      content: (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
     }
 
     const userMessage = {

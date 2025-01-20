@@ -9,8 +9,6 @@
 
 # 🍒 Cherry Studio
 
-![](https://github.com/user-attachments/assets/7b4f2f78-5cbe-4be8-9aec-f98d8405a505)
-
 Cherry Studio is a desktop client that supports for multiple LLM providers, available on Windows, Mac and Linux.
 
 👏 Join [Telegram Group](https://t.me/CherryStudioAI)
@@ -22,6 +20,8 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 ![](https://github.com/user-attachments/assets/790790d7-b462-48dd-bde1-91c1697a4648)
 
 # 🌟 Key Features
+
+![](https://github.com/user-attachments/assets/7b4f2f78-5cbe-4be8-9aec-f98d8405a505)
 
 1. **Diverse LLM Provider Support**:
 

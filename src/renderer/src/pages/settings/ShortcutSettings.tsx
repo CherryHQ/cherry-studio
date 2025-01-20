@@ -2,7 +2,8 @@ import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { isMac, isWindows } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import { Shortcut } from '@renderer/types'
 import { Button, Input, InputRef, Switch, Table as AntTable, Tooltip } from 'antd'
@@ -17,7 +18,7 @@ const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
+  const { shortcuts } = useShortcuts()
   const inputRefs = useRef<Record<string, InputRef>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
 
