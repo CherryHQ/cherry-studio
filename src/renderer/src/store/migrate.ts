@@ -877,6 +877,10 @@ const migrateConfig = {
     }
     removeMiniAppIconsFromState(state)
     return state
+  },
+  '60': (state: RootState) => {
+    state.settings.multiModelMessageStyle = 'vertical'
+    return state
   }
 }
 
