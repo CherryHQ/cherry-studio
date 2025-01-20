@@ -194,7 +194,6 @@ const MessageItem: FC<Props> = ({
 const MessageContainer = styled.div`
   display: flex;
   flex-direction: column;
-  padding: 15px 20px 0 20px;
   position: relative;
   transition: background-color 0.3s ease;
   &.message-highlight {

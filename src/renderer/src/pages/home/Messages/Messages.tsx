@@ -12,6 +12,7 @@ import {
   filterMessages,
   getAssistantMessage,
   getContextCount,
+  getGroupedMessages,
   getUserMessage
 } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
@@ -25,7 +26,7 @@ import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import Suggestions from '../components/Suggestions'
-import MessageItem from './Message'
+import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
 
@@ -53,10 +54,12 @@ const LoaderContainer = styled.div<LoaderProps>`
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
+  padding: 16px 16px;
+  gap: 32px;
 `
 
 interface ContainerProps {
-  right?: boolean
+  $right?: boolean
 }
 
 const Container = styled(Scrollbar)<ContainerProps>`
@@ -78,6 +81,8 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
   const messagesRef = useRef(messages)
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const { showTopics, topicPosition, showAssistants, enableTopicNaming } = useSettings()
+
+  const groupedMessages = getGroupedMessages(displayMessages)
 
   const INITIAL_MESSAGES_COUNT = 20
   const LOAD_MORE_COUNT = 20
@@ -102,10 +107,13 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
         message.mentions.forEach((m) => {
           const assistantMessage = getAssistantMessage({ assistant: { ...assistant, model: m }, topic })
           assistantMessage.model = m
+          assistantMessage.askId = message.id
           assistantMessages.push(assistantMessage)
         })
       } else {
-        assistantMessages.push(getAssistantMessage({ assistant, topic }))
+        const assistantMessage = getAssistantMessage({ assistant, topic })
+        assistantMessage.askId = message.id
+        assistantMessages.push(assistantMessage)
       }
 
       setMessages((prev) => {
@@ -214,7 +222,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
         setActiveTopic(newTopic)
         autoRenameTopic()
 
-        // 由于复制了消���，消息中附带的文件的总数变了，需要更新
+        // 由于复制了消息，消息中附带的文件的总数变了，需要更新
         const filesArr = branchMessages.map((m) => m.files)
         const files = flatten(filesArr).filter(Boolean)
         files.map(async (f) => {
@@ -293,7 +301,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       style={{ maxWidth }}
       key={assistant.id}
       ref={containerRef}
-      right={topicPosition === 'left'}>
+      $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <Suggestions assistant={assistant} messages={messages} />
         <InfiniteScroll
@@ -307,12 +315,11 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
             <LoaderContainer $loading={isLoadingMore}>
               <BeatLoader size={8} color="var(--color-text-2)" />
             </LoaderContainer>
-            {displayMessages.map((message, index) => (
-              <MessageItem
-                key={message.id}
-                message={message}
+            {Object.entries(groupedMessages).map(([key, messages]) => (
+              <MessageGroup
+                key={key}
+                messages={messages}
                 topic={topic}
-                index={index}
                 hidePresetMessages={assistant.settings?.hideMessages}
                 onSetMessages={setMessages}
                 onDeleteMessage={onDeleteMessage}

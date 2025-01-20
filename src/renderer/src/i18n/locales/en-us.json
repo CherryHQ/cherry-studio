@@ -86,6 +86,7 @@
       "message.new.branch.created": "New Branch Created",
       "message.regenerate.model": "Switch Model",
       "message.new.context": "New Context",
+      "message.useful": "Helpful",
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
       "settings.context_count": "Context",

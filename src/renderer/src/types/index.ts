@@ -65,6 +65,8 @@ export type Message = {
     // Gemini
     groundingMetadata?: any
   }
+  askId?: string
+  useful?: boolean
 }
 
 export type Metrics = {

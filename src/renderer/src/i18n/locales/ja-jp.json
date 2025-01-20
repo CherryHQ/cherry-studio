@@ -86,6 +86,7 @@
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.regenerate.model": "モデルを切り替え",
       "message.new.context": "新しいコンテキスト",
+      "message.useful": "役立つ",
       "save": "保存",
       "settings.code_collapsible": "コードブロックを折りたたむ",
       "settings.context_count": "コンテキスト",

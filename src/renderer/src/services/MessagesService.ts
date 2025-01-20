@@ -5,7 +5,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { Assistant, Message, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { isEmpty, takeRight } from 'lodash'
+import { isEmpty, remove, takeRight } from 'lodash'
 import { NavigateFunction } from 'react-router'
 
 import { getAssistantById, getDefaultModel } from './AssistantService'
@@ -108,4 +108,44 @@ export function getAssistantMessage({ assistant, topic }: { assistant: Assistant
     type: 'text',
     status: 'sending'
   }
+}
+
+export function filterUsefulMessages(messages: Message[]): Message[] {
+  const _messages = messages
+  const groupedMessages = getGroupedMessages(messages)
+
+  Object.entries(groupedMessages).forEach(([key, messages]) => {
+    if (key.startsWith('assistant')) {
+      const usefulMessage = messages.find((m) => m.useful === true)
+      if (usefulMessage) {
+        messages.forEach((m) => {
+          if (m.id !== usefulMessage.id) {
+            remove(_messages, (o) => o.id === m.id)
+          }
+        })
+      } else {
+        messages?.slice(0, -1).forEach((m) => {
+          remove(_messages, (o) => o.id === m.id)
+        })
+      }
+    }
+  })
+
+  while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
+    _messages.pop()
+  }
+
+  return _messages
+}
+
+export function getGroupedMessages(messages: Message[]): { [key: string]: (Message & { index: number })[] } {
+  const groups: { [key: string]: (Message & { index: number })[] } = {}
+  messages.forEach((message, index) => {
+    const key = message.askId ? 'assistant' + message.askId : 'user' + message.id
+    if (key && !groups[key]) {
+      groups[key] = []
+    }
+    groups[key].unshift({ ...message, index })
+  })
+  return groups
 }

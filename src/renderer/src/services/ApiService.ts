@@ -13,7 +13,7 @@ import {
   getTranslateModel
 } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
-import { filterMessages } from './MessagesService'
+import { filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 
 export async function fetchChatCompletion({
@@ -53,7 +53,7 @@ export async function fetchChatCompletion({
     let _messages: Message[] = []
 
     await AI.completions({
-      messages,
+      messages: filterUsefulMessages(messages),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
       onChunk: ({ text, usage, metrics, search }) => {

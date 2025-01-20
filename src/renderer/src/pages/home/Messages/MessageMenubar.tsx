@@ -3,6 +3,8 @@ import {
   DeleteOutlined,
   EditOutlined,
   ForkOutlined,
+  LikeFilled,
+  LikeOutlined,
   MenuOutlined,
   QuestionCircleOutlined,
   SaveOutlined,
@@ -43,7 +45,6 @@ const MessageMenubar: FC<Props> = (props) => {
     isLastMessage,
     isAssistantMessage,
     assistantModel,
-    setModel,
     onEditMessage,
     onDeleteMessage,
     onGetMessages
@@ -53,7 +54,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
 
   const isUserMessage = message.role === 'user'
-  const canRegenerate = isLastMessage && isAssistantMessage
 
   const onCopy = useCallback(() => {
     navigator.clipboard.writeText(removeTrailingDoubleSpaces(message.content))
@@ -61,14 +61,6 @@ const MessageMenubar: FC<Props> = (props) => {
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }, [message.content, t])
-
-  const onRegenerate = useCallback(
-    (model: Model) => {
-      setModel(model)
-      setTimeout(() => EventEmitter.emit(EVENT_NAMES.REGENERATE_MESSAGE, model), 100)
-    },
-    [setModel]
-  )
 
   const onNewBranch = useCallback(async () => {
     await modelGenerating()
@@ -175,22 +167,24 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, onEdit, onNewBranch, t]
   )
 
-  const onAtModelRegenerate = async () => {
-    await modelGenerating()
-    const selectedModel = await SelectModelPopup.show({ model })
-    selectedModel && onRegenerate(selectedModel)
-  }
-
   const onDeleteAndRegenerate = async () => {
     await modelGenerating()
+    const selectedModel = await SelectModelPopup.show({ model })
+    if (!selectedModel) return
+
     onEditMessage?.({
       ...message,
       content: '',
       status: 'sending',
-      modelId: assistantModel?.id || model?.id,
+      modelId: selectedModel.id || assistantModel?.id || model?.id,
+      model: selectedModel,
       translatedContent: undefined
     })
   }
+
+  const onUseful = useCallback(() => {
+    onEditMessage?.({ ...message, useful: !message.useful })
+  }, [message, onEditMessage])
 
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
@@ -208,23 +202,9 @@ const MessageMenubar: FC<Props> = (props) => {
         </ActionButton>
       </Tooltip>
       {isAssistantMessage && (
-        <Popconfirm
-          title={t('message.regenerate.confirm')}
-          okButtonProps={{ danger: true }}
-          destroyTooltipOnHide
-          icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-          onConfirm={onDeleteAndRegenerate}>
-          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
-            <ActionButton className="message-action-button">
-              <SyncOutlined />
-            </ActionButton>
-          </Tooltip>
-        </Popconfirm>
-      )}
-      {canRegenerate && (
-        <Tooltip title={t('chat.message.regenerate.model')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onAtModelRegenerate}>
-            <i className="iconfont icon-at"></i>
+        <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+          <ActionButton className="message-action-button" onClick={onDeleteAndRegenerate}>
+            <SyncOutlined />
           </ActionButton>
         </Tooltip>
       )}
@@ -279,6 +259,14 @@ const MessageMenubar: FC<Props> = (props) => {
           </Tooltip>
         </Dropdown>
       )}
+      {isAssistantMessage && (
+        <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
+          <ActionButton className="message-action-button" onClick={onUseful}>
+            {message.useful ? <LikeFilled /> : <LikeOutlined />}
+          </ActionButton>
+        </Tooltip>
+      )}
+
       <Popconfirm
         title={t('message.message.delete.content')}
         okButtonProps={{ danger: true }}

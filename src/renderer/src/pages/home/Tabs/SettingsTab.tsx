@@ -22,6 +22,7 @@ import {
   setMathEngine,
   setMessageFont,
   setMessageStyle,
+  setMultiModelMessageStyle,
   setPasteLongTextAsFile,
   setPasteLongTextThreshold,
   setRenderInputMessageAsMarkdown,
@@ -64,7 +65,8 @@ const SettingsTab: FC<Props> = (props) => {
     codeCollapsible,
     mathEngine,
     autoTranslateWithSpace,
-    pasteLongTextThreshold
+    pasteLongTextThreshold,
+    multiModelMessageStyle
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -252,6 +254,19 @@ const SettingsTab: FC<Props> = (props) => {
             size="small">
             <Select.Option value="plain">{t('message.message.style.plain')}</Select.Option>
             <Select.Option value="bubble">{t('message.message.style.bubble')}</Select.Option>
+          </Select>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('message.message.multi_model_style')}</SettingRowTitleSmall>
+          <Select
+            size="small"
+            value={multiModelMessageStyle}
+            onChange={(value) => dispatch(setMultiModelMessageStyle(value))}
+            style={{ width: 135 }}>
+            <Select.Option value="horizontal">{t('message.message.multi_model_style.horizontal')}</Select.Option>
+            <Select.Option value="vertical">{t('message.message.multi_model_style.vertical')}</Select.Option>
+            <Select.Option value="fold">{t('message.message.multi_model_style.fold')}</Select.Option>
           </Select>
         </SettingRow>
         <SettingDivider />

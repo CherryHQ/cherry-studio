@@ -86,6 +86,7 @@
       "message.new.branch.created": "新分支已建立",
       "message.regenerate.model": "切換模型",
       "message.new.context": "新上下文",
+      "message.useful": "有用",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",
       "settings.context_count": "上下文",

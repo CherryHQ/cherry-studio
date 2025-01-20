@@ -139,7 +139,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
     setText('')
     setFiles([])
-    setMentionModels([])
     setTimeout(() => setText(''), 500)
     setTimeout(() => resizeTextArea(), 0)
 
