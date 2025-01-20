@@ -376,6 +376,7 @@
         "webdav.path.placeholder": "/backup",
         "webdav.autoSync": "Автоматическое резервное копирование",
         "webdav.minutes": "минут",
+        "webdav.hours": "часов",
         "webdav.restore.button": "Восстановление с WebDAV",
         "webdav.title": "WebDAV",
         "webdav.user": "Пользователь WebDAV",

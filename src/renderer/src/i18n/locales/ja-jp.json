@@ -374,6 +374,7 @@
         "webdav.path.placeholder": "/backup",
         "webdav.autoSync": "自動バックアップ",
         "webdav.minutes": "分",
+        "webdav.hours": "時間",
         "webdav.restore.button": "WebDAVから復元",
         "webdav.title": "WebDAV",
         "webdav.user": "WebDAVユーザー",
