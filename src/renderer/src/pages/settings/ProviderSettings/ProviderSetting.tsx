@@ -67,8 +67,22 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     setApiHost(provider.apiHost)
   }, [provider])
 
-  const onUpdateApiKey = () => updateProvider({ ...provider, apiKey })
-  const onUpdateApiHost = () => updateProvider({ ...provider, apiHost })
+  const onUpdateApiKey = () => {
+    if (apiKey.trim()) {
+      updateProvider({ ...provider, apiKey })
+    } else {
+      setApiKey(provider.apiKey)
+    }
+  }
+
+  const onUpdateApiHost = () => {
+    if (apiHost.trim()) {
+      updateProvider({ ...provider, apiHost })
+    } else {
+      setApiHost(provider.apiHost)
+    }
+  }
+
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
   const onManageModel = () => EditModelsPopup.show({ provider })
   const onAddModel = () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
