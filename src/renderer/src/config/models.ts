@@ -760,6 +760,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'minimax',
       name: 'abab5.5s',
       group: 'abab5'
+    },
+    {
+      id: 'minimax-text-01',
+      provider: 'minimax',
+      name: 'minimax-01',
+      group: 'minimax-01'
     }
   ],
   hyperbolic: [
