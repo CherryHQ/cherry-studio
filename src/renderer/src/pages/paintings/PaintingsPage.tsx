@@ -27,7 +27,7 @@ import { FileType, Painting } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
 import { Button, Input, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -36,40 +36,83 @@ import { SettingTitle } from '../settings'
 import Artboard from './Artboard'
 import PaintingsList from './PaintingsList'
 
-const IMAGE_SIZES = [
-  {
-    label: '1:1',
-    value: '1024x1024',
-    icon: ImageSize1_1
-  },
-  {
-    label: '1:2',
-    value: '512x1024',
-    icon: ImageSize1_2
-  },
-  {
-    label: '3:2',
-    value: '768x512',
-    icon: ImageSize3_2
-  },
-  {
-    label: '3:4',
-    value: '768x1024',
-    icon: ImageSize3_4
-  },
-  {
-    label: '16:9',
-    value: '1024x576',
-    icon: ImageSize16_9
-  },
-  {
-    label: '9:16',
-    value: '576x1024',
-    icon: ImageSize9_16
-  }
-]
+const IMAGE_SIZES = {
+  silicon: [
+    {
+      label: '1:1',
+      value: '1024x1024',
+      icon: ImageSize1_1
+    },
+    {
+      label: '1:2',
+      value: '512x1024',
+      icon: ImageSize1_2
+    },
+    {
+      label: '3:2',
+      value: '768x512',
+      icon: ImageSize3_2
+    },
+    {
+      label: '3:4',
+      value: '768x1024',
+      icon: ImageSize3_4
+    },
+    {
+      label: '16:9',
+      value: '1024x576',
+      icon: ImageSize16_9
+    },
+    {
+      label: '9:16',
+      value: '576x1024',
+      icon: ImageSize9_16
+    }
+  ],
+  openai: [
+    {
+      label: '1:1',
+      value: '1024x1024',
+      icon: ImageSize1_1
+    },
+    {
+      label: '16:9',
+      value: '1792x1024',
+      icon: ImageSize16_9
+    },
+    {
+      label: '9:16',
+      value: '1024x1792',
+      icon: ImageSize9_16
+    }
+  ]
+}
 
 let _painting: Painting
+
+const getModelCapabilities = (modelId?: string) => {
+  if (modelId === 'dall-e-3') {
+    return {
+      supportSize: true,
+      supportNumImages: false,
+      supportSeed: false,
+      supportSteps: false,
+      supportGuidanceScale: false,
+      supportNegativePrompt: false,
+      supportPromptEnhancement: false
+    }
+  }
+
+  return {
+    supportSize: true,
+    supportNumImages: true,
+    supportSeed: true,
+    supportSteps: true,
+    supportGuidanceScale: true,
+    supportNegativePrompt: true,
+    supportPromptEnhancement: true
+  }
+}
 
 const PaintingsPage: FC = () => {
   const { t } = useTranslation()
@@ -78,6 +121,7 @@ const PaintingsPage: FC = () => {
   const { theme } = useTheme()
   const providers = useAllProviders()
   const siliconProvider = providers.find((p) => p.id === 'silicon')!
+  const openaiProvider = providers.find((p) => p.id === 'openai')!
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
@@ -85,10 +129,25 @@ const PaintingsPage: FC = () => {
   const dispatch = useAppDispatch()
   const { generating } = useRuntime()
 
-  const modelOptions = TEXT_TO_IMAGES_MODELS.map((model) => ({
-    label: model.name,
-    value: model.id
-  }))
+  const [selectedProvider, setSelectedProvider] = useState(() => {
+    if (painting.model) {
+      const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
+      return model?.provider || siliconProvider.id
+    }
+    const provider = siliconProvider.id
+    const defaultModel = TEXT_TO_IMAGES_MODELS.find((model) => model.provider === provider)
+    if (defaultModel && !painting.model) {
+      updatePainting({ ...painting, model: defaultModel.id })
+    }
+    return provider
+  })
+
+  const modelOptions = useMemo(() => {
+    return TEXT_TO_IMAGES_MODELS.filter((model) => model.provider === selectedProvider).map((model) => ({
+      label: model.name,
+      value: model.id
+    }))
+  }, [selectedProvider])
 
   const textareaRef = useRef<any>(null)
   _painting = painting
@@ -204,7 +263,7 @@ const PaintingsPage: FC = () => {
   }
 
   const onSelectImageSize = (v: string) => {
-    const size = IMAGE_SIZES.find((i) => i.value === v)
+    const size = IMAGE_SIZES[selectedProvider].find((i) => i.value === v)
     size && updatePaintingState({ imageSize: size.value })
   }
 
@@ -283,15 +342,40 @@ const PaintingsPage: FC = () => {
         translate()
       }
     }
+
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      if (!isLoading) {
+        onGenerate()
+      }
+    }
   }
 
   useEffect(() => {
+    if (painting.model) {
+      const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
+      if (model) {
+        setSelectedProvider(model.provider)
+      }
+    } else {
+      const provider = siliconProvider.id
+      const defaultModel = TEXT_TO_IMAGES_MODELS.find((model) => model.provider === provider)
+      if (defaultModel) {
+        updatePaintingState({
+          model: defaultModel.id,
+          imageSize: IMAGE_SIZES[provider][0].value
+        })
+      }
+    }
+
     return () => {
       if (spaceClickTimer.current) {
         clearTimeout(spaceClickTimer.current)
       }
     }
-  }, [])
+  }, [painting.id])
+
+  const capabilities = useMemo(() => getModelCapabilities(painting.model), [painting.model])
 
   return (
     <Container>
@@ -299,7 +383,18 @@ const PaintingsPage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={() => setPainting(addPainting())}>
+            <Button
+              size="small"
+              className="nodrag"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                const newPainting = addPainting()
+                const defaultModel = TEXT_TO_IMAGES_MODELS.find((model) => model.provider === selectedProvider)
+                if (defaultModel) {
+                  newPainting.model = defaultModel.id
+                }
+                setPainting(newPainting)
+              }}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -309,9 +404,21 @@ const PaintingsPage: FC = () => {
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
           <Select
-            value={siliconProvider.id}
-            disabled={true}
-            options={[{ label: t(`provider.${siliconProvider.id}`), value: siliconProvider.id }]}
+            value={selectedProvider}
+            onChange={(value) => {
+              setSelectedProvider(value)
+              const defaultModel = TEXT_TO_IMAGES_MODELS.find((model) => model.provider === value)
+              if (defaultModel) {
+                updatePaintingState({
+                  model: defaultModel.id,
+                  imageSize: IMAGE_SIZES[value][0].value
+                })
+              }
+            }}
+            options={[
+              { label: t(`provider.${siliconProvider.id}`), value: siliconProvider.id },
+              { label: t(`provider.${openaiProvider.id}`), value: openaiProvider.id }
+            ]}
           />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
@@ -320,7 +427,7 @@ const PaintingsPage: FC = () => {
             value={painting.imageSize}
             onChange={(e) => onSelectImageSize(e.target.value)}
             style={{ display: 'flex' }}>
-            {IMAGE_SIZES.map((size) => (
+            {IMAGE_SIZES[selectedProvider].map((size) => (
               <RadioButton value={size.value} key={size.value}>
                 <VStack alignItems="center">
                   <ImageSizeImage src={size.icon} theme={theme} />
@@ -330,98 +437,124 @@ const PaintingsPage: FC = () => {
             ))}
           </Radio.Group>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.number_images')}
-            <Tooltip title={t('paintings.number_images_tip')}>
-              <InfoIcon />
-            </Tooltip>
-          </SettingTitle>
-          <InputNumber
-            min={1}
-            max={4}
-            value={painting.numImages}
-            onChange={(v) => updatePaintingState({ numImages: v || 1 })}
-          />
-
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.seed')}
-            <Tooltip title={t('paintings.seed_tip')}>
-              <InfoIcon />
-            </Tooltip>
-          </SettingTitle>
-          <Input
-            value={painting.seed}
-            onChange={(e) => updatePaintingState({ seed: e.target.value })}
-            suffix={
-              <RedoOutlined
-                onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
-                style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
+          {capabilities.supportNumImages && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+                {t('paintings.number_images')}
+                <Tooltip title={t('paintings.number_images_tip')}>
+                  <InfoIcon />
+                </Tooltip>
+              </SettingTitle>
+              <InputNumber
+                min={1}
+                max={4}
+                value={painting.numImages}
+                onChange={(v) => updatePaintingState({ numImages: v || 1 })}
               />
-            }
-          />
+            </>
+          )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.inference_steps')}
-            <Tooltip title={t('paintings.inference_steps_tip')}>
-              <InfoIcon />
-            </Tooltip>
-          </SettingTitle>
-          <SliderContainer>
-            <Slider min={1} max={50} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
-            <StyledInputNumber
-              min={1}
-              max={50}
-              value={painting.steps}
-              onChange={(v) => updatePaintingState({ steps: (v as number) || 25 })}
-            />
-          </SliderContainer>
+          {capabilities.supportSeed && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+                {t('paintings.seed')}
+                <Tooltip title={t('paintings.seed_tip')}>
+                  <InfoIcon />
+                </Tooltip>
+              </SettingTitle>
+              <Input
+                value={painting.seed}
+                onChange={(e) => updatePaintingState({ seed: e.target.value })}
+                suffix={
+                  <RedoOutlined
+                    onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
+                    style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
+                  />
+                }
+              />
+            </>
+          )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.guidance_scale')}
-            <Tooltip title={t('paintings.guidance_scale_tip')}>
-              <InfoIcon />
-            </Tooltip>
-          </SettingTitle>
-          <SliderContainer>
-            <Slider
-              min={1}
-              max={20}
-              step={0.1}
-              value={painting.guidanceScale}
-              onChange={(v) => updatePaintingState({ guidanceScale: v })}
-            />
-            <StyledInputNumber
-              min={1}
-              max={20}
-              step={0.1}
-              value={painting.guidanceScale}
-              onChange={(v) => updatePaintingState({ guidanceScale: (v as number) || 4.5 })}
-            />
-          </SliderContainer>
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.negative_prompt')}
-            <Tooltip title={t('paintings.negative_prompt_tip')}>
-              <InfoIcon />
-            </Tooltip>
-          </SettingTitle>
-          <TextArea
-            value={painting.negativePrompt}
-            onChange={(e) => updatePaintingState({ negativePrompt: e.target.value })}
-            spellCheck={false}
-            rows={4}
-          />
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-            {t('paintings.prompt_enhancement')}
-            <Tooltip title={t('paintings.prompt_enhancement_tip')}>
-              <InfoIcon />
-            </Tooltip>
-          </SettingTitle>
-          <HStack>
-            <Switch
-              checked={painting.promptEnhancement}
-              onChange={(checked) => updatePaintingState({ promptEnhancement: checked })}
-            />
-          </HStack>
+          {capabilities.supportSteps && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+                {t('paintings.inference_steps')}
+                <Tooltip title={t('paintings.inference_steps_tip')}>
+                  <InfoIcon />
+                </Tooltip>
+              </SettingTitle>
+              <SliderContainer>
+                <Slider min={1} max={50} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
+                <StyledInputNumber
+                  min={1}
+                  max={50}
+                  value={painting.steps}
+                  onChange={(v) => updatePaintingState({ steps: (v as number) || 25 })}
+                />
+              </SliderContainer>
+            </>
+          )}
+
+          {capabilities.supportGuidanceScale && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+                {t('paintings.guidance_scale')}
+                <Tooltip title={t('paintings.guidance_scale_tip')}>
+                  <InfoIcon />
+                </Tooltip>
+              </SettingTitle>
+              <SliderContainer>
+                <Slider
+                  min={1}
+                  max={20}
+                  step={0.1}
+                  value={painting.guidanceScale}
+                  onChange={(v) => updatePaintingState({ guidanceScale: v })}
+                />
+                <StyledInputNumber
+                  min={1}
+                  max={20}
+                  step={0.1}
+                  value={painting.guidanceScale}
+                  onChange={(v) => updatePaintingState({ guidanceScale: (v as number) || 4.5 })}
+                />
+              </SliderContainer>
+            </>
+          )}
+
+          {capabilities.supportNegativePrompt && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+                {t('paintings.negative_prompt')}
+                <Tooltip title={t('paintings.negative_prompt_tip')}>
+                  <InfoIcon />
+                </Tooltip>
+              </SettingTitle>
+              <TextArea
+                value={painting.negativePrompt}
+                onChange={(e) => updatePaintingState({ negativePrompt: e.target.value })}
+                spellCheck={false}
+                rows={4}
+              />
+            </>
+          )}
+
+          {capabilities.supportPromptEnhancement && (
+            <>
+              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+                {t('paintings.prompt_enhancement')}
+                <Tooltip title={t('paintings.prompt_enhancement_tip')}>
+                  <InfoIcon />
+                </Tooltip>
+              </SettingTitle>
+              <HStack>
+                <Switch
+                  checked={painting.promptEnhancement}
+                  onChange={(checked) => updatePaintingState({ promptEnhancement: checked })}
+                />
+              </HStack>
+            </>
+          )}
         </LeftContainer>
         <MainContainer>
           <Artboard
