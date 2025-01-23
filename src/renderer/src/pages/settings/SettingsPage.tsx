@@ -7,11 +7,10 @@ import {
   SaveOutlined,
   SettingOutlined
 } from '@ant-design/icons'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { isLocalAi } from '@renderer/config/env'
-import { FC } from 'react'
+import { Breadcrumb, Button, Menu } from 'antd'
+import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AboutSettings from './AboutSettings'
@@ -23,94 +22,143 @@ import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
 
-const SettingsPage: FC = () => {
-  const { pathname } = useLocation()
-  const { t } = useTranslation()
+export type SettingsTab =
+  | 'provider'
+  | 'model'
+  | 'general'
+  | 'display'
+  | 'data'
+  | 'quickAssistant'
+  | 'shortcut'
+  | 'about'
 
-  const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
-
-  return (
-    <Container>
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
-      </Navbar>
-      <ContentContainer id="content-container">
-        <SettingMenus>
-          {!isLocalAi && (
-            <>
-              <MenuItemLink to="/settings/provider">
-                <MenuItem className={isRoute('/settings/provider')}>
-                  <CloudOutlined />
-                  {t('settings.provider.title')}
-                </MenuItem>
-              </MenuItemLink>
-              <MenuItemLink to="/settings/model">
-                <MenuItem className={isRoute('/settings/model')}>
-                  <i className="iconfont icon-ai-model" />
-                  {t('settings.model')}
-                </MenuItem>
-              </MenuItemLink>
-            </>
-          )}
-          <MenuItemLink to="/settings/general">
-            <MenuItem className={isRoute('/settings/general')}>
-              <SettingOutlined />
-              {t('settings.general')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/display">
-            <MenuItem className={isRoute('/settings/display')}>
-              <LayoutOutlined />
-              {t('settings.display.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/shortcut">
-            <MenuItem className={isRoute('/settings/shortcut')}>
-              <MacCommandOutlined />
-              {t('settings.shortcuts.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/quickAssistant">
-            <MenuItem className={isRoute('/settings/quickAssistant')}>
-              <RocketOutlined />
-              {t('settings.quickAssistant.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/data">
-            <MenuItem className={isRoute('/settings/data')}>
-              <SaveOutlined />
-              {t('settings.data.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/about">
-            <MenuItem className={isRoute('/settings/about')}>
-              <InfoCircleOutlined />
-              {t('settings.about')}
-            </MenuItem>
-          </MenuItemLink>
-        </SettingMenus>
-        <SettingContent>
-          <Routes>
-            <Route path="provider" element={<ProvidersList />} />
-            <Route path="model" element={<ModelSettings />} />
-            <Route path="general/*" element={<GeneralSettings />} />
-            <Route path="display" element={<DisplaySettings />} />
-            <Route path="data/*" element={<DataSettings />} />
-            <Route path="quickAssistant" element={<QuickAssistantSettings />} />
-            <Route path="shortcut" element={<ShortcutSettings />} />
-            <Route path="about" element={<AboutSettings />} />
-          </Routes>
-        </SettingContent>
-      </ContentContainer>
-    </Container>
-  )
+interface Props {
+  activeTab?: SettingsTab
+}
+interface MenuItem {
+  label: string
+  icon: React.ReactNode
+  key: string
+  enabled: boolean
 }
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`
+const SettingsPage: FC<Props> = (props) => {
+  const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState<string>(props.activeTab || 'provider')
+  const [collapsed, setCollapsed] = useState(false)
+
+  const settingMenus = useMemo<MenuItem[]>(
+    () => [
+      {
+        label: t('settings.provider.title'),
+        icon: <CloudOutlined />,
+        key: 'provider',
+        enabled: !isLocalAi
+      },
+      {
+        label: t('settings.model'),
+        icon: <i className="iconfont icon-ai-model" />,
+        key: 'model',
+        enabled: !isLocalAi
+      },
+      {
+        label: t('settings.general'),
+        icon: <SettingOutlined />,
+        key: 'general',
+        enabled: true
+      },
+      {
+        label: t('settings.display.title'),
+        icon: <LayoutOutlined />,
+        key: 'display',
+        enabled: true
+      },
+      {
+        label: t('settings.shortcuts.title'),
+        icon: <MacCommandOutlined />,
+        key: 'shortcut',
+        enabled: true
+      },
+      {
+        label: t('settings.quickAssistant.title'),
+        icon: <RocketOutlined />,
+        key: 'quickAssistant',
+        enabled: true
+      },
+      {
+        label: t('settings.data.title'),
+        icon: <SaveOutlined />,
+        key: 'data',
+        enabled: true
+      },
+      {
+        label: t('settings.about'),
+        icon: <InfoCircleOutlined />,
+        key: 'about',
+        enabled: true
+      }
+    ],
+    [t]
+  )
+
+  const breadcrumbItems = useMemo(() => {
+    return [
+      {
+        title: t('settings.title')
+      },
+      {
+        title: settingMenus.find((item) => item.key === activeTab)?.label
+      }
+    ]
+  }, [t, activeTab, settingMenus])
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'provider':
+        return <ProvidersList />
+      case 'model':
+        return <ModelSettings />
+      case 'general':
+        return <GeneralSettings />
+      case 'display':
+        return <DisplaySettings />
+      case 'data':
+        return <DataSettings />
+      case 'quickAssistant':
+        return <QuickAssistantSettings />
+      case 'shortcut':
+        return <ShortcutSettings />
+      case 'about':
+        return <AboutSettings />
+      default:
+        return <GeneralSettings />
+    }
+  }
+
+  return (
+    <ContentContainer>
+      <MenuContainer $isCollapsed={collapsed}>
+        <Title>{t('settings.title')}</Title>
+        <Menu
+          mode="inline"
+          onClick={(e) => setActiveTab(e.key)}
+          selectedKeys={[activeTab]}
+          items={settingMenus.filter((item) => item.enabled)}
+          inlineCollapsed={collapsed}
+        />
+      </MenuContainer>
+      <SettingContent>
+        <SettingHeader>
+          <CollapseButton shape="circle" type="text" onClick={() => setCollapsed(!collapsed)} $isCollapsed={collapsed}>
+            <i className="iconfont icon-hide-sidebar" />
+          </CollapseButton>
+          <Breadcrumb items={breadcrumbItems} />
+        </SettingHeader>
+        {renderContent()}
+      </SettingContent>
+    </ContentContainer>
+  )
+}
 
 const ContentContainer = styled.div`
   display: flex;
@@ -118,57 +166,40 @@ const ContentContainer = styled.div`
   flex-direction: row;
 `
 
-const SettingMenus = styled.ul`
-  display: flex;
-  flex-direction: column;
-  min-width: var(--settings-width);
-  border-right: 0.5px solid var(--color-border);
-  padding: 10px;
-  user-select: none;
-`
-
-const MenuItemLink = styled(Link)`
-  text-decoration: none;
-  color: var(--color-text-1);
-  margin-bottom: 5px;
-`
-
-const MenuItem = styled.li`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  width: 100%;
-  cursor: pointer;
-  border-radius: var(--list-item-border-radius);
-  font-weight: 500;
-  transition: all 0.2s ease-in-out;
-  border: 0.5px solid transparent;
-  .anticon {
-    font-size: 16px;
-    opacity: 0.8;
+const MenuContainer = styled.div<{ $isCollapsed: boolean }>`
+  width: ${({ $isCollapsed }) => ($isCollapsed ? '80px' : '160px')};
+  background-color: var(--color-background-mute);
+  transition: width 0.3s ease-in-out;
+  position: relative;
+  .ant-menu-light {
+    background-color: var(--color-background-mute);
   }
+`
+
+const CollapseButton = styled(Button)<{ $isCollapsed: boolean }>`
+  color: var(--color-icon);
   .iconfont {
-    font-size: 18px;
-    line-height: 18px;
-    opacity: 0.7;
-    margin-left: -1px;
+    transform: rotate(${({ $isCollapsed }) => ($isCollapsed ? '180deg' : '0deg')});
   }
-  &:hover {
-    background: var(--color-background-soft);
-  }
-  &.active {
-    background: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-  }
+`
+
+const Title = styled.div`
+  font-size: 16px;
+  font-weight: 600;
+  padding: 16px 24px;
 `
 
 const SettingContent = styled.div`
-  display: flex;
   height: 100%;
   flex: 1;
-  border-right: 0.5px solid var(--color-border);
+`
+
+const SettingHeader = styled.div`
+  padding: 4px 8px;
+  border-bottom: 0.5px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `
 
 export default SettingsPage

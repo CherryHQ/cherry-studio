@@ -7,12 +7,12 @@ export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   display: flex;
   flex-direction: column;
   flex: 1;
-  height: calc(100vh - var(--navbar-height));
-  padding: 20px;
+  height: calc(75vh - var(--navbar-height));
+  padding: 16px;
   padding-top: 15px;
   overflow-y: scroll;
   font-family: Ubuntu;
-  background: ${(props) => (props.theme === 'dark' ? 'transparent' : 'var(--color-background-soft)')};
+  /* background: ${(props) => (props.theme === 'dark' ? 'transparent' : 'var(--color-background-soft)')}; */
 
   &::-webkit-scrollbar {
     display: none;

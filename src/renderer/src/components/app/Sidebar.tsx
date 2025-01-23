@@ -1,10 +1,10 @@
 import { FileSearchOutlined, FolderOutlined, PictureOutlined, TranslationOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
-import { isLocalAi, UserAvatar } from '@renderer/config/env'
+import { UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { MenuProps } from 'antd'
 import { Tooltip } from 'antd'
@@ -18,14 +18,13 @@ import styled from 'styled-components'
 import DragableList from '../DragableList'
 import MinAppIcon from '../Icons/MinAppIcon'
 import MinApp from '../MinApp'
+import SettingsPopup from '../Popups/SettingsPopup'
 import UserPopup from '../Popups/UserPopup'
 
 const Sidebar: FC = () => {
-  const { pathname } = useLocation()
   const avatar = useAvatar()
   const { minappShow } = useRuntime()
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const { windowStyle, sidebarIcons } = useSettings()
   const { theme, toggleTheme } = useTheme()
   const { pinned } = useMinapps()
@@ -36,11 +35,6 @@ const Sidebar: FC = () => {
   const sidebarBgColor = macTransparentWindow ? 'transparent' : 'var(--navbar-background)'
 
   const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
-
-  const to = async (path: string) => {
-    await modelGenerating()
-    navigate(path)
-  }
 
   return (
     <Container
@@ -73,13 +67,15 @@ const Sidebar: FC = () => {
             )}
           </Icon>
         </Tooltip>
-        <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
-          <StyledLink onClick={() => to(isLocalAi ? '/settings/assistant' : '/settings/provider')}>
-            <Icon className={pathname.startsWith('/settings') ? 'active' : ''}>
-              <i className="iconfont icon-setting" />
-            </Icon>
-          </StyledLink>
-        </Tooltip>
+        <SettingsPopup
+          actionButton={
+            <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
+              <Icon>
+                <i className="iconfont icon-setting" />
+              </Icon>
+            </Tooltip>
+          }
+        />
       </Menus>
     </Container>
   )

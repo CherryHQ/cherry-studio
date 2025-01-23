@@ -164,7 +164,7 @@ const ProviderListContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-width: calc(var(--settings-width) + 10px);
-  height: calc(100vh - var(--navbar-height));
+  height: calc(75vh - var(--navbar-height));
   border-right: 0.5px solid var(--color-border);
 `
 
@@ -180,19 +180,18 @@ const ProviderListItem = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 5px 10px;
+  padding: 8px 8px;
   width: 100%;
   cursor: grab;
-  border-radius: var(--list-item-border-radius);
+  border-radius: 8px;
   font-size: 14px;
   transition: all 0.2s ease-in-out;
-  border: 0.5px solid transparent;
   &:hover {
-    background: var(--color-background-soft);
+    background: var(--color-primary-mute);
   }
   &.active {
-    background: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
+    background: var(--color-primary-mute);
+    color: var(--color-primary);
     font-weight: bold !important;
   }
 `
