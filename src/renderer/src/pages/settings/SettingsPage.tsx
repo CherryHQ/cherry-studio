@@ -34,6 +34,7 @@ export type SettingsTab =
 
 interface Props {
   activeTab?: SettingsTab
+  onTabChange?: (tab: SettingsTab) => void
 }
 interface MenuItem {
   label: string
@@ -44,8 +45,9 @@ interface MenuItem {
 
 const SettingsPage: FC<Props> = (props) => {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<string>(props.activeTab || 'provider')
   const [collapsed, setCollapsed] = useState(false)
+
+  const activeTab = props.activeTab || 'provider'
 
   const settingMenus = useMemo<MenuItem[]>(
     () => [
@@ -141,7 +143,7 @@ const SettingsPage: FC<Props> = (props) => {
         <Title>{t('settings.title')}</Title>
         <Menu
           mode="inline"
-          onClick={(e) => setActiveTab(e.key)}
+          onClick={(e) => props.onTabChange?.(e.key as SettingsTab)}
           selectedKeys={[activeTab]}
           items={settingMenus.filter((item) => item.enabled)}
           inlineCollapsed={collapsed}
