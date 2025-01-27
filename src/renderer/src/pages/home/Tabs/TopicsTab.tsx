@@ -22,9 +22,11 @@ import { exportTopicAsMarkdown, topicToMarkdown } from '@renderer/utils/export'
 import { Dropdown, MenuProps } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback } from 'react'
+import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { FixedSizeList as List } from 'react-window'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 
 interface Props {
   assistant: Assistant
@@ -37,6 +39,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
   const { showTopicTime, topicPosition } = useSettings()
+  const [isDragging, setIsDragging] = useState(false)
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -176,13 +179,57 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     [assistant, assistants, onClearMessages, onDeleteTopic, onMoveTopic, t, updateTopic]
   )
 
-  return (
-    <Container right={topicPosition === 'right'} className="topics-tab">
-      <DragableList list={assistant.topics} onUpdate={updateTopics}>
-        {(topic) => {
-          const isActive = topic.id === activeTopic?.id
-          return (
-            <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
+  const onDragEnd = (result: any) => {
+    setIsDragging(false)
+    if (!result.destination) return
+
+    const newTopics = [...assistant.topics]
+    const [removed] = newTopics.splice(result.source.index, 1)
+    newTopics.splice(result.destination.index, 0, removed)
+    updateTopics(newTopics)
+  }
+
+  // 创建一个内部组件来处理虚拟列表的渲染
+  const VirtualList = ({ children, ...props }: any) => {
+    const outerRef = useCallback((node: any) => {
+      if (node !== null) {
+        // 将 Droppable 的 ref 传递给外部容器
+        props.provided.innerRef(node)
+      }
+    }, [props.provided])
+
+    return (
+      <div {...props.provided.droppableProps} ref={outerRef} style={{ height: '100%' }}>
+        <List
+          height={window.innerHeight - 100}
+          width="100%"
+          itemCount={assistant.topics.length}
+          itemSize={45}
+          outerElementType={(props) => <div {...props} style={{ ...props.style, overflow: 'auto' }} />}>
+          {children}
+        </List>
+        {props.provided.placeholder}
+      </div>
+    )
+  }
+
+  const renderRow = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const topic = assistant.topics[index]
+    const isActive = topic.id === activeTopic?.id
+
+    return (
+      <Draggable draggableId={topic.id} index={index} key={topic.id}>
+        {(provided) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            style={{
+              ...style,
+              ...provided.draggableProps.style,
+              padding: '0 4px'
+            }}>
+            <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']}>
               <TopicListItem
                 className={isActive ? 'active' : ''}
                 onClick={() => onSwitchTopic(topic)}
@@ -206,10 +253,43 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 )}
               </TopicListItem>
             </Dropdown>
-          )
-        }}
-      </DragableList>
-      <div style={{ minHeight: '10px' }}></div>
+          </div>
+        )}
+      </Draggable>
+    )
+  }
+
+  return (
+    <Container right={topicPosition === 'right'} className="topics-tab" style={{ overflow: 'hidden' }}>
+      <DragDropContext
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={onDragEnd}>
+        <Droppable
+          droppableId="topics-list"
+          mode="virtual"
+          renderClone={(provided, snapshot, rubric) => {
+            const topic = assistant.topics[rubric.source.index]
+            return (
+              <div
+                ref={provided.innerRef}
+                {...provided.draggableProps}
+                {...provided.dragHandleProps}
+                style={{
+                  ...provided.draggableProps.style,
+                  padding: '0 4px'
+                }}>
+                <TopicListItem style={{ borderRadius }}>
+                  <TopicName>{topic.name.replace('`', '')}</TopicName>
+                  {showTopicTime && (
+                    <TopicTime>{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
+                  )}
+                </TopicListItem>
+              </div>
+            )
+          }}>
+          {(provided) => <VirtualList provided={provided}>{renderRow}</VirtualList>}
+        </Droppable>
+      </DragDropContext>
     </Container>
   )
 }

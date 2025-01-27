@@ -62,6 +62,7 @@
     "@llm-tools/embedjs-loader-xml": "^0.1.25",
     "@llm-tools/embedjs-openai": "^0.1.25",
     "@types/react-infinite-scroll-component": "^5.0.0",
+    "@types/react-window": "^1.8.8",
     "adm-zip": "^0.5.16",
     "apache-arrow": "^18.1.0",
     "docx": "^9.0.2",
@@ -73,6 +74,7 @@
     "html2canvas": "^1.4.1",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
+    "react-window": "^1.8.11",
     "tokenx": "^0.4.1",
     "webdav": "4.11.4"
   },
