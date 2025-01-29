@@ -173,7 +173,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       setDefaultModel(selectedModel)
       updateAssistant({
         ...assistant,
-        defaultModel: selectedModel
+        defaultModel: selectedModel,
+        // 使用该条件判断是新建助手下的新话题
+        model: assistant.topics.length === 1 && !assistant.topics[0].messages.length ? selectedModel : assistant.model
       })
     }
   }
