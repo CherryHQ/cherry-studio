@@ -118,9 +118,7 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   private getTemperature(assistant: Assistant, model: Model) {
-    const isOpenAIo1 = model.id.startsWith('o1')
-
-    if (isOpenAIo1) {
+    if (model.id.startsWith('o1') || model.id.startsWith('o3')) {
       return undefined
     }
 
