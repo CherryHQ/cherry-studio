@@ -1070,6 +1070,12 @@ export const TEXT_TO_IMAGES_MODELS = [
     provider: 'silicon',
     name: 'Stable Diffusion XL Base 1.0',
     group: 'Stable Diffusion'
+  },
+  {
+    id: 'deepseek-ai/Janus-Pro-7B',
+    provider: 'silicon',
+    name: 'Janus-Pro-7B',
+    group: 'deepseek-ai'
   }
 ]
 
