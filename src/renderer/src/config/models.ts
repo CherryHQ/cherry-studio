@@ -361,8 +361,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ollama: [],
   silicon: [
     {
-      id: 'deepseek-ai/DeepSeek-V2.5',
-      name: 'deepseek-ai/DeepSeek-V2.5',
+      id: 'deepseek-ai/DeepSeek-R1',
+      name: 'deepseek-ai/DeepSeek-R1',
       provider: 'silicon',
       group: 'deepseek-ai'
     },
