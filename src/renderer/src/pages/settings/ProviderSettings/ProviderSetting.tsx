@@ -40,6 +40,7 @@ import EditModelsPopup from './EditModelsPopup'
 import GraphRAGSettings from './GraphRAGSettings'
 import OllamSettings from './OllamaSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
+import { oauthWithSiliconFlow } from './oauth'
 
 interface Props {
   provider: Provider
@@ -238,6 +239,18 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.provider.check')}
         </Button>
       </Space.Compact>
+      {apiKeyWebsite && (
+        <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+          <SettingHelpLink
+            target="_blank"
+            onClick={() => {
+              oauthWithSiliconFlow(setApiKey)
+            }}>
+            {'登录'}
+          </SettingHelpLink>
+          <SettingHelpText>{t('自动填写 API Key')}</SettingHelpText>
+        </SettingHelpTextRow>
+      )}
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
           <SettingHelpLink target="_blank" href={apiKeyWebsite}>
