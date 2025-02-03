@@ -685,6 +685,9 @@
         "esc_back": "возвращения",
         "copy_last_message": "Нажмите C для копирования"
       }
+    },
+    "auth": {
+      "oauth_button": "Auth with {{provider}}"
     }
   }
 }

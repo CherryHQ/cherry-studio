@@ -672,6 +672,9 @@
         "esc_back": "戻る",
         "copy_last_message": "C キーを押してコピー"
       }
+    },
+    "auth": {
+      "oauth_button": "{{provider}}で認証"
     }
   }
 }

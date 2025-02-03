@@ -163,6 +163,14 @@ export class WindowService {
     mainWindow.webContents.setWindowOpenHandler((details) => {
       const { url } = details
 
+      if (url.startsWith('https://kangfenmao.com/')) {
+        return { action: 'allow' }
+      }
+
+      if (url.startsWith('https://account.siliconflow.cn/')) {
+        return { action: 'allow' }
+      }
+
       if (url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
         const storageDir = path.join(app.getPath('userData'), 'Data', 'Files')

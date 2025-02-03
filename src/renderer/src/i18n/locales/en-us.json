@@ -688,6 +688,9 @@
         "esc_back": "back",
         "copy_last_message": "Press C to copy"
       }
+    },
+    "auth": {
+      "oauth_button": "Auth with {{provider}}"
     }
   }
 }

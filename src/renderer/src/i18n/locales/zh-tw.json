@@ -673,6 +673,9 @@
         "esc_back": "返回",
         "copy_last_message": "按 C 鍵複製"
       }
+    },
+    "auth": {
+      "oauth_button": "使用{{provider}}登入"
     }
   }
 }

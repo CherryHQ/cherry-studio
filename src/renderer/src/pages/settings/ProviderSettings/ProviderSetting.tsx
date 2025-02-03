@@ -7,7 +7,9 @@ import {
   PlusOutlined,
   SettingOutlined
 } from '@ant-design/icons'
+import { Center } from '@renderer/components/Layout'
 import ModelTags from '@renderer/components/ModelTags'
+import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { EMBEDDING_REGEX, getModelLogo, VISION_REGEX } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -16,6 +18,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
 import { checkApi } from '@renderer/services/ApiService'
+import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model, ModelType, Provider } from '@renderer/types'
@@ -206,11 +209,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   return (
     <SettingContainer theme={theme}>
       <SettingTitle>
-        <Flex align="center">
+        <Flex align="center" gap={8}>
           <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
           {officialWebsite! && (
             <Link target="_blank" href={providerConfig.websites.official}>
-              <ExportOutlined style={{ marginLeft: '8px', color: 'var(--color-text)', fontSize: '12px' }} />
+              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
             </Link>
           )}
         </Flex>
@@ -221,6 +224,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
+      {isProviderSupportAuth(provider) && (
+        <>
+          <Center>
+            <OAuthButton provider={provider} />
+          </Center>
+          <Divider style={{ width: '100%', margin: '10px 0' }} />
+        </>
+      )}
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password

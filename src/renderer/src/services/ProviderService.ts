@@ -1,5 +1,6 @@
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
+import { Provider } from '@renderer/types'
 
 export function getProviderName(id: string) {
   const provider = store.getState().llm.providers.find((p) => p.id === id)
@@ -12,4 +13,9 @@ export function getProviderName(id: string) {
   }
 
   return provider?.name
+}
+
+export function isProviderSupportAuth(provider: Provider) {
+  const supportProviders = ['silicon', 'aihubmix']
+  return supportProviders.includes(provider.id)
 }
