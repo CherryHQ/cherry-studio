@@ -1,4 +1,5 @@
 import { ExportOutlined } from '@ant-design/icons'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
 import { oauthWithSiliconFlow } from '@renderer/utils/oauth'
 import { Button, ButtonProps } from 'antd'
@@ -9,12 +10,18 @@ interface Props extends ButtonProps {
   provider: Provider
 }
 
-const OAuthButton: FC<Props> = ({ provider, ...props }) => {
+const OAuthButton: FC<Props> = (props) => {
   const { t } = useTranslation()
+  const { provider, updateProvider } = useProvider(props.provider.id)
 
   const onAuth = () => {
     if (provider.id === 'silicon') {
-      oauthWithSiliconFlow(alert)
+      oauthWithSiliconFlow((key: string) => {
+        updateProvider({
+          ...provider,
+          apiKey: key
+        })
+      })
     }
   }
 

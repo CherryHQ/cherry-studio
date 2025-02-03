@@ -1,5 +1,5 @@
 export const oauthWithSiliconFlow = async (setKey) => {
-  const clientId = 'SFrugiu0ezVmREv8BAU6GV'
+  const clientId = 'SFaJLLq0y6CAMoyDm81aMu'
   const ACCOUNT_ENDPOINT = 'https://account.siliconflow.cn'
   const authUrl = `${ACCOUNT_ENDPOINT}/oauth?client_id=${clientId}`
 
@@ -10,13 +10,16 @@ export const oauthWithSiliconFlow = async (setKey) => {
   )
 
   const messageHandler = (event) => {
-    console.log(event.data)
-    popup?.close()
-    // if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-    //   setKey(event.data[0]['secretKey'])
-    //   popup?.close()
-    // }
+    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
+      setKey(event.data[0]['secretKey'])
+      popup?.close()
+      window.removeEventListener('message', messageHandler)
+    }
   }
 
   window.addEventListener('message', messageHandler)
+
+  // popup?.addEventListener('beforeunload', () => {
+  //   window.removeEventListener('message', messageHandler)
+  // })
 }
