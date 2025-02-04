@@ -22,7 +22,7 @@ export const translateText = async (text: string, targetLanguage: string, onResp
     assistant,
     topic: getDefaultTopic('default'),
     type: 'text',
-    content: text
+    content: ''
   })
 
   const translatedText = await fetchTranslate({ message, assistant, onResponse })
