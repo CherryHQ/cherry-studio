@@ -2,6 +2,7 @@ import { CheckOutlined, SendOutlined, SettingOutlined, SwapOutlined, WarningOutl
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { isLocalAi } from '@renderer/config/env'
+import { TRANSLATE_POST_PROMPT } from '@renderer/config/prompts'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -47,12 +48,14 @@ const TranslatePage: FC = () => {
       return
     }
 
+    const content = TRANSLATE_POST_PROMPT.replace('{{text}}', text).replace('{{target_language}}', targetLanguage)
+
     const assistant: Assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
     const message: Message = {
       id: uuid(),
       role: 'user',
-      content: text,
+      content: content,
       assistantId: assistant.id,
       topicId: uuid(),
       model: translateModel,
