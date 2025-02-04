@@ -151,7 +151,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return apiHost.replace('#', '')
     }
 
-    return (apiHost.endsWith('/') ? apiHost : `${apiHost}/v1/`) + 'chat/completions'
+    const normalizedApiHost = apiHost.endsWith('/') ? apiHost.slice(0, -1) : apiHost
+    const hasV1 = normalizedApiHost.endsWith('/v1')
+  
+    return hasV1 ? `${normalizedApiHost}/chat/completions` : `${normalizedApiHost}/v1/chat/completions`
   }
 
   const onUpdateModelTypes = (model: Model, types: ModelType[]) => {
