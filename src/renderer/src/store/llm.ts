@@ -44,6 +44,16 @@ const initialState: LlmState = {
       enabled: false
     },
     {
+      id: 'deepseek',
+      name: 'deepseek',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.deepseek.com',
+      models: SYSTEM_MODELS.deepseek,
+      isSystem: true,
+      enabled: false
+    },
+    {
       id: 'ollama',
       name: 'Ollama',
       type: 'openai',
@@ -91,16 +101,6 @@ const initialState: LlmState = {
       apiKey: '',
       apiHost: 'https://generativelanguage.googleapis.com',
       models: SYSTEM_MODELS.gemini,
-      isSystem: true,
-      enabled: false
-    },
-    {
-      id: 'deepseek',
-      name: 'deepseek',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://api.deepseek.com',
-      models: SYSTEM_MODELS.deepseek,
       isSystem: true,
       enabled: false
     },

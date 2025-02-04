@@ -506,7 +506,6 @@
       "provider.check": "Проверить",
       "provider.docs_check": "Проверить",
       "provider.docs_more_details": "для получения дополнительной информации",
-      "provider.get_api_key": "Получить ключ API",
       "provider.search_placeholder": "Поиск по ID или имени модели",
       "proxy": {
         "mode": {

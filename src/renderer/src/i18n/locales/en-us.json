@@ -509,7 +509,6 @@
       "provider.check": "Check",
       "provider.docs_check": "Check",
       "provider.docs_more_details": "for more details",
-      "provider.get_api_key": "Get API Key",
       "provider.search_placeholder": "Search model id or name",
       "proxy": {
         "mode": {
