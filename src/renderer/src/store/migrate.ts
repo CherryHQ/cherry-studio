@@ -897,6 +897,16 @@ const migrateConfig = {
       }
     })
     return state
+  },
+  '63': (state: RootState) => {
+    if (state.minapps) {
+      const mintop = DEFAULT_MIN_APPS.find((app) => app.id === '3mintop')
+      if (mintop) {
+        state.minapps.enabled.push(mintop)
+      }
+    }
+    removeMiniAppIconsFromState(state)
+    return state
   }
 }
 
