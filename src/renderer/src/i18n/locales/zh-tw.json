@@ -488,7 +488,7 @@
         "delete.title": "刪除提供者",
         "docs_check": "檢查",
         "docs_more_details": "查看更多細節",
-        "get_api_key": "手動獲取密鑰",
+        "get_api_key": "獲取 API 密鑰",
         "no_models": "請先添加模型再檢查 API 連接",
         "not_checked": "未檢查",
         "remove_duplicate_keys": "移除重複密鑰",

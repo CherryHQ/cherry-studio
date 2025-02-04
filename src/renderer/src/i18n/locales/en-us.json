@@ -491,7 +491,7 @@
         "delete.title": "Delete Provider",
         "docs_check": "Check",
         "docs_more_details": "for more details",
-        "get_api_key": "Manually get API Key",
+        "get_api_key": "Get API Key",
         "no_models": "Please add models first before checking the API connection",
         "not_checked": "Not Checked",
         "remove_duplicate_keys": "Remove Duplicate Keys",
