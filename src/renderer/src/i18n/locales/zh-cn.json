@@ -489,7 +489,7 @@
         "delete.title": "删除提供商",
         "docs_check": "查看",
         "docs_more_details": "获取更多详情",
-        "get_api_key": "点击这里获取密钥",
+        "get_api_key": "手动获取密钥",
         "no_models": "请先添加模型再检查 API 连接",
         "not_checked": "未检查",
         "remove_duplicate_keys": "移除重复密钥",
@@ -676,7 +676,10 @@
       }
     },
     "auth": {
-      "oauth_button": "使用{{provider}}登录"
+      "oauth_button": "使用{{provider}}登录",
+      "get_key": "获取",
+      "get_key_success": "自动获取密钥成功",
+      "login": "登录"
     }
   }
 }

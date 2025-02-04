@@ -487,7 +487,7 @@
         "delete.title": "プロバイダーを削除",
         "docs_check": "チェック",
         "docs_more_details": "詳細を確認",
-        "get_api_key": "APIキーを取得",
+        "get_api_key": "手動でAPIキーを取得",
         "no_models": "API接続をチェックする前に、モデルを追加してください",
         "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
@@ -674,7 +674,10 @@
       }
     },
     "auth": {
-      "oauth_button": "{{provider}}で認証"
+      "oauth_button": "{{provider}}で認証",
+      "get_key": "取得",
+      "get_key_success": "APIキーの自動取得に成功しました",
+      "login": "認証"
     }
   }
 }

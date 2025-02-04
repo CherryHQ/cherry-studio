@@ -1,4 +1,3 @@
-import { ExportOutlined } from '@ant-design/icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
 import { oauthWithSiliconFlow } from '@renderer/utils/oauth'
@@ -17,22 +16,17 @@ const OAuthButton: FC<Props> = (props) => {
   const onAuth = () => {
     if (provider.id === 'silicon') {
       oauthWithSiliconFlow((key: string) => {
-        updateProvider({
-          ...provider,
-          apiKey: key
-        })
+        if (key.trim()) {
+          updateProvider({ ...provider, apiKey: key })
+          window.message.success(t('auth.get_key_success'))
+        }
       })
     }
   }
 
   return (
-    <Button
-      type="primary"
-      style={{ backgroundColor: '#7c3aed', width: '200px' }}
-      icon={<ExportOutlined />}
-      onClick={onAuth}
-      {...props}>
-      {t('auth.oauth_button', { provider: t(`provider.${provider.id}`) })}
+    <Button onClick={onAuth} {...props}>
+      {t('auth.get_key')}
     </Button>
   )
 }

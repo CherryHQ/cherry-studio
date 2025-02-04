@@ -163,12 +163,17 @@ export class WindowService {
     mainWindow.webContents.setWindowOpenHandler((details) => {
       const { url } = details
 
-      if (url.startsWith('https://kangfenmao.com/')) {
-        return { action: 'allow' }
-      }
+      const oauthProviderUrls = ['https://account.siliconflow.cn']
 
-      if (url.startsWith('https://account.siliconflow.cn/')) {
-        return { action: 'allow' }
+      if (oauthProviderUrls.some((url) => url.startsWith(url))) {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            webPreferences: {
+              partition: 'persist:webview'
+            }
+          }
+        }
       }
 
       if (url.includes('http://file/')) {
