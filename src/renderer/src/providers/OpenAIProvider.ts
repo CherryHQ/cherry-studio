@@ -1,4 +1,4 @@
-import { getOpenAIWebSearchParams, isSupportedModel, isVisionModel } from '@renderer/config/models'
+import { getOpenAIWebSearchParams, isReasoningModel, isSupportedModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -118,13 +118,7 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   private getTemperature(assistant: Assistant, model: Model) {
-    if (model.id.startsWith('o1') || model.id.startsWith('o3')) {
-      return undefined
-    }
-
-    if (model.provider === 'deepseek' && model.id === 'deepseek-reasoner') {
-      return undefined
-    }
+    if (isReasoningModel(model)) return undefined
 
     return assistant?.settings?.temperature
   }
@@ -139,6 +133,18 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     return {}
+  }
+
+  private getTopP(assistant: Assistant, model: Model) {
+    if (isReasoningModel(model)) return undefined
+
+    return assistant?.settings?.topP
+  }
+
+  private getReasoningEffort(assistant: Assistant, model: Model) {
+    if (isReasoningModel(model)) return assistant?.settings?.reasoning_effort
+
+    return undefined
   }
 
   async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
@@ -182,10 +188,11 @@ export default class OpenAIProvider extends BaseProvider {
         Boolean
       ) as ChatCompletionMessageParam[],
       temperature: this.getTemperature(assistant, model),
-      top_p: assistant?.settings?.topP,
+      top_p: this.getTopP(assistant, model),
       max_tokens: maxTokens,
       keep_alive: this.keepAliveTime,
       stream: isSupportStreamOutput(),
+      reasoning_effort: this.getReasoningEffort(assistant, model),
       ...(assistant.enableWebSearch ? getOpenAIWebSearchParams(model) : {}),
       ...this.getProviderSpecificParameters(model),
       ...this.getCustomParameters(assistant)

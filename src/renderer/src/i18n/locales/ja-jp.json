@@ -625,12 +625,14 @@
         "select": "モデルタイプを選択",
         "text": "テキスト",
         "vision": "画像",
-        "embedding": "埋め込み"
+        "embedding": "埋め込み",
+        "reasoning": "推論"
       },
       "all": "すべて",
       "vision": "画像モデル",
       "websearch": "ウェブ検索モデル",
       "free": "無料モデル",
+      "reasoning": "推論モデル",
       "embedding": "埋め込みモデル",
       "embedding_model": "埋め込みモデル",
       "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
