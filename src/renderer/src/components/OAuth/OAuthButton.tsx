@@ -1,6 +1,6 @@
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
-import { oauthWithSiliconFlow } from '@renderer/utils/oauth'
+import { oauthWithAihubmix, oauthWithSiliconFlow } from '@renderer/utils/oauth'
 import { Button, ButtonProps } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,13 +14,19 @@ const OAuthButton: FC<Props> = (props) => {
   const { provider, updateProvider } = useProvider(props.provider.id)
 
   const onAuth = () => {
+    const onSuccess = (key: string) => {
+      if (key.trim()) {
+        updateProvider({ ...provider, apiKey: key })
+        window.message.success(t('auth.get_key_success'))
+      }
+    }
+
     if (provider.id === 'silicon') {
-      oauthWithSiliconFlow((key: string) => {
-        if (key.trim()) {
-          updateProvider({ ...provider, apiKey: key })
-          window.message.success(t('auth.get_key_success'))
-        }
-      })
+      oauthWithSiliconFlow(onSuccess)
+    }
+
+    if (provider.id === 'aihubmix') {
+      oauthWithAihubmix(onSuccess)
     }
   }
 
