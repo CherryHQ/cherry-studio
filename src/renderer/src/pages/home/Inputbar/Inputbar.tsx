@@ -64,7 +64,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     pasteLongTextThreshold,
     showInputEstimatedTokens,
     clickAssistantToShowTopic,
-    language,
     autoTranslateWithSpace,
     sidebarIcons
   } = useSettings()
@@ -538,9 +537,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
               />
             </ToolbarMenu>
             <ToolbarMenu>
-              {!language.startsWith('en') && (
-                <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
-              )}
+              <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               {generating && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>

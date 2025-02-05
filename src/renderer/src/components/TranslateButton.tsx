@@ -1,5 +1,6 @@
 import { LoadingOutlined, TranslationOutlined } from '@ant-design/icons'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { getUserMessage } from '@renderer/services/MessagesService'
@@ -20,6 +21,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   const { t } = useTranslation()
   const { translateModel } = useDefaultModel()
   const [isTranslating, setIsTranslating] = useState(false)
+  const { targetLanguage } = useSettings()
 
   const translateConfirm = () => {
     return window?.modal?.confirm({
@@ -49,7 +51,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
 
     setIsTranslating(true)
     try {
-      const assistant = getDefaultTranslateAssistant('english', text)
+      const assistant = getDefaultTranslateAssistant(targetLanguage, text)
       const message = getUserMessage({
         assistant,
         topic: getDefaultTopic('default'),
@@ -75,7 +77,10 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   }, [isLoading])
 
   return (
-    <Tooltip placement="top" title={t('chat.input.translate')} arrow>
+    <Tooltip
+      placement="top"
+      title={t('chat.input.translate', { target_language: t(`languages.${targetLanguage}`) })}
+      arrow>
       <ToolbarButton onClick={handleTranslate} disabled={disabled || isTranslating} style={style} type="text">
         {isTranslating ? <LoadingOutlined spin /> : <TranslationOutlined />}
       </ToolbarButton>

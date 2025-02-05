@@ -3,13 +3,14 @@ import {
   SendMessageShortcut,
   setSendMessageShortcut as _setSendMessageShortcut,
   setSidebarIcons,
+  setTargetLanguage,
   setTheme,
   SettingsState,
   setTopicPosition,
   setTray,
   setWindowStyle
 } from '@renderer/store/settings'
-import { SidebarIcon, ThemeMode } from '@renderer/types'
+import { LanguageVarious, SidebarIcon, ThemeMode } from '@renderer/types'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)
@@ -29,6 +30,9 @@ export function useSettings() {
     },
     setWindowStyle(windowStyle: 'transparent' | 'opaque') {
       dispatch(setWindowStyle(windowStyle))
+    },
+    setTargetLanguage(targetLanguage: LanguageVarious) {
+      dispatch(setTargetLanguage(targetLanguage))
     },
     setTopicPosition(topicPosition: 'left' | 'right') {
       dispatch(setTopicPosition(topicPosition))
