@@ -87,13 +87,13 @@ export function withMessageThought(message: Message) {
   }
 
   const content = message.content.trim()
-  const thinkPattern = /<think>(.*?)<\/think>/s
+  const thinkPattern = /^<think>(.*?)<\/think>/s
   const matches = content.match(thinkPattern)
 
   if (!matches) {
     // 处理未闭合的 think 标签情况
     if (content.startsWith('<think>')) {
-      message.reasoning_content = content.replace('<think>', '')
+      message.reasoning_content = content.slice(7) // '<think>'.length === 7
       message.content = ''
     }
     return message
