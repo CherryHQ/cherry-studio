@@ -1,6 +1,6 @@
 import { Message } from '@renderer/types'
 import { Collapse } from 'antd'
-import { FC } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import BarLoader from 'react-spinners/BarLoader'
@@ -11,8 +11,13 @@ interface Props {
 }
 
 const MessageThought: FC<Props> = ({ message }) => {
+  const [activeKey, setActiveKey] = useState<'thought' | ''>('thought')
   const isThinking = !message.content
   const { t } = useTranslation()
+
+  useEffect(() => {
+    if (!isThinking) setActiveKey('')
+  }, [isThinking])
 
   if (!message.reasoning_content) {
     return null
@@ -23,6 +28,8 @@ const MessageThought: FC<Props> = ({ message }) => {
 
   return (
     <CollapseContainer
+      activeKey={activeKey}
+      onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
       className="message-thought-container"
       items={[
         {
