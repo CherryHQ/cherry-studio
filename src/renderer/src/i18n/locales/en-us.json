@@ -103,7 +103,7 @@
       "settings.set_as_default": "Apply to default assistant",
       "settings.show_line_numbers": "Show line numbers in code",
       "settings.temperature": "Temperature",
-      "settings.temperature.tip": "Lower values make the model more creative and unpredictable, while higher values make it more deterministic and precise.",
+      "settings.temperature.tip": "Higher values make the model more creative and unpredictable, while lower values make it more deterministic and precise.",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
       "suggestions.title": "Suggested Questions",
