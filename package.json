@@ -58,7 +58,7 @@
     "@llm-tools/embedjs-loader-msoffice": "^0.1.25",
     "@llm-tools/embedjs-loader-pdf": "^0.1.25",
     "@llm-tools/embedjs-loader-sitemap": "^0.1.25",
-    "@llm-tools/embedjs-loader-web": "^0.1.25",
+    "@llm-tools/embedjs-loader-web": "patch:@llm-tools/embedjs-loader-web@npm%3A0.1.28#~/.yarn/patches/@llm-tools-embedjs-loader-web-npm-0.1.28-0dce802f22.patch",
     "@llm-tools/embedjs-loader-xml": "^0.1.25",
     "@llm-tools/embedjs-openai": "^0.1.25",
     "@types/react-infinite-scroll-component": "^5.0.0",
@@ -73,6 +73,7 @@
     "html2canvas": "^1.4.1",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
+    "playwright": "^1.50.1",
     "tokenx": "^0.4.1",
     "webdav": "4.11.4"
   },
@@ -153,7 +154,9 @@
     "pdf-parse@npm:1.1.1": "patch:pdf-parse@npm%3A1.1.1#~/.yarn/patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
     "@llm-tools/embedjs-utils@npm:0.1.25": "patch:@llm-tools/embedjs-utils@npm%3A0.1.25#~/.yarn/patches/@llm-tools-embedjs-utils-npm-0.1.25-fd8fe8a193.patch",
     "@langchain/openai@npm:^0.3.16": "patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch",
-    "@langchain/openai@npm:>=0.1.0 <0.4.0": "patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch"
+    "@langchain/openai@npm:>=0.1.0 <0.4.0": "patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch",
+    "@llm-tools/embedjs-loader-web@npm:0.1.28": "patch:@llm-tools/embedjs-loader-web@npm%3A0.1.28#~/.yarn/patches/@llm-tools-embedjs-loader-web-npm-0.1.28-0dce802f22.patch",
+    "@llm-tools/embedjs-loader-web@npm:0.1.25": "patch:@llm-tools/embedjs-loader-web@npm%3A0.1.28#~/.yarn/patches/@llm-tools-embedjs-loader-web-npm-0.1.28-0dce802f22.patch"
   },
   "packageManager": "yarn@4.5.0"
 }
