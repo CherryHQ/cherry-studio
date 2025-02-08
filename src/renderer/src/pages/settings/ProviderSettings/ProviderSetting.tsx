@@ -186,19 +186,31 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
   }
 
-  const modelTypeContent = (model: Model) => (
-    <div>
-      <Checkbox.Group
-        value={model.type}
-        onChange={(types) => onUpdateModelTypes(model, types as ModelType[])}
-        options={[
-          { label: t('models.type.vision'), value: 'vision', disabled: VISION_REGEX.test(model.id) },
-          { label: t('models.type.embedding'), value: 'embedding', disabled: EMBEDDING_REGEX.test(model.id) },
-          { label: t('models.type.reasoning'), value: 'reasoning', disabled: REASONING_REGEX.test(model.id) }
-        ]}
-      />
-    </div>
-  )
+  const modelTypeContent = (model: Model) => {
+    // 获取默认选中的类型
+    const defaultTypes = [
+      ...(VISION_REGEX.test(model.id) ? ['vision'] : []),
+      ...(EMBEDDING_REGEX.test(model.id) ? ['embedding'] : []),
+      ...(REASONING_REGEX.test(model.id) ? ['reasoning'] : [])
+    ] as ModelType[]
+
+    // 合并现有选择和默认类型
+    const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
+
+    return (
+      <div>
+        <Checkbox.Group
+          value={selectedTypes}
+          onChange={(types) => onUpdateModelTypes(model, types as ModelType[])}
+          options={[
+            { label: t('models.type.vision'), value: 'vision', disabled: VISION_REGEX.test(model.id) },
+            { label: t('models.type.embedding'), value: 'embedding', disabled: EMBEDDING_REGEX.test(model.id) },
+            { label: t('models.type.reasoning'), value: 'reasoning', disabled: REASONING_REGEX.test(model.id) }
+          ]}
+        />
+      </div>
+    )
+  }
 
   const formatApiKeys = (value: string) => {
     return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
