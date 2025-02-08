@@ -1,10 +1,10 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getAssistantMessage } from '@renderer/services/MessagesService'
 import { Assistant, Message } from '@renderer/types'
 import { last } from 'lodash'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -49,7 +49,7 @@ const Messages: FC<Props> = ({ assistant, route }) => {
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [assistant.id, onSendMessage])
 
-  useShortcut('copy_last_message', () => {
+  useHotkeys('c', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
       navigator.clipboard.writeText(lastMessage.content)

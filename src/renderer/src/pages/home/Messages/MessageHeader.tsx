@@ -5,6 +5,8 @@ import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { getMessageModelId } from '@renderer/services/MessagesService'
+import { getModelName } from '@renderer/services/ModelService'
 import { Assistant, Message, Model } from '@renderer/types'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils'
 import { Avatar } from 'antd'
@@ -31,13 +33,19 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
 
-  const avatarSource = useMemo(() => getAvatarSource(isLocalAi, message.modelId), [message.modelId])
+  const avatarSource = useMemo(() => getAvatarSource(isLocalAi, getMessageModelId(message)), [message])
 
   const getUserName = useCallback(() => {
-    if (isLocalAi && message.role !== 'user') return APP_NAME
-    if (message.role === 'assistant') return model?.name || model?.id || message.modelId || ''
+    if (isLocalAi && message.role !== 'user') {
+      return APP_NAME
+    }
+
+    if (message.role === 'assistant') {
+      return getModelName(model) || getMessageModelId(message) || ''
+    }
+
     return userName || t('common.you')
-  }, [message.modelId, message.role, model?.id, model?.name, t, userName])
+  }, [message, model, t, userName])
 
   const isAssistantMessage = message.role === 'assistant'
   const showMinappIcon = sidebarIcons.visible.includes('minapp')

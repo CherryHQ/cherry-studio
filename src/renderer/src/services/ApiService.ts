@@ -2,6 +2,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -13,7 +14,7 @@ import {
   getTranslateModel
 } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
-import { filterMessages } from './MessagesService'
+import { filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 
 export async function fetchChatCompletion({
@@ -53,13 +54,17 @@ export async function fetchChatCompletion({
     let _messages: Message[] = []
 
     await AI.completions({
-      messages,
+      messages: filterUsefulMessages(messages),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({ text, usage, metrics, search }) => {
+      onChunk: ({ text, reasoning_content, usage, metrics, search }) => {
         message.content = message.content + text || ''
         message.usage = usage
         message.metrics = metrics
+
+        if (reasoning_content) {
+          message.reasoning_content = (message.reasoning_content || '') + reasoning_content
+        }
 
         if (search) {
           message.metadata = { groundingMetadata: search }
@@ -201,25 +206,37 @@ export async function checkApi(provider: Provider, model: Model) {
   if (provider.id !== 'ollama') {
     if (!provider.apiKey) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      return false
+      return {
+        valid: false,
+        error: new Error('message.error.enter.api.key')
+      }
     }
   }
 
   if (!provider.apiHost) {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
-    return false
+    return {
+      valid: false,
+      error: new Error('message.error.enter.api.host')
+    }
   }
 
   if (isEmpty(provider.models)) {
     window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
-    return false
+    return {
+      valid: false,
+      error: new Error('message.error.enter.model')
+    }
   }
 
   const AI = new AiProvider(provider)
 
-  const { valid } = await AI.check(model)
+  const { valid, error } = await AI.check(model)
 
-  return valid
+  return {
+    valid,
+    error
+  }
 }
 
 function hasApiKey(provider: Provider) {
@@ -235,13 +252,5 @@ export async function fetchModels(provider: Provider) {
     return await AI.models()
   } catch (error) {
     return []
-  }
-}
-
-function formatErrorMessage(error: any): string {
-  try {
-    return '```json\n' + JSON.stringify(error, null, 2) + '\n```'
-  } catch (e) {
-    return 'Error: ' + error?.message
   }
 }

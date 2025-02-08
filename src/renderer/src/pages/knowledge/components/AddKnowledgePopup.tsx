@@ -6,6 +6,7 @@ import AiProvider from '@renderer/providers/AiProvider'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
+import { getErrorMessage } from '@renderer/utils/error'
 import { Form, Input, Modal, Select } from 'antd'
 import { find, sortBy } from 'lodash'
 import { nanoid } from 'nanoid'
@@ -71,7 +72,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           dimensions = await aiProvider.getEmbeddingDimensions(selectedModel)
         } catch (error) {
           console.error('Error getting embedding dimensions:', error)
-          window.message.error(t('message.error.get_embedding_dimensions'))
+          window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
           setLoading(false)
           return
         }

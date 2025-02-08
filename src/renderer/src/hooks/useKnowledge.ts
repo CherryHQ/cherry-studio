@@ -26,6 +26,9 @@ import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { v4 as uuidv4 } from 'uuid'
 
+import { useAgents } from './useAgents'
+import { useAssistants } from './useAssistant'
+
 export const useKnowledge = (baseId: string) => {
   const dispatch = useDispatch()
   const base = useSelector((state: RootState) => state.knowledge.bases.find((b) => b.id === baseId))
@@ -281,6 +284,8 @@ export const useKnowledge = (baseId: string) => {
 export const useKnowledgeBases = () => {
   const dispatch = useDispatch()
   const bases = useSelector((state: RootState) => state.knowledge.bases)
+  const { assistants, updateAssistants } = useAssistants()
+  const { agents, updateAgents } = useAgents()
 
   const addKnowledgeBase = (base: KnowledgeBase) => {
     dispatch(addBase(base))
@@ -292,6 +297,25 @@ export const useKnowledgeBases = () => {
 
   const deleteKnowledgeBase = (baseId: string) => {
     dispatch(deleteBase({ baseId }))
+
+    // remove assistant knowledge_base
+    const _assistants = assistants.map((assistant) => {
+      if (assistant.knowledge_base?.id === baseId) {
+        return { ...assistant, knowledge_base: undefined }
+      }
+      return assistant
+    })
+
+    // remove agent knowledge_base
+    const _agents = agents.map((agent) => {
+      if (agent.knowledge_base?.id === baseId) {
+        return { ...agent, knowledge_base: undefined }
+      }
+      return agent
+    })
+
+    updateAssistants(_assistants)
+    updateAgents(_agents)
   }
 
   const updateKnowledgeBases = (bases: KnowledgeBase[]) => {

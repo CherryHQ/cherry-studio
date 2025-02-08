@@ -5,10 +5,9 @@ export type Assistant = {
   id: string
   name: string
   prompt: string
-  pluginId?: string
+  knowledge_base?: KnowledgeBase
   topics: Topic[]
   type: string
-  subType?: string
   emoji?: string
   description?: string
   model?: Model
@@ -40,6 +39,7 @@ export type AssistantSettings = {
   defaultModel?: Model
   autoResetModel: boolean
   customParameters?: AssistantSettingCustomParameters[]
+  reasoning_effort?: 'low' | 'medium' | 'high'
 }
 
 export type Agent = Omit<Assistant, 'model'>
@@ -49,11 +49,13 @@ export type Message = {
   assistantId: string
   role: 'user' | 'assistant'
   content: string
+  reasoning_content?: string
   translatedContent?: string
   topicId: string
   createdAt: string
   status: 'sending' | 'pending' | 'success' | 'paused' | 'error'
   modelId?: string
+  model?: Model
   files?: FileType[]
   images?: string[]
   usage?: OpenAI.Completions.CompletionUsage
@@ -62,17 +64,19 @@ export type Message = {
   type: 'text' | '@' | 'clear'
   isPreset?: boolean
   mentions?: Model[]
-  model?: Model
   metadata?: {
     // Gemini
     groundingMetadata?: any
   }
+  askId?: string
+  useful?: boolean
 }
 
 export type Metrics = {
   completion_tokens?: number
   time_completion_millsec?: number
   time_first_token_millsec?: number
+  time_thinking_millsec?: number
 }
 
 export type Topic = {
@@ -103,9 +107,9 @@ export type Provider = {
   isSystem?: boolean
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm'
+export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
-export type ModelType = 'text' | 'vision' | 'embedding'
+export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning'
 
 export type Model = {
   id: string
@@ -139,7 +143,7 @@ export interface Painting {
 export type MinAppType = {
   id?: string | number
   name: string
-  logo: string
+  logo?: string
   url: string
   bodered?: boolean
   background?: string
@@ -189,6 +193,7 @@ export type AppInfo = {
   isPackaged: boolean
   appPath: string
   appDataPath: string
+  resourcesPath: string
   filesPath: string
   logsPath: string
 }
@@ -229,6 +234,8 @@ export interface KnowledgeBase {
   created_at: number
   updated_at: number
   version: number
+  chunkSize?: number
+  chunkOverlap?: number
 }
 
 export type KnowledgeBaseParams = {
@@ -238,6 +245,8 @@ export type KnowledgeBaseParams = {
   apiKey: string
   apiVersion?: string
   baseURL: string
+  chunkSize?: number
+  chunkOverlap?: number
 }
 
 export type GenerateImageParams = {

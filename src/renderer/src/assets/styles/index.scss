@@ -234,6 +234,9 @@ body,
     border-radius: 8px;
     padding: 10px 15px 0 15px;
   }
+  .message-thought-container {
+    margin-top: 8px;
+  }
   .message-user {
     color: var(--chat-text-user);
     .markdown,
@@ -244,6 +247,13 @@ body,
     }
     .message-action-button:hover {
       background-color: var(--color-white-soft);
+    }
+  }
+  .group-message-wrapper {
+    background-color: var(--color-background);
+    .message-content-container {
+      width: 100%;
+      border: 1px solid var(--color-background-mute);
     }
   }
   code {

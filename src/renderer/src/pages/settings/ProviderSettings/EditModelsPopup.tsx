@@ -237,6 +237,10 @@ const ListItemHeader = styled.div`
 `
 
 const ListItemName = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   color: var(--color-text);
   font-size: 14px;
   font-weight: 600;
@@ -252,7 +256,6 @@ const ModelHeaderTitle = styled.div`
 
 const Question = styled(QuestionCircleOutlined)`
   cursor: pointer;
-  margin: 0 10px;
   color: #888;
 `
 

@@ -3,7 +3,7 @@ import { isLocalAi } from '@renderer/config/env'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
-import { setAvatar, setFilesPath, setUpdateState } from '@renderer/store/runtime'
+import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
@@ -71,6 +71,7 @@ export function useAppInit() {
     // set files path
     window.api.getAppInfo().then((info) => {
       dispatch(setFilesPath(info.filesPath))
+      dispatch(setResourcesPath(info.resourcesPath))
     })
   }, [dispatch])
 

@@ -1,8 +1,9 @@
 import type { GroundingMetadata } from '@google/generative-ai'
-import type { Assistant, Metrics } from '@renderer/types'
+import type { Assistant, Message, Metrics } from '@renderer/types'
 
 interface ChunkCallbackData {
   text?: string
+  reasoning_content?: string
   usage?: OpenAI.Completions.CompletionUsage
   metrics?: Metrics
   search?: GroundingMetadata
@@ -11,6 +12,6 @@ interface ChunkCallbackData {
 interface CompletionsParams {
   messages: Message[]
   assistant: Assistant
-  onChunk: ({ text, usage, metrics, search }: ChunkCallbackData) => void
+  onChunk: ({ text, reasoning_content, usage, metrics, search }: ChunkCallbackData) => void
   onFilterMessages: (messages: Message[]) => void
 }

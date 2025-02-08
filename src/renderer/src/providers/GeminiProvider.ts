@@ -114,9 +114,9 @@ export default class GeminiProvider extends BaseProvider {
   }
 
   private getSafetySettings(modelId: string): SafetySetting[] {
-    const safetyThreshold = modelId.includes('gemini-exp-')
-      ? HarmBlockThreshold.BLOCK_NONE
-      : ('OFF' as HarmBlockThreshold)
+    const safetyThreshold = modelId.includes('gemini-2.0-flash-exp')
+      ? ('OFF' as HarmBlockThreshold)
+      : HarmBlockThreshold.BLOCK_NONE
 
     return [
       {

@@ -1,7 +1,6 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import SystemAgents from '@renderer/config/agents.json'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
@@ -12,35 +11,26 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
+import { getAgentsFromSystemAgents, useSystemAgents } from '.'
 import { groupTranslations } from './agentGroupTranslations'
 import AgentCard from './components/AgentCard'
 import MyAgents from './components/MyAgents'
 
 const { Title } = Typography
 
-const getAgentsFromSystemAgents = () => {
-  const agents: Agent[] = []
-  for (let i = 0; i < SystemAgents.length; i++) {
-    for (let j = 0; j < SystemAgents[i].group.length; j++) {
-      const agent = { ...SystemAgents[i], group: SystemAgents[i].group[j], topics: [], type: 'agent' } as Agent
-      agents.push(agent)
-    }
-  }
-  return agents
-}
-
 let _agentGroups: Record<string, Agent[]> = {}
 
 const AgentsPage: FC = () => {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const systemAgents = useSystemAgents()
 
   const agentGroups = useMemo(() => {
     if (Object.keys(_agentGroups).length === 0) {
-      _agentGroups = groupBy(getAgentsFromSystemAgents(), 'group')
+      _agentGroups = groupBy(getAgentsFromSystemAgents(systemAgents), 'group')
     }
     return _agentGroups
-  }, [])
+  }, [systemAgents])
 
   const { t, i18n } = useTranslation()
 
@@ -102,7 +92,7 @@ const AgentsPage: FC = () => {
     [t]
   )
 
-  const getAgentFromSystemAgent = (agent: (typeof SystemAgents)[number]) => {
+  const getAgentFromSystemAgent = (agent: (typeof systemAgents)[number]) => {
     return {
       ...omit(agent, 'group'),
       name: agent.name,
@@ -292,13 +282,14 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
     justify-content: ${({ $language }) => ($language.startsWith('zh') ? 'center' : 'flex-start')};
     user-select: none;
     transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
-
+    outline: none !important;
     .ant-tabs-tab-btn {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 100px;
       transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+      outline: none !important;
     }
     &:hover {
       color: var(--color-text) !important;

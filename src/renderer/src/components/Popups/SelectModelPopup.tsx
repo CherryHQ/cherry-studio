@@ -74,9 +74,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           key: getModelUniqId(m),
           label: (
             <ModelItem>
-              <span>
-                {m?.name} <ModelTags model={m} />
-              </span>
+              <ModelNameRow>
+                <span>{m?.name}</span> <ModelTags model={m} />
+              </ModelNameRow>
               <PinIcon
                 onClick={(e) => {
                   e.stopPropagation()
@@ -118,7 +118,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         key: getModelUniqId(m) + '_pinned',
         label: (
           <ModelItem>
-            {m?.name} <ModelTags model={m} />
+            <ModelNameRow>
+              <span>{m?.name}</span> <ModelTags model={m} />
+            </ModelNameRow>
             <PinIcon
               onClick={(e) => {
                 e.stopPropagation()
@@ -275,6 +277,13 @@ const ModelItem = styled.div`
   font-size: 14px;
   position: relative;
   width: 100%;
+`
+
+const ModelNameRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 `
 
 const EmptyState = styled.div`

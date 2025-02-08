@@ -60,7 +60,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             options={[
               { label: 'OpenAI', value: 'openai' },
               { label: 'Gemini', value: 'gemini' },
-              { label: 'Anthropic', value: 'anthropic' }
+              { label: 'Anthropic', value: 'anthropic' },
+              { label: 'Azure OpenAI', value: 'azure-openai' }
             ]}
           />
         </Form.Item>

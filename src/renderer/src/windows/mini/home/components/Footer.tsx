@@ -1,3 +1,5 @@
+import { CopyOutlined, LoginOutlined } from '@ant-design/icons'
+import { Tag } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -11,11 +13,18 @@ const Footer: FC<FooterProps> = ({ route, onExit }) => {
   const { t } = useTranslation()
 
   return (
-    <WindowFooter onClick={() => onExit()}>
+    <WindowFooter>
       <FooterText className="nodrag">
-        {t('miniwindow.footer.esc', {
-          action: route === 'home' ? t('miniwindow.footer.esc_close') : t('miniwindow.footer.esc_back')
-        })}
+        <Tag bordered={false} icon={<LoginOutlined />} onClick={() => onExit()}>
+          {t('miniwindow.footer.esc', {
+            action: route === 'home' ? t('miniwindow.footer.esc_close') : t('miniwindow.footer.esc_back')
+          })}
+        </Tag>
+        {route !== 'home' && (
+          <Tag bordered={false} icon={<CopyOutlined />}>
+            {t('miniwindow.footer.copy_last_message')}
+          </Tag>
+        )}
       </FooterText>
     </WindowFooter>
   )
@@ -29,7 +38,11 @@ const WindowFooter = styled.div`
   cursor: pointer;
 `
 
-const FooterText = styled.span`
+const FooterText = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   color: var(--color-text-secondary);
   font-size: 12px;
 `

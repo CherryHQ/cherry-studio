@@ -15,9 +15,17 @@ const resources = {
   'ru-RU': ruRU
 }
 
+export const getLanguage = () => {
+  return localStorage.getItem('language') || navigator.language || 'en-US'
+}
+
+export const getLanguageCode = () => {
+  return getLanguage().split('-')[0]
+}
+
 i18n.use(initReactI18next).init({
   resources,
-  lng: localStorage.getItem('language') || navigator.language || 'en-US',
+  lng: getLanguage(),
   fallbackLng: 'en-US',
   interpolation: {
     escapeValue: false

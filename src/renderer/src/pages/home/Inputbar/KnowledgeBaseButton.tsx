@@ -49,7 +49,7 @@ const KnowledgeBaseButton: FC<Props> = ({ selectedBase, onSelect, disabled, Tool
 
   if (selectedBase) {
     return (
-      <Tooltip placement="top" title={t('chat.input.knowledge_base')} arrow>
+      <Tooltip placement="top" title={selectedBase.name} arrow>
         <ToolbarButton type="text" onClick={() => onSelect(undefined)}>
           <FileSearchOutlined style={{ color: selectedBase ? 'var(--color-link)' : 'var(--color-icon)' }} />
         </ToolbarButton>

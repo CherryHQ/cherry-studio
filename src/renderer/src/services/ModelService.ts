@@ -15,3 +15,7 @@ export const hasModel = (m?: Model) => {
 
   return allModels.find((model) => model.id === m?.id)
 }
+
+export function getModelName(model?: Model) {
+  return model?.name || model?.id || ''
+}

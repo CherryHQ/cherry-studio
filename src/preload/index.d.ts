@@ -56,6 +56,9 @@ declare global {
         copy: (fileId: string, destPath: string) => Promise<void>
         binaryFile: (fileId: string) => Promise<{ data: Buffer; mime: string }>
       }
+      fs: {
+        read: (path: string) => Promise<string>
+      }
       export: {
         toWord: (markdown: string, fileName: string) => Promise<void>
       }
@@ -102,6 +105,10 @@ declare global {
         hide: () => Promise<void>
         close: () => Promise<void>
         toggle: () => Promise<void>
+      }
+      aes: {
+        encrypt: (text: string, secretKey: string, iv: string) => Promise<{ iv: string; encryptedData: string }>
+        decrypt: (encryptedData: string, iv: string, secretKey: string) => Promise<string>
       }
     }
   }

@@ -2,7 +2,7 @@ import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { Assistant, AssistantMessage, AssistantSettings } from '@renderer/types'
 import { Button, Card, Col, Divider, Form as FormAntd, FormInstance, Row, Space, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { FC, useRef, useState } from 'react'
+import { FC, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -19,7 +19,15 @@ const AssistantMessagesSettings: FC<Props> = ({ assistant, updateAssistant, upda
   const [messages, setMessagess] = useState<AssistantMessage[]>(assistant?.messages || [])
   const [hideMessages, setHideMessages] = useState(assistant?.settings?.hideMessages || false)
 
-  const showSaveButton = (assistant?.messages || []).length !== messages.length
+  const showSaveButton = useMemo(() => {
+    const originalMessages = assistant?.messages || []
+    if (originalMessages.length !== messages.length) return true
+
+    return messages.some((msg, index) => {
+      const originalMsg = originalMessages[index]
+      return !originalMsg || msg.content.trim() !== originalMsg.content.trim()
+    })
+  }, [messages, assistant?.messages])
 
   const onSave = () => {
     // 检查是否有空对话组

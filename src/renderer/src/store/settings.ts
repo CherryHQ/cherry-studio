@@ -63,7 +63,10 @@ export interface SettingsState {
   narrowMode: boolean
   enableQuickAssistant: boolean
   clickTrayToShowQuickAssistant: boolean
+  multiModelMessageStyle: MultiModelMessageStyle
 }
+
+export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold'
 
 const initialState: SettingsState = {
   showAssistants: true,
@@ -109,7 +112,8 @@ const initialState: SettingsState = {
   },
   narrowMode: false,
   enableQuickAssistant: false,
-  clickTrayToShowQuickAssistant: false
+  clickTrayToShowQuickAssistant: false,
+  multiModelMessageStyle: 'fold'
 }
 
 const settingsSlice = createSlice({
@@ -133,6 +137,7 @@ const settingsSlice = createSlice({
     },
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
+      window.electron.ipcRenderer.send('miniwindow-reload')
     },
     setProxyMode: (state, action: PayloadAction<'system' | 'custom' | 'none'>) => {
       state.proxyMode = action.payload
@@ -250,6 +255,9 @@ const settingsSlice = createSlice({
     },
     setEnableQuickAssistant: (state, action: PayloadAction<boolean>) => {
       state.enableQuickAssistant = action.payload
+    },
+    setMultiModelMessageStyle: (state, action: PayloadAction<'horizontal' | 'vertical' | 'fold'>) => {
+      state.multiModelMessageStyle = action.payload
     }
   }
 })
@@ -297,7 +305,8 @@ export const {
   setSidebarIcons,
   setNarrowMode,
   setClickTrayToShowQuickAssistant,
-  setEnableQuickAssistant
+  setEnableQuickAssistant,
+  setMultiModelMessageStyle
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

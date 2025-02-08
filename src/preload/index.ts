@@ -47,6 +47,9 @@ const api = {
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke('file:copy', fileId, destPath),
     binaryFile: (fileId: string) => ipcRenderer.invoke('file:binaryFile', fileId)
   },
+  fs: {
+    read: (path: string) => ipcRenderer.invoke('fs:read', path)
+  },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke('export:word', markdown, fileName)
   },
@@ -96,6 +99,11 @@ const api = {
     hide: () => ipcRenderer.invoke('miniwindow:hide'),
     close: () => ipcRenderer.invoke('miniwindow:close'),
     toggle: () => ipcRenderer.invoke('miniwindow:toggle')
+  },
+  aes: {
+    encrypt: (text: string, secretKey: string, iv: string) => ipcRenderer.invoke('aes:encrypt', text, secretKey, iv),
+    decrypt: (encryptedData: string, iv: string, secretKey: string) =>
+      ipcRenderer.invoke('aes:decrypt', encryptedData, iv, secretKey)
   }
 }
 

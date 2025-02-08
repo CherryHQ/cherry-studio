@@ -1,8 +1,9 @@
 import { SyncOutlined, TranslationOutlined } from '@ant-design/icons'
 import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
+import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
-import React from 'react'
+import React, { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
@@ -11,12 +12,16 @@ import Markdown from '../Markdown/Markdown'
 import MessageAttachments from './MessageAttachments'
 import MessageError from './MessageError'
 import MessageSearchResults from './MessageSearchResults'
+import MessageThought from './MessageThought'
 
-const MessageContent: React.FC<{
+interface Props {
   message: Message
   model?: Model
-}> = ({ message, model }) => {
+}
+
+const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const { t } = useTranslation()
+  const message = withMessageThought(_message)
 
   if (message.status === 'sending') {
     return (
@@ -36,13 +41,14 @@ const MessageContent: React.FC<{
   }
 
   return (
-    <>
-      <Flex gap="8px" wrap>
+    <Fragment>
+      <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
         {message.mentions?.map((model) => <MentionTag key={model.id}>{'@' + model.name}</MentionTag>)}
       </Flex>
+      <MessageThought message={message} />
       <Markdown message={message} />
       {message.translatedContent && (
-        <>
+        <Fragment>
           <Divider style={{ margin: 0, marginBottom: 10 }}>
             <TranslationOutlined />
           </Divider>
@@ -51,11 +57,11 @@ const MessageContent: React.FC<{
           ) : (
             <Markdown message={{ ...message, content: message.translatedContent }} />
           )}
-        </>
+        </Fragment>
       )}
       <MessageAttachments message={message} />
       <MessageSearchResults message={message} />
-    </>
+    </Fragment>
   )
 }
 

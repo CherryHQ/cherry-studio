@@ -9,14 +9,14 @@ import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
   deleteMessageFiles,
-  filterMessages,
   getAssistantMessage,
   getContextCount,
+  getGroupedMessages,
   getUserMessage
 } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
-import { Assistant, Message, Model, Topic } from '@renderer/types'
-import { captureScrollableDiv, runAsyncFunction, uuid } from '@renderer/utils'
+import { Assistant, Message, Topic } from '@renderer/types'
+import { captureScrollableDiv, runAsyncFunction } from '@renderer/utils'
 import { t } from 'i18next'
 import { flatten, last, take } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,7 +25,7 @@ import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import Suggestions from '../components/Suggestions'
-import MessageItem from './Message'
+import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
 
@@ -34,39 +34,6 @@ interface Props {
   topic: Topic
   setActiveTopic: (topic: Topic) => void
 }
-
-interface LoaderProps {
-  $loading: boolean
-}
-
-const LoaderContainer = styled.div<LoaderProps>`
-  display: flex;
-  justify-content: center;
-  padding: 10px;
-  width: 100%;
-  background: var(--color-background);
-  opacity: ${(props) => (props.$loading ? 1 : 0)};
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-`
-
-const ScrollContainer = styled.div`
-  display: flex;
-  flex-direction: column-reverse;
-`
-
-interface ContainerProps {
-  right?: boolean
-}
-
-const Container = styled(Scrollbar)<ContainerProps>`
-  display: flex;
-  flex-direction: column-reverse;
-  padding: 10px 0;
-  padding-bottom: 20px;
-  overflow-x: hidden;
-  background-color: var(--color-background);
-`
 
 const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
   const [messages, setMessages] = useState<Message[]>([])
@@ -78,6 +45,8 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
   const messagesRef = useRef(messages)
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const { showTopics, topicPosition, showAssistants, enableTopicNaming } = useSettings()
+
+  const groupedMessages = getGroupedMessages(displayMessages)
 
   const INITIAL_MESSAGES_COUNT = 20
   const LOAD_MORE_COUNT = 20
@@ -98,14 +67,18 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
   const onSendMessage = useCallback(
     async (message: Message) => {
       const assistantMessages: Message[] = []
+
       if (message.mentions?.length) {
         message.mentions.forEach((m) => {
           const assistantMessage = getAssistantMessage({ assistant: { ...assistant, model: m }, topic })
           assistantMessage.model = m
+          assistantMessage.askId = message.id
           assistantMessages.push(assistantMessage)
         })
       } else {
-        assistantMessages.push(getAssistantMessage({ assistant, topic }))
+        const assistantMessage = getAssistantMessage({ assistant, topic })
+        assistantMessage.askId = message.id
+        assistantMessages.push(assistantMessage)
       }
 
       setMessages((prev) => {
@@ -117,6 +90,17 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       scrollToBottom()
     },
     [assistant, scrollToBottom, topic]
+  )
+
+  const onAppendMessage = useCallback(
+    (message: Message) => {
+      setMessages((prev) => {
+        const messages = prev.concat([message])
+        db.topics.put({ id: topic.id, messages })
+        return messages
+      })
+    },
+    [topic.id]
   )
 
   const autoRenameTopic = useCallback(async () => {
@@ -143,12 +127,25 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
   }, [assistant, enableTopicNaming, messages, setActiveTopic, topic.id, updateTopic])
 
   const onDeleteMessage = useCallback(
-    (message: Message) => {
+    async (message: Message) => {
       const _messages = messages.filter((m) => m.id !== message.id)
       setMessages(_messages)
       setDisplayMessages(_messages)
-      db.topics.update(topic.id, { messages: _messages })
-      deleteMessageFiles(message)
+      await db.topics.update(topic.id, { messages: _messages })
+      await deleteMessageFiles(message)
+    },
+    [messages, topic.id]
+  )
+
+  const onDeleteGroupMessages = useCallback(
+    async (askId: string) => {
+      const _messages = messages.filter((m) => m.askId !== askId && m.id !== askId)
+      setMessages(_messages)
+      setDisplayMessages(_messages)
+      await db.topics.update(topic.id, { messages: _messages })
+      for (const message of _messages) {
+        await deleteMessageFiles(message)
+      }
     },
     [messages, topic.id]
   )
@@ -160,13 +157,9 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
   useEffect(() => {
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, onSendMessage),
+      EventEmitter.on(EVENT_NAMES.APPEND_MESSAGE, onAppendMessage),
       EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, async () => {
         setTimeout(() => EventEmitter.emit(EVENT_NAMES.AI_AUTO_RENAME), 100)
-      }),
-      EventEmitter.on(EVENT_NAMES.REGENERATE_MESSAGE, async (model: Model) => {
-        const lastUserMessage = last(filterMessages(messages).filter((m) => m.role === 'user'))
-        lastUserMessage &&
-          onSendMessage({ ...lastUserMessage, id: uuid(), modelId: model.id, model: model, mentions: [model] })
       }),
       EventEmitter.on(EVENT_NAMES.AI_AUTO_RENAME, autoRenameTopic),
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, () => {
@@ -214,7 +207,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
         setActiveTopic(newTopic)
         autoRenameTopic()
 
-        // 由于复制了消���，消息中附带的文件的总数变了，需要更新
+        // 由于复制了消息，消息中附带的文件的总数变了，需要更新
         const filesArr = branchMessages.map((m) => m.files)
         const files = flatten(filesArr).filter(Boolean)
         files.map(async (f) => {
@@ -229,6 +222,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
     assistant,
     autoRenameTopic,
     messages,
+    onAppendMessage,
     onDeleteMessage,
     onSendMessage,
     scrollToBottom,
@@ -293,7 +287,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       style={{ maxWidth }}
       key={assistant.id}
       ref={containerRef}
-      right={topicPosition === 'left'}>
+      $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <Suggestions assistant={assistant} messages={messages} />
         <InfiniteScroll
@@ -307,15 +301,15 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
             <LoaderContainer $loading={isLoadingMore}>
               <BeatLoader size={8} color="var(--color-text-2)" />
             </LoaderContainer>
-            {displayMessages.map((message, index) => (
-              <MessageItem
-                key={message.id}
-                message={message}
+            {Object.entries(groupedMessages).map(([key, messages]) => (
+              <MessageGroup
+                key={key}
+                messages={messages}
                 topic={topic}
-                index={index}
                 hidePresetMessages={assistant.settings?.hideMessages}
                 onSetMessages={setMessages}
                 onDeleteMessage={onDeleteMessage}
+                onDeleteGroupMessages={onDeleteGroupMessages}
                 onGetMessages={onGetMessages}
               />
             ))}
@@ -326,5 +320,39 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
     </Container>
   )
 }
+
+interface LoaderProps {
+  $loading: boolean
+}
+
+const LoaderContainer = styled.div<LoaderProps>`
+  display: flex;
+  justify-content: center;
+  padding: 10px;
+  width: 100%;
+  background: var(--color-background);
+  opacity: ${(props) => (props.$loading ? 1 : 0)};
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+`
+
+const ScrollContainer = styled.div`
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 0 20px;
+`
+
+interface ContainerProps {
+  $right?: boolean
+}
+
+const Container = styled(Scrollbar)<ContainerProps>`
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 10px 0;
+  padding-bottom: 20px;
+  overflow-x: hidden;
+  background-color: var(--color-background);
+`
 
 export default Messages

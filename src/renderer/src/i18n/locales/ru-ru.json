@@ -2,15 +2,12 @@
   "translation": {
     "agents": {
       "add.button": "Добавить к ассистенту",
-      "add.type": "Тип",
-      "add.type.normal": "Обычный",
-      "add.type.plugin": "Плагины GPTs",
       "add.name": "Имя",
       "add.name.placeholder": "Введите имя",
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
-      "add.pluginId": "ID плагина",
-      "add.pluginId.placeholder": "Введите ID плагина, например: g-97gBggzBU",
+      "add.knowledge_base": "База знаний",
+      "add.knowledge_base.placeholder": "Выберите базу знаний",
       "add.title": "Создать агента",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.message.add.title": "Добавить",
@@ -51,7 +48,7 @@
       "settings.model": "Настройки модели",
       "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
-      "settings.plugin": "Настройки плагина",
+      "settings.knowledge_base": "Настройки базы знаний",
       "title": "Ассистенты"
     },
     "button": {
@@ -70,14 +67,14 @@
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
       "default.name": "⭐️ Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
-      "input.clear": "Очистить",
+      "input.clear": "Очистить {{Command}}",
       "input.clear.content": "Хотите очистить все сообщения текущего топика?",
       "input.clear.title": "Очистить все сообщения?",
       "input.collapse": "Свернуть",
       "input.context_count.tip": "Количество контекстов",
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
-      "input.new.context": "Очистить контекст",
+      "input.new.context": "Очистить контекст {{Command}}",
       "input.new_topic": "Новый топик {{Command}}",
       "input.pause": "Остановить",
       "input.placeholder": "Введите ваше сообщение здесь...",
@@ -92,6 +89,7 @@
       "message.new.branch.created": "Новая ветка создана",
       "message.regenerate.model": "Переключить модель",
       "message.new.context": "Новый контекст",
+      "message.useful": "Полезно",
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",
       "settings.context_count": "Контекст",
@@ -119,7 +117,9 @@
       "topics.move_to": "Переместить в",
       "topics.title": "Топики",
       "translate": "Перевести",
-      "resend": "Переотправить"
+      "resend": "Переотправить",
+      "thinking": "Мыслим",
+      "deeply_thought": "Мыслим ({{secounds}} секунд)"
     },
     "common": {
       "and": "и",
@@ -132,6 +132,7 @@
       "copy": "Копировать",
       "cut": "Вырезать",
       "default": "По умолчанию",
+      "knowledge_base": "База знаний",
       "delete": "Удалить",
       "description": "Описание",
       "docs": "Документы",
@@ -145,7 +146,6 @@
       "name": "Имя",
       "paste": "Вставить",
       "prompt": "Промпт",
-      "pluginId": "ID плагина",
       "provider": "Провайдер",
       "regenerate": "Пересоздать",
       "rename": "Переименовать",
@@ -249,14 +249,22 @@
       "error.enter.api.key": "Пожалуйста, введите ваш API ключ",
       "error.enter.model": "Пожалуйста, выберите модель",
       "error.enter.name": "Пожалуйста, введите название базы знаний",
+      "error.chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента.",
       "error.invalid.proxy.url": "Неверный URL прокси",
       "error.invalid.webdav": "Неверные настройки WebDAV",
+      "error.invalid.enter.api.host": "Пожалуйста, введите правильный API хост",
+      "error.invalid.enter.api.key": "Пожалуйста, введите правильный API ключ",
+      "error.invalid.enter.model": "Пожалуйста, выберите модель",
       "message.code_style": "Стиль кода",
       "message.delete.content": "Вы уверены, что хотите удалить это сообщение?",
       "message.delete.title": "Удалить сообщение",
       "message.style": "Стиль сообщения",
       "message.style.bubble": "Пузырь",
       "message.style.plain": "Простой",
+      "message.multi_model_style": "Стиль ответов от нескольких моделей",
+      "message.multi_model_style.horizontal": "Горизонтальный",
+      "message.multi_model_style.vertical": "Вертикальный",
+      "message.multi_model_style.fold": "Свернуть",
       "reset.confirm.content": "Вы уверены, что хотите очистить все данные?",
       "reset.double.confirm.content": "Все данные будут утеряны, хотите продолжить?",
       "reset.double.confirm.title": "ДАННЫЕ БУДУТ УТЕРЯНЫ !!!",
@@ -269,7 +277,10 @@
       "upgrade.success.title": "Обновление успешно",
       "regenerate.confirm": "Перегенерация заменит текущее сообщение",
       "copy.success": "Скопировано!",
-      "error.get_embedding_dimensions": "Не удалось получить размерность встраивания"
+      "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
+      "group.delete.title": "Удалить группу сообщений",
+      "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
+      "mention.title": "Переключить модель ответа"
     },
     "minapp": {
       "title": "Встроенные приложения",
@@ -307,6 +318,7 @@
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
+      "baidu-cloud": "Baidu Cloud",
       "baichuan": "Baichuan",
       "dashscope": "Alibaba Cloud",
       "deepseek": "DeepSeek",
@@ -383,6 +395,7 @@
         "webdav.path.placeholder": "/backup",
         "webdav.autoSync": "Автоматическое резервное копирование",
         "webdav.minutes": "минут",
+        "webdav.hours": "часов",
         "webdav.restore.button": "Восстановление с WebDAV",
         "webdav.title": "WebDAV",
         "webdav.user": "Пользователь WebDAV",
@@ -484,6 +497,7 @@
         "docs_check": "Проверить",
         "docs_more_details": "для получения дополнительной информации",
         "get_api_key": "Получить ключ API",
+        "charge": "Пополнить",
         "no_models": "Пожалуйста, добавьте модели перед проверкой соединения с API",
         "not_checked": "Не проверено",
         "remove_duplicate_keys": "Удалить дубликаты ключей",
@@ -501,7 +515,6 @@
       "provider.check": "Проверить",
       "provider.docs_check": "Проверить",
       "provider.docs_more_details": "для получения дополнительной информации",
-      "provider.get_api_key": "Получить ключ API",
       "provider.search_placeholder": "Поиск по ID или имени модели",
       "proxy": {
         "mode": {
@@ -532,7 +545,9 @@
         "toggle_show_topics": "Переключить отображение топиков",
         "copy_last_message": "Копировать последнее сообщение",
         "search_message": "Поиск сообщения",
-        "mini_window": "Быстрый помощник"
+        "mini_window": "Быстрый помощник",
+        "clear_topic": "Очистить все сообщения",
+        "toggle_new_context": "Очистить контекст"
       },
       "theme.auto": "Автоматически",
       "theme.dark": "Темная",
@@ -617,7 +632,11 @@
       "model_info": "Модель информации",
       "not_support": "База знаний базы данных движок обновлен, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
       "no_provider": "База знаний модель поставщика не настроена, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
-      "source": "Источник"
+      "source": "Источник",
+      "chunk_size": "Размер фрагмента",
+      "chunk_overlap": "Перекрытие фрагмента",
+      "not_set": "Не установлено",
+      "settings": "Настройки базы знаний"
     },
     "models": {
       "pinned": "Закреплено",
@@ -627,13 +646,15 @@
         "select": "Выберите тип модели",
         "text": "Текст",
         "vision": "Изображение",
-        "embedding": "Встраиваемые"
+        "embedding": "Встраиваемые",
+        "reasoning": "Рассуждение"
       },
       "all": "Все",
-      "vision": "Визуальные модели",
-      "websearch": "Веб-поисковые модели",
-      "free": "Бесплатные модели",
-      "embedding": "Встраиваемые модели",
+      "vision": "Визуальные",
+      "websearch": "Веб-поисковые",
+      "free": "Бесплатные",
+      "reasoning": "Рассуждение",
+      "embedding": "Встраиваемые",
       "embedding_model": "Встраиваемые модели",
       "embedding_model_tooltip": "Добавьте в настройки->модель сервиса->управление",
       "dimensions": "{{dimensions}} мер",
@@ -671,8 +692,16 @@
       "footer": {
         "esc": "Нажмите ESC {{action}}",
         "esc_close": "закрытия окна",
-        "esc_back": "возвращения"
+        "esc_back": "возвращения",
+        "copy_last_message": "Нажмите C для копирования"
       }
+    },
+    "auth": {
+      "oauth_button": "Авторизоваться с {{provider}}",
+      "get_key": "Получить",
+      "get_key_success": "Автоматический получение ключа API успешно",
+      "login": "Войти",
+      "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную"
     }
   }
 }

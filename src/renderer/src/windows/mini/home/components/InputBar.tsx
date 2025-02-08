@@ -24,7 +24,7 @@ const InputBar: FC<InputBarProps> = ({ text, model, placeholder, handleKeyDown, 
         bordered={false}
         autoFocus
         onKeyDown={handleKeyDown}
-        onChange={(e) => setText(e.target.value.trim())}
+        onChange={(e) => setText(e.target.value)}
         disabled={generating}
       />
     </InputWrapper>

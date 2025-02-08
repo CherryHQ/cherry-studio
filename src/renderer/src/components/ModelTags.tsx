@@ -1,36 +1,40 @@
-import { isEmbeddingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isEmbeddingModel, isReasoningModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import { Model } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils'
 import { Tag } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
+import ReasoningIcon from './Icons/ReasoningIcon'
 import VisionIcon from './Icons/VisionIcon'
 import WebSearchIcon from './Icons/WebSearchIcon'
 
 interface ModelTagsProps {
   model: Model
   showFree?: boolean
+  showReasoning?: boolean
 }
 
-const ModelTags: FC<ModelTagsProps> = ({ model, showFree = true }) => {
+const ModelTags: FC<ModelTagsProps> = ({ model, showFree = true, showReasoning = true }) => {
   const { t } = useTranslation()
   return (
-    <>
+    <Container>
       {isVisionModel(model) && <VisionIcon />}
       {isWebSearchModel(model) && <WebSearchIcon />}
-      {showFree && isFreeModel(model) && (
-        <Tag style={{ marginLeft: 10 }} color="green">
-          {t('models.free')}
-        </Tag>
-      )}
-      {isEmbeddingModel(model) && (
-        <Tag style={{ marginLeft: 10 }} color="orange">
-          {t('models.embedding')}
-        </Tag>
-      )}
-    </>
+      {showReasoning && isReasoningModel(model) && <ReasoningIcon />}
+      {isEmbeddingModel(model) && <Tag color="orange">{t('models.embedding')}</Tag>}
+      {showFree && isFreeModel(model) && <Tag color="green">{t('models.free')}</Tag>}
+    </Container>
   )
 }
+
+const Container = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+`
 
 export default ModelTags

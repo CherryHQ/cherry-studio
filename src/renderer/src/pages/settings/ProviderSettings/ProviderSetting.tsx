@@ -8,7 +8,8 @@ import {
   SettingOutlined
 } from '@ant-design/icons'
 import ModelTags from '@renderer/components/ModelTags'
-import { EMBEDDING_REGEX, getModelLogo, VISION_REGEX } from '@renderer/config/models'
+import OAuthButton from '@renderer/components/OAuth/OAuthButton'
+import { EMBEDDING_REGEX, getModelLogo, REASONING_REGEX, VISION_REGEX } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -16,6 +17,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
 import { checkApi } from '@renderer/services/ApiService'
+import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model, ModelType, Provider } from '@renderer/types'
@@ -61,14 +63,29 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { defaultModel, setDefaultModel } = useDefaultModel()
 
   const modelGroups = groupBy(models, 'group')
+  const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
-  useEffect(() => {
-    setApiKey(provider.apiKey)
-    setApiHost(provider.apiHost)
-  }, [provider])
+  const providerConfig = PROVIDER_CONFIG[provider.id]
+  const officialWebsite = providerConfig?.websites?.official
+  const apiKeyWebsite = providerConfig?.websites?.apiKey
+  const docsWebsite = providerConfig?.websites?.docs
+  const modelsWebsite = providerConfig?.websites?.models
+  const configedApiHost = providerConfig?.api?.url
 
-  const onUpdateApiKey = () => updateProvider({ ...provider, apiKey })
-  const onUpdateApiHost = () => updateProvider({ ...provider, apiHost })
+  const onUpdateApiKey = () => {
+    if (apiKey !== provider.apiKey) {
+      updateProvider({ ...provider, apiKey })
+    }
+  }
+
+  const onUpdateApiHost = () => {
+    if (apiHost.trim()) {
+      updateProvider({ ...provider, apiHost })
+    } else {
+      setApiHost(provider.apiHost)
+    }
+  }
+
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
   const onManageModel = () => EditModelsPopup.show({ provider })
   const onAddModel = () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
@@ -111,25 +128,24 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     } else {
       setApiChecking(true)
 
-      const valid = await checkApi({ ...provider, apiKey, apiHost }, model)
+      const { valid, error } = await checkApi({ ...provider, apiKey, apiHost }, model)
+
+      const errorMessage = error && error?.message ? ' ' + error?.message : ''
+
       window.message[valid ? 'success' : 'error']({
         key: 'api-check',
         style: { marginTop: '3vh' },
         duration: valid ? 2 : 8,
-        content: valid ? i18n.t('message.api.connection.success') : i18n.t('message.api.connection.failed')
+        content: valid
+          ? i18n.t('message.api.connection.success')
+          : i18n.t('message.api.connection.failed') + errorMessage
       })
+
       setApiValid(valid)
       setApiChecking(false)
       setTimeout(() => setApiValid(false), 3000)
     }
   }
-
-  const providerConfig = PROVIDER_CONFIG[provider.id]
-  const officialWebsite = providerConfig?.websites?.official
-  const apiKeyWebsite = providerConfig?.websites?.apiKey
-  const docsWebsite = providerConfig?.websites?.docs
-  const modelsWebsite = providerConfig?.websites?.models
-  const configedApiHost = providerConfig?.api?.url
 
   const onReset = () => {
     setApiHost(configedApiHost)
@@ -177,7 +193,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         onChange={(types) => onUpdateModelTypes(model, types as ModelType[])}
         options={[
           { label: t('models.type.vision'), value: 'vision', disabled: VISION_REGEX.test(model.id) },
-          { label: t('models.type.embedding'), value: 'embedding', disabled: EMBEDDING_REGEX.test(model.id) }
+          { label: t('models.type.embedding'), value: 'embedding', disabled: EMBEDDING_REGEX.test(model.id) },
+          { label: t('models.type.reasoning'), value: 'reasoning', disabled: REASONING_REGEX.test(model.id) }
         ]}
       />
     </div>
@@ -187,14 +204,28 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
   }
 
+  useEffect(() => {
+    setApiKey(provider.apiKey)
+    setApiHost(provider.apiHost)
+  }, [provider.apiKey, provider.apiHost])
+
+  // Save apiKey to provider when unmount
+  useEffect(() => {
+    return () => {
+      if (apiKey.trim() && apiKey !== provider.apiKey) {
+        updateProvider({ ...provider, apiKey })
+      }
+    }
+  }, [apiKey, provider, updateProvider])
+
   return (
     <SettingContainer theme={theme}>
       <SettingTitle>
-        <Flex align="center">
+        <Flex align="center" gap={8}>
           <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
           {officialWebsite! && (
             <Link target="_blank" href={providerConfig.websites.official}>
-              <ExportOutlined style={{ marginLeft: '8px', color: 'var(--color-text)', fontSize: '12px' }} />
+              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
             </Link>
           )}
         </Flex>
@@ -216,6 +247,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           type="password"
           autoFocus={provider.enabled && apiKey === ''}
         />
+        {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
         <Button
           type={apiValid ? 'primary' : 'default'}
           ghost={apiValid}
@@ -241,7 +273,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           onBlur={onUpdateApiHost}
         />
         {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
-          <Button onClick={onReset}>{t('settings.provider.api.url.reset')}</Button>
+          <Button danger onClick={onReset}>
+            {t('settings.provider.api.url.reset')}
+          </Button>
         )}
       </Space.Compact>
       {isOpenAIProvider(provider) && (
@@ -250,7 +284,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           <SettingHelpText>{t('settings.provider.api.url.tip')}</SettingHelpText>
         </SettingHelpTextRow>
       )}
-      {provider.id === 'azure-openai' && (
+      {isAzureOpenAI && (
         <>
           <SettingSubtitle>{t('settings.provider.api_version')}</SettingSubtitle>
           <Space.Compact style={{ width: '100%', marginTop: 5 }}>
@@ -281,8 +315,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
                 <Avatar src={getModelLogo(model.id)} size={22} style={{ marginRight: '8px' }}>
                   {model?.name?.[0]?.toUpperCase()}
                 </Avatar>
-                {model?.name}
-                <ModelTags model={model} />
+                <ModelNameRow>
+                  <span>{model?.name}</span>
+                  <ModelTags model={model} />
+                </ModelNameRow>
                 <Popover content={modelTypeContent(model)} title={t('models.type.select')} trigger="click">
                   <SettingIcon />
                 </Popover>
@@ -332,6 +368,13 @@ const ModelListHeader = styled.div`
   align-items: center;
 `
 
+const ModelNameRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+`
+
 const RemoveIcon = styled(MinusCircleOutlined)`
   font-size: 18px;
   margin-left: 10px;
@@ -341,7 +384,7 @@ const RemoveIcon = styled(MinusCircleOutlined)`
 `
 
 const SettingIcon = styled(SettingOutlined)`
-  margin-left: 10px;
+  margin-left: 2px;
   color: var(--color-text);
   cursor: pointer;
   transition: all 0.2s ease-in-out;

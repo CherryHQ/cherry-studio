@@ -1,19 +1,19 @@
 import 'emoji-picker-element'
 
-import { LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
+import { useAppSelector } from '@renderer/store'
 import { Agent } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
-import { Button, Form, FormInstance, Input, Modal, Popover, Radio } from 'antd'
+import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { SYSTEM_MODELS } from '@renderer/config/models'
 
 interface Props {
   resolve: (data: Agent | null) => void
@@ -22,8 +22,8 @@ interface Props {
 type FieldType = {
   id: string
   name: string
-  prompt?: string
-  pluginId?: string
+  prompt: string
+  knowledge_base_id: string
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
@@ -34,28 +34,31 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
-  const [agentType, setAgentType] = useState<'normal' | 'plugin'>('normal') // 添加类型状态
+  const knowledgeState = useAppSelector((state) => state.knowledge)
+  const knowledgeOptions: SelectProps['options'] = []
+
+  knowledgeState.bases.forEach((base) => {
+    knowledgeOptions.push({
+      label: base.name,
+      value: base.id
+    })
+  })
 
   const onFinish = (values: FieldType) => {
     const _emoji = emoji || getLeadingEmoji(values.name)
 
-    if (
-      values.name.trim() === '' ||
-      (agentType === 'normal' && values.prompt?.trim() === '') ||
-      (agentType === 'plugin' && values.pluginId?.trim() === '')
-    ) {
+    if (values.name.trim() === '' || values.prompt.trim() === '') {
       return
     }
 
     const _agent: Agent = {
       id: uuid(),
       name: values.name,
+      knowledge_base: knowledgeState.bases.find((t) => t.id === values.knowledge_base_id),
       emoji: _emoji,
-      prompt: values.prompt || '',
-      defaultModel: agentType === 'normal' ? getDefaultModel() : SYSTEM_MODELS.openai[0],
+      prompt: values.prompt,
+      defaultModel: getDefaultModel(),
       type: 'agent',
-      subType: agentType,
-      pluginId: values.pluginId,
       topics: [],
       messages: []
     }
@@ -65,7 +68,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     setOpen(false)
   }
 
-  const onCancel = () => {    setOpen(false)
+  const onCancel = () => {
+    setOpen(false)
   }
 
   const onClose = () => {
@@ -118,13 +122,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         colon={false}
         style={{ marginTop: 25 }}
         onFinish={onFinish}>
-        <Form.Item name="type" label={t('agents.add.type')} initialValue="normal">
-          <Radio.Group onChange={(e) => setAgentType(e.target.value)}>
-            <Radio value="normal">{t('agents.add.type.normal')}</Radio>
-            <Radio value="plugin">{t('agents.add.type.plugin')}</Radio>
-          </Radio.Group>
-        </Form.Item>
-        <Form.Item name="emoji" label="Emoji">
+        <Form.Item name="name" label="Emoji">
           <Popover content={<EmojiPicker onEmojiClick={setEmoji} />} arrow>
             <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
           </Popover>
@@ -132,28 +130,29 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <Form.Item name="name" label={t('agents.add.name')} rules={[{ required: true }]}>
           <Input placeholder={t('agents.add.name.placeholder')} spellCheck={false} allowClear />
         </Form.Item>
-        {agentType === 'normal' && (
-          <div style={{ position: 'relative' }}>
-            <Form.Item
-              name="prompt"
-              label={t('agents.add.prompt')}
-              rules={[{ required: true }]}
-              style={{ position: 'relative' }}>
-              <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
-            </Form.Item>
-            <Button
-              icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
-              onClick={handleButtonClick}
-              style={{ position: 'absolute', top: 8, right: 8 }}
-              disabled={loading}
-            />
-          </div>
-        )}
-        {agentType === 'plugin' && (
-          <Form.Item name="pluginId" label={t('agents.add.pluginId')} rules={[{ required: true }]}>
-            <Input placeholder={t('agents.add.pluginId.placeholder')} spellCheck={false} allowClear />
+        <div style={{ position: 'relative' }}>
+          <Form.Item
+            name="prompt"
+            label={t('agents.add.prompt')}
+            rules={[{ required: true }]}
+            style={{ position: 'relative' }}>
+            <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
           </Form.Item>
-        )}
+          <Button
+            icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+            onClick={handleButtonClick}
+            style={{ position: 'absolute', top: 8, right: 8 }}
+            disabled={loading}
+          />
+        </div>
+        <Form.Item name="knowledge_base_id" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
+          <Select
+            allowClear
+            placeholder={t('agents.add.knowledge_base.placeholder')}
+            menuItemSelectedIcon={<CheckOutlined />}
+            options={knowledgeOptions}
+          />
+        </Form.Item>
       </Form>
     </Modal>
   )

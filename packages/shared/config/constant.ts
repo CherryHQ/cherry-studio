@@ -87,7 +87,8 @@ export const textExts = [
   '.gradle', // Gradle 构建文件
   '.groovy', // Gradle 构建文件
   '.kts', // Kotlin Script 文件
-  '.java' // Java 代码文件
+  '.java', // Java 代码文件
+  '.cs' // C# 代码文件
 ]
 
 export const ZOOM_SHORTCUTS = [

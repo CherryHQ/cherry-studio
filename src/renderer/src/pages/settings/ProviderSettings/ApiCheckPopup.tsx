@@ -42,7 +42,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, reso
       for (let i = 0; i < newStatuses.length; i++) {
         setKeyStatuses((prev) => prev.map((status, idx) => (idx === i ? { ...status, checking: true } : status)))
 
-        const valid = await checkApi({ ...provider, apiKey: newStatuses[i].key }, model)
+        const { valid } = await checkApi({ ...provider, apiKey: newStatuses[i].key }, model)
 
         setKeyStatuses((prev) =>
           prev.map((status, idx) => (idx === i ? { ...status, checking: false, isValid: valid } : status))

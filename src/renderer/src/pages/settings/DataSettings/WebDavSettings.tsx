@@ -40,7 +40,7 @@ const WebDavSettings: FC = () => {
 
   const dispatch = useAppDispatch()
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const { webdavSync } = useRuntime()
 
@@ -168,12 +168,19 @@ const WebDavSettings: FC = () => {
         <SettingRowTitle>{t('settings.data.webdav.autoSync')}</SettingRowTitle>
         <Select value={syncInterval} onChange={onSyncIntervalChange} disabled={!webdavHost} style={{ width: 120 }}>
           <Select.Option value={0}>{t('settings.data.webdav.autoSync.off')}</Select.Option>
-          <Select.Option value={1}>1 {t('settings.data.webdav.minutes')}</Select.Option>
+          <Select.Option value={1}>
+            1 {i18n.language === 'en-US' ? t('settings.data.webdav.minute') : t('settings.data.webdav.minutes')}
+          </Select.Option>
           <Select.Option value={5}>5 {t('settings.data.webdav.minutes')}</Select.Option>
           <Select.Option value={15}>15 {t('settings.data.webdav.minutes')}</Select.Option>
           <Select.Option value={30}>30 {t('settings.data.webdav.minutes')}</Select.Option>
-          <Select.Option value={60}>60 {t('settings.data.webdav.minutes')}</Select.Option>
-          <Select.Option value={120}>120 {t('settings.data.webdav.minutes')}</Select.Option>
+          <Select.Option value={60}>
+            1 {i18n.language === 'en-US' ? t('settings.data.webdav.hour') : t('settings.data.webdav.hours')}
+          </Select.Option>
+          <Select.Option value={120}>2 {t('settings.data.webdav.hours')}</Select.Option>
+          <Select.Option value={360}>6 {t('settings.data.webdav.hours')}</Select.Option>
+          <Select.Option value={720}>12 {t('settings.data.webdav.hours')}</Select.Option>
+          <Select.Option value={1440}>24 {t('settings.data.webdav.hours')}</Select.Option>
         </Select>
       </SettingRow>
       {webdavSync && syncInterval > 0 && (

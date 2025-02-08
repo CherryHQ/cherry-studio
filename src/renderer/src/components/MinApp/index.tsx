@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unknown-property */
 import { CloseOutlined, ExportOutlined, PushpinOutlined, ReloadOutlined } from '@ant-design/icons'
 import { isMac, isWindows } from '@renderer/config/constant'
+import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import store from '@renderer/store'
@@ -31,6 +32,7 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
   useBridge()
 
   const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
+  const canPinned = DEFAULT_MIN_APPS.some((i) => i.id === app?.id)
 
   const onClose = async (_delay = 0.3) => {
     setOpen(false)
@@ -63,9 +65,11 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
           <Button onClick={onReload}>
             <ReloadOutlined />
           </Button>
-          <Button onClick={onTogglePin} className={isPinned ? 'pinned' : ''}>
-            <PushpinOutlined style={{ fontSize: 16 }} />
-          </Button>
+          {canPinned && (
+            <Button onClick={onTogglePin} className={isPinned ? 'pinned' : ''}>
+              <PushpinOutlined style={{ fontSize: 16 }} />
+            </Button>
+          )}
           {canOpenExternalLink && (
             <Button onClick={onOpenLink}>
               <ExportOutlined />

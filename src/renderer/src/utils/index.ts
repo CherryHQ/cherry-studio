@@ -26,6 +26,18 @@ export function isJSON(str: any): boolean {
   }
 }
 
+export function parseJSON(str: string) {
+  if (str === 'undefined') {
+    return undefined
+  }
+
+  try {
+    return JSON.parse(str)
+  } catch (e) {
+    return null
+  }
+}
+
 export const delay = (seconds: number) => {
   return new Promise((resolve) => {
     setTimeout(() => {

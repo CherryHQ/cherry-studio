@@ -1,57 +1,90 @@
 import { BulbOutlined, FileTextOutlined, MessageOutlined, TranslationOutlined } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Col } from 'antd'
-import { Dispatch, FC, SetStateAction } from 'react'
+import { Dispatch, FC, SetStateAction, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface FeatureMenusProps {
+  text: string
   setRoute: Dispatch<SetStateAction<'translate' | 'summary' | 'chat' | 'explanation' | 'home'>>
   onSendMessage: (prompt?: string) => void
 }
 
-const FeatureMenus: FC<FeatureMenusProps> = ({ setRoute, onSendMessage }) => {
+const FeatureMenus: FC<FeatureMenusProps> = ({ text, setRoute, onSendMessage }) => {
   const { t } = useTranslation()
+  const [selectedIndex, setSelectedIndex] = useState(0)
 
-  const features = [
-    {
-      icon: <MessageOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
-      title: t('miniwindow.feature.chat'),
-      active: true,
-      onClick: () => {
-        setRoute('chat')
-        onSendMessage()
+  const features = useMemo(
+    () => [
+      {
+        icon: <MessageOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        title: t('miniwindow.feature.chat'),
+        active: true,
+        onClick: () => {
+          if (text) {
+            setRoute('chat')
+            onSendMessage()
+          }
+        }
+      },
+      {
+        icon: <TranslationOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        title: t('miniwindow.feature.translate'),
+        onClick: () => text && setRoute('translate')
+      },
+      {
+        icon: <FileTextOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        title: t('miniwindow.feature.summary'),
+        onClick: () => {
+          if (text) {
+            setRoute('summary')
+            onSendMessage(t('prompts.summarize'))
+          }
+        }
+      },
+      {
+        icon: <BulbOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        title: t('miniwindow.feature.explanation'),
+        onClick: () => {
+          if (text) {
+            setRoute('explanation')
+            onSendMessage(t('prompts.explanation'))
+          }
+        }
       }
-    },
-    {
-      icon: <TranslationOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
-      title: t('miniwindow.feature.translate'),
-      onClick: () => setRoute('translate')
-    },
-    {
-      icon: <FileTextOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
-      title: t('miniwindow.feature.summary'),
-      onClick: () => {
-        setRoute('summary')
-        onSendMessage(t('prompts.summarize'))
-      }
-    },
-    {
-      icon: <BulbOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
-      title: t('miniwindow.feature.explanation'),
-      onClick: () => {
-        setRoute('explanation')
-        onSendMessage(t('prompts.explanation'))
+    ],
+    [onSendMessage, setRoute, t, text]
+  )
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault()
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : features.length - 1))
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          setSelectedIndex((prev) => (prev < features.length - 1 ? prev + 1 : 0))
+          break
+        case 'Enter':
+          e.preventDefault()
+          features[selectedIndex].onClick?.()
+          break
       }
     }
-  ]
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [features, selectedIndex])
 
   return (
     <FeatureList>
       <FeatureListWrapper>
         {features.map((feature, index) => (
           <Col span={24} key={index}>
-            <FeatureItem onClick={feature.onClick} className={feature.active ? 'active' : ''}>
+            <FeatureItem onClick={feature.onClick} className={index === selectedIndex ? 'active' : ''}>
               <FeatureIcon>{feature.icon}</FeatureIcon>
               <FeatureTitle>{feature.title}</FeatureTitle>
             </FeatureItem>

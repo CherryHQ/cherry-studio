@@ -34,3 +34,11 @@ export function debounce(func: (...args: any[]) => void, wait: number, immediate
     }
   }
 }
+
+export function dumpPersistState() {
+  const persistState = JSON.parse(localStorage.getItem('persist:cherry-studio') || '{}')
+  for (const key in persistState) {
+    persistState[key] = JSON.parse(persistState[key])
+  }
+  return JSON.stringify(persistState)
+}

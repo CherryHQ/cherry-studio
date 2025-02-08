@@ -10,6 +10,7 @@ import { runAsyncFunction, uuid } from '@renderer/utils'
 import { Select, Space } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -41,10 +42,10 @@ const Translate: FC<Props> = ({ text }) => {
       const message: Message = {
         id: uuid(),
         role: 'user',
-        content: text,
+        content: '',
         assistantId: assistant.id,
         topicId: uuid(),
-        modelId: translateModel.id,
+        model: translateModel,
         createdAt: new Date().toISOString(),
         type: 'text',
         status: 'sending'
@@ -70,6 +71,10 @@ const Translate: FC<Props> = ({ text }) => {
   useEffect(() => {
     translate()
   }, [translate])
+
+  useHotkeys('c', () => {
+    navigator.clipboard.writeText(result)
+  })
 
   return (
     <Container>

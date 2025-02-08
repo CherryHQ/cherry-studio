@@ -25,7 +25,7 @@ export function getDefaultTranslateAssistant(targetLanguage: string, text: strin
   assistant.model = translateModel
 
   assistant.settings = {
-    temperature: 0.7
+    temperature: 1.3
   }
 
   assistant.prompt = store
@@ -133,7 +133,7 @@ export async function addAssistantMessagesToTopic({ assistant, topic }: { assist
       topicId: topic.id,
       createdAt: new Date().toISOString(),
       status: 'success',
-      modelId: assistant.defaultModel?.id || defaultModel.id,
+      model: assistant.defaultModel || defaultModel,
       type: 'text',
       isPreset: true
     }

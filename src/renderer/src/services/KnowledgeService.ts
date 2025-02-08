@@ -22,7 +22,9 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     dimensions: base.dimensions,
     apiKey: aiProvider.getApiKey() || 'secret',
     apiVersion: provider.apiVersion,
-    baseURL: host
+    baseURL: host,
+    chunkSize: base.chunkSize,
+    chunkOverlap: base.chunkOverlap
   }
 }
 

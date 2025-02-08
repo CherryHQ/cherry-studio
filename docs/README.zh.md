@@ -1,19 +1,21 @@
-<div align="center">
+<h1 align="center">
   <a href="https://github.com/kangfenmao/cherry-studio/releases">
     <img src="https://github.com/kangfenmao/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" />
   </a>
-</div>
+</h1>
 <div align="center">
   中文 / <a href="https://github.com/kangfenmao/cherry-studio">English</a> / <a href="./README.ja.md">日本語</a>
 </div>
-
+<div align="center">
+ <a href="https://trendshift.io/repositories/11772" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11772" alt="kangfenmao%2Fcherry-studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</div>
 # 🍒 Cherry Studio
-
-![](https://github.com/user-attachments/assets/995910f3-177a-4d1e-97ea-04e3b009ba36)
 
 Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客户端，兼容 Windows、Mac 和 Linux 系统。
 
-👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)
+👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(534635975)](https://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=mPMbCwUo40lYODSp-SUeY9ju9sSBeMbS&authKey=Tt8SyX2p4i1Aopn2OzPwi88tc81AW%2F4m%2Fkt4ETHTPGnM6TKOXuRxKJuUMWu5Hgay&noverify=0&group_code=534635975)
+
+❤️ 喜欢 Cherry Studio? 点亮小星星 🌟 或 [赞助开发者](sponsor.md)! ❤️
 
 # 🌠 界面
 
@@ -22,6 +24,8 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 ![](https://github.com/user-attachments/assets/790790d7-b462-48dd-bde1-91c1697a4648)
 
 # 🌟 主要特性
+
+![](https://github.com/user-attachments/assets/995910f3-177a-4d1e-97ea-04e3b009ba36)
 
 1. **多样化 LLM 服务支持**：
 
@@ -112,6 +116,9 @@ $ yarn build:linux
 有关更详细的指南，请参阅我们的 [贡献指南](./CONTRIBUTING.md)。
 
 感谢您的支持和贡献！
+
+## 相关项目
+* [one-api](https://github.com/songquanpeng/one-api):LLM API管理及分发系统，支持OpenAI、Azure、Anthropic等主流模型，统一API接口，可用于密钥管理与二次分发。
 
 # 🚀 贡献者
 

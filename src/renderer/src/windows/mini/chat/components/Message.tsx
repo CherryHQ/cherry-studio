@@ -5,6 +5,7 @@ import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import MessageErrorBoundary from '@renderer/pages/home/Messages/MessageErrorBoundary'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
+import { getMessageModelId } from '@renderer/services/MessagesService'
 import { Message } from '@renderer/types'
 import { isMiniWindow } from '@renderer/utils'
 import { Dispatch, FC, memo, SetStateAction, useEffect, useMemo, useRef, useState } from 'react'
@@ -24,7 +25,7 @@ const getMessageBackground = (isBubbleStyle: boolean, isAssistantMessage: boolea
 
 const MessageItem: FC<Props> = ({ message: _message, index, total, route, onSetMessages, onGetMessages }) => {
   const [message, setMessage] = useState(_message)
-  const model = useModel(message.modelId)
+  const model = useModel(getMessageModelId(message))
   const isBubbleStyle = true
   const { messageFont, fontSize } = useSettings()
   const messageContainerRef = useRef<HTMLDivElement>(null)

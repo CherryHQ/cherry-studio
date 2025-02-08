@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMessagesSettings from './AssistantMessagesSettings'
 import AssistantModelSettings from './AssistantModelSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
@@ -57,6 +58,10 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
     {
       key: 'messages',
       label: t('assistants.settings.preset_messages')
+    },
+    {
+      key: 'knowledge_base',
+      label: t('assistants.settings.knowledge_base')
     }
   ]
 
@@ -110,6 +115,13 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
           )}
           {menu === 'messages' && (
             <AssistantMessagesSettings
+              assistant={assistant}
+              updateAssistant={updateAssistant}
+              updateAssistantSettings={updateAssistantSettings}
+            />
+          )}
+          {menu === 'knowledge_base' && (
+            <AssistantKnowledgeBaseSettings
               assistant={assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}

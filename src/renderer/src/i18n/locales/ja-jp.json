@@ -2,15 +2,12 @@
   "translation": {
     "agents": {
       "add.button": "アシスタントに追加",
-      "add.type": "タイプ",
-      "add.type.normal": "いっぱん",
-      "add.type.plugin": "GPTs プラグイン",
       "add.name": "名前",
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
-      "add.pluginId": "プラグイン ID",
-      "add.pluginId.placeholder": "输入プラグインID（例：g-97gBggzBU）",
+      "add.knowledge_base": "ナレッジベース",
+      "add.knowledge_base.placeholder": "ナレッジベースを選択",
       "add.title": "エージェントを作成",
       "delete.popup.content": "このエージェントを削除してもよろしいですか？",
       "edit.message.add.title": "追加",
@@ -51,7 +48,7 @@
       "settings.model": "モデル設定",
       "settings.preset_messages": "プリセットメッセージ",
       "settings.prompt": "プロンプト設定",
-      "settings.plugin": "插件設定",
+      "settings.knowledge_base": "ナレッジベース設定",
       "title": "アシスタント"
     },
     "button": {
@@ -70,14 +67,14 @@
       "default.description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
       "default.name": "⭐️ デフォルトアシスタント",
       "default.topic.name": "デフォルトトピック",
-      "input.clear": "クリア",
+      "input.clear": "クリア {{Command}}",
       "input.clear.content": "現在のトピックのすべてのメッセージをクリアしますか？",
       "input.clear.title": "すべてのメッセージをクリアしますか？",
       "input.collapse": "折りたたむ",
       "input.context_count.tip": "コンテキスト数",
       "input.estimated_tokens.tip": "推定トークン数",
       "input.expand": "展開",
-      "input.new.context": "コンテキストをクリア",
+      "input.new.context": "コンテキストをクリア {{Command}}",
       "input.new_topic": "新しいトピック {{Command}}",
       "input.pause": "一時停止",
       "input.placeholder": "ここにメッセージを入力...",
@@ -92,6 +89,7 @@
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.regenerate.model": "モデルを切り替え",
       "message.new.context": "新しいコンテキスト",
+      "message.useful": "役立つ",
       "save": "保存",
       "settings.code_collapsible": "コードブロックを折りたたむ",
       "settings.context_count": "コンテキスト",
@@ -119,7 +117,9 @@
       "topics.move_to": "移動先",
       "topics.title": "トピック",
       "translate": "翻訳",
-      "resend": "再送信"
+      "resend": "再送信",
+      "thinking": "思考中...",
+      "deeply_thought": "深く考えています（{{secounds}} 秒）"
     },
     "common": {
       "and": "と",
@@ -132,6 +132,7 @@
       "copy": "コピー",
       "cut": "切り取り",
       "default": "デフォルト",
+      "knowledge_base": "ナレッジベース",
       "delete": "削除",
       "description": "説明",
       "docs": "ドキュメント",
@@ -145,7 +146,6 @@
       "name": "名前",
       "paste": "貼り付け",
       "prompt": "プロンプト",
-      "pluginId": "プラグイン ID",
       "provider": "プロバイダー",
       "regenerate": "再生成",
       "rename": "名前を変更",
@@ -248,14 +248,22 @@
       "error.enter.api.host": "APIホストを入力してください",
       "error.enter.api.key": "APIキーを入力してください",
       "error.enter.model": "モデルを選択してください",
+      "error.chunk_overlap_too_large": "チャンクの重なりは、チャンクサイズを超えることはできません",
       "error.invalid.proxy.url": "無効なプロキシURL",
       "error.invalid.webdav": "無効なWebDAV設定",
+      "error.invalid.enter.api.host": "APIホストを入力してください",
+      "error.invalid.enter.api.key": "APIキーを入力してください",
+      "error.invalid.enter.model": "モデルを選択してください",
       "message.code_style": "コードスタイル",
       "message.delete.content": "このメッセージを削除してもよろしいですか？",
       "message.delete.title": "メッセージを削除",
       "message.style": "メッセージスタイル",
       "message.style.bubble": "バブル",
       "message.style.plain": "プレーン",
+      "message.multi_model_style": "複数モデル回答スタイル",
+      "message.multi_model_style.horizontal": "水平",
+      "message.multi_model_style.vertical": "垂直",
+      "message.multi_model_style.fold": "折りたたむ",
       "reset.confirm.content": "すべてのデータをリセットしてもよろしいですか？",
       "reset.double.confirm.content": "すべてのデータが失われます。続行しますか？",
       "reset.double.confirm.title": "データが失われます！！！",
@@ -267,7 +275,11 @@
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
       "regenerate.confirm": "再生成すると現在のメッセージが置き換えられます",
-      "copy.success": "コピーしました！"
+      "copy.success": "コピーしました！",
+      "error.get_embedding_dimensions": "埋込み次元を取得できませんでした",
+      "group.delete.title": "分組メッセージを削除",
+      "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
+      "mention.title": "モデルを切り替える"
     },
     "minapp": {
       "title": "ミニアプリ",
@@ -305,6 +317,7 @@
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
+      "baidu-cloud": "Baidu Cloud",
       "baichuan": "百川",
       "dashscope": "Alibaba Cloud",
       "deepseek": "DeepSeek",
@@ -381,6 +394,7 @@
         "webdav.path.placeholder": "/backup",
         "webdav.autoSync": "自動バックアップ",
         "webdav.minutes": "分",
+        "webdav.hours": "時間",
         "webdav.restore.button": "WebDAVから復元",
         "webdav.title": "WebDAV",
         "webdav.user": "WebDAVユーザー",
@@ -482,6 +496,7 @@
         "docs_check": "チェック",
         "docs_more_details": "詳細を確認",
         "get_api_key": "APIキーを取得",
+        "charge": "充電",
         "no_models": "API接続をチェックする前に、モデルを追加してください",
         "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
@@ -518,7 +533,9 @@
         "toggle_show_topics": "トピックの表示を切り替え",
         "copy_last_message": "最後のメッセージをコピー",
         "search_message": "メッセージを検索",
-        "mini_window": "クイックアシスタント"
+        "mini_window": "クイックアシスタント",
+        "clear_topic": "メッセージを消去",
+        "toggle_new_context": "コンテキストをクリア"
       },
       "theme.auto": "自動",
       "theme.dark": "ダークテーマ",
@@ -603,7 +620,11 @@
       "model_info": "モデル情報",
       "not_support": "ナレッジベースデータベースエンジンが更新されました。このナレッジベースはもうサポートされていません。新しいナレッジベースを作成してください",
       "no_provider": "ナレッジベースモデルプロバイダーが設定されていません。ナレッジベースはもうサポートされていません。新しいナレッジベースを作成してください",
-      "source": "ソース"
+      "source": "ソース",
+      "chunk_size": "チャンクサイズ",
+      "chunk_overlap": "チャンクの重なり",
+      "not_set": "未設定",
+      "settings": "ナレッジベース設定"
     },
     "models": {
       "pinned": "固定済み",
@@ -613,14 +634,16 @@
         "select": "モデルタイプを選択",
         "text": "テキスト",
         "vision": "画像",
-        "embedding": "埋め込み"
+        "embedding": "埋め込み",
+        "reasoning": "推論"
       },
       "all": "すべて",
-      "vision": "画像モデル",
-      "websearch": "ウェブ検索モデル",
-      "free": "無料モデル",
-      "embedding": "埋め込みモデル",
-      "embedding_model": "埋め込みモデル",
+      "vision": "画像",
+      "websearch": "ウェブ検索",
+      "free": "無料",
+      "reasoning": "推論",
+      "embedding": "埋め込み",
+      "embedding_model": "埋め込み模型",
       "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
       "dimensions": "{{dimensions}} 次元",
       "custom_parameters": "カスタムパラメータ",
@@ -657,8 +680,16 @@
       "footer": {
         "esc": "ESC キーを押して{{action}}",
         "esc_close": "ウィンドウを閉じる",
-        "esc_back": "戻る"
+        "esc_back": "戻る",
+        "copy_last_message": "C キーを押してコピー"
       }
+    },
+    "auth": {
+      "oauth_button": "{{provider}}で認証",
+      "get_key": "取得",
+      "get_key_success": "APIキーの自動取得に成功しました",
+      "login": "認証",
+      "error": "APIキーの自動取得に失敗しました。手動で取得してください"
     }
   }
 }

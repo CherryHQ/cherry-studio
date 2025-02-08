@@ -1,3 +1,4 @@
+import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
@@ -5,6 +6,7 @@ import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
 import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png?url'
 import DuckDuckGoAppLogo from '@renderer/assets/images/apps/duckduckgo.webp?url'
 import FeloAppLogo from '@renderer/assets/images/apps/felo.png?url'
+import FlowithAppLogo from '@renderer/assets/images/apps/flowith.svg?url'
 import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png?url'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg?url'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?url'
@@ -252,7 +254,7 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'grok',
     name: 'Grok',
     logo: GrokAppLogo,
-    url: 'https://x.com/i/grok',
+    url: 'https://grok.com',
     bodered: true
   },
   {
@@ -260,6 +262,20 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'QwenLM',
     logo: QwenlmAppLogo,
     url: 'https://qwenlm.ai/'
+  },
+  {
+    id: 'flowith',
+    name: 'Flowith',
+    logo: FlowithAppLogo,
+    url: 'https://www.flowith.io/',
+    bodered: true
+  },
+  {
+    id: '3mintop',
+    name: '3MinTop',
+    logo: ThreeMinTopAppLogo,
+    url: 'https://3min.top',
+    bodered: false
   }
 ]
 

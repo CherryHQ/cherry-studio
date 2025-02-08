@@ -1,4 +1,4 @@
-import { getOpenAIWebSearchParams, isSupportedModel, isVisionModel } from '@renderer/config/models'
+import { getOpenAIWebSearchParams, isReasoningModel, isSupportedModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -23,7 +23,7 @@ export default class OpenAIProvider extends BaseProvider {
   constructor(provider: Provider) {
     super(provider)
 
-    if (provider.id === 'azure-openai') {
+    if (provider.id === 'azure-openai' || provider.type === 'azure-openai') {
       this.sdk = new AzureOpenAI({
         dangerouslyAllowBrowser: true,
         apiKey: this.apiKey,
@@ -117,52 +117,99 @@ export default class OpenAIProvider extends BaseProvider {
     } as ChatCompletionMessageParam
   }
 
+  private getTemperature(assistant: Assistant, model: Model) {
+    if (isReasoningModel(model)) return undefined
+
+    return assistant?.settings?.temperature
+  }
+
+  private getProviderSpecificParameters(model: Model) {
+    if (this.provider.id === 'openrouter') {
+      if (model.id.includes('deepseek-r1')) {
+        return {
+          include_reasoning: true
+        }
+      }
+    }
+
+    return {}
+  }
+
+  private getTopP(assistant: Assistant, model: Model) {
+    if (isReasoningModel(model)) return undefined
+
+    return assistant?.settings?.topP
+  }
+
+  private getReasoningEffort(assistant: Assistant, model: Model) {
+    if (this.provider.id === 'groq') {
+      return {}
+    }
+
+    if (isReasoningModel(model)) {
+      return {
+        reasoning_effort: assistant?.settings?.reasoning_effort
+      }
+    }
+
+    return {}
+  }
+
   async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    let model_name = model.id
 
-    if (assistant.subType === 'plugin') {
-      model_name = model_name + "-" + assistant.pluginId  
+    let systemMessage = assistant.prompt ? { role: 'system', content: assistant.prompt } : undefined
+    if (['o1', 'o1-2024-12-17'].includes(model.id) || model.id.startsWith('o3')) {
+      systemMessage = {
+        role: 'developer',
+        content: `Formatting re-enabled${systemMessage ? "\n" + systemMessage.content : ""}`
+      };
     }
-
-    const systemMessage = assistant.prompt ? { role: 'system', content: assistant.prompt } : undefined
-    const userMessages: ChatCompletionMessageParam[] = []
     
+    const userMessages: ChatCompletionMessageParam[] = []
+
     const _messages = filterContextMessages(takeRight(messages, contextCount + 1))
     onFilterMessages(_messages)
+
+    if (model.id === 'deepseek-reasoner') {
+      if (_messages[0]?.role !== 'user') {
+        userMessages.push({ role: 'user', content: '' })
+      }
+    }
 
     for (const message of _messages) {
       userMessages.push(await this.getMessageParam(message, model))
     }
 
     const isOpenAIo1 = model.id.startsWith('o1')
-    const isPlugin = assistant.subType === 'plugin'
-
 
     const isSupportStreamOutput = () => {
-      if (this.provider.id === 'github' && isOpenAIo1) {
+      if (isOpenAIo1) {
         return false
       }
       return streamOutput
     }
 
     let time_first_token_millsec = 0
+    let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
 
     // @ts-ignore key is not typed
     const stream = await this.sdk.chat.completions.create({
-      model: model_name,
-      messages: [isOpenAIo1 || isPlugin ? undefined : systemMessage, ...userMessages].filter(
+      model: model.id,
+      messages: [systemMessage, ...userMessages].filter(
         Boolean
       ) as ChatCompletionMessageParam[],
-      temperature: isOpenAIo1 ? 1 : assistant?.settings?.temperature,
-      top_p: assistant?.settings?.topP,
+      temperature: this.getTemperature(assistant, model),
+      top_p: this.getTopP(assistant, model),
       max_tokens: maxTokens,
       keep_alive: this.keepAliveTime,
       stream: isSupportStreamOutput(),
-      ...(assistant.enableWebSearch ? getOpenAIWebSearchParams(model) : {}),
+      ...this.getReasoningEffort(assistant, model),
+      ...getOpenAIWebSearchParams(assistant, model),
+      ...this.getProviderSpecificParameters(model),
       ...this.getCustomParameters(assistant)
     })
 
@@ -183,17 +230,30 @@ export default class OpenAIProvider extends BaseProvider {
       if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
         break
       }
+
       if (time_first_token_millsec == 0) {
         time_first_token_millsec = new Date().getTime() - start_time_millsec
       }
+
+      if (time_first_content_millsec == 0 && chunk.choices[0]?.delta?.content) {
+        time_first_content_millsec = new Date().getTime()
+      }
+
       const time_completion_millsec = new Date().getTime() - start_time_millsec
+      const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
+
+      const delta = chunk.choices[0]?.delta
+
       onChunk({
-        text: chunk.choices[0]?.delta?.content || '',
+        text: delta?.content || '',
+        // @ts-ignore key is not typed
+        reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
         usage: chunk.usage,
         metrics: {
           completion_tokens: chunk.usage?.completion_tokens,
           time_completion_millsec,
-          time_first_token_millsec
+          time_first_token_millsec,
+          time_thinking_millsec
         }
       })
     }
@@ -213,7 +273,7 @@ export default class OpenAIProvider extends BaseProvider {
       if (!onResponse) {
         return false
       }
-      if (this.provider.id === 'github' && isOpenAIo1) {
+      if (isOpenAIo1) {
         return false
       }
       return true
@@ -416,7 +476,7 @@ export default class OpenAIProvider extends BaseProvider {
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     const data = await this.sdk.embeddings.create({
       model: model.id,
-      input: 'hi'
+      input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
     })
     return data.data[0].embedding.length
   }

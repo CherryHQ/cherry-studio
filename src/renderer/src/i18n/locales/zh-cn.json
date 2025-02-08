@@ -2,15 +2,12 @@
   "translation": {
     "agents": {
       "add.button": "添加到助手",
-      "add.type": "类型",
-      "add.type.normal": "普通",
-      "add.type.plugin": "GPTs插件",
       "add.name": "名称",
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
-      "add.pluginId": "插件 ID",
-      "add.pluginId.placeholder": "输入插件 ID，例如：g-97gBggzBU",
+      "add.knowledge_base": "知识库",
+      "add.knowledge_base.placeholder": "选择知识库",
       "add.title": "创建智能体",
       "delete.popup.content": "确定要删除此智能体吗？",
       "edit.message.add.title": "添加",
@@ -45,13 +42,18 @@
       "save.success": "保存成功",
       "save.title": "保存到智能体",
       "search": "搜索助手",
+      "settings.reasoning_effort": "思维链长度",
+      "settings.reasoning_effort.tip": "该设置仅支持推理模型",
+      "settings.reasoning_effort.low": "短",
+      "settings.reasoning_effort.medium": "中",
+      "settings.reasoning_effort.high": "长",
       "settings.auto_reset_model": "自动重置模型",
       "settings.auto_reset_model.tip": "创建新话题时自动重置模型",
       "settings.default_model": "默认模型",
       "settings.model": "模型设置",
       "settings.preset_messages": "预设消息",
       "settings.prompt": "提示词设置",
-      "settings.plugin": "插件设置",
+      "settings.knowledge_base": "知识库设置",
       "title": "助手"
     },
     "button": {
@@ -70,14 +72,14 @@
       "default.description": "你好，我是默认助手。你可以立刻开始跟我聊天。",
       "default.name": "⭐️ 默认助手",
       "default.topic.name": "默认话题",
-      "input.clear": "清空消息",
+      "input.clear": "清空消息 {{Command}}",
       "input.clear.content": "确定要清除当前会话所有消息吗?",
       "input.clear.title": "清空消息",
       "input.collapse": "收起",
       "input.context_count.tip": "上下文数",
       "input.estimated_tokens.tip": "预估 token 数",
       "input.expand": "展开",
-      "input.new.context": "清除上下文",
+      "input.new.context": "清除上下文 {{Command}}",
       "input.new_topic": "新话题 {{Command}}",
       "input.pause": "暂停",
       "input.placeholder": "在这里输入消息...",
@@ -92,6 +94,7 @@
       "message.new.branch.created": "新分支已创建",
       "message.regenerate.model": "切换模型",
       "message.new.context": "清除上下文",
+      "message.useful": "有用",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",
       "settings.context_count": "上下文数",
@@ -119,7 +122,9 @@
       "topics.move_to": "移动到",
       "topics.title": "话题",
       "translate": "翻译",
-      "resend": "重新发送"
+      "resend": "重新发送",
+      "thinking": "思考中",
+      "deeply_thought": "已深度思考（用时 {{secounds}} 秒）"
     },
     "common": {
       "and": "和",
@@ -132,6 +137,7 @@
       "copy": "复制",
       "cut": "剪切",
       "default": "默认",
+      "knowledge_base": "知识库",
       "delete": "删除",
       "description": "描述",
       "docs": "文档",
@@ -145,7 +151,6 @@
       "name": "名称",
       "paste": "粘贴",
       "prompt": "提示词",
-      "pluginId": "插件 ID",
       "provider": "提供商",
       "regenerate": "重新生成",
       "rename": "重命名",
@@ -250,14 +255,22 @@
       "error.enter.api.key": "请输入您的 API 密钥",
       "error.enter.model": "请选择一个模型",
       "error.enter.name": "请输入知识库名称",
+      "error.chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
+      "error.invalid.api.key": "无效的 API 密钥",
+      "error.invalid.api.host": "无效的 API 地址",
+      "error.invalid.enter.model": "请选择一个模型",
       "message.code_style": "代码风格",
       "message.delete.content": "确定要删除此消息吗?",
       "message.delete.title": "删除消息",
       "message.style": "消息样式",
       "message.style.bubble": "气泡",
       "message.style.plain": "简洁",
+      "message.multi_model_style": "多模型回答样式",
+      "message.multi_model_style.horizontal": "水平",
+      "message.multi_model_style.vertical": "垂直",
+      "message.multi_model_style.fold": "折叠",
       "reset.confirm.content": "确定要重置所有数据吗？",
       "reset.double.confirm.content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
       "reset.double.confirm.title": "数据丢失！！！",
@@ -270,7 +283,10 @@
       "upgrade.success.title": "升级成功",
       "regenerate.confirm": "重新生成会覆盖当前消息",
       "copy.success": "复制成功",
-      "error.get_embedding_dimensions": "获取嵌入维度失败"
+      "error.get_embedding_dimensions": "获取嵌入维度失败",
+      "group.delete.title": "删除分组消息",
+      "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
+      "mention.title": "切换模型回答"
     },
     "minapp": {
       "title": "小程序",
@@ -308,6 +324,7 @@
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
+      "baidu-cloud": "百度云千帆",
       "baichuan": "百川",
       "dashscope": "阿里云百炼",
       "deepseek": "深度求索",
@@ -384,6 +401,7 @@
         "webdav.path.placeholder": "/backup",
         "webdav.autoSync": "自动备份",
         "webdav.minutes": "分钟",
+        "webdav.hours": "小时",
         "webdav.restore.button": "从 WebDAV 恢复",
         "webdav.title": "WebDAV",
         "webdav.user": "WebDAV 用户名",
@@ -485,6 +503,7 @@
         "docs_check": "查看",
         "docs_more_details": "获取更多详情",
         "get_api_key": "点击这里获取密钥",
+        "charge": "充值",
         "no_models": "请先添加模型再检查 API 连接",
         "not_checked": "未检查",
         "remove_duplicate_keys": "移除重复密钥",
@@ -521,7 +540,9 @@
         "toggle_show_topics": "切换话题显示",
         "copy_last_message": "复制上一条消息",
         "search_message": "搜索消息",
-        "mini_window": "快捷助手"
+        "mini_window": "快捷助手",
+        "clear_topic": "清空消息",
+        "toggle_new_context": "清除上下文"
       },
       "theme.auto": "跟随系统",
       "theme.dark": "深色主题",
@@ -606,7 +627,11 @@
       "model_info": "模型信息",
       "not_support": "知识库数据库引擎已更新，该知识库将不再支持，请重新创建知识库",
       "no_provider": "知识库模型服务商丢失，该知识库将不再支持，请重新创建知识库",
-      "source": "来源"
+      "source": "来源",
+      "chunk_size": "分段大小",
+      "chunk_overlap": "重叠大小",
+      "not_set": "未设置",
+      "settings": "知识库设置"
     },
     "models": {
       "pinned": "已固定",
@@ -616,13 +641,15 @@
         "select": "选择模型类型",
         "text": "文本",
         "vision": "图像",
-        "embedding": "嵌入"
+        "embedding": "嵌入",
+        "reasoning": "推理"
       },
       "all": "全部",
-      "vision": "视觉模型",
-      "websearch": "网络搜索模型",
-      "free": "免费模型",
-      "embedding": "嵌入模型",
+      "vision": "视觉",
+      "websearch": "联网",
+      "free": "免费",
+      "reasoning": "推理",
+      "embedding": "嵌入",
       "embedding_model": "嵌入模型",
       "embedding_model_tooltip": "在设置->模型服务中点击管理按钮添加",
       "dimensions": "{{dimensions}} 维",
@@ -660,8 +687,16 @@
       "footer": {
         "esc": "按 ESC {{action}}",
         "esc_close": "关闭窗口",
-        "esc_back": "返回"
+        "esc_back": "返回",
+        "copy_last_message": "按 C 键复制"
       }
+    },
+    "auth": {
+      "oauth_button": "使用{{provider}}登录",
+      "get_key": "获取",
+      "get_key_success": "自动获取密钥成功",
+      "login": "登录",
+      "error": "自动获取密钥失败，请手动获取"
     }
   }
 }

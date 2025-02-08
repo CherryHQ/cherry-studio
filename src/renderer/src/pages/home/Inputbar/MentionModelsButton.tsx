@@ -48,9 +48,9 @@ const MentionModelsButton: FC<Props> = ({ onMentionModel: onSelect, ToolbarButto
           key: getModelUniqId(m),
           label: (
             <ModelItem>
-              <span>
-                {m?.name} <ModelTags model={m} />
-              </span>
+              <ModelNameRow>
+                <span>{m?.name}</span> <ModelTags model={m} />
+              </ModelNameRow>
               {/* <Checkbox checked={selectedModels.some((sm) => sm.id === m.id)} /> */}
               <PinIcon
                 onClick={(e) => {
@@ -134,6 +134,13 @@ const ModelItem = styled.div`
       opacity: 0.3;
     }
   }
+`
+
+const ModelNameRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 `
 
 const PinIcon = styled.span.attrs({ className: 'pin-icon' })<{ $isPinned: boolean }>`

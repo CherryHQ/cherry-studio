@@ -55,7 +55,7 @@ const AboutSettings: FC = () => {
   }
 
   const mailto = async () => {
-    const email = 'kangfenmao@qq.com'
+    const email = 'support@cherry-ai.com'
     const subject = `${APP_NAME} Feedback`
     const version = (await window.api.getAppInfo()).version
     const platform = window.electron.process.platform

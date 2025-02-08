@@ -16,8 +16,33 @@ if (!app.requestSingleInstanceLock()) {
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
+
+  if (process.platform === 'darwin') {
+    // Enable local network access
+    app.commandLine.appendSwitch('enable-local-network-access')
+  }
+
   app.whenReady().then(async () => {
     await updateUserDataPath()
+
+    // Register custom protocol
+    if (!app.isDefaultProtocolClient('cherrystudio')) {
+      app.setAsDefaultProtocolClient('cherrystudio')
+    }
+
+    // Handle protocol open
+    app.on('open-url', (event, url) => {
+      event.preventDefault()
+      const parsedUrl = new URL(url)
+      if (parsedUrl.pathname === 'siliconflow.oauth.login') {
+        const code = parsedUrl.searchParams.get('code')
+        if (code) {
+          // Handle the OAuth code here
+          console.log('OAuth code received:', code)
+          // You can send this code to your renderer process via IPC if needed
+        }
+      }
+    })
 
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')

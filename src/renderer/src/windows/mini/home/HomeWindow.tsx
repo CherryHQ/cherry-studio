@@ -7,7 +7,8 @@ import { EventEmitter } from '@renderer/services/EventService'
 import { uuid } from '@renderer/utils'
 import { Divider } from 'antd'
 import dayjs from 'dayjs'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { isEmpty } from 'lodash'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -28,11 +29,10 @@ const HomeWindow: FC = () => {
   const { defaultModel: model } = useDefaultModel()
   const { language } = useSettings()
   const { t } = useTranslation()
-  const textRef = useRef(text)
 
   const referenceText = selectedText || clipboardText || text
 
-  textRef.current = referenceText === text ? text : `${referenceText}\n\n${text}`
+  const content = (referenceText === text ? text : `${referenceText}\n\n${text}`).trim()
 
   const onReadClipboard = useCallback(async () => {
     const text = await navigator.clipboard.readText()
@@ -59,23 +59,25 @@ const HomeWindow: FC = () => {
 
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (text.trim() === '') {
-        return
+      if (content) {
+        setRoute('chat')
+        onSendMessage()
+        setTimeout(() => setText(''), 100)
       }
-      setRoute('chat')
-      onSendMessage()
-      setTimeout(() => setText(''), 100)
     }
   }
 
   const onSendMessage = useCallback(
     async (prompt?: string) => {
-      const text = textRef.current.trim()
+      if (isEmpty(content)) {
+        return
+      }
+
       setTimeout(() => {
         const message = {
           id: uuid(),
           role: 'user',
-          content: prompt ? `${prompt}\n\n${text}` : text,
+          content: prompt ? `${prompt}\n\n${content}` : content,
           assistantId: defaultAssistant.id,
           topicId: defaultAssistant.topics[0].id || uuid(),
           createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
@@ -85,7 +87,7 @@ const HomeWindow: FC = () => {
         EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
       }, 0)
     },
-    [defaultAssistant]
+    [content, defaultAssistant.id, defaultAssistant.topics]
   )
 
   const clearClipboard = () => {
@@ -104,12 +106,8 @@ const HomeWindow: FC = () => {
   })
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('show-mini-window', () => {
-      onReadClipboard()
-    })
-
+    window.electron.ipcRenderer.on('show-mini-window', onReadClipboard)
     window.electron.ipcRenderer.on('selection-action', (_, { action, selectedText }) => {
-      console.debug('[HomeWindow] selection-action', action, selectedText)
       selectedText && setSelectedText(selectedText)
       action && setRoute(action)
       action === 'chat' && onSendMessage()
@@ -176,7 +174,7 @@ const HomeWindow: FC = () => {
       <Divider style={{ margin: '10px 0' }} />
       <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
       <Main>
-        <FeatureMenus setRoute={setRoute} onSendMessage={onSendMessage} />
+        <FeatureMenus setRoute={setRoute} onSendMessage={onSendMessage} text={content} />
       </Main>
       <Divider style={{ margin: '10px 0' }} />
       <Footer

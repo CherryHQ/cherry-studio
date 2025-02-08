@@ -1,0 +1,19 @@
+diff --git a/dist/embeddings.js b/dist/embeddings.js
+index 1f8154be3e9c22442a915eb4b85fa6d2a21b0d0c..dc13ef4a30e6c282824a5357bcee9bd0ae222aab 100644
+--- a/dist/embeddings.js
++++ b/dist/embeddings.js
+@@ -214,10 +214,12 @@ export class OpenAIEmbeddings extends Embeddings {
+      * @returns Promise that resolves to an embedding for the document.
+      */
+     async embedQuery(text) {
++        const isBaiduCloud = this.clientConfig.baseURL.includes('baidubce.com')
++        const input = this.stripNewLines ? text.replace(/\n/g, ' ') : text
+         const params = {
+             model: this.model,
+-            input: this.stripNewLines ? text.replace(/\n/g, " ") : text,
+-        };
++            input: isBaiduCloud ? [input] : input
++        }
+         if (this.dimensions) {
+             params.dimensions = this.dimensions;
+         }
