@@ -233,7 +233,8 @@ export default class OpenAIProvider extends BaseProvider {
         time_first_token_millsec = new Date().getTime() - start_time_millsec
       }
 
-      if (time_first_content_millsec == 0 && chunk.choices[0]?.delta?.content) {
+      //修复逻辑判断，当content为</think>时，time_first_content_millsec才会被赋值，原有代码无意义.
+      if (time_first_content_millsec == 0 && chunk.choices[0]?.delta?.content == '</think>') {
         time_first_content_millsec = new Date().getTime()
       }
 
