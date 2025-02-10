@@ -1776,6 +1776,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@notionhq/client@npm:^2.2.15":
+  version: 2.2.15
+  resolution: "@notionhq/client@npm:2.2.15"
+  dependencies:
+    "@types/node-fetch": "npm:^2.5.10"
+    node-fetch: "npm:^2.6.1"
+  checksum: 10c0/4153c2e5b47d2ba141d025f2753d0e79ca9b9f25bd8bbdfa9dbf74fe4c2e157ea7964c59387d05163972c4575830bdc48d02db29270e244d81398df0f89fd7dd
+  languageName: node
+  linkType: hard
+
 "@npmcli/agent@npm:^3.0.0":
   version: 3.0.0
   resolution: "@npmcli/agent@npm:3.0.0"
@@ -2640,7 +2650,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node-fetch@npm:^2.6.4":
+"@types/node-fetch@npm:^2.5.10, @types/node-fetch@npm:^2.6.4":
   version: 2.6.12
   resolution: "@types/node-fetch@npm:2.6.12"
   dependencies:
@@ -3011,6 +3021,7 @@ __metadata:
     "@llm-tools/embedjs-loader-web": "npm:^0.1.25"
     "@llm-tools/embedjs-loader-xml": "npm:^0.1.25"
     "@llm-tools/embedjs-openai": "npm:^0.1.25"
+    "@notionhq/client": "npm:^2.2.15"
     "@reduxjs/toolkit": "npm:^2.2.5"
     "@types/adm-zip": "npm:^0"
     "@types/fs-extra": "npm:^11"
@@ -9845,7 +9856,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-fetch@npm:^2.6.7":
+"node-fetch@npm:^2.6.1, node-fetch@npm:^2.6.7":
   version: 2.7.0
   resolution: "node-fetch@npm:2.7.0"
   dependencies:

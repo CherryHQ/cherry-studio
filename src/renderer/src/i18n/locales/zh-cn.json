@@ -116,6 +116,7 @@
       "topics.edit.title": "编辑话题名",
       "topics.export.image": "导出为图片",
       "topics.export.md": "导出为 Markdown",
+      "topics.export.notion": "导出到 Notion",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
       "topics.list": "话题列表",
@@ -420,7 +421,9 @@
         "webdav.autoSync.off": "关闭",
         "webdav.noSync": "等待下次备份",
         "webdav.syncError": "备份错误",
-        "webdav.lastSync": "上次备份时间"
+        "webdav.lastSync": "上次备份时间",
+        "notion.api_key":"Notion 密钥",
+        "notion.database_id":"Notion 数据库ID"
       },
       "quickAssistant": {
         "title": "快捷助手",

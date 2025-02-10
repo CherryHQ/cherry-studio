@@ -2,14 +2,71 @@ import { FileSearchOutlined, FolderOpenOutlined, SaveOutlined } from '@ant-desig
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { backup, reset, restore } from '@renderer/services/BackupService'
+import { RootState, useAppDispatch } from '@renderer/store'
+import { setNotionApiKey, setNotionDatabaseID } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
-import { Button, Modal, Typography } from 'antd'
+import { Button,Modal, Typography } from 'antd'
+import Input from 'antd/es/input/Input'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import WebDavSettings from './WebDavSettings'
+
+// 新增的 NotionSettings 组件
+const NotionSettings: FC = () => {
+  const { t } = useTranslation()
+  const { theme } = useTheme()
+  const dispatch = useAppDispatch()
+
+  // 这里可以添加 Notion 相关的状态和逻辑
+  // 例如：
+  const notionApiKey = useSelector((state: RootState) => state.settings.notionApiKey);
+  const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID);
+
+  const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setNotionApiKey(e.target.value));
+  };
+
+  const handleNotionDatabaseIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setNotionDatabaseID(e.target.value));
+  };
+
+
+  return (
+    <SettingGroup theme={theme}>
+      <SettingTitle>{t('settings.notion.title')}</SettingTitle>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
+        <HStack alignItems="center" gap="5px">
+          <Input
+            type="text"
+            value={notionApiKey || ''}
+            onChange={handleNotionTokenChange}
+            onBlur={handleNotionTokenChange}
+            style={{ padding: '5px' }}
+          />
+        </HStack>
+      </SettingRow>
+      <SettingDivider /> {/* 添加分割线 */}
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
+        <HStack alignItems="center" gap="5px">
+          <Input
+            type="text"
+            value={notionDatabaseID || ''}
+            onChange={handleNotionDatabaseIdChange}
+            onBlur={handleNotionDatabaseIdChange}
+            style={{ padding: '5px' }}
+          />
+        </HStack>
+      </SettingRow>
+    </SettingGroup>
+  )
+}
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -107,6 +164,7 @@ const DataSettings: FC = () => {
           </HStack>
         </SettingRow>
       </SettingGroup>
+      <NotionSettings />
     </SettingContainer>
   )
 }
