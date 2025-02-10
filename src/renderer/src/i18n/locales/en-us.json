@@ -115,6 +115,7 @@
       "topics.edit.placeholder": "Enter new name",
       "topics.edit.title": "Edit Name",
       "topics.export.image": "Export as image",
+      "topics.export.notion": "Export to Notion",
       "topics.export.md": "Export as markdown",
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
@@ -421,7 +422,11 @@
         "webdav.autoSync.off": "Off",
         "webdav.noSync": "Waiting for next backup",
         "webdav.syncError": "Backup Error",
-        "webdav.lastSync": "Last Backup"
+        "webdav.lastSync": "Last Backup",
+        "notion.api_key":"Notion API Key",
+        "notion.database_id":"Notion Database ID",
+        "notion.title":"Notion Configuration"
+
       },
       "quickAssistant": {
         "title": "Quick Assistant",

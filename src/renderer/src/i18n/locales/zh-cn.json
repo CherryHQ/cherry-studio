@@ -423,7 +423,8 @@
         "webdav.syncError": "备份错误",
         "webdav.lastSync": "上次备份时间",
         "notion.api_key":"Notion 密钥",
-        "notion.database_id":"Notion 数据库ID"
+        "notion.database_id":"Notion 数据库ID",
+        "notion.title":"Notion 配置"
       },
       "quickAssistant": {
         "title": "快捷助手",

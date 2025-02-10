@@ -111,6 +111,7 @@
       "topics.edit.title": "名前を編集",
       "topics.export.image": "画像としてエクスポート",
       "topics.export.md": "Markdownとしてエクスポート",
+      "topics.export.notion": "Notion にエクスポート",
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
       "topics.list": "トピックリスト",
@@ -413,7 +414,10 @@
         "webdav.autoSync.off": "オフ",
         "webdav.noSync": "次回のバックアップを待っています",
         "webdav.syncError": "バックアップエラー",
-        "webdav.lastSync": "最終同期"
+        "webdav.lastSync": "最終同期",
+        "notion.api_key":"Notion APIキー",
+        "notion.database_id":"Notion データベースID",
+        "notion.title":"Notion 設定"
       },
       "quickAssistant": {
         "title": "クイックアシスタント",

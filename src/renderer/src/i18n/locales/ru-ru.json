@@ -111,6 +111,7 @@
       "topics.edit.title": "Редактировать заголовок",
       "topics.export.image": "Экспорт как изображение",
       "topics.export.md": "Экспорт как markdown",
+      "topics.export.notion": "Экспорт в Notion",
       "topics.export.title": "Экспорт",
       "topics.export.word": "Экспорт как Word",
       "topics.list": "Список топиков",
@@ -414,7 +415,10 @@
         "webdav.autoSync.off": "Выключено",
         "webdav.noSync": "Ожидание следующего резервного копирования",
         "webdav.syncError": "Ошибка резервного копирования",
-        "webdav.lastSync": "Последняя синхронизация"
+        "webdav.lastSync": "Последняя синхронизация",
+        "notion.api_key":"Ключ API Notion",
+        "notion.database_id":"ID базы данных Notion",
+        "notion.title":"Настройки Notion"
       },
       "quickAssistant": {
         "title": "Быстрый помощник",

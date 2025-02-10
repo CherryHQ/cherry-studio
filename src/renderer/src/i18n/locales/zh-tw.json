@@ -116,6 +116,7 @@
       "topics.edit.title": "編輯名稱",
       "topics.export.image": "匯出為圖片",
       "topics.export.md": "匯出為 Markdown",
+      "topics.export.notion": "匯出到 Notion",
       "topics.export.title": "匯出",
       "topics.export.word": "導出為 Word",
       "topics.list": "話題列表",
@@ -419,7 +420,10 @@
         "webdav.autoSync.off": "關閉",
         "webdav.noSync": "等待下次備份",
         "webdav.syncError": "備份錯誤",
-        "webdav.lastSync": "上次同步時間"
+        "webdav.lastSync": "上次同步時間",
+        "notion.api_key": "Notion 金鑰",
+        "notion.database_id": "Notion 資料庫 ID",
+        "notion.title": "Notion 配置"
       },
       "quickAssistant": {
         "title": "快捷助手",

@@ -37,7 +37,7 @@ const NotionSettings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.notion.title')}</SettingTitle>
+      <SettingTitle>{t('settings.data.notion.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
