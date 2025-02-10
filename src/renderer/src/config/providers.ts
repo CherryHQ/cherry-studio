@@ -23,6 +23,7 @@ import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
+import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import QwenLMProviderLogo from '@renderer/assets/images/providers/qwenlm.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
@@ -94,6 +95,8 @@ export function getProviderLogo(providerId: string) {
       return JinaProviderLogo
     case 'qwenlm':
       return QwenLMProviderLogo
+    case 'ppio':
+      return PPIOProviderLogo
     default:
       return undefined
   }
@@ -109,6 +112,19 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://platform.openai.com/api-keys',
       docs: 'https://platform.openai.com/docs',
       models: 'https://platform.openai.com/docs/models'
+    }
+  },
+  ppio: {
+    api: {
+      url: 'https://api.ppinfra.com/v3/openai'
+    },
+    websites: {
+      official:
+        'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link',
+      apiKey: 'https://ppinfra.com/settings/key-management',
+      docs: 'https://ppinfra.com/docs/model-api/reference/llm/llm.html',
+      models:
+        'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link'
     }
   },
   gemini: {

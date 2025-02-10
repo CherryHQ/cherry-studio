@@ -343,7 +343,8 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
-      "qwenlm": "QwenLM"
+      "qwenlm": "QwenLM",
+      "ppio": "PPIO"
     },
     "settings": {
       "about": "About & Feedback",

@@ -382,6 +382,68 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'meta-llama'
     }
   ],
+  ppio: [
+    {
+      id: 'deepseek/deepseek-r1/community',
+      name: 'DeepSeek: DeepSeek R1 (Community)',
+      provider: 'ppio',
+      group: 'deepseek'
+    },
+    {
+      id: 'deepseek/deepseek-v3/community',
+      name: 'DeepSeek: DeepSeek V3 (Community)',
+      provider: 'ppio',
+      group: 'deepseek'
+    },
+    {
+      id: 'deepseek/deepseek-r1',
+      provider: 'ppio',
+      name: 'DeepSeek R1',
+      group: 'deepseek'
+    },
+    {
+      id: 'deepseek/deepseek-v3',
+      provider: 'ppio',
+      name: 'DeepSeek V3',
+      group: 'deepseek'
+    },
+    {
+      id: 'qwen/qwen-2.5-72b-instruct',
+      provider: 'ppio',
+      name: 'Qwen2.5-72B-Instruct',
+      group: 'qwen'
+    },
+    {
+      id: 'qwen/qwen2.5-32b-instruct',
+      provider: 'ppio',
+      name: 'Qwen2.5-32B-Instruct',
+      group: 'qwen'
+    },
+    {
+      id: 'meta-llama/llama-3.1-70b-instruct',
+      provider: 'ppio',
+      name: 'Llama-3.1-70B-Instruct',
+      group: 'meta-llama'
+    },
+    {
+      id: 'meta-llama/llama-3.1-8b-instruct',
+      provider: 'ppio',
+      name: 'Llama-3.1-8B-Instruct',
+      group: 'meta-llama'
+    },
+    {
+      id: '01-ai/yi-1.5-34b-chat',
+      provider: 'ppio',
+      name: 'Yi-1.5-34B-Chat',
+      group: '01-ai'
+    },
+    {
+      id: '01-ai/yi-1.5-9b-chat',
+      provider: 'ppio',
+      name: 'Yi-1.5-9B-Chat',
+      group: '01-ai'
+    }
+  ],
   openai: [
     { id: 'gpt-4o', provider: 'openai', name: ' GPT-4o', group: 'GPT 4o' },
     { id: 'gpt-4o-mini', provider: 'openai', name: ' GPT-4o-mini', group: 'GPT 4o' },
