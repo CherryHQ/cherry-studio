@@ -921,6 +921,10 @@ const migrateConfig = {
       enabled: false
     })
     return state
+  },
+  '65': (state: RootState) => {
+    state.settings.targetLanguage = 'english'
+    return state
   }
 }
 

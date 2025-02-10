@@ -180,6 +180,8 @@ export enum ThemeMode {
 
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US' | 'ru-RU' | 'ja-JP'
 
+export type TranslateLanguageVarious = 'chinese' | 'chinese-traditional' | 'english' | 'japanese' | 'russian'
+
 export type CodeStyleVarious = BuiltinTheme | 'auto'
 
 export type WebDavConfig = {
