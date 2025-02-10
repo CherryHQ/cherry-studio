@@ -99,6 +99,11 @@ const api = {
     hide: () => ipcRenderer.invoke('miniwindow:hide'),
     close: () => ipcRenderer.invoke('miniwindow:close'),
     toggle: () => ipcRenderer.invoke('miniwindow:toggle')
+  },
+  aes: {
+    encrypt: (text: string, secretKey: string, iv: string) => ipcRenderer.invoke('aes:encrypt', text, secretKey, iv),
+    decrypt: (encryptedData: string, iv: string, secretKey: string) =>
+      ipcRenderer.invoke('aes:decrypt', encryptedData, iv, secretKey)
   }
 }
 

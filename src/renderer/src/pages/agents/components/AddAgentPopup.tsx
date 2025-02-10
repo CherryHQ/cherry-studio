@@ -1,15 +1,16 @@
 import 'emoji-picker-element'
 
-import { LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
+import { useAppSelector } from '@renderer/store'
 import { Agent } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
-import { Button, Form, FormInstance, Input, Modal, Popover } from 'antd'
+import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +23,7 @@ type FieldType = {
   id: string
   name: string
   prompt: string
+  knowledge_base_id: string
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
@@ -32,6 +34,15 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
+  const knowledgeState = useAppSelector((state) => state.knowledge)
+  const knowledgeOptions: SelectProps['options'] = []
+
+  knowledgeState.bases.forEach((base) => {
+    knowledgeOptions.push({
+      label: base.name,
+      value: base.id
+    })
+  })
 
   const onFinish = (values: FieldType) => {
     const _emoji = emoji || getLeadingEmoji(values.name)
@@ -43,6 +54,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     const _agent: Agent = {
       id: uuid(),
       name: values.name,
+      knowledge_base: knowledgeState.bases.find((t) => t.id === values.knowledge_base_id),
       emoji: _emoji,
       prompt: values.prompt,
       defaultModel: getDefaultModel(),
@@ -133,6 +145,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             disabled={loading}
           />
         </div>
+        <Form.Item name="knowledge_base_id" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
+          <Select
+            allowClear
+            placeholder={t('agents.add.knowledge_base.placeholder')}
+            menuItemSelectedIcon={<CheckOutlined />}
+            options={knowledgeOptions}
+          />
+        </Form.Item>
       </Form>
     </Modal>
   )

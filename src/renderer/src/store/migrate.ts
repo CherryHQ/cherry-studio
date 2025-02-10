@@ -906,7 +906,24 @@ const migrateConfig = {
         state.minapps.enabled.push(mintop)
       }
     }
-    removeMiniAppIconsFromState(state)
+    return state
+  },
+  '64': (state: RootState) => {
+    state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'qwenlm')
+    state.llm.providers.push({
+      id: 'baidu-cloud',
+      name: 'Baidu Cloud',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://qianfan.baidubce.com/v2/',
+      models: SYSTEM_MODELS['baidu-cloud'],
+      isSystem: true,
+      enabled: false
+    })
+    return state
+  },
+  '65': (state: RootState) => {
+    state.settings.targetLanguage = 'english'
     return state
   }
 }

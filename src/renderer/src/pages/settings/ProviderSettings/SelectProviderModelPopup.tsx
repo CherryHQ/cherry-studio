@@ -3,7 +3,7 @@ import { isEmbeddingModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { Provider } from '@renderer/types'
 import { Modal, Select } from 'antd'
-import { last, orderBy } from 'lodash'
+import { first, orderBy } from 'lodash'
 import { useState } from 'react'
 
 interface ShowParams {
@@ -18,7 +18,7 @@ interface Props extends ShowParams {
 const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
   const models = orderBy(provider.models, 'group').filter((i) => !isEmbeddingModel(i))
   const [open, setOpen] = useState(true)
-  const [model, setModel] = useState(last(models))
+  const [model, setModel] = useState(first(models))
 
   const onOk = () => {
     if (!model) {

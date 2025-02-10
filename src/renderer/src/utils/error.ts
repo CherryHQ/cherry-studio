@@ -30,12 +30,31 @@ export function formatErrorMessage(error: any): string {
 
   try {
     const detailedError = getErrorDetails(error)
+    delete detailedError?.headers
+    delete detailedError?.stack
+    delete detailedError?.request_id
     return '```json\n' + JSON.stringify(detailedError, null, 2) + '\n```'
   } catch (e) {
     try {
       return '```\n' + String(error) + '\n```'
     } catch {
       return 'Error: Unable to format error message'
+    }
+  }
+}
+
+export function formatMessageError(error: any): Record<string, any> {
+  try {
+    const detailedError = getErrorDetails(error)
+    delete detailedError?.headers
+    delete detailedError?.stack
+    delete detailedError?.request_id
+    return detailedError
+  } catch (e) {
+    try {
+      return { message: String(error) }
+    } catch {
+      return { message: 'Error: Unable to format error message' }
     }
   }
 }

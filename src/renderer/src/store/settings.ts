@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { CodeStyleVarious, LanguageVarious, ThemeMode } from '@renderer/types'
+import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter'
 
@@ -21,6 +21,7 @@ export interface SettingsState {
   showTopics: boolean
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
+  targetLanguage: TranslateLanguageVarious
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
@@ -73,6 +74,7 @@ const initialState: SettingsState = {
   showTopics: true,
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
+  targetLanguage: 'english' as TranslateLanguageVarious,
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
@@ -138,6 +140,9 @@ const settingsSlice = createSlice({
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
       window.electron.ipcRenderer.send('miniwindow-reload')
+    },
+    setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
+      state.targetLanguage = action.payload
     },
     setProxyMode: (state, action: PayloadAction<'system' | 'custom' | 'none'>) => {
       state.proxyMode = action.payload
@@ -269,6 +274,7 @@ export const {
   toggleShowTopics,
   setSendMessageShortcut,
   setLanguage,
+  setTargetLanguage,
   setProxyMode,
   setProxyUrl,
   setUserName,

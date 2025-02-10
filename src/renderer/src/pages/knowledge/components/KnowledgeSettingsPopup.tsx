@@ -1,10 +1,13 @@
+import { WarningOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
+import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
+import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { isEmbeddingModel } from '@renderer/config/models'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase } from '@renderer/types'
-import { Form, Input, InputNumber, Modal, Select } from 'antd'
+import { Alert, Form, Input, InputNumber, Modal, Select, Slider } from 'antd'
 import { sortBy } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +19,7 @@ interface ShowParams {
 interface FormData {
   name: string
   model: string
+  documentCount?: number
   chunkSize?: number
   chunkOverlap?: number
 }
@@ -56,6 +60,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       const newBase = {
         ...base,
         name: values.name,
+        documentCount: values.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
         chunkSize: values.chunkSize,
         chunkOverlap: values.chunkOverlap
       }
@@ -85,6 +90,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       destroyOnClose
+      maskClosable={false}
       centered>
       <Form form={form} layout="vertical">
         <Form.Item
@@ -104,14 +110,49 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           <Select style={{ width: '100%' }} options={selectOptions} placeholder={t('settings.models.empty')} disabled />
         </Form.Item>
 
-        <Form.Item name="chunkSize" label={t('knowledge.chunk_size')}>
-          <InputNumber style={{ width: '100%' }} min={1} defaultValue={base.chunkSize} />
+        <Form.Item
+          name="documentCount"
+          label={t('knowledge.document_count')}
+          tooltip={{ title: t('knowledge.document_count_help') }}>
+          <Slider
+            style={{ width: '100%' }}
+            min={1}
+            max={15}
+            defaultValue={base.documentCount || 6}
+            step={1}
+            marks={{ 1: '1', 6: t('knowledge.document_count_default'), 15: '15' }}
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="chunkSize"
+          label={t('knowledge.chunk_size')}
+          tooltip={{ title: t('knowledge.chunk_size_tooltip') }}
+          initialValue={base.chunkSize}
+          rules={[
+            {
+              validator(_, value) {
+                const maxContext = getEmbeddingMaxContext(base.model.id)
+                if (value && maxContext && value > maxContext) {
+                  return Promise.reject(new Error(t('knowledge.chunk_size_too_large', { max_context: maxContext })))
+                }
+                return Promise.resolve()
+              }
+            }
+          ]}>
+          <InputNumber
+            style={{ width: '100%' }}
+            min={100}
+            defaultValue={base.chunkSize}
+            placeholder={t('knowledge.chunk_size_placeholder')}
+          />
         </Form.Item>
 
         <Form.Item
           name="chunkOverlap"
           label={t('knowledge.chunk_overlap')}
           initialValue={base.chunkOverlap}
+          tooltip={{ title: t('knowledge.chunk_overlap_tooltip') }}
           rules={[
             ({ getFieldValue }) => ({
               validator(_, value) {
@@ -123,9 +164,15 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             })
           ]}
           dependencies={['chunkSize']}>
-          <InputNumber style={{ width: '100%' }} min={0} />
+          <InputNumber
+            style={{ width: '100%' }}
+            min={0}
+            defaultValue={base.chunkOverlap}
+            placeholder={t('knowledge.chunk_overlap_placeholder')}
+          />
         </Form.Item>
       </Form>
+      <Alert message={t('knowledge.chunk_size_change_warning')} type="warning" showIcon icon={<WarningOutlined />} />
     </Modal>
   )
 }

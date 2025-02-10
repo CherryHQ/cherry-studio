@@ -6,6 +6,8 @@
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
+      "add.knowledge_base": "ナレッジベース",
+      "add.knowledge_base.placeholder": "ナレッジベースを選択",
       "add.title": "エージェントを作成",
       "delete.popup.content": "このエージェントを削除してもよろしいですか？",
       "edit.message.add.title": "追加",
@@ -46,6 +48,7 @@
       "settings.model": "モデル設定",
       "settings.preset_messages": "プリセットメッセージ",
       "settings.prompt": "プロンプト設定",
+      "settings.knowledge_base": "ナレッジベース設定",
       "title": "アシスタント"
     },
     "button": {
@@ -78,7 +81,7 @@
       "input.send": "送信",
       "input.settings": "設定",
       "input.topics": " トピック ",
-      "input.translate": "英語に翻訳",
+      "input.translate": "{{target_language}}に翻訳",
       "input.upload": "画像またはドキュメントをアップロード",
       "input.web_search": "ウェブ検索を有効にする",
       "input.knowledge_base": "ナレッジベース",
@@ -129,6 +132,7 @@
       "copy": "コピー",
       "cut": "切り取り",
       "default": "デフォルト",
+      "knowledge_base": "ナレッジベース",
       "delete": "削除",
       "description": "説明",
       "docs": "ドキュメント",
@@ -163,6 +167,17 @@
       "render": {
         "title": "レンダリングエラー",
         "description": "数式のレンダリングに失敗しました。数式の形式が正しいか確認してください"
+      },
+      "http": {
+        "400": "リクエストに失敗しました。リクエストパラメータが正しいか確認してください。モデルの設定を変更した場合は、デフォルトの設定にリセットしてください",
+        "401": "認証に失敗しました。APIキーが正しいか確認してください",
+        "403": "アクセスが拒否されました。アカウントが実名認証されているか確認してください。またはサービスプロバイダーに問い合わせてください",
+        "404": "モデルが見つからないか、リクエストパスが間違っています",
+        "429": "リクエストが多すぎます。後でもう一度試してください",
+        "500": "サーバーエラーが発生しました。後でもう一度試してください",
+        "502": "ゲートウェイエラーが発生しました。後でもう一度試してください",
+        "503": "サービスが利用できません。後でもう一度試してください",
+        "504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください"
       }
     },
     "export": {
@@ -247,6 +262,9 @@
       "error.chunk_overlap_too_large": "チャンクの重なりは、チャンクサイズを超えることはできません",
       "error.invalid.proxy.url": "無効なプロキシURL",
       "error.invalid.webdav": "無効なWebDAV設定",
+      "error.invalid.enter.api.host": "APIホストを入力してください",
+      "error.invalid.enter.api.key": "APIキーを入力してください",
+      "error.invalid.enter.model": "モデルを選択してください",
       "message.code_style": "コードスタイル",
       "message.delete.content": "このメッセージを削除してもよろしいですか？",
       "message.delete.title": "メッセージを削除",
@@ -310,6 +328,7 @@
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
+      "baidu-cloud": "Baidu Cloud",
       "baichuan": "百川",
       "dashscope": "Alibaba Cloud",
       "deepseek": "DeepSeek",
@@ -434,6 +453,12 @@
       "display.minApp.disabled": "非表示ミニプログラム",
       "display.minApp.empty": "非表示にしたいアプレットを左からここまでドラッグします",
       "input.auto_translate_with_space": "スペースを3回押して翻訳",
+      "input.target_language": "目標言語",
+      "input.target_language.chinese": "簡体字中国語",
+      "input.target_language.chinese-traditional": "繁体字中国語",
+      "input.target_language.english": "英語",
+      "input.target_language.japanese": "日本語",
+      "input.target_language.russian": "ロシア語",
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.input.paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
       "messages.input.send_shortcuts": "送信ショートカット",
@@ -488,6 +513,7 @@
         "docs_check": "チェック",
         "docs_more_details": "詳細を確認",
         "get_api_key": "APIキーを取得",
+        "charge": "充電",
         "no_models": "API接続をチェックする前に、モデルを追加してください",
         "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
@@ -615,7 +641,16 @@
       "chunk_size": "チャンクサイズ",
       "chunk_overlap": "チャンクの重なり",
       "not_set": "未設定",
-      "settings": "ナレッジベース設定"
+      "settings": "ナレッジベース設定",
+      "document_count": "要求されたドキュメント数",
+      "document_count_help": "要求されたドキュメント数が多いほど、付随する情報が多くなりますが、トークンの消費量も増加します",
+      "document_count_default": "デフォルト",
+      "chunk_size_placeholder": "デフォルト（変更しないでください）",
+      "chunk_overlap_placeholder": "デフォルト（変更しないでください）",
+      "chunk_size_tooltip": "ドキュメントを分割し、各チャンクのサイズ。モデルのコンテキスト制限を超えないようにしてください。",
+      "chunk_overlap_tooltip": "隣接するチャンク間の重複内容量。チャンク間のコンテキスト関連性を確保し、長文テキストの処理効果を向上させます。",
+      "chunk_size_change_warning": "チャンクサイズと重複サイズの変更は、新しく追加された内容にのみ適用されます",
+      "chunk_size_too_large": "チャンクサイズはモデルのコンテキスト制限を超えることはできません（{{max_context}}）"
     },
     "models": {
       "pinned": "固定済み",
@@ -629,12 +664,12 @@
         "reasoning": "推論"
       },
       "all": "すべて",
-      "vision": "画像モデル",
-      "websearch": "ウェブ検索モデル",
-      "free": "無料モデル",
-      "reasoning": "推論モデル",
-      "embedding": "埋め込みモデル",
-      "embedding_model": "埋め込みモデル",
+      "vision": "画像",
+      "websearch": "ウェブ検索",
+      "free": "無料",
+      "reasoning": "推論",
+      "embedding": "埋め込み",
+      "embedding_model": "埋め込み模型",
       "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
       "dimensions": "{{dimensions}} 次元",
       "custom_parameters": "カスタムパラメータ",
@@ -679,7 +714,8 @@
       "oauth_button": "{{provider}}で認証",
       "get_key": "取得",
       "get_key_success": "APIキーの自動取得に成功しました",
-      "login": "認証"
+      "login": "認証",
+      "error": "APIキーの自動取得に失敗しました。手動で取得してください"
     }
   }
 }

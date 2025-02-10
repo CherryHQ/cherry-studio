@@ -61,7 +61,8 @@ export class WindowService {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         webSecurity: false,
-        webviewTag: true
+        webviewTag: true,
+        allowRunningInsecureContent: true
       }
     })
 
@@ -163,7 +164,12 @@ export class WindowService {
     mainWindow.webContents.setWindowOpenHandler((details) => {
       const { url } = details
 
-      const oauthProviderUrls = ['https://account.siliconflow.cn/oauth']
+      const oauthProviderUrls = [
+        'https://account.siliconflow.cn/oauth',
+        'https://cloud.siliconflow.cn/expensebill',
+        'https://aihubmix.com/oauth',
+        'https://aihubmix.com/topup'
+      ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
         return {

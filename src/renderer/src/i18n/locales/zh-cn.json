@@ -6,6 +6,8 @@
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
+      "add.knowledge_base": "知识库",
+      "add.knowledge_base.placeholder": "选择知识库",
       "add.title": "创建智能体",
       "delete.popup.content": "确定要删除此智能体吗？",
       "edit.message.add.title": "添加",
@@ -51,6 +53,7 @@
       "settings.model": "模型设置",
       "settings.preset_messages": "预设消息",
       "settings.prompt": "提示词设置",
+      "settings.knowledge_base": "知识库设置",
       "title": "助手"
     },
     "button": {
@@ -83,7 +86,7 @@
       "input.send": "发送",
       "input.settings": "设置",
       "input.topics": " 话题 ",
-      "input.translate": "翻译成英文",
+      "input.translate": "翻译成{{target_language}}",
       "input.upload": "上传图片或文档",
       "input.web_search": "开启网络搜索",
       "input.knowledge_base": "知识库",
@@ -134,6 +137,7 @@
       "copy": "复制",
       "cut": "剪切",
       "default": "默认",
+      "knowledge_base": "知识库",
       "delete": "删除",
       "description": "描述",
       "docs": "文档",
@@ -169,6 +173,17 @@
       "render": {
         "title": "渲染错误",
         "description": "渲染公式失败，请检查公式格式是否正确"
+      },
+      "http": {
+        "400": "请求错误，请检查请求参数是否正确。如果修改了模型设置，请重置到默认设置",
+        "401": "身份验证失败，请检查 API 密钥是否正确",
+        "403": "禁止访问，请检查是否实名认证，或联系服务商询问被禁止原因",
+        "404": "模型不存在或者请求路径错误",
+        "429": "请求过多，请稍后再试",
+        "500": "服务器错误，请稍后再试",
+        "502": "网关错误，请稍后再试",
+        "503": "服务不可用，请稍后再试",
+        "504": "网关超时，请稍后再试"
       }
     },
     "export": {
@@ -254,6 +269,9 @@
       "error.chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
+      "error.invalid.api.key": "无效的 API 密钥",
+      "error.invalid.api.host": "无效的 API 地址",
+      "error.invalid.enter.model": "请选择一个模型",
       "message.code_style": "代码风格",
       "message.delete.content": "确定要删除此消息吗?",
       "message.delete.title": "删除消息",
@@ -317,6 +335,7 @@
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
+      "baidu-cloud": "百度云千帆",
       "baichuan": "百川",
       "dashscope": "阿里云百炼",
       "deepseek": "深度求索",
@@ -442,6 +461,12 @@
       "display.custom.css": "自定义 CSS",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
       "input.auto_translate_with_space": "快速敲击3次空格翻译",
+      "input.target_language": "目标语言",
+      "input.target_language.chinese": "简体中文",
+      "input.target_language.chinese-traditional": "繁体中文",
+      "input.target_language.english": "英文",
+      "input.target_language.japanese": "日文",
+      "input.target_language.russian": "俄文",
       "messages.divider": "消息分割线",
       "messages.input.paste_long_text_as_file": "长文本粘贴为文件",
       "messages.input.send_shortcuts": "发送快捷键",
@@ -495,7 +520,8 @@
         "delete.title": "删除提供商",
         "docs_check": "查看",
         "docs_more_details": "获取更多详情",
-        "get_api_key": "获取密钥",
+        "get_api_key": "点击这里获取密钥",
+        "charge": "充值",
         "no_models": "请先添加模型再检查 API 连接",
         "not_checked": "未检查",
         "remove_duplicate_keys": "移除重复密钥",
@@ -623,7 +649,16 @@
       "chunk_size": "分段大小",
       "chunk_overlap": "重叠大小",
       "not_set": "未设置",
-      "settings": "知识库设置"
+      "settings": "知识库设置",
+      "document_count": "请求文档数量",
+      "document_count_help": "请求文档数量越多，附带的信息越多，但需要消耗的 Token 也越多",
+      "document_count_default": "默认",
+      "chunk_size_placeholder": "默认值（不建议修改）",
+      "chunk_overlap_placeholder": "默认值（不建议修改）",
+      "chunk_size_tooltip": "将文档切割分段，每段的大小，不能超过模型上下文限制",
+      "chunk_overlap_tooltip": "相邻文本块之间重复的内容量，确保分段后的文本块之间仍然有上下文联系，提升模型处理长文本的整体效果",
+      "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
+      "chunk_size_too_large": "分段大小不能超过模型上下文限制（{{max_context}}）"
     },
     "models": {
       "pinned": "已固定",
@@ -637,11 +672,11 @@
         "reasoning": "推理"
       },
       "all": "全部",
-      "vision": "视觉模型",
-      "websearch": "联网模型",
-      "free": "免费模型",
-      "reasoning": "推理模型",
-      "embedding": "嵌入模型",
+      "vision": "视觉",
+      "websearch": "联网",
+      "free": "免费",
+      "reasoning": "推理",
+      "embedding": "嵌入",
       "embedding_model": "嵌入模型",
       "embedding_model_tooltip": "在设置->模型服务中点击管理按钮添加",
       "dimensions": "{{dimensions}} 维",
@@ -687,7 +722,8 @@
       "oauth_button": "使用{{provider}}登录",
       "get_key": "获取",
       "get_key_success": "自动获取密钥成功",
-      "login": "登录"
+      "login": "登录",
+      "error": "自动获取密钥失败，请手动获取"
     }
   }
 }

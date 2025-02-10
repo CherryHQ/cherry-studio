@@ -82,19 +82,27 @@ export function withGeminiGrounding(message: Message) {
 }
 
 export function withMessageThought(message: Message) {
-  const content = message.content
+  if (message.role !== 'assistant') {
+    return message
+  }
 
-  const thinkPattern = /<think>(.*?)<\/think>/s
+  const content = message.content.trim()
+  const thinkPattern = /^<think>(.*?)<\/think>/s
   const matches = content.match(thinkPattern)
 
-  if (matches) {
-    const reasoning_content = matches[1].trim()
-    const remainingContent = content.replace(thinkPattern, '').trim()
-    if (reasoning_content) {
-      message.reasoning_content = reasoning_content
-      message.content = remainingContent
-      return message
+  if (!matches) {
+    // 处理未闭合的 think 标签情况
+    if (content.startsWith('<think>')) {
+      message.reasoning_content = content.slice(7) // '<think>'.length === 7
+      message.content = ''
     }
+    return message
+  }
+
+  const reasoning_content = matches[1].trim()
+  if (reasoning_content) {
+    message.reasoning_content = reasoning_content
+    message.content = content.replace(thinkPattern, '').trim()
   }
 
   return message

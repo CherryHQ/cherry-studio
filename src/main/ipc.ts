@@ -18,6 +18,8 @@ import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutSe
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
+import { decrypt } from './utils/aes'
+import { encrypt } from './utils/aes'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -199,4 +201,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('miniwindow:hide', () => windowService.hideMiniWindow())
   ipcMain.handle('miniwindow:close', () => windowService.closeMiniWindow())
   ipcMain.handle('miniwindow:toggle', () => windowService.toggleMiniWindow())
+
+  // aes
+  ipcMain.handle('aes:encrypt', (_, text: string, secretKey: string, iv: string) => encrypt(text, secretKey, iv))
+  ipcMain.handle('aes:decrypt', (_, encryptedData: string, iv: string, secretKey: string) =>
+    decrypt(encryptedData, iv, secretKey)
+  )
 }

@@ -106,6 +106,10 @@ declare global {
         close: () => Promise<void>
         toggle: () => Promise<void>
       }
+      aes: {
+        encrypt: (text: string, secretKey: string, iv: string) => Promise<{ iv: string; encryptedData: string }>
+        decrypt: (encryptedData: string, iv: string, secretKey: string) => Promise<string>
+      }
     }
   }
 }

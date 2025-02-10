@@ -69,7 +69,11 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
 
   const highlightText = (text: string) => {
     if (!searchKeyword) return text
-    const parts = text.split(new RegExp(`(${searchKeyword})`, 'gi'))
+
+    // Escape special characters in the search keyword
+    const escapedKeyword = searchKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const parts = text.split(new RegExp(`(${escapedKeyword})`, 'gi'))
+
     return parts.map((part, i) =>
       part.toLowerCase() === searchKeyword.toLowerCase() ? <mark key={i}>{part}</mark> : part
     )

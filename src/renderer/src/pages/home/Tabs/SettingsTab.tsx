@@ -29,7 +29,7 @@ import {
   setShowInputEstimatedTokens,
   setShowMessageDivider
 } from '@renderer/store/settings'
-import { Assistant, AssistantSettings, ThemeMode } from '@renderer/types'
+import { Assistant, AssistantSettings, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -59,6 +59,8 @@ const SettingsTab: FC<Props> = (props) => {
     showInputEstimatedTokens,
     sendMessageShortcut,
     setSendMessageShortcut,
+    targetLanguage,
+    setTargetLanguage,
     pasteLongTextAsFile,
     renderInputMessageAsMarkdown,
     codeShowLineNumbers,
@@ -378,6 +380,25 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingDivider />
           </>
         )}
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.input.target_language')}</SettingRowTitleSmall>
+          <Select
+            defaultValue={'english' as TranslateLanguageVarious}
+            size="small"
+            value={targetLanguage}
+            menuItemSelectedIcon={<CheckOutlined />}
+            options={[
+              { value: 'chinese', label: t('settings.input.target_language.chinese') },
+              { value: 'chinese-traditional', label: t('settings.input.target_language.chinese-traditional') },
+              { value: 'english', label: t('settings.input.target_language.english') },
+              { value: 'japanese', label: t('settings.input.target_language.japanese') },
+              { value: 'russian', label: t('settings.input.target_language.russian') }
+            ]}
+            onChange={(value) => setTargetLanguage(value)}
+            style={{ width: 135 }}
+          />
+        </SettingRow>
+        <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
           <Select

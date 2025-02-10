@@ -1,6 +1,6 @@
 import { Message } from '@renderer/types'
 import { Collapse } from 'antd'
-import { FC } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import BarLoader from 'react-spinners/BarLoader'
@@ -11,18 +11,25 @@ interface Props {
 }
 
 const MessageThought: FC<Props> = ({ message }) => {
+  const [activeKey, setActiveKey] = useState<'thought' | ''>('thought')
   const isThinking = !message.content
   const { t } = useTranslation()
+
+  useEffect(() => {
+    if (!isThinking) setActiveKey('')
+  }, [isThinking])
 
   if (!message.reasoning_content) {
     return null
   }
 
   const thinkingTime = message.metrics?.time_thinking_millsec || 0
-  const thinkingTimeSecounds = (thinkingTime / 1000).toFixed(1)
+  const thinkingTimeSeconds = (thinkingTime / 1000).toFixed(1)
 
   return (
     <CollapseContainer
+      activeKey={activeKey}
+      onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
       className="message-thought-container"
       items={[
         {
@@ -30,12 +37,12 @@ const MessageThought: FC<Props> = ({ message }) => {
           label: (
             <MessageTitleLabel>
               <TinkingText>
-                {isThinking ? t('chat.thinking') : t('chat.deeply_thought', { secounds: thinkingTimeSecounds })}
+                {isThinking ? t('chat.thinking') : t('chat.deeply_thought', { secounds: thinkingTimeSeconds })}
               </TinkingText>
               {isThinking && <BarLoader color="#9254de" />}
             </MessageTitleLabel>
           ),
-          children: <ReactMarkdown>{message.reasoning_content}</ReactMarkdown>
+          children: <ReactMarkdown className="markdown">{message.reasoning_content}</ReactMarkdown>
         }
       ]}
     />

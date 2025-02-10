@@ -2,7 +2,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessage, formatMessageError } from '@renderer/utils/error'
 import { isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -85,6 +85,7 @@ export async function fetchChatCompletion({
   } catch (error: any) {
     message.status = 'error'
     message.content = formatErrorMessage(error)
+    message.error = formatMessageError(error)
   }
 
   timer && clearInterval(timer)
@@ -206,25 +207,37 @@ export async function checkApi(provider: Provider, model: Model) {
   if (provider.id !== 'ollama') {
     if (!provider.apiKey) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      return false
+      return {
+        valid: false,
+        error: new Error('message.error.enter.api.key')
+      }
     }
   }
 
   if (!provider.apiHost) {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
-    return false
+    return {
+      valid: false,
+      error: new Error('message.error.enter.api.host')
+    }
   }
 
   if (isEmpty(provider.models)) {
     window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
-    return false
+    return {
+      valid: false,
+      error: new Error('message.error.enter.model')
+    }
   }
 
   const AI = new AiProvider(provider)
 
-  const { valid } = await AI.check(model)
+  const { valid, error } = await AI.check(model)
 
-  return valid
+  return {
+    valid,
+    error
+  }
 }
 
 function hasApiKey(provider: Provider) {

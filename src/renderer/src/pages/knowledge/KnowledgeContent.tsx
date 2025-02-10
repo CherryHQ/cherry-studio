@@ -7,7 +7,8 @@ import {
   LinkOutlined,
   PlusOutlined,
   RedoOutlined,
-  SearchOutlined
+  SearchOutlined,
+  SettingOutlined
 } from '@ant-design/icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
@@ -22,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
+import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'
 
 const { Dragger } = Upload
@@ -31,7 +33,7 @@ interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
 
-const fileTypes = ['.pdf', '.docx', '.pptx', '.xlsx', '.txt', '.md']
+const fileTypes = ['.pdf', '.docx', '.pptx', '.xlsx', '.txt', '.md', '.html']
 
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
@@ -359,7 +361,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         <Tag color="blue">{base.model.name}</Tag>
         <Tag color="cyan">{t('models.dimensions', { dimensions: base.dimensions || 0 })}</Tag>
         {providerName && <Tag color="purple">{providerName}</Tag>}
-        {/* <Button icon={<SettingOutlined />} onClick={() => KnowledgeSettingsPopup.show({ base })} size="small" /> */}
+        <Button icon={<SettingOutlined />} onClick={() => KnowledgeSettingsPopup.show({ base })} size="small" />
       </ModelInfo>
 
       <IndexSection>

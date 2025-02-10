@@ -7,6 +7,7 @@ import {
   PlusOutlined,
   SettingOutlined
 } from '@ant-design/icons'
+import { HStack } from '@renderer/components/Layout'
 import ModelTags from '@renderer/components/ModelTags'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { EMBEDDING_REGEX, getModelLogo, REASONING_REGEX, VISION_REGEX } from '@renderer/config/models'
@@ -17,10 +18,11 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
 import { checkApi } from '@renderer/services/ApiService'
-import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model, ModelType, Provider } from '@renderer/types'
+import { providerCharge } from '@renderer/utils/oauth'
 import { Avatar, Button, Card, Checkbox, Divider, Flex, Input, Popover, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { groupBy, isEmpty } from 'lodash'
@@ -128,13 +130,19 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     } else {
       setApiChecking(true)
 
-      const valid = await checkApi({ ...provider, apiKey, apiHost }, model)
+      const { valid, error } = await checkApi({ ...provider, apiKey, apiHost }, model)
+
+      const errorMessage = error && error?.message ? ' ' + error?.message : ''
+
       window.message[valid ? 'success' : 'error']({
         key: 'api-check',
         style: { marginTop: '3vh' },
         duration: valid ? 2 : 8,
-        content: valid ? i18n.t('message.api.connection.success') : i18n.t('message.api.connection.failed')
+        content: valid
+          ? i18n.t('message.api.connection.success')
+          : i18n.t('message.api.connection.failed') + errorMessage
       })
+
       setApiValid(valid)
       setApiChecking(false)
       setTimeout(() => setApiValid(false), 3000)
@@ -180,19 +188,31 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
   }
 
-  const modelTypeContent = (model: Model) => (
-    <div>
-      <Checkbox.Group
-        value={model.type}
-        onChange={(types) => onUpdateModelTypes(model, types as ModelType[])}
-        options={[
-          { label: t('models.type.vision'), value: 'vision', disabled: VISION_REGEX.test(model.id) },
-          { label: t('models.type.embedding'), value: 'embedding', disabled: EMBEDDING_REGEX.test(model.id) },
-          { label: t('models.type.reasoning'), value: 'reasoning', disabled: REASONING_REGEX.test(model.id) }
-        ]}
-      />
-    </div>
-  )
+  const modelTypeContent = (model: Model) => {
+    // 获取默认选中的类型
+    const defaultTypes = [
+      ...(VISION_REGEX.test(model.id) ? ['vision'] : []),
+      ...(EMBEDDING_REGEX.test(model.id) ? ['embedding'] : []),
+      ...(REASONING_REGEX.test(model.id) ? ['reasoning'] : [])
+    ] as ModelType[]
+
+    // 合并现有选择和默认类型
+    const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
+
+    return (
+      <div>
+        <Checkbox.Group
+          value={selectedTypes}
+          onChange={(types) => onUpdateModelTypes(model, types as ModelType[])}
+          options={[
+            { label: t('models.type.vision'), value: 'vision', disabled: VISION_REGEX.test(model.id) },
+            { label: t('models.type.embedding'), value: 'embedding', disabled: EMBEDDING_REGEX.test(model.id) },
+            { label: t('models.type.reasoning'), value: 'reasoning', disabled: REASONING_REGEX.test(model.id) }
+          ]}
+        />
+      </div>
+    )
+  }
 
   const formatApiKeys = (value: string) => {
     return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
@@ -252,9 +272,16 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-            {t('settings.provider.get_api_key')}
-          </SettingHelpLink>
+          <HStack gap={5}>
+            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+              {t('settings.provider.get_api_key')}
+            </SettingHelpLink>
+            {isProviderSupportCharge(provider) && (
+              <SettingHelpLink onClick={() => providerCharge(provider.id)}>
+                {t('settings.provider.charge')}
+              </SettingHelpLink>
+            )}
+          </HStack>
           <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
         </SettingHelpTextRow>
       )}
@@ -309,8 +336,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
                 <Avatar src={getModelLogo(model.id)} size={22} style={{ marginRight: '8px' }}>
                   {model?.name?.[0]?.toUpperCase()}
                 </Avatar>
-                {model?.name}
-                <ModelTags model={model} />
+                <ModelNameRow>
+                  <span>{model?.name}</span>
+                  <ModelTags model={model} />
+                </ModelNameRow>
                 <Popover content={modelTypeContent(model)} title={t('models.type.select')} trigger="click">
                   <SettingIcon />
                 </Popover>
@@ -360,6 +389,13 @@ const ModelListHeader = styled.div`
   align-items: center;
 `
 
+const ModelNameRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+`
+
 const RemoveIcon = styled(MinusCircleOutlined)`
   font-size: 18px;
   margin-left: 10px;
@@ -369,7 +405,7 @@ const RemoveIcon = styled(MinusCircleOutlined)`
 `
 
 const SettingIcon = styled(SettingOutlined)`
-  margin-left: 10px;
+  margin-left: 2px;
   color: var(--color-text);
   cursor: pointer;
   transition: all 0.2s ease-in-out;

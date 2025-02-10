@@ -25,7 +25,7 @@ export function getDefaultTranslateAssistant(targetLanguage: string, text: strin
   assistant.model = translateModel
 
   assistant.settings = {
-    temperature: 1.3
+    temperature: 0.7
   }
 
   assistant.prompt = store

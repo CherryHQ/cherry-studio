@@ -16,6 +16,11 @@ export function getProviderName(id: string) {
 }
 
 export function isProviderSupportAuth(provider: Provider) {
-  const supportProviders = ['silicon']
+  const supportProviders = ['silicon', 'aihubmix']
+  return supportProviders.includes(provider.id)
+}
+
+export function isProviderSupportCharge(provider: Provider) {
+  const supportProviders = ['silicon', 'aihubmix']
   return supportProviders.includes(provider.id)
 }

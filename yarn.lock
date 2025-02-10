@@ -1341,7 +1341,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@langchain/openai@npm:>=0.1.0 <0.4.0, @langchain/openai@npm:^0.3.16":
+"@langchain/openai@npm:0.3.16":
   version: 0.3.16
   resolution: "@langchain/openai@npm:0.3.16"
   dependencies:
@@ -1352,6 +1352,20 @@ __metadata:
   peerDependencies:
     "@langchain/core": ">=0.2.26 <0.4.0"
   checksum: 10c0/5955a02c09227d8d1d7feef26d3487cf151e2c3d36ec7550c4fe111179eb78de76befd1bd2df6a80ae4fc88676f5ebaa35d5d8788faab62972d82989ca18ec87
+  languageName: node
+  linkType: hard
+
+"@langchain/openai@patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch":
+  version: 0.3.16
+  resolution: "@langchain/openai@patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch::version=0.3.16&hash=642f39"
+  dependencies:
+    js-tiktoken: "npm:^1.0.12"
+    openai: "npm:^4.77.0"
+    zod: "npm:^3.22.4"
+    zod-to-json-schema: "npm:^3.22.3"
+  peerDependencies:
+    "@langchain/core": ">=0.2.26 <0.4.0"
+  checksum: 10c0/2106626e01e1865ad08b647d155bee86caf83620040a00d3406ec0a7d34650e393a7bbf7cfbbc3b45958ddeaf29055f6e1fe5b61d85da07a87e89ccbc5b6c4b6
   languageName: node
   linkType: hard
 

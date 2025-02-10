@@ -1,91 +1,96 @@
 @font-face {
-  font-family: "iconfont"; /* Project id 4753420 */
-  src: url('iconfont.woff2?t=1736309723926') format('woff2'),
-       url('iconfont.woff?t=1736309723926') format('woff'),
-       url('iconfont.ttf?t=1736309723926') format('truetype');
+  font-family: 'iconfont'; /* Project id 4753420 */
+  src: url('iconfont.woff2?t=1738750230250') format('woff2');
 }
 
 .iconfont {
-  font-family: "iconfont" !important;
+  font-family: 'iconfont' !important;
   font-size: 16px;
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+.icon-thinking:before {
+  content: '\e65b';
+}
+
 .icon-at:before {
-  content: "\e623";
+  content: '\e623';
 }
 
 .icon-icon-adaptive-width:before {
-  content: "\e87a";
+  content: '\e87a';
+}
+
+.icon-at1:before {
+  content: '\e630';
 }
 
 .icon-a-darkmode:before {
-  content: "\e6cd";
+  content: '\e6cd';
 }
 
 .icon-ai-model:before {
-  content: "\e827";
+  content: '\e827';
 }
 
 .icon-ai-model1:before {
-  content: "\ec09";
+  content: '\ec09';
 }
 
 .icon-gridlines:before {
-  content: "\e942";
+  content: '\e942';
 }
 
 .icon-inbox:before {
-  content: "\e869";
+  content: '\e869';
 }
 
 .icon-business-smart-assistant:before {
-  content: "\e601";
+  content: '\e601';
 }
 
 .icon-copy:before {
-  content: "\e6ae";
+  content: '\e6ae';
 }
 
 .icon-ic_send:before {
-  content: "\e795";
+  content: '\e795';
 }
 
 .icon-dark1:before {
-  content: "\e72f";
+  content: '\e72f';
 }
 
 .icon-theme-light:before {
-  content: "\e6b7";
+  content: '\e6b7';
 }
 
 .icon-translate_line:before {
-  content: "\e7de";
+  content: '\e7de';
 }
 
 .icon-history:before {
-  content: "\e758";
+  content: '\e758';
 }
 
 .icon-hide-sidebar:before {
-  content: "\e8eb";
+  content: '\e8eb';
 }
 
 .icon-show-sidebar:before {
-  content: "\e944";
+  content: '\e944';
 }
 
 .icon-appstore:before {
-  content: "\e792";
+  content: '\e792';
 }
 
 .icon-chat:before {
-  content: "\e615";
+  content: '\e615';
 }
 
 .icon-setting:before {
-  content: "\e78e";
+  content: '\e78e';
 }
-
