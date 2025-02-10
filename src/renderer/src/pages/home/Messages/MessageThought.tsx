@@ -42,7 +42,7 @@ const MessageThought: FC<Props> = ({ message }) => {
               {isThinking && <BarLoader color="#9254de" />}
             </MessageTitleLabel>
           ),
-          children: <ReactMarkdown>{message.reasoning_content}</ReactMarkdown>
+          children: <ReactMarkdown className="markdown">{message.reasoning_content}</ReactMarkdown>
         }
       ]}
     />
