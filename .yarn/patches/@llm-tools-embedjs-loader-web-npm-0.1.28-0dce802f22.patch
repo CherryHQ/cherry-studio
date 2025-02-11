@@ -1,0 +1,100 @@
+diff --git a/src/web-loader.js b/src/web-loader.js
+index 65b90a2ccd71335cd4b19d8a4e5c698fcc1a83da..91cc2cc44a876719c90c6c5d86d9a3c5cd0679ea 100644
+--- a/src/web-loader.js
++++ b/src/web-loader.js
+@@ -4,28 +4,82 @@ import { convert } from 'html-to-text';
+ import md5 from 'md5';
+ import { BaseLoader } from '@llm-tools/embedjs-interfaces';
+ import { isValidURL, truncateCenterString, cleanString, getSafe } from '@llm-tools/embedjs-utils';
++import { chromium } from 'playwright';
++
+ export class WebLoader extends BaseLoader {
+     debug = createDebugMessages('embedjs:loader:WebLoader');
+     urlOrContent;
+     isUrl;
+-    constructor({ urlOrContent, chunkSize, chunkOverlap, }) {
+-        super(`WebLoader_${md5(urlOrContent)}`, { urlOrContent }, chunkSize ?? 2000, chunkOverlap ?? 0);
++
++    constructor({
++        urlOrContent,
++        chunkSize,
++        chunkOverlap,
++    }) {
++        super(
++            `WebLoader_${md5(urlOrContent)}`,
++            { urlOrContent },
++            chunkSize ?? 2000,
++            chunkOverlap ?? 0
++        );
+         this.isUrl = isValidURL(urlOrContent) ? true : false;
+         this.urlOrContent = urlOrContent;
+     }
++
++    async getContent() {
++        if (!this.isUrl) {
++            return this.urlOrContent;
++        }
++
++        try {
++            const browser = await chromium.launch();
++            try {
++                const page = await browser.newPage();
++                await page.goto(this.urlOrContent, {
++                    waitUntil: 'networkidle',
++                    timeout: 30000
++                });
++
++                await page.waitForLoadState('networkidle');
++                const content = await page.content();
++                if (!content || content.trim().length === 0) {
++                    throw new Error('Dynamic content empty');
++                }
++                return content;
++            } finally {
++                await browser.close();
++            }
++        } catch (error) {
++            this.debug('Dynamic rendering failed, falling back to static:', error);
++            try {
++                const response = await getSafe(this.urlOrContent, { format: 'text' });
++                const staticContent = response.body;
++                if (!staticContent || staticContent.trim().length === 0) {
++                    throw new Error('Static content empty');
++                }
++                return staticContent;
++            } catch (staticError) {
++                throw new Error(`Failed to fetch content: ${staticError.message}`);
++            }
++        }
++    }
++
+     async *getUnfilteredChunks() {
+         const chunker = new RecursiveCharacterTextSplitter({
+             chunkSize: this.chunkSize,
+             chunkOverlap: this.chunkOverlap,
+         });
++
+         try {
+-            const data = this.isUrl ? (await getSafe(this.urlOrContent, { format: 'text' })).body : this.urlOrContent;
++            const data = await this.getContent();
+             const text = convert(data, {
+                 wordwrap: false,
+                 preserveNewlines: false,
+             }).replace(/(?:https?|ftp):\/\/[\n\S]+/g, '');
++
+             const tuncatedObjectString = this.isUrl ? undefined : truncateCenterString(this.urlOrContent, 50);
+             const chunks = await chunker.splitText(cleanString(text));
++
+             for (const chunk of chunks) {
+                 yield {
+                     pageContent: chunk,
+@@ -35,8 +89,7 @@ export class WebLoader extends BaseLoader {
+                     },
+                 };
+             }
+-        }
+-        catch (e) {
++        } catch (e) {
+             this.debug('Could not parse input', this.urlOrContent, e);
+         }
+     }
