@@ -25,6 +25,7 @@
     "build:unpack": "dotenv npm run build && electron-builder --dir",
     "build:win": "dotenv npm run build && electron-builder --win",
     "build:win:x64": "dotenv npm run build && electron-builder --win --x64",
+    "build:win:arm64": "dotenv npm run build && electron-builder --win --arm64",
     "build:mac": "dotenv electron-vite build && electron-builder --mac",
     "build:mac:arm64": "dotenv electron-vite build && electron-builder --mac --arm64",
     "build:mac:x64": "dotenv electron-vite build && electron-builder --mac --x64",
@@ -66,6 +67,7 @@
     "@llm-tools/embedjs-openai": "^0.1.28",
     "@modelcontextprotocol/sdk": "patch:@modelcontextprotocol/sdk@npm%3A1.6.1#~/.yarn/patches/@modelcontextprotocol-sdk-npm-1.6.1-b46313efe7.patch",
     "@notionhq/client": "^2.2.15",
+    "@strongtz/win32-arm64-msvc": "^0.4.7",
     "@tryfabric/martian": "^1.2.4",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "@xyflow/react": "^12.4.4",
@@ -184,7 +186,9 @@
     "pdf-parse@npm:1.1.1": "patch:pdf-parse@npm%3A1.1.1#~/.yarn/patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
     "@langchain/openai@npm:^0.3.16": "patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch",
     "@langchain/openai@npm:>=0.1.0 <0.4.0": "patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch",
-    "openai@npm:^4.77.0": "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
+    "openai@npm:^4.77.0": "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch",
+    "node-gyp": "^9.1.0",
+    "libsql@npm:^0.4.4": "patch:libsql@npm%3A0.4.7#~/.yarn/patches/libsql-npm-0.4.7-444e260fb1.patch"
   },
   "packageManager": "yarn@4.6.0",
   "lint-staged": {
