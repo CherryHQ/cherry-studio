@@ -9,7 +9,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase } from '@renderer/types'
 import { Alert, Form, Input, InputNumber, Modal, Select, Slider } from 'antd'
 import { sortBy } from 'lodash'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -34,6 +34,10 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { base, updateKnowledgeBase } = useKnowledge(_base.id)
+
+  useEffect(() => {
+    form.setFieldsValue({ documentCount: base?.documentCount || 6 })
+  }, [base, form])
 
   if (!base) {
     resolve(null)
@@ -118,7 +122,6 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             style={{ width: '100%' }}
             min={1}
             max={15}
-            defaultValue={base.documentCount || 6}
             step={1}
             marks={{ 1: '1', 6: t('knowledge.document_count_default'), 15: '15' }}
           />
