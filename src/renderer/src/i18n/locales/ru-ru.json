@@ -116,6 +116,8 @@
       "topics.export.word": "Экспорт как Word",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
+      "topics.pinned": "Закрепленные темы",
+      "topics.unpinned": "Открепленные темы",
       "topics.title": "Топики",
       "translate": "Перевести",
       "resend": "Переотправить",
