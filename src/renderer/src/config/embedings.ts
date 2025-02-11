@@ -222,6 +222,10 @@ export const EMBEDDING_MODELS = [
   {
     id: 'embed-multilingual-v2.0',
     max_context: 256
+  },
+  {
+    id: 'text-embedding-004',
+    max_context: 2048
   }
 ]
 
