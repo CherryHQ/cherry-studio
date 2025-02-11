@@ -107,7 +107,7 @@
       "settings.set_as_default": "設為預設助手",
       "settings.show_line_numbers": "代码顯示行號",
       "settings.temperature": "溫度",
-      "settings.temperature.tip": "較低的值使模型更具創造性和不可預測性，較高的值則使其更具確定性和精確性。",
+      "settings.temperature.tip": "模型產生文字的隨機程度。數值越高，回應內容越具多樣性、創意性及隨機性；設定為 0 則會依據事實回答。一般聊天建議設定為 0.7",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "模型生成文本的隨機程度。值越小，AI 生成的內容越單調，也越容易理解；值越大，AI 回覆的詞彙範圍越大，越多樣化",
       "suggestions.title": "建議的問題",
