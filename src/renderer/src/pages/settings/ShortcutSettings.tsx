@@ -113,7 +113,11 @@ const ShortcutSettings: FC = () => {
     const key = e.key
 
     if (key.length === 1 && !['Control', 'Alt', 'Shift', 'Meta'].includes(key)) {
-      keys.push(key.toUpperCase())
+      if (key === ' ') {
+        keys.push('Space')
+      } else {
+        keys.push(key.toUpperCase())
+      }
     }
 
     if (!isValidShortcut(keys)) {
