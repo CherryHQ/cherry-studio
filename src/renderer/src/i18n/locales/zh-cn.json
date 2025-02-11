@@ -88,6 +88,7 @@
       "input.topics": " 话题 ",
       "input.translate": "翻译成{{target_language}}",
       "input.upload": "上传图片或文档",
+      "input.upload.document": "上传文档（模型不支持图片）",
       "input.web_search": "开启网络搜索",
       "input.knowledge_base": "知识库",
       "message.new.branch": "分支",
@@ -429,9 +430,9 @@
         "webdav.noSync": "等待下次备份",
         "webdav.syncError": "备份错误",
         "webdav.lastSync": "上次备份时间",
-        "notion.api_key":"Notion 密钥",
-        "notion.database_id":"Notion 数据库ID",
-        "notion.title":"Notion 配置"
+        "notion.api_key": "Notion 密钥",
+        "notion.database_id": "Notion 数据库ID",
+        "notion.title": "Notion 配置"
       },
       "quickAssistant": {
         "title": "快捷助手",

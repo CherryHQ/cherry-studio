@@ -88,6 +88,7 @@
       "input.topics": " 話題 ",
       "input.translate": "翻譯成{{target_language}}",
       "input.upload": "上傳圖片或文檔",
+      "input.upload.document": "上傳文檔（模型不支持圖片）",
       "input.web_search": "開啟網路搜索",
       "input.knowledge_base": "知識庫",
       "message.new.branch": "分支",

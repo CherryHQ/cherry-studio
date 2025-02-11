@@ -88,6 +88,7 @@
       "input.topics": " Topics ",
       "input.translate": "Translate to {{target_language}}",
       "input.upload": "Upload image or document file",
+      "input.upload.document": "Upload document file (model does not support images)",
       "input.web_search": "Enable web search",
       "input.knowledge_base": "Knowledge Base",
       "message.new.branch": "New Branch",

@@ -83,6 +83,7 @@
       "input.topics": " Топики ",
       "input.translate": "Перевести на {{target_language}}",
       "input.upload": "Загрузить изображение или документ",
+      "input.upload.document": "Загрузить документ (модель не поддерживает изображения)",
       "input.web_search": "Включить веб-поиск",
       "input.knowledge_base": "База знаний",
       "message.new.branch": "Новая ветка",

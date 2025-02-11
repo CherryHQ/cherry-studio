@@ -83,6 +83,7 @@
       "input.topics": " トピック ",
       "input.translate": "{{target_language}}に翻訳",
       "input.upload": "画像またはドキュメントをアップロード",
+      "input.upload.document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
       "input.web_search": "ウェブ検索を有効にする",
       "input.knowledge_base": "ナレッジベース",
       "message.new.branch": "新しいブランチ",

@@ -37,7 +37,10 @@ const AttachmentButton: FC<Props> = ({ model, files, setFiles, ToolbarButton, di
   }
 
   return (
-    <Tooltip placement="top" title={t('chat.input.upload')} arrow>
+    <Tooltip
+      placement="top"
+      title={isVisionModel(model) ? t('chat.input.upload') : t('chat.input.upload.document')}
+      arrow>
       <ToolbarButton type="text" className={files.length ? 'active' : ''} onClick={onSelectFile} disabled={disabled}>
         <PaperClipOutlined style={{ rotate: '135deg' }} />
       </ToolbarButton>
