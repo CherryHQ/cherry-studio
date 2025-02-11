@@ -116,6 +116,8 @@
       "topics.export.word": "Wordとしてエクスポート",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
+      "topics.pinned": "トピックを固定",
+      "topics.unpinned": "固定解除",
       "topics.title": "トピック",
       "translate": "翻訳",
       "resend": "再送信",

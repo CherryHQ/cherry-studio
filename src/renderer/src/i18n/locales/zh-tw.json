@@ -122,6 +122,8 @@
       "topics.list": "話題列表",
       "topics.move_to": "移動到",
       "topics.title": "話題",
+      "topics.pinned": "固定話題",
+      "topics.unpinned": "取消固定",
       "translate": "翻譯",
       "resend": "重新發送",
       "thinking": "思考中",

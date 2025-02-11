@@ -118,6 +118,8 @@
       "topics.export.notion": "Export to Notion",
       "topics.export.md": "Export as markdown",
       "topics.export.title": "Export",
+      "topics.pinned": "Pinned Topics",
+      "topics.unpinned": "Unpinned Topics",
       "topics.export.word": "Export as Word",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",

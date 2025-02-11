@@ -89,6 +89,7 @@ export type Topic = {
   createdAt: string
   updatedAt: string
   messages: Message[]
+  pinned?: boolean
 }
 
 export type User = {

@@ -4,8 +4,8 @@ import {
   DeleteOutlined,
   EditOutlined,
   FolderOutlined,
-  UploadOutlined
-} from '@ant-design/icons'
+  PushpinOutlined,
+  UploadOutlined} from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -39,6 +39,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { showTopicTime, topicPosition } = useSettings()
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
+
+  const onPinTopic = useCallback(
+    (topic: Topic) => {
+      const updatedTopic = { ...topic, pinned: !topic.pinned }
+      updateTopic(updatedTopic)
+    },
+    [updateTopic]
+  )
 
   const onDeleteTopic = useCallback(
     async (topic: Topic) => {
@@ -107,6 +115,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           }
         },
         {
+          label: topic.pinned ? t('chat.topics.unpinned') : t('chat.topics.pinned'),
+          key: 'pin',
+          icon: <PushpinOutlined />,
+          onClick() {
+            onPinTopic(topic)
+          }
+        },
+        {
           label: t('chat.topics.clear.title'),
           key: 'clear-messages',
           icon: <ClearOutlined />,
@@ -166,7 +182,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         })
       }
 
-      if (assistant.topics.length > 1) {
+      if (assistant.topics.length > 1 && !topic.pinned) {
         menus.push({ type: 'divider' })
         menus.push({
           label: t('common.delete'),
@@ -179,7 +195,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
       return menus
     },
-    [assistant, assistants, onClearMessages, onDeleteTopic, onMoveTopic, t, updateTopic]
+    [assistant, assistants, onClearMessages, onPinTopic, onDeleteTopic, onMoveTopic, t, updateTopic]
   )
 
   return (
@@ -197,14 +213,15 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 {showTopicTime && (
                   <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
                 )}
-                {isActive && (
+                <MenuButton className="pin">{topic.pinned && <PushpinOutlined />}</MenuButton>
+                {isActive && !topic.pinned && (
                   <MenuButton
                     className="menu"
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (assistant.topics.length === 1) {
-                        return onClearMessages()
-                      }
+                          if (assistant.topics.length === 1) {
+                            return onClearMessages()
+                          }
                       onDeleteTopic(topic)
                     }}>
                     <CloseOutlined />
