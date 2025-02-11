@@ -45,7 +45,7 @@ export const exportTopicToNotion = async (topic: Topic) => {
   })
   const { notionDatabaseID, notionApiKey } = store.getState().settings
   if (!notionApiKey || !notionDatabaseID) {
-    window.message.error({ content: i18n.t('message.error.notion.no_api_key"'), key: 'notion-no-apikey-error' })
+    window.message.error({ content: i18n.t('message.error.notion.no_api_key'), key: 'notion-no-apikey-error' })
     return
   }
   try {

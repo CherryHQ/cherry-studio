@@ -27,11 +27,11 @@ const NotionSettings: FC = () => {
   const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID);
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionApiKey(e.target.value));
+    dispatch(setNotionApiKey(e.target.value))
   };
 
   const handleNotionDatabaseIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionDatabaseID(e.target.value));
+    dispatch(setNotionDatabaseID(e.target.value))
   };
 
 
@@ -42,12 +42,12 @@ const NotionSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
         <HStack alignItems="center" gap="5px">
-          <Input
+          <Input.Password
             type="text"
             value={notionApiKey || ''}
             onChange={handleNotionTokenChange}
             onBlur={handleNotionTokenChange}
-            style={{ padding: '5px' }}
+            style={{ width: 250 }}
           />
         </HStack>
       </SettingRow>
@@ -60,7 +60,7 @@ const NotionSettings: FC = () => {
             value={notionDatabaseID || ''}
             onChange={handleNotionDatabaseIdChange}
             onBlur={handleNotionDatabaseIdChange}
-            style={{ padding: '5px' }}
+            style={{ width: 250 }}
           />
         </HStack>
       </SettingRow>
@@ -136,6 +136,7 @@ const DataSettings: FC = () => {
       <SettingGroup theme={theme}>
         <WebDavSettings />
       </SettingGroup>
+      <NotionSettings />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />
@@ -164,7 +165,7 @@ const DataSettings: FC = () => {
           </HStack>
         </SettingRow>
       </SettingGroup>
-      <NotionSettings />
+   
     </SettingContainer>
   )
 }
