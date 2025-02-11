@@ -7,11 +7,12 @@ interface ChunkCallbackData {
   usage?: OpenAI.Completions.CompletionUsage
   metrics?: Metrics
   search?: GroundingMetadata
+  citations?: string[]
 }
 
 interface CompletionsParams {
   messages: Message[]
   assistant: Assistant
-  onChunk: ({ text, reasoning_content, usage, metrics, search }: ChunkCallbackData) => void
+  onChunk: ({ text, reasoning_content, usage, metrics, search, citations }: ChunkCallbackData) => void
   onFilterMessages: (messages: Message[]) => void
 }

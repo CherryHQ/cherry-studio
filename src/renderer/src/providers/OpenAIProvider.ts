@@ -243,6 +243,9 @@ export default class OpenAIProvider extends BaseProvider {
 
       const delta = chunk.choices[0]?.delta
 
+      // Extract citations from the raw response if available
+      const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
+
       onChunk({
         text: delta?.content || '',
         // @ts-ignore key is not typed
@@ -253,7 +256,8 @@ export default class OpenAIProvider extends BaseProvider {
           time_completion_millsec,
           time_first_token_millsec,
           time_thinking_millsec
-        }
+        },
+        citations
       })
     }
   }

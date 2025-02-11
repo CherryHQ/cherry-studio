@@ -67,6 +67,8 @@ export type Message = {
   metadata?: {
     // Gemini
     groundingMetadata?: any
+    // Perplexity
+    citations?: string[]
   }
   askId?: string
   useful?: boolean

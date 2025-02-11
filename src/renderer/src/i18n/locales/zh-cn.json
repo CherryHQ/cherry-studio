@@ -302,8 +302,8 @@
       "error.notion.export":"Notion 导入失败",
       "error.notion.no_api_key":"未配置Notion ApiKey或Notion DatabaseID",
       "success.notion.export":"导入Notion成功",
-      "warn.notion.exporting":"Notion正在导入，请勿重复导入"
-
+      "warn.notion.exporting":"Notion正在导入，请勿重复导入",
+      "citations": "引用内容"
     },
     "minapp": {
       "title": "小程序",
