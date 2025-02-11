@@ -301,7 +301,8 @@
       "error.notion.export": "Notion import failed",
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
       "success.notion.export": "Notion import successful",
-      "warn.notion.exporting": "Notion is importing, please do not import repeatedly"
+      "warn.notion.exporting": "Notion is importing, please do not import repeatedly",
+      "citations": "References"
     },
     "minapp": {
       "title": "MinApp",

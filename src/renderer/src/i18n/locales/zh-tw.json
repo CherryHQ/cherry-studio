@@ -301,7 +301,8 @@
       "error.notion.export": "Notion 匯入失敗",
       "error.notion.no_api_key": "未配置 Notion ApiKey 或 Notion DatabaseID",
       "success.notion.export": "匯入 Notion 成功",
-      "warn.notion.exporting": "Notion 正在匯入，請勿重複匯入"
+      "warn.notion.exporting": "Notion 正在匯入，請勿重複匯入",
+      "citations": "參考文獻"
     },
     "minapp": {
       "title": "小程序",

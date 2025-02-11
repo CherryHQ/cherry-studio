@@ -296,7 +296,8 @@
       "error.notion.export": "Импорт в Notion не удался",
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "success.notion.export": "Импорт в Notion выполнен успешно",
-      "warn.notion.exporting": "Идет импорт в Notion, пожалуйста, не повторяйте импорт"
+      "warn.notion.exporting": "Идет импорт в Notion, пожалуйста, не повторяйте импорт",
+      "citations": "Источники"
     },
     "minapp": {
       "title": "Встроенные приложения",

@@ -295,7 +295,8 @@
       "error.notion.export": "Notion インポートに失敗",
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
       "success.notion.export": "Notion へのインポートに成功",
-      "warn.notion.exporting": "Notion 正在インポート中です。重複インポートしないでください。"
+      "warn.notion.exporting": "Notion 正在インポート中です。重複インポートしないでください。",
+      "citations": "参考文献"
     },
     "minapp": {
       "title": "ミニアプリ",
