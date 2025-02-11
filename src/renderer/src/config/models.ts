@@ -1191,7 +1191,12 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'aihubmix') {
-    return model?.id === 'gemini-2.0-flash-exp-search'
+    const models = [
+      'gemini-2.0-flash-search',
+      'gemini-2.0-flash-exp-search',
+      'gemini-2.0-pro-exp-02-05-search'
+    ]
+    return models.includes(model?.id)
   }
 
   if (provider.id === 'zhipu') {
