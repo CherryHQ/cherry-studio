@@ -197,7 +197,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onRegenerate = async () => {
     await modelGenerating()
-    const _message: Message = resetAssistantMessage(message, message.model || model || assistantModel)
+    const _message: Message = resetAssistantMessage(message, model || assistantModel)
     onEditMessage?.(_message)
   }
 
