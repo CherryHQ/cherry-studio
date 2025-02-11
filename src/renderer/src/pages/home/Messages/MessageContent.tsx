@@ -3,7 +3,7 @@ import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
-import React, { Fragment } from 'react'
+import React, { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
@@ -22,6 +22,25 @@ interface Props {
 const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const { t } = useTranslation()
   const message = withMessageThought(_message)
+
+  // Process content to make citation numbers clickable
+  const processedContent = useMemo(() => {
+    if (!message.content || !message.metadata?.citations) return message.content
+
+    let content = message.content
+    const citations = message.metadata.citations
+
+    // Make citation numbers clickable
+    content = content.replace(/\[(\d+)\]/g, (match, num) => {
+      const index = parseInt(num) - 1
+      if (index >= 0 && index < citations.length) {
+        return `[[${num}]](${citations[index]})`
+      }
+      return match
+    })
+
+    return content
+  }, [message.content, message.metadata?.citations])
 
   if (message.status === 'sending') {
     return (
@@ -46,7 +65,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
         {message.mentions?.map((model) => <MentionTag key={model.id}>{'@' + model.name}</MentionTag>)}
       </Flex>
       <MessageThought message={message} />
-      <Markdown message={message} />
+      <Markdown message={{ ...message, content: processedContent }} />
       {message.translatedContent && (
         <Fragment>
           <Divider style={{ margin: 0, marginBottom: 10 }}>

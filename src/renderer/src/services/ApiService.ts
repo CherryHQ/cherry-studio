@@ -52,12 +52,13 @@ export async function fetchChatCompletion({
 
   try {
     let _messages: Message[] = []
+    let isFirstChunk = true
 
     await AI.completions({
       messages: filterUsefulMessages(messages),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({ text, reasoning_content, usage, metrics, search }) => {
+      onChunk: ({ text, reasoning_content, usage, metrics, search, citations }) => {
         message.content = message.content + text || ''
         message.usage = usage
         message.metrics = metrics
@@ -68,6 +69,15 @@ export async function fetchChatCompletion({
 
         if (search) {
           message.metadata = { groundingMetadata: search }
+        }
+
+        // Handle citations from Perplexity API
+        if (isFirstChunk && citations) {
+          message.metadata = {
+            ...message.metadata,
+            citations
+          }
+          isFirstChunk = false
         }
 
         onResponse({ ...message, status: 'pending' })
