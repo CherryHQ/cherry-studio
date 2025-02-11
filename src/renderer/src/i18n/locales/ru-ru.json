@@ -292,7 +292,11 @@
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
       "group.delete.title": "Удалить группу сообщений",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
-      "mention.title": "Переключить модель ответа"
+      "mention.title": "Переключить модель ответа",
+      "error.notion.export": "Импорт в Notion не удался",
+      "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
+      "success.notion.export": "Импорт в Notion выполнен успешно",
+      "warn.notion.exporting": "Идет импорт в Notion, пожалуйста, не повторяйте импорт"
     },
     "minapp": {
       "title": "Встроенные приложения",

@@ -291,7 +291,11 @@
       "error.get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "group.delete.title": "分組メッセージを削除",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
-      "mention.title": "モデルを切り替える"
+      "mention.title": "モデルを切り替える",
+      "error.notion.export": "Notion インポートに失敗",
+      "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
+      "success.notion.export": "Notion へのインポートに成功",
+      "warn.notion.exporting": "Notion 正在インポート中です。重複インポートしないでください。"
     },
     "minapp": {
       "title": "ミニアプリ",

@@ -297,7 +297,11 @@
       "error.get_embedding_dimensions": "獲取嵌入維度失敗",
       "group.delete.title": "刪除分組消息",
       "group.delete.content": "刪除分組消息會刪除用戶提問和所有助手的回答",
-      "mention.title": "切換模型回答"
+      "mention.title": "切換模型回答",
+      "error.notion.export": "Notion 匯入失敗",
+      "error.notion.no_api_key": "未配置 Notion ApiKey 或 Notion DatabaseID",
+      "success.notion.export": "匯入 Notion 成功",
+      "warn.notion.exporting": "Notion 正在匯入，請勿重複匯入"
     },
     "minapp": {
       "title": "小程序",

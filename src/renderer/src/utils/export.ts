@@ -1,6 +1,8 @@
 import { Client } from '@notionhq/client'
 import db from '@renderer/databases'
+import i18n from '@renderer/i18n'
 import store from '@renderer/store'
+import { setExportState } from '@renderer/store/runtime'
 import { Message, Topic } from '@renderer/types'
 
 export const messageToMarkdown = (message: Message) => {
@@ -33,10 +35,17 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
 }
 
 export const exportTopicToNotion = async (topic: Topic) => {
-
+  const { isExporting } = store.getState().runtime.export
+  if (isExporting) {
+    window.message.warning({ content: i18n.t('message.warn.notion.exporting'), key: 'notion-exporting' })
+    return
+  }
+  setExportState({
+    isExporting: true
+  })
   const { notionDatabaseID, notionApiKey } = store.getState().settings
   if (!notionApiKey || !notionDatabaseID) {
-    window.message.error({ content: 'API Key 或 Database ID 不能为空', key: 'notion-error' })
+    window.message.error({ content: i18n.t('message.error.notion.no_api_key"'), key: 'notion-no-apikey-error' })
     return
   }
   try {
@@ -65,12 +74,15 @@ export const exportTopicToNotion = async (topic: Topic) => {
       children: notionBlocks // 使用转换后的块
     });
 
-    window.message.success({ content: `成功导入到 Notion，页面ID: ${response.id}`, key: 'notion-success' });
-    return response;
+    window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
+    return response
 
   } catch (error:any) {
-    console.error("Notion API 调用失败:", error);  // 打印详细错误信息
-    window.message.error({ content: `Notion 导入失败: ${error.message}`, key: 'notion-error' }); // 显示错误信息
-    return null; // 或者抛出错误，根据你的需求决定
+    window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-error' })
+    return null
+  } finally {
+    setExportState({
+      isExporting: false
+    })
   }
 };
