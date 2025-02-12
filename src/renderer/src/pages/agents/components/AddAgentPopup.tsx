@@ -14,6 +14,7 @@ import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps 
 import TextArea from 'antd/es/input/TextArea'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import stringWidth from 'string-width'
 
 interface Props {
   resolve: (data: Agent | null) => void
@@ -104,6 +105,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     setLoading(false)
   }
 
+  // Compute label width based on the longest label
+  const labelWidth = [t('agents.add.name'), t('agents.add.prompt'), t('agents.add.knowledge_base')]
+    .map((labelText) => stringWidth(labelText) * 8)
+    .reduce((maxWidth, currentWidth) => Math.max(maxWidth, currentWidth), 80)
+
   return (
     <Modal
       title={t('agents.add.title')}
@@ -117,7 +123,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <Form
         ref={formRef}
         form={form}
-        labelCol={{ flex: '80px' }}
+        labelCol={{ flex: `${labelWidth}px` }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}
