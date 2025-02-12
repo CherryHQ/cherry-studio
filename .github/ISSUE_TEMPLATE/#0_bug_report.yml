@@ -8,6 +8,18 @@ body:
       value: |
         感谢您花时间填写此错误报告！
 
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Issue 检查清单
+      description: |
+        在提交 Issue 前请确保您已经完成了以下所有步骤
+      options:
+        - label: 我已经查看了置顶 Issue 并搜索了现有的 Issue，但没有找到类似的问题。
+          required: true
+        - label: 正确填写了 Issue 标题。
+          required: true
+
   - type: dropdown
     id: platform
     attributes:

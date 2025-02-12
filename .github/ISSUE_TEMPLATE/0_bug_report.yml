@@ -8,6 +8,18 @@ body:
       value: |
         Thanks for taking the time to fill out this bug report!
 
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Issue Checklist
+      description: |
+        Before submitting an issue, please make sure you have completed the following steps
+      options:
+        - label: I have viewed the pinned issues and searched existing issues but couldn't find anything similar.
+          required: true
+        - label: I have filled out the issue title correctly.
+          required: true
+
   - type: dropdown
     id: platform
     attributes:
