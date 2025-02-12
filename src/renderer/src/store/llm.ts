@@ -44,6 +44,16 @@ const initialState: LlmState = {
       enabled: false
     },
     {
+      id: 'gitee-ai',
+      name: 'gitee ai',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://ai.gitee.com',
+      models: SYSTEM_MODELS['gitee-ai'],
+      isSystem: true,
+      enabled: false
+    },
+    {
       id: 'deepseek',
       name: 'deepseek',
       type: 'openai',

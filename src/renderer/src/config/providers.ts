@@ -13,6 +13,7 @@ import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
 import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
 import GraphRagProviderLogo from '@renderer/assets/images/providers/graph-rag.png'
 import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
+import GiteeAIProviderLogo from '@renderer/assets/images/providers/gitee-ai.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
@@ -38,6 +39,8 @@ export function getProviderLogo(providerId: string) {
       return SiliconFlowProviderLogo
     case 'deepseek':
       return DeepSeekProviderLogo
+    case 'gitee-ai':
+      return GiteeAIProviderLogo
     case 'yi':
       return ZeroOneProviderLogo
     case 'groq':
@@ -131,6 +134,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://cloud.siliconflow.cn/account/ak?referrer=clxty1xuy0014lvqwh5z50i88',
       docs: 'https://docs.siliconflow.cn/',
       models: 'https://docs.siliconflow.cn/docs/model-names'
+    }
+  },
+  'gitee-ai': {
+    api: {
+      url: 'https://ai.gitee.com'
+    },
+    websites: {
+      official: 'https://ai.gitee.com/',
+      apiKey: 'https://ai.gitee.com/dashboard/settings/tokens',
+      docs: 'https://ai.gitee.com/docs/openapi/v1#tag/%E6%96%87%E6%9C%AC%E7%94%9F%E6%88%90/POST/chat/completions',
+      models: 'https://ai.gitee.com/serverless-api'
     }
   },
   deepseek: {
