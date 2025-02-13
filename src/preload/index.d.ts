@@ -1,9 +1,10 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from '@google/generative-ai/server'
-import { AddLoaderReturn, ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { FileType } from '@renderer/types'
 import { WebDavConfig } from '@renderer/types'
 import { AppInfo, KnowledgeBaseParams, KnowledgeItem, LanguageVarious } from '@renderer/types'
+import type { LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
 import type { UpdateInfo } from 'electron-updater'
 import { Readable } from 'stream'
@@ -78,8 +79,16 @@ declare global {
           base: KnowledgeBaseParams
           item: KnowledgeItem
           forceReload?: boolean
-        }) => Promise<AddLoaderReturn>
-        remove: ({ uniqueId, base }: { uniqueId: string; base: KnowledgeBaseParams }) => Promise<void>
+        }) => Promise<LoaderReturn>
+        remove: ({
+          uniqueId,
+          uniqueIds,
+          base
+        }: {
+          uniqueId: string
+          uniqueIds: string[]
+          base: KnowledgeBaseParams
+        }) => Promise<void>
         search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) => Promise<ExtractChunkData[]>
       }
       window: {

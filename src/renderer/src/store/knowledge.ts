@@ -171,12 +171,16 @@ const knowledgeSlice = createSlice({
       }
     },
 
-    updateBaseItemUniqueId(state, action: PayloadAction<{ baseId: string; itemId: string; uniqueId: string }>) {
+    updateBaseItemUniqueId(
+      state,
+      action: PayloadAction<{ baseId: string; itemId: string; uniqueId: string; uniqueIds: string[] }>
+    ) {
       const base = state.bases.find((b) => b.id === action.payload.baseId)
       if (base) {
         const item = base.items.find((item) => item.id === action.payload.itemId)
         if (item) {
           item.uniqueId = action.payload.uniqueId
+          item.uniqueIds = action.payload.uniqueIds
         }
       }
     }

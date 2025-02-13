@@ -138,15 +138,18 @@ export const useKnowledge = (baseId: string) => {
   const removeItem = async (item: KnowledgeItem) => {
     dispatch(removeItemAction({ baseId, item }))
     if (base) {
-      if (item?.uniqueId) {
-        await window.api.knowledgeBase.remove({ uniqueId: item.uniqueId, base: getKnowledgeBaseParams(base) })
-      }
-      if (item.type === 'file' && typeof item.content === 'object') {
-        await FileManager.deleteFile(item.content.id)
+      if (item?.uniqueId && item?.uniqueIds) {
+        await window.api.knowledgeBase.remove({
+          uniqueId: item.uniqueId,
+          uniqueIds: item.uniqueIds,
+          base: getKnowledgeBaseParams(base)
+        })
       }
     }
+    if (item.type === 'file' && typeof item.content === 'object') {
+      await FileManager.deleteFile(item.content.id)
+    }
   }
-
   // 刷新项目
   const refreshItem = async (item: KnowledgeItem) => {
     const status = getProcessingStatus(item.id)
@@ -155,8 +158,12 @@ export const useKnowledge = (baseId: string) => {
       return
     }
 
-    if (base && item.uniqueId) {
-      await window.api.knowledgeBase.remove({ uniqueId: item.uniqueId, base: getKnowledgeBaseParams(base) })
+    if (base && item.uniqueId && item.uniqueIds) {
+      await window.api.knowledgeBase.remove({
+        uniqueId: item.uniqueId,
+        uniqueIds: item.uniqueIds,
+        base: getKnowledgeBaseParams(base)
+      })
       updateItem({
         ...item,
         processingStatus: 'pending',

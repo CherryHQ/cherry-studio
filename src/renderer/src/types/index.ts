@@ -219,6 +219,7 @@ export type KnowledgeItem = {
   id: string
   baseId?: string
   uniqueId?: string
+  uniqueIds?: string[]
   type: KnowledgeItemType
   content: string | FileType
   created_at: number
