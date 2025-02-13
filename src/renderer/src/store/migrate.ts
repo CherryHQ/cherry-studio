@@ -960,6 +960,19 @@ const migrateConfig = {
     }
 
     return state
+  },
+  '67': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'infini-ai',
+      name: 'Infini AI',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://cloud.infini-ai.com/maas/v1/',
+      models: SYSTEM_MODELS['infini-ai'],
+      isSystem: true,
+      enabled: false
+    })
+    return state
   }
 }
 

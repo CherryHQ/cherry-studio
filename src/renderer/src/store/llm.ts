@@ -343,6 +343,16 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.ppio,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'infini-ai',
+      name: 'Infini AI',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://cloud.infini-ai.com/maas/v1/',
+      models: SYSTEM_MODELS['infini-ai'],
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {

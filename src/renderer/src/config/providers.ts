@@ -16,6 +16,7 @@ import GraphRagProviderLogo from '@renderer/assets/images/providers/graph-rag.pn
 import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
+import InfiniAIProviderLogo from '@renderer/assets/images/providers/infini-ai.ico'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
@@ -100,6 +101,8 @@ export function getProviderLogo(providerId: string) {
       return PPIOProviderLogo
     case 'baidu-cloud':
       return BaiduCloudProviderLogo
+    case 'infini-ai':
+      return InfiniAIProviderLogo
     default:
       return undefined
   }
@@ -461,6 +464,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://cloud.baidu.com/console/qianfan/apikey',
       docs: 'https://cloud.baidu.com/doc/index.html',
       models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
+    },
+    'infini-ai': {
+      api: {
+        url: 'https://cloud.infini-ai.com/maas/v1/'
+      },
+      websites: {
+        official: 'https://cloud.infini-ai.com/genstudio',
+        apiKey: 'https://cloud.infini-ai.com/iam/secret/key',
+        docs: 'https://docs.infini-ai.com',
+        models: 'https://cloud.infini-ai.com/genstudio/model'
+      }
     }
   }
 }
