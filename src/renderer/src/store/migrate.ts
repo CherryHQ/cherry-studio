@@ -954,9 +954,9 @@ const migrateConfig = {
   },
   '67': (state: RootState) => {
     if (state.minapps) {
-      const mintop = DEFAULT_MIN_APPS.find((app) => app.id === 'aistudio')
-      if (mintop) {
-        state.minapps.enabled.push(mintop)
+      const aistudio = DEFAULT_MIN_APPS.find((app) => app.id === 'aistudio')
+      if (aistudio) {
+        state.minapps.enabled.push(aistudio)
       }
     }
     return state
