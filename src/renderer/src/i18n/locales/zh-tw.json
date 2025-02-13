@@ -97,6 +97,7 @@
       "input.upload": "上傳圖片或文檔",
       "input.upload.document": "上傳文檔（模型不支持圖片）",
       "input.web_search": "開啟網路搜索",
+      "input.file_not_supported": "模型不支持此文件類型",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已建立",
       "message.new.context": "新上下文",

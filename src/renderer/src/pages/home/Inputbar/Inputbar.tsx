@@ -349,6 +349,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             if (supportExts.includes(getFileExtension(file.path))) {
               const selectedFile = await window.api.file.get(file.path)
               selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+            } else {
+              window.message.info({
+                key: 'file_not_supported',
+                content: t('chat.input.file_not_supported')
+              })
             }
           }
         }
@@ -370,7 +375,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         }
       }
     },
-    [pasteLongTextAsFile, pasteLongTextThreshold, supportExts, text]
+    [pasteLongTextAsFile, pasteLongTextThreshold, supportExts, t, text]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
