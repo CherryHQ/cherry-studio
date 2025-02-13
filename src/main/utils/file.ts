@@ -25,7 +25,9 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): Fil
       const ext = path.extname(file)
       const fileType = getFileType(ext)
 
-      if (fileType === FileTypes.OTHER) return
+      if ([FileTypes.OTHER, FileTypes.IMAGE, FileTypes.VIDEO, FileTypes.AUDIO].includes(fileType)) {
+        return
+      }
 
       const name = path.basename(file)
       const size = fs.statSync(fullPath).size
@@ -41,6 +43,7 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): Fil
         type: fileType,
         created_at: new Date()
       }
+
       arrayOfFiles.push(fileItem)
     }
   })

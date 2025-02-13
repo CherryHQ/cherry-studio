@@ -37,6 +37,7 @@ interface KnowledgeContentProps {
 const fileTypes = [...documentExts, ...textExts]
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
+
   const {
     base,
     noteItems,
