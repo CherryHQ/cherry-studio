@@ -54,12 +54,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     }
   }
 
-  const onMaxTokensChange = (value) => {
-    if (!isNaN(value as number)) {
-      updateAssistantSettings({ maxTokens: value })
-    }
-  }
-
   const onTopPChange = (value) => {
     if (!isNaN(value as number)) {
       updateAssistantSettings({ topP: value })
