@@ -5,6 +5,7 @@ import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
 import { useAgents } from '@renderer/hooks/useAgents'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppSelector } from '@renderer/store'
@@ -37,6 +38,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [loading, setLoading] = useState(false)
   const knowledgeState = useAppSelector((state) => state.knowledge)
   const knowledgeOptions: SelectProps['options'] = []
+  const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
   knowledgeState.bases.forEach((base) => {
     knowledgeOptions.push({
@@ -151,14 +153,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             disabled={loading}
           />
         </div>
-        <Form.Item name="knowledge_base_id" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
-          <Select
-            allowClear
-            placeholder={t('agents.add.knowledge_base.placeholder')}
-            menuItemSelectedIcon={<CheckOutlined />}
-            options={knowledgeOptions}
-          />
-        </Form.Item>
+        {showKnowledgeIcon && (
+          <Form.Item name="knowledge_base_id" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
+            <Select
+              allowClear
+              placeholder={t('agents.add.knowledge_base.placeholder')}
+              menuItemSelectedIcon={<CheckOutlined />}
+              options={knowledgeOptions}
+            />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   )

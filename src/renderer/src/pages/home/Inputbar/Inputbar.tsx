@@ -16,6 +16,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -65,8 +66,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     pasteLongTextThreshold,
     showInputEstimatedTokens,
     clickAssistantToShowTopic,
-    autoTranslateWithSpace,
-    sidebarIcons
+    autoTranslateWithSpace
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -90,7 +90,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
 
-  const showKnowledgeIcon = sidebarIcons.visible.includes('knowledge')
+  const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
   const estimateTextTokens = useCallback(debounce(estimateTxtTokens, 1000), [])
   const inputTokenCount = useMemo(
@@ -453,8 +453,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   }, [])
 
   useEffect(() => {
-    setSelectedKnowledgeBase(assistant.knowledge_base)
-  }, [assistant.id, assistant.knowledge_base])
+    setSelectedKnowledgeBase(showKnowledgeIcon ? assistant.knowledge_base : undefined)
+  }, [assistant.id, assistant.knowledge_base, showKnowledgeIcon])
 
   const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
 
