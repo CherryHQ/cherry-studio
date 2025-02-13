@@ -951,6 +951,15 @@ const migrateConfig = {
     )
     state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'graphrag-kylin-mountain')
     return state
+  },
+  '67': (state: RootState) => {
+    if (state.minapps) {
+      const aistudio = DEFAULT_MIN_APPS.find((app) => app.id === 'aistudio')
+      if (aistudio) {
+        state.minapps.enabled.push(aistudio)
+      }
+    }
+    return state
   }
 }
 
