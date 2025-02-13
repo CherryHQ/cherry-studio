@@ -171,7 +171,8 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "footnote": "引用內容"
     },
     "error": {
       "backup.file_format": "備份文件格式錯誤",
@@ -337,8 +338,6 @@
       "error.enter.model": "請先選擇一個模型",
       "error.enter.name": "請先輸入知識庫名稱",
       "error.get_embedding_dimensions": "獲取嵌入維度失敗",
-      "error.invalid.enter.api.host": "請輸入有效的 API 主機地址",
-      "error.invalid.enter.api.key": "請輸入有效的 API 密鑰",
       "error.invalid.enter.model": "請選擇一個模型",
       "error.invalid.proxy.url": "無效的代理 URL",
       "error.invalid.webdav": "無效的 WebDAV 設定",
@@ -369,7 +368,9 @@
       "upgrade.success.button": "重新啟動",
       "upgrade.success.content": "請重新啟動應用以完成升級",
       "upgrade.success.title": "升級成功",
-      "warn.notion.exporting": "Notion 正在匯入，請勿重複匯入"
+      "warn.notion.exporting": "Notion 正在匯入，請勿重複匯入",
+      "error.invalid.api.host": "無效的 API 位址",
+      "error.invalid.api.key": "無效的 API 密鑰"
     },
     "minapp": {
       "sidebar.add.title": "添加到側邊欄",
@@ -532,8 +533,6 @@
           "success": "緩存清除成功",
           "title": "清除緩存"
         },
-        "data.app_data": "應用數據",
-        "data.app_logs": "應用日誌",
         "data.title": "數據目錄",
         "notion.api_key": "Notion 金鑰",
         "notion.database_id": "Notion 資料庫 ID",
@@ -557,7 +556,9 @@
         "webdav.syncError": "備份錯誤",
         "webdav.syncStatus": "備份狀態",
         "webdav.title": "WebDAV",
-        "webdav.user": "WebDAV 使用者名稱"
+        "webdav.user": "WebDAV 使用者名稱",
+        "app_data": "應用數據",
+        "app_logs": "應用日誌"
       },
       "display.custom.css": "自定義 CSS",
       "display.custom.css.placeholder": "/* 這裡寫自定義 CSS */",
@@ -604,7 +605,6 @@
       "messages.input.show_estimated_tokens": "顯示預估 Token 數",
       "messages.input.title": "輸入設定",
       "messages.math_engine": "Markdown 渲染輸入訊息",
-      "messages.math_render_engine": "數學公式引擎",
       "messages.metrics": "首字時延 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
       "messages.model.title": "模型設定",
       "messages.title": "訊息設定",
@@ -710,7 +710,8 @@
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
-      "tray.title": "啟用系統托盤圖標"
+      "tray.title": "啟用系統托盤圖標",
+      "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息"
     },
     "translate": {
       "any.language": "任意語言",

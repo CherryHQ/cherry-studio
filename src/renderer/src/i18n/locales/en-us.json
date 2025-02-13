@@ -171,7 +171,8 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "footnote": "Reference content"
     },
     "error": {
       "backup.file_format": "Backup file format error",
@@ -337,8 +338,6 @@
       "error.enter.model": "Please select a model first",
       "error.enter.name": "Please enter the name of the knowledge base",
       "error.get_embedding_dimensions": "Failed to get embedding dimensions",
-      "error.invalid.enter.api.host": "Please enter a valid API host",
-      "error.invalid.enter.api.key": "Please enter a valid API key",
       "error.invalid.enter.model": "Please select a model",
       "error.invalid.proxy.url": "Invalid proxy URL",
       "error.invalid.webdav": "Invalid WebDAV settings",
@@ -369,7 +368,9 @@
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Notion is importing, please do not import repeatedly"
+      "warn.notion.exporting": "Notion is importing, please do not import repeatedly",
+      "error.invalid.api.host": "Invalid API Host",
+      "error.invalid.api.key": "Invalid API Key"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -498,7 +499,6 @@
       "zhipu": "ZHIPU AI"
     },
     "settings": {
-      "": "MinApp that have been added to the sidebar do not support hiding. If you want to hide them, please remove them from the sidebar first.",
       "about": "About & Feedback",
       "about.checkingUpdate": "Checking for updates...",
       "about.checkUpdate": "Check Update",
@@ -545,10 +545,8 @@
         "webdav.backup.button": "Backup to WebDAV",
         "webdav.host": "WebDAV Host",
         "webdav.host.placeholder": "http://localhost:8080",
-        "webdav.hour": "Hour",
         "webdav.hours": "Hours",
         "webdav.lastSync": "Last Backup",
-        "webdav.minute": "Minute",
         "webdav.minutes": "Minutes",
         "webdav.noSync": "Waiting for next backup",
         "webdav.password": "WebDAV Password",
@@ -662,17 +660,6 @@
         "search_placeholder": "Search model id or name",
         "title": "Model Provider"
       },
-      "provider.api.url.preview": "Preview: {{url}}",
-      "provider.api.url.reset": "Reset",
-      "provider.api.url.tip": "Ending with / ignores v1, ending with # forces use of input address",
-      "provider.api_host": "API Host",
-      "provider.api_key": "API Key",
-      "provider.api_key.tip": "Multiple keys separated by commas",
-      "provider.api_version": "API Version",
-      "provider.check": "Check",
-      "provider.docs_check": "Check",
-      "provider.docs_more_details": "for more details",
-      "provider.search_placeholder": "Search model id or name",
       "proxy": {
         "mode": {
           "custom": "Custom Proxy",

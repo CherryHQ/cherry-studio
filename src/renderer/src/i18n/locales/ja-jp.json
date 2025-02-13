@@ -47,7 +47,12 @@
       "settings.model": "モデル設定",
       "settings.preset_messages": "プリセットメッセージ",
       "settings.prompt": "プロンプト設定",
-      "title": "アシスタント"
+      "title": "アシスタント",
+      "settings.reasoning_effort": "思考連鎖の長さ",
+      "settings.reasoning_effort.high": "長い",
+      "settings.reasoning_effort.low": "短い",
+      "settings.reasoning_effort.medium": "中程度",
+      "settings.reasoning_effort.tip": "この設定は推論モデルのみサポートしています"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -166,7 +171,8 @@
       "select": "選択",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた"
+      "you": "あなた",
+      "footnote": "引用内容"
     },
     "error": {
       "backup.file_format": "バックアップファイルの形式エラー",
@@ -331,8 +337,6 @@
       "error.enter.api.key": "APIキーを入力してください",
       "error.enter.model": "モデルを選択してください",
       "error.get_embedding_dimensions": "埋込み次元を取得できませんでした",
-      "error.invalid.enter.api.host": "APIホストを入力してください",
-      "error.invalid.enter.api.key": "APIキーを入力してください",
       "error.invalid.enter.model": "モデルを選択してください",
       "error.invalid.proxy.url": "無効なプロキシURL",
       "error.invalid.webdav": "無効なWebDAV設定",
@@ -363,7 +367,10 @@
       "upgrade.success.button": "再起動",
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
-      "warn.notion.exporting": "Notion 正在インポート中です。重複インポートしないでください。"
+      "warn.notion.exporting": "Notion 正在インポート中です。重複インポートしないでください。",
+      "error.enter.name": "ナレッジベース名を入力してください",
+      "error.invalid.api.host": "無効なAPIアドレスです",
+      "error.invalid.api.key": "無効なAPIキーです"
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
@@ -488,7 +495,8 @@
       "together": "Together",
       "yi": "零一万物",
       "zhinao": "360智脳",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "ppio": "PPIO パイオウクラウド"
     },
     "settings": {
       "about": "について",

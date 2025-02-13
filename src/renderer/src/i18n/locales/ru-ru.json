@@ -47,7 +47,12 @@
       "settings.model": "Настройки модели",
       "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
-      "title": "Ассистенты"
+      "title": "Ассистенты",
+      "settings.reasoning_effort": "Длина цепочки рассуждений",
+      "settings.reasoning_effort.high": "Длинная",
+      "settings.reasoning_effort.low": "Короткая",
+      "settings.reasoning_effort.medium": "Средняя",
+      "settings.reasoning_effort.tip": "Эта настройка поддерживается только моделями с рассуждением"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -166,7 +171,8 @@
       "select": "Выбрать",
       "topics": "Топики",
       "warning": "Предупреждение",
-      "you": "Вы"
+      "you": "Вы",
+      "footnote": "Цитируемый контент"
     },
     "error": {
       "backup.file_format": "Ошибка формата файла резервной копии",
@@ -332,8 +338,6 @@
       "error.enter.model": "Пожалуйста, выберите модель",
       "error.enter.name": "Пожалуйста, введите название базы знаний",
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
-      "error.invalid.enter.api.host": "Пожалуйста, введите правильный API хост",
-      "error.invalid.enter.api.key": "Пожалуйста, введите правильный API ключ",
       "error.invalid.enter.model": "Пожалуйста, выберите модель",
       "error.invalid.proxy.url": "Неверный URL прокси",
       "error.invalid.webdav": "Неверные настройки WebDAV",
@@ -364,7 +368,9 @@
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
-      "warn.notion.exporting": "Идет импорт в Notion, пожалуйста, не повторяйте импорт"
+      "warn.notion.exporting": "Идет импорт в Notion, пожалуйста, не повторяйте импорт",
+      "error.invalid.api.host": "Неверный API адрес",
+      "error.invalid.api.key": "Неверный API ключ"
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -489,7 +495,8 @@
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "ppio": "PPIO"
     },
     "settings": {
       "about": "О программе и обратная связь",
@@ -590,7 +597,6 @@
       "input.target_language.chinese-traditional": "Китайский традиционный",
       "input.target_language.english": "Английский",
       "input.target_language.japanese": "Японский",
-      "input.target_language.russianinput.translate": "Русский",
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.input.paste_long_text_as_file": "Вставлять длинный текст как файл",
       "messages.input.paste_long_text_threshold": "Длина вставки длинного текста",
@@ -653,17 +659,6 @@
         "search_placeholder": "Поиск по ID или имени модели",
         "title": "Провайдеры моделей"
       },
-      "provider.api.url.preview": "Предпросмотр: {{url}}",
-      "provider.api.url.reset": "Сброс",
-      "provider.api.url.tip": "Заканчивая на / игнорирует v1, заканчивая на # принудительно использует введенный адрес",
-      "provider.api_host": "Хост API",
-      "provider.api_key": "Ключ API",
-      "provider.api_key.tip": "Несколько ключей, разделенных запятыми",
-      "provider.api_version": "Версия API",
-      "provider.check": "Проверить",
-      "provider.docs_check": "Проверить",
-      "provider.docs_more_details": "для получения дополнительной информации",
-      "provider.search_placeholder": "Поиск по ID или имени модели",
       "proxy": {
         "mode": {
           "custom": "Пользовательский прокси",
@@ -715,7 +710,8 @@
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
-      "tray.title": "Включить значок системного трея"
+      "tray.title": "Включить значок системного трея",
+      "input.target_language.russian": "Русский"
     },
     "translate": {
       "any.language": "Любой язык",

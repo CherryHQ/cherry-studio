@@ -44,7 +44,8 @@
     "generate:agents": "yarn workspace @cherry-studio/database agents",
     "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true yarn build",
-    "analyze:main": "VISUALIZER_MAIN=true yarn build"
+    "analyze:main": "VISUALIZER_MAIN=true yarn build",
+    "check": "node scripts/check-i18n.js"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
