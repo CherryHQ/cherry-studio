@@ -84,13 +84,13 @@ $ yarn dev
 ### 构建
 
 ```bash
-# Windows
+# Windows - 需安装yarn
 $ yarn build:win
 
-# macOS
+# macOS - 需安装yarn
 $ yarn build:mac
 
-# Linux
+# Linux - 需安装yarn
 $ yarn build:linux
 ```
 
