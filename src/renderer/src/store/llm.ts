@@ -343,6 +343,16 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.ppio,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'modelscope',
+      name: 'ModelScope',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api-inference.modelscope.cn/v1/',
+      models: SYSTEM_MODELS.modelscope,
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {
