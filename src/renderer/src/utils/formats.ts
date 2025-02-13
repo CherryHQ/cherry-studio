@@ -107,3 +107,11 @@ export function withMessageThought(message: Message) {
 
   return message
 }
+
+export function fixPunctuation(text: string): string {
+  // 将网页链接后的中文标点符号与链接分开
+  return text.replace(
+    /(https?:\/\/[^\s)]+)(\p{P})/gu,
+    `<a href="$1" target="_blank" rel="noreferrer">$1</a><span style="margin-left: 0.2em;">$2</span>`
+  )
+}
