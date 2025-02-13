@@ -2,7 +2,7 @@ import 'katex/dist/katex.min.css'
 
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Message } from '@renderer/types'
-import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
+import { escapeBrackets, fixPunctuation, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
 import { isEmpty } from 'lodash'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,8 +34,10 @@ const Markdown: FC<Props> = ({ message }) => {
   const messageContent = useMemo(() => {
     const empty = isEmpty(message.content)
     const paused = message.status === 'paused'
-    const content = empty && paused ? t('message.chat.completion.paused') : withGeminiGrounding(message)
-    return removeSvgEmptyLines(escapeBrackets(content))
+    let content = empty && paused ? t('message.chat.completion.paused') : withGeminiGrounding(message)
+    content = removeSvgEmptyLines(escapeBrackets(content))
+    content = fixPunctuation(content)
+    return content
   }, [message, t])
 
   const rehypePlugins = useMemo(() => {
