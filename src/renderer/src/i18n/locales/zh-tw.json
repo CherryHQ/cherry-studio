@@ -440,6 +440,9 @@
       "title": "Ollama"
     },
     "paintings": {
+      "infini": "無問芯穹",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "button.delete.image": "刪除繪圖",
       "button.delete.image.confirm": "確定要刪除此繪圖嗎?",
       "button.new.image": "新繪圖",
@@ -473,7 +476,7 @@
       "baidu-cloud": "百度云千帆",
       "dashscope": "阿里雲百鍊",
       "deepseek": "深度求索",
-      "doubao": "豆包",
+      "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",

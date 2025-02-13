@@ -466,6 +466,9 @@
       "title": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号"
     },
     "provider": {
+      "infini": "无问芯穹",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -473,7 +476,7 @@
       "baidu-cloud": "百度云千帆",
       "dashscope": "阿里云百炼",
       "deepseek": "深度求索",
-      "doubao": "豆包",
+      "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",

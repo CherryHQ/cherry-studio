@@ -6,8 +6,8 @@ import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.p
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
-import BytedanceProviderLogo from '@renderer/assets/images/providers/bytedance.png'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
+import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
 import GiteeAIProviderLogo from '@renderer/assets/images/providers/gitee-ai.png'
 import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
@@ -16,6 +16,7 @@ import GraphRagProviderLogo from '@renderer/assets/images/providers/graph-rag.pn
 import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
+import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
@@ -25,13 +26,14 @@ import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
+import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity.png'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
+import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-
 export function getProviderLogo(providerId: string) {
   switch (providerId) {
     case 'openai':
@@ -100,6 +102,12 @@ export function getProviderLogo(providerId: string) {
       return PPIOProviderLogo
     case 'baidu-cloud':
       return BaiduCloudProviderLogo
+    case 'dmxapi':
+      return DmxapiProviderLogo
+    case 'perplexity':
+      return PerplexityProviderLogo
+    case 'infini':
+      return InfiniProviderLogo
     default:
       return undefined
   }
@@ -181,8 +189,8 @@ export const PROVIDER_CONFIG = {
     websites: {
       official: 'https://one.ocoolai.com/',
       apiKey: 'https://one.ocoolai.com/token',
-      docs: 'https://docs.ooo.cool/',
-      models: 'https://docs.ooo.cool/guides/jiage/'
+      docs: 'https://docs.ocoolai.com/',
+      models: 'https://api.ocoolai.com/info/models/'
     }
   },
   together: {
@@ -194,6 +202,39 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://api.together.ai/settings/api-keys',
       docs: 'https://docs.together.ai/docs/introduction',
       models: 'https://docs.together.ai/docs/chat-models'
+    }
+  },
+  dmxapi: {
+    api: {
+      url: 'https://api.dmxapi.com'
+    },
+    websites: {
+      official: 'https://dmxapi.com/',
+      apiKey: 'https://www.dmxapi.com/token',
+      docs: 'https://dmxapi.com/models.html#code-block',
+      models: 'https://www.dmxapi.com/pricing'
+    }
+  },
+  perplexity: {
+    api: {
+      url: 'https://api.perplexity.ai/'
+    },
+    websites: {
+      official: 'https://perplexity.ai/',
+      apiKey: 'https://www.perplexity.ai/settings/api',
+      docs: 'https://docs.perplexity.ai/home',
+      models: 'https://docs.perplexity.ai/guides/model-cards'
+    }
+  },
+  infini: {
+    api: {
+      url: 'https://cloud.infini-ai.com'
+    },
+    websites: {
+      official: 'https://cloud.infini-ai.com/',
+      apiKey: 'https://cloud.infini-ai.com/iam/secret/key',
+      docs: 'https://docs.infini-ai.com/gen-studio/api/maas.html#/operations/chatCompletions',
+      models: 'https://cloud.infini-ai.com/genstudio/model'
     }
   },
   github: {
