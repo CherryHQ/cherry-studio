@@ -4,11 +4,12 @@ import { LocalPathLoader, RAGApplication, TextLoader } from '@llm-tools/embedjs'
 import type { AddLoaderReturn } from '@llm-tools/embedjs-interfaces'
 import { LoaderReturn } from '@shared/config/types'
 import { FileType, KnowledgeBaseParams } from '@types'
+import Logger from 'electron-log'
 
 import { OdLoader, OdType } from './odLoader'
 
 // embedjs内置loader类型
-const commonExts = ['.pdf', '.csv', '.json', '.docx', '.pptx', '.xlsx', '.md', '.jpeg']
+const commonExts = ['.pdf', '.csv', '.json', '.docx', '.pptx', '.xlsx', '.md']
 
 export async function addOdLoader(
   ragApplication: RAGApplication,
@@ -45,6 +46,7 @@ export async function addFileLoader(
   // 内置类型
   if (commonExts.includes(file.ext)) {
     const loaderReturn = await ragApplication.addLoader(
+      // @ts-ignore LocalPathLoader
       new LocalPathLoader({ path: file.path, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }) as any,
       forceReload
     )
@@ -73,6 +75,9 @@ export async function addFileLoader(
     new TextLoader({ text: fileContent, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }) as any,
     forceReload
   )
+
+  Logger.info('[KnowledgeBase] processing file', file.path)
+
   return {
     entriesAdded: loaderReturn.entriesAdded,
     uniqueId: loaderReturn.uniqueId,
