@@ -960,6 +960,24 @@ const migrateConfig = {
     }
 
     return state
+  },
+  '67': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'lmstudio',
+      name: 'LM Studio',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'http://localhost:1234',
+      models: SYSTEM_MODELS.lmstudio,
+      isSystem: true,
+      enabled: false
+    })
+
+    state.llm.settings.lmstudio = {
+      keepAliveTime: 5
+    }
+
+    return state
   }
 }
 
