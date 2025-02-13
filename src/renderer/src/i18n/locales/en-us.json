@@ -740,6 +740,9 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "docs": {
+      "title": "Docs"
     }
   }
 }

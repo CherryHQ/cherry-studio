@@ -740,6 +740,9 @@
       "quit": "退出",
       "show_window": "顯示視窗",
       "visualization": "可視化"
+    },
+    "docs": {
+      "title": "幫助文件"
     }
   }
 }

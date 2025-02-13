@@ -740,6 +740,9 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "docs": {
+      "title": "ドキュメント"
     }
   }
 }
