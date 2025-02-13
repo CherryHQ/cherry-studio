@@ -80,12 +80,11 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    知识库增加设置功能
-    更加友好的错误提示信息
-    增加百度云千帆服务商
-    修复 Groq deepseek 模型无法使用问题
-    优化思考过程显示 @jettpark @github
-    可以为助手绑定一个知识库 @eeee0717
-    修复知识库搜索崩溃问题 @yrom
-    优化 o3-mini 模型输出显示问题 @teaim
-    移除 QwenLM 服务商
+    知识库增加更多文件类型支持
+    使用@呼出模型选择列表
+    添加话题固定功能
+    增加导出话题至Notion的功能
+    增加 Google AI Studio 小程序
+    增加 Gitee 服务商
+    增加 PPIO 服务商
+    为 OpenAI 请求添加引用来源数据显示
