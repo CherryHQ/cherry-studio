@@ -105,26 +105,32 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       return
     }
 
-    const url = await PromptPopup.show({
+    const urlInput = await PromptPopup.show({
       title: t('knowledge.add_url'),
       message: '',
       inputPlaceholder: t('knowledge.url_placeholder'),
       inputProps: {
-        maxLength: 1000,
-        rows: 1
+        rows: 10,
+        onPressEnter: () => {}
       }
     })
 
-    if (url) {
-      try {
-        new URL(url)
-        if (urlItems.find((item) => item.content === url)) {
-          message.success(t('knowledge.url_added'))
-          return
+    if (urlInput) {
+      // Split input by newlines and filter out empty lines
+      const urls = urlInput.split('\n').filter((url) => url.trim())
+
+      for (const url of urls) {
+        try {
+          new URL(url.trim())
+          if (!urlItems.find((item) => item.content === url.trim())) {
+            addUrl(url.trim())
+          } else {
+            message.success(t('knowledge.url_added'))
+          }
+        } catch (e) {
+          // Skip invalid URLs silently
+          continue
         }
-        addUrl(url)
-      } catch (e) {
-        console.error('Invalid URL:', url)
       }
     }
   }

@@ -1,4 +1,5 @@
 import { FileType, Model } from '@renderer/types'
+import { ModalFuncProps } from 'antd/es/modal/interface'
 import imageCompression from 'browser-image-compression'
 import html2canvas from 'html2canvas'
 // @ts-ignore next-line`
@@ -395,6 +396,17 @@ export const compareVersions = (v1: string, v2: string): number => {
 
 export function isMiniWindow() {
   return window.location.hash === '#/mini'
+}
+
+export function modalConfirm(params: ModalFuncProps) {
+  return new Promise((resolve) => {
+    window.modal.confirm({
+      centered: true,
+      ...params,
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false)
+    })
+  })
 }
 
 export { classNames }

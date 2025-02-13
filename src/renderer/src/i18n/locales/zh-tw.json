@@ -109,7 +109,7 @@
       "settings.context_count.tip": "在上下文中保留的前幾則訊息。",
       "settings.max": "最大",
       "settings.max_tokens": "啟用最大 Token 限制",
-      "settings.max_tokens.tip": "模型可以生成的最大 Token 數。普通聊天建議 500-800。短文生成建議 800-2000。代碼生成建議 2000-3600。長文生成建議超過 4000。",
+      "settings.max_tokens.tip": "模型可以生成的最大 Token 數。要根据模型上下文限制来设置，否则会报错",
       "settings.reset": "重置",
       "settings.set_as_default": "設為預設助手",
       "settings.show_line_numbers": "代码顯示行號",
@@ -117,6 +117,8 @@
       "settings.temperature.tip": "模型產生文字的隨機程度。數值越高，回應內容越具多樣性、創意性及隨機性；設定為 0 則會依據事實回答。一般聊天建議設定為 0.7",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "模型生成文本的隨機程度。值越小，AI 生成的內容越單調，也越容易理解；值越大，AI 回覆的詞彙範圍越大，越多樣化",
+      "settings.max_tokens.confirm": "啟用消息長度限制",
+      "settings.max_tokens.confirm_content": "啟用消息長度限制後，單次交互所用的最大 Token 數, 會影響返回結果的長度。要根據模型上下文限制來設置，否則會報錯",
       "suggestions.title": "建議的問題",
       "thinking": "思考中",
       "topics.auto_rename": "自動重新命名",
@@ -289,7 +291,7 @@
       "status_processing": "處理中",
       "title": "知識庫",
       "url_added": "網址已添加",
-      "url_placeholder": "請輸入網址",
+      "url_placeholder": "請輸入網址, 多個網址用回車分隔",
       "urls": "網址"
     },
     "languages": {

@@ -109,7 +109,7 @@
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
       "settings.max_tokens": "最大トークン制限を有効にする",
-      "settings.max_tokens.tip": "モデルが生成できる最大トークン数。通常のチャットでは500-800、短いテキスト生成では800-2000、コード生成では2000-3600、長いテキスト生成では4000以上を推奨",
+      "settings.max_tokens.tip": "モデルが生成できる最大トークン数。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
       "settings.reset": "リセット",
       "settings.set_as_default": "デフォルトのアシスタントに適用",
       "settings.show_line_numbers": "コードに行番号を表示",
@@ -117,6 +117,8 @@
       "settings.temperature.tip": "低い値はモデルをより創造的で予測不可能にし、高い値はより決定論的で正確にします",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "デフォルト値は1で、値が小さいほど回答の多様性が減り、理解しやすくなります。値が大きいほど、AIの語彙範囲が広がり、多様性が増します",
+      "settings.max_tokens.confirm": "最大トークン制限を有効にする",
+      "settings.max_tokens.confirm_content": "最大トークン制限を有効にすると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
       "suggestions.title": "提案された質問",
       "thinking": "思考中...",
       "topics.auto_rename": "自動リネーム",
@@ -289,7 +291,7 @@
       "status_processing": "処理中",
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
-      "url_placeholder": "URLを入力",
+      "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
       "urls": "URL"
     },
     "languages": {

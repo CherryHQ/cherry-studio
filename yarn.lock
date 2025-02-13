@@ -3050,7 +3050,7 @@ __metadata:
     markdown-it: "npm:^14.1.0"
     mime: "npm:^4.0.4"
     officeparser: "npm:^4.1.1"
-    openai: "patch:openai@npm%3A4.76.2#~/.yarn/patches/openai-npm-4.76.2-8ff1374617.patch"
+    openai: "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
     prettier: "npm:^3.2.4"
     react: "npm:^18.2.0"
     react-dom: "npm:^18.2.0"
@@ -10188,29 +10188,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:4.76.2":
-  version: 4.76.2
-  resolution: "openai@npm:4.76.2"
-  dependencies:
-    "@types/node": "npm:^18.11.18"
-    "@types/node-fetch": "npm:^2.6.4"
-    abort-controller: "npm:^3.0.0"
-    agentkeepalive: "npm:^4.2.1"
-    form-data-encoder: "npm:1.7.2"
-    formdata-node: "npm:^4.3.2"
-    node-fetch: "npm:^2.6.7"
-  peerDependencies:
-    zod: ^3.23.8
-  peerDependenciesMeta:
-    zod:
-      optional: true
-  bin:
-    openai: bin/cli
-  checksum: 10c0/d78af0c2dd64ad24a2ce92deb92656b742b8120012e554fd562095f237ce06d84764217e040b437f955c6f26b7675f9321862a8937c8537f28ed6ead4b674559
-  languageName: node
-  linkType: hard
-
-"openai@npm:^4.77.0":
+"openai@npm:4.77.3":
   version: 4.77.3
   resolution: "openai@npm:4.77.3"
   dependencies:
@@ -10232,9 +10210,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@patch:openai@npm%3A4.76.2#~/.yarn/patches/openai-npm-4.76.2-8ff1374617.patch":
-  version: 4.76.2
-  resolution: "openai@patch:openai@npm%3A4.76.2#~/.yarn/patches/openai-npm-4.76.2-8ff1374617.patch::version=4.76.2&hash=849914"
+"openai@patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch":
+  version: 4.77.3
+  resolution: "openai@patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch::version=4.77.3&hash=c5d42a"
   dependencies:
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.4"
@@ -10250,7 +10228,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/09b66166fd3661b9b418addf0f3a7bc75434ee9163d4b3f89bb41e70cd9a366943c2e324ef5a05cf375831b27aee6516b96779b78f1e3d605ae605865384c1c2
+  checksum: 10c0/c3449d3d9945675d7debc4e3a68f58093400985e5275b29e4eb5610300ad3fa4589e527fda526ce770f9a945d7a1d03ffb33e34a3566f996a6947125aa761b1e
   languageName: node
   linkType: hard
 

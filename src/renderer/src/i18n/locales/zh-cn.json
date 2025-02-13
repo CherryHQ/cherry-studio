@@ -109,7 +109,7 @@
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
       "settings.max_tokens": "开启消息长度限制",
-      "settings.max_tokens.tip": "单次交互所用的最大 Token 数, 会影响返回结果的长度。普通聊天建议 500-800；短文生成建议 800-2000；代码生成建议 2000-3600；长文生成建议切换模型到 4000 左右",
+      "settings.max_tokens.tip": "单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "settings.reset": "重置",
       "settings.set_as_default": "应用到默认助手",
       "settings.show_line_numbers": "代码显示行号",
@@ -117,6 +117,8 @@
       "settings.temperature.tip": "模型生成文本的随机程度。值越大，回复内容越赋有多样性、创造性、随机性；设为 0 根据事实回答。日常聊天建议设置为 0.7",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇围越大，越多样化",
+      "settings.max_tokens.confirm": "开启消息长度限制",
+      "settings.max_tokens.confirm_content": "开启消息长度限制后，单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "suggestions.title": "建议的问题",
       "thinking": "思考中",
       "topics.auto_rename": "生成话题名",
@@ -289,7 +291,7 @@
       "status_processing": "处理中",
       "title": "知识库",
       "url_added": "网址已添加",
-      "url_placeholder": "请输入网址",
+      "url_placeholder": "请输入网址, 多个网址用回车分隔",
       "urls": "网址"
     },
     "languages": {
