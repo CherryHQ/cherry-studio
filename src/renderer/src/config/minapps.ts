@@ -223,6 +223,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'nm',
+    name: '纳米AI',
+    logo: NamiAiSearchLogo,
+    url: 'https://bot.n.cn/',
+    bodered: true
+  },
+  {
+    id: 'nm-search',
     name: '纳米AI搜索',
     logo: NamiAiSearchLogo,
     url: 'https://www.n.cn/',
