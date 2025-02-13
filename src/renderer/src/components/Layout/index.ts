@@ -95,14 +95,14 @@ export const Box = styled.div<BoxProps>`
   box-sizing: border-box;
   border: ${(props) => props?.border || 'none'};
   gap: ${(p) => (p.gap ? getElementValue(p.gap) : 0)};
-  margin: ${(props) => (props.m || props.margin ? props.m ?? props.margin : 'none')};
+  margin: ${(props) => (props.m || props.margin ? (props.m ?? props.margin) : 'none')};
   margin-top: ${(props) => (props.mt || props.marginTop ? getElementValue(props.mt || props.marginTop) : 'default')};
   margin-bottom: ${(props) =>
     props.mb || props.marginBottom ? getElementValue(props.mb ?? props.marginBottom) : 'default'};
   margin-left: ${(props) => (props.ml || props.marginLeft ? getElementValue(props.ml ?? props.marginLeft) : 'default')};
   margin-right: ${(props) =>
     props.mr || props.marginRight ? getElementValue(props.mr ?? props.marginRight) : 'default'};
-  padding: ${(props) => (props.p || props.padding ? props.p ?? props.padding : 'none')};
+  padding: ${(props) => (props.p || props.padding ? (props.p ?? props.padding) : 'none')};
   padding-top: ${(props) => (props.pt || props.paddingTop ? getElementValue(props.pt ?? props.paddingTop) : 'auto')};
   padding-bottom: ${(props) =>
     props.pb || props.paddingBottom ? getElementValue(props.pb ?? props.paddingBottom) : 'auto'};

@@ -42,20 +42,20 @@ class KnowledgeService {
       .setEmbeddingModel(
         apiVersion
           ? new AzureOpenAiEmbeddings({
-            azureOpenAIApiKey: apiKey,
-            azureOpenAIApiVersion: apiVersion,
-            azureOpenAIApiDeploymentName: model,
-            azureOpenAIApiInstanceName: getInstanceName(baseURL),
-            dimensions,
-            batchSize
-          })
+              azureOpenAIApiKey: apiKey,
+              azureOpenAIApiVersion: apiVersion,
+              azureOpenAIApiDeploymentName: model,
+              azureOpenAIApiInstanceName: getInstanceName(baseURL),
+              dimensions,
+              batchSize
+            })
           : new OpenAiEmbeddings({
-            model,
-            apiKey,
-            configuration: { baseURL },
-            dimensions,
-            batchSize
-          })
+              model,
+              apiKey,
+              configuration: { baseURL },
+              dimensions,
+              batchSize
+            })
       )
       .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
       .build()

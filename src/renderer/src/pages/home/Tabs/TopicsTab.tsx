@@ -5,7 +5,8 @@ import {
   EditOutlined,
   FolderOutlined,
   PushpinOutlined,
-  UploadOutlined} from '@ant-design/icons'
+  UploadOutlined
+} from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -149,7 +150,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               key: 'markdown',
               onClick: () => exportTopicAsMarkdown(topic)
             },
-         
+
             {
               label: t('chat.topics.export.word'),
               key: 'word',
@@ -162,7 +163,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               label: t('chat.topics.export.notion'),
               key: 'notion',
               onClick: () => exportTopicToNotion(topic)
-            },
+            }
           ]
         }
       ]
@@ -219,9 +220,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                     className="menu"
                     onClick={(e) => {
                       e.stopPropagation()
-                          if (assistant.topics.length === 1) {
-                            return onClearMessages()
-                          }
+                      if (assistant.topics.length === 1) {
+                        return onClearMessages()
+                      }
                       onDeleteTopic(topic)
                     }}>
                     <CloseOutlined />
