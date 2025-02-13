@@ -960,6 +960,51 @@ const migrateConfig = {
     }
 
     return state
+  },
+  '67': (state: RootState) => {
+    state.llm.providers.push(
+      {
+        id: 'perplexity',
+        name: 'Perplexity',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://api.perplexity.ai/',
+        models: SYSTEM_MODELS.perplexity,
+        isSystem: true,
+        enabled: false
+      },
+      {
+        id: 'infini',
+        name: 'Infini',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://cloud.infini-ai.com/maas',
+        models: SYSTEM_MODELS.infini,
+        isSystem: true,
+        enabled: false
+      },
+      {
+        id: 'dmxapi',
+        name: 'DMXAPI',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://api.dmxapi.com',
+        models: SYSTEM_MODELS.dmxapi,
+        isSystem: true,
+        enabled: false
+      }
+    )
+
+    state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'graphrag-kylin-mountain')
+
+    if (state.minapps) {
+      const aistudio = DEFAULT_MIN_APPS.find((app) => app.id === 'aistudio')
+      if (aistudio) {
+        state.minapps.enabled.push(aistudio)
+      }
+    }
+
+    return state
   }
 }
 
