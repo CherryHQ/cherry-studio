@@ -349,8 +349,7 @@ interface ContainerProps {
 const Container = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 0;
-  padding-bottom: 20px;
+  padding: 10px 0 20px;
   overflow-x: hidden;
   background-color: var(--color-background);
 `
