@@ -1,8 +1,9 @@
 import { TopView } from '@renderer/components/TopView'
+import { EMBEDDING_REGEX, REASONING_REGEX, VISION_REGEX } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Model, Provider } from '@renderer/types'
+import { Model, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
-import { Button, Form, FormProps, Input, Modal } from 'antd'
+import { Button, Checkbox, Form, FormProps, Input, Modal } from 'antd'
 import { find } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,16 +17,17 @@ interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-type FieldType = {
+type ModelFormType = {
   provider: string
   id: string
   name?: string
   group?: string
+  types?: ModelType[]
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
   const [open, setOpen] = useState(true)
-  const [form] = Form.useForm()
+  const [form] = Form.useForm<ModelFormType>()
   const { addModel, models } = useProvider(provider.id)
   const { t } = useTranslation()
 
@@ -41,7 +43,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
     resolve({})
   }
 
-  const onAddModel = (values: FieldType) => {
+  const onAddModel = (values: ModelFormType) => {
     const id = values.id.trim()
 
     if (find(models, { id })) {
@@ -53,7 +55,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       id,
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
-      group: getDefaultGroupName(values.group || id)
+      group: getDefaultGroupName(values.group || id),
+      type: (values.types as ModelType[]) || []
     }
 
     addModel(model)
@@ -61,12 +64,12 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
     return true
   }
 
-  const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
+  const onFinish: FormProps<ModelFormType>['onFinish'] = (values) => {
     const id = values.id.trim().replaceAll('，', ',')
 
     if (id.includes(',')) {
       const ids = id.split(',')
-      ids.forEach((id) => onAddModel({ id, name: id } as FieldType))
+      ids.forEach((id) => onAddModel({ id, name: id } as ModelFormType))
       resolve({})
       return
     }
@@ -103,8 +106,19 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
             spellCheck={false}
             maxLength={200}
             onChange={(e) => {
-              form.setFieldValue('name', e.target.value)
-              form.setFieldValue('group', getDefaultGroupName(e.target.value))
+              if (e.target.value.length === 0) {
+                form.setFieldsValue({ name: '', group: '', types: [] })
+              } else {
+                const name = e.target.value
+                const group = getDefaultGroupName(name)
+                const guessTypes = [
+                  ...(VISION_REGEX.test(name) ? ['vision'] : []),
+                  ...(EMBEDDING_REGEX.test(name) ? ['embedding'] : []),
+                  ...(REASONING_REGEX.test(name) ? ['reasoning'] : []),
+                  ...(form.getFieldValue('types') ?? [])
+                ] as ModelType[]
+                form.setFieldsValue({ name: name, group, types: guessTypes })
+              }
             }}
           />
         </Form.Item>
@@ -119,6 +133,31 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
           label={t('settings.models.add.group_name')}
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
+        </Form.Item>
+        <Form.Item
+          name="types"
+          label={t('settings.models.add.model_type')}
+          tooltip={t('settings.models.add.model_type.tooltip')}>
+          <Checkbox.Group
+            value={form.getFieldValue('types') ?? []}
+            onChange={(types) => {
+              form.setFieldValue('types', types)
+            }}
+            options={[
+              {
+                label: t('models.type.vision'),
+                value: 'vision' as ModelType
+              },
+              {
+                label: t('models.type.embedding'),
+                value: 'embedding' as ModelType
+              },
+              {
+                label: t('models.type.reasoning'),
+                value: 'reasoning' as ModelType
+              }
+            ]}
+          />
         </Form.Item>
         <Form.Item label=" ">
           <Button type="primary" htmlType="submit">

@@ -642,6 +642,7 @@
       "models.add.model_id.tooltip": "例：gpt-3.5-turbo",
       "models.add.model_name": "モデル名",
       "models.add.model_name.placeholder": "例：GPT-3.5",
+      "models.add.model_type.tooltip": "チャット以外のモデルに適用されます。",
       "models.default_assistant_model": "デフォルトアシスタントモデル",
       "models.default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "models.empty": "モデルが見つかりません",

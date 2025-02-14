@@ -164,7 +164,7 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 export const REASONING_REGEX = /^(o\d+(?:-[\w-]+)?|.*\breasoner\b.*|.*-[rR]\d+.*)$/i
 
 export const EMBEDDING_REGEX =
-  /(?:^text-|embed|rerank|davinci|babbage|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings)/i
+  /(?:^text-|embed|rerank|davinci|babbage|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings|ops-text-embedding)/i
 export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
 
 export function getModelLogo(modelId: string) {
