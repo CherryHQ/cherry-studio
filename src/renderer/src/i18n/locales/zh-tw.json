@@ -626,6 +626,8 @@
       "messages.input.show_estimated_tokens": "顯示預估 Token 數",
       "messages.input.title": "輸入設定",
       "messages.math_engine": "Markdown 渲染輸入訊息",
+      "messages.grid_columns": "消息網格展示列數",
+      "messages.grid_popover_trigger": "網格詳情觸發",
       "messages.metrics": "首字時延 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
       "messages.model.title": "模型設定",
       "messages.title": "訊息設定",

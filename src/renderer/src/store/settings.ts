@@ -44,6 +44,8 @@ export interface SettingsState {
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
+  gridColumns: number
+  gridPopoverTrigger: 'hover' | 'click'
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -99,6 +101,8 @@ const initialState: SettingsState = {
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',
+  gridColumns: 2,
+  gridPopoverTrigger: 'hover',
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -224,6 +228,12 @@ const settingsSlice = createSlice({
     setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
       state.mathEngine = action.payload
     },
+    setGridColumns: (state, action: PayloadAction<number>) => {
+      state.gridColumns = action.payload
+    },
+    setGridPopoverTrigger: (state, action: PayloadAction<'hover' | 'click'>) => {
+      state.gridPopoverTrigger = action.payload
+    },
     setMessageStyle: (state, action: PayloadAction<'plain' | 'bubble'>) => {
       state.messageStyle = action.payload
     },
@@ -310,6 +320,8 @@ export const {
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setMathEngine,
+  setGridColumns,
+  setGridPopoverTrigger,
   setMessageStyle,
   setCodeStyle,
   setTranslateModelPrompt,

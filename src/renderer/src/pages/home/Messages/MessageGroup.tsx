@@ -12,7 +12,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import { Message, Model, Topic } from '@renderer/types'
-import { Button, Popover, Segmented as AntdSegmented } from 'antd'
+import { Segmented as AntdSegmented, Button, Popover } from 'antd'
 import { Dispatch, FC, SetStateAction, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
@@ -38,7 +38,7 @@ const MessageGroup: FC<Props> = ({
   onGetMessages,
   onDeleteGroupMessages
 }) => {
-  const { multiModelMessageStyle: multiModelMessageStyleSetting } = useSettings()
+  const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { t } = useTranslation()
 
   const [multiModelMessageStyle, setMultiModelMessageStyle] =
@@ -73,7 +73,7 @@ const MessageGroup: FC<Props> = ({
 
   return (
     <GroupContainer $isGrouped={isGrouped} $layout={multiModelMessageStyle}>
-      <GridContainer $count={messageLength} $layout={multiModelMessageStyle}>
+      <GridContainer $count={messageLength} $layout={multiModelMessageStyle} $gridColumns={gridColumns}>
         {messages.map((message, index) =>
           multiModelMessageStyle === 'grid' ? (
             <Popover
@@ -99,7 +99,7 @@ const MessageGroup: FC<Props> = ({
                   />
                 </MessageWrapper>
               }
-              trigger="hover"
+              trigger={gridPopoverTrigger}
               styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto' } }}
               getPopupContainer={(triggerNode) => triggerNode.parentNode as HTMLElement}
               key={message.id}>
@@ -206,25 +206,25 @@ const GroupContainer = styled.div<{ $isGrouped: boolean; $layout: MultiModelMess
   padding-top: ${({ $isGrouped, $layout }) => ($isGrouped && ['horizontal', 'grid'].includes($layout) ? '15px' : '0')};
 `
 
-const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageStyle }>`
+const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageStyle; $gridColumns: number }>`
   width: 100%;
   display: grid;
   grid-template-columns: repeat(
-    ${(props) => (['fold', 'vertical'].includes(props.$layout) ? 1 : props.$count)},
+    ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
     minmax(550px, 1fr)
   );
   gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
   @media (max-width: 800px) {
     grid-template-columns: repeat(
-      ${(props) => (['fold', 'vertical'].includes(props.$layout) ? 1 : props.$count)},
+      ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
       minmax(400px, 1fr)
     );
   }
   overflow-y: auto;
-  ${(props) =>
-    props.$layout === 'grid' &&
+  ${({ $gridColumns, $layout }) =>
+    $layout === 'grid' &&
     css`
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(${$gridColumns || 2}, minmax(0, 1fr));
       grid-template-rows: auto;
       gap: 16px;
     `}

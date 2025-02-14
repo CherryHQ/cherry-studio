@@ -628,6 +628,8 @@
       "messages.math_engine": "Математический движок",
       "messages.metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
       "messages.model.title": "Настройки модели",
+      "messages.grid_columns": "Количество столбцов сетки сообщений",
+      "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
       "messages.title": "Настройки сообщений",
       "messages.use_serif_font": "Использовать serif шрифт",
       "model": "Модель по умолчанию",

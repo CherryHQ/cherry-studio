@@ -627,6 +627,8 @@
       "messages.input.title": "Input Settings",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
+      "messages.grid_columns": "Message grid display columns",
+      "messages.grid_popover_trigger": "Grid detail trigger",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.model.title": "Model Settings",
       "messages.title": "Message Settings",
