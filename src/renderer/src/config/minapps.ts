@@ -28,6 +28,7 @@ import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.png?url'
+import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
@@ -291,6 +292,12 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: XiaoYiAppLogo,
     url: 'https://xiaoyi.huawei.com/chat/',
     bodered: true
+  },
+  {
+    id: 'notebooklm',
+    name: 'NotebookLM',
+    logo: NotebookLMAppLogo,
+    url: 'https://notebooklm.google.com/',
   }
 ]
 
