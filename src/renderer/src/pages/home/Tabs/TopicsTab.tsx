@@ -5,10 +5,12 @@ import {
   EditOutlined,
   FolderOutlined,
   PushpinOutlined,
+  QuestionCircleOutlined,
   UploadOutlined
 } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
@@ -20,7 +22,7 @@ import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { exportTopicAsMarkdown, exportTopicToNotion, topicToMarkdown } from '@renderer/utils/export'
-import { Dropdown, MenuProps } from 'antd'
+import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import { FC, useCallback } from 'react'
@@ -112,6 +114,25 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             })
             if (name && topic?.name !== name) {
               updateTopic({ ...topic, name })
+            }
+          }
+        },
+        {
+          label: t('chat.topics.prompt'),
+          key: 'topic-prompt',
+          icon: <i className="iconfont icon-ai-model1" style={{ fontSize: '14px' }} />,
+          extra: (
+            <Tooltip title={t('chat.topics.prompt.tips')}>
+              <QuestionIcon />
+            </Tooltip>
+          ),
+          async onClick() {
+            const prompt = await TextEditPopup.show({
+              text: topic?.prompt || ''
+            })
+            console.log(prompt)
+            if (prompt && topic?.prompt !== prompt) {
+              updateTopic({ ...topic, prompt })
             }
           }
         },
@@ -309,6 +330,11 @@ const MenuButton = styled.div`
   .anticon {
     font-size: 12px;
   }
+`
+const QuestionIcon = styled(QuestionCircleOutlined)`
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--color-text-3);
 `
 
 export default Topics
