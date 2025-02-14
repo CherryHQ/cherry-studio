@@ -63,6 +63,7 @@ const NotionSettings: FC = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.notion.title')}</SettingTitle>
+      <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
         <HStack alignItems="center" gap="5px">
