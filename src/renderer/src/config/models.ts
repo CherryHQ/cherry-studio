@@ -142,6 +142,7 @@ const visionAllowedModels = [
   'glm-4v',
   'qwen-vl',
   'qwen2-vl',
+  'qwen2.5-vl',
   'internvl2',
   'grok-vision-beta',
   'pixtral',
@@ -931,6 +932,38 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'baichuan',
       name: 'Baichuan3 Turbo 128k',
       group: 'Baichuan3'
+    }
+  ],
+  modelscope: [
+    {
+      id: 'Qwen/Qwen2.5-72B-Instruct',
+      name: 'Qwen/Qwen2.5-72B-Instruct',
+      provider: 'modelscope',
+      group: 'Qwen'
+    },
+    {
+      id: 'Qwen/Qwen2.5-VL-72B-Instruct',
+      name: 'Qwen/Qwen2.5-VL-72B-Instruct',
+      provider: 'modelscope',
+      group: 'Qwen'
+    },
+    {
+      id: 'Qwen/Qwen2.5-Coder-32B-Instruct',
+      name: 'Qwen/Qwen2.5-Coder-32B-Instruct',
+      provider: 'modelscope',
+      group: 'Qwen'
+    },
+    {
+      id: 'deepseek-ai/DeepSeek-R1',
+      name: 'deepseek-ai/DeepSeek-R1',
+      provider: 'modelscope',
+      group: 'deepseek-ai'
+    },
+    {
+      id: 'deepseek-ai/DeepSeek-V3',
+      name: 'deepseek-ai/DeepSeek-V3',
+      provider: 'modelscope',
+      group: 'deepseek-ai'
     }
   ],
   bailian: [

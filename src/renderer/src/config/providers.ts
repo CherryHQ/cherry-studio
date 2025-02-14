@@ -6,6 +6,8 @@ import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.p
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
+import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
+import BytedanceProviderLogo from '@renderer/assets/images/providers/bytedance.png'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
@@ -63,6 +65,8 @@ export function getProviderLogo(providerId: string) {
       return BaichuanProviderLogo
     case 'dashscope':
       return BailianProviderLogo
+    case 'modelscope':
+      return ModelScopeProviderLogo
     case 'anthropic':
       return AnthropicProviderLogo
     case 'aihubmix':
@@ -293,6 +297,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://platform.baichuan-ai.com/console/apikey',
       docs: 'https://platform.baichuan-ai.com/docs',
       models: 'https://platform.baichuan-ai.com/price'
+    }
+  },
+  modelscope: {
+    api: {
+      url: 'https://api-inference.modelscope.cn/v1/'
+    },
+    websites: {
+      official: 'https://modelscope.cn',
+      apiKey: 'https://modelscope.cn/my/myaccesstoken',
+      docs: 'https://modelscope.cn/docs/model-service/API-Inference/intro',
+      models: 'https://modelscope.cn/models'
     }
   },
   dashscope: {
