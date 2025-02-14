@@ -8330,6 +8330,7 @@ __metadata:
     "@langchain/google-vertexai": "*"
     "@langchain/google-vertexai-web": "*"
     "@langchain/groq": "*"
+    "@langchain/lmstudio": "*"
     "@langchain/mistralai": "*"
     "@langchain/ollama": "*"
     axios: "*"
@@ -8355,6 +8356,8 @@ __metadata:
     "@langchain/google-vertexai-web":
       optional: true
     "@langchain/groq":
+      optional: true
+    "@langchain/lmstudio":
       optional: true
     "@langchain/mistralai":
       optional: true

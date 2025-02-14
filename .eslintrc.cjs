@@ -16,6 +16,7 @@ module.exports = {
     'react/prop-types': 'off',
     'simple-import-sort/imports': 'error',
     'simple-import-sort/exports': 'error',
-    'react/no-is-mounted': 'off'
+    'react/no-is-mounted': 'off',
+    'prettier/prettier': ['error', { endOfLine: 'auto' }]
   }
 }

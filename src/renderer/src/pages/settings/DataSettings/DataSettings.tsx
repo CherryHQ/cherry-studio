@@ -1,4 +1,5 @@
 import { FileSearchOutlined, FolderOpenOutlined, SaveOutlined } from '@ant-design/icons'
+import { Client } from '@notionhq/client'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { backup, reset, restore } from '@renderer/services/BackupService'
@@ -33,10 +34,47 @@ const NotionSettings: FC = () => {
   const handleNotionDatabaseIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch(setNotionDatabaseID(e.target.value))
   }
+  const handleNotionConnectionCheck = () => {
+    if (notionApiKey === null) {
+      window.message.error(t('settings.data.notion.check.empty_api_key'))
+      return
+    }
+    if (notionDatabaseID === null) {
+      window.message.error(t('settings.data.notion.check.empty_database_id'))
+      return
+    }
+    const notion = new Client({ auth: notionApiKey })
+    notion.databases
+      .retrieve({
+        database_id: notionDatabaseID
+      })
+      .then((result) => {
+        if (result) {
+          window.message.success(t('settings.data.notion.check.success'))
+        } else {
+          window.message.error(t('settings.data.notion.check.fail'))
+        }
+      })
+      .catch(() => {
+        window.message.error(t('settings.data.notion.check.error'))
+      })
+  }
 
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.notion.title')}</SettingTitle>
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
+        <HStack alignItems="center" gap="5px">
+          <Input
+            type="text"
+            value={notionDatabaseID || ''}
+            onChange={handleNotionDatabaseIdChange}
+            onBlur={handleNotionDatabaseIdChange}
+            style={{ width: 315 }}
+          />
+        </HStack>
+      </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
@@ -48,21 +86,12 @@ const NotionSettings: FC = () => {
             onBlur={handleNotionTokenChange}
             style={{ width: 250 }}
           />
+          <Button onClick={handleNotionConnectionCheck} style={{ width: 60 }}>
+            {t('settings.data.notion.check.button')}
+          </Button>
         </HStack>
       </SettingRow>
       <SettingDivider /> {/* 添加分割线 */}
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px">
-          <Input
-            type="text"
-            value={notionDatabaseID || ''}
-            onChange={handleNotionDatabaseIdChange}
-            onBlur={handleNotionDatabaseIdChange}
-            style={{ width: 250 }}
-          />
-        </HStack>
-      </SettingRow>
     </SettingGroup>
   )
 }

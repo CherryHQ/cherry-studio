@@ -439,6 +439,12 @@
       "keep_alive_time.title": "保持時間",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
+      "keep_alive_time.placeholder": "分",
+      "keep_alive_time.title": "保持時間",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "画像を削除",
       "button.delete.image.confirm": "この画像を削除してもよろしいですか？",
@@ -466,6 +472,9 @@
       "title": "あなたは会話を得意とするアシスタントです。ユーザーの会話を10文字以内のタイトルに要約し、ユーザーの主言語と一致していることを確認してください。句読点や特殊記号は使用しないでください。"
     },
     "provider": {
+      "infini": "Infini",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -473,7 +482,7 @@
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
       "deepseek": "DeepSeek",
-      "doubao": "豆包",
+      "doubao": "Volcengine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",
@@ -490,6 +499,7 @@
       "nvidia": "NVIDIA",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "qwenlm": "QwenLM",
@@ -542,6 +552,14 @@
         "notion.api_key": "Notion APIキー",
         "notion.database_id": "Notion データベースID",
         "notion.title": "Notion 設定",
+        "notion.check": {
+          "button": "確認",
+          "fail": "接続に失敗しました。設定を確認してください。",
+          "success": "接続に成功しました。",
+          "error": "接続エラーが発生しました。ネットワークを確認してください。",
+          "empty_api_key": "Api_keyが設定されていません",
+          "empty_database_id": "Database_idが設定されていません"
+        },
         "title": "データ設定",
         "webdav.autoSync": "自動バックアップ",
         "webdav.autoSync.off": "オフ",
