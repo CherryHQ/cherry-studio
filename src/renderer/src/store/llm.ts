@@ -461,7 +461,10 @@ const settingsSlice = createSlice({
       state.providers.unshift(action.payload)
     },
     removeProvider: (state, action: PayloadAction<Provider>) => {
-      state.providers = state.providers.filter((p) => p.id !== action.payload.id)
+      const providerIndex = state.providers.findIndex((p) => p.id === action.payload.id)
+      if (providerIndex !== -1) {
+        state.providers.splice(providerIndex, 1)
+      }
     },
     addModel: (state, action: PayloadAction<{ providerId: string; model: Model }>) => {
       state.providers = state.providers.map((p) =>
