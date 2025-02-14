@@ -550,6 +550,14 @@
         "notion.api_key": "Notion 金鑰",
         "notion.database_id": "Notion 資料庫 ID",
         "notion.title": "Notion 配置",
+        "notion.check": {
+          "button": "檢查",
+          "fail": "連線失敗，請檢查配置",
+          "success": "連線成功",
+          "error": "連線異常，請檢查網路",
+          "empty_api_key": "未配置Api_key",
+          "empty_database_id": "未配置Database_id"
+        },
         "title": "數據設定",
         "webdav.autoSync": "自動備份",
         "webdav.autoSync.off": "關閉",

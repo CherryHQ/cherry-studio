@@ -552,6 +552,14 @@
         "notion.api_key": "Notion API Key",
         "notion.database_id": "Notion Database ID",
         "notion.title": "Notion Configuration",
+        "notion.check": {
+          "button": "Check",
+          "fail": "Connection failed, please check the configuration",
+          "success": "Connection successful",
+          "error": "Connection error, please check the network",
+          "empty_api_key": "Api_key is not configured",
+          "empty_database_id": "Database_id is not configured"
+        },
         "title": "Data Settings",
         "webdav.autoSync": "Auto Backup",
         "webdav.autoSync.off": "Off",

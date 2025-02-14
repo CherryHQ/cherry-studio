@@ -552,6 +552,14 @@
         "notion.api_key": "Notion APIキー",
         "notion.database_id": "Notion データベースID",
         "notion.title": "Notion 設定",
+        "notion.check": {
+          "button": "確認",
+          "fail": "接続に失敗しました。設定を確認してください。",
+          "success": "接続に成功しました。",
+          "error": "接続エラーが発生しました。ネットワークを確認してください。",
+          "empty_api_key": "Api_keyが設定されていません",
+          "empty_database_id": "Database_idが設定されていません"
+        },
         "title": "データ設定",
         "webdav.autoSync": "自動バックアップ",
         "webdav.autoSync.off": "オフ",

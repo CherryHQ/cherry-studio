@@ -552,6 +552,14 @@
         "notion.api_key": "Notion 密钥",
         "notion.database_id": "Notion 数据库ID",
         "notion.title": "Notion 配置",
+        "notion.check": {
+          "button": "检查",
+          "fail": "连接失败，请检查配置",
+          "success": "连接成功",
+          "error": "连接异常，请检查网络",
+          "empty_api_key": "未配置Api_key",
+          "empty_database_id": "未配置Database_id"
+        },
         "title": "数据设置",
         "webdav.autoSync": "自动备份",
         "webdav.autoSync.off": "关闭",

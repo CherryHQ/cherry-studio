@@ -552,6 +552,14 @@
         "notion.api_key": "Ключ API Notion",
         "notion.database_id": "ID базы данных Notion",
         "notion.title": "Настройки Notion",
+        "notion.check": {
+          "button": "Проверить",
+          "fail": "Ошибка подключения, проверьте настройки",
+          "success": "Подключение успешно",
+          "error": "Ошибка подключения, проверьте сеть",
+          "empty_api_key": "Не настроен Api_key",
+          "empty_database_id": "Не настроен Database_id"
+        },
         "title": "Настройки данных",
         "webdav.autoSync": "Автоматическое резервное копирование",
         "webdav.autoSync.off": "Выключено",
