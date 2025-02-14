@@ -8,6 +8,9 @@ type LlmSettings = {
   ollama: {
     keepAliveTime: number
   }
+  lmstudio: {
+    keepAliveTime: number
+  }
 }
 
 export interface LlmState {
@@ -58,7 +61,7 @@ const initialState: LlmState = {
       name: 'ocoolAI',
       type: 'openai',
       apiKey: '',
-      apiHost: 'https://one.ooo.cool',
+      apiHost: 'https://api.ocoolai.com',
       models: SYSTEM_MODELS.ocoolai,
       isSystem: true,
       enabled: false
@@ -80,6 +83,16 @@ const initialState: LlmState = {
       apiKey: '',
       apiHost: 'http://localhost:11434',
       models: SYSTEM_MODELS.ollama,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'lmstudio',
+      name: 'LM Studio',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'http://localhost:1234',
+      models: SYSTEM_MODELS.lmstudio,
       isSystem: true,
       enabled: false
     },
@@ -131,6 +144,16 @@ const initialState: LlmState = {
       apiKey: '',
       apiHost: 'https://models.inference.ai.azure.com/',
       models: SYSTEM_MODELS.github,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'dmxapi',
+      name: 'DMXAPI',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.dmxapi.com',
+      models: SYSTEM_MODELS.dmxapi,
       isSystem: true,
       enabled: false
     },
@@ -345,18 +368,31 @@ const initialState: LlmState = {
       enabled: false
     },
     {
-      id: 'modelscope',
-      name: 'ModelScope',
+      id: 'perplexity',
+      name: 'Perplexity',
       type: 'openai',
       apiKey: '',
-      apiHost: 'https://api-inference.modelscope.cn/v1/',
-      models: SYSTEM_MODELS.modelscope,
+      apiHost: 'https://api.perplexity.ai/',
+      models: SYSTEM_MODELS.perplexity,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'infini',
+      name: 'Infini',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://cloud.infini-ai.com/maas',
+      models: SYSTEM_MODELS.infini,
       isSystem: true,
       enabled: false
     }
   ],
   settings: {
     ollama: {
+      keepAliveTime: 0
+    },
+    lmstudio: {
       keepAliveTime: 0
     }
   }
@@ -378,10 +414,33 @@ const getIntegratedInitialState = () => {
         models: [model],
         isSystem: true,
         enabled: true
+      },
+      {
+        id: 'lmstudio',
+        name: 'LM Studio',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'http://localhost:1234',
+        models: [model],
+        isSystem: true,
+        enabled: true
+      },
+      {
+        id: 'modelscope',
+        name: 'ModelScope',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://api-inference.modelscope.cn/v1/',
+        models: SYSTEM_MODELS.modelscope,
+        isSystem: true,
+        enabled: false
       }
     ],
     settings: {
       ollama: {
+        keepAliveTime: 3600
+      },
+      lmstudio: {
         keepAliveTime: 3600
       }
     }
@@ -437,6 +496,9 @@ const settingsSlice = createSlice({
     },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.ollama.keepAliveTime = action.payload
+    },
+    setLMStudioKeepAliveTime: (state, action: PayloadAction<number>) => {
+      state.settings.lmstudio.keepAliveTime = action.payload
     }
   }
 })
@@ -451,7 +513,8 @@ export const {
   setDefaultModel,
   setTopicNamingModel,
   setTranslateModel,
-  setOllamaKeepAliveTime
+  setOllamaKeepAliveTime,
+  setLMStudioKeepAliveTime
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

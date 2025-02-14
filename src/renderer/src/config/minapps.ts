@@ -26,6 +26,7 @@ import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.png?url'
 import ThinkAnyLogo from '@renderer/assets/images/apps/thinkany.webp?url'
 import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
+import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.png?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
@@ -283,6 +284,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'AI Studio',
     logo: AIStudioLogo,
     url: 'https://aistudio.google.com/'
+  },
+  {
+    id: 'xiaoyi',
+    name: '小艺',
+    logo: XiaoYiAppLogo,
+    url: 'https://xiaoyi.huawei.com/chat/',
+    bodered: true
   }
 ]
 

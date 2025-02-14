@@ -97,6 +97,7 @@
       "input.upload": "上傳圖片或文檔",
       "input.upload.document": "上傳文檔（模型不支持圖片）",
       "input.web_search": "開啟網路搜索",
+      "input.file_not_supported": "模型不支持此文件類型",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已建立",
       "message.new.context": "新上下文",
@@ -438,7 +439,16 @@
       "keep_alive_time.title": "保持活躍時間",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）。",
+      "keep_alive_time.placeholder": "分鐘",
+      "keep_alive_time.title": "保持活躍時間",
+      "title": "LM Studio"
+    },
     "paintings": {
+      "infini": "無問芯穹",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "button.delete.image": "刪除繪圖",
       "button.delete.image.confirm": "確定要刪除此繪圖嗎?",
       "button.new.image": "新繪圖",
@@ -473,7 +483,7 @@
       "dashscope": "阿里雲百鍊",
       "modelscope": "ModelScope 魔搭",
       "deepseek": "深度求索",
-      "doubao": "豆包",
+      "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",
@@ -490,6 +500,7 @@
       "nvidia": "輝達",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "ppio": "PPIO 派歐雲",
@@ -540,6 +551,14 @@
         "notion.api_key": "Notion 金鑰",
         "notion.database_id": "Notion 資料庫 ID",
         "notion.title": "Notion 配置",
+        "notion.check": {
+          "button": "檢查",
+          "fail": "連線失敗，請檢查配置",
+          "success": "連線成功",
+          "error": "連線異常，請檢查網路",
+          "empty_api_key": "未配置Api_key",
+          "empty_database_id": "未配置Database_id"
+        },
         "title": "數據設定",
         "webdav.autoSync": "自動備份",
         "webdav.autoSync.off": "關閉",

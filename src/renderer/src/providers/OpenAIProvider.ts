@@ -206,6 +206,10 @@ export default class OpenAIProvider extends BaseProvider {
       return streamOutput
     }
 
+    let hasReasoningContent = false
+    const isReasoningJustDone = (delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta) =>
+      hasReasoningContent ? !!delta?.content : delta?.content === '</think>'
+
     let time_first_token_millsec = 0
     let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
@@ -243,19 +247,23 @@ export default class OpenAIProvider extends BaseProvider {
         break
       }
 
+      const delta = chunk.choices[0]?.delta
+
+      // @ts-expect-error `reasoning_content` not supported by OpenAI for now
+      if (delta?.reasoning_content) {
+        hasReasoningContent = true
+      }
+
       if (time_first_token_millsec == 0) {
         time_first_token_millsec = new Date().getTime() - start_time_millsec
       }
 
-      //修复逻辑判断，当content为</think>时，time_first_content_millsec才会被赋值，原有代码无意义.
-      if (time_first_content_millsec == 0 && chunk.choices[0]?.delta?.content == '</think>') {
+      if (time_first_content_millsec == 0 && isReasoningJustDone(delta)) {
         time_first_content_millsec = new Date().getTime()
       }
 
       const time_completion_millsec = new Date().getTime() - start_time_millsec
       const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
-
-      const delta = chunk.choices[0]?.delta
 
       // Extract citations from the raw response if available
       const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
@@ -279,6 +287,9 @@ export default class OpenAIProvider extends BaseProvider {
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+    if (!message.content) {
+        message.content = ' '
+    }
     const messages = [
       { role: 'system', content: assistant.prompt },
       { role: 'user', content: message.content }
