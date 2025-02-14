@@ -61,7 +61,7 @@ const initialState: LlmState = {
       name: 'ocoolAI',
       type: 'openai',
       apiKey: '',
-      apiHost: 'https://one.ooo.cool',
+      apiHost: 'https://api.ocoolai.com',
       models: SYSTEM_MODELS.ocoolai,
       isSystem: true,
       enabled: false
@@ -144,6 +144,16 @@ const initialState: LlmState = {
       apiKey: '',
       apiHost: 'https://models.inference.ai.azure.com/',
       models: SYSTEM_MODELS.github,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'dmxapi',
+      name: 'DMXAPI',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.dmxapi.com',
+      models: SYSTEM_MODELS.dmxapi,
       isSystem: true,
       enabled: false
     },
@@ -354,6 +364,26 @@ const initialState: LlmState = {
       apiKey: '',
       apiHost: 'https://api.ppinfra.com/v3/openai',
       models: SYSTEM_MODELS.ppio,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'perplexity',
+      name: 'Perplexity',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.perplexity.ai/',
+      models: SYSTEM_MODELS.perplexity,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'infini',
+      name: 'Infini',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://cloud.infini-ai.com/maas',
+      models: SYSTEM_MODELS.infini,
       isSystem: true,
       enabled: false
     }

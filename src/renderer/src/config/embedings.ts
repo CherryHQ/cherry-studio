@@ -226,6 +226,18 @@ export const EMBEDDING_MODELS = [
   {
     id: 'text-embedding-004',
     max_context: 2048
+  },
+  {
+    id: 'deepset-mxbai-embed-de-large-v1',
+    max_context: 512
+  },
+  {
+    id: 'mxbai-embed-large-v1',
+    max_context: 512
+  },
+  {
+    id: 'mxbai-embed-2d-large-v1',
+    max_context: 512
   }
 ]
 
