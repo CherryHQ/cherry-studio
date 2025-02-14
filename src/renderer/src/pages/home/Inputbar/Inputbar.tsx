@@ -325,10 +325,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
+      event.preventDefault()
       const clipboardText = event.clipboardData?.getData('text')
       if (clipboardText) {
         // Prioritize the text when pasting.
         // handled by the default event
+        if (clipboardText.length < 500) {
+          setText(clipboardText)
+          return
+        }
       } else {
         for (const file of event.clipboardData?.files || []) {
           event.preventDefault()
@@ -363,7 +368,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         const item = event.clipboardData?.items[0]
         if (item && item.kind === 'string' && item.type === 'text/plain') {
           item.getAsString(async (pasteText) => {
-            if (pasteText.length > pasteLongTextThreshold) {
+            if (pasteText.length >= pasteLongTextThreshold) {
               const tempFilePath = await window.api.file.create('pasted_text.txt')
               await window.api.file.write(tempFilePath, pasteText)
               const selectedFile = await window.api.file.get(tempFilePath)
