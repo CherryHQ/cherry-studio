@@ -69,7 +69,7 @@ export interface SettingsState {
   notionApiKey: string | null
 }
 
-export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold'
+export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
 const initialState: SettingsState = {
   showAssistants: true,
