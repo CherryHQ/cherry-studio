@@ -1473,7 +1473,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'jina-embeddings-v2-base-code',
       group: 'Jina'
     }
-  ]
+  ],
+  vsegpt: [],
 }
 
 export const TEXT_TO_IMAGES_MODELS = [

@@ -36,6 +36,7 @@ import TogetherProviderLogo from '@renderer/assets/images/providers/together.png
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import VsegptProviderLogo from '@renderer/assets/images/providers/vsegpt.png'
 export function getProviderLogo(providerId: string) {
   switch (providerId) {
     case 'openai':
@@ -114,6 +115,8 @@ export function getProviderLogo(providerId: string) {
       return PerplexityProviderLogo
     case 'infini':
       return InfiniProviderLogo
+    case 'vsegpt':
+      return VsegptProviderLogo
     default:
       return undefined
   }
@@ -529,6 +532,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://cloud.baidu.com/console/qianfan/apikey',
       docs: 'https://cloud.baidu.com/doc/index.html',
       models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
+    }
+  },
+  'vsegpt': {
+    api: {
+      url: 'https://api.vsegpt.ru/v1/'
+    },
+    websites: {
+      official: 'https://vsegpt.ru/',
+      apiKey: 'https://vsegpt.ru/User/API',
+      docs: 'https://vsegpt.ru/Docs/API',
+      models: 'https://vsegpt.ru/Docs/Models'
     }
   }
 }

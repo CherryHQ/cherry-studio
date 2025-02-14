@@ -386,6 +386,16 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.infini,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'vsegpt',
+      name: 'VseGPT',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.vsegpt.ru/v1/',
+      models: SYSTEM_MODELS.vsegpt,
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {
