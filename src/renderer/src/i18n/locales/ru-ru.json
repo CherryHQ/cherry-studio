@@ -466,6 +466,9 @@
       "title": "Вы - эксперт в общении, который суммирует разговоры пользователя в 10-символьном заголовке, совпадающем с языком пользователя, без использования знаков препинания и других специальных символов"
     },
     "provider": {
+      "infini": "Infini",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -473,7 +476,7 @@
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
       "deepseek": "DeepSeek",
-      "doubao": "Doubao",
+      "doubao": "Volcengine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",

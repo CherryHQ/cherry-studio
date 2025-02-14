@@ -99,6 +99,8 @@ import NvidiaModelLogo from '@renderer/assets/images/models/nvidia.png'
 import NvidiaModelLogoDark from '@renderer/assets/images/models/nvidia_dark.png'
 import PalmModelLogo from '@renderer/assets/images/models/palm.png'
 import PalmModelLogoDark from '@renderer/assets/images/models/palm_dark.png'
+import PerplexityModelLogo from '@renderer/assets/images/models/perplexity.png'
+import PerplexityModelLogoDark from '@renderer/assets/images/models/perplexity.png'
 import PixtralModelLogo from '@renderer/assets/images/models/pixtral.png'
 import PixtralModelLogoDark from '@renderer/assets/images/models/pixtral_dark.png'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png'
@@ -184,6 +186,8 @@ export function getModelLogo(modelId: string) {
     'babbage-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'sora-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'omni-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    'Embedding-V1': isLight ? WenxinModelLogo : WenxinModelLogoDark,
+    'text-embedding-v': isLight ? QwenModelLogo : QwenModelLogoDark,
     'text-embedding': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'davinci-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     glm: isLight ? ChatGLMModelLogo : ChatGLMModelLogoDark,
@@ -265,6 +269,8 @@ export function getModelLogo(modelId: string) {
     'google/': isLight ? GoogleModelLogo : GoogleModelLogoDark,
     hugging: isLight ? HuggingfaceModelLogo : HuggingfaceModelLogoDark,
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
+    perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
+    sonar: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     'bge-': BgeModelLogo
   }
 
@@ -659,6 +665,42 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   ocoolai: [
     {
+      id: 'deepseek-chat',
+      provider: 'ocoolai',
+      name: 'deepseek-chat',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-reasoner',
+      provider: 'ocoolai',
+      name: 'deepseek-reasoner',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-ai/DeepSeek-R1',
+      provider: 'ocoolai',
+      name: 'deepseek-ai/DeepSeek-R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'HiSpeed/DeepSeek-R1',
+      provider: 'ocoolai',
+      name: 'HiSpeed/DeepSeek-R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'ocoolAI/DeepSeek-R1',
+      provider: 'ocoolai',
+      name: 'ocoolAI/DeepSeek-R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'Azure/DeepSeek-R1',
+      provider: 'ocoolai',
+      name: 'Azure/DeepSeek-R1',
+      group: 'DeepSeek'
+    },
+    {
       id: 'gpt-4o',
       provider: 'ocoolai',
       name: 'gpt-4o',
@@ -668,12 +710,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       id: 'gpt-4o-all',
       provider: 'ocoolai',
       name: 'gpt-4o-all',
-      group: 'OpenAI'
-    },
-    {
-      id: 'gpt-4-all',
-      provider: 'ocoolai',
-      name: 'gpt-4-all',
       group: 'OpenAI'
     },
     {
@@ -689,12 +725,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'OpenAI'
     },
     {
-      id: 'gpt-4-turbo',
-      provider: 'ocoolai',
-      name: 'gpt-4-turbo',
-      group: 'OpenAI'
-    },
-    {
       id: 'o1-preview',
       provider: 'ocoolai',
       name: 'o1-preview',
@@ -707,33 +737,15 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'OpenAI'
     },
     {
-      id: 'gpt-3.5-turbo',
-      provider: 'ocoolai',
-      name: 'gpt-3.5-turbo',
-      group: 'OpenAI'
-    },
-    {
       id: 'claude-3-5-sonnet-20240620',
       provider: 'ocoolai',
       name: 'claude-3-5-sonnet-20240620',
       group: 'Anthropic'
     },
     {
-      id: 'claude-3-opus-20240229',
+      id: 'claude-3-5-haiku-20241022',
       provider: 'ocoolai',
-      name: 'claude-3-opus-20240229',
-      group: 'Anthropic'
-    },
-    {
-      id: 'claude-3-sonnet-20240229',
-      provider: 'ocoolai',
-      name: 'claude-3-sonnet-20240229',
-      group: 'Anthropic'
-    },
-    {
-      id: 'claude-3-haiku-20240307',
-      provider: 'ocoolai',
-      name: 'claude-3-haiku-20240307',
+      name: 'claude-3-5-haiku-20241022',
       group: 'Anthropic'
     },
     {
@@ -777,6 +789,30 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'ocoolai',
       name: 'gemma-2-9b-it',
       group: 'Gemma'
+    },
+    {
+      id: 'Doubao-embedding',
+      provider: 'ocoolai',
+      name: 'Doubao-embedding',
+      group: 'Doubao'
+    },
+    {
+      id: 'text-embedding-3-large',
+      provider: 'ocoolai',
+      name: 'text-embedding-3-large',
+      group: 'Embedding'
+    },
+    {
+      id: 'text-embedding-3-small',
+      provider: 'ocoolai',
+      name: 'text-embedding-3-small',
+      group: 'Embedding'
+    },
+    {
+      id: 'text-embedding-v2',
+      provider: 'ocoolai',
+      name: 'text-embedding-v2',
+      group: 'Embedding'
     }
   ],
   github: [
@@ -1252,6 +1288,78 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'baidu-cloud',
       name: 'BGE Large EN',
       group: 'Embedding'
+    }
+  ],
+  dmxapi: [
+    {
+      id: 'gpt-3.5-turbo',
+      provider: 'dmxapi',
+      name: 'GPT-3.5-Turbo',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4o',
+      provider: 'dmxapi',
+      name: 'GPT-4o',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4o-mini',
+      provider: 'dmxapi',
+      name: 'GPT-4o-Mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'deepseek-reasoner',
+      provider: 'dmxapi',
+      name: 'DeepSeek Reasoner',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-chat',
+      provider: 'dmxapi',
+      name: 'DeepSeek Chat',
+      group: 'DeepSeek'
+    }
+  ],
+  perplexity: [
+    {
+      id: 'sonar-reasoning-pro',
+      provider: 'perplexity',
+      name: 'sonar-reasoning-pro',
+      group: 'Sonar'
+    },
+    {
+      id: 'sonar-reasoning',
+      provider: 'perplexity',
+      name: 'sonar-reasoning',
+      group: 'Sonar'
+    },
+    {
+      id: 'sonar-pro',
+      provider: 'perplexity',
+      name: 'sonar-pro',
+      group: 'Sonar'
+    },
+    {
+      id: 'sonar',
+      provider: 'perplexity',
+      name: 'sonar',
+      group: 'Sonar'
+    }
+  ],
+  infini: [
+    {
+      id: 'deepseek-r1',
+      provider: 'infini',
+      name: 'deepseek-r1',
+      group: 'Deepseek'
+    },
+    {
+      id: 'deepseek-v3',
+      provider: 'infini',
+      name: 'deepseek-v3',
+      group: 'Deepseek'
     }
   ]
 }

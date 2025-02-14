@@ -968,6 +968,39 @@ const migrateConfig = {
         state.minapps.enabled.push(xiaoyi)
       }
     }
+
+    state.llm.providers.push(
+      {
+        id: 'perplexity',
+        name: 'Perplexity',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://api.perplexity.ai/',
+        models: SYSTEM_MODELS.perplexity,
+        isSystem: true,
+        enabled: false
+      },
+      {
+        id: 'infini',
+        name: 'Infini',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://cloud.infini-ai.com/maas',
+        models: SYSTEM_MODELS.infini,
+        isSystem: true,
+        enabled: false
+      },
+      {
+        id: 'dmxapi',
+        name: 'DMXAPI',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://api.dmxapi.com',
+        models: SYSTEM_MODELS.dmxapi,
+        isSystem: true,
+        enabled: false
+      }
+    )
     return state
   }
 }

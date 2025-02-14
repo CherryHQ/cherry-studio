@@ -466,6 +466,9 @@
       "title": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols."
     },
     "provider": {
+      "infini": "Infini",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -473,7 +476,7 @@
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
       "deepseek": "DeepSeek",
-      "doubao": "Doubao",
+      "doubao": "Volcengine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",

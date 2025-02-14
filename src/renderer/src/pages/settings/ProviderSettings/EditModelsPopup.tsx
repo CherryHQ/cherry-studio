@@ -36,7 +36,11 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
 
   const list = allModels.filter((model) => {
-    if (searchText && !model.id.toLocaleLowerCase().includes(searchText.toLocaleLowerCase())) {
+    if (
+      searchText &&
+      !model.id.toLocaleLowerCase().includes(searchText.toLocaleLowerCase()) &&
+      !model.name?.toLocaleLowerCase().includes(searchText.toLocaleLowerCase())
+    ) {
       return false
     }
     switch (filterType) {
