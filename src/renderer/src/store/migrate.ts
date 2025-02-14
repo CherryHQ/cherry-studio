@@ -968,15 +968,6 @@ const migrateConfig = {
         state.minapps.enabled.push(xiaoyi)
       }
     }
-    return state
-  },
-  '68': (state: RootState) => {
-    if (state.minapps) {
-      const notebooklm = DEFAULT_MIN_APPS.find((app) => app.id === 'notebooklm')
-      if (notebooklm) {
-        state.minapps.enabled.push(notebooklm)
-      }
-    }
 
     state.llm.providers.push(
       {
@@ -1035,6 +1026,15 @@ const migrateConfig = {
       keepAliveTime: 5
     }
 
+    return state
+  },
+  '68': (state: RootState) => {
+    if (state.minapps) {
+      const notebooklm = DEFAULT_MIN_APPS.find((app) => app.id === 'notebooklm')
+      if (notebooklm) {
+        state.minapps.enabled.push(notebooklm)
+      }
+    }
     return state
   }
 }
