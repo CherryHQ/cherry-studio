@@ -439,6 +439,12 @@
       "keep_alive_time.title": "Keep Alive Time",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
+      "keep_alive_time.placeholder": "Minutes",
+      "keep_alive_time.title": "Keep Alive Time",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "Delete Image",
       "button.delete.image.confirm": "Are you sure you want to delete this image?",
@@ -493,6 +499,7 @@
       "nvidia": "Nvidia",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "ppio": "PPIO",

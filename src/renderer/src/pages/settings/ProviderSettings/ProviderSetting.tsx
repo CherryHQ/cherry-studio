@@ -43,6 +43,7 @@ import ApiCheckPopup from './ApiCheckPopup'
 import EditModelsPopup from './EditModelsPopup'
 import GraphRAGSettings from './GraphRAGSettings'
 import OllamSettings from './OllamaSettings'
+import LMStudioSettings from './LMStudioSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
 interface Props {
@@ -319,6 +320,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         </>
       )}
       {provider.id === 'ollama' && <OllamSettings />}
+      {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
         <GraphRAGSettings provider={provider} />
       )}

@@ -439,6 +439,12 @@
       "keep_alive_time.title": "保持時間",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
+      "keep_alive_time.placeholder": "分",
+      "keep_alive_time.title": "保持時間",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "画像を削除",
       "button.delete.image.confirm": "この画像を削除してもよろしいですか？",
@@ -493,6 +499,7 @@
       "nvidia": "NVIDIA",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "qwenlm": "QwenLM",

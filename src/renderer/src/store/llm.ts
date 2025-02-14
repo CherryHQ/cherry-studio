@@ -8,6 +8,9 @@ type LlmSettings = {
   ollama: {
     keepAliveTime: number
   }
+  lmstudio: {
+    keepAliveTime: number
+  }
 }
 
 export interface LlmState {
@@ -80,6 +83,16 @@ const initialState: LlmState = {
       apiKey: '',
       apiHost: 'http://localhost:11434',
       models: SYSTEM_MODELS.ollama,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'lmstudio',
+      name: 'LM Studio',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'http://localhost:1234',
+      models: SYSTEM_MODELS.lmstudio,
       isSystem: true,
       enabled: false
     },
@@ -378,6 +391,9 @@ const initialState: LlmState = {
   settings: {
     ollama: {
       keepAliveTime: 0
+    },
+    lmstudio: {
+      keepAliveTime: 0
     }
   }
 }
@@ -398,10 +414,23 @@ const getIntegratedInitialState = () => {
         models: [model],
         isSystem: true,
         enabled: true
+      },
+      {
+        id: 'lmstudio',
+        name: 'LM Studio',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'http://localhost:1234',
+        models: [model],
+        isSystem: true,
+        enabled: true
       }
     ],
     settings: {
       ollama: {
+        keepAliveTime: 3600
+      },
+      lmstudio: {
         keepAliveTime: 3600
       }
     }
@@ -457,6 +486,9 @@ const settingsSlice = createSlice({
     },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.ollama.keepAliveTime = action.payload
+    },
+    setLMStudioKeepAliveTime: (state, action: PayloadAction<number>) => {
+      state.settings.lmstudio.keepAliveTime = action.payload
     }
   }
 })
@@ -471,7 +503,8 @@ export const {
   setDefaultModel,
   setTopicNamingModel,
   setTranslateModel,
-  setOllamaKeepAliveTime
+  setOllamaKeepAliveTime,
+  setLMStudioKeepAliveTime
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

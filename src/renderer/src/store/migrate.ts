@@ -971,6 +971,16 @@ const migrateConfig = {
 
     state.llm.providers.push(
       {
+        id: 'lmstudio',
+        name: 'LM Studio',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'http://localhost:1234',
+        models: SYSTEM_MODELS.lmstudio,
+        isSystem: true,
+        enabled: false
+      },
+      {
         id: 'perplexity',
         name: 'Perplexity',
         type: 'openai',
@@ -1001,6 +1011,11 @@ const migrateConfig = {
         enabled: false
       }
     )
+
+    state.llm.settings.lmstudio = {
+      keepAliveTime: 5
+    }
+
     return state
   }
 }

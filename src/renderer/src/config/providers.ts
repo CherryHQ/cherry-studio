@@ -24,6 +24,7 @@ import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
 import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
+import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
 import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity.png'
@@ -52,6 +53,8 @@ export function getProviderLogo(providerId: string) {
       return ZhipuProviderLogo
     case 'ollama':
       return OllamaProviderLogo
+    case 'lmstudio':
+      return LMStudioProviderLogo
     case 'moonshot':
       return MoonshotProviderLogo
     case 'openrouter':
@@ -371,6 +374,16 @@ export const PROVIDER_CONFIG = {
       official: 'https://ollama.com/',
       docs: 'https://github.com/ollama/ollama/tree/main/docs',
       models: 'https://ollama.com/library'
+    }
+  },
+  lmstudio: {
+    api: {
+      url: 'http://localhost:1234'
+    },
+    websites: {
+      official: 'https://lmstudio.ai/',
+      docs: 'https://lmstudio.ai/docs',
+      models: 'https://lmstudio.ai/models'
     }
   },
   anthropic: {

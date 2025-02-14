@@ -31,7 +31,7 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
    - ☁️ 支持主流 LLM 云服务：OpenAI、Gemini、Anthropic、硅基流动等
    - 🔗 集成流行 AI Web 服务：Claude、Peplexity、Poe、腾讯元宝、知乎直答等
-   - 💻 支持 Ollama 本地模型部署
+   - 💻 支持 Ollama、LM Studio 本地模型部署
 
 2. **智能助手与对话**：
 

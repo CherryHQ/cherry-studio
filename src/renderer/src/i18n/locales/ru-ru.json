@@ -439,6 +439,12 @@
       "keep_alive_time.title": "Время жизни модели",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
+      "keep_alive_time.placeholder": "Минуты",
+      "keep_alive_time.title": "Время жизни модели",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "Удалить изображение",
       "button.delete.image.confirm": "Вы уверены, что хотите удалить это изображение?",
@@ -493,6 +499,7 @@
       "nvidia": "Nvidia",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "qwenlm": "QwenLM",

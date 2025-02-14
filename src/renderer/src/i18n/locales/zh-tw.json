@@ -439,6 +439,12 @@
       "keep_alive_time.title": "保持活躍時間",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）。",
+      "keep_alive_time.placeholder": "分鐘",
+      "keep_alive_time.title": "保持活躍時間",
+      "title": "LM Studio"
+    },
     "paintings": {
       "infini": "無問芯穹",
       "perplexity": "Perplexity",
@@ -493,6 +499,7 @@
       "nvidia": "輝達",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "ppio": "PPIO 派歐雲",

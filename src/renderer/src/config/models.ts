@@ -323,6 +323,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   ollama: [],
+  lmstudio: [],
   silicon: [
     {
       id: 'deepseek-ai/DeepSeek-R1',
