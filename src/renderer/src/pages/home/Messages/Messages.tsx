@@ -315,7 +315,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
             ))}
           </ScrollContainer>
         </InfiniteScroll>
-        <Prompt assistant={assistant} key={assistant.prompt} />
+        <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
       </NarrowLayout>
     </Container>
   )

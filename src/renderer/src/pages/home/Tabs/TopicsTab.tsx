@@ -130,7 +130,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             const prompt = await TextEditPopup.show({
               text: topic?.prompt || ''
             })
-            updateTopic({ ...topic, prompt })
+            if (prompt !== null) updateTopic({ ...topic, prompt })
           }
         },
         {
