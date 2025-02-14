@@ -103,10 +103,10 @@ export default abstract class BaseProvider {
         }
         if (param.type === 'json') {
           const value = param.value as string
-          return {
-            ...acc,
-            [param.name]: isJSON(value) ? parseJSON(value) : value
+          if (value === 'undefined') {
+            return { ...acc, [param.name]: undefined }
           }
+          return { ...acc, [param.name]: isJSON(value) ? parseJSON(value) : value }
         }
         return {
           ...acc,
