@@ -15,6 +15,7 @@ import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -57,6 +58,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
+  const { assistant } = useAssistant(message.assistantId)
 
   const isUserMessage = message.role === 'user'
 
@@ -197,7 +199,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onRegenerate = async () => {
     await modelGenerating()
-    const _message: Message = resetAssistantMessage(message, model || assistantModel)
+    const _message: Message = resetAssistantMessage(message, assistant.model)
     onEditMessage?.(_message)
   }
 
