@@ -368,6 +368,16 @@ const initialState: LlmState = {
       enabled: false
     },
     {
+      id: 'modelscope',
+      name: 'ModelScope',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api-inference.modelscope.cn/v1/',
+      models: SYSTEM_MODELS.modelscope,
+      isSystem: true,
+      enabled: false
+    },
+    {
       id: 'perplexity',
       name: 'Perplexity',
       type: 'openai',
@@ -424,16 +434,6 @@ const getIntegratedInitialState = () => {
         models: [model],
         isSystem: true,
         enabled: true
-      },
-      {
-        id: 'modelscope',
-        name: 'ModelScope',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'https://api-inference.modelscope.cn/v1/',
-        models: SYSTEM_MODELS.modelscope,
-        isSystem: true,
-        enabled: false
       }
     ],
     settings: {
