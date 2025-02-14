@@ -386,6 +386,16 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.infini,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'luchen',
+      name: 'Luchen',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://cloud.luchentech.com/api/maas/chat/completions#',
+      models: SYSTEM_MODELS.luchen,
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {

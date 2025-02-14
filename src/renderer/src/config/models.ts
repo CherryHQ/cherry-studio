@@ -1382,6 +1382,26 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Sonar'
     }
   ],
+  luchen: [
+    {
+      id: 'deepseek-ai/DeepSeek-R1',
+      provider: 'luchen',
+      name: 'deepseek-ai/DeepSeek-R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'VIP/deepseek-ai/DeepSeek-V3',
+      provider: 'luchen',
+      name: 'VIP/deepseek-ai/DeepSeek-V3',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'VIP/deepseek-ai/DeepSeek-R1',
+      provider: 'luchen',
+      name: 'VIP/deepseek-ai/DeepSeek-R1',
+      group: 'DeepSeek'
+    }
+  ],
   infini: [
     {
       id: 'deepseek-r1',

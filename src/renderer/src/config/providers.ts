@@ -36,6 +36,7 @@ import TogetherProviderLogo from '@renderer/assets/images/providers/together.png
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import LuchenProviderLogo from '@renderer/assets/images/providers/luchen.svg'
 export function getProviderLogo(providerId: string) {
   switch (providerId) {
     case 'openai':
@@ -114,6 +115,8 @@ export function getProviderLogo(providerId: string) {
       return PerplexityProviderLogo
     case 'infini':
       return InfiniProviderLogo
+    case 'luchen':
+      return LuchenProviderLogo
     default:
       return undefined
   }
@@ -142,6 +145,17 @@ export const PROVIDER_CONFIG = {
       docs: 'https://ppinfra.com/docs/model-api/reference/llm/llm.html',
       models:
         'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link'
+    }
+  },
+  luchen: {
+    api: {
+      url: 'https://cloud.luchentech.com/api/maas/chat/completions#'
+    },
+    websites: {
+      official: 'https://cloud.luchentech.com',
+      apiKey: 'https://cloud.luchentech.com/maas/apiKey',
+      docs: 'https://cloud.luchentech.com/maas/modelMarket',
+      models: 'https://cloud.luchentech.com/maas/modelMarket'
     }
   },
   gemini: {
