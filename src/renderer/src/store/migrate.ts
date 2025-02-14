@@ -962,6 +962,13 @@ const migrateConfig = {
     return state
   },
   '67': (state: RootState) => {
+    if (state.minapps) {
+      const xiaoyi = DEFAULT_MIN_APPS.find((app) => app.id === 'xiaoyi')
+      if (xiaoyi) {
+        state.minapps.enabled.push(xiaoyi)
+      }
+    }
+
     state.llm.providers.push(
       {
         id: 'perplexity',
