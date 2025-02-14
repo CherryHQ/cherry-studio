@@ -1035,6 +1035,33 @@ const migrateConfig = {
         state.minapps.enabled.push(notebooklm)
       }
     }
+
+    if (!state.llm.providers.find((provider) => provider.id === 'modelscope')) {
+      state.llm.providers.push({
+        id: 'modelscope',
+        name: 'ModelScope',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://api-inference.modelscope.cn/v1/',
+        models: SYSTEM_MODELS.modelscope,
+        isSystem: true,
+        enabled: false
+      })
+    }
+
+    if (!state.llm.providers.find((provider) => provider.id === 'lmstudio')) {
+      state.llm.providers.push({
+        id: 'lmstudio',
+        name: 'LM Studio',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'http://localhost:1234',
+        models: SYSTEM_MODELS.lmstudio,
+        isSystem: true,
+        enabled: false
+      })
+    }
+
     return state
   }
 }
