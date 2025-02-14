@@ -511,7 +511,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             ref={textareaRef}
             style={{ fontSize }}
             styles={{ textarea: TextareaStyle }}
-            onFocus={() => setInputFocus(true)}
+            onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
+              setInputFocus(true)
+              const textArea = e.target
+              if (textArea) {
+                const length = textArea.value.length
+                textArea.setSelectionRange(length, length)
+              }
+            }}
             onBlur={() => setInputFocus(false)}
             onInput={onInput}
             disabled={searching}
