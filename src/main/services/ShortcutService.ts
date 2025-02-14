@@ -22,7 +22,11 @@ function getShortcutHandler(shortcut: Shortcut) {
     case 'show_app':
       return (window: BrowserWindow) => {
         if (window.isVisible()) {
-          window.hide()
+          if (window.isFocused()) {
+            window.hide()
+          } else {
+            window.focus()
+          }
         } else {
           window.show()
           window.focus()
