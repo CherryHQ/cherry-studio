@@ -7,6 +7,7 @@ import { LoaderReturn } from '@shared/config/types'
 import { FileType, KnowledgeBaseParams } from '@types'
 import Logger from 'electron-log'
 
+import { EpubLoader } from './epubLoader'
 import { OdLoader, OdType } from './odLoader'
 
 // embedjs内置loader类型
@@ -62,6 +63,24 @@ export async function addFileLoader(
   // 自定义类型
   if (['.odt', '.ods', '.odp'].includes(file.ext)) {
     const loaderReturn = await addOdLoader(ragApplication, file, base, forceReload)
+    return {
+      entriesAdded: loaderReturn.entriesAdded,
+      uniqueId: loaderReturn.uniqueId,
+      uniqueIds: [loaderReturn.uniqueId],
+      loaderType: loaderReturn.loaderType
+    } as LoaderReturn
+  }
+
+  // epub 文件处理
+  if (file.ext === '.epub') {
+    const loaderReturn = await ragApplication.addLoader(
+      new EpubLoader({
+        filePath: file.path,
+        chunkSize: base.chunkSize ?? 1000,
+        chunkOverlap: base.chunkOverlap ?? 200
+      }) as any,
+      forceReload
+    )
     return {
       entriesAdded: loaderReturn.entriesAdded,
       uniqueId: loaderReturn.uniqueId,
