@@ -386,6 +386,26 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.infini,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'lmstudio',
+      name: 'LM Studio',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'http://localhost:1234',
+      models: SYSTEM_MODELS.lmstudio,
+      isSystem: true,
+      enabled: true
+    },
+    {
+      id: 'modelscope',
+      name: 'ModelScope',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api-inference.modelscope.cn/v1/',
+      models: SYSTEM_MODELS.modelscope,
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {
@@ -414,26 +434,6 @@ const getIntegratedInitialState = () => {
         models: [model],
         isSystem: true,
         enabled: true
-      },
-      {
-        id: 'lmstudio',
-        name: 'LM Studio',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'http://localhost:1234',
-        models: [model],
-        isSystem: true,
-        enabled: true
-      },
-      {
-        id: 'modelscope',
-        name: 'ModelScope',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'https://api-inference.modelscope.cn/v1/',
-        models: SYSTEM_MODELS.modelscope,
-        isSystem: true,
-        enabled: false
       }
     ],
     settings: {
