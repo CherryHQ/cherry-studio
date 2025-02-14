@@ -1,6 +1,6 @@
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
-import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
+import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import { getKnowledgeReferences } from '@renderer/services/KnowledgeService'
 import store from '@renderer/store'
 import { Assistant, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
@@ -64,7 +64,11 @@ export default abstract class BaseProvider {
   }
 
   public get keepAliveTime() {
-    return this.provider.id === 'ollama' ? getOllamaKeepAliveTime() : this.provider.id === 'lmstudio' ? getLMStudioKeepAliveTime() : undefined
+    return this.provider.id === 'ollama'
+      ? getOllamaKeepAliveTime()
+      : this.provider.id === 'lmstudio'
+        ? getLMStudioKeepAliveTime()
+        : undefined
   }
 
   public async fakeCompletions({ onChunk }: CompletionsParams) {

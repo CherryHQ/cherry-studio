@@ -42,8 +42,8 @@ import AddModelPopup from './AddModelPopup'
 import ApiCheckPopup from './ApiCheckPopup'
 import EditModelsPopup from './EditModelsPopup'
 import GraphRAGSettings from './GraphRAGSettings'
-import OllamSettings from './OllamaSettings'
 import LMStudioSettings from './LMStudioSettings'
+import OllamSettings from './OllamaSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
 interface Props {

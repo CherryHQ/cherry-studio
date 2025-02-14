@@ -288,7 +288,7 @@ export default class OpenAIProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     if (!message.content) {
-        message.content = ' '
+      message.content = ' '
     }
     const messages = [
       { role: 'system', content: assistant.prompt },
@@ -418,7 +418,6 @@ export default class OpenAIProvider extends BaseProvider {
     const body = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
-      max_tokens: 100,
       stream: false
     }
 
