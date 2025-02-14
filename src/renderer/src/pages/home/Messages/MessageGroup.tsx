@@ -12,7 +12,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import { Message, Model, Topic } from '@renderer/types'
-import { Segmented as AntdSegmented, Button, Popover } from 'antd'
+import { Button, Popover, Segmented as AntdSegmented } from 'antd'
 import { Dispatch, FC, SetStateAction, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
@@ -114,11 +114,17 @@ const MessageGroup: FC<Props> = ({
                   topic={topic}
                   index={message.index}
                   hidePresetMessages={hidePresetMessages}
-                  style={{
-                    paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15,
-                    overflow: isGrouped ? 'hidden' : 'auto',
-                    maxHeight: isGrouped ? '280px' : 'unset'
-                  }}
+                  style={
+                    gridPopoverTrigger === 'hover'
+                      ? {
+                          paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15,
+                          overflow: isGrouped ? 'hidden' : 'auto',
+                          maxHeight: isGrouped ? '280px' : 'unset'
+                        }
+                      : {
+                          paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15
+                        }
+                  }
                   onSetMessages={onSetMessages}
                   onDeleteMessage={onDeleteMessage}
                   onGetMessages={onGetMessages}
