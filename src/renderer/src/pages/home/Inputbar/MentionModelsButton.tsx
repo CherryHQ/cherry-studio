@@ -180,10 +180,10 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex((prev) => (prev < flatModelItems.length - 1 ? prev + 1 : prev))
+        setSelectedIndex((prev) => (prev < flatModelItems.length - 1 ? prev + 1 : 0))
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : flatModelItems.length - 1))
       } else if (e.key === 'Enter') {
         e.preventDefault()
         if (selectedIndex >= 0 && selectedIndex < flatModelItems.length) {

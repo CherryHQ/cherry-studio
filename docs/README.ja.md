@@ -31,7 +31,7 @@ Cherry Studioは、複数のLLMプロバイダーをサポートするデスク�
 
    - ☁️ 主要な LLM クラウドサービス対応：OpenAI、Gemini、Anthropic など
    - 🔗 AI Web サービス統合：Claude、Peplexity、Poe など
-   - 💻 Ollama によるローカルモデル実行対応
+   - 💻 Ollama、LM Studio によるローカルモデル実行対応
 
 2. **AI アシスタントと対話**：
 

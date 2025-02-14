@@ -439,6 +439,12 @@
       "keep_alive_time.title": "Время жизни модели",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
+      "keep_alive_time.placeholder": "Минуты",
+      "keep_alive_time.title": "Время жизни модели",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "Удалить изображение",
       "button.delete.image.confirm": "Вы уверены, что хотите удалить это изображение?",
@@ -466,14 +472,18 @@
       "title": "Вы - эксперт в общении, который суммирует разговоры пользователя в 10-символьном заголовке, совпадающем с языком пользователя, без использования знаков препинания и других специальных символов"
     },
     "provider": {
+      "infini": "Infini",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "Baichuan",
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
+      "modelscope": "ModelScope",
       "deepseek": "DeepSeek",
-      "doubao": "Doubao",
+      "doubao": "Volcengine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",
@@ -490,6 +500,7 @@
       "nvidia": "Nvidia",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "qwenlm": "QwenLM",
@@ -542,6 +553,14 @@
         "notion.api_key": "Ключ API Notion",
         "notion.database_id": "ID базы данных Notion",
         "notion.title": "Настройки Notion",
+        "notion.check": {
+          "button": "Проверить",
+          "fail": "Ошибка подключения, проверьте настройки",
+          "success": "Подключение успешно",
+          "error": "Ошибка подключения, проверьте сеть",
+          "empty_api_key": "Не настроен Api_key",
+          "empty_database_id": "Не настроен Database_id"
+        },
         "title": "Настройки данных",
         "webdav.autoSync": "Автоматическое резервное копирование",
         "webdav.autoSync.off": "Выключено",

@@ -214,7 +214,7 @@ export async function checkApi(provider: Provider, model: Model) {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
-  if (provider.id !== 'ollama') {
+  if (provider.id !== 'ollama' && provider.id !== 'lmstudio') {
     if (!provider.apiKey) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
       return {
@@ -252,7 +252,7 @@ export async function checkApi(provider: Provider, model: Model) {
 
 function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama') return true
+  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
   return !isEmpty(provider.apiKey)
 }
 
