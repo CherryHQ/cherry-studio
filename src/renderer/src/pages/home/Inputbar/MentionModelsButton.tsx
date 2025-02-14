@@ -271,20 +271,16 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
           <div key={group.key} className="ant-dropdown-menu-item-group">
             <div className="ant-dropdown-menu-item-group-title">{group.label}</div>
             <div>
-              {group.children.map((item, idx) => {
-                // calculate item global idx
-                const index = startIndex + idx
-                return (
-                  <div
-                    key={item.key}
-                    ref={(el) => setItemRef(index, el)}
-                    className={`ant-dropdown-menu-item ${selectedIndex === index ? 'ant-dropdown-menu-item-selected' : ''}`}
-                    onClick={item.onClick}>
-                    <span className="ant-dropdown-menu-item-icon">{item.icon}</span>
-                    {item.label}
-                  </div>
-                )
-              })}
+              {group.children.map((item, idx) => (
+                <div
+                  key={item.key}
+                  ref={(el) => setItemRef(startIndex + idx, el)}
+                  className={`ant-dropdown-menu-item ${selectedIndex === startIndex + idx ? 'ant-dropdown-menu-item-selected' : ''}`}
+                  onClick={item.onClick}>
+                  <span className="ant-dropdown-menu-item-icon">{item.icon}</span>
+                  {item.label}
+                </div>
+              ))}
             </div>
           </div>
         )
