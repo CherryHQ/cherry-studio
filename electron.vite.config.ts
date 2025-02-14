@@ -51,7 +51,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js']
+      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js']
     }
   }
 })
