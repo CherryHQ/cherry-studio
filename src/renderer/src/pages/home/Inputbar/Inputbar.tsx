@@ -325,14 +325,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
+      // prevent the text be set to the inputBar, that will crash the app.
+      event.preventDefault()
       const clipboardText = event.clipboardData?.getData('text')
       if (clipboardText) {
         // Prioritize the text when pasting.
         // handled by the default event
+        if (clipboardText.length < 500) {
+          setText(clipboardText)
+          return // If the text is not too long, we will just paste it.
+        }
       } else {
         for (const file of event.clipboardData?.files || []) {
           event.preventDefault()
-
           if (file.path === '') {
             if (file.type.startsWith('image/')) {
               const tempFilePath = await window.api.file.create(file.name)
@@ -344,7 +349,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
               break
             }
           }
-
           if (file.path) {
             if (supportExts.includes(getFileExtension(file.path))) {
               const selectedFile = await window.api.file.get(file.path)
@@ -358,12 +362,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
           }
         }
       }
-
       if (pasteLongTextAsFile) {
         const item = event.clipboardData?.items[0]
         if (item && item.kind === 'string' && item.type === 'text/plain') {
           item.getAsString(async (pasteText) => {
-            if (pasteText.length > pasteLongTextThreshold) {
+            if (pasteText.length >= pasteLongTextThreshold) {
               const tempFilePath = await window.api.file.create('pasted_text.txt')
               await window.api.file.write(tempFilePath, pasteText)
               const selectedFile = await window.api.file.get(tempFilePath)
@@ -375,6 +378,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         }
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [pasteLongTextAsFile, pasteLongTextThreshold, supportExts, t, text]
   )
 
