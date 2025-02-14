@@ -6,21 +6,20 @@ import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
-  topic: Topic
+  topic?: Topic
 }
 
 const Prompt: FC<Props> = ({ assistant, topic }) => {
   const { t } = useTranslation()
 
   const prompt = assistant.prompt || t('chat.default.description')
-  const topicPrompt = topic.prompt || ''
+  const topicPrompt = topic?.prompt || ''
   if (!prompt && !topicPrompt) {
     return null
   }
   return (
     <Container className="system-prompt" onClick={() => AssistantSettingsPopup.show({ assistant })}>
-      {prompt && <Text>助手：{prompt}</Text>}
-      {topicPrompt && <Text>话题：{topicPrompt}</Text>}
+      <Text>{prompt}</Text>
     </Container>
   )
 }
