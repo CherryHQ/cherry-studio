@@ -20,6 +20,27 @@ body:
         - label: I have filled out the issue title correctly.
           required: true
 
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: What platform are you using?
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version of Cherry Studio are you running?
+      placeholder: e.g. v1.0.0
+    validations:
+      required: true
+
   - type: textarea
     id: question
     attributes:
