@@ -57,6 +57,16 @@ const initialState: LlmState = {
       enabled: false
     },
     {
+      id: 'bltcyai',
+      name: 'BltcyAI',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.bltcy.ai',
+      models: SYSTEM_MODELS.bltcyai,
+      isSystem: true,
+      enabled: false
+    },
+    {
       id: 'ocoolai',
       name: 'ocoolAI',
       type: 'openai',

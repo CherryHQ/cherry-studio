@@ -665,6 +665,140 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Gemma'
     }
   ],
+  bltcyai: [
+    {
+      id: 'deepseek-chat',
+      provider: 'bltcyai',
+      name: 'deepseek-chat',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-reasoner',
+      provider: 'bltcyai',
+      name: 'deepseek-reasoner',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-ai/DeepSeek-R1',
+      provider: 'bltcyai',
+      name: 'deepseek-ai/DeepSeek-R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'gpt-4o',
+      provider: 'bltcyai',
+      name: 'gpt-4o',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4o-all',
+      provider: 'bltcyai',
+      name: 'gpt-4o-all',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4o-mini',
+      provider: 'bltcyai',
+      name: 'gpt-4o-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4',
+      provider: 'bltcyai',
+      name: 'gpt-4',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o1-preview',
+      provider: 'bltcyai',
+      name: 'o1-preview',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o1-mini',
+      provider: 'bltcyai',
+      name: 'o1-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'claude-3-5-sonnet-20240620',
+      provider: 'bltcyai',
+      name: 'claude-3-5-sonnet-20240620',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-5-haiku-20241022',
+      provider: 'bltcyai',
+      name: 'claude-3-5-haiku-20241022',
+      group: 'Anthropic'
+    },
+    {
+      id: 'gemini-2.0-flash-lite-preview-02-05',
+      provider: 'bltcyai',
+      name: 'gemini-2.0-flash-lite-preview-02-05',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-2.0-pro-exp-02-05',
+      provider: 'bltcyai',
+      name: 'gemini-2.0-pro-exp-02-05',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-1.5-pro',
+      provider: 'bltcyai',
+      name: 'gemini-1.5-pro',
+      group: 'Gemini'
+    },
+    {
+      id: 'flux.1.1-pro',
+      provider: 'bltcyai',
+      name: 'gemini-1.5-pro',
+      group: 'FLUX'
+    },
+    {
+      id: 'black-forest-labs/FLUX.1-schnell',
+      provider: 'bltcyai',
+      name: 'FLUX.1 Schnell',
+      group: 'FLUX'
+    },
+    {
+      id: 'black-forest-labs/FLUX.1-dev',
+      provider: 'bltcyai',
+      name: 'FLUX.1 Dev',
+      group: 'FLUX'
+    },
+    {
+      id: 'black-forest-labs/FLUX.1-pro',
+      provider: 'bltcyai',
+      name: 'FLUX.1 Pro',
+      group: 'FLUX'
+    },
+    {
+      id: 'black-forest-labs/flux-1.1-pro',
+      provider: 'bltcyai',
+      name: 'FLUX.1 Pro',
+      group: 'FLUX'
+    },
+    {
+      id: 'text-embedding-3-large',
+      provider: 'bltcyai',
+      name: 'text-embedding-3-large',
+      group: 'Embedding'
+    },
+    {
+      id: 'text-embedding-3-small',
+      provider: 'bltcyai',
+      name: 'text-embedding-3-small',
+      group: 'Embedding'
+    },
+    {
+      id: 'text-embedding-v2',
+      provider: 'bltcyai',
+      name: 'text-embedding-v2',
+      group: 'Embedding'
+    }
+  ],
   ocoolai: [
     {
       id: 'deepseek-chat',
