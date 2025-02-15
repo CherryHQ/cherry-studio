@@ -296,7 +296,12 @@
       "title": "知識庫",
       "url_added": "網址已添加",
       "url_placeholder": "請輸入網址, 多個網址用回車分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "threshold_tooltip": "匹配度閾值",
+      "threshold_placeholder": "預設值(0.0)",
+      "threshold_too_large_or_small": "閾值不能大於1或小於0",
+      "no_match": "未匹配到知識庫內容",
+      "threshold": "匹配度閾值"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -449,9 +454,6 @@
       "title": "LM Studio"
     },
     "paintings": {
-      "infini": "無問芯穹",
-      "perplexity": "Perplexity",
-      "dmxapi": "DMXAPI",
       "button.delete.image": "刪除繪圖",
       "button.delete.image.confirm": "確定要刪除此繪圖嗎?",
       "button.new.image": "新繪圖",
@@ -513,7 +515,10 @@
       "together": "Together",
       "yi": "零一萬物",
       "zhinao": "360智腦",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "infini": "無問芯穹",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI"
     },
     "settings": {
       "about": "關於與回饋",

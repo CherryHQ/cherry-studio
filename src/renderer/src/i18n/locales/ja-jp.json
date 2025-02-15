@@ -296,7 +296,12 @@
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "threshold_tooltip": "マッチングしきい値",
+      "threshold_placeholder": "デフォルト値(0.0)",
+      "threshold_too_large_or_small": "しきい値は0より大きく1より小さい必要があります",
+      "no_match": "知識ベースの内容が見つかりませんでした。",
+      "threshold": "マッチング度閾値"
     },
     "languages": {
       "arabic": "アラビア語",

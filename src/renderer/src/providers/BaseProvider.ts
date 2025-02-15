@@ -90,9 +90,14 @@ export default abstract class BaseProvider {
       return message.content
     }
 
-    const references = await getKnowledgeReferences(base, message)
+    const { referencesContent, referencesCount } = await getKnowledgeReferences(base, message)
 
-    return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', references)
+    // 如果知识库中未检索到内容则使用通用逻辑
+    if (referencesCount === 0) {
+      return message.content
+    }
+
+    return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referencesContent)
   }
 
   protected getCustomParameters(assistant: Assistant) {
