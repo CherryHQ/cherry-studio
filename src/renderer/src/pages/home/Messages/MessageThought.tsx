@@ -49,7 +49,11 @@ const MessageThought: FC<Props> = ({ message }) => {
               {isThinking && <BarLoader color="#9254de" />}
             </MessageTitleLabel>
           ),
-          children: <Markdown message={{ ...message, content: message.reasoning_content }} style={{ fontFamily, fontSize }} />
+          children: (
+            <div style={{ fontFamily, fontSize }}>
+              <Markdown message={{ ...message, content: message.reasoning_content }} />
+            </div>
+          )
         }
       ]}
     />
