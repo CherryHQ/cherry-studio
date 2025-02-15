@@ -17,5 +17,6 @@ export const hasModel = (m?: Model) => {
 }
 
 export function getModelName(model?: Model) {
-  return model?.name || model?.id || ''
+  const name = model?.name || model?.id || ''
+  return model?.provider ? `${name} | ${model.provider}` : name
 }
