@@ -31,6 +31,7 @@ import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.png?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
+import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png?url'
@@ -298,6 +299,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'NotebookLM',
     logo: NotebookLMAppLogo,
     url: 'https://notebooklm.google.com/',
+  },
+  {
+    id: 'coze',
+    name: 'Coze',
+    logo: CozeAppLogo,
+    url: 'https://www.coze.com/space',
+    bodered: true
   }
 ]
 
