@@ -10,6 +10,7 @@ import {
   SearchOutlined,
   SettingOutlined
 } from '@ant-design/icons'
+import Ellipsis from '@renderer/components/Ellipsis'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -18,7 +19,7 @@ import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase } from '@renderer/types'
 import { documentExts, textExts } from '@shared/config/constant'
-import { Alert, Button, Card, Divider, message, Tag, Typography, Upload } from 'antd'
+import { Alert, Button, Card, Divider, message, Tag, Tooltip, Typography, Upload } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -229,7 +230,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               <ItemContent>
                 <ItemInfo>
                   <FileIcon />
-                  <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>{file.origin_name}</ClickableSpan>
+                  <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
+                    <Tooltip title={file.origin_name}>
+                      <Ellipsis text={file.origin_name} />
+                    </Tooltip>
+                  </ClickableSpan>
                 </ItemInfo>
                 <FlexAlignCenter>
                   {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
@@ -258,7 +263,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 <ItemInfo>
                   <FolderOutlined />
                   <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
-                    {item.content as string}
+                    <Tooltip title={item.content as string}>
+                      <Ellipsis text={item.content as string} />
+                    </Tooltip>
                   </ClickableSpan>
                 </ItemInfo>
                 <FlexAlignCenter>
@@ -288,7 +295,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 <ItemInfo>
                   <LinkOutlined />
                   <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                    {item.content as string}
+                    <Tooltip title={item.content as string}>
+                      <Ellipsis text={item.content as string} />
+                    </Tooltip>
                   </a>
                 </ItemInfo>
                 <FlexAlignCenter>
@@ -318,7 +327,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 <ItemInfo>
                   <GlobalOutlined />
                   <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                    {item.content as string}
+                    <Tooltip title={item.content as string}>
+                      <Ellipsis text={item.content as string} />
+                    </Tooltip>
                   </a>
                 </ItemInfo>
                 <FlexAlignCenter>
