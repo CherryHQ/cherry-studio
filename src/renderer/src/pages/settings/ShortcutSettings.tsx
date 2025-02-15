@@ -101,6 +101,53 @@ const ShortcutSettings: FC = () => {
       .join(' + ')
   }
 
+  const usableEndKeys = (key: string): string | null => {
+    if (key.length === 1) {
+      return key.toUpperCase()
+    }
+    switch (key) {
+      case 'Enter':
+      case 'Escape':
+      case 'Backspace':
+      case 'Tab':
+      case 'Delete':
+      case 'PageUp':
+      case 'PageDown':
+      case 'Insert':
+      case 'Home':
+      case 'End':
+      case 'ArrowUp':
+      case 'ArrowDown':
+      case 'ArrowLeft':
+      case 'ArrowRight':
+      case 'F1':
+      case 'F2':
+      case 'F3':
+      case 'F4':
+      case 'F5':
+      case 'F6':
+      case 'F7':
+      case 'F8':
+      case 'F9':
+      case 'F10':
+      case 'F11':
+      case 'F12':
+      case 'F13':
+      case 'F14':
+      case 'F15':
+      case 'F16':
+      case 'F17':
+      case 'F18':
+      case 'F19':
+      case 'F20':
+        return key
+      case ' ':
+        return 'Space'
+      default:
+        return null
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent, record: Shortcut) => {
     e.preventDefault()
 
