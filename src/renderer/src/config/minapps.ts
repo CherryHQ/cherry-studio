@@ -16,7 +16,8 @@ import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
-import NamiAiSearchLogo from '@renderer/assets/images/apps/nm.webp?url'
+import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
+import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
 import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png?url'
@@ -224,7 +225,7 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'nm',
     name: '纳米AI',
-    logo: NamiAiSearchLogo,
+    logo: NamiAiLogo,
     url: 'https://bot.n.cn/',
     bodered: true
   },
