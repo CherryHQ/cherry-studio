@@ -19,6 +19,8 @@ import {
   setCodeShowLineNumbers,
   setCodeStyle,
   setFontSize,
+  setGridColumns,
+  setGridPopoverTrigger,
   setMathEngine,
   setMessageFont,
   setMessageStyle,
@@ -42,13 +44,14 @@ interface Props {
 
 const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
-  const { messageStyle, codeStyle, fontSize, language } = useSettings()
+  const { messageStyle, codeStyle, fontSize, language, gridColumns } = useSettings()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
+  const [gridColumnsValue, setGridColumnsValue] = useState(gridColumns)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const { t } = useTranslation()
 
@@ -69,7 +72,8 @@ const SettingsTab: FC<Props> = (props) => {
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
-    multiModelMessageStyle
+    multiModelMessageStyle,
+    gridPopoverTrigger
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -312,6 +316,34 @@ const SettingsTab: FC<Props> = (props) => {
             <Select.Option value="MathJax">MathJax</Select.Option>
           </Select>
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.grid_popover_trigger')}</SettingRowTitleSmall>
+          <Select
+            value={gridPopoverTrigger || 'hover'}
+            onChange={(value) => dispatch(setGridPopoverTrigger(value))}
+            style={{ width: 135 }}
+            size="small">
+            <Select.Option value="hover">hover</Select.Option>
+            <Select.Option value="click">click</Select.Option>
+          </Select>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.grid_columns')}</SettingRowTitleSmall>
+        </SettingRow>
+        <Row align="middle" gutter={10}>
+          <Col span={24}>
+            <Slider
+              value={gridColumnsValue}
+              onChange={(value) => setGridColumnsValue(value)}
+              onChangeComplete={(value) => dispatch(setGridColumns(value))}
+              min={2}
+              max={9}
+              step={1}
+            />
+          </Col>
+        </Row>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>

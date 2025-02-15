@@ -60,12 +60,16 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const isUserMessage = message.role === 'user'
 
-  const onCopy = useCallback(() => {
-    navigator.clipboard.writeText(removeTrailingDoubleSpaces(message.content))
-    window.message.success({ content: t('message.copied'), key: 'copy-message' })
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }, [message.content, t])
+  const onCopy = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      navigator.clipboard.writeText(removeTrailingDoubleSpaces(message.content))
+      window.message.success({ content: t('message.copied'), key: 'copy-message' })
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    },
+    [message.content, t]
+  )
 
   const onNewBranch = useCallback(async () => {
     await modelGenerating()
@@ -195,14 +199,16 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, onEdit, onNewBranch, t]
   )
 
-  const onRegenerate = async () => {
+  const onRegenerate = async (e: React.MouseEvent | undefined) => {
+    e?.stopPropagation?.()
     await modelGenerating()
     const selectedModel = isGrouped ? model : assistantModel
     const _message = resetAssistantMessage(message, selectedModel)
     onEditMessage?.(_message)
   }
 
-  const onMentionModel = async () => {
+  const onMentionModel = async (e: React.MouseEvent) => {
+    e.stopPropagation()
     await modelGenerating()
     const selectedModel = await SelectModelPopup.show({ model })
     if (!selectedModel) return
@@ -216,9 +222,13 @@ const MessageMenubar: FC<Props> = (props) => {
     onEditMessage?.(_message)
   }
 
-  const onUseful = useCallback(() => {
-    onEditMessage?.({ ...message, useful: !message.useful })
-  }, [message, onEditMessage])
+  const onUseful = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onEditMessage?.({ ...message, useful: !message.useful })
+    },
+    [message, onEditMessage]
+  )
 
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
@@ -270,13 +280,14 @@ const MessageMenubar: FC<Props> = (props) => {
                 key: 'translate-close',
                 onClick: () => onEditMessage?.({ ...message, translatedContent: undefined })
               }
-            ]
+            ],
+            onClick: (e) => e.domEvent.stopPropagation()
           }}
           trigger={['click']}
           placement="topRight"
           arrow>
           <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
-            <ActionButton className="message-action-button">
+            <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
               <TranslationOutlined />
             </ActionButton>
           </Tooltip>
@@ -298,14 +309,25 @@ const MessageMenubar: FC<Props> = (props) => {
         <Tooltip title={t('common.delete')} mouseEnterDelay={1}>
           <ActionButton
             className="message-action-button"
-            onClick={isGrouped ? () => onDeleteMessage?.(message) : undefined}>
+            onClick={
+              isGrouped
+                ? (e) => {
+                    e.stopPropagation()
+                    onDeleteMessage?.(message)
+                  }
+                : (e) => e.stopPropagation()
+            }>
             <DeleteOutlined />
           </ActionButton>
         </Tooltip>
       </Popconfirm>
       {!isUserMessage && (
-        <Dropdown menu={{ items: dropdownItems }} trigger={['click']} placement="topRight" arrow>
-          <ActionButton className="message-action-button">
+        <Dropdown
+          menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
+          trigger={['click']}
+          placement="topRight"
+          arrow>
+          <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
             <MenuOutlined />
           </ActionButton>
         </Dropdown>
