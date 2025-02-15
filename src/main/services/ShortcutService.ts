@@ -79,11 +79,11 @@ export function registerShortcuts(window: BrowserWindow) {
 
         const accelerator = formatShortcutKey(shortcut.shortcut)
 
-        if (shortcut.key === 'show_app') {
+        if (shortcut.key === 'show_app' && shortcut.enabled) {
           showAppAccelerator = accelerator
         }
 
-        if (shortcut.key === 'mini_window') {
+        if (shortcut.key === 'mini_window' && shortcut.enabled) {
           showMiniWindowAccelerator = accelerator
         }
 
