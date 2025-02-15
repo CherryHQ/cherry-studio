@@ -136,7 +136,10 @@
       "topics.pinned": "固定話題",
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
-      "translate": "翻譯"
+      "translate": "翻譯",
+      "topics.prompt": "話題提示詞",
+      "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
+      "topics.prompt.edit.title": "編輯話題提示詞"
     },
     "common": {
       "add": "添加",

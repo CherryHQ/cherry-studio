@@ -118,8 +118,12 @@ const MessageItem: FC<Props> = ({
   useEffect(() => {
     if (topic && onGetMessages && onSetMessages) {
       if (message.status === 'sending') {
+        const _assistant = {
+          ...assistant,
+          prompt: `${assistant?.prompt || ''}\n${topic?.prompt || ''}`
+        }
         const messages = onGetMessages()
-        const assistantWithModel = message.model ? { ...assistant, model: message.model } : assistant
+        const assistantWithModel = message.model ? { ..._assistant, model: message.model } : _assistant
 
         fetchChatCompletion({
           message,

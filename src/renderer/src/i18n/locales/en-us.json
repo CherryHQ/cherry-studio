@@ -136,7 +136,10 @@
       "topics.pinned": "Pinned Topics",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "translate": "Translate",
+      "topics.prompt": "Topic Prompts",
+      "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
+      "topics.prompt.edit.title": "Edit Topic Prompts"
     },
     "common": {
       "add": "Add",
