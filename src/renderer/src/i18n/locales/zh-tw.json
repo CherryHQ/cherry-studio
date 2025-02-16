@@ -297,8 +297,8 @@
       "url_added": "網址已添加",
       "url_placeholder": "請輸入網址, 多個網址用回車分隔",
       "urls": "網址",
-      "threshold_tooltip": "匹配度閾值",
-      "threshold_placeholder": "預設值(0.0)",
+      "threshold_tooltip": "用於衡量用戶問題與知識庫內容之間的相關性（0-1）",
+      "threshold_placeholder": "未設置",
       "threshold_too_large_or_small": "閾值不能大於1或小於0",
       "no_match": "未匹配到知識庫內容",
       "threshold": "匹配度閾值"

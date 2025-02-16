@@ -297,8 +297,8 @@
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
       "urls": "URLs",
-      "threshold_tooltip": "Match threshold",
-      "threshold_placeholder": "Default value (0.0)",
+      "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
+      "threshold_placeholder": "Not set",
       "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
       "no_match": "No matching content found in the knowledge base.",
       "threshold": "Matching threshold"

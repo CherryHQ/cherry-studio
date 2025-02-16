@@ -68,7 +68,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         documentCount: values.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
         chunkSize: values.chunkSize,
         chunkOverlap: values.chunkOverlap,
-        threshold: values.threshold
+        threshold: values.threshold ?? undefined
       }
       updateKnowledgeBase(newBase)
       setOpen(false)
@@ -191,7 +191,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
               }
             }
           ]}>
-          <Input placeholder={t('knowledge.threshold_placeholder')} />
+          <InputNumber placeholder={t('knowledge.threshold_placeholder')} step={0.1} style={{ width: '100%' }} />
         </Form.Item>
       </Form>
       <Alert message={t('knowledge.chunk_size_change_warning')} type="warning" showIcon icon={<WarningOutlined />} />
