@@ -74,6 +74,7 @@
     "@strongtz/win32-arm64-msvc": "^0.4.7",
     "@tanstack/react-query": "^5.27.0",
     "@types/react-infinite-scroll-component": "^5.0.0",
+    "allotment": "^1.20.3",
     "archiver": "^7.0.1",
     "async-mutex": "^0.5.0",
     "color": "^5.0.0",

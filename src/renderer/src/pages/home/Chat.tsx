@@ -6,6 +6,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
+import { Allotment } from 'allotment'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import React, { FC, useMemo, useState } from 'react'
@@ -16,6 +17,7 @@ import Inputbar from './Inputbar/Inputbar'
 import { ChatProvider, useChatContext } from './Messages/ChatContext'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
+import { useSidebarResize } from './useSidebarResize'
 
 interface Props {
   assistant: Assistant
@@ -104,41 +106,49 @@ const ChatContent: FC<Props> = (props) => {
     setTimeout(() => (firstUpdateCompleted = true), 300)
     firstUpdateOrNoFirstUpdateHandler()
   }
+  const { sizes, handleSidebarResize } = useSidebarResize()
 
   return (
     <Container id="chat" className={messageStyle}>
-      <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ maxWidth }}>
-        <ContentSearch
-          ref={contentSearchRef}
-          searchTarget={mainRef as React.RefObject<HTMLElement>}
-          filter={contentSearchFilter}
-          includeUser={filterIncludeUser}
-          onIncludeUserChange={userOutlinedItemClickHandler}
-        />
-        <MessagesContainer>
-          <Messages
-            key={props.activeTopic.id}
-            assistant={assistant}
-            topic={props.activeTopic}
-            setActiveTopic={props.setActiveTopic}
-            onComponentUpdate={messagesComponentUpdateHandler}
-            onFirstUpdate={messagesComponentFirstUpdateHandler}
-          />
-        </MessagesContainer>
-        <QuickPanelProvider>
-          <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-          {isMultiSelectMode && <MultiSelectActionPopup />}
-        </QuickPanelProvider>
-      </Main>
-      {topicPosition === 'right' && showTopics && (
-        <Tabs
-          activeAssistant={assistant}
-          activeTopic={props.activeTopic}
-          setActiveAssistant={props.setActiveAssistant}
-          setActiveTopic={props.setActiveTopic}
-          position="right"
-        />
-      )}
+      <Allotment onChange={handleSidebarResize}>
+        <Allotment.Pane minSize={406}>
+          <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ maxWidth }}>
+            <ContentSearch
+              ref={contentSearchRef}
+              searchTarget={mainRef as React.RefObject<HTMLElement>}
+              filter={contentSearchFilter}
+              includeUser={filterIncludeUser}
+              onIncludeUserChange={userOutlinedItemClickHandler}
+            />
+            <MessagesContainer>
+              <Messages
+                key={props.activeTopic.id}
+                assistant={assistant}
+                topic={props.activeTopic}
+                setActiveTopic={props.setActiveTopic}
+                onComponentUpdate={messagesComponentUpdateHandler}
+                onFirstUpdate={messagesComponentFirstUpdateHandler}
+              />
+            </MessagesContainer>
+            <QuickPanelProvider>
+              <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+              {isMultiSelectMode && <MultiSelectActionPopup />}
+            </QuickPanelProvider>
+          </Main>
+        </Allotment.Pane>
+        {topicPosition === 'right' && showTopics && (
+          <Allotment.Pane preferredSize={275} minSize={180}>
+            <Tabs
+              activeAssistant={assistant}
+              activeTopic={props.activeTopic}
+              setActiveAssistant={props.setActiveAssistant}
+              setActiveTopic={props.setActiveTopic}
+              position="right"
+              sizes={sizes}
+            />
+          </Allotment.Pane>
+        )}
+      </Allotment>
     </Container>
   )
 }

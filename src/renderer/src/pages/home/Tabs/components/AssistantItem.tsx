@@ -115,10 +115,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
           agent.id = uuid()
           agent.type = 'agent'
           addAgent(agent)
-          window.message.success({
-            content: t('assistants.save.success'),
-            key: 'save-to-agent'
-          })
+          window.message.success({ content: t('assistants.save.success'), key: 'save-to-agent' })
         }
       },
       {
@@ -136,11 +133,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
             key: 'emoji',
             onClick: () => setAssistantIconType('emoji')
           },
-          {
-            label: t('settings.assistant.icon.type.none'),
-            key: 'none',
-            onClick: () => setAssistantIconType('none')
-          }
+          { label: t('settings.assistant.icon.type.none'), key: 'none', onClick: () => setAssistantIconType('none') }
         ]
       },
       { type: 'divider' },
@@ -206,7 +199,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
 
   return (
     <Dropdown menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
-      <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
+      <Container onClick={handleSwitch} className={isActive ? 'active' : ''} style={{ width: '100%' }}>
         <AssistantNameRow className="name" title={fullAssistantName}>
           {assistantIconType === 'model' ? (
             <ModelAvatar

@@ -22,6 +22,7 @@ interface Props {
   position: 'left' | 'right'
   forceToSeeAllTab?: boolean
   style?: React.CSSProperties
+  sizes?: number[]
 }
 
 type Tab = 'assistants' | 'topic' | 'settings'
@@ -35,7 +36,8 @@ const HomeTabs: FC<Props> = ({
   setActiveTopic,
   position,
   forceToSeeAllTab,
-  style
+  style,
+  sizes
 }) => {
   const { addAssistant } = useAssistants()
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
@@ -45,20 +47,13 @@ const HomeTabs: FC<Props> = ({
 
   const { t } = useTranslation()
 
-  const borderStyle = '0.5px solid var(--color-border)'
-  const border =
-    position === 'left' ? { borderRight: borderStyle } : { borderLeft: borderStyle, borderTopLeftRadius: 0 }
-
   if (position === 'left' && topicPosition === 'left') {
     _tab = tab
   }
 
   const showTab = !(position === 'left' && topicPosition === 'right')
 
-  const assistantTab = {
-    label: t('assistants.abbr'),
-    value: 'assistants'
-  }
+  const assistantTab = { label: t('assistants.abbr'), value: 'assistants' }
 
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
@@ -102,9 +97,10 @@ const HomeTabs: FC<Props> = ({
   }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
-    <Container style={{ ...border, ...style }} className="home-tabs">
+    <Container style={style} className="home-tabs">
       {(showTab || (forceToSeeAllTab == true && !showTopics)) && (
         <Segmented
+          key={sizes?.join(',')}
           value={tab}
           style={{ borderRadius: 16, paddingTop: 10, margin: '0 10px', gap: 2 }}
           options={
@@ -112,14 +108,8 @@ const HomeTabs: FC<Props> = ({
               (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
                 ? assistantTab
                 : undefined,
-              {
-                label: t('common.topics'),
-                value: 'topic'
-              },
-              {
-                label: t('settings.title'),
-                value: 'settings'
-              }
+              { label: t('common.topics'), value: 'topic' },
+              { label: t('settings.title'), value: 'settings' }
             ].filter(Boolean) as SegmentedProps['options']
           }
           onChange={(value) => setTab(value as 'topic' | 'settings')}
@@ -147,8 +137,7 @@ const HomeTabs: FC<Props> = ({
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  max-width: var(--assistants-width);
-  min-width: var(--assistants-width);
+  width: '100%';
   background-color: var(--color-background);
   overflow: hidden;
   .collapsed {
