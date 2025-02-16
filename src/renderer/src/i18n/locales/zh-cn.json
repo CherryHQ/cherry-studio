@@ -97,6 +97,7 @@
       "input.upload": "上传图片或文档",
       "input.upload.document": "上传文档（模型不支持图片）",
       "input.web_search": "开启网络搜索",
+      "input.file_not_supported": "模型不支持此文件类型",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -109,7 +110,7 @@
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
       "settings.max_tokens": "开启消息长度限制",
-      "settings.max_tokens.tip": "单次交互所用的最大 Token 数, 会影响返回结果的长度。普通聊天建议 500-800；短文生成建议 800-2000；代码生成建议 2000-3600；长文生成建议切换模型到 4000 左右",
+      "settings.max_tokens.tip": "单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "settings.reset": "重置",
       "settings.set_as_default": "应用到默认助手",
       "settings.show_line_numbers": "代码显示行号",
@@ -117,6 +118,8 @@
       "settings.temperature.tip": "模型生成文本的随机程度。值越大，回复内容越赋有多样性、创造性、随机性；设为 0 根据事实回答。日常聊天建议设置为 0.7",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇围越大，越多样化",
+      "settings.max_tokens.confirm": "开启消息长度限制",
+      "settings.max_tokens.confirm_content": "开启消息长度限制后，单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "suggestions.title": "建议的问题",
       "thinking": "思考中",
       "topics.auto_rename": "生成话题名",
@@ -133,7 +136,10 @@
       "topics.pinned": "固定话题",
       "topics.title": "话题",
       "topics.unpinned": "取消固定",
-      "translate": "翻译"
+      "translate": "翻译",
+      "topics.prompt": "话题提示词",
+      "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词",
+      "topics.prompt.edit.title": "编辑话题提示词"
     },
     "common": {
       "add": "添加",
@@ -269,6 +275,7 @@
       "invalid_url": "无效的网址",
       "model_info": "模型信息",
       "no_bases": "暂无知识库",
+      "no_match": "未匹配到知识库内容",
       "no_provider": "知识库模型服务商丢失，该知识库将不再支持，请重新创建知识库",
       "not_set": "未设置",
       "not_support": "知识库数据库引擎已更新，该知识库将不再支持，请重新创建知识库",
@@ -287,9 +294,13 @@
       "status_new": "已添加",
       "status_pending": "等待中",
       "status_processing": "处理中",
+      "threshold": "匹配度阈值",
+      "threshold_tooltip": "用于衡量用户问题与知识库内容之间的相关性（0-1）",
+      "threshold_placeholder": "未设置",
+      "threshold_too_large_or_small": "阈值不能大于1或小于0",
       "title": "知识库",
       "url_added": "网址已添加",
-      "url_placeholder": "请输入网址",
+      "url_placeholder": "请输入网址, 多个网址用回车分隔",
       "urls": "网址"
     },
     "languages": {
@@ -436,6 +447,12 @@
       "keep_alive_time.title": "保持活跃时间",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
+      "keep_alive_time.placeholder": "分钟",
+      "keep_alive_time.title": "保持活跃时间",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "删除图片",
       "button.delete.image.confirm": "确定要删除此图片吗?",
@@ -463,14 +480,18 @@
       "title": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号"
     },
     "provider": {
+      "infini": "无问芯穹",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "百川",
       "baidu-cloud": "百度云千帆",
       "dashscope": "阿里云百炼",
+      "modelscope": "ModelScope 魔搭",
       "deepseek": "深度求索",
-      "doubao": "豆包",
+      "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",
@@ -487,6 +508,7 @@
       "nvidia": "英伟达",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "ppio": "PPIO 派欧云",
@@ -539,6 +561,14 @@
         "notion.api_key": "Notion 密钥",
         "notion.database_id": "Notion 数据库ID",
         "notion.title": "Notion 配置",
+        "notion.check": {
+          "button": "检查",
+          "fail": "连接失败，请检查配置",
+          "success": "连接成功",
+          "error": "连接异常，请检查网络",
+          "empty_api_key": "未配置Api_key",
+          "empty_database_id": "未配置Database_id"
+        },
         "title": "数据设置",
         "webdav.autoSync": "自动备份",
         "webdav.autoSync.off": "关闭",
@@ -738,6 +768,9 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "docs": {
+      "title": "帮助文档"
     }
   }
 }

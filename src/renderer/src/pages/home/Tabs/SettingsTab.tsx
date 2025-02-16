@@ -30,6 +30,7 @@ import {
   setShowMessageDivider
 } from '@renderer/store/settings'
 import { Assistant, AssistantSettings, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { modalConfirm } from '@renderer/utils'
 import { Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -177,7 +178,7 @@ const SettingsTab: FC<Props> = (props) => {
           />
         </SettingRow>
         <SettingDivider />
-        <Row align="middle" justify="space-between">
+        <Row align="middle" justify="space-between" style={{ marginBottom: 10 }}>
           <HStack alignItems="center">
             <Label>{t('chat.settings.max_tokens')}</Label>
             <Tooltip title={t('chat.settings.max_tokens.tip')}>
@@ -187,25 +188,39 @@ const SettingsTab: FC<Props> = (props) => {
           <Switch
             size="small"
             checked={enableMaxTokens}
-            onChange={(enabled) => {
+            onChange={async (enabled) => {
+              if (enabled) {
+                const confirmed = await modalConfirm({
+                  title: t('chat.settings.max_tokens.confirm'),
+                  content: t('chat.settings.max_tokens.confirm_content'),
+                  okButtonProps: {
+                    danger: true
+                  }
+                })
+                if (!confirmed) return
+              }
               setEnableMaxTokens(enabled)
               onUpdateAssistantSettings({ enableMaxTokens: enabled })
             }}
           />
         </Row>
-        <Row align="middle" gutter={10}>
-          <Col span={24}>
-            <Slider
-              disabled={!enableMaxTokens}
-              min={0}
-              max={32000}
-              onChange={setMaxTokens}
-              onChangeComplete={onMaxTokensChange}
-              value={typeof maxTokens === 'number' ? maxTokens : 0}
-              step={100}
-            />
-          </Col>
-        </Row>
+        {enableMaxTokens && (
+          <Row align="middle" gutter={10}>
+            <Col span={24}>
+              <InputNumber
+                disabled={!enableMaxTokens}
+                min={0}
+                max={10000000}
+                step={100}
+                value={typeof maxTokens === 'number' ? maxTokens : 0}
+                changeOnBlur
+                onChange={(value) => value && setMaxTokens(value)}
+                onBlur={() => onMaxTokensChange(maxTokens)}
+                style={{ width: '100%' }}
+              />
+            </Col>
+          </Row>
+        )}
       </SettingGroup>
       <SettingGroup>
         <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.title')}</SettingSubtitle>

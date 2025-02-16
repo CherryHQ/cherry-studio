@@ -8,7 +8,7 @@ import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@r
 import { Shortcut } from '@renderer/types'
 import { Button, Input, InputRef, Switch, Table as AntTable, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { FC, useRef, useState } from 'react'
+import React, { FC, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -92,13 +92,146 @@ const ShortcutSettings: FC = () => {
             return isMac ? '⇧' : 'Shift'
           case 'CommandOrControl':
             return isMac ? '⌘' : 'Ctrl'
-          case ' ':
-            return 'Space'
+          case 'ArrowUp':
+            return '↑'
+          case 'ArrowDown':
+            return '↓'
+          case 'ArrowLeft':
+            return '←'
+          case 'ArrowRight':
+            return '→'
+          case 'Slash':
+            return '/'
+          case 'Semicolon':
+            return ';'
+          case 'BracketLeft':
+            return '['
+          case 'BracketRight':
+            return ']'
+          case 'Backslash':
+            return '\\'
+          case 'Quote':
+            return "'"
+          case 'Comma':
+            return ','
+          case 'Minus':
+            return '-'
+          case 'Equal':
+            return '='
           default:
             return key.charAt(0).toUpperCase() + key.slice(1)
         }
       })
       .join(' + ')
+  }
+
+  const usableEndKeys = (event: React.KeyboardEvent): string | null => {
+    const { code } = event
+    // No lock keys
+    // Among the commonly used keys, not including: Escape, NumpadMultiply, NumpadDivide, NumpadSubtract, NumpadAdd, NumpadDecimal
+    // The react-hotkeys-hook library does not differentiate between `Digit` and `Numpad`
+    switch (code) {
+      case 'KeyA':
+      case 'KeyB':
+      case 'KeyC':
+      case 'KeyD':
+      case 'KeyE':
+      case 'KeyF':
+      case 'KeyG':
+      case 'KeyH':
+      case 'KeyI':
+      case 'KeyJ':
+      case 'KeyK':
+      case 'KeyL':
+      case 'KeyM':
+      case 'KeyN':
+      case 'KeyO':
+      case 'KeyP':
+      case 'KeyQ':
+      case 'KeyR':
+      case 'KeyS':
+      case 'KeyT':
+      case 'KeyU':
+      case 'KeyV':
+      case 'KeyW':
+      case 'KeyX':
+      case 'KeyY':
+      case 'KeyZ':
+      case 'Digit0':
+      case 'Digit1':
+      case 'Digit2':
+      case 'Digit3':
+      case 'Digit4':
+      case 'Digit5':
+      case 'Digit6':
+      case 'Digit7':
+      case 'Digit8':
+      case 'Digit9':
+      case 'Numpad0':
+      case 'Numpad1':
+      case 'Numpad2':
+      case 'Numpad3':
+      case 'Numpad4':
+      case 'Numpad5':
+      case 'Numpad6':
+      case 'Numpad7':
+      case 'Numpad8':
+      case 'Numpad9':
+        return code.slice(-1)
+      case 'Space':
+      case 'Enter':
+      case 'Backspace':
+      case 'Tab':
+      case 'Delete':
+      case 'PageUp':
+      case 'PageDown':
+      case 'Insert':
+      case 'Home':
+      case 'End':
+      case 'ArrowUp':
+      case 'ArrowDown':
+      case 'ArrowLeft':
+      case 'ArrowRight':
+      case 'F1':
+      case 'F2':
+      case 'F3':
+      case 'F4':
+      case 'F5':
+      case 'F6':
+      case 'F7':
+      case 'F8':
+      case 'F9':
+      case 'F10':
+      case 'F11':
+      case 'F12':
+      case 'F13':
+      case 'F14':
+      case 'F15':
+      case 'F16':
+      case 'F17':
+      case 'F18':
+      case 'F19':
+        return code
+      case 'Backquote':
+        return '`'
+      case 'Period':
+        return '.'
+      case 'NumpadEnter':
+        return 'Enter'
+      // The react-hotkeys-hook library does not handle the symbol strings for the following keys
+      case 'Slash':
+      case 'Semicolon':
+      case 'BracketLeft':
+      case 'BracketRight':
+      case 'Backslash':
+      case 'Quote':
+      case 'Comma':
+      case 'Minus':
+      case 'Equal':
+        return code
+      default:
+        return null
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent, record: Shortcut) => {
@@ -109,15 +242,9 @@ const ShortcutSettings: FC = () => {
     if (e.metaKey) keys.push('Command')
     if (e.altKey) keys.push('Alt')
     if (e.shiftKey) keys.push('Shift')
-
-    const key = e.key
-
-    if (key.length === 1 && !['Control', 'Alt', 'Shift', 'Meta'].includes(key)) {
-      if (key === ' ') {
-        keys.push('Space')
-      } else {
-        keys.push(key.toUpperCase())
-      }
+    const endKey = usableEndKeys(e)
+    if (endKey) {
+      keys.push(endKey)
     }
 
     if (!isValidShortcut(keys)) {

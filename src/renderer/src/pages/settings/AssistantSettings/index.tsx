@@ -2,6 +2,7 @@ import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAgent } from '@renderer/hooks/useAgents'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { Assistant } from '@renderer/types'
 import { Menu, Modal } from 'antd'
 import { useState } from 'react'
@@ -34,6 +35,8 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
   const updateAssistant = isAgent ? _useAgent.updateAgent : _useAssistant.updateAssistant
   const updateAssistantSettings = isAgent ? _useAgent.updateAgentSettings : _useAssistant.updateAssistantSettings
 
+  const showKnowledgeIcon = useSidebarIconShow('knowledge')
+
   const onOk = () => {
     setOpen(false)
   }
@@ -59,11 +62,11 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
       key: 'messages',
       label: t('assistants.settings.preset_messages')
     },
-    {
+    showKnowledgeIcon && {
       key: 'knowledge_base',
       label: t('assistants.settings.knowledge_base')
     }
-  ]
+  ].filter(Boolean) as { key: string; label: string }[]
 
   return (
     <StyledModal
@@ -120,7 +123,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
               updateAssistantSettings={updateAssistantSettings}
             />
           )}
-          {menu === 'knowledge_base' && (
+          {menu === 'knowledge_base' && showKnowledgeIcon && (
             <AssistantKnowledgeBaseSettings
               assistant={assistant}
               updateAssistant={updateAssistant}

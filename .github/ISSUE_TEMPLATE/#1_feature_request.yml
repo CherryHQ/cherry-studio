@@ -23,6 +23,27 @@ body:
         - label: 最新的 Cherry Studio 版本没有实现我所提出的功能。
           required: true
 
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      description: 您正在使用哪个平台？
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 您正在运行的 Cherry Studio 版本是什么？
+      placeholder: 例如 v1.0.0
+    validations:
+      required: true
+
   - type: textarea
     id: problem
     attributes:

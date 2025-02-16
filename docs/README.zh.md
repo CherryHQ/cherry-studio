@@ -13,7 +13,7 @@
 
 Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客户端，兼容 Windows、Mac 和 Linux 系统。
 
-👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(534635975)](https://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=mPMbCwUo40lYODSp-SUeY9ju9sSBeMbS&authKey=Tt8SyX2p4i1Aopn2OzPwi88tc81AW%2F4m%2Fkt4ETHTPGnM6TKOXuRxKJuUMWu5Hgay&noverify=0&group_code=534635975)
+👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(1022779719)](https://qm.qq.com/q/Qtw8As0cwe)
 
 ❤️ 喜欢 Cherry Studio? 点亮小星星 🌟 或 [赞助开发者](sponsor.md)! ❤️
 
@@ -31,7 +31,7 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
    - ☁️ 支持主流 LLM 云服务：OpenAI、Gemini、Anthropic、硅基流动等
    - 🔗 集成流行 AI Web 服务：Claude、Peplexity、Poe、腾讯元宝、知乎直答等
-   - 💻 支持 Ollama 本地模型部署
+   - 💻 支持 Ollama、LM Studio 本地模型部署
 
 2. **智能助手与对话**：
 

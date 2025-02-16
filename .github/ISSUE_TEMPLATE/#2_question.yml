@@ -20,6 +20,27 @@ body:
         - label: 正确填写了 Issue 标题。
           required: true
 
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      description: 您正在使用哪个平台？
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 您正在运行的 Cherry Studio 版本是什么？
+      placeholder: 例如 v1.0.0
+    validations:
+      required: true
+
   - type: textarea
     id: question
     attributes:

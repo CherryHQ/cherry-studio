@@ -70,6 +70,7 @@ jobs:
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
 
       - name: Build Mac
         if: matrix.os == 'macos-latest'
@@ -82,6 +83,7 @@ jobs:
           APPLE_ID: ${{ vars.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ vars.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Windows
@@ -89,6 +91,7 @@ jobs:
         run: yarn build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
 
       - name: Replace spaces in filenames
         run: node scripts/replace-spaces.js

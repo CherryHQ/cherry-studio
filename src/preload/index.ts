@@ -71,8 +71,8 @@ const api = {
       item: KnowledgeItem
       forceReload?: boolean
     }) => ipcRenderer.invoke('knowledge-base:add', { base, item, forceReload }),
-    remove: ({ uniqueId, base }: { uniqueId: string; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke('knowledge-base:remove', { uniqueId, base }),
+    remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
+      ipcRenderer.invoke('knowledge-base:remove', { uniqueId, uniqueIds, base }),
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) =>
       ipcRenderer.invoke('knowledge-base:search', { search, base })
   },

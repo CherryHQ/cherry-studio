@@ -49,20 +49,20 @@ export const exportTopicToNotion = async (topic: Topic) => {
     return
   }
   try {
-    const notion = new Client({ auth: notionApiKey });
-    const markdown = await topicToMarkdown(topic);
+    const notion = new Client({ auth: notionApiKey })
+    const markdown = await topicToMarkdown(topic)
     const requestBody = JSON.stringify({ md: markdown })
 
     const res = await fetch('https://md2notion.hilars.dev', {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json'
-       },
-       body: requestBody
-     });
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: requestBody
+    })
 
-     const data = await res.json();
-     const notionBlocks = data; 
+    const data = await res.json()
+    const notionBlocks = data
 
     const response = await notion.pages.create({
       parent: { database_id: notionDatabaseID },
@@ -72,12 +72,11 @@ export const exportTopicToNotion = async (topic: Topic) => {
         }
       },
       children: notionBlocks // 使用转换后的块
-    });
+    })
 
     window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
     return response
-
-  } catch (error:any) {
+  } catch (error: any) {
     window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-error' })
     return null
   } finally {
@@ -85,4 +84,4 @@ export const exportTopicToNotion = async (topic: Topic) => {
       isExporting: false
     })
   }
-};
+}

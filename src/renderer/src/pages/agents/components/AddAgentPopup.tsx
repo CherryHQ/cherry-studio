@@ -5,6 +5,7 @@ import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
 import { useAgents } from '@renderer/hooks/useAgents'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppSelector } from '@renderer/store'
@@ -14,6 +15,7 @@ import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps 
 import TextArea from 'antd/es/input/TextArea'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import stringWidth from 'string-width'
 
 interface Props {
   resolve: (data: Agent | null) => void
@@ -36,6 +38,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [loading, setLoading] = useState(false)
   const knowledgeState = useAppSelector((state) => state.knowledge)
   const knowledgeOptions: SelectProps['options'] = []
+  const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
   knowledgeState.bases.forEach((base) => {
     knowledgeOptions.push({
@@ -104,6 +107,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     setLoading(false)
   }
 
+  // Compute label width based on the longest label
+  const labelWidth = [t('agents.add.name'), t('agents.add.prompt'), t('agents.add.knowledge_base')]
+    .map((labelText) => stringWidth(labelText) * 8)
+    .reduce((maxWidth, currentWidth) => Math.max(maxWidth, currentWidth), 80)
+
   return (
     <Modal
       title={t('agents.add.title')}
@@ -117,7 +125,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <Form
         ref={formRef}
         form={form}
-        labelCol={{ flex: '80px' }}
+        labelCol={{ flex: `${labelWidth}px` }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}
@@ -145,14 +153,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             disabled={loading}
           />
         </div>
-        <Form.Item name="knowledge_base_id" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
-          <Select
-            allowClear
-            placeholder={t('agents.add.knowledge_base.placeholder')}
-            menuItemSelectedIcon={<CheckOutlined />}
-            options={knowledgeOptions}
-          />
-        </Form.Item>
+        {showKnowledgeIcon && (
+          <Form.Item name="knowledge_base_id" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
+            <Select
+              allowClear
+              placeholder={t('agents.add.knowledge_base.placeholder')}
+              menuItemSelectedIcon={<CheckOutlined />}
+              options={knowledgeOptions}
+            />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   )

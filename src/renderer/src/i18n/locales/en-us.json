@@ -97,6 +97,7 @@
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
       "input.web_search": "Enable web search",
+      "input.file_not_supported": "Model does not support this file type",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
       "message.new.context": "New Context",
@@ -109,7 +110,7 @@
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
       "settings.max_tokens": "Enable max tokens limit",
-      "settings.max_tokens.tip": "The maximum number of tokens the model can generate. Normal chat suggests 500-800. Short text generation suggests 800-2000. Code generation suggests 2000-3600. Long text generation suggests above 4000.",
+      "settings.max_tokens.tip": "The maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
       "settings.reset": "Reset",
       "settings.set_as_default": "Apply to default assistant",
       "settings.show_line_numbers": "Show line numbers in code",
@@ -117,6 +118,8 @@
       "settings.temperature.tip": "Higher values make the model more creative and unpredictable, while lower values make it more deterministic and precise.",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
+      "settings.max_tokens.confirm": "Enable max tokens limit",
+      "settings.max_tokens.confirm_content": "Enable max tokens limit, affects the length of the result. Need to consider the context limit of the model, otherwise an error will be reported",
       "suggestions.title": "Suggested Questions",
       "thinking": "Thinking",
       "topics.auto_rename": "Auto Rename",
@@ -133,7 +136,10 @@
       "topics.pinned": "Pinned Topics",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "translate": "Translate",
+      "topics.prompt": "Topic Prompts",
+      "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
+      "topics.prompt.edit.title": "Edit Topic Prompts"
     },
     "common": {
       "add": "Add",
@@ -171,7 +177,8 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "footnote": "Reference content"
     },
     "error": {
       "backup.file_format": "Backup file format error",
@@ -288,8 +295,13 @@
       "status_processing": "Processing",
       "title": "Knowledge Base",
       "url_added": "URL added",
-      "url_placeholder": "Enter URL",
-      "urls": "URLs"
+      "url_placeholder": "Enter URL, multiple URLs separated by Enter",
+      "urls": "URLs",
+      "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
+      "threshold_placeholder": "Not set",
+      "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
+      "no_match": "No matching content found in the knowledge base.",
+      "threshold": "Matching threshold"
     },
     "languages": {
       "arabic": "Arabic",
@@ -337,8 +349,6 @@
       "error.enter.model": "Please select a model first",
       "error.enter.name": "Please enter the name of the knowledge base",
       "error.get_embedding_dimensions": "Failed to get embedding dimensions",
-      "error.invalid.enter.api.host": "Please enter a valid API host",
-      "error.invalid.enter.api.key": "Please enter a valid API key",
       "error.invalid.enter.model": "Please select a model",
       "error.invalid.proxy.url": "Invalid proxy URL",
       "error.invalid.webdav": "Invalid WebDAV settings",
@@ -350,7 +360,7 @@
       "message.code_style": "Code style",
       "message.delete.content": "Are you sure you want to delete this message?",
       "message.delete.title": "Delete Message",
-      "message.multi_model_style": "Multi-model answer style",
+      "message.multi_model_style": "Group style",
       "message.multi_model_style.fold": "Fold",
       "message.multi_model_style.horizontal": "Horizontal",
       "message.multi_model_style.vertical": "Vertical",
@@ -369,7 +379,9 @@
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Notion is importing, please do not import repeatedly"
+      "warn.notion.exporting": "Notion is importing, please do not import repeatedly",
+      "error.invalid.api.host": "Invalid API Host",
+      "error.invalid.api.key": "Invalid API Key"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -435,6 +447,12 @@
       "keep_alive_time.title": "Keep Alive Time",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
+      "keep_alive_time.placeholder": "Minutes",
+      "keep_alive_time.title": "Keep Alive Time",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "Delete Image",
       "button.delete.image.confirm": "Are you sure you want to delete this image?",
@@ -462,14 +480,18 @@
       "title": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols."
     },
     "provider": {
+      "infini": "Infini",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "Baichuan",
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
+      "modelscope": "ModelScope",
       "deepseek": "DeepSeek",
-      "doubao": "Doubao",
+      "doubao": "Volcengine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",
@@ -486,6 +508,7 @@
       "nvidia": "Nvidia",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "ppio": "PPIO",
@@ -498,7 +521,6 @@
       "zhipu": "ZHIPU AI"
     },
     "settings": {
-      "": "MinApp that have been added to the sidebar do not support hiding. If you want to hide them, please remove them from the sidebar first.",
       "about": "About & Feedback",
       "about.checkingUpdate": "Checking for updates...",
       "about.checkUpdate": "Check Update",
@@ -539,16 +561,22 @@
         "notion.api_key": "Notion API Key",
         "notion.database_id": "Notion Database ID",
         "notion.title": "Notion Configuration",
+        "notion.check": {
+          "button": "Check",
+          "fail": "Connection failed, please check the configuration",
+          "success": "Connection successful",
+          "error": "Connection error, please check the network",
+          "empty_api_key": "Api_key is not configured",
+          "empty_database_id": "Database_id is not configured"
+        },
         "title": "Data Settings",
         "webdav.autoSync": "Auto Backup",
         "webdav.autoSync.off": "Off",
         "webdav.backup.button": "Backup to WebDAV",
         "webdav.host": "WebDAV Host",
         "webdav.host.placeholder": "http://localhost:8080",
-        "webdav.hour": "Hour",
         "webdav.hours": "Hours",
         "webdav.lastSync": "Last Backup",
-        "webdav.minute": "Minute",
         "webdav.minutes": "Minutes",
         "webdav.noSync": "Waiting for next backup",
         "webdav.password": "WebDAV Password",
@@ -607,7 +635,7 @@
       "messages.input.show_estimated_tokens": "Show estimated tokens",
       "messages.input.title": "Input Settings",
       "messages.markdown_rendering_input_message": "Markdown render input message",
-      "messages.math_engine": "Math render engine",
+      "messages.math_engine": "Math engine",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.model.title": "Model Settings",
       "messages.title": "Message Settings",
@@ -662,17 +690,6 @@
         "search_placeholder": "Search model id or name",
         "title": "Model Provider"
       },
-      "provider.api.url.preview": "Preview: {{url}}",
-      "provider.api.url.reset": "Reset",
-      "provider.api.url.tip": "Ending with / ignores v1, ending with # forces use of input address",
-      "provider.api_host": "API Host",
-      "provider.api_key": "API Key",
-      "provider.api_key.tip": "Multiple keys separated by commas",
-      "provider.api_version": "API Version",
-      "provider.check": "Check",
-      "provider.docs_check": "Check",
-      "provider.docs_more_details": "for more details",
-      "provider.search_placeholder": "Search model id or name",
       "proxy": {
         "mode": {
           "custom": "Custom Proxy",
@@ -751,6 +768,9 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "docs": {
+      "title": "Docs"
     }
   }
 }

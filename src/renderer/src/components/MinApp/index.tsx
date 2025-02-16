@@ -257,5 +257,6 @@ export default class MinApp {
     TopView.hide('MinApp')
     store.dispatch(setMinappShow(false))
     MinApp.app = null
+    MinApp.onClose = () => {}
   }
 }

@@ -1,6 +1,12 @@
-import { FileSearchOutlined, FolderOutlined, PictureOutlined, TranslationOutlined } from '@ant-design/icons'
+import {
+  FileSearchOutlined,
+  FolderOutlined,
+  PictureOutlined,
+  QuestionCircleOutlined,
+  TranslationOutlined
+} from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
-import { isLocalAi, UserAvatar } from '@renderer/config/env'
+import { AppLogo, isLocalAi, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -42,6 +48,14 @@ const Sidebar: FC = () => {
     navigate(path)
   }
 
+  const onOpenDocs = () => {
+    MinApp.start({
+      name: t('docs.title'),
+      url: 'https://docs.cherry-ai.com/',
+      logo: AppLogo
+    })
+  }
+
   return (
     <Container
       id="app-sidebar"
@@ -64,6 +78,11 @@ const Sidebar: FC = () => {
         )}
       </MainMenusContainer>
       <Menus onClick={MinApp.onClose}>
+        <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
+          <Icon onClick={onOpenDocs}>
+            <QuestionCircleOutlined />
+          </Icon>
+        </Tooltip>
         <Tooltip title={t('settings.theme.title')} mouseEnterDelay={0.8} placement="right">
           <Icon onClick={() => toggleTheme()}>
             {theme === 'dark' ? (

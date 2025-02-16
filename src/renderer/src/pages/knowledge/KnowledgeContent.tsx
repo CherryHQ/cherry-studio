@@ -10,6 +10,7 @@ import {
   SearchOutlined,
   SettingOutlined
 } from '@ant-design/icons'
+import Ellipsis from '@renderer/components/Ellipsis'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -17,7 +18,8 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase } from '@renderer/types'
-import { Alert, Button, Card, Divider, message, Tag, Typography, Upload } from 'antd'
+import { bookExts, documentExts, textExts } from '@shared/config/constant'
+import { Alert, Button, Card, Divider, message, Tag, Tooltip, Typography, Upload } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -33,10 +35,10 @@ interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
 
-const fileTypes = ['.pdf', '.docx', '.pptx', '.xlsx', '.txt', '.md', '.html']
-
+const fileTypes = [...bookExts, ...documentExts, ...textExts]
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
+
   const {
     base,
     noteItems,
@@ -105,26 +107,32 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       return
     }
 
-    const url = await PromptPopup.show({
+    const urlInput = await PromptPopup.show({
       title: t('knowledge.add_url'),
       message: '',
       inputPlaceholder: t('knowledge.url_placeholder'),
       inputProps: {
-        maxLength: 1000,
-        rows: 1
+        rows: 10,
+        onPressEnter: () => {}
       }
     })
 
-    if (url) {
-      try {
-        new URL(url)
-        if (urlItems.find((item) => item.content === url)) {
-          message.success(t('knowledge.url_added'))
-          return
+    if (urlInput) {
+      // Split input by newlines and filter out empty lines
+      const urls = urlInput.split('\n').filter((url) => url.trim())
+
+      for (const url of urls) {
+        try {
+          new URL(url.trim())
+          if (!urlItems.find((item) => item.content === url.trim())) {
+            addUrl(url.trim())
+          } else {
+            message.success(t('knowledge.url_added'))
+          }
+        } catch (e) {
+          // Skip invalid URLs silently
+          continue
         }
-        addUrl(url)
-      } catch (e) {
-        console.error('Invalid URL:', url)
       }
     }
   }
@@ -209,7 +217,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           style={{ marginTop: 10, background: 'transparent' }}>
           <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
           <p className="ant-upload-hint">
-            {t('knowledge.file_hint', { file_types: fileTypes.join(', ').replaceAll('.', '') })}
+            {t('knowledge.file_hint', { file_types: fileTypes.slice(0, 6).join(', ').replaceAll('.', '') })}
           </p>
         </Dragger>
       </FileSection>
@@ -222,7 +230,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               <ItemContent>
                 <ItemInfo>
                   <FileIcon />
-                  <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>{file.origin_name}</ClickableSpan>
+                  <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
+                    <Tooltip title={file.origin_name}>
+                      <Ellipsis text={file.origin_name} />
+                    </Tooltip>
+                  </ClickableSpan>
                 </ItemInfo>
                 <FlexAlignCenter>
                   {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
@@ -251,7 +263,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 <ItemInfo>
                   <FolderOutlined />
                   <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
-                    {item.content as string}
+                    <Tooltip title={item.content as string}>
+                      <Ellipsis text={item.content as string} />
+                    </Tooltip>
                   </ClickableSpan>
                 </ItemInfo>
                 <FlexAlignCenter>
@@ -281,7 +295,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 <ItemInfo>
                   <LinkOutlined />
                   <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                    {item.content as string}
+                    <Tooltip title={item.content as string}>
+                      <Ellipsis text={item.content as string} />
+                    </Tooltip>
                   </a>
                 </ItemInfo>
                 <FlexAlignCenter>
@@ -311,7 +327,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 <ItemInfo>
                   <GlobalOutlined />
                   <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                    {item.content as string}
+                    <Tooltip title={item.content as string}>
+                      <Ellipsis text={item.content as string} />
+                    </Tooltip>
                   </a>
                 </ItemInfo>
                 <FlexAlignCenter>

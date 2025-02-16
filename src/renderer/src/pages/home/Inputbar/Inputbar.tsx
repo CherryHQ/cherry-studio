@@ -16,6 +16,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -65,8 +66,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     pasteLongTextThreshold,
     showInputEstimatedTokens,
     clickAssistantToShowTopic,
-    autoTranslateWithSpace,
-    sidebarIcons
+    autoTranslateWithSpace
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -90,7 +90,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
 
-  const showKnowledgeIcon = sidebarIcons.visible.includes('knowledge')
+  const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
   const estimateTextTokens = useCallback(debounce(estimateTxtTokens, 1000), [])
   const inputTokenCount = useMemo(
@@ -349,6 +349,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             if (supportExts.includes(getFileExtension(file.path))) {
               const selectedFile = await window.api.file.get(file.path)
               selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+            } else {
+              window.message.info({
+                key: 'file_not_supported',
+                content: t('chat.input.file_not_supported')
+              })
             }
           }
         }
@@ -370,7 +375,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         }
       }
     },
-    [pasteLongTextAsFile, pasteLongTextThreshold, supportExts, text]
+    [pasteLongTextAsFile, pasteLongTextThreshold, supportExts, t, text]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -453,8 +458,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   }, [])
 
   useEffect(() => {
-    setSelectedKnowledgeBase(assistant.knowledge_base)
-  }, [assistant.id, assistant.knowledge_base])
+    setSelectedKnowledgeBase(showKnowledgeIcon ? assistant.knowledge_base : undefined)
+  }, [assistant.id, assistant.knowledge_base, showKnowledgeIcon])
 
   const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
 
@@ -506,7 +511,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             ref={textareaRef}
             style={{ fontSize }}
             styles={{ textarea: TextareaStyle }}
-            onFocus={() => setInputFocus(true)}
+            onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
+              setInputFocus(true)
+              const textArea = e.target
+              if (textArea) {
+                const length = textArea.value.length
+                textArea.setSelectionRange(length, length)
+              }
+            }}
             onBlur={() => setInputFocus(false)}
             onInput={onInput}
             disabled={searching}

@@ -50,6 +50,8 @@ const HomeWindow: FC = () => {
   const onCloseWindow = () => window.api.miniWindow.hide()
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const isEnterPressed = e.keyCode == 13
+
     if (e.key === 'Escape') {
       setText('')
       setRoute('home')
@@ -57,7 +59,7 @@ const HomeWindow: FC = () => {
       return
     }
 
-    if (e.key === 'Enter') {
+    if (isEnterPressed) {
       e.preventDefault()
       if (content) {
         setRoute('chat')

@@ -1,0 +1,39 @@
+diff --git a/core.js b/core.js
+index e75a18281ce8f051990c5a50bc1076afdddf91a3..e62f796791a155f23d054e74a429516c14d6e11b 100644
+--- a/core.js
++++ b/core.js
+@@ -156,7 +156,7 @@ class APIClient {
+             Accept: 'application/json',
+             'Content-Type': 'application/json',
+             'User-Agent': this.getUserAgent(),
+-            ...getPlatformHeaders(),
++            // ...getPlatformHeaders(),
+             ...this.authHeaders(opts),
+         };
+     }
+diff --git a/core.mjs b/core.mjs
+index fcef58eb502664c41a77483a00db8adaf29b2817..18c5d6ed4be86b3640931277bdc27700006764d7 100644
+--- a/core.mjs
++++ b/core.mjs
+@@ -149,7 +149,7 @@ export class APIClient {
+             Accept: 'application/json',
+             'Content-Type': 'application/json',
+             'User-Agent': this.getUserAgent(),
+-            ...getPlatformHeaders(),
++            // ...getPlatformHeaders(),
+             ...this.authHeaders(opts),
+         };
+     }
+diff --git a/error.mjs b/error.mjs
+index 7d19f5578040afa004bc887aab1725e8703d2bac..59ec725b6142299a62798ac4bdedb63ba7d9932c 100644
+--- a/error.mjs
++++ b/error.mjs
+@@ -36,7 +36,7 @@ export class APIError extends OpenAIError {
+         if (!status || !headers) {
+             return new APIConnectionError({ message, cause: castToError(errorResponse) });
+         }
+-        const error = errorResponse?.['error'];
++        const error = errorResponse?.['error'] || errorResponse;
+         if (status === 400) {
+             return new BadRequestError(status, error, message, headers);
+         }

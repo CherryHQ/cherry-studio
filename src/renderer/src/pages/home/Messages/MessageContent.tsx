@@ -150,11 +150,11 @@ const CitationLink = styled.a`
   line-height: 1.6;
   text-decoration: none;
   color: var(--color-text-1);
-  
+
   .hostname {
     color: var(--color-link);
   }
-  
+
   &:hover {
     text-decoration: underline;
   }

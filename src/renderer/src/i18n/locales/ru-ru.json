@@ -47,7 +47,12 @@
       "settings.model": "Настройки модели",
       "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
-      "title": "Ассистенты"
+      "title": "Ассистенты",
+      "settings.reasoning_effort": "Длина цепочки рассуждений",
+      "settings.reasoning_effort.high": "Длинная",
+      "settings.reasoning_effort.low": "Короткая",
+      "settings.reasoning_effort.medium": "Средняя",
+      "settings.reasoning_effort.tip": "Эта настройка поддерживается только моделями с рассуждением"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -92,6 +97,7 @@
       "input.upload": "Загрузить изображение или документ",
       "input.upload.document": "Загрузить документ (модель не поддерживает изображения)",
       "input.web_search": "Включить веб-поиск",
+      "input.file_not_supported": "Модель не поддерживает этот тип файла",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",
@@ -104,7 +110,7 @@
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
       "settings.max_tokens": "Включить лимит максимальных токенов",
-      "settings.max_tokens.tip": "Максимальное количество токенов, которые может сгенерировать модель. Обычный чат предполагает 500-800. Генерация короткого текста предполагает 800-2000. Генерация кода предполагает 2000-3600. Генерация длинного текста предполагает выше 4000.",
+      "settings.max_tokens.tip": "Максимальное количество токенов, которые может сгенерировать модель. Нужно учитывать контекст модели, иначе будет ошибка",
       "settings.reset": "Сбросить",
       "settings.set_as_default": "Применить к ассистенту по умолчанию",
       "settings.show_line_numbers": "Показать номера строк в коде",
@@ -112,6 +118,8 @@
       "settings.temperature.tip": "Меньшие значения делают модель более креативной и непредсказуемой, в то время как большие значения делают её более детерминированной и точной.",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Значение по умолчанию 1, чем меньше значение, тем меньше вариативности в ответах, тем проще понять, чем больше значение, тем больше вариативности в ответах, тем больше разнообразие",
+      "settings.max_tokens.confirm": "Включить лимит максимальных токенов",
+      "settings.max_tokens.confirm_content": "Включить лимит максимальных токенов, влияет на длину результата. Нужно учитывать контекст модели, иначе будет ошибка",
       "suggestions.title": "Предложенные вопросы",
       "thinking": "Мыслим",
       "topics.auto_rename": "Автопереименование",
@@ -128,7 +136,10 @@
       "topics.pinned": "Закрепленные темы",
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
-      "translate": "Перевести"
+      "translate": "Перевести",
+      "topics.prompt": "Тематические подсказки",
+      "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
+      "topics.prompt.edit.title": "Редактировать подсказки темы"
     },
     "common": {
       "add": "Добавить",
@@ -166,7 +177,8 @@
       "select": "Выбрать",
       "topics": "Топики",
       "warning": "Предупреждение",
-      "you": "Вы"
+      "you": "Вы",
+      "footnote": "Цитируемый контент"
     },
     "error": {
       "backup.file_format": "Ошибка формата файла резервной копии",
@@ -283,8 +295,13 @@
       "status_processing": "Обработка",
       "title": "База знаний",
       "url_added": "URL добавлен",
-      "url_placeholder": "Введите URL",
-      "urls": "URL-адреса"
+      "url_placeholder": "Введите URL, несколько URL через Enter",
+      "urls": "URL-адреса",
+      "threshold_tooltip": "Используется для оценки соответствия между пользовательским вопросом и содержимым в базе знаний (0-1)",
+      "threshold_placeholder": "Не установлено",
+      "threshold_too_large_or_small": "Порог не может быть больше 1 или меньше 0",
+      "no_match": "Не найдено содержимого в базе знаний.",
+      "threshold": "Порог соответствия"
     },
     "languages": {
       "arabic": "Арабский",
@@ -332,8 +349,6 @@
       "error.enter.model": "Пожалуйста, выберите модель",
       "error.enter.name": "Пожалуйста, введите название базы знаний",
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
-      "error.invalid.enter.api.host": "Пожалуйста, введите правильный API хост",
-      "error.invalid.enter.api.key": "Пожалуйста, введите правильный API ключ",
       "error.invalid.enter.model": "Пожалуйста, выберите модель",
       "error.invalid.proxy.url": "Неверный URL прокси",
       "error.invalid.webdav": "Неверные настройки WebDAV",
@@ -364,7 +379,9 @@
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
-      "warn.notion.exporting": "Идет импорт в Notion, пожалуйста, не повторяйте импорт"
+      "warn.notion.exporting": "Идет импорт в Notion, пожалуйста, не повторяйте импорт",
+      "error.invalid.api.host": "Неверный API адрес",
+      "error.invalid.api.key": "Неверный API ключ"
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -430,6 +447,12 @@
       "keep_alive_time.title": "Время жизни модели",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
+      "keep_alive_time.placeholder": "Минуты",
+      "keep_alive_time.title": "Время жизни модели",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "Удалить изображение",
       "button.delete.image.confirm": "Вы уверены, что хотите удалить это изображение?",
@@ -457,14 +480,18 @@
       "title": "Вы - эксперт в общении, который суммирует разговоры пользователя в 10-символьном заголовке, совпадающем с языком пользователя, без использования знаков препинания и других специальных символов"
     },
     "provider": {
+      "infini": "Infini",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "Baichuan",
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
+      "modelscope": "ModelScope",
       "deepseek": "DeepSeek",
-      "doubao": "Doubao",
+      "doubao": "Volcengine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",
@@ -481,6 +508,7 @@
       "nvidia": "Nvidia",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "qwenlm": "QwenLM",
@@ -489,7 +517,8 @@
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "ppio": "PPIO"
     },
     "settings": {
       "about": "О программе и обратная связь",
@@ -532,6 +561,14 @@
         "notion.api_key": "Ключ API Notion",
         "notion.database_id": "ID базы данных Notion",
         "notion.title": "Настройки Notion",
+        "notion.check": {
+          "button": "Проверить",
+          "fail": "Ошибка подключения, проверьте настройки",
+          "success": "Подключение успешно",
+          "error": "Ошибка подключения, проверьте сеть",
+          "empty_api_key": "Не настроен Api_key",
+          "empty_database_id": "Не настроен Database_id"
+        },
         "title": "Настройки данных",
         "webdav.autoSync": "Автоматическое резервное копирование",
         "webdav.autoSync.off": "Выключено",
@@ -590,7 +627,6 @@
       "input.target_language.chinese-traditional": "Китайский традиционный",
       "input.target_language.english": "Английский",
       "input.target_language.japanese": "Японский",
-      "input.target_language.russianinput.translate": "Русский",
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.input.paste_long_text_as_file": "Вставлять длинный текст как файл",
       "messages.input.paste_long_text_threshold": "Длина вставки длинного текста",
@@ -653,17 +689,6 @@
         "search_placeholder": "Поиск по ID или имени модели",
         "title": "Провайдеры моделей"
       },
-      "provider.api.url.preview": "Предпросмотр: {{url}}",
-      "provider.api.url.reset": "Сброс",
-      "provider.api.url.tip": "Заканчивая на / игнорирует v1, заканчивая на # принудительно использует введенный адрес",
-      "provider.api_host": "Хост API",
-      "provider.api_key": "Ключ API",
-      "provider.api_key.tip": "Несколько ключей, разделенных запятыми",
-      "provider.api_version": "Версия API",
-      "provider.check": "Проверить",
-      "provider.docs_check": "Проверить",
-      "provider.docs_more_details": "для получения дополнительной информации",
-      "provider.search_placeholder": "Поиск по ID или имени модели",
       "proxy": {
         "mode": {
           "custom": "Пользовательский прокси",
@@ -715,7 +740,8 @@
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
-      "tray.title": "Включить значок системного трея"
+      "tray.title": "Включить значок системного трея",
+      "input.target_language.russian": "Русский"
     },
     "translate": {
       "any.language": "Любой язык",
@@ -742,6 +768,9 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "docs": {
+      "title": "Документация"
     }
   }
 }

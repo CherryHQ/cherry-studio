@@ -89,6 +89,7 @@ export type Topic = {
   updatedAt: string
   messages: Message[]
   pinned?: boolean
+  prompt?: string
 }
 
 export type User = {
@@ -219,6 +220,7 @@ export type KnowledgeItem = {
   id: string
   baseId?: string
   uniqueId?: string
+  uniqueIds?: string[]
   type: KnowledgeItemType
   content: string | FileType
   created_at: number
@@ -242,6 +244,7 @@ export interface KnowledgeBase {
   documentCount?: number
   chunkSize?: number
   chunkOverlap?: number
+  threshold?: number
 }
 
 export type KnowledgeBaseParams = {

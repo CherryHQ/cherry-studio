@@ -5,6 +5,7 @@ import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
+import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Radio, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
@@ -50,12 +51,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const onContextCountChange = (value) => {
     if (!isNaN(value as number)) {
       updateAssistantSettings({ contextCount: value })
-    }
-  }
-
-  const onMaxTokensChange = (value) => {
-    if (!isNaN(value as number)) {
-      updateAssistantSettings({ maxTokens: value })
     }
   }
 
@@ -329,34 +324,30 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </HStack>
         <Switch
           checked={enableMaxTokens}
-          onChange={(enabled) => {
+          onChange={async (enabled) => {
+            if (enabled) {
+              const confirmed = await modalConfirm({
+                title: t('chat.settings.max_tokens.confirm'),
+                content: t('chat.settings.max_tokens.confirm_content'),
+                okButtonProps: {
+                  danger: true
+                }
+              })
+              if (!confirmed) return
+            }
+
             setEnableMaxTokens(enabled)
             updateAssistantSettings({ enableMaxTokens: enabled })
           }}
         />
       </SettingRow>
       {enableMaxTokens && (
-        <Row align="middle" gutter={20}>
-          <Col span={20}>
-            <Slider
-              disabled={!enableMaxTokens}
-              min={0}
-              max={32000}
-              onChange={setMaxTokens}
-              onChangeComplete={onMaxTokensChange}
-              value={typeof maxTokens === 'number' ? maxTokens : 0}
-              step={50}
-              marks={{
-                0: '0',
-                32000: t('chat.settings.max')
-              }}
-            />
-          </Col>
-          <Col span={4}>
+        <Row align="middle" style={{ marginTop: 5, marginBottom: 5 }}>
+          <Col span={24}>
             <InputNumber
               disabled={!enableMaxTokens}
               min={0}
-              max={32000}
+              max={10000000}
               step={100}
               value={maxTokens}
               changeOnBlur

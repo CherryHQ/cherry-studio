@@ -12,7 +12,7 @@
 
 Cherry Studio is a desktop client that supports for multiple LLM providers, available on Windows, Mac and Linux.
 
-👏 Join [Telegram Group](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ Group(534635975)](https://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=mPMbCwUo40lYODSp-SUeY9ju9sSBeMbS&authKey=Tt8SyX2p4i1Aopn2OzPwi88tc81AW%2F4m%2Fkt4ETHTPGnM6TKOXuRxKJuUMWu5Hgay&noverify=0&group_code=534635975)
+👏 Join [Telegram Group](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ Group(1022779719)](https://qm.qq.com/q/Qtw8As0cwe)
 
 ❤️ Like Cherry Studio? Give it a star 🌟 or [Sponsor](docs/sponsor.md) to support the development!
 
@@ -30,7 +30,7 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 
    - ☁️ Major LLM Cloud Services: OpenAI, Gemini, Anthropic, and more
    - 🔗 AI Web Service Integration: Claude, Peplexity, Poe, and others
-   - 💻 Local Model Support with Ollama
+   - 💻 Local Model Support with Ollama, LM Studio
 
 2. **AI Assistants & Conversations**:
 

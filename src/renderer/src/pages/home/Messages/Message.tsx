@@ -3,6 +3,7 @@ import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useModel } from '@renderer/hooks/useModel'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
@@ -43,7 +44,7 @@ const getMessageBackground = (isBubbleStyle: boolean, isAssistantMessage: boolea
 
 const MessageItem: FC<Props> = ({
   message: _message,
-  topic,
+  topic: _topic,
   index,
   hidePresetMessages,
   isGrouped,
@@ -59,6 +60,7 @@ const MessageItem: FC<Props> = ({
   const { isBubbleStyle } = useMessageStyle()
   const { showMessageDivider, messageFont, fontSize } = useSettings()
   const messageContainerRef = useRef<HTMLDivElement>(null)
+  const topic = useTopic(assistant, _topic?.id)
 
   const isLastMessage = index === 0
   const isAssistantMessage = message.role === 'assistant'
@@ -120,6 +122,12 @@ const MessageItem: FC<Props> = ({
       if (message.status === 'sending') {
         const messages = onGetMessages()
         const assistantWithModel = message.model ? { ...assistant, model: message.model } : assistant
+
+        if (topic.prompt) {
+          assistantWithModel.prompt = assistantWithModel.prompt
+            ? `${assistantWithModel.prompt}\n${topic.prompt}`
+            : topic.prompt
+        }
 
         fetchChatCompletion({
           message,

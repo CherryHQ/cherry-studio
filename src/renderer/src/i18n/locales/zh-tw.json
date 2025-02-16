@@ -97,6 +97,7 @@
       "input.upload": "上傳圖片或文檔",
       "input.upload.document": "上傳文檔（模型不支持圖片）",
       "input.web_search": "開啟網路搜索",
+      "input.file_not_supported": "模型不支持此文件類型",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已建立",
       "message.new.context": "新上下文",
@@ -109,7 +110,7 @@
       "settings.context_count.tip": "在上下文中保留的前幾則訊息。",
       "settings.max": "最大",
       "settings.max_tokens": "啟用最大 Token 限制",
-      "settings.max_tokens.tip": "模型可以生成的最大 Token 數。普通聊天建議 500-800。短文生成建議 800-2000。代碼生成建議 2000-3600。長文生成建議超過 4000。",
+      "settings.max_tokens.tip": "模型可以生成的最大 Token 數。要根据模型上下文限制来设置，否则会报错",
       "settings.reset": "重置",
       "settings.set_as_default": "設為預設助手",
       "settings.show_line_numbers": "代码顯示行號",
@@ -117,6 +118,8 @@
       "settings.temperature.tip": "模型產生文字的隨機程度。數值越高，回應內容越具多樣性、創意性及隨機性；設定為 0 則會依據事實回答。一般聊天建議設定為 0.7",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "模型生成文本的隨機程度。值越小，AI 生成的內容越單調，也越容易理解；值越大，AI 回覆的詞彙範圍越大，越多樣化",
+      "settings.max_tokens.confirm": "啟用消息長度限制",
+      "settings.max_tokens.confirm_content": "啟用消息長度限制後，單次交互所用的最大 Token 數, 會影響返回結果的長度。要根據模型上下文限制來設置，否則會報錯",
       "suggestions.title": "建議的問題",
       "thinking": "思考中",
       "topics.auto_rename": "自動重新命名",
@@ -133,7 +136,10 @@
       "topics.pinned": "固定話題",
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
-      "translate": "翻譯"
+      "translate": "翻譯",
+      "topics.prompt": "話題提示詞",
+      "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
+      "topics.prompt.edit.title": "編輯話題提示詞"
     },
     "common": {
       "add": "添加",
@@ -171,7 +177,8 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "footnote": "引用內容"
     },
     "error": {
       "backup.file_format": "備份文件格式錯誤",
@@ -288,8 +295,13 @@
       "status_processing": "處理中",
       "title": "知識庫",
       "url_added": "網址已添加",
-      "url_placeholder": "請輸入網址",
-      "urls": "網址"
+      "url_placeholder": "請輸入網址, 多個網址用回車分隔",
+      "urls": "網址",
+      "threshold_tooltip": "用於衡量用戶問題與知識庫內容之間的相關性（0-1）",
+      "threshold_placeholder": "未設置",
+      "threshold_too_large_or_small": "閾值不能大於1或小於0",
+      "no_match": "未匹配到知識庫內容",
+      "threshold": "匹配度閾值"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -337,8 +349,6 @@
       "error.enter.model": "請先選擇一個模型",
       "error.enter.name": "請先輸入知識庫名稱",
       "error.get_embedding_dimensions": "獲取嵌入維度失敗",
-      "error.invalid.enter.api.host": "請輸入有效的 API 主機地址",
-      "error.invalid.enter.api.key": "請輸入有效的 API 密鑰",
       "error.invalid.enter.model": "請選擇一個模型",
       "error.invalid.proxy.url": "無效的代理 URL",
       "error.invalid.webdav": "無效的 WebDAV 設定",
@@ -369,7 +379,9 @@
       "upgrade.success.button": "重新啟動",
       "upgrade.success.content": "請重新啟動應用以完成升級",
       "upgrade.success.title": "升級成功",
-      "warn.notion.exporting": "Notion 正在匯入，請勿重複匯入"
+      "warn.notion.exporting": "Notion 正在匯入，請勿重複匯入",
+      "error.invalid.api.host": "無效的 API 位址",
+      "error.invalid.api.key": "無效的 API 密鑰"
     },
     "minapp": {
       "sidebar.add.title": "添加到側邊欄",
@@ -435,6 +447,12 @@
       "keep_alive_time.title": "保持活躍時間",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）。",
+      "keep_alive_time.placeholder": "分鐘",
+      "keep_alive_time.title": "保持活躍時間",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "刪除繪圖",
       "button.delete.image.confirm": "確定要刪除此繪圖嗎?",
@@ -468,8 +486,9 @@
       "baichuan": "百川",
       "baidu-cloud": "百度云千帆",
       "dashscope": "阿里雲百鍊",
+      "modelscope": "ModelScope 魔搭",
       "deepseek": "深度求索",
-      "doubao": "豆包",
+      "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
       "gitee-ai": "Gitee AI",
@@ -486,6 +505,7 @@
       "nvidia": "輝達",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
       "ppio": "PPIO 派歐雲",
@@ -495,7 +515,10 @@
       "together": "Together",
       "yi": "零一萬物",
       "zhinao": "360智腦",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "infini": "無問芯穹",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI"
     },
     "settings": {
       "about": "關於與回饋",
@@ -532,12 +555,18 @@
           "success": "緩存清除成功",
           "title": "清除緩存"
         },
-        "data.app_data": "應用數據",
-        "data.app_logs": "應用日誌",
         "data.title": "數據目錄",
         "notion.api_key": "Notion 金鑰",
         "notion.database_id": "Notion 資料庫 ID",
         "notion.title": "Notion 配置",
+        "notion.check": {
+          "button": "檢查",
+          "fail": "連線失敗，請檢查配置",
+          "success": "連線成功",
+          "error": "連線異常，請檢查網路",
+          "empty_api_key": "未配置Api_key",
+          "empty_database_id": "未配置Database_id"
+        },
         "title": "數據設定",
         "webdav.autoSync": "自動備份",
         "webdav.autoSync.off": "關閉",
@@ -557,7 +586,9 @@
         "webdav.syncError": "備份錯誤",
         "webdav.syncStatus": "備份狀態",
         "webdav.title": "WebDAV",
-        "webdav.user": "WebDAV 使用者名稱"
+        "webdav.user": "WebDAV 使用者名稱",
+        "app_data": "應用數據",
+        "app_logs": "應用日誌"
       },
       "display.custom.css": "自定義 CSS",
       "display.custom.css.placeholder": "/* 這裡寫自定義 CSS */",
@@ -604,7 +635,6 @@
       "messages.input.show_estimated_tokens": "顯示預估 Token 數",
       "messages.input.title": "輸入設定",
       "messages.math_engine": "Markdown 渲染輸入訊息",
-      "messages.math_render_engine": "數學公式引擎",
       "messages.metrics": "首字時延 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
       "messages.model.title": "模型設定",
       "messages.title": "訊息設定",
@@ -710,7 +740,8 @@
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
-      "tray.title": "啟用系統托盤圖標"
+      "tray.title": "啟用系統托盤圖標",
+      "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息"
     },
     "translate": {
       "any.language": "任意語言",
@@ -737,6 +768,9 @@
       "quit": "退出",
       "show_window": "顯示視窗",
       "visualization": "可視化"
+    },
+    "docs": {
+      "title": "幫助文件"
     }
   }
 }

@@ -13,7 +13,7 @@
 
 Cherry Studioは、複数のLLMプロバイダーをサポートするデスクトップクライアントで、Windows、Mac、Linuxで利用可能です。
 
-👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(534635975)](https://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=mPMbCwUo40lYODSp-SUeY9ju9sSBeMbS&authKey=Tt8SyX2p4i1Aopn2OzPwi88tc81AW%2F4m%2Fkt4ETHTPGnM6TKOXuRxKJuUMWu5Hgay&noverify=0&group_code=534635975)
+👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(1022779719)](https://qm.qq.com/q/Qtw8As0cwe)
 
 ❤️ Cherry Studioをお気に入りにしましたか？小さな星をつけてください 🌟 または [スポンサー](sponsor.md) をして開発をサポートしてください！❤️
 
@@ -31,7 +31,7 @@ Cherry Studioは、複数のLLMプロバイダーをサポートするデスク�
 
    - ☁️ 主要な LLM クラウドサービス対応：OpenAI、Gemini、Anthropic など
    - 🔗 AI Web サービス統合：Claude、Peplexity、Poe など
-   - 💻 Ollama によるローカルモデル実行対応
+   - 💻 Ollama、LM Studio によるローカルモデル実行対応
 
 2. **AI アシスタントと対話**：
 

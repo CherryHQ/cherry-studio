@@ -53,7 +53,7 @@ const ProvidersList: FC = () => {
   }
 
   const getDropdownMenus = (provider: Provider): MenuProps['items'] => {
-    return [
+    const menus = [
       {
         label: t('common.edit'),
         key: 'edit',
@@ -83,6 +83,16 @@ const ProvidersList: FC = () => {
         }
       }
     ]
+
+    if (providers.filter((p) => p.id === provider.id).length > 1) {
+      return menus
+    }
+
+    if (provider.isSystem) {
+      return []
+    }
+
+    return menus
   }
 
   return (
@@ -102,9 +112,7 @@ const ProvidersList: FC = () => {
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
                             style={{ ...provided.draggableProps.style, marginBottom: 5 }}>
-                            <Dropdown
-                              menu={{ items: provider.isSystem ? [] : getDropdownMenus(provider) }}
-                              trigger={['contextMenu']}>
+                            <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
                               <ProviderListItem
                                 key={JSON.stringify(provider)}
                                 className={provider.id === selectedProvider?.id ? 'active' : ''}
