@@ -146,8 +146,7 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  max-width: var(--assistants-width);
-  min-width: var(--assistants-width);
+  width: '100%';
   height: calc(100vh - var(--navbar-height));
   background-color: var(--color-background);
   overflow: hidden;
