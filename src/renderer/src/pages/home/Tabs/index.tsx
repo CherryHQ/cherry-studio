@@ -21,6 +21,7 @@ interface Props {
   position: 'left' | 'right'
   forceToSeeAllTab?: boolean
   style?: React.CSSProperties
+  sizes?: number[]
 }
 
 type Tab = 'assistants' | 'topic' | 'settings'
@@ -34,7 +35,8 @@ const HomeTabs: FC<Props> = ({
   setActiveTopic,
   position,
   forceToSeeAllTab,
-  style
+  style,
+  sizes
 }) => {
   const { addAssistant } = useAssistants()
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
@@ -103,7 +105,7 @@ const HomeTabs: FC<Props> = ({
       style={{ ...border, ...style }}
       className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
       {position === 'left' && topicPosition === 'left' && (
-        <CustomTabs>
+        <CustomTabs key={sizes?.join(',')}>
           <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
             {t('assistants.abbr')}
           </TabItem>
@@ -117,7 +119,7 @@ const HomeTabs: FC<Props> = ({
       )}
 
       {position === 'left' && topicPosition === 'right' && (
-        <CustomTabs>
+        <CustomTabs key={sizes?.join(',')}>
           <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
             {t('assistants.abbr')}
           </TabItem>
