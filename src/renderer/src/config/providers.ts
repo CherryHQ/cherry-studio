@@ -18,13 +18,14 @@ import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
 import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
+import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
+import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
 import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
 import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
-import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
 import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity.png'
@@ -63,6 +64,8 @@ export function getProviderLogo(providerId: string) {
       return BaichuanProviderLogo
     case 'dashscope':
       return BailianProviderLogo
+    case 'modelscope':
+      return ModelScopeProviderLogo
     case 'anthropic':
       return AnthropicProviderLogo
     case 'aihubmix':
@@ -293,6 +296,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://platform.baichuan-ai.com/console/apikey',
       docs: 'https://platform.baichuan-ai.com/docs',
       models: 'https://platform.baichuan-ai.com/price'
+    }
+  },
+  modelscope: {
+    api: {
+      url: 'https://api-inference.modelscope.cn/v1/'
+    },
+    websites: {
+      official: 'https://modelscope.cn',
+      apiKey: 'https://modelscope.cn/my/myaccesstoken',
+      docs: 'https://modelscope.cn/docs/model-service/API-Inference/intro',
+      models: 'https://modelscope.cn/models'
     }
   },
   dashscope: {

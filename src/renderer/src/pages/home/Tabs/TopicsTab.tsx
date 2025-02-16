@@ -5,6 +5,7 @@ import {
   EditOutlined,
   FolderOutlined,
   PushpinOutlined,
+  QuestionCircleOutlined,
   UploadOutlined
 } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
@@ -20,7 +21,7 @@ import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { exportTopicAsMarkdown, exportTopicToNotion, topicToMarkdown } from '@renderer/utils/export'
-import { Dropdown, MenuProps } from 'antd'
+import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import { FC, useCallback } from 'react'
@@ -113,6 +114,28 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             if (name && topic?.name !== name) {
               updateTopic({ ...topic, name })
             }
+          }
+        },
+        {
+          label: t('chat.topics.prompt'),
+          key: 'topic-prompt',
+          icon: <i className="iconfont icon-ai-model1" style={{ fontSize: '14px' }} />,
+          extra: (
+            <Tooltip title={t('chat.topics.prompt.tips')}>
+              <QuestionIcon />
+            </Tooltip>
+          ),
+          async onClick() {
+            const prompt = await PromptPopup.show({
+              title: t('chat.topics.prompt.edit.title'),
+              message: '',
+              defaultValue: topic?.prompt || '',
+              inputProps: {
+                rows: 8,
+                allowClear: true
+              }
+            })
+            prompt && updateTopic({ ...topic, prompt: prompt.trim() })
           }
         },
         {
@@ -211,6 +234,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
                 <TopicName className="name">{topic.name.replace('`', '')}</TopicName>
+                {topic.prompt && (
+                  <TopicPromptText className="prompt">
+                    {t('common.prompt')}: {topic.prompt}
+                  </TopicPromptText>
+                )}
                 {showTopicTime && (
                   <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
                 )}
@@ -291,6 +319,18 @@ const TopicName = styled.div`
   font-size: 13px;
 `
 
+const TopicPromptText = styled.div`
+  color: var(--color-text-2);
+  font-size: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  ~ .prompt-text {
+    margin-top: 10px;
+  }
+`
+
 const TopicTime = styled.div`
   color: var(--color-text-3);
   font-size: 11px;
@@ -309,6 +349,11 @@ const MenuButton = styled.div`
   .anticon {
     font-size: 12px;
   }
+`
+const QuestionIcon = styled(QuestionCircleOutlined)`
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--color-text-3);
 `
 
 export default Topics

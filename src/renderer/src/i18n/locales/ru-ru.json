@@ -136,7 +136,10 @@
       "topics.pinned": "Закрепленные темы",
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
-      "translate": "Перевести"
+      "translate": "Перевести",
+      "topics.prompt": "Тематические подсказки",
+      "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
+      "topics.prompt.edit.title": "Редактировать подсказки темы"
     },
     "common": {
       "add": "Добавить",
@@ -293,7 +296,12 @@
       "title": "База знаний",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "threshold_tooltip": "Используется для оценки соответствия между пользовательским вопросом и содержимым в базе знаний (0-1)",
+      "threshold_placeholder": "Не установлено",
+      "threshold_too_large_or_small": "Порог не может быть больше 1 или меньше 0",
+      "no_match": "Не найдено содержимого в базе знаний.",
+      "threshold": "Порог соответствия"
     },
     "languages": {
       "arabic": "Арабский",
@@ -481,6 +489,7 @@
       "baichuan": "Baichuan",
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
+      "modelscope": "ModelScope",
       "deepseek": "DeepSeek",
       "doubao": "Volcengine",
       "fireworks": "Fireworks",

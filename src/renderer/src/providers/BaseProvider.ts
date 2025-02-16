@@ -1,6 +1,6 @@
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
-import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
+import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import { getKnowledgeReferences } from '@renderer/services/KnowledgeService'
 import store from '@renderer/store'
 import { Assistant, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
@@ -64,7 +64,11 @@ export default abstract class BaseProvider {
   }
 
   public get keepAliveTime() {
-    return this.provider.id === 'ollama' ? getOllamaKeepAliveTime() : this.provider.id === 'lmstudio' ? getLMStudioKeepAliveTime() : undefined
+    return this.provider.id === 'ollama'
+      ? getOllamaKeepAliveTime()
+      : this.provider.id === 'lmstudio'
+        ? getLMStudioKeepAliveTime()
+        : undefined
   }
 
   public async fakeCompletions({ onChunk }: CompletionsParams) {
@@ -86,9 +90,14 @@ export default abstract class BaseProvider {
       return message.content
     }
 
-    const references = await getKnowledgeReferences(base, message)
+    const { referencesContent, referencesCount } = await getKnowledgeReferences(base, message)
 
-    return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', references)
+    // 如果知识库中未检索到内容则使用通用逻辑
+    if (referencesCount === 0) {
+      return message.content
+    }
+
+    return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referencesContent)
   }
 
   protected getCustomParameters(assistant: Assistant) {
@@ -99,10 +108,10 @@ export default abstract class BaseProvider {
         }
         if (param.type === 'json') {
           const value = param.value as string
-          return {
-            ...acc,
-            [param.name]: isJSON(value) ? parseJSON(value) : value
+          if (value === 'undefined') {
+            return { ...acc, [param.name]: undefined }
           }
+          return { ...acc, [param.name]: isJSON(value) ? parseJSON(value) : value }
         }
         return {
           ...acc,

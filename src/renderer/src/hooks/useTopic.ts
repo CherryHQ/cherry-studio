@@ -25,6 +25,10 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
   return { activeTopic, setActiveTopic }
 }
 
+export function useTopic(assistant: Assistant, topicId?: string) {
+  return assistant?.topics.find((topic) => topic.id === topicId)
+}
+
 export function getTopic(assistant: Assistant, topicId: string) {
   return assistant?.topics.find((topic) => topic.id === topicId)
 }

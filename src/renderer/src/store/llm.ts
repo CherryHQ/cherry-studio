@@ -386,6 +386,26 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.infini,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'lmstudio',
+      name: 'LM Studio',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'http://localhost:1234',
+      models: SYSTEM_MODELS.lmstudio,
+      isSystem: true,
+      enabled: true
+    },
+    {
+      id: 'modelscope',
+      name: 'ModelScope',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api-inference.modelscope.cn/v1/',
+      models: SYSTEM_MODELS.modelscope,
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {
@@ -411,16 +431,6 @@ const getIntegratedInitialState = () => {
         name: 'Ollama',
         apiKey: 'ollama',
         apiHost: 'http://localhost:15537/v1/',
-        models: [model],
-        isSystem: true,
-        enabled: true
-      },
-      {
-        id: 'lmstudio',
-        name: 'LM Studio',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'http://localhost:1234',
         models: [model],
         isSystem: true,
         enabled: true
@@ -451,7 +461,10 @@ const settingsSlice = createSlice({
       state.providers.unshift(action.payload)
     },
     removeProvider: (state, action: PayloadAction<Provider>) => {
-      state.providers = state.providers.filter((p) => p.id !== action.payload.id)
+      const providerIndex = state.providers.findIndex((p) => p.id === action.payload.id)
+      if (providerIndex !== -1) {
+        state.providers.splice(providerIndex, 1)
+      }
     },
     addModel: (state, action: PayloadAction<{ providerId: string; model: Model }>) => {
       state.providers = state.providers.map((p) =>

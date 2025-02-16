@@ -1,5 +1,6 @@
 import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { TopView } from '@renderer/components/TopView'
+import { DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getFileFromUrl, getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { FileType, KnowledgeBase } from '@renderer/types'
 import { Input, List, Modal, Spin, Typography } from 'antd'
@@ -45,7 +46,11 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
           return { ...item, file }
         })
       )
-      setResults(results)
+      const filteredResults = results.filter((item) => {
+        const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
+        return item.score >= threshold
+      })
+      setResults(filteredResults)
     } catch (error) {
       console.error('Search failed:', error)
     } finally {

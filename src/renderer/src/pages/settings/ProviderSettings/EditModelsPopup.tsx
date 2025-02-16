@@ -1,7 +1,14 @@
 import { LoadingOutlined, MinusOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import { Center } from '@renderer/components/Layout'
 import ModelTags from '@renderer/components/ModelTags'
-import { getModelLogo, isEmbeddingModel, isVisionModel, isWebSearchModel, SYSTEM_MODELS } from '@renderer/config/models'
+import {
+  getModelLogo,
+  isEmbeddingModel,
+  isReasoningModel,
+  isVisionModel,
+  isWebSearchModel,
+  SYSTEM_MODELS
+} from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
@@ -44,6 +51,8 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       return false
     }
     switch (filterType) {
+      case 'reasoning':
+        return isReasoningModel(model)
       case 'vision':
         return isVisionModel(model)
       case 'websearch':
@@ -140,6 +149,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         <Center>
           <Radio.Group value={filterType} onChange={(e) => setFilterType(e.target.value)} buttonStyle="solid">
             <Radio.Button value="all">{t('models.all')}</Radio.Button>
+            <Radio.Button value="reasoning">{t('models.reasoning')}</Radio.Button>
             <Radio.Button value="vision">{t('models.vision')}</Radio.Button>
             <Radio.Button value="websearch">{t('models.websearch')}</Radio.Button>
             <Radio.Button value="free">{t('models.free')}</Radio.Button>

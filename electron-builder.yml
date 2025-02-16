@@ -80,11 +80,11 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    知识库增加更多文件类型支持
-    使用@呼出模型选择列表
-    添加话题固定功能
-    增加导出话题至Notion的功能
-    增加 Google AI Studio 小程序
-    增加 Gitee 服务商
-    增加 PPIO 服务商
-    为 OpenAI 请求添加引用来源数据显示
+    增加服务商 LM Studio、魔搭、Perplexity、无问芯穹、DMXAPI
+    提及功能支持上下按键循环选择模型
+    小程序增加小艺
+    增加Notion连接检测功能
+    编辑模型弹窗搜索模型时，同时搜索模型的名字和ID
+    编辑模型弹窗增加推理模型筛选按钮
+    修复思考模型思考时间显示错误
+    修复部分模型翻译出错

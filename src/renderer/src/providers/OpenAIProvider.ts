@@ -287,13 +287,12 @@ export default class OpenAIProvider extends BaseProvider {
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    if (!message.content) {
-        message.content = ' '
-    }
-    const messages = [
-      { role: 'system', content: assistant.prompt },
-      { role: 'user', content: message.content }
-    ]
+    const messages = message.content
+      ? [
+          { role: 'system', content: assistant.prompt },
+          { role: 'user', content: message.content }
+        ]
+      : [{ role: 'user', content: assistant.prompt }]
 
     const isOpenAIo1 = this.isOpenAIo1(model)
 
@@ -418,7 +417,6 @@ export default class OpenAIProvider extends BaseProvider {
     const body = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
-      max_tokens: 100,
       stream: false
     }
 

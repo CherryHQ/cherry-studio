@@ -8,7 +8,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { Avatar, Dropdown, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { createGlobalStyle } from 'styled-components'
 
@@ -27,6 +27,11 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [searchText, setSearchText] = useState('')
+  const itemRefs = useRef<Array<HTMLDivElement | null>>([])
+
+  const setItemRef = (index: number, el: HTMLDivElement | null) => {
+    itemRefs.current[index] = el
+  }
 
   const togglePin = async (modelId: string) => {
     const newPinnedModels = pinnedModels.includes(modelId)
@@ -167,9 +172,17 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
     loadPinnedModels()
   }, [])
 
+  // Scroll to the first menu item when the mode selection menu opens
+  useLayoutEffect(() => {
+    if (isOpen && flatModelItems.length > 0 && itemRefs.current[0]) {
+      itemRefs.current[0].scrollIntoView({ block: 'nearest' })
+    }
+  }, [isOpen, flatModelItems])
+
   useEffect(() => {
     const showModelSelector = () => {
       dropdownRef.current?.click()
+      itemRefs.current = []
       setIsOpen(true)
       setSelectedIndex(0)
       setSearchText('')
@@ -180,10 +193,18 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex((prev) => (prev < flatModelItems.length - 1 ? prev + 1 : 0))
+        setSelectedIndex((prev) => {
+          const newIndex = prev < flatModelItems.length - 1 ? prev + 1 : 0
+          itemRefs.current[newIndex]?.scrollIntoView({ block: 'nearest' })
+          return newIndex
+        })
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : flatModelItems.length - 1))
+        setSelectedIndex((prev) => {
+          const newIndex = prev > 0 ? prev - 1 : flatModelItems.length - 1
+          itemRefs.current[newIndex]?.scrollIntoView({ block: 'nearest' })
+          return newIndex
+        })
       } else if (e.key === 'Enter') {
         e.preventDefault()
         if (selectedIndex >= 0 && selectedIndex < flatModelItems.length) {
@@ -253,6 +274,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
               {group.children.map((item, idx) => (
                 <div
                   key={item.key}
+                  ref={(el) => setItemRef(startIndex + idx, el)}
                   className={`ant-dropdown-menu-item ${selectedIndex === startIndex + idx ? 'ant-dropdown-menu-item-selected' : ''}`}
                   onClick={item.onClick}>
                   <span className="ant-dropdown-menu-item-icon">{item.icon}</span>
@@ -293,6 +315,7 @@ const DropdownMenuStyle = createGlobalStyle`
       overflow-x: hidden;
       padding: 4px 0;
       margin-bottom: 40px;
+      position: relative;
 
       &::-webkit-scrollbar {
         width: 6px;
@@ -300,8 +323,12 @@ const DropdownMenuStyle = createGlobalStyle`
       }
 
       &::-webkit-scrollbar-thumb {
-        background: var(--color-scrollbar);
-        border-radius: 3px;
+        border-radius: 10px;
+        background: var(--color-scrollbar-thumb);
+
+        &:hover {
+          background: var(--color-scrollbar-thumb-hover);
+        }
       }
 
       &::-webkit-scrollbar-track {

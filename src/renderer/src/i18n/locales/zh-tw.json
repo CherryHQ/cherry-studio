@@ -136,7 +136,10 @@
       "topics.pinned": "固定話題",
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
-      "translate": "翻譯"
+      "translate": "翻譯",
+      "topics.prompt": "話題提示詞",
+      "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
+      "topics.prompt.edit.title": "編輯話題提示詞"
     },
     "common": {
       "add": "添加",
@@ -293,7 +296,12 @@
       "title": "知識庫",
       "url_added": "網址已添加",
       "url_placeholder": "請輸入網址, 多個網址用回車分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "threshold_tooltip": "用於衡量用戶問題與知識庫內容之間的相關性（0-1）",
+      "threshold_placeholder": "未設置",
+      "threshold_too_large_or_small": "閾值不能大於1或小於0",
+      "no_match": "未匹配到知識庫內容",
+      "threshold": "匹配度閾值"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -446,9 +454,6 @@
       "title": "LM Studio"
     },
     "paintings": {
-      "infini": "無問芯穹",
-      "perplexity": "Perplexity",
-      "dmxapi": "DMXAPI",
       "button.delete.image": "刪除繪圖",
       "button.delete.image.confirm": "確定要刪除此繪圖嗎?",
       "button.new.image": "新繪圖",
@@ -481,6 +486,7 @@
       "baichuan": "百川",
       "baidu-cloud": "百度云千帆",
       "dashscope": "阿里雲百鍊",
+      "modelscope": "ModelScope 魔搭",
       "deepseek": "深度求索",
       "doubao": "火山引擎",
       "fireworks": "Fireworks",
@@ -509,7 +515,10 @@
       "together": "Together",
       "yi": "零一萬物",
       "zhinao": "360智腦",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "infini": "無問芯穹",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI"
     },
     "settings": {
       "about": "關於與回饋",

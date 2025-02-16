@@ -256,6 +256,10 @@ body,
       border: 1px solid var(--color-background-mute);
     }
   }
+  .group-menu-bar {
+    margin-left: 0;
+    background-color: var(--color-background);
+  }
   code {
     color: var(--color-text);
   }

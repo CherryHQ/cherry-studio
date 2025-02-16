@@ -202,7 +202,8 @@ const MessageMenubar: FC<Props> = (props) => {
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
     e?.stopPropagation?.()
     await modelGenerating()
-    const _message: Message = resetAssistantMessage(message, model || assistantModel)
+    const selectedModel = isGrouped ? model : assistantModel
+    const _message = resetAssistantMessage(message, selectedModel)
     onEditMessage?.(_message)
   }
 

@@ -136,7 +136,10 @@
       "topics.pinned": "Pinned Topics",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "translate": "Translate",
+      "topics.prompt": "Topic Prompts",
+      "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
+      "topics.prompt.edit.title": "Edit Topic Prompts"
     },
     "common": {
       "add": "Add",
@@ -293,7 +296,12 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
+      "threshold_placeholder": "Not set",
+      "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
+      "no_match": "No matching content found in the knowledge base.",
+      "threshold": "Matching threshold"
     },
     "languages": {
       "arabic": "Arabic",
@@ -481,6 +489,7 @@
       "baichuan": "Baichuan",
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
+      "modelscope": "ModelScope",
       "deepseek": "DeepSeek",
       "doubao": "Volcengine",
       "fireworks": "Fireworks",

@@ -89,6 +89,7 @@ export type Topic = {
   updatedAt: string
   messages: Message[]
   pinned?: boolean
+  prompt?: string
 }
 
 export type User = {
@@ -243,6 +244,7 @@ export interface KnowledgeBase {
   documentCount?: number
   chunkSize?: number
   chunkOverlap?: number
+  threshold?: number
 }
 
 export type KnowledgeBaseParams = {
