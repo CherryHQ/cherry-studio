@@ -23,50 +23,6 @@ interface MiniAppManagerProps {
 
 type ListType = 'visible' | 'disabled'
 
-// 添加 reorderLists 函数的接口定义
-interface ReorderListsParams {
-  sourceList: MinAppType[]
-  destList: MinAppType[]
-  sourceIndex: number
-  destIndex: number
-  isSameList: boolean
-}
-
-interface ReorderListsResult {
-  sourceList: MinAppType[]
-  destList: MinAppType[]
-}
-
-// 添加 reorderLists 函数
-const reorderLists = ({
-  sourceList,
-  destList,
-  sourceIndex,
-  destIndex,
-  isSameList
-}: ReorderListsParams): ReorderListsResult => {
-  if (isSameList) {
-    // 在同一列表内重新排序
-    const newList = [...sourceList]
-    const [removed] = newList.splice(sourceIndex, 1)
-    newList.splice(destIndex, 0, removed)
-    return {
-      sourceList: newList,
-      destList: destList
-    }
-  } else {
-    // 在不同列表间移动
-    const newSourceList = [...sourceList]
-    const [removed] = newSourceList.splice(sourceIndex, 1)
-    const newDestList = [...destList]
-    newDestList.splice(destIndex, 0, removed)
-    return {
-      sourceList: newSourceList,
-      destList: newDestList
-    }
-  }
-}
-
 const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
   visibleMiniApps,
   disabledMiniApps,
@@ -92,25 +48,35 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
       if (!result.destination) return
 
       const { source, destination } = result
-      const sourceList = source.droppableId as ListType
-      const destList = destination.droppableId as ListType
 
-      if (source.droppableId === destination.droppableId) return
+      if (source.droppableId === destination.droppableId) {
+        // 在同一列表内重新排序
+        const list = source.droppableId === 'visible' ? [...visibleMiniApps] : [...disabledMiniApps]
+        const [removed] = list.splice(source.index, 1)
+        list.splice(destination.index, 0, removed)
 
-      const newLists = reorderLists({
-        sourceList: sourceList === 'visible' ? visibleMiniApps : disabledMiniApps,
-        destList: destList === 'visible' ? visibleMiniApps : disabledMiniApps,
-        sourceIndex: source.index,
-        destIndex: destination.index,
-        isSameList: sourceList === destList
-      })
+        if (source.droppableId === 'visible') {
+          handleListUpdate(list, disabledMiniApps)
+        } else {
+          handleListUpdate(visibleMiniApps, list)
+        }
+        return
+      }
 
-      handleListUpdate(
-        sourceList === 'visible' ? newLists.sourceList : newLists.destList,
-        sourceList === 'visible' ? newLists.destList : newLists.sourceList
-      )
+      // 在不同列表间移动
+      const sourceList = source.droppableId === 'visible' ? [...visibleMiniApps] : [...disabledMiniApps]
+      const destList = destination.droppableId === 'visible' ? [...visibleMiniApps] : [...disabledMiniApps]
+
+      const [removed] = sourceList.splice(source.index, 1)
+      const targetList = destList.filter((app) => app.id !== removed.id)
+      targetList.splice(destination.index, 0, removed)
+
+      const newVisibleMiniApps = destination.droppableId === 'visible' ? targetList : sourceList
+      const newDisabledMiniApps = destination.droppableId === 'disabled' ? targetList : sourceList
+
+      handleListUpdate(newVisibleMiniApps, newDisabledMiniApps)
     },
-    [disabledMiniApps, handleListUpdate, visibleMiniApps]
+    [visibleMiniApps, disabledMiniApps, handleListUpdate]
   )
 
   const onMoveMiniApp = useCallback(
@@ -153,17 +119,15 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
             <Droppable droppableId={listType}>
               {(provided: DroppableProvided) => (
                 <ProgramList ref={provided.innerRef} {...provided.droppableProps}>
-                  <ScrollContainer>
-                    {(listType === 'visible' ? visibleMiniApps : disabledMiniApps).map((program, index) => (
-                      <Draggable key={program.id} draggableId={String(program.id)} index={index}>
-                        {(provided: DraggableProvided) => renderProgramItem(program, provided, listType)}
-                      </Draggable>
-                    ))}
-                    {disabledMiniApps.length === 0 && listType === 'disabled' && (
-                      <EmptyPlaceholder>{t('settings.display.minApp.empty')}</EmptyPlaceholder>
-                    )}
-                    {provided.placeholder}
-                  </ScrollContainer>
+                  {(listType === 'visible' ? visibleMiniApps : disabledMiniApps).map((program, index) => (
+                    <Draggable key={program.id} draggableId={String(program.id)} index={index}>
+                      {(provided: DraggableProvided) => renderProgramItem(program, provided, listType)}
+                    </Draggable>
+                  ))}
+                  {disabledMiniApps.length === 0 && listType === 'disabled' && (
+                    <EmptyPlaceholder>{t('settings.display.minApp.empty')}</EmptyPlaceholder>
+                  )}
+                  {provided.placeholder}
                 </ProgramList>
               )}
             </Droppable>
@@ -179,12 +143,6 @@ const AppLogo = styled.img`
   height: 16px;
   border-radius: 4px;
   object-fit: contain;
-`
-
-const ScrollContainer = styled.div`
-  overflow-y: auto;
-  height: 100%;
-  padding-right: 5px;
 `
 
 const ProgramSection = styled.div`
@@ -208,13 +166,29 @@ const ProgramList = styled.div`
   height: 365px;
   min-height: 365px;
   padding: 10px;
-  padding-right: 5px;
   background: var(--color-background-soft);
   border-radius: 8px;
   border: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  overflow-y: hidden;
+  overflow-y: auto;
+
+  scroll-behavior: smooth;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-hover);
+  }
 `
 
 const ProgramItem = styled.div`
