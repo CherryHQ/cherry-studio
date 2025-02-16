@@ -3,6 +3,7 @@ import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
+import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
 import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
 import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png?url'
 import DuckDuckGoAppLogo from '@renderer/assets/images/apps/duckduckgo.webp?url'
@@ -18,6 +19,7 @@ import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
 import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
+import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
 import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png?url'
@@ -29,10 +31,8 @@ import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.png?url'
-import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
-import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png?url'
@@ -171,7 +171,7 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'perplexity',
-    name: 'perplexity',
+    name: 'Perplexity',
     logo: PerplexityAppLogo,
     url: 'https://www.perplexity.ai/'
   },
@@ -306,7 +306,7 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'notebooklm',
     name: 'NotebookLM',
     logo: NotebookLMAppLogo,
-    url: 'https://notebooklm.google.com/',
+    url: 'https://notebooklm.google.com/'
   },
   {
     id: 'coze',
