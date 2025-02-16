@@ -17,14 +17,16 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
 
   useEffect(() => {
     // activeTopic not in assistant.topics
-    const topicTarget = find(assistant.topics, { id: activeTopic?.id })
-    // if (assistant && !find(assistant.topics, { id: activeTopic?.id })) {
-    if (assistant) {
-      setActiveTopic(topicTarget || assistant.topics[0])
+    if (assistant && !find(assistant.topics, { id: activeTopic?.id })) {
+      setActiveTopic(assistant.topics[0])
     }
   }, [activeTopic?.id, assistant])
 
   return { activeTopic, setActiveTopic }
+}
+
+export function useTopic(assistant: Assistant, topicId?: string) {
+  return assistant?.topics.find((topic) => topic.id === topicId)
 }
 
 export function getTopic(assistant: Assistant, topicId: string) {

@@ -8,7 +8,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { Avatar, Dropdown, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { createGlobalStyle } from 'styled-components'
 
@@ -27,6 +27,11 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [searchText, setSearchText] = useState('')
+  const itemRefs = useRef<Array<HTMLDivElement | null>>([])
+
+  const setItemRef = (index: number, el: HTMLDivElement | null) => {
+    itemRefs.current[index] = el
+  }
 
   const togglePin = async (modelId: string) => {
     const newPinnedModels = pinnedModels.includes(modelId)
@@ -167,35 +172,20 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
     loadPinnedModels()
   }, [])
 
-  useEffect(() => {
-    if (selectedIndex >= 0 && menuRef.current) {
-      const menuElement = menuRef.current
-      const selectedElement = menuElement.querySelector('.ant-dropdown-menu-item-selected')
-
-      if (selectedElement) {
-        const menuRect = menuElement.getBoundingClientRect()
-        const selectedRect = selectedElement.getBoundingClientRect()
-
-        if (selectedRect.bottom > menuRect.bottom) {
-          selectedElement.scrollIntoView({ block: 'nearest', behavior: 'auto' })
-        } else if (selectedRect.top < menuRect.top) {
-          selectedElement.scrollIntoView({ block: 'nearest', behavior: 'auto' })
-        }
-      }
+  // Scroll to the first menu item when the mode selection menu opens
+  useLayoutEffect(() => {
+    if (isOpen && flatModelItems.length > 0 && itemRefs.current[0]) {
+      itemRefs.current[0].scrollIntoView({ block: 'nearest' })
     }
-  }, [selectedIndex])
+  }, [isOpen, flatModelItems])
 
   useEffect(() => {
     const showModelSelector = () => {
       dropdownRef.current?.click()
+      itemRefs.current = []
       setIsOpen(true)
       setSelectedIndex(0)
       setSearchText('')
-      setTimeout(() => {
-        if (menuRef.current) {
-          menuRef.current.scrollTop = 0
-        }
-      }, 0)
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -203,10 +193,18 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex((prev) => (prev < flatModelItems.length - 1 ? prev + 1 : 0))
+        setSelectedIndex((prev) => {
+          const newIndex = prev < flatModelItems.length - 1 ? prev + 1 : 0
+          itemRefs.current[newIndex]?.scrollIntoView({ block: 'nearest' })
+          return newIndex
+        })
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : flatModelItems.length - 1))
+        setSelectedIndex((prev) => {
+          const newIndex = prev > 0 ? prev - 1 : flatModelItems.length - 1
+          itemRefs.current[newIndex]?.scrollIntoView({ block: 'nearest' })
+          return newIndex
+        })
       } else if (e.key === 'Enter') {
         e.preventDefault()
         if (selectedIndex >= 0 && selectedIndex < flatModelItems.length) {
@@ -276,6 +274,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
               {group.children.map((item, idx) => (
                 <div
                   key={item.key}
+                  ref={(el) => setItemRef(startIndex + idx, el)}
                   className={`ant-dropdown-menu-item ${selectedIndex === startIndex + idx ? 'ant-dropdown-menu-item-selected' : ''}`}
                   onClick={item.onClick}>
                   <span className="ant-dropdown-menu-item-icon">{item.icon}</span>
@@ -323,17 +322,17 @@ const DropdownMenuStyle = createGlobalStyle`
         height: 6px;
       }
 
-      &::-webkit-scrollbar-track {
-        background: transparent;
-      }
-
       &::-webkit-scrollbar-thumb {
         border-radius: 10px;
         background: var(--color-scrollbar-thumb);
-        
+
         &:hover {
           background: var(--color-scrollbar-thumb-hover);
         }
+      }
+
+      &::-webkit-scrollbar-track {
+        background: transparent;
       }
     }
 

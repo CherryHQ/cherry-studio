@@ -16,7 +16,8 @@ import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
-import NamiAiSearchLogo from '@renderer/assets/images/apps/nm.webp?url'
+import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
+import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
 import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png?url'
@@ -31,6 +32,7 @@ import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.png?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
+import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png?url'
@@ -222,6 +224,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'nm',
+    name: '纳米AI',
+    logo: NamiAiLogo,
+    url: 'https://bot.n.cn/',
+    bodered: true
+  },
+  {
+    id: 'nm-search',
     name: '纳米AI搜索',
     logo: NamiAiSearchLogo,
     url: 'https://www.n.cn/',
@@ -298,6 +307,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'NotebookLM',
     logo: NotebookLMAppLogo,
     url: 'https://notebooklm.google.com/',
+  },
+  {
+    id: 'coze',
+    name: 'Coze',
+    logo: CozeAppLogo,
+    url: 'https://www.coze.com/space',
+    bodered: true
   }
 ]
 
