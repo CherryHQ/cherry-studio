@@ -1065,17 +1065,14 @@ const migrateConfig = {
     return state
   },
   '69': (state: RootState) => {
-      if (state.minapps) {
-        const coze = DEFAULT_MIN_APPS.find((app) => app.id === 'coze')
-        if (coze) {
-          state.minapps.enabled.push(coze)
-        }
+    if (state.minapps) {
+      const coze = DEFAULT_MIN_APPS.find((app) => app.id === 'coze')
+      if (coze) {
+        state.minapps.enabled.push(coze)
       }
-      removeMiniAppIconsFromState(state)
-      return state
     }
-  
-  // ...existing code...
+    return state
+  }
 }
 
 const migrate = createMigrate(migrateConfig as any)
