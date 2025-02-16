@@ -315,6 +315,7 @@ const DropdownMenuStyle = createGlobalStyle`
       overflow-x: hidden;
       padding: 4px 0;
       margin-bottom: 40px;
+      position: relative;
 
       &::-webkit-scrollbar {
         width: 6px;
@@ -322,8 +323,12 @@ const DropdownMenuStyle = createGlobalStyle`
       }
 
       &::-webkit-scrollbar-thumb {
-        background: var(--color-scrollbar);
-        border-radius: 3px;
+        border-radius: 10px;
+        background: var(--color-scrollbar-thumb);
+
+        &:hover {
+          background: var(--color-scrollbar-thumb-hover);
+        }
       }
 
       &::-webkit-scrollbar-track {
