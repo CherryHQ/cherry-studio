@@ -296,7 +296,12 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "threshold_tooltip": "Match threshold",
+      "threshold_placeholder": "Default value (0.0)",
+      "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
+      "no_match": "No matching content found in the knowledge base.",
+      "threshold": "Matching threshold"
     },
     "languages": {
       "arabic": "Arabic",
