@@ -75,7 +75,7 @@ const MessageGroup: FC<Props> = ({
     <GroupContainer $isGrouped={isGrouped} $layout={multiModelMessageStyle}>
       <GridContainer $count={messageLength} $layout={multiModelMessageStyle} $gridColumns={gridColumns}>
         {messages.map((message, index) =>
-          multiModelMessageStyle === 'grid' ? (
+          multiModelMessageStyle === 'grid' && message.role === 'assistant' && isGrouped ? (
             <Popover
               content={
                 <MessageWrapper
@@ -100,7 +100,7 @@ const MessageGroup: FC<Props> = ({
                 </MessageWrapper>
               }
               trigger={gridPopoverTrigger}
-              styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto' } }}
+              styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}
               getPopupContainer={(triggerNode) => triggerNode.parentNode as HTMLElement}
               key={message.id}>
               <MessageWrapper
@@ -115,15 +115,13 @@ const MessageGroup: FC<Props> = ({
                   index={message.index}
                   hidePresetMessages={hidePresetMessages}
                   style={
-                    gridPopoverTrigger === 'hover'
+                    gridPopoverTrigger === 'hover' && isGrouped
                       ? {
                           paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15,
                           overflow: isGrouped ? 'hidden' : 'auto',
                           maxHeight: isGrouped ? '280px' : 'unset'
                         }
-                      : {
-                          paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15
-                        }
+                      : undefined
                   }
                   onSetMessages={onSetMessages}
                   onDeleteMessage={onDeleteMessage}
@@ -209,7 +207,7 @@ const MessageGroup: FC<Props> = ({
 }
 
 const GroupContainer = styled.div<{ $isGrouped: boolean; $layout: MultiModelMessageStyle }>`
-  padding-top: ${({ $isGrouped, $layout }) => ($isGrouped && ['horizontal', 'grid'].includes($layout) ? '15px' : '0')};
+  padding-top: ${({ $isGrouped, $layout }) => ($isGrouped && 'horizontal' === $layout ? '15px' : '0')};
 `
 
 const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageStyle; $gridColumns: number }>`
@@ -227,10 +225,10 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
     );
   }
   overflow-y: auto;
-  ${({ $gridColumns, $layout }) =>
+  ${({ $gridColumns, $layout, $count }) =>
     $layout === 'grid' &&
     css`
-      grid-template-columns: repeat(${$gridColumns || 2}, minmax(0, 1fr));
+      grid-template-columns: repeat(${$count > 1 ? $gridColumns || 2 : 1}, minmax(0, 1fr));
       grid-template-rows: auto;
       gap: 16px;
     `}
@@ -268,15 +266,21 @@ const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
     return ''
   }}
 
-  ${({ $layout, $isInPopover }) =>
-    $layout === 'grid' &&
-    css`
-      max-height: ${$isInPopover ? '50vh' : '300px'};
-      overflow-y: auto;
-      border: 0.5px solid var(--color-border);
-      padding: 10px;
-      border-radius: 6px;
-    `}
+  ${({ $layout, $isInPopover, $isGrouped }) =>
+    $layout === 'grid' && $isGrouped
+      ? css`
+          max-height: ${$isInPopover ? '50vh' : '300px'};
+          overflow-y: auto;
+          border: 0.5px solid var(--color-border);
+          padding: 10px;
+          border-radius: 6px;
+        `
+      : css`
+          overflow-y: auto;
+          border: 0.5px solid transparent;
+          padding: 0 10px;
+          border-radius: 6px;
+        `}
 `
 
 const GroupMenuBar = styled.div<{ $layout: MultiModelMessageStyle }>`

@@ -364,6 +364,7 @@
       "message.multi_model_style.fold": "Свернуть",
       "message.multi_model_style.horizontal": "Горизонтальный",
       "message.multi_model_style.vertical": "Вертикальный",
+      "message.multi_model_style.grid": "клетчатый вид",
       "message.style": "Стиль сообщения",
       "message.style.bubble": "Пузырь",
       "message.style.plain": "Простой",

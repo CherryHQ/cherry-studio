@@ -287,6 +287,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Select.Option value="fold">{t('message.message.multi_model_style.fold')}</Select.Option>
             <Select.Option value="vertical">{t('message.message.multi_model_style.vertical')}</Select.Option>
             <Select.Option value="horizontal">{t('message.message.multi_model_style.horizontal')}</Select.Option>
+            <Select.Option value="grid">{t('message.message.multi_model_style.grid')}</Select.Option>
           </Select>
         </SettingRow>
         <SettingDivider />

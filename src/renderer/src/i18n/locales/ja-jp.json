@@ -363,6 +363,7 @@
       "message.multi_model_style.fold": "折りたたむ",
       "message.multi_model_style.horizontal": "水平",
       "message.multi_model_style.vertical": "垂直",
+      "message.multi_model_style.grid": "グリッド",
       "message.style": "メッセージスタイル",
       "message.style.bubble": "バブル",
       "message.style.plain": "プレーン",

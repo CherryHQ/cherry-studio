@@ -275,7 +275,7 @@ const settingsSlice = createSlice({
     setEnableQuickAssistant: (state, action: PayloadAction<boolean>) => {
       state.enableQuickAssistant = action.payload
     },
-    setMultiModelMessageStyle: (state, action: PayloadAction<'horizontal' | 'vertical' | 'fold'>) => {
+    setMultiModelMessageStyle: (state, action: PayloadAction<'horizontal' | 'vertical' | 'fold' | 'grid'>) => {
       state.multiModelMessageStyle = action.payload
     },
     setNotionDatabaseID: (state, action: PayloadAction<string>) => {

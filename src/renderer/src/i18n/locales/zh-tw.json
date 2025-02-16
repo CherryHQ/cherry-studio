@@ -364,6 +364,7 @@
       "message.multi_model_style.fold": "折疊",
       "message.multi_model_style.horizontal": "水平",
       "message.multi_model_style.vertical": "垂直",
+      "message.multi_model_style.grid": "网格",
       "message.style": "消息樣式",
       "message.style.bubble": "氣泡",
       "message.style.plain": "簡潔",

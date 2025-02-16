@@ -364,6 +364,7 @@
       "message.multi_model_style.fold": "Fold",
       "message.multi_model_style.horizontal": "Horizontal",
       "message.multi_model_style.vertical": "Vertical",
+      "message.multi_model_style.grid": "Grid",
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
