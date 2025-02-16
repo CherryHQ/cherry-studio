@@ -1,4 +1,4 @@
-name: 💡 功能建议
+name: 💡 功能建议 (中文)
 description: 为项目提出新的想法
 title: '[功能]: '
 labels: ['enhancement']
@@ -7,17 +7,22 @@ body:
     attributes:
       value: |
         感谢您花时间提出新的功能建议!
+        在提交此问题之前，请确保您已经了解了[项目规划](https://docs.cherry-ai.com/cherrystudio/planning)和[功能介绍](https://docs.cherry-ai.com/cherrystudio/preview)
 
   - type: checkboxes
     id: checklist
     attributes:
-      label: Issue 检查清单
+      label: 提交前检查
       description: |
         在提交 Issue 前请确保您已经完成了以下所有步骤
       options:
-        - label: 我已经查看了置顶 Issue 并搜索了现有的 Issue，但没有找到类似的问题。
+        - label: 我理解 Issue 是用于反馈和解决问题的，而非吐槽评论区，将尽可能提供更多信息帮助问题解决。
           required: true
-        - label: 正确填写了 Issue 标题。
+        - label: 我已经查看了置顶 Issue 并搜索了现有的 [开放Issue](https://github.com/CherryHQ/cherry-studio/issues)和[已关闭Issue](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed%20)，没有找到类似的建议。
+          required: true
+        - label: 我填写了简短且清晰明确的标题，以便开发者在翻阅 Issue 列表时能快速确定大致问题。而不是“一个建议”、“卡住了”等。
+          required: true
+        - label: 最新的 Cherry Studio 版本没有实现我所提出的功能。
           required: true
 
   - type: dropdown
@@ -44,7 +49,7 @@ body:
   - type: textarea
     id: problem
     attributes:
-      label: 您的功能建议是否与某个问题相关?
+      label: 您的功能建议是否与某个问题/issue相关?
       description: 请简明扼要地描述您遇到的问题
       placeholder: 我总是感到沮丧,因为...
     validations:
