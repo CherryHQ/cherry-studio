@@ -50,7 +50,7 @@ const Inputbar: FC = () => {
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout>()
   const [isTranslating, setIsTranslating] = useState(false)
-  const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBase>()
+  const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBase | undefined>()
 
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
@@ -274,8 +274,8 @@ const Inputbar: FC = () => {
     }
   }, [])
 
-  const handleKnowledgeBaseSelect = (base?: KnowledgeBase) => {
-    setSelectedKnowledgeBase(base)
+  const handleKnowledgeBaseSelect = (bases: KnowledgeBase[]) => {
+    setSelectedKnowledgeBase(bases?.[0])
   }
 
   return (
@@ -317,7 +317,7 @@ const Inputbar: FC = () => {
               </Popconfirm>
             </Tooltip>
             <KnowledgeBaseButton
-              selectedBase={selectedKnowledgeBase}
+              selectedBases={selectedKnowledgeBase ? [selectedKnowledgeBase] : []}
               onSelect={handleKnowledgeBaseSelect}
               ToolbarButton={ToolbarButton}
               disabled={files.length > 0}
