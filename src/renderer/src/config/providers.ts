@@ -526,7 +526,7 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://cloud.baidu.com/',
-      apiKey: 'https://cloud.baidu.com/console/qianfan/apikey',
+      apiKey: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
       docs: 'https://cloud.baidu.com/doc/index.html',
       models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
     }
