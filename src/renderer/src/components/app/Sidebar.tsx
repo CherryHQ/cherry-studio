@@ -50,6 +50,7 @@ const Sidebar: FC = () => {
 
   const onOpenDocs = () => {
     MinApp.start({
+      id: 'docs',
       name: t('docs.title'),
       url: 'https://docs.cherry-ai.com/',
       logo: AppLogo
