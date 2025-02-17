@@ -212,11 +212,11 @@ export const PROVIDER_CONFIG = {
   },
   dmxapi: {
     api: {
-      url: 'https://api.dmxapi.com'
+      url: 'https://www.dmxapi.com'
     },
     websites: {
-      official: 'https://dmxapi.com/',
-      apiKey: 'https://www.dmxapi.com/token',
+      official: 'https://www.dmxapi.com/register?aff=81aj/',
+      apiKey: 'https://www.dmxapi.com/register?aff=81aj',
       docs: 'https://dmxapi.com/models.html#code-block',
       models: 'https://www.dmxapi.com/pricing'
     }

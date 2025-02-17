@@ -1326,34 +1326,70 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   dmxapi: [
     {
-      id: 'gpt-3.5-turbo',
+      id: 'Qwen/Qwen2.5-7B-Instruct',
       provider: 'dmxapi',
-      name: 'GPT-3.5-Turbo',
-      group: 'OpenAI'
+      name: 'Qwen/Qwen2.5-7B-Instruct',
+      group: '免费模型'
+    },
+    {
+      id: 'ERNIE-Speed-128K',
+      provider: 'dmxapi',
+      name: 'ERNIE-Speed-128K',
+      group: '免费模型'
+    },
+    {
+      id: 'THUDM/glm-4-9b-chat',
+      provider: 'dmxapi',
+      name: 'THUDM/glm-4-9b-chat',
+      group: '免费模型'
+    },
+    {
+      id: 'glm-4-flash',
+      provider: 'dmxapi',
+      name: 'glm-4-flash',
+      group: '免费模型'
+    },
+    {
+      id: 'hunyuan-lite',
+      provider: 'dmxapi',
+      name: 'hunyuan-lite',
+      group: '免费模型'
     },
     {
       id: 'gpt-4o',
       provider: 'dmxapi',
-      name: 'GPT-4o',
+      name: 'gpt-4o',
       group: 'OpenAI'
     },
     {
       id: 'gpt-4o-mini',
       provider: 'dmxapi',
-      name: 'GPT-4o-Mini',
+      name: 'gpt-4o-mini',
       group: 'OpenAI'
     },
     {
-      id: 'deepseek-reasoner',
+      id: 'DMXAPI-DeepSeek-R1',
       provider: 'dmxapi',
-      name: 'DeepSeek Reasoner',
+      name: 'DMXAPI-DeepSeek-R1',
       group: 'DeepSeek'
     },
     {
-      id: 'deepseek-chat',
+      id: 'DMXAPI-DeepSeek-V3',
       provider: 'dmxapi',
-      name: 'DeepSeek Chat',
+      name: 'DMXAPI-DeepSeek-V3',
       group: 'DeepSeek'
+    },
+    {
+      id: 'claude-3-5-sonnet-20241022',
+      provider: 'dmxapi',
+      name: 'claude-3-5-sonnet-20241022',
+      group: 'Claude'
+    },
+      {
+      id: 'gemini-2.0-flash',
+      provider: 'dmxapi',
+      name: 'gemini-2.0-flash',
+      group: 'Gemini'
     }
   ],
   perplexity: [

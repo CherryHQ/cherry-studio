@@ -152,7 +152,7 @@ const initialState: LlmState = {
       name: 'DMXAPI',
       type: 'openai',
       apiKey: '',
-      apiHost: 'https://api.dmxapi.com',
+      apiHost: 'https://www.dmxapi.com',
       models: SYSTEM_MODELS.dmxapi,
       isSystem: true,
       enabled: false
