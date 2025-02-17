@@ -1,8 +1,11 @@
+import 'allotment/dist/style.css'
+
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import NavigationService from '@renderer/services/NavigationService'
 import { Assistant } from '@renderer/types'
+import { Allotment } from 'allotment'
 import { FC, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -48,21 +51,27 @@ const HomePage: FC = () => {
     <Container id="home-page">
       <Navbar activeAssistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
       <ContentContainer id="content-container">
-        {showAssistants && (
-          <HomeTabs
-            activeAssistant={activeAssistant}
-            activeTopic={activeTopic}
-            setActiveAssistant={setActiveAssistant}
-            setActiveTopic={setActiveTopic}
-            position="left"
-          />
-        )}
-        <Chat
-          assistant={activeAssistant}
-          activeTopic={activeTopic}
-          setActiveTopic={setActiveTopic}
-          setActiveAssistant={setActiveAssistant}
-        />
+        <Allotment>
+          {showAssistants && (
+            <Allotment.Pane preferredSize={275} minSize={240}>
+              <HomeTabs
+                activeAssistant={activeAssistant}
+                activeTopic={activeTopic}
+                setActiveAssistant={setActiveAssistant}
+                setActiveTopic={setActiveTopic}
+                position="left"
+              />
+            </Allotment.Pane>
+          )}
+          <Allotment.Pane minSize={566}>
+            <Chat
+              assistant={activeAssistant}
+              activeTopic={activeTopic}
+              setActiveTopic={setActiveTopic}
+              setActiveAssistant={setActiveAssistant}
+            />
+          </Allotment.Pane>
+        </Allotment>
       </ContentContainer>
     </Container>
   )

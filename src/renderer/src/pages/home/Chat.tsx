@@ -2,6 +2,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
+import { Allotment } from 'allotment'
 import { Flex } from 'antd'
 import { FC } from 'react'
 import styled from 'styled-components'
@@ -24,24 +25,30 @@ const Chat: FC<Props> = (props) => {
 
   return (
     <Container id="chat" className={messageStyle}>
-      <Main id="chat-main" vertical flex={1} justify="space-between">
-        <Messages
-          key={props.activeTopic.id}
-          assistant={assistant}
-          topic={props.activeTopic}
-          setActiveTopic={props.setActiveTopic}
-        />
-        <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} />
-      </Main>
-      {topicPosition === 'right' && showTopics && (
-        <Tabs
-          activeAssistant={assistant}
-          activeTopic={props.activeTopic}
-          setActiveAssistant={props.setActiveAssistant}
-          setActiveTopic={props.setActiveTopic}
-          position="right"
-        />
-      )}
+      <Allotment>
+        <Allotment.Pane minSize={406}>
+          <Main id="chat-main" vertical flex={1} justify="space-between">
+            <Messages
+              key={props.activeTopic.id}
+              assistant={assistant}
+              topic={props.activeTopic}
+              setActiveTopic={props.setActiveTopic}
+            />
+            <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} />
+          </Main>
+        </Allotment.Pane>
+        {topicPosition === 'right' && showTopics && (
+          <Allotment.Pane preferredSize={275} minSize={160}>
+            <Tabs
+              activeAssistant={assistant}
+              activeTopic={props.activeTopic}
+              setActiveAssistant={props.setActiveAssistant}
+              setActiveTopic={props.setActiveTopic}
+              position="right"
+            />
+          </Allotment.Pane>
+        )}
+      </Allotment>
     </Container>
   )
 }
