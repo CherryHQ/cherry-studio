@@ -49,7 +49,10 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
   }
 
   const onOpenLink = () => {
-    window.api.openWebsite(app.url)
+    if (webviewRef.current) {
+      const currentUrl = webviewRef.current.getURL()
+      window.api.openWebsite(currentUrl)
+    }
   }
 
   const onTogglePin = () => {
