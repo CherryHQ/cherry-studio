@@ -6,8 +6,8 @@ import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getMessageModelId } from '@renderer/services/MessagesService'
-import { estimateMessageUsage } from '@renderer/services/TokenService'
+import { getContextCount, getMessageModelId } from '@renderer/services/MessagesService'
+import { estimateHistoryTokens, estimateMessageUsage } from '@renderer/services/TokenService'
 import { Message, Topic } from '@renderer/types'
 import { classNames, runAsyncFunction } from '@renderer/utils'
 import { Divider } from 'antd'
@@ -75,13 +75,22 @@ const MessageItem: FC<Props> = ({
   const messageBackground = getMessageBackground(isBubbleStyle, isAssistantMessage)
 
   const onEditMessage = useCallback(
-    (msg: Message) => {
+    async (msg: Message) => {
+      const usage = await estimateMessageUsage(msg)
+      msg.usage = usage
+
       setMessage(msg)
       const messages = onGetMessages?.()?.map((m) => (m.id === message.id ? msg : m))
       messages && onSetMessages?.(messages)
       topic && db.topics.update(topic.id, { messages })
+
+      if (messages) {
+        const tokensCount = await estimateHistoryTokens(assistant, messages)
+        const contextCount = getContextCount(assistant, messages)
+        EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, { tokensCount, contextCount })
+      }
     },
-    [message.id, onGetMessages, onSetMessages, topic]
+    [message.id, onGetMessages, onSetMessages, topic, assistant]
   )
 
   const messageHighlightHandler = (highlight: boolean = true) => {
