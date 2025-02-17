@@ -51,6 +51,17 @@ const PopupContainer: React.FC<Props> = ({ text, textareaProps, modalProps, reso
     setTimeout(resizeTextArea, 0)
   }, [])
 
+  const handleAfterOpenChange = (visible: boolean) => {
+    if (visible) {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        textArea.focus()
+        const length = textArea.value.length
+        textArea.setSelectionRange(length, length)
+      }
+    }
+  }
+
   TextEditPopup.hide = onCancel
 
   return (
@@ -65,6 +76,7 @@ const PopupContainer: React.FC<Props> = ({ text, textareaProps, modalProps, reso
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
+      afterOpenChange={handleAfterOpenChange}
       centered>
       <TextArea
         ref={textareaRef}
