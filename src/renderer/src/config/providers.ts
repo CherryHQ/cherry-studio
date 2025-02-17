@@ -36,6 +36,7 @@ import TogetherProviderLogo from '@renderer/assets/images/providers/together.png
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import BltcyAiProviderLogo from '@renderer/assets/images/providers/bltcyai.png'
 export function getProviderLogo(providerId: string) {
   switch (providerId) {
     case 'openai':
@@ -114,6 +115,8 @@ export function getProviderLogo(providerId: string) {
       return PerplexityProviderLogo
     case 'infini':
       return InfiniProviderLogo
+    case 'bltcyai':
+      return BltcyAiProviderLogo
     default:
       return undefined
   }
@@ -186,6 +189,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://platform.deepseek.com/api_keys',
       docs: 'https://platform.deepseek.com/api-docs/',
       models: 'https://platform.deepseek.com/api-docs/'
+    }
+  },
+  bltcyai: {
+    api: {
+      url: 'https://api.bltcy.ai'
+    },
+    websites: {
+      official: 'https://api.bltcy.ai/',
+      apiKey: 'https://api.bltcy.ai/token',
+      docs: 'https://api.bltcy.ai/about',
+      models: 'https://api.bltcy.ai/models'
     }
   },
   ocoolai: {
