@@ -1,6 +1,6 @@
 import { Input, Modal } from 'antd'
 import { TextAreaProps } from 'antd/es/input'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { Box } from '../Layout'
 import { TopView } from '../TopView'
@@ -27,6 +27,7 @@ const PromptPopupContainer: React.FC<Props> = ({
 }) => {
   const [value, setValue] = useState(defaultValue)
   const [open, setOpen] = useState(true)
+  const textAreaRef = useRef<any>(null)
 
   const onOk = () => {
     setOpen(false)
@@ -41,17 +42,35 @@ const PromptPopupContainer: React.FC<Props> = ({
     resolve(null)
   }
 
+  const handleAfterOpenChange = (visible: boolean) => {
+    if (visible) {
+      const textArea = textAreaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        textArea.focus()
+        const length = textArea.value.length
+        textArea.setSelectionRange(length, length)
+      }
+    }
+  }
+
   PromptPopup.hide = onCancel
 
   return (
-    <Modal title={title} open={open} onOk={onOk} onCancel={onCancel} afterClose={onClose} centered>
+    <Modal
+      title={title}
+      open={open}
+      onOk={onOk}
+      onCancel={onCancel}
+      afterClose={onClose}
+      afterOpenChange={handleAfterOpenChange}
+      centered>
       <Box mb={8}>{message}</Box>
       <Input.TextArea
+        ref={textAreaRef}
         placeholder={inputPlaceholder}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         allowClear
-        autoFocus
         onPressEnter={onOk}
         rows={1}
         {...inputProps}
