@@ -1,6 +1,6 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, Shortcut, WebDavConfig } from '@types'
-import { contextBridge, ipcRenderer, OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
 
 // Custom APIs for renderer
 const api = {
@@ -104,6 +104,9 @@ const api = {
     encrypt: (text: string, secretKey: string, iv: string) => ipcRenderer.invoke('aes:encrypt', text, secretKey, iv),
     decrypt: (encryptedData: string, iv: string, secretKey: string) =>
       ipcRenderer.invoke('aes:decrypt', encryptedData, iv, secretKey)
+  },
+  shell: {
+    openExternal: shell.openExternal
   }
 }
 

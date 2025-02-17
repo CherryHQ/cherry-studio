@@ -119,6 +119,9 @@ declare global {
         encrypt: (text: string, secretKey: string, iv: string) => Promise<{ iv: string; encryptedData: string }>
         decrypt: (encryptedData: string, iv: string, secretKey: string) => Promise<string>
       }
+      shell: {
+        openExternal: (url: string, options?: OpenExternalOptions) => Promise<void>
+      }
     }
   }
 }

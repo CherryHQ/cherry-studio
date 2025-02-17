@@ -139,7 +139,13 @@
       "translate": "翻訳",
       "topics.prompt": "トピック提示語",
       "topics.prompt.tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供",
-      "topics.prompt.edit.title": "トピック提示語を編集する"
+      "topics.prompt.edit.title": "トピック提示語を編集する",
+      "artifacts.preview.modal.title": "プレビューオプション",
+      "artifacts.preview.modal.content": "このファイルをどこでプレビューしたいですか？",
+      "artifacts.preview.modal.okText": "アプリ内プレビュー",
+      "artifacts.preview.modal.cancelText": "外部ブラウザで開く",
+      "artifacts.preview.modal.error.title": "エラー",
+      "artifacts.preview.modal.error.content": "外部ブラウザで開くことができません。この機能がサポートされている環境であることを確認してください。"
     },
     "common": {
       "add": "追加",

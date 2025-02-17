@@ -139,7 +139,13 @@
       "translate": "Translate",
       "topics.prompt": "Topic Prompts",
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
-      "topics.prompt.edit.title": "Edit Topic Prompts"
+      "topics.prompt.edit.title": "Edit Topic Prompts",
+      "artifacts.preview.modal.title": "Preview options",
+      "artifacts.preview.modal.content": "Where would you like to preview this file?",
+      "artifacts.preview.modal.okText": "In-app preview",
+      "artifacts.preview.modal.cancelText": "Open in an external browser.",
+      "artifacts.preview.modal.error.title": "Error",
+      "artifacts.preview.modal.error.content": "Unable to open in an external browser. Please ensure your environment supports this feature."
     },
     "common": {
       "add": "Add",

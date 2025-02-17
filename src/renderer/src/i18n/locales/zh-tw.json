@@ -139,7 +139,13 @@
       "translate": "翻譯",
       "topics.prompt": "話題提示詞",
       "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
-      "topics.prompt.edit.title": "編輯話題提示詞"
+      "topics.prompt.edit.title": "編輯話題提示詞",
+      "artifacts.preview.modal.title": "預覽選項",
+      "artifacts.preview.modal.content": "您希望在哪裡預覽此檔案？",
+      "artifacts.preview.modal.okText": "在應用內預覽",
+      "artifacts.preview.modal.cancelText": "在外部瀏覽器打開",
+      "artifacts.preview.modal.error.title": "錯誤",
+      "artifacts.preview.modal.error.content": "無法在外部瀏覽器中打開。請確保您的環境支持此功能。"
     },
     "common": {
       "add": "添加",
