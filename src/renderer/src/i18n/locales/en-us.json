@@ -178,7 +178,8 @@
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
-      "footnote": "Reference content"
+      "footnote": "Reference content",
+      "save_success": "Saved successfully"
     },
     "error": {
       "backup.file_format": "Backup file format error",
@@ -748,7 +749,19 @@
       "topic.position.left": "Left",
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
-      "tray.title": "Enable System Tray Icon"
+      "tray.title": "Enable system tray icon",
+      "knowledge_base": {
+        "title": "Knowledge Base Settings",
+        "prompt": {
+          "title": "Prompt Template Settings",
+          "tooltip": "Used to set the prompt template for knowledge base retrieval, supports variables: {question} represents the user's input question, {references} represents the retrieved relevant content",
+          "placeholder": "Please enter knowledge base prompt template",
+          "insert_user_input": "Insert User Input",
+          "insert_references": "Insert References",
+          "empty": "Prompt template cannot be empty",
+          "missing_variables": "Missing {question} or {references} variables may affect the normal use of the knowledge base. Do you want to continue?"
+        }
+      }
     },
     "translate": {
       "any.language": "Any language",

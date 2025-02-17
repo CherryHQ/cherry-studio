@@ -1,4 +1,3 @@
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import { getKnowledgeReferences } from '@renderer/services/KnowledgeService'
@@ -112,7 +111,9 @@ export default abstract class BaseProvider {
     }
     const allReferencesContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
 
-    return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', allReferencesContent)
+    const referencePrompt = store.getState().settings.knowledgeBasePrompt
+
+    return referencePrompt.replace('{question}', message.content).replace('{references}', allReferencesContent)
   }
 
   protected getCustomParameters(assistant: Assistant) {

@@ -178,7 +178,8 @@
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
-      "footnote": "引用内容"
+      "footnote": "引用内容",
+      "save_success": "保存しました"
     },
     "error": {
       "backup.file_format": "バックアップファイルの形式エラー",
@@ -748,7 +749,19 @@
       "topic.position.left": "左",
       "topic.position.right": "右",
       "topic.show.time": "トピックの時間を表示",
-      "tray.title": "システムトレイアイコンを有効にする"
+      "tray.title": "システムトレイアイコンを有効にする",
+      "knowledge_base": {
+        "title": "ナレッジベース設定",
+        "prompt": {
+          "title": "プロンプトテンプレート設定",
+          "tooltip": "ナレッジベース検索時のプロンプトテンプレートを設定します。変数をサポート：{question}はユーザーの入力質問、{references}は検索された関連コンテンツを表します",
+          "placeholder": "ナレッジベースのプロンプトテンプレートを入力してください",
+          "insert_user_input": "ユーザー入力を挿入",
+          "insert_references": "参照を挿入",
+          "empty": "プロンプトテンプレートを空にすることはできません",
+          "missing_variables": "{question}または{references}変数が欠落していると、ナレッジベースの正常な使用に影響を与える可能性があります。続行しますか？"
+        }
+      }
     },
     "translate": {
       "any.language": "任意の言語",

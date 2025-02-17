@@ -178,7 +178,8 @@
       "select": "选择",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户"
+      "you": "用户",
+      "save_success": "保存成功"
     },
     "error": {
       "backup.file_format": "备份文件格式错误",
@@ -748,7 +749,19 @@
       "topic.position.left": "左侧",
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
-      "tray.title": "启用系统托盘图标"
+      "tray.title": "启用系统托盘图标",
+      "knowledge_base": {
+        "title": "知识库设置",
+        "prompt": {
+          "title": "提示词模板设置",
+          "tooltip": "用于设置知识库检索时的提示词模板，支持变量：{question} 表示用户输入的问题，{references} 表示检索到的相关内容",
+          "placeholder": "请输入知识库提示词模板",
+          "insert_user_input": "插入用户输入",
+          "insert_references": "插入引用",
+          "empty": "提示词模板不能为空",
+          "missing_variables": "缺少 {question} 或 {references} 变量可能导致知识库无法达到期望效果，确定要继续保存吗？"
+        }
+      }
     },
     "translate": {
       "any.language": "任意语言",

@@ -178,7 +178,8 @@
       "topics": "話題",
       "warning": "警告",
       "you": "您",
-      "footnote": "引用內容"
+      "footnote": "引用內容",
+      "save_success": "儲存成功"
     },
     "error": {
       "backup.file_format": "備份文件格式錯誤",
@@ -748,7 +749,19 @@
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
       "tray.title": "啟用系統托盤圖標",
-      "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息"
+      "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息",
+      "knowledge_base": {
+        "title": "知識庫設定",
+        "prompt": {
+          "title": "提示詞範本設定",
+          "tooltip": "用於設定知識庫檢索時的提示詞範本，支援變數：{question} 表示用戶輸入的問題，{references} 表示檢索到的相關內容",
+          "placeholder": "請輸入知識庫提示詞範本",
+          "insert_user_input": "插入用戶輸入",
+          "insert_references": "插入引用",
+          "empty": "提示詞範本不能為空",
+          "missing_variables": "缺少 {question} 或 {references} 變數可能導致知識庫無法達到預期效果，確定要繼續儲存嗎？"
+        }
+      }
     },
     "translate": {
       "any.language": "任意語言",
