@@ -178,7 +178,8 @@
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
-      "footnote": "引用内容"
+      "footnote": "引用内容",
+      "confirm": "確定"
     },
     "error": {
       "backup.file_format": "バックアップファイルの形式エラー",
@@ -301,7 +302,8 @@
       "threshold_placeholder": "未設置",
       "threshold_too_large_or_small": "しきい値は0より大きく1より小さい必要があります",
       "no_match": "知識ベースの内容が見つかりませんでした。",
-      "threshold": "マッチング度閾値"
+      "threshold": "マッチング度閾値",
+      "embedding_model_change_tooltip": "埋め込みモデルの変更により、再インデックスされます！"
     },
     "languages": {
       "arabic": "アラビア語",

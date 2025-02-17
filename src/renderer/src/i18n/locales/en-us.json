@@ -178,7 +178,8 @@
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
-      "footnote": "Reference content"
+      "footnote": "Reference content",
+      "confirm": "Sure"
     },
     "error": {
       "backup.file_format": "Backup file format error",
@@ -301,7 +302,8 @@
       "threshold_placeholder": "Not set",
       "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
       "no_match": "No matching content found in the knowledge base.",
-      "threshold": "Matching threshold"
+      "threshold": "Matching threshold",
+      "embedding_model_change_tooltip": "Embedding model changes will trigger re-indexing!"
     },
     "languages": {
       "arabic": "Arabic",

@@ -178,7 +178,8 @@
       "topics": "話題",
       "warning": "警告",
       "you": "您",
-      "footnote": "引用內容"
+      "footnote": "引用內容",
+      "confirm": "確定"
     },
     "error": {
       "backup.file_format": "備份文件格式錯誤",
@@ -301,7 +302,8 @@
       "threshold_placeholder": "未設置",
       "threshold_too_large_or_small": "閾值不能大於1或小於0",
       "no_match": "未匹配到知識庫內容",
-      "threshold": "匹配度閾值"
+      "threshold": "匹配度閾值",
+      "embedding_model_change_tooltip": "嵌入模型更改將會重新索引!"
     },
     "languages": {
       "arabic": "阿拉伯文",
