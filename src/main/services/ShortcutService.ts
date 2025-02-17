@@ -47,8 +47,8 @@ function formatShortcutKey(shortcut: string[]): string {
 
 function handleZoom(delta: number) {
   return (window: BrowserWindow) => {
-    const currentZoom = window.webContents.getZoomFactor()
-    const newZoom = currentZoom + delta
+    const currentZoom = configManager.getZoomFactor()
+    const newZoom = Number((currentZoom + delta).toFixed(1))
     if (newZoom >= 0.1 && newZoom <= 5.0) {
       window.webContents.setZoomFactor(newZoom)
       configManager.setZoomFactor(newZoom)
@@ -110,7 +110,9 @@ const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutForm
 }
 
 export function registerShortcuts(window: BrowserWindow) {
-  window.webContents.setZoomFactor(configManager.getZoomFactor())
+  window.once('ready-to-show', () => {
+    window.webContents.setZoomFactor(configManager.getZoomFactor())
+  })
 
   const register = () => {
     if (window.isDestroyed()) return
