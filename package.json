@@ -137,7 +137,7 @@
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
     "rehype-katex": "^7.0.1",
-    "rehype-mathjax": "^6.0.0",
+    "rehype-mathjax": "^7.0.0",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
