@@ -8,7 +8,7 @@ import { uuid } from '@renderer/utils'
 import { Divider } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
-import { FC, useCallback, useEffect, useState } from 'react'
+import React, { FC, useCallback, useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -25,6 +25,8 @@ const HomeWindow: FC = () => {
   const [clipboardText, setClipboardText] = useState('')
   const [selectedText, setSelectedText] = useState('')
   const [text, setText] = useState('')
+  const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
+  const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const { defaultModel: model } = useDefaultModel()
   const { language } = useSettings()
@@ -35,9 +37,12 @@ const HomeWindow: FC = () => {
   const content = (referenceText === text ? text : `${referenceText}\n\n${text}`).trim()
 
   const onReadClipboard = useCallback(async () => {
-    const text = await navigator.clipboard.readText()
-    setClipboardText(text.trim())
-  }, [])
+    const text = await navigator.clipboard.readText().catch(() => null)
+    if (text && text !== lastClipboardText) {
+      setLastClipboardText(text)
+      setClipboardText(text.trim())
+    }
+  }, [lastClipboardText])
 
   useEffect(() => {
     onReadClipboard()
@@ -50,9 +55,10 @@ const HomeWindow: FC = () => {
   const onCloseWindow = () => window.api.miniWindow.hide()
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const isEnterPressed = e.keyCode == 13
+    const isEnterPressed = e.code === 'Enter'
+    const isBackspacePressed = e.code === 'Backspace'
 
-    if (e.key === 'Escape') {
+    if (e.code === 'Escape') {
       setText('')
       setRoute('home')
       route === 'home' && onCloseWindow()
@@ -67,6 +73,18 @@ const HomeWindow: FC = () => {
         setTimeout(() => setText(''), 100)
       }
     }
+
+    if (isBackspacePressed) {
+      textChange(() => {
+        if (text.length === 0) {
+          clearClipboard()
+        }
+      })
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setText(e.target.value)
   }
 
   const onSendMessage = useCallback(
@@ -95,7 +113,6 @@ const HomeWindow: FC = () => {
   const clearClipboard = () => {
     setClipboardText('')
     setSelectedText('')
-    navigator.clipboard.writeText('')
   }
 
   useHotkeys('esc', () => {
@@ -132,7 +149,7 @@ const HomeWindow: FC = () => {
               referenceText={referenceText}
               placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
               handleKeyDown={handleKeyDown}
-              setText={setText}
+              handleChange={handleChange}
             />
             <Divider style={{ margin: '10px 0' }} />
           </>
@@ -171,7 +188,7 @@ const HomeWindow: FC = () => {
             : t('miniwindow.input.placeholder.empty', { model: model.name })
         }
         handleKeyDown={handleKeyDown}
-        setText={setText}
+        handleChange={handleChange}
       />
       <Divider style={{ margin: '10px 0' }} />
       <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />

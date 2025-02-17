@@ -1,7 +1,7 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { Input as AntdInput } from 'antd'
-import { FC } from 'react'
+import React, { FC } from 'react'
 import styled from 'styled-components'
 
 interface InputBarProps {
@@ -10,10 +10,10 @@ interface InputBarProps {
   referenceText: string
   placeholder: string
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
-  setText: (text: string) => void
+  handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }
 
-const InputBar: FC<InputBarProps> = ({ text, model, placeholder, handleKeyDown, setText }) => {
+const InputBar: FC<InputBarProps> = ({ text, model, placeholder, handleKeyDown, handleChange }) => {
   const { generating } = useRuntime()
   return (
     <InputWrapper>
@@ -24,7 +24,7 @@ const InputBar: FC<InputBarProps> = ({ text, model, placeholder, handleKeyDown, 
         bordered={false}
         autoFocus
         onKeyDown={handleKeyDown}
-        onChange={(e) => setText(e.target.value)}
+        onChange={handleChange}
         disabled={generating}
       />
     </InputWrapper>
