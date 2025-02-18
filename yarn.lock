@@ -2664,6 +2664,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/pako@npm:^1.0.2":
+  version: 1.0.7
+  resolution: "@types/pako@npm:1.0.7"
+  checksum: 10c0/1ba133db0b30a974c3d651c85651fd30135f629727b4b4d7ef2649c8f8b01014d5ef41f75399d939e320a50bfa87c32beccbb513badfeaf85d74ea6d5370fdcc
+  languageName: node
+  linkType: hard
+
 "@types/plist@npm:^3.0.1":
   version: 3.0.5
   resolution: "@types/plist@npm:3.0.5"
@@ -3000,6 +3007,7 @@ __metadata:
     "@types/markdown-it": "npm:^14"
     "@types/md5": "npm:^2.3.5"
     "@types/node": "npm:^18.19.9"
+    "@types/pako": "npm:^1.0.2"
     "@types/react": "npm:^18.2.48"
     "@types/react-dom": "npm:^18.2.18"
     "@types/react-infinite-scroll-component": "npm:^5.0.0"

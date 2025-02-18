@@ -331,6 +331,18 @@
       },
       "title": "Mermaid Diagram"
     },
+    "plantuml": {
+      "download": {
+        "png": "Download PNG",
+        "svg": "Download SVG",
+        "failed": "Download failed, please check the network"
+      },
+      "tabs": {
+        "preview": "Preview",
+        "source": "Source"
+      },
+      "title": "PlantUML Diagram"
+    },
     "message": {
       "api.check.model.title": "Select the model to use for detection",
       "api.connection.failed": "Connection failed",

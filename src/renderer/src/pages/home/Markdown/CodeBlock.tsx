@@ -10,6 +10,7 @@ import styled from 'styled-components'
 
 import Artifacts from './Artifacts'
 import Mermaid from './Mermaid'
+import { isValidPlantUML, PlantUML } from './PlantUML'
 import SvgPreview from './SvgPreview'
 
 interface CodeBlockProps {
@@ -60,6 +61,10 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
   if (language === 'mermaid') {
     return <Mermaid chart={children} />
+  }
+
+  if (language === 'plantuml' && isValidPlantUML(children)) {
+    return <PlantUML diagram={children} />
   }
 
   if (language === 'svg') {

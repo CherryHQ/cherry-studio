@@ -331,6 +331,18 @@
       },
       "title": "Mermaid 图表"
     },
+    "plantuml": {
+      "title": "PlantUML 图表",
+      "download": {
+        "png": "下载 PNG",
+        "svg": "下载 SVG",
+        "failed": "下载失败，请检查网络"
+      },
+      "tabs": {
+        "preview": "预览",
+        "source": "源码"
+      }
+    },
     "message": {
       "api.check.model.title": "请选择要检测的模型",
       "api.connection.failed": "连接失败",
