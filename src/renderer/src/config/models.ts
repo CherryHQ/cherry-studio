@@ -150,7 +150,8 @@ const visionAllowedModels = [
   'gpt-4o(?:-[\\w-]+)?',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
-  'deepseek-vl(?:[\\w-]+)?'
+  'deepseek-vl(?:[\\w-]+)?',
+  'kimi-latest'
 ]
 
 const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+']
@@ -180,6 +181,7 @@ export function getModelLogo(modelId: string) {
     abab: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     o1: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
+    'kimi-latest': isLight ? MoonshotModelLogo : MoonshotModelLogoDark,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
@@ -1385,7 +1387,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'claude-3-5-sonnet-20241022',
       group: 'Claude'
     },
-      {
+    {
       id: 'gemini-2.0-flash',
       provider: 'dmxapi',
       name: 'gemini-2.0-flash',
