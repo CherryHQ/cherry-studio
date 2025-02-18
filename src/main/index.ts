@@ -1,5 +1,5 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow } from 'electron'
+import { app } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
@@ -46,9 +46,8 @@ if (!app.requestSingleInstanceLock()) {
     new TrayService()
 
     app.on('activate', function () {
-      // On macOS it's common to re-create a window in the app when the
-      // dock icon is clicked and there are no other windows open.
-      if (BrowserWindow.getAllWindows().length === 0) {
+      const mainWindow = windowService.getMainWindow()
+      if (!mainWindow || mainWindow.isDestroyed()) {
         windowService.createMainWindow()
       } else {
         windowService.showMainWindow()
@@ -68,12 +67,7 @@ if (!app.requestSingleInstanceLock()) {
 
   // Listen for second instance
   app.on('second-instance', () => {
-    const mainWindow = BrowserWindow.getAllWindows()[0]
-    if (mainWindow) {
-      mainWindow.isMinimized() && mainWindow.restore()
-      mainWindow.show()
-      mainWindow.focus()
-    }
+    windowService.showMainWindow()
   })
 
   app.on('browser-window-created', (_, window) => {

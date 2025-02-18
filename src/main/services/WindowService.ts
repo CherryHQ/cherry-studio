@@ -28,6 +28,7 @@ export class WindowService {
 
   public createMainWindow(): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.show()
       return this.mainWindow
     }
 
@@ -248,17 +249,32 @@ export class WindowService {
       event.preventDefault()
       mainWindow.hide()
     })
+
+    mainWindow.on('closed', () => {
+      this.mainWindow = null
+    })
+
+    mainWindow.on('show', () => {
+      if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+        this.miniWindow.hide()
+      }
+    })
   }
 
   public showMainWindow() {
-    if (this.mainWindow) {
+    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      this.miniWindow.hide()
+    }
+
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
-        return this.mainWindow.restore()
+        this.mainWindow.restore()
       }
       this.mainWindow.show()
       this.mainWindow.focus()
     } else {
-      this.createMainWindow()
+      this.mainWindow = this.createMainWindow()
+      this.mainWindow.focus()
     }
   }
 
@@ -269,7 +285,10 @@ export class WindowService {
       return
     }
 
-    if (this.selectionMenuWindow) {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.hide()
+    }
+    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
       this.selectionMenuWindow.hide()
     }
 
