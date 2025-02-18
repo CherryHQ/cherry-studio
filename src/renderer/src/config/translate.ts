@@ -57,3 +57,13 @@ export const TranslateLanguageOptions = [
     emoji: '🇸🇦'
   }
 ]
+
+export const translateLanguageOptions = (): typeof TranslateLanguageOptions => {
+  return TranslateLanguageOptions.map((option) => {
+    return {
+      value: option.value,
+      label: i18n.t(`languages.${option.value}`),
+      emoji: option.emoji
+    }
+  })
+}

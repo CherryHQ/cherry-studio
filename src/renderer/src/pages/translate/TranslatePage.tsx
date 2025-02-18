@@ -2,7 +2,7 @@ import { CheckOutlined, SendOutlined, SettingOutlined, SwapOutlined, WarningOutl
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { isLocalAi } from '@renderer/config/env'
-import { TranslateLanguageOptions } from '@renderer/config/translate'
+import { translateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { fetchTranslate } from '@renderer/services/ApiService'
@@ -129,7 +129,7 @@ const TranslatePage: FC = () => {
             value={targetLanguage}
             style={{ width: 180 }}
             optionFilterProp="label"
-            options={TranslateLanguageOptions}
+            options={translateLanguageOptions()}
             onChange={(value) => {
               setTargetLanguage(value)
               db.settings.put({ id: 'translate:target:language', value })
