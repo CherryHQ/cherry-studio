@@ -81,13 +81,13 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px">
+        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={notionDatabaseID || ''}
             onChange={handleNotionDatabaseIdChange}
             onBlur={handleNotionDatabaseIdChange}
-            style={{ width: 250 }}
+            style={{ width: 315 }}
             placeholder={t('settings.data.notion.database_id_placeholder')}
           />
         </HStack>
