@@ -163,7 +163,6 @@ const WebDavSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <HStack gap="5px" justifyContent="space-between">
-          {/* 添加 在线备份 在线还原 按钮 */}
           <Button onClick={onBackup} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>
@@ -178,18 +177,32 @@ const WebDavSettings: FC = () => {
         <Select value={syncInterval} onChange={onSyncIntervalChange} disabled={!webdavHost} style={{ width: 120 }}>
           <Select.Option value={0}>{t('settings.data.webdav.autoSync.off')}</Select.Option>
           <Select.Option value={1}>
-            1 {i18n.language === 'en-US' ? t('settings.data.webdav.minute') : t('settings.data.webdav.minutes')}
+            {t('settings.data.webdav.minute_interval', { count: 1 })}
           </Select.Option>
-          <Select.Option value={5}>5 {t('settings.data.webdav.minutes')}</Select.Option>
-          <Select.Option value={15}>15 {t('settings.data.webdav.minutes')}</Select.Option>
-          <Select.Option value={30}>30 {t('settings.data.webdav.minutes')}</Select.Option>
+          <Select.Option value={5}>
+            {t('settings.data.webdav.minute_interval', { count: 5 })}
+          </Select.Option>
+          <Select.Option value={15}>
+            {t('settings.data.webdav.minute_interval', { count: 15 })}
+          </Select.Option>
+          <Select.Option value={30}>
+            {t('settings.data.webdav.minute_interval', { count: 30 })}
+          </Select.Option>
           <Select.Option value={60}>
-            1 {i18n.language === 'en-US' ? t('settings.data.webdav.hour') : t('settings.data.webdav.hours')}
+            {t('settings.data.webdav.hour_interval', { count: 1 })}
           </Select.Option>
-          <Select.Option value={120}>2 {t('settings.data.webdav.hours')}</Select.Option>
-          <Select.Option value={360}>6 {t('settings.data.webdav.hours')}</Select.Option>
-          <Select.Option value={720}>12 {t('settings.data.webdav.hours')}</Select.Option>
-          <Select.Option value={1440}>24 {t('settings.data.webdav.hours')}</Select.Option>
+          <Select.Option value={120}>
+            {t('settings.data.webdav.hour_interval', { count: 2 })}
+          </Select.Option>
+          <Select.Option value={360}>
+            {t('settings.data.webdav.hour_interval', { count: 6 })}
+          </Select.Option>
+          <Select.Option value={720}>
+            {t('settings.data.webdav.hour_interval', { count: 12 })}
+          </Select.Option>
+          <Select.Option value={1440}>
+            {t('settings.data.webdav.hour_interval', { count: 24 })}
+          </Select.Option>
         </Select>
       </SettingRow>
       {webdavSync && syncInterval > 0 && (

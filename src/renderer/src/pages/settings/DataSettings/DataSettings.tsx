@@ -87,7 +87,7 @@ const NotionSettings: FC = () => {
             value={notionDatabaseID || ''}
             onChange={handleNotionDatabaseIdChange}
             onBlur={handleNotionDatabaseIdChange}
-            style={{ width: 315 }}
+            style={{ width: 250 }}
             placeholder={t('settings.data.notion.database_id_placeholder')}
           />
         </HStack>
@@ -95,7 +95,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px">
+        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="password"
             value={notionApiKey || ''}
@@ -104,7 +104,7 @@ const NotionSettings: FC = () => {
             style={{ width: 250 }}
             placeholder={t('settings.data.notion.api_key_placeholder')}
           />
-          <Button onClick={handleNotionConnectionCheck} style={{ width: 60 }}>
+          <Button onClick={handleNotionConnectionCheck}>
             {t('settings.data.notion.check.button')}
           </Button>
         </HStack>
