@@ -70,10 +70,12 @@ const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutForm
   return accelerator
     .map((key) => {
       switch (key) {
+        case 'Command':
+          return 'CommandOrControl'
         case 'Control':
-          return 'CommandOrControl'
+          return 'Control'
         case 'Ctrl':
-          return 'CommandOrControl'
+          return 'Control'
         case 'ArrowUp':
           return 'Up'
         case 'ArrowDown':
