@@ -1,4 +1,5 @@
 import { InfoCircleOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
@@ -77,7 +78,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   return (
     <Fragment>
       <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
-        {message.mentions?.map((model) => <MentionTag key={model.id}>{'@' + model.name}</MentionTag>)}
+        {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
       </Flex>
       <MessageThought message={message} />
       <Markdown message={{ ...message, content: processedContent }} />
