@@ -567,6 +567,7 @@
         "notion.database_id": "Notion Database ID",
         "notion.database_id_placeholder": "Enter Notion Database ID",
         "notion.title": "Notion Configuration",
+        "notion.help": "Notion Configuration Documentation",
         "notion.check": {
           "button": "Check",
           "fail": "Connection failed, please check network and Api_key and Database_id",

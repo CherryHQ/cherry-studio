@@ -567,6 +567,7 @@
         "notion.database_id": "ID базы данных Notion",
         "notion.database_id_placeholder": "Введите ID базы данных Notion",
         "notion.title": "Настройки Notion",
+        "notion.help": "Документация по настройке Notion",
         "notion.check": {
           "button": "Проверить",
           "fail": "Не удалось подключиться, пожалуйста, проверьте сеть и правильность Api_key и Database_id",

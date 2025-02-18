@@ -565,6 +565,7 @@
         "notion.database_id": "Notion 資料庫 ID",
         "notion.database_id_placeholder": "請輸入Notion 資料庫 ID",
         "notion.title": "Notion 配置",
+        "notion.help": "Notion 配置文檔",
         "notion.check": {
           "button": "檢查",
           "fail": "連接失敗，請檢查網絡及Api_key和Database_id是否正確",

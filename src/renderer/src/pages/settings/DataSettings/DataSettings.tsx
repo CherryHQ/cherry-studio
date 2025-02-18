@@ -7,7 +7,7 @@ import { backup, reset, restore } from '@renderer/services/BackupService'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setNotionApiKey, setNotionDatabaseID } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
-import { Button, Modal, Typography } from 'antd'
+import { Button, Modal, Tooltip, Typography } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -73,10 +73,12 @@ const NotionSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
         {t('settings.data.notion.title')}
-        <InfoCircleOutlined
-          style={{ color: 'var(--color-text-2)', cursor: 'pointer' }}
-          onClick={handleNotionTitleClick}
-        />
+        <Tooltip title={t('settings.data.notion.help')} placement="right">
+          <InfoCircleOutlined
+            style={{ color: 'var(--color-text-2)', cursor: 'pointer' }}
+            onClick={handleNotionTitleClick}
+          />
+        </Tooltip>
       </SettingTitle>
       <SettingDivider />
       <SettingRow>
@@ -104,9 +106,7 @@ const NotionSettings: FC = () => {
             style={{ width: 250 }}
             placeholder={t('settings.data.notion.api_key_placeholder')}
           />
-          <Button onClick={handleNotionConnectionCheck}>
-            {t('settings.data.notion.check.button')}
-          </Button>
+          <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
         </HStack>
       </SettingRow>
       <SettingDivider /> {/* 添加分割线 */}

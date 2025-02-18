@@ -567,6 +567,7 @@
         "notion.database_id": "Notion データベースID",
         "notion.database_id_placeholder": "Notion データベースIDを入力してください",
         "notion.title": "Notion 設定",
+        "notion.help": "Notion 設定ドキュメント",
         "notion.check": {
           "button": "確認",
           "fail": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
