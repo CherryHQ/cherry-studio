@@ -41,7 +41,7 @@ const MessageGroupMenuBar: FC<Props> = ({
           {['fold', 'vertical', 'horizontal', 'grid'].map((layout) => (
             <LayoutOption
               key={layout}
-              active={multiModelMessageStyle === layout}
+              $active={multiModelMessageStyle === layout}
               onClick={() => setMultiModelMessageStyle(layout as MultiModelMessageStyle)}>
               {layout === 'fold' ? (
                 <FolderOutlined />
@@ -100,8 +100,8 @@ const GroupMenuBar = styled.div<{ $layout: MultiModelMessageStyle }>`
   overflow: hidden;
   border: 0.5px solid var(--color-border);
   height: 40px;
-  margin-left: ${({ $layout }) => (['horizontal', 'grid'].includes($layout) ? '0' : '40px')};
   transition: all 0.3s ease;
+  background-color: var(--color-background);
 `
 
 const LayoutContainer = styled.div`
@@ -110,14 +110,14 @@ const LayoutContainer = styled.div`
   flex-direction: row;
 `
 
-const LayoutOption = styled.div<{ active: boolean }>`
+const LayoutOption = styled.div<{ $active: boolean }>`
   cursor: pointer;
   padding: 2px 10px;
   border-radius: 4px;
-  background-color: ${({ active }) => (active ? 'var(--color-background-soft)' : 'transparent')};
+  background-color: ${({ $active }) => ($active ? 'var(--color-background-soft)' : 'transparent')};
 
   &:hover {
-    background-color: ${({ active }) => (active ? 'var(--color-background-soft)' : 'var(--color-hover)')};
+    background-color: ${({ $active }) => ($active ? 'var(--color-background-soft)' : 'var(--color-hover)')};
   }
 `
 

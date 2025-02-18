@@ -240,6 +240,7 @@ const MessageContentContainer = styled.div`
   justify-content: space-between;
   margin-left: 46px;
   margin-top: 5px;
+  overflow-y: auto;
 `
 
 const MessageFooter = styled.div`
