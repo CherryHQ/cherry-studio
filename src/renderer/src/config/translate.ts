@@ -55,5 +55,10 @@ export const TranslateLanguageOptions = [
     value: 'arabic',
     label: i18n.t('languages.arabic'),
     emoji: '🇸🇦'
+  },
+  {
+    value: 'german',
+    label: i18n.t('languages.german'),
+    emoji: '🇩🇪'
   }
 ]
