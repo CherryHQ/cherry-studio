@@ -212,13 +212,13 @@ export const PROVIDER_CONFIG = {
   },
   dmxapi: {
     api: {
-      url: 'https://www.dmxapi.com'
+      url: 'https://www.dmxapi.cn'
     },
     websites: {
-      official: 'https://www.dmxapi.com/register?aff=81aj/',
-      apiKey: 'https://www.dmxapi.com/register?aff=81aj',
-      docs: 'https://dmxapi.com/models.html#code-block',
-      models: 'https://www.dmxapi.com/pricing'
+      official: 'https://www.dmxapi.cn/register?aff=bwwY',
+      apiKey: 'https://www.dmxapi.cn/register?aff=bwwY',
+      docs: 'https://dmxapi.cn/models.html#code-block',
+      models: 'https://www.dmxapi.cn/pricing'
     }
   },
   perplexity: {
