@@ -1,5 +1,6 @@
 import { CopyOutlined, LoadingOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { Button, Modal, Space, Spin, Tabs } from 'antd'
 import pako from 'pako'
 import React, { useState } from 'react'
@@ -87,9 +88,19 @@ type PlantUMLServerImageProps = {
   onClick?: React.MouseEventHandler<HTMLDivElement>
 }
 
+function getPlantUMLImageUrl(format: 'png' | 'svg', diagram: string, isDark?: boolean) {
+  const encodedDiagram = encodeDiagram(diagram)
+  if (isDark) {
+    return `${PlantUMLServer}/d${format}/${encodedDiagram}`
+  }
+  return `${PlantUMLServer}/${format}/${encodedDiagram}`
+}
+
 const PlantUMLServerImage: React.FC<PlantUMLServerImageProps> = ({ format, diagram, onClick }) => {
-  const url = `${PlantUMLServer}/${format}/${encodeDiagram(diagram)}`
   const [loading, setLoading] = useState(true)
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const url = getPlantUMLImageUrl(format, diagram, isDark)
   return (
     <StyledPlantUML onClick={onClick}>
       <Spin
