@@ -10,9 +10,10 @@ import { getDefaultTranslateAssistant } from '@renderer/services/AssistantServic
 import { Assistant, Message } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import { Button, Select, Space } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
+import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { debounce } from 'lodash'
+import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import styled from 'styled-components'
@@ -29,10 +30,82 @@ const TranslatePage: FC = () => {
   const { translateModel } = useDefaultModel()
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const contentContainerRef = useRef<HTMLDivElement>(null)
+  const textAreaRef = useRef<TextAreaRef>(null)
 
   _text = text
   _result = result
   _targetLanguage = targetLanguage
+
+  const safetyMarginOfTextarea = (textarea: HTMLTextAreaElement): number => {
+    const defaultSafetyMargin = 30
+    const lineHeight = window.getComputedStyle(textarea).lineHeight
+    if (lineHeight.endsWith('px')) {
+      const safetyMargin = parseInt(lineHeight.slice(0, -2))
+      if (Number.isNaN(safetyMargin)) {
+        return defaultSafetyMargin
+      } else {
+        return safetyMargin + 4
+      }
+    } else {
+      return defaultSafetyMargin
+    }
+  }
+
+  const updateTextareaToMaxHeight = (textarea: HTMLTextAreaElement, safetyMargin: number) => {
+    const { top: textareaTop } = textarea.getBoundingClientRect()
+    textarea.style.height = `${window.innerHeight - safetyMargin - textareaTop}px`
+  }
+
+  const updateTextareaHeight = useCallback((textarea: HTMLTextAreaElement, contentContainer: HTMLDivElement | null) => {
+    textarea.style.height = 'auto'
+    const unlimitedHeightUpdate = () => {
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+    const safetyMargin = safetyMarginOfTextarea(textarea)
+
+    if (contentContainer) {
+      const { bottom: textareaBottom, top: textareaTop } = textarea.getBoundingClientRect()
+      const { bottom: contentContainerBottom } = contentContainer.getBoundingClientRect()
+      if (textareaBottom !== 0 && contentContainerBottom !== 0) {
+        if (contentContainerBottom - textareaTop - textarea.scrollHeight < safetyMargin) {
+          updateTextareaToMaxHeight(textarea, safetyMargin)
+        } else {
+          unlimitedHeightUpdate()
+        }
+      } else {
+        unlimitedHeightUpdate()
+      }
+    } else {
+      unlimitedHeightUpdate()
+    }
+  }, [])
+
+  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    updateTextareaHeight(event.target, contentContainerRef.current)
+  }
+
+  useEffect(() => {
+    // Initialize when switching to this page
+    if (textAreaRef?.current?.resizableTextArea?.textArea) {
+      updateTextareaHeight(textAreaRef.current.resizableTextArea.textArea, contentContainerRef.current)
+    }
+
+    const debounceHandleResize = debounce(
+      () => {
+        if (textAreaRef?.current?.resizableTextArea) {
+          updateTextareaHeight(textAreaRef.current.resizableTextArea.textArea, contentContainerRef.current)
+        }
+      },
+      16,
+      { maxWait: 16 }
+    )
+
+    const handleResize = () => debounceHandleResize()
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [textAreaRef, updateTextareaHeight])
 
   const onTranslate = async () => {
     if (!text.trim()) {
@@ -113,7 +186,7 @@ const TranslatePage: FC = () => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer id="content-container">
+      <ContentContainer id="content-container" ref={contentContainerRef}>
         <MenuContainer>
           <Select
             showSearch
@@ -148,6 +221,8 @@ const TranslatePage: FC = () => {
         <TranslateInputWrapper>
           <InputContainer>
             <Textarea
+              ref={textAreaRef}
+              onInput={handleInput}
               variant="borderless"
               placeholder={t('translate.input.placeholder')}
               value={text}
