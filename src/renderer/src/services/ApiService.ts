@@ -2,7 +2,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { formatErrorMessage, formatMessageError } from '@renderer/utils/error'
+import { formatMessageError } from '@renderer/utils/error'
 import { isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -94,7 +94,6 @@ export async function fetchChatCompletion({
     }
   } catch (error: any) {
     message.status = 'error'
-    message.content = formatErrorMessage(error)
     message.error = formatMessageError(error)
   }
 
