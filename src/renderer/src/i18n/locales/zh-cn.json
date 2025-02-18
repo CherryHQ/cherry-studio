@@ -357,7 +357,7 @@
       "error.invalid.enter.model": "请选择一个模型",
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
-      "error.notion.export": "Notion 导入失败",
+      "error.notion.export": "导出Notion错误，请检查连接状态并对照文档检查配置",
       "error.notion.no_api_key": "未配置Notion ApiKey或Notion DatabaseID",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
@@ -379,13 +379,13 @@
       "reset.double.confirm.title": "数据丢失！！！",
       "restore.success": "恢复成功",
       "save.success.title": "保存成功",
-      "success.notion.export": "导入Notion成功",
+      "success.notion.export": "成功导出到Notion",
       "switch.disabled": "请等待当前回复完成后操作",
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
-      "warn.notion.exporting": "Notion正在导入，请勿重复导入"
+      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
@@ -569,9 +569,9 @@
         "notion.title": "Notion 配置",
         "notion.check": {
           "button": "检查",
-          "fail": "连接失败，请检查配置",
+          "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",
           "success": "连接成功",
-          "error": "连接异常，请检查网络",
+          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
           "empty_api_key": "未配置Api_key",
           "empty_database_id": "未配置Database_id"
         },
