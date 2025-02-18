@@ -46,23 +46,28 @@ const DragableList: FC<Props<any>> = ({
     <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
       <Droppable droppableId="droppable" {...droppableProps}>
         {(provided) => (
-          <div {...provided.droppableProps} ref={provided.innerRef} style={{ ...style }}>
+          <div {...provided.droppableProps} ref={provided.innerRef} style={style}>
             {list.map((item, index) => {
               const id = item.id || item
               return (
-                <Draggable key={`draggable_${id}_${index}`} draggableId={id} index={index} {...droppableProps}>
-                  {(provided) => (
+                <Draggable key={`draggable_${id}_${index}`} draggableId={id} index={index}>
+                  {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
-                      style={{ ...provided.draggableProps.style, marginBottom: 8, ...listStyle }}>
+                      style={{
+                        ...listStyle,
+                        ...provided.draggableProps.style,
+                        marginBottom: index === list.length - 1 && !snapshot.isDragging ? 0 : 8
+                      }}>
                       {children(item, index)}
                     </div>
                   )}
                 </Draggable>
               )
             })}
+            {provided.placeholder}
           </div>
         )}
       </Droppable>
