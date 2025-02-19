@@ -21,7 +21,7 @@ import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { exportTopicAsMarkdown, exportTopicToNotion, topicToMarkdown } from '@renderer/utils/export'
-import { Dropdown, MenuProps, Tooltip } from 'antd'
+import { Dropdown, MenuProps, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import { FC, useCallback } from 'react'
@@ -54,7 +54,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     async (topic: Topic) => {
       await modelGenerating()
       const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? 0 : index + 1])
+      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
       removeTopic(topic)
     },
     [assistant.topics, removeTopic, setActiveTopic]
@@ -219,7 +219,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
       return menus
     },
-    [assistant, assistants, onClearMessages, onPinTopic, onDeleteTopic, onMoveTopic, t, updateTopic]
+    [assistant, assistants, onClearMessages, onDeleteTopic, onPinTopic, onMoveTopic, t, updateTopic]
   )
 
   return (
@@ -244,17 +244,33 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 )}
                 <MenuButton className="pin">{topic.pinned && <PushpinOutlined />}</MenuButton>
                 {isActive && !topic.pinned && (
-                  <MenuButton
-                    className="menu"
-                    onClick={(e) => {
-                      e.stopPropagation()
+                  <Popconfirm
+                    title={t('chat.topics.delete.title')}
+                    placement="top"
+                    okButtonProps={{ danger: true }}
+                    okText={t('common.delete')}
+                    onConfirm={async (e) => {
+                      e?.stopPropagation()
                       if (assistant.topics.length === 1) {
                         return onClearMessages()
                       }
-                      onDeleteTopic(topic)
-                    }}>
-                    <CloseOutlined />
-                  </MenuButton>
+                      await modelGenerating()
+                      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+                      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+                      removeTopic(topic)
+                    }}
+                    onCancel={(e) => e?.stopPropagation()}>
+                    <MenuButton
+                      className="menu"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (assistant.topics.length === 1) {
+                          return onClearMessages()
+                        }
+                      }}>
+                      <CloseOutlined />
+                    </MenuButton>
+                  </Popconfirm>
                 )}
               </TopicListItem>
             </Dropdown>
