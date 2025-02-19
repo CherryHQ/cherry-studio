@@ -2,8 +2,7 @@ import { isMac } from '@renderer/config/constant'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { EVENT_NAMES } from '@renderer/services/EventService'
-import { EventEmitter } from '@renderer/services/EventService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { uuid } from '@renderer/utils'
 import { Divider } from 'antd'
 import dayjs from 'dayjs'
@@ -22,6 +21,7 @@ import InputBar from './components/InputBar'
 
 const HomeWindow: FC = () => {
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
+  const [isFirstMessage, setIsFirstMessage] = useState(true)
   const [clipboardText, setClipboardText] = useState('')
   const [selectedText, setSelectedText] = useState('')
   const [text, setText] = useState('')
@@ -34,7 +34,7 @@ const HomeWindow: FC = () => {
 
   const referenceText = selectedText || clipboardText || text
 
-  const content = (referenceText === text ? text : `${referenceText}\n\n${text}`).trim()
+  const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
   const onReadClipboard = useCallback(async () => {
     const text = await navigator.clipboard.readText().catch(() => null)
@@ -105,6 +105,7 @@ const HomeWindow: FC = () => {
           status: 'success'
         }
         EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
+        setIsFirstMessage(false)
       }, 0)
     },
     [content, defaultAssistant.id, defaultAssistant.topics]
@@ -137,6 +138,13 @@ const HomeWindow: FC = () => {
       window.electron.ipcRenderer.removeAllListeners('selection-action')
     }
   }, [onReadClipboard, onSendMessage, setRoute])
+
+  // 当路由为home时，初始化isFirstMessage为true
+  useEffect(() => {
+    if (route === 'home') {
+      setIsFirstMessage(true)
+    }
+  }, [route])
 
   if (['chat', 'summary', 'explanation'].includes(route)) {
     return (
