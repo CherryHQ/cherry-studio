@@ -778,7 +778,14 @@
       "input.placeholder": "输入文本进行翻译",
       "output.placeholder": "翻译",
       "processing": "翻译中...",
-      "title": "翻译"
+      "title": "翻译",
+      "history": {
+        "title": "翻译历史",
+        "empty": "暂无翻译历史",
+        "clear": "清空历史",
+        "delete": "删除",
+        "clear_description": "清空历史将删除所有翻译历史记录，是否继续？"
+      }
     },
     "tray": {
       "quit": "退出",

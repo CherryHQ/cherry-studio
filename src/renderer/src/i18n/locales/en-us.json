@@ -774,7 +774,14 @@
       "input.placeholder": "Enter text to translate",
       "output.placeholder": "Translation",
       "processing": "Translation in progress...",
-      "title": "Translation"
+      "title": "Translation",
+      "history": {
+        "title": "Translation History",
+        "empty": "No translation history",
+        "clear": "Clear History",
+        "delete": "Delete",
+        "clear_description": "Clear history will delete all translation history, continue?"
+      }
     },
     "tray": {
       "quit": "Quit",
