@@ -241,6 +241,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       sendMessage()
       return event.preventDefault()
     }
+
+    if (event.key === 'Backspace' && text.trim() === '' && mentionModels.length > 0) {
+      setMentionModels((prev) => prev.slice(0, -1))
+      return event.preventDefault()
+    }
   }
 
   const addNewTopic = useCallback(async () => {
