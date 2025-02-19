@@ -30,8 +30,8 @@ export function getDefaultTranslateAssistant(targetLanguage: string, text: strin
 
   assistant.prompt = store
     .getState()
-    .settings.translateModelPrompt.replace('{{target_language}}', targetLanguage)
-    .replace('{{text}}', text)
+    .settings.translateModelPrompt.replace(/\{\{target_language\}\}/g, targetLanguage)
+    .replace(/\{\{text\}\}/g, text)
   return assistant
 }
 
