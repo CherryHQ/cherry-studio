@@ -18,7 +18,7 @@ const MessageThought: FC<Props> = ({ message }) => {
   const [copied, setCopied] = useState(false)
   const isThinking = !message.content
   const { t } = useTranslation()
-  const { messageFont, fontSize } = useSettings()
+  const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
   const fontFamily = useMemo(() => {
     return messageFont === 'serif'
       ? 'serif'
@@ -26,8 +26,8 @@ const MessageThought: FC<Props> = ({ message }) => {
   }, [messageFont])
 
   useEffect(() => {
-    if (!isThinking) setActiveKey('')
-  }, [isThinking])
+    if (!isThinking && thoughtAutoCollapse) setActiveKey('')
+  }, [isThinking, thoughtAutoCollapse])
 
   if (!message.reasoning_content) {
     return null

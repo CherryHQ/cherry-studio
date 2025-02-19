@@ -123,6 +123,8 @@
       "settings.top_p.tip": "默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇围越大，越多样化",
       "settings.max_tokens.confirm": "开启消息长度限制",
       "settings.max_tokens.confirm_content": "开启消息长度限制后，单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
+      "settings.thought_auto_collapse": "思考内容自动折叠",
+      "settings.thought_auto_collapse.tip": "思考结束后思考内容自动折叠",
       "suggestions.title": "建议的问题",
       "thinking": "思考中",
       "topics.auto_rename": "生成话题名",

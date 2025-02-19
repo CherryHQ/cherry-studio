@@ -121,6 +121,8 @@
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
       "settings.max_tokens.confirm": "Enable max tokens limit",
       "settings.max_tokens.confirm_content": "Enable max tokens limit, affects the length of the result. Need to consider the context limit of the model, otherwise an error will be reported",
+      "settings.thought_auto_collapse": "Automatically Collapse Thought Content",
+      "settings.thought_auto_collapse.tip": "Automatically collapse thought content after thinking ends",
       "suggestions.title": "Suggested Questions",
       "thinking": "Thinking",
       "topics.auto_rename": "Auto Rename",

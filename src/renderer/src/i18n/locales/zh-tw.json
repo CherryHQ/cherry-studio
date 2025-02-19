@@ -121,6 +121,8 @@
       "settings.top_p.tip": "模型生成文本的隨機程度。值越小，AI 生成的內容越單調，也越容易理解；值越大，AI 回覆的詞彙範圍越大，越多樣化",
       "settings.max_tokens.confirm": "啟用消息長度限制",
       "settings.max_tokens.confirm_content": "啟用消息長度限制後，單次交互所用的最大 Token 數, 會影響返回結果的長度。要根據模型上下文限制來設置，否則會報錯",
+      "settings.thought_auto_collapse": "思考內容自動折疊",
+      "settings.thought_auto_collapse.tip": "思考結束後思考內容自動折疊",
       "suggestions.title": "建議的問題",
       "thinking": "思考中",
       "topics.auto_rename": "自動重新命名",

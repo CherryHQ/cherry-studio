@@ -121,6 +121,8 @@
       "settings.top_p.tip": "デフォルト値は1で、値が小さいほど回答の多様性が減り、理解しやすくなります。値が大きいほど、AIの語彙範囲が広がり、多様性が増します",
       "settings.max_tokens.confirm": "最大トークン制限を有効にする",
       "settings.max_tokens.confirm_content": "最大トークン制限を有効にすると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
+      "settings.thought_auto_collapse": "思考内容を自動的に折りたたむ",
+      "settings.thought_auto_collapse.tip": "思考が終了したら思考内容を自動的に折りたたみます",
       "suggestions.title": "提案された質問",
       "thinking": "思考中...",
       "topics.auto_rename": "自動リネーム",
