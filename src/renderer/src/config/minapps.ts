@@ -18,6 +18,7 @@ import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg?url'
+import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
@@ -32,7 +33,7 @@ import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.png?url'
 import ThinkAnyLogo from '@renderer/assets/images/apps/thinkany.webp?url'
 import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
-import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webpm?url'
+import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webp?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.png?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
@@ -345,6 +346,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Abacus',
     logo: AbacusLogo,
     url: 'https://apps.abacus.ai/chatllm',
+    bodered: true
+  },
+  {
+    id: 'lambdachat',
+    name: 'Lambda Chat',
+    logo: LambdaChatLogo,
+    url: 'https://lambda.chat/',
     bodered: true
   }
 ]

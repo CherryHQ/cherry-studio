@@ -1084,45 +1084,17 @@ const migrateConfig = {
     return state
   },
   '71': (state: RootState) => {
+    const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat']
+
     if (state.minapps) {
-      const dify = DEFAULT_MIN_APPS.find((app) => app.id === 'dify')
-      if (dify) {
-        state.minapps.enabled.push(dify)
-      }
+      appIds.forEach((id) => {
+        const app = DEFAULT_MIN_APPS.find((app) => app.id === id)
+        if (app) {
+          state.minapps.enabled.push(app)
+        }
+      })
     }
-    state.settings.gridColumns = 2
-    state.settings.gridPopoverTrigger = 'hover'
-    return state
-  },
-  '72': (state: RootState) => {
-    if (state.minapps) {
-      const wpslingxi = DEFAULT_MIN_APPS.find((app) => app.id === '')
-      if (wpslingxi) {
-        state.minapps.enabled.push(wpslingxi)
-      }
-    }
-    state.settings.gridColumns = 2
-    state.settings.gridPopoverTrigger = 'hover'
-    return state
-  },
-  '73': (state: RootState) => {
-    if (state.minapps) {
-      const lechat = DEFAULT_MIN_APPS.find((app) => app.id === '')
-      if (lechat) {
-        state.minapps.enabled.push(lechat)
-      }
-    }
-    state.settings.gridColumns = 2
-    state.settings.gridPopoverTrigger = 'hover'
-    return state
-  },
-  '74': (state: RootState) => {
-    if (state.minapps) {
-      const abacus = DEFAULT_MIN_APPS.find((app) => app.id === '')
-      if (abacus) {
-        state.minapps.enabled.push(abacus)
-      }
-    }
+
     state.settings.gridColumns = 2
     state.settings.gridPopoverTrigger = 'hover'
     return state
