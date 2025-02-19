@@ -172,6 +172,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       setDefaultModel(selectedModel)
       updateAssistant({
         ...assistant,
+        model: selectedModel,
         defaultModel: selectedModel
       })
     }
