@@ -386,7 +386,8 @@
       "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
       "error.enter.name": "ナレッジベース名を入力してください",
       "error.invalid.api.host": "無効なAPIアドレスです",
-      "error.invalid.api.key": "無効なAPIキーです"
+      "error.invalid.api.key": "無効なAPIキーです",
+      "info.notion.block_reach_limit": "会話が長すぎるため、ページ分割してNotionにエクスポートしています"
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",

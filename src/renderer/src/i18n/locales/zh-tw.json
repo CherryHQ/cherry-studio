@@ -386,7 +386,8 @@
       "upgrade.success.title": "升級成功",
       "warn.notion.exporting": "正在導出到Notion，請勿重複請求導出！",
       "error.invalid.api.host": "無效的 API 位址",
-      "error.invalid.api.key": "無效的 API 密鑰"
+      "error.invalid.api.key": "無效的 API 密鑰",
+      "info.notion.block_reach_limit": "對話過長，正在分頁導出到 Notion"
     },
     "minapp": {
       "sidebar.add.title": "添加到側邊欄",

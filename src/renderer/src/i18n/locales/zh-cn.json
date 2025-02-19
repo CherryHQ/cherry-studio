@@ -398,7 +398,8 @@
       "upgrade.success.button": "重启",
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
-      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!"
+      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!",
+      "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",

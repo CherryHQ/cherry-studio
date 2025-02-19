@@ -398,7 +398,8 @@
       "upgrade.success.title": "Upgrade successfully",
       "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
       "error.invalid.api.host": "Invalid API Host",
-      "error.invalid.api.key": "Invalid API Key"
+      "error.invalid.api.key": "Invalid API Key",
+      "info.notion.block_reach_limit": "Conversation is too long, paging export to Notion"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
