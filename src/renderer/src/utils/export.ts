@@ -67,7 +67,7 @@ export const exportTopicToNotion = async (topic: Topic) => {
     const response = await notion.pages.create({
       parent: { database_id: notionDatabaseID },
       properties: {
-        Name: {
+        [store.getState().settings.notionPageNameKey || 'Name']: {
           title: [{ text: { content: topic.name } }]
         }
       },

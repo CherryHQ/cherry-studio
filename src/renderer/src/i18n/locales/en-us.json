@@ -567,6 +567,8 @@
         "notion.api_key_placeholder": "Enter Notion API Key",
         "notion.database_id": "Notion Database ID",
         "notion.database_id_placeholder": "Enter Notion Database ID",
+        "notion.page_name_key": "Page Title Field Name",
+        "notion.page_name_key_placeholder": "Enter page title field name, default is Name",
         "notion.title": "Notion Configuration",
         "notion.help": "Notion Configuration Documentation",
         "notion.check": {

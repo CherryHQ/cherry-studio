@@ -565,6 +565,8 @@
         "notion.api_key_placeholder": "請輸入Notion 密鑰",
         "notion.database_id": "Notion 資料庫 ID",
         "notion.database_id_placeholder": "請輸入Notion 資料庫 ID",
+        "notion.page_name_key": "頁面標題欄位名稱",
+        "notion.page_name_key_placeholder": "請輸入頁面標題欄位名稱，預設為 Name",
         "notion.title": "Notion 配置",
         "notion.help": "Notion 配置文檔",
         "notion.check": {

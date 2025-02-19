@@ -567,6 +567,8 @@
         "notion.api_key_placeholder": "Введите ключ API Notion",
         "notion.database_id": "ID базы данных Notion",
         "notion.database_id_placeholder": "Введите ID базы данных Notion",
+        "notion.page_name_key": "Название поля заголовка страницы",
+        "notion.page_name_key_placeholder": "Введите название поля заголовка страницы, по умолчанию Name",
         "notion.title": "Настройки Notion",
         "notion.help": "Документация по настройке Notion",
         "notion.check": {

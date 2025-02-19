@@ -567,6 +567,8 @@
         "notion.api_key_placeholder": "Notion APIキーを入力してください",
         "notion.database_id": "Notion データベースID",
         "notion.database_id_placeholder": "Notion データベースIDを入力してください",
+        "notion.page_name_key": "ページタイトルフィールド名",
+        "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
         "notion.title": "Notion 設定",
         "notion.help": "Notion 設定ドキュメント",
         "notion.check": {
