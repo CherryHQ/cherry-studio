@@ -9,11 +9,10 @@ import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { Assistant, Message } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
-import { Button, Select, Space } from 'antd'
+import { Button, Flex, Select, Space } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty } from 'lodash'
-import { debounce } from 'lodash'
-import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import styled from 'styled-components'
@@ -36,76 +35,6 @@ const TranslatePage: FC = () => {
   _text = text
   _result = result
   _targetLanguage = targetLanguage
-
-  const safetyMarginOfTextarea = (textarea: HTMLTextAreaElement): number => {
-    const defaultSafetyMargin = 30
-    const lineHeight = window.getComputedStyle(textarea).lineHeight
-    if (lineHeight.endsWith('px')) {
-      const safetyMargin = parseInt(lineHeight.slice(0, -2))
-      if (Number.isNaN(safetyMargin)) {
-        return defaultSafetyMargin
-      } else {
-        return safetyMargin + 4
-      }
-    } else {
-      return defaultSafetyMargin
-    }
-  }
-
-  const updateTextareaToMaxHeight = (textarea: HTMLTextAreaElement, safetyMargin: number) => {
-    const { top: textareaTop } = textarea.getBoundingClientRect()
-    textarea.style.height = `${window.innerHeight - safetyMargin - textareaTop}px`
-  }
-
-  const updateTextareaHeight = useCallback((textarea: HTMLTextAreaElement, contentContainer: HTMLDivElement | null) => {
-    textarea.style.height = 'auto'
-    const unlimitedHeightUpdate = () => {
-      textarea.style.height = `${textarea.scrollHeight}px`
-    }
-    const safetyMargin = safetyMarginOfTextarea(textarea)
-
-    if (contentContainer) {
-      const { bottom: textareaBottom, top: textareaTop } = textarea.getBoundingClientRect()
-      const { bottom: contentContainerBottom } = contentContainer.getBoundingClientRect()
-      if (textareaBottom !== 0 && contentContainerBottom !== 0) {
-        if (contentContainerBottom - textareaTop - textarea.scrollHeight < safetyMargin) {
-          updateTextareaToMaxHeight(textarea, safetyMargin)
-        } else {
-          unlimitedHeightUpdate()
-        }
-      } else {
-        unlimitedHeightUpdate()
-      }
-    } else {
-      unlimitedHeightUpdate()
-    }
-  }, [])
-
-  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    updateTextareaHeight(event.target, contentContainerRef.current)
-  }
-
-  useEffect(() => {
-    // Initialize when switching to this page
-    if (textAreaRef?.current?.resizableTextArea?.textArea) {
-      updateTextareaHeight(textAreaRef.current.resizableTextArea.textArea, contentContainerRef.current)
-    }
-
-    const debounceHandleResize = debounce(
-      () => {
-        if (textAreaRef?.current?.resizableTextArea) {
-          updateTextareaHeight(textAreaRef.current.resizableTextArea.textArea, contentContainerRef.current)
-        }
-      },
-      16,
-      { maxWait: 16 }
-    )
-
-    const handleResize = () => debounceHandleResize()
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [textAreaRef, updateTextareaHeight])
 
   const onTranslate = async () => {
     if (!text.trim()) {
@@ -182,55 +111,25 @@ const TranslatePage: FC = () => {
   }
 
   return (
-    <Container>
+    <Container id="translate-page">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef}>
-        <MenuContainer>
-          <Select
-            showSearch
-            value="any"
-            style={{ width: 180 }}
-            optionFilterProp="label"
-            disabled
-            options={[{ label: t('translate.any.language'), value: 'any' }]}
-          />
-          <SwapOutlined />
-          <Select
-            showSearch
-            value={targetLanguage}
-            style={{ width: 180 }}
-            optionFilterProp="label"
-            options={translateLanguageOptions()}
-            onChange={(value) => {
-              setTargetLanguage(value)
-              db.settings.put({ id: 'translate:target:language', value })
-            }}
-            optionRender={(option) => (
-              <Space>
-                <span role="img" aria-label={option.data.label}>
-                  {option.data.emoji}
-                </span>
-                {option.label}
-              </Space>
-            )}
-          />
-          <SettingButton />
-        </MenuContainer>
-        <TranslateInputWrapper>
-          <InputContainer>
-            <Textarea
-              ref={textAreaRef}
-              onInput={handleInput}
-              variant="borderless"
-              placeholder={t('translate.input.placeholder')}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              disabled={loading}
-              spellCheck={false}
-              allowClear
-            />
+        <InputContainer>
+          <OperationBar>
+            <Flex align="center" gap={20}>
+              <Select
+                showSearch
+                value="any"
+                style={{ width: 180 }}
+                optionFilterProp="label"
+                disabled
+                options={[{ label: t('translate.any.language'), value: 'any' }]}
+              />
+              <SettingButton />
+            </Flex>
+
             <TranslateButton
               type="primary"
               loading={loading}
@@ -239,49 +138,69 @@ const TranslatePage: FC = () => {
               icon={<SendOutlined />}>
               {t('translate.button.translate')}
             </TranslateButton>
-          </InputContainer>
-          <OutputContainer>
-            <OutputText>{result || t('translate.output.placeholder')}</OutputText>
+          </OperationBar>
+
+          <Textarea
+            ref={textAreaRef}
+            variant="borderless"
+            placeholder={t('translate.input.placeholder')}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            disabled={loading}
+            spellCheck={false}
+            allowClear
+          />
+        </InputContainer>
+
+        <Flex justify="center" align="center">
+          <SwapOutlined />
+        </Flex>
+
+        <OutputContainer>
+          <OperationBar>
+            <Select
+              showSearch
+              value={targetLanguage}
+              style={{ width: 180 }}
+              optionFilterProp="label"
+              options={translateLanguageOptions()}
+              onChange={(value) => {
+                setTargetLanguage(value)
+                db.settings.put({ id: 'translate:target:language', value })
+              }}
+              optionRender={(option) => (
+                <Space>
+                  <span role="img" aria-label={option.data.label}>
+                    {option.data.emoji}
+                  </span>
+                  {option.label}
+                </Space>
+              )}
+            />
             <CopyButton
               onClick={onCopy}
               disabled={!result}
               icon={copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon />}
             />
-          </OutputContainer>
-        </TranslateInputWrapper>
+          </OperationBar>
+
+          <OutputText>{result || t('translate.output.placeholder')}</OutputText>
+        </OutputContainer>
       </ContentContainer>
     </Container>
   )
 }
 
 const Container = styled.div`
-  display: flex;
   flex: 1;
-  flex-direction: column;
-  height: 100%;
 `
 
 const ContentContainer = styled.div`
-  display: flex;
+  height: calc(100vh - var(--navbar-height));
+  display: grid;
+  grid-template-columns: 1fr 40px 1fr;
   flex: 1;
-  flex-direction: column;
-  height: 100%;
   padding: 20px;
-`
-
-const MenuContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  margin-bottom: 15px;
-  gap: 20px;
-`
-
-const TranslateInputWrapper = styled.div`
-  display: flex;
-  flex-direction: row;
-  min-height: 350px;
-  gap: 20px;
 `
 
 const InputContainer = styled.div`
@@ -289,52 +208,53 @@ const InputContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
-  height: 100%;
   border: 1px solid var(--color-border-soft);
   border-radius: 10px;
+  padding-bottom: 5px;
+  padding-right: 2px;
+`
+
+const OperationBar = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 8px 10px 10px;
 `
 
 const Textarea = styled(TextArea)`
   display: flex;
   flex: 1;
-  padding: 20px;
   font-size: 16px;
-  overflow: auto;
+  border-radius: 0;
   .ant-input {
     resize: none;
-    padding: 15px 20px;
+    padding: 5px 16px;
   }
 `
 
 const OutputContainer = styled.div`
+  min-height: 0;
   position: relative;
   display: flex;
-  flex: 1;
   flex-direction: column;
-  height: 100%;
-  padding: 10px;
   background-color: var(--color-background-soft);
   border-radius: 10px;
+  padding-bottom: 5px;
+  padding-right: 2px;
 `
 
 const OutputText = styled.div`
-  padding: 5px 10px;
-  max-height: calc(100vh - var(--navbar-height) - 120px);
-  overflow: auto;
+  min-height: 0;
+  flex: 1;
+  padding: 5px 16px;
+  overflow-y: auto;
   white-space: pre-wrap;
 `
 
-const TranslateButton = styled(Button)`
-  position: absolute;
-  right: 15px;
-  bottom: 15px;
-  z-index: 10;
-`
+const TranslateButton = styled(Button)``
 
-const CopyButton = styled(Button)`
-  position: absolute;
-  right: 15px;
-  bottom: 15px;
-`
+const CopyButton = styled(Button)``
 
 export default TranslatePage
