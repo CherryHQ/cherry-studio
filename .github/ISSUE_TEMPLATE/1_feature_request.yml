@@ -18,7 +18,7 @@ body:
       options:
         - label: I understand that issues are for reporting problems and requesting features, not for off-topic comments, and I will provide as much detail as possible to help resolve the issue.
           required: true
-        - label: I have checked the pinned issues and searched through the existing [open issues](https://github.com/CherryHQ/cherry-studio/issues) and [closed issues](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed) and did not find a similar suggestion.
+        - label: I have checked the pinned issues and searched through the existing [open issues](https://github.com/CherryHQ/cherry-studio/issues), [closed issues](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed), and [discussions](https://github.com/CherryHQ/cherry-studio/discussions) and did not find a similar suggestion.
           required: true
         - label: I have provided a short and descriptive title so that developers can quickly understand the issue when browsing the issue list, rather than vague titles like "A suggestion" or "Stuck."
           required: true
@@ -50,8 +50,8 @@ body:
     id: problem
     attributes:
       label: Is your feature request related to an existing issue?
-      description: Please briefly describe the problem you are experiencing.
-      placeholder: I often feel frustrated because...
+      description: Please briefly describe the problem you are experiencing. If possible, include screenshots or recordings to help illustrate the current situation or pain points.
+      placeholder: I often feel frustrated because... (Remember to attach screenshots/recordings if applicable)
     validations:
       required: true
 
@@ -59,7 +59,7 @@ body:
     id: solution
     attributes:
       label: Desired Solution
-      description: Please briefly describe what you would like to happen.
+      description: Please briefly describe what you would like to happen. You can include mockups, screenshots, or screen recordings to better illustrate your proposed solution.
     validations:
       required: true
 
@@ -67,10 +67,10 @@ body:
     id: alternatives
     attributes:
       label: Alternative Solutions
-      description: Please briefly describe any alternative solutions or features you have considered.
+      description: Please briefly describe any alternative solutions or features you have considered. Feel free to include screenshots or mockups of alternative approaches.
 
   - type: textarea
     id: additional
     attributes:
       label: Additional Information
-      description: Add any other context or screenshots related to your feature request.
+      description: Add any other context, screenshots, mockups or recordings that can help us better understand your feature request.

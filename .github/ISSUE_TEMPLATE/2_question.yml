@@ -17,6 +17,8 @@ body:
       options:
         - label: I understand that issues are meant for feedback and problem-solving, not for venting, and I will provide as much detail as possible to help resolve the issue.
           required: true
+        - label: I have checked the pinned issues and searched through the existing [open issues](https://github.com/CherryHQ/cherry-studio/issues), [closed issues](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed), and [discussions](https://github.com/CherryHQ/cherry-studio/discussions) and did not find a similar suggestion.
+          required: true
         - label: I confirm that I am here to ask questions and discuss issues, not to report bugs or request features.
           required: true
 
@@ -45,8 +47,8 @@ body:
     id: question
     attributes:
       label: Your Question
-      description: Please describe your issue in detail.
-      placeholder: Please explain your issue as clearly as possible...
+      description: Please describe your issue in detail. Include screenshots or screen recordings whenever possible to help us better understand your question.
+      placeholder: Please explain your issue as clearly as possible...(Remember to attach screenshots/recordings if applicable)
     validations:
       required: true
 
@@ -54,14 +56,14 @@ body:
     id: context
     attributes:
       label: Context
-      description: Please provide some background information to help us better understand your question
-      placeholder: "For example: use case, solutions you've tried, etc."
+      description: Please provide some background information to help us better understand your question. Screenshots or recordings of your current setup or situation can be very helpful.
+      placeholder: "For example: use case, solutions you've tried, etc. Don't forget to include relevant screenshots/recordings!"
 
   - type: textarea
     id: additional
     attributes:
       label: Additional Information
-      description: Any other relevant information, screenshots, or code examples
+      description: Any other relevant information, screenshots, recordings, or code examples that can help us better assist you
       render: shell
 
   - type: dropdown
