@@ -10,7 +10,7 @@ import {
 import { HStack } from '@renderer/components/Layout'
 import ModelTags from '@renderer/components/ModelTags'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
-import { EMBEDDING_REGEX, getModelLogo, REASONING_REGEX, VISION_REGEX } from '@renderer/config/models'
+import { getModelLogo, isEmbeddingModel, isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -192,15 +192,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const modelTypeContent = (model: Model) => {
     // 获取默认选中的类型
     const defaultTypes = [
-      ...((model.provider === 'doubao' ? VISION_REGEX.test(model.name) : VISION_REGEX.test(model.id))
-        ? ['vision']
-        : []),
-      ...((model.provider === 'doubao' ? EMBEDDING_REGEX.test(model.name) : EMBEDDING_REGEX.test(model.id))
-        ? ['embedding']
-        : []),
-      ...((model.provider === 'doubao' ? REASONING_REGEX.test(model.name) : REASONING_REGEX.test(model.id))
-        ? ['reasoning']
-        : [])
+      ...(isVisionModel(model) ? ['vision'] : []),
+      ...(isEmbeddingModel(model) ? ['embedding'] : []),
+      ...(isReasoningModel(model) ? ['reasoning'] : [])
     ] as ModelType[]
 
     // 合并现有选择和默认类型
@@ -215,17 +209,17 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             {
               label: t('models.type.vision'),
               value: 'vision',
-              disabled: model.provider === 'doubao' ? VISION_REGEX.test(model.name) : VISION_REGEX.test(model.id)
+              disabled: isVisionModel(model)
             },
             {
               label: t('models.type.embedding'),
               value: 'embedding',
-              disabled: model.provider === 'doubao' ? EMBEDDING_REGEX.test(model.name) : EMBEDDING_REGEX.test(model.id)
+              disabled: isEmbeddingModel(model)
             },
             {
               label: t('models.type.reasoning'),
               value: 'reasoning',
-              disabled: model.provider === 'doubao' ? REASONING_REGEX.test(model.name) : REASONING_REGEX.test(model.id)
+              disabled: isReasoningModel(model)
             }
           ]}
         />
