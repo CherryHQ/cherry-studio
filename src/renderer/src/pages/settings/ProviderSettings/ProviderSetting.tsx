@@ -192,9 +192,15 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const modelTypeContent = (model: Model) => {
     // 获取默认选中的类型
     const defaultTypes = [
-      ...(VISION_REGEX.test(model.id) ? ['vision'] : []),
-      ...(EMBEDDING_REGEX.test(model.id) ? ['embedding'] : []),
-      ...(REASONING_REGEX.test(model.id) ? ['reasoning'] : [])
+      ...((model.provider === 'doubao' ? VISION_REGEX.test(model.name) : VISION_REGEX.test(model.id))
+        ? ['vision']
+        : []),
+      ...((model.provider === 'doubao' ? EMBEDDING_REGEX.test(model.name) : EMBEDDING_REGEX.test(model.id))
+        ? ['embedding']
+        : []),
+      ...((model.provider === 'doubao' ? REASONING_REGEX.test(model.name) : REASONING_REGEX.test(model.id))
+        ? ['reasoning']
+        : [])
     ] as ModelType[]
 
     // 合并现有选择和默认类型
@@ -206,9 +212,21 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           value={selectedTypes}
           onChange={(types) => onUpdateModelTypes(model, types as ModelType[])}
           options={[
-            { label: t('models.type.vision'), value: 'vision', disabled: VISION_REGEX.test(model.id) },
-            { label: t('models.type.embedding'), value: 'embedding', disabled: EMBEDDING_REGEX.test(model.id) },
-            { label: t('models.type.reasoning'), value: 'reasoning', disabled: REASONING_REGEX.test(model.id) }
+            {
+              label: t('models.type.vision'),
+              value: 'vision',
+              disabled: model.provider === 'doubao' ? VISION_REGEX.test(model.name) : VISION_REGEX.test(model.id)
+            },
+            {
+              label: t('models.type.embedding'),
+              value: 'embedding',
+              disabled: model.provider === 'doubao' ? EMBEDDING_REGEX.test(model.name) : EMBEDDING_REGEX.test(model.id)
+            },
+            {
+              label: t('models.type.reasoning'),
+              value: 'reasoning',
+              disabled: model.provider === 'doubao' ? REASONING_REGEX.test(model.name) : REASONING_REGEX.test(model.id)
+            }
           ]}
         />
       </div>
