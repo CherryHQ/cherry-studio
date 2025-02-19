@@ -1082,6 +1082,17 @@ const migrateConfig = {
       }
     })
     return state
+  },
+  '71': (state: RootState) => {
+    if (state.minapps) {
+      const dify = DEFAULT_MIN_APPS.find((app) => app.id === 'dify')
+      if (dify) {
+        state.minapps.enabled.push(dify)
+      }
+    }
+    state.settings.gridColumns = 2
+    state.settings.gridPopoverTrigger = 'hover'
+    return state
   }
 }
 

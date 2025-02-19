@@ -5,6 +5,7 @@ import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
 import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
 import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
+import DifyAppLogo from '@renderer/assets/images/apps/dify.png?url'
 import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png?url'
 import DuckDuckGoAppLogo from '@renderer/assets/images/apps/duckduckgo.webp?url'
 import FeloAppLogo from '@renderer/assets/images/apps/felo.png?url'
@@ -313,6 +314,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Coze',
     logo: CozeAppLogo,
     url: 'https://www.coze.com/space',
+    bodered: true
+  },
+  {
+    id: 'dify',
+    name: 'Dify',
+    logo: DifyAppLogo,
+    url: 'https://cloud.dify.ai/apps',
     bodered: true
   }
 ]
