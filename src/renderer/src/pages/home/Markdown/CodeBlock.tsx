@@ -3,6 +3,7 @@ import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
 import { useSyntaxHighlighter } from '@renderer/context/SyntaxHighlighterProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { Spin } from 'antd'
 import dayjs from 'dayjs'
 import React, { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +36,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
   useEffect(() => {
     const loadHighlightedCode = async () => {
+      if (!children) return
       const highlightedHtml = await codeToHtml(children, language)
       setHtml(highlightedHtml)
     }
@@ -58,7 +60,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
       }
     }
   }, [codeCollapsible])
-
+  if (!children) {
+    return <Spin />
+  }
   if (language === 'mermaid') {
     return <Mermaid chart={children} />
   }

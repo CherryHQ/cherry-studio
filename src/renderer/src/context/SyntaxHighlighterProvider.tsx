@@ -42,7 +42,11 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
       })
 
       setHighlighter(hl)
-
+      // Load theme if not already loaded
+      if (!hl.getLoadedThemes().includes(highlighterTheme)) {
+        console.debug('Loading theme:', highlighterTheme)
+        await hl.loadTheme(highlighterTheme as BundledTheme)
+      }
       // Load all themes and languages
       // hl.loadTheme(...(Object.keys(bundledThemes) as BundledTheme[]))
       // hl.loadLanguage(...(Object.keys(bundledLanguages) as BundledLanguage[]))
