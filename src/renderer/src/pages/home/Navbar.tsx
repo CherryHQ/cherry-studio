@@ -5,6 +5,7 @@ import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac, isWindows } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
@@ -47,6 +48,11 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
     SearchPopup.show()
   })
 
+  const handleNarrowModeToggle = async () => {
+    await modelGenerating()
+    dispatch(setNarrowMode(!narrowMode))
+  }
+
   return (
     <Navbar className="home-navbar">
       {showAssistants && (
@@ -80,7 +86,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
           <NarrowIcon onClick={() => SearchPopup.show()}>
             <SearchOutlined />
           </NarrowIcon>
-          <NarrowIcon onClick={() => dispatch(setNarrowMode(!narrowMode))}>
+          <NarrowIcon onClick={handleNarrowModeToggle}>
             <i className="iconfont icon-icon-adaptive-width"></i>
           </NarrowIcon>
           {sidebarIcons.visible.includes('minapp') && (
