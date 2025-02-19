@@ -174,12 +174,13 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
     loadPinnedModels()
   }, [])
 
-  // Scroll to the first menu item when the mode selection menu opens
   useLayoutEffect(() => {
-    if (isOpen && flatModelItems.length > 0 && itemRefs.current[0]) {
-      itemRefs.current[0].scrollIntoView({ block: 'nearest' })
+    if (isOpen && selectedIndex > -1 && itemRefs.current[selectedIndex]) {
+      requestAnimationFrame(() => {
+        itemRefs.current[selectedIndex]?.scrollIntoView({ block: 'nearest' })
+      })
     }
-  }, [isOpen, flatModelItems])
+  }, [isOpen, selectedIndex])
 
   useEffect(() => {
     const showModelSelector = () => {
