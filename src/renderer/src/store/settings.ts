@@ -70,6 +70,7 @@ export interface SettingsState {
   notionDatabaseID: string | null
   notionApiKey: string | null
   notionPageNameKey: string | null
+  thoughtAutoCollapse: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -125,7 +126,8 @@ const initialState: SettingsState = {
   multiModelMessageStyle: 'fold',
   notionDatabaseID: '',
   notionApiKey: '',
-  notionPageNameKey: 'Name'
+  notionPageNameKey: 'Name',
+  thoughtAutoCollapse: true
 }
 
 const settingsSlice = createSlice({
@@ -288,6 +290,9 @@ const settingsSlice = createSlice({
     },
     setNotionPageNameKey: (state, action: PayloadAction<string>) => {
       state.notionPageNameKey = action.payload
+    },
+    setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
+      state.thoughtAutoCollapse = action.payload
     }
   }
 })
@@ -342,7 +347,8 @@ export const {
   setMultiModelMessageStyle,
   setNotionDatabaseID,
   setNotionApiKey,
-  setNotionPageNameKey
+  setNotionPageNameKey,
+  setThoughtAutoCollapse
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

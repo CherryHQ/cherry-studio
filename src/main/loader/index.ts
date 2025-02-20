@@ -123,13 +123,22 @@ export async function addFileLoader(
 
   // JSON类型
   if (['.json'].includes(file.ext)) {
-    const jsonObject = JSON.parse(fileContent)
-    const loaderReturn = await ragApplication.addLoader(new JsonLoader({ object: jsonObject }))
-    return {
-      entriesAdded: loaderReturn.entriesAdded,
-      uniqueId: loaderReturn.uniqueId,
-      uniqueIds: [loaderReturn.uniqueId],
-      loaderType: loaderReturn.loaderType
+    let jsonObject = {}
+    let jsonParsed = true
+    try {
+      jsonObject = JSON.parse(fileContent)
+    } catch (error) {
+      jsonParsed = false
+      Logger.warn('[KnowledgeBase] failed parsing json file, failling back to text processing:', file.path, error)
+    }
+    if (jsonParsed) {
+      const loaderReturn = await ragApplication.addLoader(new JsonLoader({ object: jsonObject }))
+      return {
+        entriesAdded: loaderReturn.entriesAdded,
+        uniqueId: loaderReturn.uniqueId,
+        uniqueIds: [loaderReturn.uniqueId],
+        loaderType: loaderReturn.loaderType
+      }
     }
   }
 

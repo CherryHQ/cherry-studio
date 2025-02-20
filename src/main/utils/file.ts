@@ -18,6 +18,10 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): Fil
   const files = fs.readdirSync(dirPath)
 
   files.forEach((file) => {
+    if (file.startsWith('.')) {
+      return
+    }
+
     const fullPath = path.join(dirPath, file)
     if (fs.statSync(fullPath).isDirectory()) {
       arrayOfFiles = getAllFiles(fullPath, arrayOfFiles)

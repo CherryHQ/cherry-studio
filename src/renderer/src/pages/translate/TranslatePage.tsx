@@ -4,7 +4,6 @@ import {
   HistoryOutlined,
   SendOutlined,
   SettingOutlined,
-  SwapOutlined,
   WarningOutlined
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
@@ -267,10 +266,6 @@ const TranslatePage: FC = () => {
           />
         </InputContainer>
 
-        <Flex justify="center" align="center">
-          <SwapOutlined style={{ color: 'var(--color-text-2)' }} />
-        </Flex>
-
         <OutputContainer>
           <OperationBar>
             <Select
@@ -313,9 +308,9 @@ const Container = styled.div`
 const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   height: calc(100vh - var(--navbar-height));
   display: grid;
-  grid-template-columns: auto 1fr 40px 1fr;
+  grid-template-columns: auto 1fr 1fr;
   flex: 1;
-  padding: 20px;
+  padding: 20px 15px;
   position: relative;
 `
 
@@ -328,6 +323,7 @@ const InputContainer = styled.div`
   border-radius: 10px;
   padding-bottom: 5px;
   padding-right: 2px;
+  margin-right: 15px;
 `
 
 const OperationBar = styled.div`
@@ -347,6 +343,9 @@ const Textarea = styled(TextArea)`
   .ant-input {
     resize: none;
     padding: 5px 16px;
+  }
+  .ant-input-clear-icon {
+    font-size: 16px;
   }
 `
 
@@ -381,7 +380,7 @@ const HistoryContainner = styled.div<{ $historyDrawerVisible: boolean }>`
     opacity 0.2s;
   border: 1px solid var(--color-border-soft);
   border-radius: 10px;
-  margin-right: 20px;
+  margin-right: 15px;
   display: flex;
   flex-direction: column;
   overflow: hidden;

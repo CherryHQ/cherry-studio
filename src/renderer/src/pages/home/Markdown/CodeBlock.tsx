@@ -154,6 +154,7 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
   const { t } = useTranslation()
 
   const onCopy = () => {
+    if (!text) return
     navigator.clipboard.writeText(text)
     window.message.success({ content: t('message.copied'), key: 'copy-code' })
     setCopied(true)

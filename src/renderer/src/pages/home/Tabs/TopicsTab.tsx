@@ -11,6 +11,7 @@ import {
 import DragableList from '@renderer/components/DragableList'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -24,7 +25,7 @@ import { exportTopicAsMarkdown, exportTopicToNotion, topicToMarkdown } from '@re
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback } from 'react'
+import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -42,6 +43,42 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
+  const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
+  const deleteTimerRef = useRef<NodeJS.Timeout>()
+
+  const handleDeleteClick = useCallback((topicId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current)
+    }
+
+    setDeletingTopicId(topicId)
+
+    deleteTimerRef.current = setTimeout(() => setDeletingTopicId(null), 2000)
+  }, [])
+
+  const onClearMessages = useCallback(() => {
+    window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
+    store.dispatch(setGenerating(false))
+    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES)
+  }, [])
+
+  const handleConfirmDelete = useCallback(
+    async (topic: Topic, e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (assistant.topics.length === 1) {
+        return onClearMessages()
+      }
+      await modelGenerating()
+      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+      removeTopic(topic)
+      setDeletingTopicId(null)
+    },
+    [assistant.topics, onClearMessages, removeTopic, setActiveTopic]
+  )
+
   const onPinTopic = useCallback(
     (topic: Topic) => {
       const updatedTopic = { ...topic, pinned: !topic.pinned }
@@ -54,7 +91,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     async (topic: Topic) => {
       await modelGenerating()
       const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? 0 : index + 1])
+      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
       removeTopic(topic)
     },
     [assistant.topics, removeTopic, setActiveTopic]
@@ -77,12 +114,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     },
     [setActiveTopic]
   )
-
-  const onClearMessages = useCallback(() => {
-    window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
-    store.dispatch(setGenerating(false))
-    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES)
-  }, [])
 
   const getTopicMenuItems = useCallback(
     (topic: Topic) => {
@@ -219,7 +250,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
       return menus
     },
-    [assistant, assistants, onClearMessages, onPinTopic, onDeleteTopic, onMoveTopic, t, updateTopic]
+    [assistant, assistants, onClearMessages, onDeleteTopic, onPinTopic, onMoveTopic, t, updateTopic]
   )
 
   return (
@@ -244,17 +275,34 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 )}
                 <MenuButton className="pin">{topic.pinned && <PushpinOutlined />}</MenuButton>
                 {isActive && !topic.pinned && (
-                  <MenuButton
-                    className="menu"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (assistant.topics.length === 1) {
-                        return onClearMessages()
-                      }
-                      onDeleteTopic(topic)
-                    }}>
-                    <CloseOutlined />
-                  </MenuButton>
+                  <Tooltip
+                    placement="bottom"
+                    mouseEnterDelay={0.7}
+                    title={
+                      <div>
+                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                        </div>
+                      </div>
+                    }>
+                    <MenuButton
+                      className="menu"
+                      onClick={(e) => {
+                        if (e.ctrlKey || e.metaKey) {
+                          handleConfirmDelete(topic, e)
+                        } else if (deletingTopicId === topic.id) {
+                          handleConfirmDelete(topic, e)
+                        } else {
+                          handleDeleteClick(topic.id, e)
+                        }
+                      }}>
+                      {deletingTopicId === topic.id ? (
+                        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+                      ) : (
+                        <CloseOutlined />
+                      )}
+                    </MenuButton>
+                  </Tooltip>
                 )}
               </TopicListItem>
             </Dropdown>

@@ -4,7 +4,7 @@ import App from '@renderer/pages/apps/App'
 import { Popover } from 'antd'
 import { Empty } from 'antd'
 import { isEmpty } from 'lodash'
-import { FC, useState, useEffect } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
 
@@ -26,19 +26,19 @@ const MinAppsPopover: FC<Props> = ({ children }) => {
     setOpen(false)
   }
 
-  const [maxHeight, setMaxHeight] = useState(window.innerHeight - 100);
+  const [maxHeight, setMaxHeight] = useState(window.innerHeight - 100)
 
   useEffect(() => {
     const handleResize = () => {
-      setMaxHeight(window.innerHeight - 100);
-    };
+      setMaxHeight(window.innerHeight - 100)
+    }
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize)
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
 
   const content = (
     <PopoverContent maxHeight={maxHeight}>
@@ -74,9 +74,9 @@ const PopoverContent = styled(Scrollbar)<{ maxHeight: number }>`
 `
 
 const AppsContainer = styled.div`
-display: grid;
+  display: grid;
   grid-template-columns: repeat(6, minmax(90px, 1fr));
   gap: 18px;
-`;
+`
 
 export default MinAppsPopover

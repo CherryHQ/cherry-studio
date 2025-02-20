@@ -1,6 +1,10 @@
+import 'emoji-picker-element'
+
+import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HStack } from '@renderer/components/Layout'
 import { Assistant, AssistantSettings } from '@renderer/types'
-import { Button, Input } from 'antd'
+import { getLeadingEmoji } from '@renderer/utils'
+import { Button, Input, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,12 +18,19 @@ interface Props {
 }
 
 const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, onOk }) => {
-  const [name, setName] = useState(assistant.name)
+  const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || '⭐️')
+  const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
   const [prompt, setPrompt] = useState(assistant.prompt)
   const { t } = useTranslation()
 
   const onUpdate = () => {
-    const _assistant = { ...assistant, name, prompt }
+    const _assistant = { ...assistant, name: `${emoji} ${name}`.trim(), prompt }
+    updateAssistant(_assistant)
+  }
+
+  const handleEmojiSelect = (selectedEmoji: string) => {
+    setEmoji(selectedEmoji)
+    const _assistant = { ...assistant, name: `${selectedEmoji} ${name}`.trim(), prompt }
     updateAssistant(_assistant)
   }
 
@@ -28,12 +39,18 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
       <Box mb={8} style={{ fontWeight: 'bold' }}>
         {t('common.name')}
       </Box>
-      <Input
-        placeholder={t('common.assistant') + t('common.name')}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={onUpdate}
-      />
+      <HStack gap={8} alignItems="center">
+        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
+          <Button style={{ fontSize: 20, padding: '4px 8px', minWidth: '42px', height: '32px' }}>{emoji}</Button>
+        </Popover>
+        <Input
+          placeholder={t('common.assistant') + t('common.name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={onUpdate}
+          style={{ flex: 1 }}
+        />
+      </HStack>
       <Box mt={8} mb={8} style={{ fontWeight: 'bold' }}>
         {t('common.prompt')}
       </Box>
