@@ -138,6 +138,7 @@
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
       "topics.delete.title": "Are you sure you want to delete this topic? This action cannot be undone",
+      "topics.delete.shortcut": "Hold {{key}} to delete directly",
       "translate": "Translate",
       "topics.prompt": "Topic Prompts",
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",

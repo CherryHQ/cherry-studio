@@ -11,6 +11,7 @@ import {
 import DragableList from '@renderer/components/DragableList'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -260,16 +261,37 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                       removeTopic(topic)
                     }}
                     onCancel={(e) => e?.stopPropagation()}>
-                    <MenuButton
-                      className="menu"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (assistant.topics.length === 1) {
-                          return onClearMessages()
-                        }
-                      }}>
-                      <CloseOutlined />
-                    </MenuButton>
+                    <Tooltip
+                      placement="bottom"
+                      mouseEnterDelay={0.7}
+                      title={
+                        <div>
+                          <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                            {t('chat.topics.delete.shortcut', {
+                              key: isMac ? '⌘' : 'Ctrl'
+                            })}
+                          </div>
+                        </div>
+                      }>
+                      <MenuButton
+                        className="menu"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (assistant.topics.length === 1) {
+                            return onClearMessages()
+                          }
+                          if (e.ctrlKey || e.metaKey) {
+                            await modelGenerating()
+                            const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+                            setActiveTopic(
+                              assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1]
+                            )
+                            removeTopic(topic)
+                          }
+                        }}>
+                        <CloseOutlined />
+                      </MenuButton>
+                    </Tooltip>
                   </Popconfirm>
                 )}
               </TopicListItem>
