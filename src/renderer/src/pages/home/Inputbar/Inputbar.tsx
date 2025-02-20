@@ -523,9 +523,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         const cursorPosition = textArea.selectionStart
         const textBeforeCursor = prev.substring(0, cursorPosition)
         const textAfterCursor = prev.substring(cursorPosition)
-        return `${textBeforeCursor}${topicRef}${textAfterCursor}`
+        const newText = `${textBeforeCursor}${topicRef} ${textAfterCursor}`
+
+        // 使用 setTimeout 确保在文本更新后设置光标位置
+        setTimeout(() => {
+          const newCursorPosition = cursorPosition + topicRef.length + 1 // +1 是为了跳过添加的空格
+          textArea.focus() // 保持焦点
+          textArea.setSelectionRange(newCursorPosition, newCursorPosition)
+        }, 0)
+
+        return newText
       }
-      return `${prev}${topicRef}`
+      return `${prev}${topicRef} `
     })
   }
 
