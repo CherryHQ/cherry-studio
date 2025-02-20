@@ -52,7 +52,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
   const items = [
     {
       key: 'prompt',
-      label: t('assistants.settings.prompt')
+      label: assistant.subType === 'plugin' ? t('assistants.settings.plugin') : t('assistants.settings.prompt')
     },
     {
       key: 'model',
@@ -135,7 +135,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
     </StyledModal>
   )
 }
-
 const LeftMenu = styled.div`
   background-color: var(--color-background);
   height: calc(80vh - 20px);
