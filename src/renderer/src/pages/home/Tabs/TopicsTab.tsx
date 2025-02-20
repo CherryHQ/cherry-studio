@@ -1,6 +1,7 @@
 import {
   ClearOutlined,
   CloseOutlined,
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   FolderOutlined,
@@ -21,6 +22,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
+import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import { exportTopicAsMarkdown, exportTopicToNotion, topicToMarkdown } from '@renderer/utils/export'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
@@ -188,6 +190,23 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onOk: onClearMessages
             })
           }
+        },
+        {
+          label: t('chat.topics.copy.title'),
+          key: 'copy',
+          icon: <CopyOutlined />,
+          children: [
+            {
+              label: t('chat.topics.copy.image'),
+              key: 'img',
+              onClick: () => EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic)
+            },
+            {
+              label: t('chat.topics.copy.md'),
+              key: 'md',
+              onClick: () => copyTopicAsMarkdown(topic)
+            }
+          ]
         },
         {
           label: t('chat.topics.export.title'),
