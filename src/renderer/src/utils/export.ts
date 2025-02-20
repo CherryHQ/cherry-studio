@@ -34,15 +34,20 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
   window.api.file.save(fileName, markdown)
 }
 
-const NOTION_BLOCKS_LIMIT = 90 // 设置安全的块限制数量
-
-// 分割 Notion blocks
+// 修改 splitNotionBlocks 函数
 const splitNotionBlocks = (blocks: any[]) => {
+  const { notionAutoSplit, notionSplitSize } = store.getState().settings
+
+  // 如果未开启自动分页,返回单页
+  if (!notionAutoSplit) {
+    return [blocks]
+  }
+
   const pages: any[][] = []
   let currentPage: any[] = []
 
   blocks.forEach((block) => {
-    if (currentPage.length >= NOTION_BLOCKS_LIMIT) {
+    if (currentPage.length >= notionSplitSize) {
       window.message.info({ content: i18n.t('message.info.notion.block_reach_limit'), key: 'notion-block-reach-limit' })
       pages.push(currentPage)
       currentPage = []

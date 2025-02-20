@@ -5,16 +5,30 @@ import MinApp from '@renderer/components/MinApp'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { backup, reset, restore } from '@renderer/services/BackupService'
 import { RootState, useAppDispatch } from '@renderer/store'
-import { setNotionApiKey, setNotionDatabaseID, setNotionPageNameKey } from '@renderer/store/settings'
+import {
+  setNotionApiKey,
+  setNotionAutoSplit,
+  setNotionDatabaseID,
+  setNotionPageNameKey,
+  setNotionSplitSize
+} from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
-import { Button, Modal, Tooltip, Typography } from 'antd'
+import { Button, InputNumber, Modal, Switch, Tooltip, Typography } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import {
+  SettingContainer,
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '..'
 import WebDavSettings from './WebDavSettings'
 
 // 新增的 NotionSettings 组件
@@ -26,6 +40,8 @@ const NotionSettings: FC = () => {
   const notionApiKey = useSelector((state: RootState) => state.settings.notionApiKey)
   const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID)
   const notionPageNameKey = useSelector((state: RootState) => state.settings.notionPageNameKey)
+  const notionAutoSplit = useSelector((state: RootState) => state.settings.notionAutoSplit)
+  const notionSplitSize = useSelector((state: RootState) => state.settings.notionSplitSize)
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch(setNotionApiKey(e.target.value))
@@ -71,6 +87,16 @@ const NotionSettings: FC = () => {
       name: 'Notion Help',
       url: 'https://docs.cherry-ai.com/advanced-basic/notion'
     })
+  }
+
+  const handleNotionAutoSplitChange = (checked: boolean) => {
+    dispatch(setNotionAutoSplit(checked))
+  }
+
+  const handleNotionSplitSizeChange = (value: number | null) => {
+    if (value !== null) {
+      dispatch(setNotionSplitSize(value))
+    }
   }
 
   return (
@@ -128,6 +154,37 @@ const NotionSettings: FC = () => {
         </HStack>
       </SettingRow>
       <SettingDivider /> {/* 添加分割线 */}
+      <SettingRow>
+        <SettingRowTitle>
+          <Tooltip title={t('settings.data.notion.auto_split_tip')} placement="right">
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {t('settings.data.notion.auto_split')}
+              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+            </span>
+          </Tooltip>
+        </SettingRowTitle>
+        <Switch checked={notionAutoSplit} onChange={handleNotionAutoSplitChange} />
+      </SettingRow>
+      {notionAutoSplit && (
+        <>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.notion.split_size')}</SettingRowTitle>
+            <InputNumber
+              min={30}
+              max={25000}
+              value={notionSplitSize}
+              onChange={handleNotionSplitSizeChange}
+              keyboard={true}
+              controls={true}
+              style={{ width: 120 }}
+            />
+          </SettingRow>
+          <SettingRow>
+            <SettingHelpText style={{ marginLeft: 10 }}>{t('settings.data.notion.split_size_help')}</SettingHelpText>
+          </SettingRow>
+        </>
+      )}
     </SettingGroup>
   )
 }

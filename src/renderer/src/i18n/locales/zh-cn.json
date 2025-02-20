@@ -594,6 +594,11 @@
           "empty_api_key": "未配置Api_key",
           "empty_database_id": "未配置Database_id"
         },
+        "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
+        "notion.auto_split": "导出对话时自动分页",
+        "notion.split_size": "自动分页大小",
+        "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
+        "notion.split_size_help": "Notion免费版用户建议设置为90，高级版用户建议设置为24990，默认值为90",
         "title": "数据设置",
         "webdav": {
           "autoSync": "自动备份",

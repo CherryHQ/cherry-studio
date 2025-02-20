@@ -389,8 +389,7 @@
       "upgrade.success.title": "Обновление успешно",
       "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
       "error.invalid.api.host": "Неверный API адрес",
-      "error.invalid.api.key": "Неверный API ключ",
-      "info.notion.block_reach_limit": "Разговор слишком длинный, экспорт в Notion с разбивкой на страницы"
+      "error.invalid.api.key": "Неверный API ключ"
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",

@@ -389,8 +389,7 @@
       "upgrade.success.title": "升級成功",
       "warn.notion.exporting": "正在導出到Notion，請勿重複請求導出！",
       "error.invalid.api.host": "無效的 API 位址",
-      "error.invalid.api.key": "無效的 API 密鑰",
-      "info.notion.block_reach_limit": "對話過長，正在分頁導出到 Notion"
+      "error.invalid.api.key": "無效的 API 密鑰"
     },
     "minapp": {
       "sidebar.add.title": "添加到側邊欄",
@@ -581,6 +580,11 @@
           "empty_api_key": "未配置Api_key",
           "empty_database_id": "未配置Database_id"
         },
+        "notion.auto_split": "導出對話時自動分頁",
+        "notion.auto_split_tip": "當要導出的話題過長時自動分頁導出到Notion",
+        "notion.split_size": "自動分頁大小",
+        "notion.split_size_placeholder": "請輸入每頁塊數限制(默認90)",
+        "notion.split_size_help": "Notion免費版用戶建議設置為90，高級版用戶建議設置為24990，默認值為90",
         "title": "數據設定",
         "webdav": {
           "autoSync": "自動備份",

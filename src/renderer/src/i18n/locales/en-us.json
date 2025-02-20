@@ -401,8 +401,7 @@
       "upgrade.success.title": "Upgrade successfully",
       "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
       "error.invalid.api.host": "Invalid API Host",
-      "error.invalid.api.key": "Invalid API Key",
-      "info.notion.block_reach_limit": "Conversation is too long, paging export to Notion"
+      "error.invalid.api.key": "Invalid API Key"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -595,6 +594,11 @@
           "empty_api_key": "Api_key is not configured",
           "empty_database_id": "Database_id is not configured"
         },
+        "notion.auto_split": "Auto split when exporting",
+        "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
+        "notion.split_size": "Split size",
+        "notion.split_size_placeholder": "Enter block limit per page (default 90)",
+        "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",
