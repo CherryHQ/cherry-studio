@@ -2,6 +2,7 @@ import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
 import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
+import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
 import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
@@ -141,6 +142,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: '文心一言',
     logo: BaiduAiAppLogo,
     url: 'https://yiyan.baidu.com/'
+  },
+  {
+    id: 'baidu-ai-search',
+    name: '百度AI搜索',
+    logo: BaiduAiSearchLogo,
+    url: 'https://chat.baidu.com/',
+    bodered: true
   },
   {
     id: 'tencent-yuanbao',
