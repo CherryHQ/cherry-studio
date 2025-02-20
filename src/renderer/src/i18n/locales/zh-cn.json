@@ -144,6 +144,7 @@
       "topics.delete.shortcut": "按住 {{key}} 可直接删除",
       "translate": "翻译",
       "topics.prompt": "话题提示词",
+      "topics.no_prompt": "暂无提示词",
       "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词"
     },
     "common": {

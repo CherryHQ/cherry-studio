@@ -42,6 +42,12 @@ import AttachmentPreview from './AttachmentPreview'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
 import MentionModelsButton from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
+/**
+ * 导入话题引用按钮组件
+ * 该组件用于在工具栏中显示话题选择器，允许用户引用历史话题
+ * 与 MentionModelsButton 类似，但处理的是话题而不是模型
+ */
+import MentionTopicsButton from './MentionTopicsButton'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 
@@ -85,6 +91,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
   const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
+  /**
+   * 控制话题选择器的显示状态
+   * true: 显示话题选择下拉菜单
+   * false: 隐藏话题选择下拉菜单
+   */
+  const [isMentionTopicsOpen, setIsMentionTopicsOpen] = useState(false)
 
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
@@ -133,7 +145,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     if (mentionModels.length > 0) {
       message.mentions = mentionModels
     }
-
+    console.log('Message structure in inputbar:调试', message)
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
 
     setText('')
@@ -177,8 +189,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       }
     }
 
-    if (event.key === 'Escape' && isMentionPopupOpen) {
+    if (event.key === 'Escape' && (isMentionPopupOpen || isMentionTopicsOpen)) {
       setIsMentionPopupOpen(false)
+      setIsMentionTopicsOpen(false)
       return
     }
 
@@ -493,6 +506,29 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setMentionModels(mentionModels.filter((m) => m.id !== model.id))
   }
 
+  /**
+   * 处理话题引用的回调函数
+   * @param topic - 用户选择的话题对象
+   *
+   * 功能：
+   * 1. 生成话题引用格式：[[话题名称]|[话题ID]]
+   * 2. 将引用插入到输入框的当前光标位置
+   * 3. 如果没有光标位置信息，则追加到文本末尾
+   */
+  const onMentionTopic = (topic: Topic) => {
+    const topicRef = `[[${topic.name}]|[${topic.id}]]`
+    setText((prev) => {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        const cursorPosition = textArea.selectionStart
+        const textBeforeCursor = prev.substring(0, cursorPosition)
+        const textAfterCursor = prev.substring(cursorPosition)
+        return `${textBeforeCursor}${topicRef}${textAfterCursor}`
+      }
+      return `${prev}${topicRef}`
+    })
+  }
+
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
@@ -540,6 +576,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 mentionModels={mentionModels}
                 onMentionModel={onMentionModel}
                 ToolbarButton={ToolbarButton}
+              />
+              {/* 
+                话题引用按钮组件
+                - 放置在模型引用按钮旁边，保持相关功能的视觉连续性
+                - onMentionTopic: 处理话题选择的回调函数
+                - ToolbarButton: 使用统一的按钮样式组件
+                - isOpen: 控制下拉菜单的显示状态
+                - onOpenChange: 处理下拉菜单状态变化的回调
+              */}
+              <MentionTopicsButton
+                onMentionTopic={onMentionTopic}
+                ToolbarButton={ToolbarButton}
+                isOpen={isMentionTopicsOpen}
+                onOpenChange={setIsMentionTopicsOpen}
               />
               {isWebSearchModel(model) && (
                 <Tooltip placement="top" title={t('chat.input.web_search')} arrow>

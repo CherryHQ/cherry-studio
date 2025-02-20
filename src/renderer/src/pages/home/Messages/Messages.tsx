@@ -66,6 +66,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
 
   const onSendMessage = useCallback(
     async (message: Message) => {
+      console.log('Message structure in onSendMessage in Messages.tsx:调试', message)
       const assistantMessages: Message[] = []
 
       if (message.mentions?.length) {
@@ -77,13 +78,16 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
         })
       } else {
         const assistantMessage = getAssistantMessage({ assistant, topic })
+        console.log('Assistant message structure in getAssistantMessage in Messages.tsx:调试', topic)
         assistantMessage.askId = message.id
         assistantMessages.push(assistantMessage)
       }
-
+      console.log('Assistant messages :调试', assistantMessages)
       setMessages((prev) => {
         const messages = prev.concat([message, ...assistantMessages])
+        console.log('Messages structure in setMessages in Messages.tsx:调试', messages)
         db.topics.put({ id: topic.id, messages })
+        console.log('已经保存到数据库', messages)
         return messages
       })
 

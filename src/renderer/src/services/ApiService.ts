@@ -14,7 +14,7 @@ import {
   getTranslateModel
 } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
-import { filterMessages, filterUsefulMessages } from './MessagesService'
+import { enhanceMessageWithTopicReferences, filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 
 export async function fetchChatCompletion({
@@ -28,9 +28,11 @@ export async function fetchChatCompletion({
   assistant: Assistant
   onResponse: (message: Message) => void
 }) {
+  console.log('开始fetchChatCompletion:调试', { message, messages, assistant })
   window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, false)
 
   const provider = getAssistantProvider(assistant)
+  console.log('获取到provider:调试', provider)
   const AI = new AiProvider(provider)
 
   store.dispatch(setGenerating(true))
@@ -41,6 +43,7 @@ export async function fetchChatCompletion({
   let paused = false
   const timer = setInterval(() => {
     if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+      console.log('检测到暂停状态:调试')
       paused = true
       message.status = 'paused'
       EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
@@ -54,10 +57,18 @@ export async function fetchChatCompletion({
     let _messages: Message[] = []
     let isFirstChunk = true
 
+    // 先过滤和增强消息
+    const filteredMessages = filterUsefulMessages(messages)
+    const enhancedMessages = await enhanceMessageWithTopicReferences(filteredMessages)
+    console.log('发送给API的增强消息:调试', enhancedMessages[enhancedMessages.length - 1])
+
     await AI.completions({
-      messages: filterUsefulMessages(messages),
+      messages: enhancedMessages,
       assistant,
-      onFilterMessages: (messages) => (_messages = messages),
+      onFilterMessages: async (messages) => {
+        console.log('过滤后的消息:调试', messages[messages.length - 1])
+        _messages = messages
+      },
       onChunk: ({ text, reasoning_content, usage, metrics, search, citations }) => {
         message.content = message.content + text || ''
         message.usage = usage
@@ -85,14 +96,17 @@ export async function fetchChatCompletion({
     })
 
     message.status = 'success'
+    console.log('完成响应:调试', message)
 
     if (!message.usage || !message?.usage?.completion_tokens) {
+      console.log('计算消息使用量:调试')
       message.usage = await estimateMessagesUsage({
         assistant,
         messages: [..._messages, message]
       })
     }
   } catch (error: any) {
+    console.error('发生错误:调试', error)
     message.status = 'error'
     message.error = formatMessageError(error)
   }
@@ -100,6 +114,7 @@ export async function fetchChatCompletion({
   timer && clearInterval(timer)
 
   if (paused) {
+    console.log('返回暂停状态的消息:调试', message)
     return message
   }
 
@@ -107,6 +122,7 @@ export async function fetchChatCompletion({
   message.status = window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED) ? 'paused' : message.status
 
   // Emit chat completion event
+  console.log('发送完成事件:调试', message)
   EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
   onResponse(message)
 
