@@ -604,6 +604,20 @@
         "notion.page_name_key": "Page Title Field Name",
         "notion.page_name_key_placeholder": "Enter page title field name, default is Name",
         "notion.title": "Notion Configuration",
+        "notion.help": "Notion Configuration Documentation",
+        "notion.check": {
+          "button": "Check",
+          "fail": "Connection failed, please check network and Api_key and Database_id",
+          "success": "Connection successful",
+          "error": "Connection error, please check network configuration and Api_key and Database_id",
+          "empty_api_key": "Api_key is not configured",
+          "empty_database_id": "Database_id is not configured"
+        },
+        "notion.auto_split": "Auto split when exporting",
+        "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
+        "notion.split_size": "Split size",
+        "notion.split_size_placeholder": "Enter block limit per page (default 90)",
+        "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",

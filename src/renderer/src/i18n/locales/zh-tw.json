@@ -604,6 +604,20 @@
         "notion.page_name_key": "頁面標題欄位名稱",
         "notion.page_name_key_placeholder": "請輸入頁面標題欄位名稱，預設為 Name",
         "notion.title": "Notion 配置",
+        "notion.help": "Notion 配置文檔",
+        "notion.check": {
+          "button": "檢查",
+          "fail": "連接失敗，請檢查網絡及Api_key和Database_id是否正確",
+          "success": "連線成功",
+          "error": "連接異常，請檢查網絡及Api_key和Database_id是否正確",
+          "empty_api_key": "未配置Api_key",
+          "empty_database_id": "未配置Database_id"
+        },
+        "notion.auto_split": "導出對話時自動分頁",
+        "notion.auto_split_tip": "當要導出的話題過長時自動分頁導出到Notion",
+        "notion.split_size": "自動分頁大小",
+        "notion.split_size_placeholder": "請輸入每頁塊數限制(默認90)",
+        "notion.split_size_help": "Notion免費版用戶建議設置為90，高級版用戶建議設置為24990，默認值為90",
         "title": "數據設定",
         "webdav": {
           "autoSync": "自動備份",

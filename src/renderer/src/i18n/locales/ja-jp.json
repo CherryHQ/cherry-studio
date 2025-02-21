@@ -604,6 +604,20 @@
         "notion.page_name_key": "ページタイトルフィールド名",
         "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
         "notion.title": "Notion 設定",
+        "notion.help": "Notion 設定ドキュメント",
+        "notion.check": {
+          "button": "確認",
+          "fail": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
+          "success": "接続に成功しました。",
+          "error": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
+          "empty_api_key": "Api_keyが設定されていません",
+          "empty_database_id": "Database_idが設定されていません"
+        },
+        "notion.auto_split": "내보내기 시 자동 분할",
+        "notion.auto_split_tip": "긴 주제를 Notion으로 내보낼 때 자동으로 페이지 분할",
+        "notion.split_size": "분할 크기",
+        "notion.split_size_placeholder": "페이지당 블록 제한 입력(기본값 90)",
+        "notion.split_size_help": "권장: 무료 플랜 90, Plus 플랜 24990, 기본값 90",
         "title": "データ設定",
         "webdav": {
           "autoSync": "自動バックアップ",
