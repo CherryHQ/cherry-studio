@@ -3,10 +3,12 @@ import { app } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
+import { knowledgeWatchService } from './services/KnowledgeWatchService'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { updateUserDataPath } from './utils/upgrade'
+import { loadWatcher, saveWatcher } from './utils/watcher'
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -19,6 +21,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     await updateUserDataPath()
+    await loadWatcher()
 
     // Register custom protocol
     if (!app.isDefaultProtocolClient('cherrystudio')) {
@@ -57,6 +60,12 @@ if (!app.requestSingleInstanceLock()) {
 
     registerIpc(mainWindow, app)
 
+    // 等待窗口加载完成后再检查文件
+    mainWindow.webContents.on('did-finish-load', async () => {
+      console.log('Window did-finish-load')
+
+      await knowledgeWatchService.checkAllFiles()
+    })
     if (process.env.NODE_ENV === 'development') {
       installExtension(REDUX_DEVTOOLS)
         .then((name) => console.log(`Added Extension:  ${name}`))
@@ -73,8 +82,9 @@ if (!app.requestSingleInstanceLock()) {
     optimizer.watchWindowShortcuts(window)
   })
 
-  app.on('before-quit', () => {
+  app.on('before-quit', async () => {
     app.isQuitting = true
+    await saveWatcher()
   })
 
   // In this file you can include the rest of your app"s specific main process

@@ -12,14 +12,15 @@ import { getInstanceName } from '@main/utils'
 import { getAllFiles } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
 import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
+import * as crypto from 'crypto'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
+import { knowledgeWatchService } from './KnowledgeWatchService'
 import { windowService } from './WindowService'
 
 class KnowledgeService {
   private storageDir = path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')
-
   constructor() {
     this.initStorageDir()
   }
@@ -92,21 +93,31 @@ class KnowledgeService {
 
     if (item.type === 'directory') {
       const directory = item.content as string
+      const directoryId = `DirectoryLoader_${uuidv4()}`
+      // 先添加目录本身
+      const dirHash = crypto.createHash('sha256').update(directory).digest('hex')
+      knowledgeWatchService.addFile('directory', directory, directoryId, dirHash)
       const files = getAllFiles(directory)
       const totalFiles = files.length
       let processedFiles = 0
-      const loaderPromises = files.map(async (file) => {
+      const promises = files.map(async (file) => {
+        const fileContent = fs.readFileSync(file.path, 'utf-8')
+        const fileHash = crypto.createHash('sha256').update(fileContent).digest('hex')
         const result = await addFileLoader(ragApplication, file, base, forceReload)
+        const uniqueId = result.uniqueId || path.basename(file.path)
+
+        knowledgeWatchService.addFile('file', file.path, uniqueId, fileHash, directoryId)
+
         processedFiles++
 
         sendDirectoryProcessingPercent(totalFiles, processedFiles)
         return result
       })
-      const loaderResults = await Promise.all(loaderPromises)
-      const uniqueIds = loaderResults.map((result) => result.uniqueId)
+      const results = await Promise.all(promises)
+      const uniqueIds = results.map((result) => result.uniqueId)
       return {
-        entriesAdded: loaderResults.length,
-        uniqueId: `DirectoryLoader_${uuidv4()}`,
+        entriesAdded: results.length,
+        uniqueId: directoryId,
         uniqueIds,
         loaderType: 'DirectoryLoader'
       } as LoaderReturn
@@ -160,8 +171,11 @@ class KnowledgeService {
 
     if (item.type === 'file') {
       const file = item.content as FileType
-
-      return await addFileLoader(ragApplication, file, base, forceReload)
+      const fileContent = fs.readFileSync(file.path, 'utf-8')
+      const fileHash = crypto.createHash('sha256').update(fileContent).digest('hex')
+      const result = await addFileLoader(ragApplication, file, base, forceReload)
+      knowledgeWatchService.addFile(item.type, file.path, result.uniqueId, fileHash)
+      return result
     }
 
     return { entriesAdded: 0, uniqueId: '', uniqueIds: [''], loaderType: '' }
@@ -176,6 +190,7 @@ class KnowledgeService {
     for (const id of uniqueIds) {
       await ragApplication.deleteLoader(id)
     }
+    // TODO knowledgeWatcher unwatch
   }
 
   public search = async (

@@ -6,6 +6,7 @@ import storage from 'redux-persist/lib/storage'
 import agents from './agents'
 import assistants from './assistants'
 import knowledge from './knowledge'
+import knowledgeFile from './knowledgeFile'
 import llm from './llm'
 import migrate from './migrate'
 import minapps from './minapps'
@@ -23,7 +24,8 @@ const rootReducer = combineReducers({
   runtime,
   shortcuts,
   knowledge,
-  minapps
+  minapps,
+  knowledgeFile
 })
 
 const persistedReducer = persistReducer(
