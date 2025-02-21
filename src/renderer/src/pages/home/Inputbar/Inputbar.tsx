@@ -1,6 +1,5 @@
 import {
   ClearOutlined,
-  ControlOutlined,
   FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
@@ -568,16 +567,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                     <ClearOutlined />
                   </ToolbarButton>
                 </Popconfirm>
-              </Tooltip>
-              <Tooltip placement="top" title={t('chat.input.settings')} arrow>
-                <ToolbarButton
-                  type="text"
-                  onClick={() => {
-                    !showTopics && toggleShowTopics()
-                    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_CHAT_SETTINGS), 0)
-                  }}>
-                  <ControlOutlined />
-                </ToolbarButton>
               </Tooltip>
               {showKnowledgeIcon && (
                 <KnowledgeBaseButton
