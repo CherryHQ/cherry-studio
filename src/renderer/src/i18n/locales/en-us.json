@@ -73,9 +73,7 @@
     "chat": {
       "add.assistant.title": "Add Assistant",
       "artifacts.button.download": "Download",
-      "artifacts.button.openExternal": "Open in external browser",
       "artifacts.button.preview": "Preview",
-      "artifacts.preview.openExternal.error.content": "Error opening the external browser.",
       "assistant.search.placeholder": "Search",
       "deeply_thought": "Deeply thought ({{secounds}} seconds)",
       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
@@ -88,7 +86,6 @@
       "input.context_count.tip": "Context Count",
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
-      "input.file_not_supported": "Model does not support this file type",
       "input.knowledge_base": "Knowledge Base",
       "input.new.context": "Clear Context {{Command}}",
       "input.new_topic": "New Topic {{Command}}",
@@ -101,6 +98,7 @@
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
       "input.web_search": "Enable web search",
+      "input.file_not_supported": "Model does not support this file type",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
       "message.new.context": "New Context",
@@ -113,26 +111,22 @@
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
       "settings.max_tokens": "Enable max tokens limit",
-      "settings.max_tokens.confirm": "Enable max tokens limit",
-      "settings.max_tokens.confirm_content": "Enable max tokens limit, affects the length of the result. Need to consider the context limit of the model, otherwise an error will be reported",
       "settings.max_tokens.tip": "The maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
       "settings.reset": "Reset",
       "settings.set_as_default": "Apply to default assistant",
       "settings.show_line_numbers": "Show line numbers in code",
       "settings.temperature": "Temperature",
       "settings.temperature.tip": "Higher values make the model more creative and unpredictable, while lower values make it more deterministic and precise.",
-      "settings.thought_auto_collapse": "Automatically Collapse Thought Content",
-      "settings.thought_auto_collapse.tip": "Automatically collapse thought content after thinking ends",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
+      "settings.max_tokens.confirm": "Enable max tokens limit",
+      "settings.max_tokens.confirm_content": "Enable max tokens limit, affects the length of the result. Need to consider the context limit of the model, otherwise an error will be reported",
+      "settings.thought_auto_collapse": "Automatically Collapse Thought Content",
+      "settings.thought_auto_collapse.tip": "Automatically collapse thought content after thinking ends",
       "suggestions.title": "Suggested Questions",
       "thinking": "Thinking",
       "topics.auto_rename": "Auto Rename",
       "topics.clear.title": "Clear Messages",
-      "topics.copy.image": "Copy as image",
-      "topics.copy.md": "Copy as markdown",
-      "topics.copy.title": "Copy",
-      "topics.delete.shortcut": "Hold {{key}} to delete directly",
       "topics.edit.placeholder": "Enter new name",
       "topics.edit.title": "Edit Name",
       "topics.export.image": "Export as image",
@@ -143,12 +137,15 @@
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
       "topics.pinned": "Pinned Topics",
-      "topics.prompt": "Topic Prompts",
-      "topics.prompt.edit.title": "Edit Topic Prompts",
-      "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "topics.delete.shortcut": "Hold {{key}} to delete directly",
+      "translate": "Translate",
+      "topics.prompt": "Topic Prompts",
+      "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
+      "topics.prompt.edit.title": "Edit Topic Prompts",
+      "artifacts.button.openExternal": "Open in external browser",
+      "artifacts.preview.openExternal.error.content": "Error opening the external browser."
     },
     "common": {
       "add": "Add",
@@ -169,7 +166,6 @@
       "download": "Download",
       "duplicate": "Duplicate",
       "edit": "Edit",
-      "footnote": "Reference content",
       "footnotes": "References",
       "knowledge_base": "Knowledge Base",
       "language": "Language",
@@ -187,10 +183,8 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
-    },
-    "docs": {
-      "title": "Docs"
+      "you": "You",
+      "footnote": "Reference content"
     },
     "error": {
       "backup.file_format": "Backup file format error",
@@ -287,7 +281,6 @@
       "invalid_url": "Invalid URL",
       "model_info": "Model Info",
       "no_bases": "No knowledge bases available",
-      "no_match": "No matching content found in the knowledge base.",
       "no_provider": "Knowledge base model provider is not set, the knowledge base will no longer be supported, please create a new knowledge base",
       "not_set": "Not Set",
       "not_support": "Knowledge base database engine updated, the knowledge base will no longer be supported, please create a new knowledge base",
@@ -306,14 +299,15 @@
       "status_new": "Added",
       "status_pending": "Pending",
       "status_processing": "Processing",
-      "threshold": "Matching threshold",
-      "threshold_placeholder": "Not set",
-      "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
-      "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
+      "threshold_placeholder": "Not set",
+      "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
+      "no_match": "No matching content found in the knowledge base.",
+      "threshold": "Matching threshold"
     },
     "languages": {
       "arabic": "Arabic",
@@ -321,19 +315,13 @@
       "chinese-traditional": "Traditional Chinese",
       "english": "English",
       "french": "French",
-      "german": "German",
       "italian": "Italian",
       "japanese": "Japanese",
       "korean": "Korean",
       "portuguese": "Portuguese",
       "russian": "Russian",
-      "spanish": "Spanish"
-    },
-    "lmstudio": {
-      "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
-      "keep_alive_time.placeholder": "Minutes",
-      "keep_alive_time.title": "Keep Alive Time",
-      "title": "LM Studio"
+      "spanish": "Spanish",
+      "german": "German"
     },
     "mermaid": {
       "download": {
@@ -349,6 +337,18 @@
         "source": "Source"
       },
       "title": "Mermaid Diagram"
+    },
+    "plantuml": {
+      "download": {
+        "png": "Download PNG",
+        "svg": "Download SVG",
+        "failed": "Download failed, please check the network"
+      },
+      "tabs": {
+        "preview": "Preview",
+        "source": "Source"
+      },
+      "title": "PlantUML Diagram"
     },
     "message": {
       "api.check.model.title": "Select the model to use for detection",
@@ -368,8 +368,6 @@
       "error.enter.model": "Please select a model first",
       "error.enter.name": "Please enter the name of the knowledge base",
       "error.get_embedding_dimensions": "Failed to get embedding dimensions",
-      "error.invalid.api.host": "Invalid API Host",
-      "error.invalid.api.key": "Invalid API Key",
       "error.invalid.enter.model": "Please select a model",
       "error.invalid.proxy.url": "Invalid proxy URL",
       "error.invalid.webdav": "Invalid WebDAV settings",
@@ -383,9 +381,9 @@
       "message.delete.title": "Delete Message",
       "message.multi_model_style": "Group style",
       "message.multi_model_style.fold": "Fold",
-      "message.multi_model_style.grid": "Grid",
       "message.multi_model_style.horizontal": "Horizontal",
       "message.multi_model_style.vertical": "Vertical",
+      "message.multi_model_style.grid": "Grid",
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
@@ -401,7 +399,9 @@
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!"
+      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
+      "error.invalid.api.host": "Invalid API Host",
+      "error.invalid.api.key": "Invalid API Key"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -467,6 +467,12 @@
       "keep_alive_time.title": "Keep Alive Time",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
+      "keep_alive_time.placeholder": "Minutes",
+      "keep_alive_time.title": "Keep Alive Time",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "Delete Image",
       "button.delete.image.confirm": "Are you sure you want to delete this image?",
@@ -488,32 +494,23 @@
       "seed_tip": "The same seed and prompt can produce similar images",
       "title": "Images"
     },
-    "plantuml": {
-      "download": {
-        "failed": "Download failed, please check the network",
-        "png": "Download PNG",
-        "svg": "Download SVG"
-      },
-      "tabs": {
-        "preview": "Preview",
-        "source": "Source"
-      },
-      "title": "PlantUML Diagram"
-    },
     "prompts": {
       "explanation": "Explain this concept to me",
       "summarize": "Summarize this text",
       "title": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols."
     },
     "provider": {
+      "infini": "Infini",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "Baichuan",
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
+      "modelscope": "ModelScope",
       "deepseek": "DeepSeek",
-      "dmxapi": "DMXAPI",
       "doubao": "Volcengine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
@@ -524,19 +521,16 @@
       "groq": "Groq",
       "hunyuan": "Tencent Hunyuan",
       "hyperbolic": "Hyperbolic",
-      "infini": "Infini",
       "jina": "Jina",
-      "lmstudio": "LM Studio",
       "minimax": "MiniMax",
       "mistral": "Mistral",
-      "modelscope": "ModelScope",
       "moonshot": "Moonshot",
       "nvidia": "Nvidia",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
-      "perplexity": "Perplexity",
       "ppio": "PPIO",
       "qwenlm": "QwenLM",
       "silicon": "SiliconFlow",
@@ -584,26 +578,22 @@
           "title": "Clear Cache"
         },
         "data.title": "Data Directory",
-        "hour_interval_one": "{{count}} hour",
-        "hour_interval_other": "{{count}} hours",
-        "minute_interval_one": "{{count}} minute",
-        "minute_interval_other": "{{count}} minutes",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
-        "notion.check": {
-          "button": "Check",
-          "empty_api_key": "Api_key is not configured",
-          "empty_database_id": "Database_id is not configured",
-          "error": "Connection error, please check network configuration and Api_key and Database_id",
-          "fail": "Connection failed, please check network and Api_key and Database_id",
-          "success": "Connection successful"
-        },
         "notion.database_id": "Notion Database ID",
         "notion.database_id_placeholder": "Enter Notion Database ID",
-        "notion.help": "Notion Configuration Documentation",
         "notion.page_name_key": "Page Title Field Name",
         "notion.page_name_key_placeholder": "Enter page title field name, default is Name",
         "notion.title": "Notion Configuration",
+        "notion.help": "Notion Configuration Documentation",
+        "notion.check": {
+          "button": "Check",
+          "fail": "Connection failed, please check network and Api_key and Database_id",
+          "success": "Connection successful",
+          "error": "Connection error, please check network configuration and Api_key and Database_id",
+          "empty_api_key": "Api_key is not configured",
+          "empty_database_id": "Database_id is not configured"
+        },
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",
@@ -611,11 +601,11 @@
           "backup.button": "Backup to WebDAV",
           "host": "WebDAV Host",
           "host.placeholder": "http://localhost:8080",
+          "minute_interval_one": "{{count}} minute",
+          "minute_interval_other": "{{count}} minutes",
           "hour_interval_one": "{{count}} hour",
           "hour_interval_other": "{{count}} hours",
           "lastSync": "Last Backup",
-          "minute_interval_one": "{{count}} minute",
-          "minute_interval_other": "{{count}} minutes",
           "noSync": "Waiting for next backup",
           "password": "WebDAV Password",
           "path": "WebDAV Path",
@@ -668,10 +658,6 @@
       "input.target_language.japanese": "Japanese",
       "input.target_language.russian": "Russian",
       "messages.divider": "Show divider between messages",
-      "messages.grid_columns": "Message grid display columns",
-      "messages.grid_popover_trigger": "Grid detail trigger",
-      "messages.grid_popover_trigger.click": "Click to display",
-      "messages.grid_popover_trigger.hover": "Hover to display",
       "messages.input.paste_long_text_as_file": "Paste long text as file",
       "messages.input.paste_long_text_threshold": "Paste long text length",
       "messages.input.send_shortcuts": "Send shortcuts",
@@ -679,6 +665,10 @@
       "messages.input.title": "Input Settings",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
+      "messages.grid_columns": "Message grid display columns",
+      "messages.grid_popover_trigger": "Grid detail trigger",
+      "messages.grid_popover_trigger.hover": "Hover to display",
+      "messages.grid_popover_trigger.click": "Click to display",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.model.title": "Model Settings",
       "messages.title": "Message Settings",
@@ -764,14 +754,14 @@
         "reset_to_default": "Reset to Default",
         "search_message": "Search Message",
         "show_app": "Show App",
-        "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",
         "toggle_new_context": "Clear Context",
         "toggle_show_assistants": "Toggle Assistants",
         "toggle_show_topics": "Toggle Topics",
         "zoom_in": "Zoom In",
         "zoom_out": "Zoom Out",
-        "zoom_reset": "Reset Zoom"
+        "zoom_reset": "Reset Zoom",
+        "show_settings": "Open Settings"
       },
       "theme.auto": "Auto",
       "theme.dark": "Dark",
@@ -797,18 +787,17 @@
       },
       "error.failed": "Translation failed",
       "error.not_configured": "Translation model is not configured",
-      "history": {
-        "clear": "Clear History",
-        "clear_description": "Clear history will delete all translation history, continue?",
-        "delete": "Delete",
-        "empty": "No translation history",
-        "title": "Translation History"
-      },
       "input.placeholder": "Enter text to translate",
       "output.placeholder": "Translation",
       "processing": "Translation in progress...",
       "title": "Translation",
-      "tooltip.newline": "Newline"
+      "history": {
+        "title": "Translation History",
+        "empty": "No translation history",
+        "clear": "Clear History",
+        "delete": "Delete",
+        "clear_description": "Clear history will delete all translation history, continue?"
+      }
     },
     "tray": {
       "quit": "Quit",
@@ -820,6 +809,9 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "docs": {
+      "title": "Docs"
     }
   }
 }

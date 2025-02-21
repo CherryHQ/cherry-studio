@@ -46,6 +46,7 @@ const AppsPage: FC = () => {
             suffix={<SearchOutlined />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            autoFocus
           />
           <div style={{ width: 80 }} />
         </NavbarCenter>

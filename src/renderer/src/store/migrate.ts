@@ -1102,6 +1102,55 @@ const migrateConfig = {
     state.settings.thoughtAutoCollapse = true
 
     return state
+  },
+  '72': (state: RootState) => {
+    if (state.shortcuts) {
+      state.shortcuts.shortcuts.push(
+        {
+          key: 'switch_to_prev_main_navigation',
+          shortcut: [isMac ? 'Command' : 'Ctrl', isMac ? 'Option' : 'Alt', 'ArrowUp'],
+          editable: true,
+          enabled: true,
+          system: false
+        },
+        {
+          key: 'switch_to_next_main_navigation',
+          shortcut: [isMac ? 'Command' : 'Ctrl', isMac ? 'Option' : 'Alt', 'ArrowDown'],
+          editable: true,
+          enabled: true,
+          system: false
+        },
+        {
+          key: 'switch_to_prev_main_tab',
+          shortcut: [isMac ? 'Option' : 'Alt', 'ArrowUp'],
+          editable: true,
+          enabled: true,
+          system: false
+        },
+        {
+          key: 'switch_to_next_main_tab',
+          shortcut: [isMac ? 'Option' : 'Alt', 'ArrowDown'],
+          editable: true,
+          enabled: true,
+          system: false
+        },
+        {
+          key: 'switch_to_prev_horizontal_tab',
+          shortcut: [isMac ? 'Option' : 'Alt', 'ArrowLeft'],
+          editable: true,
+          enabled: true,
+          system: false
+        },
+        {
+          key: 'switch_to_next_horizontal_tab',
+          shortcut: [isMac ? 'Option' : 'Alt', 'ArrowRight'],
+          editable: true,
+          enabled: true,
+          system: false
+        }
+      )
+    }
+    return state
   }
 }
 
