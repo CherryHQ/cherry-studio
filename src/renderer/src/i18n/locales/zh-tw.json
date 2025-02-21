@@ -772,6 +772,7 @@
     "translate": {
       "any.language": "任意語言",
       "button.translate": "翻譯",
+      "tooltip.newline": "換行",
       "close": "關閉",
       "confirm": {
         "content": "翻譯後將覆蓋原文，是否繼續？",

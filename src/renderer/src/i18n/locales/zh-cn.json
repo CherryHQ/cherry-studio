@@ -783,6 +783,7 @@
     "translate": {
       "any.language": "任意语言",
       "button.translate": "翻译",
+      "tooltip.newline": "换行",
       "close": "关闭",
       "confirm": {
         "content": "翻译后将覆盖原文，是否继续？",

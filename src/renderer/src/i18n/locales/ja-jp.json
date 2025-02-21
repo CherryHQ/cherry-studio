@@ -791,6 +791,7 @@
     "translate": {
       "any.language": "任意の言語",
       "button.translate": "翻訳",
+      "tooltip.newline": "改行",
       "close": "閉じる",
       "confirm": {
         "content": "翻訳すると元のテキストが上書きされます。続行しますか？",

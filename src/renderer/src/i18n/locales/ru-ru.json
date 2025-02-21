@@ -770,6 +770,7 @@
     "translate": {
       "any.language": "Любой язык",
       "button.translate": "Перевести",
+      "tooltip.newline": "Перевести",
       "close": "Закрыть",
       "confirm": {
         "content": "Перевод заменит исходный текст, продолжить?",

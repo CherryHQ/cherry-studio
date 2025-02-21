@@ -780,6 +780,7 @@
     "translate": {
       "any.language": "Any language",
       "button.translate": "Translate",
+      "tooltip.newline": "Newline",
       "close": "Close",
       "confirm": {
         "content": "Translation will replace the original text, continue?",
