@@ -1019,6 +1019,16 @@ const migrateConfig = {
         models: SYSTEM_MODELS.dmxapi,
         isSystem: true,
         enabled: false
+      },
+      {
+        id: 'bltcyai',
+        name: 'BltcyAI',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://api.bltcy.ai',
+        models: SYSTEM_MODELS.bltcyai,
+        isSystem: true,
+        enabled: false
       }
     )
 
