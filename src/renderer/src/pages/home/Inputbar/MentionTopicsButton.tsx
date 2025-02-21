@@ -1,8 +1,8 @@
-import { CommentOutlined, EnterOutlined } from '@ant-design/icons'
+import { CommentOutlined, EnterOutlined, SearchOutlined } from '@ant-design/icons'
 import db from '@renderer/databases'
 import { useAppSelector } from '@renderer/store'
 import { Topic } from '@renderer/types'
-import { Button, Dropdown, Tooltip } from 'antd'
+import { Button, Dropdown, Input, Tooltip } from 'antd'
 import { FC, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { createGlobalStyle } from 'styled-components'
@@ -74,6 +74,7 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
   const dropdownRef = useRef<any>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [searchText, setSearchText] = useState('')
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 
   // 从 Redux store 获取所有助手及其话题
@@ -86,20 +87,28 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
   const filteredTopics = assistants.reduce(
     (acc, assistant) => {
       if (assistant.topics && assistant.topics.length > 0) {
-        // 对话题进行两级排序：1. 有提示词的排在前面 2. 名字长的排在前面
-        const sortedTopics = [...assistant.topics].sort((a, b) => {
-          // 第一级排序：有提示词的排在前面
-          if (!!a.prompt !== !!b.prompt) {
-            return a.prompt ? -1 : 1
-          }
-          // 第二级排序：名字长的排在前面
-          return (b.name?.length || 0) - (a.name?.length || 0)
-        })
+        // 先按搜索文本过滤
+        let filteredAssistantTopics = assistant.topics
+        if (searchText) {
+          filteredAssistantTopics = assistant.topics.filter((topic) =>
+            topic.name?.toLowerCase().includes(searchText.toLowerCase())
+          )
+        }
 
-        acc.push({
-          assistant,
-          topics: sortedTopics
-        })
+        // 如果过滤后还有话题，则进行排序
+        if (filteredAssistantTopics.length > 0) {
+          const sortedTopics = [...filteredAssistantTopics].sort((a, b) => {
+            if (!!a.prompt !== !!b.prompt) {
+              return a.prompt ? -1 : 1
+            }
+            return (b.name?.length || 0) - (a.name?.length || 0)
+          })
+
+          acc.push({
+            assistant,
+            topics: sortedTopics
+          })
+        }
       }
       return acc
     },
@@ -164,6 +173,16 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
 
   const menu = (
     <MenuContainer ref={menuRef} className="ant-dropdown-menu">
+      <SearchContainer>
+        <Input
+          prefix={<SearchOutlined style={{ color: 'var(--color-text-3)' }} />}
+          placeholder={t('chat.topics.search_placeholder')}
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          allowClear
+        />
+      </SearchContainer>
       {filteredTopics.length > 0 ? (
         filteredTopics.map(({ assistant, topics }) => (
           <AssistantGroup key={assistant.id}>
@@ -193,7 +212,7 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
           </AssistantGroup>
         ))
       ) : (
-        <NoResults>{t('chat.topics.no_topics')}</NoResults>
+        <NoResults>{searchText ? t('chat.topics.no_search_results') : t('chat.topics.no_topics')}</NoResults>
       )}
     </MenuContainer>
   )
@@ -374,6 +393,24 @@ const DropdownMenuStyle = createGlobalStyle`
       &::-webkit-scrollbar-track {
         background: transparent;
       }
+    }
+  }
+`
+
+const SearchContainer = styled.div`
+  padding: 0 8px 8px 8px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 8px;
+
+  .ant-input-affix-wrapper {
+    border-radius: 6px;
+    background-color: var(--color-background-soft);
+    border: 1px solid var(--color-border);
+
+    &:hover,
+    &:focus-within {
+      border-color: var(--color-primary);
+      box-shadow: none;
     }
   }
 `
