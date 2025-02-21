@@ -146,6 +146,12 @@ const MessageMenubar: FC<Props> = (props) => {
     resendMessage && onResend()
   }, [message, onEditMessage, onResend, t])
 
+    const onResend = useCallback(async () => {
+    let resendMessage = false
+    await onEditMessage?.({ ...message, content: message.content })
+    resendMessage && onResend()
+  }, [message, onEditMessage, onResend, t])
+
   const handleTranslate = useCallback(
     async (language: string) => {
       if (isTranslating) return
@@ -232,6 +238,13 @@ const MessageMenubar: FC<Props> = (props) => {
 
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
+      {message.role === 'user' && (
+        <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+          <ActionButton className="message-action-button" onClick={onResend}>
+            <SyncOutlined />
+          </ActionButton>
+        </Tooltip>
+      )}
       {message.role === 'user' && (
         <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onEdit}>
