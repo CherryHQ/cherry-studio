@@ -154,10 +154,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   }
 
   const onCancel = () => {
+    setKeyboardSelectedId('')
     setOpen(false)
   }
 
   const onClose = async () => {
+    setKeyboardSelectedId('')
     resolve(undefined)
     SelectModelPopup.hide()
   }
@@ -186,7 +188,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       providers
         .flatMap((p) => p.models || [])
         .filter((m) => pinnedModels.includes(getModelUniqId(m)))
-        .forEach((m) => items.push({ key: getModelUniqId(m), model: m }))
+        .forEach((m) => items.push({ key: getModelUniqId(m) + '_pinned', model: m }))
     }
 
     // 添加其他过滤后的模型
@@ -197,7 +199,17 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           .filter((m) =>
             [m.name + m.provider + t('provider.' + p.id)].join('').toLowerCase().includes(searchText.toLowerCase())
           )
-          .forEach((m) => items.push({ key: getModelUniqId(m), model: m }))
+          .forEach((m) => {
+            const modelId = getModelUniqId(m)
+            const isPinned = pinnedModels.includes(modelId)
+            // 如果是搜索状态，或者不是固定模型，才添加到列表中
+            if (searchText.length > 0 || !isPinned) {
+              items.push({
+                key: isPinned ? modelId + '_pinned' : modelId,
+                model: m
+              })
+            }
+          })
       }
     })
 
@@ -227,11 +239,14 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
         const element = document.querySelector(`[data-menu-id="${nextItem.key}"]`)
         element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      } else if (e.key === 'Enter' && keyboardSelectedId) {
-        const selectedItem = items.find((item) => item.key === keyboardSelectedId)
-        if (selectedItem) {
-          resolve(selectedItem.model)
-          setOpen(false)
+      } else if (e.key === 'Enter') {
+        e.preventDefault() // 阻止回车的默认行为
+        if (keyboardSelectedId) {
+          const selectedItem = items.find((item) => item.key === keyboardSelectedId)
+          if (selectedItem) {
+            resolve(selectedItem.model)
+            setOpen(false)
+          }
         }
       }
     },
