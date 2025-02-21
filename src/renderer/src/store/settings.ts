@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { REFERENCE_PROMPT, TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter'
@@ -54,6 +54,7 @@ export interface SettingsState {
   webdavAutoSync: boolean
   webdavSyncInterval: number
   translateModelPrompt: string
+  knowledgeBasePrompt: string
   autoTranslateWithSpace: boolean
   enableTopicNaming: boolean
   customCss: string
@@ -112,6 +113,7 @@ const initialState: SettingsState = {
   webdavAutoSync: false,
   webdavSyncInterval: 0,
   translateModelPrompt: TRANSLATE_PROMPT,
+  knowledgeBasePrompt: REFERENCE_PROMPT,
   autoTranslateWithSpace: false,
   enableTopicNaming: true,
   customCss: '',
@@ -247,6 +249,9 @@ const settingsSlice = createSlice({
     setTranslateModelPrompt: (state, action: PayloadAction<string>) => {
       state.translateModelPrompt = action.payload
     },
+    setKnowledgeBasePrompt: (state, action: PayloadAction<string>) => {
+      state.knowledgeBasePrompt = action.payload
+    },
     setAutoTranslateWithSpace: (state, action: PayloadAction<boolean>) => {
       state.autoTranslateWithSpace = action.payload
     },
@@ -335,6 +340,7 @@ export const {
   setMessageStyle,
   setCodeStyle,
   setTranslateModelPrompt,
+  setKnowledgeBasePrompt,
   setAutoTranslateWithSpace,
   setEnableTopicNaming,
   setPasteLongTextThreshold,

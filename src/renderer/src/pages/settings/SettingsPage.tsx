@@ -1,5 +1,6 @@
 import {
   CloudOutlined,
+  FileSearchOutlined,
   InfoCircleOutlined,
   LayoutOutlined,
   MacCommandOutlined,
@@ -18,6 +19,7 @@ import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
+import KnowledgeBaseSetting from './KnowledgeBaseSetting'
 import ModelSettings from './ModalSettings/ModelSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
@@ -82,6 +84,12 @@ const SettingsPage: FC = () => {
               {t('settings.data.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/knowledge_base">
+            <MenuItem className={isRoute('/settings/knowledge_base')}>
+              <FileSearchOutlined />
+              {t('settings.knowledge_base.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/about">
             <MenuItem className={isRoute('/settings/about')}>
               <InfoCircleOutlined />
@@ -98,6 +106,7 @@ const SettingsPage: FC = () => {
             <Route path="data/*" element={<DataSettings />} />
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
             <Route path="shortcut" element={<ShortcutSettings />} />
+            <Route path="knowledge_base" element={<KnowledgeBaseSetting.Page />} />
             <Route path="about" element={<AboutSettings />} />
           </Routes>
         </SettingContent>
