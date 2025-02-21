@@ -26,6 +26,16 @@ import MinAppIcon from '../Icons/MinAppIcon'
 import MinApp from '../MinApp'
 import UserPopup from '../Popups/UserPopup'
 
+export const locationPathnameMappingPathMap = {
+  assistants: '/',
+  agents: '/agents',
+  paintings: '/paintings',
+  translate: '/translate',
+  minapp: '/apps',
+  knowledge: '/knowledge',
+  files: '/files'
+}
+
 const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const avatar = useAvatar()
@@ -133,15 +143,7 @@ const MainMenus: FC = () => {
     files: <FolderOutlined />
   }
 
-  const pathMap = {
-    assistants: '/',
-    agents: '/agents',
-    paintings: '/paintings',
-    translate: '/translate',
-    minapp: '/apps',
-    knowledge: '/knowledge',
-    files: '/files'
-  }
+  const pathMap = locationPathnameMappingPathMap
 
   return sidebarIcons.visible.map((icon) => {
     const path = pathMap[icon]

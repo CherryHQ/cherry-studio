@@ -771,7 +771,13 @@
         "toggle_show_topics": "切换话题显示",
         "zoom_in": "放大界面",
         "zoom_out": "缩小界面",
-        "zoom_reset": "重置缩放"
+        "zoom_reset": "重置缩放",
+        "switch_to_prev_main_navigation": "导航栏向上切换",
+        "switch_to_next_main_navigation": "导航栏向下切换",
+        "switch_to_prev_main_tab": "侧边栏向上切换",
+        "switch_to_next_main_tab": "侧边栏向下切换",
+        "switch_to_prev_horizontal_tab": "选项卡向左切换",
+        "switch_to_next_horizontal_tab": "选项卡向右切换"
       },
       "theme.auto": "跟随系统",
       "theme.dark": "深色主题",
