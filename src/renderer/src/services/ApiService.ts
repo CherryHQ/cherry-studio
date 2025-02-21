@@ -2,6 +2,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { addAbortController } from '@renderer/utils/abortController'
 import { formatMessageError } from '@renderer/utils/error'
 import { isEmpty } from 'lodash'
 
@@ -16,7 +17,6 @@ import {
 import { EVENT_NAMES, EventEmitter } from './EventService'
 import { filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
-
 export async function fetchChatCompletion({
   message,
   messages,
@@ -37,18 +37,14 @@ export async function fetchChatCompletion({
 
   onResponse({ ...message })
 
-  // Handle paused state
-  let paused = false
-  const timer = setInterval(() => {
-    if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-      paused = true
-      message.status = 'paused'
-      EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
-      store.dispatch(setGenerating(false))
-      onResponse({ ...message, status: 'paused' })
-      clearInterval(timer)
-    }
-  }, 1000)
+  const pauseFn = (message: Message) => {
+    message.status = 'paused'
+    EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
+    store.dispatch(setGenerating(false))
+    onResponse({ ...message, status: 'paused' })
+  }
+
+  addAbortController(message.askId ?? message.id, pauseFn.bind(null, message))
 
   try {
     let _messages: Message[] = []
@@ -95,12 +91,6 @@ export async function fetchChatCompletion({
   } catch (error: any) {
     message.status = 'error'
     message.error = formatMessageError(error)
-  }
-
-  timer && clearInterval(timer)
-
-  if (paused) {
-    return message
   }
 
   // Update message status

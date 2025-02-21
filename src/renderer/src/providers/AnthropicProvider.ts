@@ -13,7 +13,6 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
 export default class AnthropicProvider extends BaseProvider {
   private sdk: Anthropic
 
@@ -108,9 +107,14 @@ export default class AnthropicProvider extends BaseProvider {
       })
     }
 
+    const lastUserMessage = _messages.findLast((m) => m.role === 'user')
+
+    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { signal } = abortController
+
     return new Promise<void>((resolve, reject) => {
       const stream = this.sdk.messages
-        .stream({ ...body, stream: true })
+        .stream({ ...body, stream: true }, { signal })
         .on('text', (text) => {
           if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
             stream.controller.abort()
@@ -146,7 +150,7 @@ export default class AnthropicProvider extends BaseProvider {
           resolve()
         })
         .on('error', (error) => reject(error))
-    })
+    }).finally(cleanup)
   }
 
   public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {

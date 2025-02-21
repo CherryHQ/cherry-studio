@@ -3,12 +3,14 @@ import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import { getKnowledgeReferences } from '@renderer/services/KnowledgeService'
 import store from '@renderer/store'
-import { Assistant, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
+import type { Assistant, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { delay, isJSON, parseJSON } from '@renderer/utils'
+import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
+import { formatApiHost } from '@renderer/utils/api'
 import { t } from 'i18next'
-import OpenAI from 'openai'
+import type OpenAI from 'openai'
 
-import { CompletionsParams } from '.'
+import type { CompletionsParams } from '.'
 
 export default abstract class BaseProvider {
   protected provider: Provider
@@ -33,7 +35,7 @@ export default abstract class BaseProvider {
 
   public getBaseURL(): string {
     const host = this.provider.apiHost
-    return host.endsWith('/') ? host : `${host}/v1/`
+    return formatApiHost(host)
   }
 
   public getApiKey() {
@@ -134,5 +136,22 @@ export default abstract class BaseProvider {
         }
       }, {}) || {}
     )
+  }
+
+  protected createAbortController(messageId?: string) {
+    const abortController = new AbortController()
+
+    if (messageId) {
+      addAbortController(messageId, () => abortController.abort())
+    }
+
+    return {
+      abortController,
+      cleanup: () => {
+        if (messageId) {
+          removeAbortController(messageId)
+        }
+      }
+    }
   }
 }

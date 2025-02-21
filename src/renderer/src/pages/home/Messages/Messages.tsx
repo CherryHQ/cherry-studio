@@ -16,7 +16,7 @@ import {
 } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import { Assistant, Message, Topic } from '@renderer/types'
-import { captureScrollableDiv, runAsyncFunction } from '@renderer/utils'
+import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, runAsyncFunction } from '@renderer/utils'
 import { t } from 'i18next'
 import { flatten, last, take } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -170,8 +170,15 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
         _topic && updateTopic({ ..._topic, name: defaultTopic.name, messages: [] })
         TopicManager.clearTopicMessages(topic.id)
       }),
+      EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, async () => {
+        await captureScrollableDivAsBlob(containerRef, async (blob) => {
+          if (blob) {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+          }
+        })
+      }),
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
-        const imageData = await captureScrollableDiv(containerRef)
+        const imageData = await captureScrollableDivAsDataURL(containerRef)
         if (imageData) {
           window.api.file.saveImage(topic.name, imageData)
         }

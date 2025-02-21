@@ -24,7 +24,6 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI
   private requestOptions: RequestOptions
@@ -204,7 +203,11 @@ export default class GeminiProvider extends BaseProvider {
       return
     }
 
-    const userMessagesStream = await chat.sendMessageStream(messageContents.parts)
+    const lastUserMessage = userMessages.findLast((m) => m.role === 'user')
+    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { signal } = abortController
+
+    const userMessagesStream = await chat.sendMessageStream(messageContents.parts, { signal }).finally(cleanup)
     let time_first_token_millsec = 0
 
     for await (const chunk of userMessagesStream.stream) {
