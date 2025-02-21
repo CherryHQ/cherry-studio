@@ -261,7 +261,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       centered
-      width={800}
+      width="80%"
+      bodyStyle={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '20px' }}
       footer={null}>
       <AssistantSettings />
     </Modal>
