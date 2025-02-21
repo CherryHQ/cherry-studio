@@ -47,13 +47,13 @@
       "settings.model": "Настройки модели",
       "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
+      "title": "Ассистенты",
       "settings.reasoning_effort": "Длина цепочки рассуждений",
       "settings.reasoning_effort.high": "Длинная",
       "settings.reasoning_effort.low": "Короткая",
       "settings.reasoning_effort.medium": "Средняя",
       "settings.reasoning_effort.off": "Выключено",
-      "settings.reasoning_effort.tip": "Эта настройка поддерживается только моделями с рассуждением",
-      "title": "Ассистенты"
+      "settings.reasoning_effort.tip": "Эта настройка поддерживается только моделями с рассуждением"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -73,9 +73,7 @@
     "chat": {
       "add.assistant.title": "Добавить ассистента",
       "artifacts.button.download": "Скачать",
-      "artifacts.button.openExternal": "Открыть во внешнем браузере",
       "artifacts.button.preview": "Предпросмотр",
-      "artifacts.preview.openExternal.error.content": "Внешний браузер открылся с ошибкой",
       "assistant.search.placeholder": "Поиск",
       "deeply_thought": "Мыслим ({{secounds}} секунд)",
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
@@ -88,7 +86,6 @@
       "input.context_count.tip": "Количество контекстов",
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
-      "input.file_not_supported": "Модель не поддерживает этот тип файла",
       "input.knowledge_base": "База знаний",
       "input.new.context": "Очистить контекст {{Command}}",
       "input.new_topic": "Новый топик {{Command}}",
@@ -101,6 +98,7 @@
       "input.upload": "Загрузить изображение или документ",
       "input.upload.document": "Загрузить документ (модель не поддерживает изображения)",
       "input.web_search": "Включить веб-поиск",
+      "input.file_not_supported": "Модель не поддерживает этот тип файла",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",
@@ -113,26 +111,22 @@
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
       "settings.max_tokens": "Включить лимит максимальных токенов",
-      "settings.max_tokens.confirm": "Включить лимит максимальных токенов",
-      "settings.max_tokens.confirm_content": "Включить лимит максимальных токенов, влияет на длину результата. Нужно учитывать контекст модели, иначе будет ошибка",
       "settings.max_tokens.tip": "Максимальное количество токенов, которые может сгенерировать модель. Нужно учитывать контекст модели, иначе будет ошибка",
       "settings.reset": "Сбросить",
       "settings.set_as_default": "Применить к ассистенту по умолчанию",
       "settings.show_line_numbers": "Показать номера строк в коде",
       "settings.temperature": "Температура",
       "settings.temperature.tip": "Меньшие значения делают модель более креативной и непредсказуемой, в то время как большие значения делают её более детерминированной и точной.",
-      "settings.thought_auto_collapse": "Автоматически сворачивать содержание мыслей",
-      "settings.thought_auto_collapse.tip": "Автоматически сворачивать содержание мыслей после завершения размышления",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Значение по умолчанию 1, чем меньше значение, тем меньше вариативности в ответах, тем проще понять, чем больше значение, тем больше вариативности в ответах, тем больше разнообразие",
+      "settings.max_tokens.confirm": "Включить лимит максимальных токенов",
+      "settings.max_tokens.confirm_content": "Включить лимит максимальных токенов, влияет на длину результата. Нужно учитывать контекст модели, иначе будет ошибка",
+      "settings.thought_auto_collapse": "Автоматически сворачивать содержание мыслей",
+      "settings.thought_auto_collapse.tip": "Автоматически сворачивать содержание мыслей после завершения размышления",
       "suggestions.title": "Предложенные вопросы",
       "thinking": "Мыслим",
       "topics.auto_rename": "Автопереименование",
       "topics.clear.title": "Очистить сообщения",
-      "topics.copy.image": "Скопировать как изображение",
-      "topics.copy.md": "Скопировать как Markdown",
-      "topics.copy.title": "Скопировать",
-      "topics.delete.shortcut": "Удерживайте {{key}} для мгновенного удаления",
       "topics.edit.placeholder": "Введите новый заголовок",
       "topics.edit.title": "Редактировать заголовок",
       "topics.export.image": "Экспорт как изображение",
@@ -143,12 +137,15 @@
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
-      "topics.prompt": "Тематические подсказки",
-      "topics.prompt.edit.title": "Редактировать подсказки темы",
-      "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
-      "translate": "Перевести"
+      "topics.delete.shortcut": "Удерживайте {{key}} для мгновенного удаления",
+      "translate": "Перевести",
+      "topics.prompt": "Тематические подсказки",
+      "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
+      "topics.prompt.edit.title": "Редактировать подсказки темы",
+      "artifacts.button.openExternal": "Открыть во внешнем браузере",
+      "artifacts.preview.openExternal.error.content": "Внешний браузер открылся с ошибкой"
     },
     "common": {
       "add": "Добавить",
@@ -169,7 +166,6 @@
       "download": "Скачать",
       "duplicate": "Дублировать",
       "edit": "Редактировать",
-      "footnote": "Цитируемый контент",
       "footnotes": "Сноски",
       "knowledge_base": "База знаний",
       "language": "Язык",
@@ -187,10 +183,8 @@
       "select": "Выбрать",
       "topics": "Топики",
       "warning": "Предупреждение",
-      "you": "Вы"
-    },
-    "docs": {
-      "title": "Документация"
+      "you": "Вы",
+      "footnote": "Цитируемый контент"
     },
     "error": {
       "backup.file_format": "Ошибка формата файла резервной копии",
@@ -287,7 +281,6 @@
       "invalid_url": "Неверный URL",
       "model_info": "Модель информации",
       "no_bases": "База знаний не найдена",
-      "no_match": "Не найдено содержимого в базе знаний.",
       "no_provider": "База знаний модель поставщика не настроена, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
       "not_set": "Не установлено",
       "not_support": "База знаний базы данных движок обновлен, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
@@ -306,14 +299,15 @@
       "status_new": "Добавлено",
       "status_pending": "Ожидание",
       "status_processing": "Обработка",
-      "threshold": "Порог соответствия",
-      "threshold_placeholder": "Не установлено",
-      "threshold_too_large_or_small": "Порог не может быть больше 1 или меньше 0",
-      "threshold_tooltip": "Используется для оценки соответствия между пользовательским вопросом и содержимым в базе знаний (0-1)",
       "title": "База знаний",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "threshold_tooltip": "Используется для оценки соответствия между пользовательским вопросом и содержимым в базе знаний (0-1)",
+      "threshold_placeholder": "Не установлено",
+      "threshold_too_large_or_small": "Порог не может быть больше 1 или меньше 0",
+      "no_match": "Не найдено содержимого в базе знаний.",
+      "threshold": "Порог соответствия"
     },
     "languages": {
       "arabic": "Арабский",
@@ -328,12 +322,6 @@
       "portuguese": "Португальский",
       "russian": "Русский",
       "spanish": "Испанский"
-    },
-    "lmstudio": {
-      "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
-      "keep_alive_time.placeholder": "Минуты",
-      "keep_alive_time.title": "Время жизни модели",
-      "title": "LM Studio"
     },
     "mermaid": {
       "download": {
@@ -368,8 +356,6 @@
       "error.enter.model": "Пожалуйста, выберите модель",
       "error.enter.name": "Пожалуйста, введите название базы знаний",
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
-      "error.invalid.api.host": "Неверный API адрес",
-      "error.invalid.api.key": "Неверный API ключ",
       "error.invalid.enter.model": "Пожалуйста, выберите модель",
       "error.invalid.proxy.url": "Неверный URL прокси",
       "error.invalid.webdav": "Неверные настройки WebDAV",
@@ -383,9 +369,9 @@
       "message.delete.title": "Удалить сообщение",
       "message.multi_model_style": "Стиль ответов от нескольких моделей",
       "message.multi_model_style.fold": "Свернуть",
-      "message.multi_model_style.grid": "клетчатый вид",
       "message.multi_model_style.horizontal": "Горизонтальный",
       "message.multi_model_style.vertical": "Вертикальный",
+      "message.multi_model_style.grid": "клетчатый вид",
       "message.style": "Стиль сообщения",
       "message.style.bubble": "Пузырь",
       "message.style.plain": "Простой",
@@ -401,7 +387,9 @@
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
-      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!"
+      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
+      "error.invalid.api.host": "Неверный API адрес",
+      "error.invalid.api.key": "Неверный API ключ"
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -467,6 +455,12 @@
       "keep_alive_time.title": "Время жизни модели",
       "title": "Ollama"
     },
+    "lmstudio": {
+      "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
+      "keep_alive_time.placeholder": "Минуты",
+      "keep_alive_time.title": "Время жизни модели",
+      "title": "LM Studio"
+    },
     "paintings": {
       "button.delete.image": "Удалить изображение",
       "button.delete.image.confirm": "Вы уверены, что хотите удалить это изображение?",
@@ -488,32 +482,23 @@
       "seed_tip": "Одинаковый ключ генерации и промпт могут производить похожие изображения",
       "title": "Изображения"
     },
-    "plantuml": {
-      "download": {
-        "failed": "下载失败，请检查网络",
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "tabs": {
-        "preview": "Предпросмотр",
-        "source": "Исходный код"
-      },
-      "title": "PlantUML 图表"
-    },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
       "summarize": "Суммируйте этот текст",
       "title": "Вы - эксперт в общении, который суммирует разговоры пользователя в 10-символьном заголовке, совпадающем с языком пользователя, без использования знаков препинания и других специальных символов"
     },
     "provider": {
+      "infini": "Infini",
+      "perplexity": "Perplexity",
+      "dmxapi": "DMXAPI",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "Baichuan",
       "baidu-cloud": "Baidu Cloud",
       "dashscope": "Alibaba Cloud",
+      "modelscope": "ModelScope",
       "deepseek": "DeepSeek",
-      "dmxapi": "DMXAPI",
       "doubao": "Volcengine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
@@ -524,27 +509,24 @@
       "groq": "Groq",
       "hunyuan": "Tencent Hunyuan",
       "hyperbolic": "Hyperbolic",
-      "infini": "Infini",
       "jina": "Jina",
-      "lmstudio": "LM Studio",
       "minimax": "MiniMax",
       "mistral": "Mistral",
-      "modelscope": "ModelScope",
       "moonshot": "Moonshot",
       "nvidia": "Nvidia",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
+      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
-      "perplexity": "Perplexity",
-      "ppio": "PPIO",
       "qwenlm": "QwenLM",
       "silicon": "SiliconFlow",
       "stepfun": "StepFun",
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "ppio": "PPIO"
     },
     "settings": {
       "about": "О программе и обратная связь",
@@ -584,26 +566,22 @@
           "title": "Очистка кэша"
         },
         "data.title": "Каталог данных",
-        "hour_interval_one": "{{count}} час",
-        "hour_interval_other": "{{count}} часов",
-        "minute_interval_one": "{{count}} минута",
-        "minute_interval_other": "{{count}} минут",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
-        "notion.check": {
-          "button": "Проверить",
-          "empty_api_key": "Не настроен Api_key",
-          "empty_database_id": "Не настроен Database_id",
-          "error": "Аномалия в подключении, пожалуйста, проверьте настройки сети, а также правильность Api_key и Database_id",
-          "fail": "Не удалось подключиться, пожалуйста, проверьте сеть и правильность Api_key и Database_id",
-          "success": "Подключение успешно"
-        },
         "notion.database_id": "ID базы данных Notion",
         "notion.database_id_placeholder": "Введите ID базы данных Notion",
-        "notion.help": "Документация по настройке Notion",
         "notion.page_name_key": "Название поля заголовка страницы",
         "notion.page_name_key_placeholder": "Введите название поля заголовка страницы, по умолчанию Name",
         "notion.title": "Настройки Notion",
+        "notion.help": "Документация по настройке Notion",
+        "notion.check": {
+          "button": "Проверить",
+          "fail": "Не удалось подключиться, пожалуйста, проверьте сеть и правильность Api_key и Database_id",
+          "success": "Подключение успешно",
+          "error": "Аномалия в подключении, пожалуйста, проверьте настройки сети, а также правильность Api_key и Database_id",
+          "empty_api_key": "Не настроен Api_key",
+          "empty_database_id": "Не настроен Database_id"
+        },
         "title": "Настройки данных",
         "webdav": {
           "autoSync": "Автоматическое резервное копирование",
@@ -611,11 +589,13 @@
           "backup.button": "Резервное копирование на WebDAV",
           "host": "Хост WebDAV",
           "host.placeholder": "http://localhost:8080",
-          "hour_interval_one": "{{count}} час",
-          "hour_interval_other": "{{count}} часов",
-          "lastSync": "Последняя синхронизация",
           "minute_interval_one": "{{count}} минута",
-          "minute_interval_other": "{{count}} минут",
+          "minute_interval_few": "{{count}} минуты",
+          "minute_interval_many": "{{count}} минут",
+          "hour_interval_one": "{{count}} час",
+          "hour_interval_few": "{{count}} часа",
+          "hour_interval_many": "{{count}} часов",
+          "lastSync": "Последняя синхронизация",
           "noSync": "Ожидание следующего резервного копирования",
           "password": "Пароль WebDAV",
           "path": "Путь WebDAV",
@@ -666,12 +646,7 @@
       "input.target_language.chinese-traditional": "Китайский традиционный",
       "input.target_language.english": "Английский",
       "input.target_language.japanese": "Японский",
-      "input.target_language.russian": "Русский",
       "messages.divider": "Показывать разделитель между сообщениями",
-      "messages.grid_columns": "Количество столбцов сетки сообщений",
-      "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
-      "messages.grid_popover_trigger.click": "Нажатие для отображения",
-      "messages.grid_popover_trigger.hover": "Наведение для отображения",
       "messages.input.paste_long_text_as_file": "Вставлять длинный текст как файл",
       "messages.input.paste_long_text_threshold": "Длина вставки длинного текста",
       "messages.input.send_shortcuts": "Горячие клавиши для отправки",
@@ -681,6 +656,10 @@
       "messages.math_engine": "Математический движок",
       "messages.metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
       "messages.model.title": "Настройки модели",
+      "messages.grid_columns": "Количество столбцов сетки сообщений",
+      "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
+      "messages.grid_popover_trigger.hover": "Наведение для отображения",
+      "messages.grid_popover_trigger.click": "Нажатие для отображения",
       "messages.title": "Настройки сообщений",
       "messages.use_serif_font": "Использовать serif шрифт",
       "model": "Модель по умолчанию",
@@ -764,14 +743,14 @@
         "reset_to_default": "Сбросить настройки по умолчанию",
         "search_message": "Поиск сообщения",
         "show_app": "Показать приложение",
-        "show_settings": "Открыть настройки",
         "title": "Горячие клавиши",
         "toggle_new_context": "Очистить контекст",
         "toggle_show_assistants": "Переключить отображение ассистентов",
         "toggle_show_topics": "Переключить отображение топиков",
         "zoom_in": "Увеличить",
         "zoom_out": "Уменьшить",
-        "zoom_reset": "Сбросить масштаб"
+        "zoom_reset": "Сбросить масштаб",
+        "show_settings": "Открыть настройки"
       },
       "theme.auto": "Автоматически",
       "theme.dark": "Темная",
@@ -785,7 +764,8 @@
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
-      "tray.title": "Включить значок системного трея"
+      "tray.title": "Включить значок системного трея",
+      "input.target_language.russian": "Русский"
     },
     "translate": {
       "any.language": "Любой язык",
@@ -797,18 +777,10 @@
       },
       "error.failed": "Перевод не удалось",
       "error.not_configured": "Модель перевода не настроена",
-      "history": {
-        "clear": "Очистить историю",
-        "clear_description": "Очистка истории удалит все записи переводов. Продолжить?",
-        "delete": "Удалить",
-        "empty": "История переводов отсутствует",
-        "title": "История переводов"
-      },
       "input.placeholder": "Введите текст для перевода",
       "output.placeholder": "Перевод",
       "processing": "Перевод в процессе...",
-      "title": "Перевод",
-      "tooltip.newline": "Перевести"
+      "title": "Перевод"
     },
     "tray": {
       "quit": "Выйти",
@@ -820,6 +792,9 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "docs": {
+      "title": "Документация"
     }
   }
 }

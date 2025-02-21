@@ -2,6 +2,7 @@ import { BarsOutlined, SettingOutlined } from '@ant-design/icons'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
@@ -52,6 +53,20 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
     icon: <i className="iconfont icon-business-smart-assistant" />
   }
 
+  const segmentedOptions = [
+    position === 'left' && topicPosition === 'left' ? assistantTab : undefined,
+    {
+      label: t('common.topics'),
+      value: 'topic',
+      icon: <BarsOutlined />
+    },
+    {
+      label: t('settings.title'),
+      value: 'settings',
+      icon: <SettingOutlined />
+    }
+  ].filter(Boolean) as SegmentedProps<typeof assistantTab>['options']
+
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
     assistant && setActiveAssistant(assistant)
@@ -93,6 +108,24 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
     }
   }, [position, tab, topicPosition])
 
+  useShortcut('switch_to_prev_horizontal_tab', () => {
+    if (segmentedOptions.length > 1) {
+      const index = segmentedOptions.findIndex((option) => option.value === tab)
+      if (index !== -1) {
+        setTab(segmentedOptions[index === 0 ? segmentedOptions.length - 1 : index - 1].value as 'topic' | 'settings')
+      }
+    }
+  })
+
+  useShortcut('switch_to_next_horizontal_tab', () => {
+    if (segmentedOptions.length > 1) {
+      const index = segmentedOptions.findIndex((option) => option.value === tab)
+      if (index !== -1) {
+        setTab(segmentedOptions[index === segmentedOptions.length - 1 ? 0 : index + 1].value as 'topic' | 'settings')
+      }
+    }
+  })
+
   return (
     <Container style={border} className="home-tabs">
       {showTab && (
@@ -106,21 +139,7 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
             borderBottom: '0.5px solid var(--color-border)',
             gap: 2
           }}
-          options={
-            [
-              position === 'left' && topicPosition === 'left' ? assistantTab : undefined,
-              {
-                label: t('common.topics'),
-                value: 'topic',
-                icon: <BarsOutlined />
-              },
-              {
-                label: t('settings.title'),
-                value: 'settings',
-                icon: <SettingOutlined />
-              }
-            ].filter(Boolean) as SegmentedProps['options']
-          }
+          options={segmentedOptions}
           onChange={(value) => setTab(value as 'topic' | 'settings')}
           block
         />

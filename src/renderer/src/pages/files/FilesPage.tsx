@@ -11,6 +11,7 @@ import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
 import { FileType, FileTypes } from '@renderer/types'
@@ -19,11 +20,18 @@ import type { MenuProps } from 'antd'
 import { Button, Dropdown, Menu } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { FC, useMemo, useState } from 'react'
+import React, { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ContentView from './ContentView'
+
+interface MenuItem {
+  key: string
+  label: string
+  icon: React.ReactNode
+  onClick?: () => void
+}
 
 const FilesPage: FC = () => {
   const { t } = useTranslation()
@@ -42,7 +50,7 @@ const FilesPage: FC = () => {
   const handleDelete = async (fileId: string) => {
     const file = await FileManager.getFile(fileId)
 
-    const paintings = await store.getState().paintings.paintings
+    const paintings = store.getState().paintings.paintings
     const paintingsFiles = paintings.flatMap((p) => p.files)
 
     if (paintingsFiles.some((p) => p.id === fileId)) {
@@ -179,6 +187,26 @@ const FilesPage: FC = () => {
       icon: <FilePdfOutlined />
     }))
   ].filter(Boolean) as MenuProps['items']
+
+  useShortcut('switch_to_prev_main_tab', () => {
+    const items = menuItems as MenuItem[]
+    if (items.length > 1) {
+      const index = items.findIndex((item) => item.key === fileType)
+      if (index !== -1) {
+        setFileType(items[index === 0 ? items.length - 1 : index - 1].key as FileTypes)
+      }
+    }
+  })
+
+  useShortcut('switch_to_next_main_tab', () => {
+    const items = menuItems as MenuItem[]
+    if (items.length > 1) {
+      const index = items.findIndex((item) => item.key === fileType)
+      if (index !== -1) {
+        setFileType(items[index === items.length - 1 ? 0 : index + 1].key as FileTypes)
+      }
+    }
+  })
 
   return (
     <Container>
