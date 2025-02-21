@@ -6,10 +6,10 @@ import { isEmbeddingModel } from '@renderer/config/models'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase } from '@renderer/types'
-import { Alert, Form, Input, InputNumber, Modal, Select, Slider } from 'antd'
+import { KnowledgeBase, Model } from '@renderer/types'
+import { Alert, Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Slider, Space } from 'antd'
 import { sortBy } from 'lodash'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -35,6 +35,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { base, updateKnowledgeBase } = useKnowledge(_base.id)
+  const [showPopConfirm, setShowPopConfirm] = useState(false)
 
   useEffect(() => {
     form.setFieldsValue({ documentCount: base?.documentCount || 6 })
@@ -59,23 +60,53 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
     }))
     .filter((group) => group.options.length > 0)
 
-  const onOk = async () => {
-    try {
-      const values = await form.validateFields()
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const handleSubmit = useCallback(
+    async (values: FormData) => {
+      const currentModel = JSON.parse(values.model) as Model
+      const isEmeddingModelChange = base.model.id !== currentModel.id || base.model.provider !== currentModel.provider
       const newBase = {
         ...base,
         name: values.name,
+        model: currentModel,
         documentCount: values.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
         chunkSize: values.chunkSize,
         chunkOverlap: values.chunkOverlap,
-        threshold: values.threshold ?? undefined
+        threshold: values.threshold ?? undefined,
+        isEmeddingModelChange
       }
       updateKnowledgeBase(newBase)
       setOpen(false)
       resolve(newBase)
+    },
+    [base, updateKnowledgeBase, resolve]
+  )
+  const onCheckFormAndSubmit = async () => {
+    try {
+      const values = await form.validateFields()
+      const currentModel = JSON.parse(values.model) as Model
+      if (base.model.id !== currentModel.id || base.model.provider !== currentModel.provider) {
+        setShowPopConfirm(true)
+      } else {
+        handleSubmit(values)
+      }
     } catch (error) {
       console.error('Validation failed:', error)
     }
+  }
+  const onConfirm = async () => {
+    try {
+      const values = await form.validateFields()
+      handleSubmit(values)
+    } catch (error) {
+      console.error('Validation failed:', error)
+    } finally {
+      setShowPopConfirm(false)
+    }
+  }
+
+  const onCancelPopConfirm = () => {
+    setShowPopConfirm(false)
   }
 
   const onCancel = () => {
@@ -92,11 +123,26 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
     <Modal
       title={t('knowledge.settings')}
       open={open}
-      onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
       destroyOnClose
       maskClosable={false}
+      footer={
+        <Space>
+          <Button onClick={onCancel}>{t('common.cancel')}</Button>
+          <Popconfirm
+            title={t('knowledge.embedding_model_change_tooltip')}
+            open={showPopConfirm}
+            onConfirm={onConfirm}
+            onCancel={onCancelPopConfirm}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}>
+            <Button type="primary" onClick={onCheckFormAndSubmit}>
+              {t('common.save')}
+            </Button>
+          </Popconfirm>
+        </Space>
+      }
       centered>
       <Form form={form} layout="vertical">
         <Form.Item
@@ -113,7 +159,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           initialValue={getModelUniqId(base.model)}
           tooltip={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
           rules={[{ required: true, message: t('message.error.enter.model') }]}>
-          <Select style={{ width: '100%' }} options={selectOptions} placeholder={t('settings.models.empty')} disabled />
+          <Select style={{ width: '100%' }} options={selectOptions} placeholder={t('settings.models.empty')} />
         </Form.Item>
 
         <Form.Item
