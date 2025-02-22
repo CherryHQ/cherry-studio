@@ -104,6 +104,7 @@
       "input.web_search.button.ok": "Перейти в Настройки",
       "input.web_search.enable": "Включить веб-поиск",
       "input.web_search.enable_content": "Необходимо включить веб-поиск в Настройки",
+      "input.auto_resize": "Автоматическая высота", 
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",

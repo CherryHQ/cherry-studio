@@ -104,6 +104,7 @@
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Enable web search in Settings",
+      "input.auto_resize": "Auto resize height",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
       "message.new.context": "New Context",
