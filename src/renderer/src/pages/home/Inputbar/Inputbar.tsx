@@ -4,6 +4,7 @@ import {
   FullscreenExitOutlined,
   FullscreenOutlined,
   GlobalOutlined,
+  HolderOutlined,
   PauseCircleOutlined,
   PicCenterOutlined,
   QuestionCircleOutlined
@@ -87,6 +88,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
   const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [textareaHeight, setTextareaHeight] = useState<number>()
+  const startDragY = useRef<number>(0)
+  const startHeight = useRef<number>(0)
   const currentMessageId = useRef<string>()
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
@@ -428,6 +433,46 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setTimeout(() => resizeTextArea(), 0)
   }
 
+  const handleDragStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+    startDragY.current = e.clientY
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (textArea) {
+      startHeight.current = textArea.offsetHeight
+    }
+  }
+
+  const handleDrag = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging) return
+
+      const delta = startDragY.current - e.clientY // 改变计算方向
+      const newHeight = Math.min(400, Math.max(startHeight.current + delta, 50))
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        textArea.style.height = `${newHeight}px`
+        setTextareaHeight(newHeight)
+      }
+    },
+    [isDragging]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleDrag)
+      document.addEventListener('mouseup', handleDragEnd)
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleDrag)
+      document.removeEventListener('mouseup', handleDragEnd)
+    }
+  }, [isDragging, handleDrag, handleDragEnd])
+
   useShortcut('new_topic', () => {
     if (!generating) {
       addNewTopic()
@@ -572,7 +617,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             spellCheck={false}
             rows={textareaRows}
             ref={textareaRef}
-            style={{ fontSize }}
+            style={{
+              fontSize,
+              height: textareaHeight ? `${textareaHeight}px` : undefined
+            }}
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
               setInputFocus(true)
@@ -588,6 +636,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             onPaste={(e) => onPaste(e.nativeEvent)}
             onClick={() => searching && dispatch(setSearching(false))}
           />
+          <DragHandle onMouseDown={handleDragStart}>
+            <HolderOutlined />
+          </DragHandle>
           <Toolbar>
             <ToolbarMenu>
               <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
@@ -665,6 +716,32 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   )
 }
 
+// Add these styled components at the bottom
+const DragHandle = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  color: var(--color-icon);
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 1;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  .anticon {
+    transform: rotate(90deg);
+    font-size: 14px;
+  }
+`
+
 const Container = styled.div`
   display: flex;
   flex-direction: column;
@@ -677,12 +754,13 @@ const InputBarContainer = styled.div`
   margin: 14px 20px;
   margin-top: 12px;
   border-radius: 15px;
+  padding-top: 6px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
 `
 
 const TextareaStyle: CSSProperties = {
   paddingLeft: 0,
-  padding: '10px 15px 8px'
+  padding: '4px 15px 8px' // 减小顶部padding
 }
 
 const Textarea = styled(TextArea)`
