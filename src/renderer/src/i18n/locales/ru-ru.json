@@ -771,7 +771,13 @@
         "toggle_show_topics": "Переключить отображение топиков",
         "zoom_in": "Увеличить",
         "zoom_out": "Уменьшить",
-        "zoom_reset": "Сбросить масштаб"
+        "zoom_reset": "Сбросить масштаб",
+        "switch_to_prev_main_navigation": "Переключиться к предыдущей главной навигации",
+        "switch_to_next_main_navigation": "Переключиться к следующей главной навигации",
+        "switch_to_prev_main_tab": "Переключиться к предыдущей главной вкладке",
+        "switch_to_next_main_tab": "Переключиться к следующей главной вкладке",
+        "switch_to_prev_horizontal_tab": "Переключиться к предыдущей горизонтальной вкладке",
+        "switch_to_next_horizontal_tab": "Переключиться к следующей горизонтальной вкладке"
       },
       "theme.auto": "Автоматически",
       "theme.dark": "Темная",

@@ -771,7 +771,13 @@
         "toggle_show_topics": "切換話題顯示",
         "zoom_in": "放大界面",
         "zoom_out": "縮小界面",
-        "zoom_reset": "重置縮放"
+        "zoom_reset": "重置縮放",
+        "switch_to_prev_main_navigation": "導航欄向上切換",
+        "switch_to_next_main_navigation": "導航欄向下切換",
+        "switch_to_prev_main_tab": "側邊欄向上切換",
+        "switch_to_next_main_tab": "側邊欄向下切換",
+        "switch_to_prev_horizontal_tab": "選項卡向左切換",
+        "switch_to_next_horizontal_tab": "選項卡向右切換"
       },
       "theme.auto": "自動",
       "theme.dark": "深色主題",

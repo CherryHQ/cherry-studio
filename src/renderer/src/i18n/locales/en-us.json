@@ -771,7 +771,13 @@
         "toggle_show_topics": "Toggle Topics",
         "zoom_in": "Zoom In",
         "zoom_out": "Zoom Out",
-        "zoom_reset": "Reset Zoom"
+        "zoom_reset": "Reset Zoom",
+        "switch_to_prev_main_navigation": "Switch to previous main navigation",
+        "switch_to_next_main_navigation": "Switch to next main navigation",
+        "switch_to_prev_main_tab": "Switch to previous main tab",
+        "switch_to_next_main_tab": "Switch to next main tab",
+        "switch_to_prev_horizontal_tab": "Switch to previous horizontal tab",
+        "switch_to_next_horizontal_tab": "Switch to next horizontal tab"
       },
       "theme.auto": "Auto",
       "theme.dark": "Dark",
