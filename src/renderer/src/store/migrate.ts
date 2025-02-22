@@ -1084,7 +1084,7 @@ const migrateConfig = {
     return state
   },
   '71': (state: RootState) => {
-    const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat']
+    const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat', 'baidu-ai-search']
 
     if (state.minapps) {
       appIds.forEach((id) => {
@@ -1095,9 +1095,21 @@ const migrateConfig = {
       })
     }
 
+    // remove zhihu-zhiada
+    state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
+    state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
+
     state.settings.thoughtAutoCollapse = true
 
     return state
+  },
+  '72': (state: RootState) => {
+    if (state.minapps) {
+      const monica = DEFAULT_MIN_APPS.find((app) => app.id === 'monica')
+      if (monica) {
+        state.minapps.enabled.push(monica)
+      }
+    }
   }
 }
 

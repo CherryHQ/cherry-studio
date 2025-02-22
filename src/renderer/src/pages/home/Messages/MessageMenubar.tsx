@@ -11,15 +11,22 @@ import {
   SyncOutlined,
   TranslationOutlined
 } from '@ant-design/icons'
+import { UploadOutlined } from '@ant-design/icons'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { resetAssistantMessage } from '@renderer/services/MessagesService'
+import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import { Message, Model } from '@renderer/types'
-import { removeTrailingDoubleSpaces, uuid } from '@renderer/utils'
+import {
+  captureScrollableDivAsBlob,
+  captureScrollableDivAsDataURL,
+  removeTrailingDoubleSpaces,
+  uuid
+} from '@renderer/utils'
+import { exportMarkdownToNotion, exportMessageAsMarkdown, messageToMarkdown } from '@renderer/utils/export'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
@@ -35,6 +42,7 @@ interface Props {
   isGrouped?: boolean
   isLastMessage: boolean
   isAssistantMessage: boolean
+  messageContainerRef: React.RefObject<HTMLDivElement>
   setModel: (model: Model) => void
   onEditMessage?: (message: Message) => void
   onDeleteMessage?: (message: Message) => Promise<void>
@@ -50,6 +58,7 @@ const MessageMenubar: FC<Props> = (props) => {
     isLastMessage,
     isAssistantMessage,
     assistantModel,
+    messageContainerRef,
     onEditMessage,
     onDeleteMessage,
     onGetMessages
@@ -194,9 +203,61 @@ const MessageMenubar: FC<Props> = (props) => {
         key: 'new-branch',
         icon: <ForkOutlined />,
         onClick: onNewBranch
+      },
+      {
+        label: t('chat.topics.export.title'),
+        key: 'export',
+        icon: <UploadOutlined />,
+        children: [
+          {
+            label: t('chat.topics.copy.image'),
+            key: 'img',
+            onClick: async () => {
+              await captureScrollableDivAsBlob(messageContainerRef, async (blob) => {
+                if (blob) {
+                  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+                }
+              })
+            }
+          },
+          {
+            label: t('chat.topics.export.image'),
+            key: 'image',
+            onClick: async () => {
+              const imageData = await captureScrollableDivAsDataURL(messageContainerRef)
+              const title = getMessageTitle(message)
+              if (title && imageData) {
+                window.api.file.saveImage(title, imageData)
+              }
+            }
+          },
+          {
+            label: t('chat.topics.export.md'),
+            key: 'markdown',
+            onClick: () => exportMessageAsMarkdown(message)
+          },
+
+          {
+            label: t('chat.topics.export.word'),
+            key: 'word',
+            onClick: async () => {
+              const markdown = messageToMarkdown(message)
+              window.api.export.toWord(markdown, getMessageTitle(message))
+            }
+          },
+          {
+            label: t('chat.topics.export.notion'),
+            key: 'notion',
+            onClick: async () => {
+              const title = getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMarkdownToNotion(title, markdown)
+            }
+          }
+        ]
       }
     ],
-    [message, onEdit, onNewBranch, t]
+    [message, messageContainerRef, onEdit, onNewBranch, t]
   )
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {

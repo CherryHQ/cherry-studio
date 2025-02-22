@@ -344,6 +344,7 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
 
   return Promise.resolve(undefined)
 }
+
 export const captureScrollableDivAsDataURL = async (divRef: React.RefObject<HTMLDivElement>) => {
   return captureScrollableDiv(divRef).then((canvas) => {
     if (canvas) {
@@ -352,11 +353,13 @@ export const captureScrollableDivAsDataURL = async (divRef: React.RefObject<HTML
     return Promise.resolve(undefined)
   })
 }
+
 export const captureScrollableDivAsBlob = async (divRef: React.RefObject<HTMLDivElement>, func: BlobCallback) => {
   await captureScrollableDiv(divRef).then((canvas) => {
     canvas?.toBlob(func, 'image/png')
   })
 }
+
 export function hasPath(url: string): boolean {
   try {
     const parsedUrl = new URL(url)

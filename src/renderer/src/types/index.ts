@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
+import React from 'react'
 import { BuiltinTheme } from 'shiki'
-
 export type Assistant = {
   id: string
   name: string
@@ -151,6 +151,7 @@ export type MinAppType = {
   url: string
   bodered?: boolean
   background?: string
+  style?: React.CSSProperties
 }
 
 export interface FileType {

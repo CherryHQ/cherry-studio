@@ -102,8 +102,8 @@ class KnowledgeService {
         sendDirectoryProcessingPercent(totalFiles, processedFiles)
         return result
       })
-      const loaderResults = await Promise.all(loaderPromises)
-      const uniqueIds = loaderResults.map((result) => result.uniqueId)
+      const loaderResults = await Promise.allSettled(loaderPromises)
+      const uniqueIds = loaderResults.filter(result => result.status === 'fulfilled').map((result) => result.uniqueId)
       return {
         entriesAdded: loaderResults.length,
         uniqueId: `DirectoryLoader_${uuidv4()}`,

@@ -80,11 +80,12 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    消息分组支持网格模式
-    知识库支持多选
-    知识库添加目录支持显示进度
-    知识库支持 DRAFTS, EPUB、代码等
-    知识库支持调节匹配度阈值
-    添加 NotebookLM, Coze 小程序
-    增加话题提示词
-    OpenRouter 支持 Web 搜索
+    翻译增加历史记录
+    为单个消息增加导出功能
+    支持 PlantUML 显示和预览
+    修复知识库状态指示器显示问题
+    模型思考内容支持折叠设置和复制
+    编辑助手名字支持选择 Emoji
+    删除话题需要二次确认
+    话题右键菜单增加复制选项
+    修复暂停对话之后消息被覆盖问题
