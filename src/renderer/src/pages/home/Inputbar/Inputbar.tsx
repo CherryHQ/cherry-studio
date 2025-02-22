@@ -1,5 +1,6 @@
 import {
   ClearOutlined,
+  ColumnHeightOutlined,
   FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
@@ -310,6 +311,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const resizeTextArea = () => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
+      // 如果已经手动设置了高度,则不自动调整
+      if (textareaHeight) {
+        return
+      }
       textArea.style.height = 'auto'
       textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
     }
@@ -597,6 +602,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
   }, [assistant, model, updateAssistant])
 
+  const resetHeight = () => {
+    setTextareaHeight(undefined)
+    setTimeout(() => resizeTextArea(), 0)
+  }
+
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
@@ -688,6 +698,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
               <Tooltip placement="top" title={expended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
                 <ToolbarButton type="text" onClick={onToggleExpended}>
                   {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                </ToolbarButton>
+              </Tooltip>
+              <Tooltip placement="top" title={t('chat.input.auto_resize')} arrow>
+                <ToolbarButton type="text" onClick={resetHeight}>
+                  <ColumnHeightOutlined />
                 </ToolbarButton>
               </Tooltip>
               <TokenCount
