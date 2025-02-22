@@ -1102,6 +1102,14 @@ const migrateConfig = {
     state.settings.thoughtAutoCollapse = true
 
     return state
+  },
+  '72': (state: RootState) => {
+    if (state.minapps) {
+      const monica = DEFAULT_MIN_APPS.find((app) => app.id === 'monica')
+      if (monica) {
+        state.minapps.enabled.push(monica)
+      }
+    }
   }
 }
 

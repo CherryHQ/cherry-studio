@@ -22,6 +22,7 @@ import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
 import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
+import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
 import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
@@ -362,6 +363,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Lambda Chat',
     logo: LambdaChatLogo,
     url: 'https://lambda.chat/',
+    bodered: true
+  },
+  {
+    id: 'monica',
+    name: 'Monica',
+    logo: MonicaLogo,
+    url: 'https://monica.im/home/',
     bodered: true
   }
 ]
