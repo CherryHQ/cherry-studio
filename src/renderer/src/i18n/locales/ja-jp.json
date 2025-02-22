@@ -104,6 +104,7 @@
       "input.web_search.button.ok": "設定に移動",
       "input.web_search.enable": "ウェブ検索を有効にする",
       "input.web_search.enable_content": "ウェブ検索を有効にするには、設定でウェブ検索を有効にする必要があります",
+      "input.auto_resize": "高さを自動調整", 
       "message.new.branch": "新しいブランチ",
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.new.context": "新しいコンテキスト",

@@ -604,7 +604,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   const resetHeight = () => {
     setTextareaHeight(undefined)
-    setTimeout(() => resizeTextArea(), 0)
+    requestAnimationFrame(() => {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        textArea.style.height = 'auto'
+        const contentHeight = textArea.scrollHeight
+        textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
+      }
+    })
   }
 
   return (

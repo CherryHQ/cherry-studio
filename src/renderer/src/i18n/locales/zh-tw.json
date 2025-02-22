@@ -104,6 +104,7 @@
       "input.web_search.button.ok": "去設定",
       "input.web_search.enable": "開啟網路搜索",
       "input.web_search.enable_content": "需要先在設定中開啟網路搜索",
+      "input.auto_resize": "自動調整高度", 
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已建立",
       "message.new.context": "新上下文",
