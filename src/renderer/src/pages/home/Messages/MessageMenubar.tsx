@@ -342,7 +342,6 @@ const MenusBar = styled.div`
   justify-content: flex-end;
   align-items: center;
   gap: 6px;
-  margin-left: -5px;
 `
 
 const ActionButton = styled.div`
