@@ -487,6 +487,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
       setMentionModels((prev) => [...prev, model])
       setIsMentionPopupOpen(false)
+      setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 0)
     }
   }
 
