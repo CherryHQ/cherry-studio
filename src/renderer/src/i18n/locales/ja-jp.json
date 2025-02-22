@@ -772,7 +772,13 @@
         "zoom_in": "ズームイン",
         "zoom_out": "ズームアウト",
         "zoom_reset": "ズームをリセット",
-        "show_settings": "設定を開く"
+        "show_settings": "設定を開く",
+        "switch_to_prev_main_navigation": "前のメインナビゲーションに切り替え",
+        "switch_to_next_main_navigation": "次のメインナビゲーションに切り替え",
+        "switch_to_prev_main_tab": "前のメインタブに切り替え",
+        "switch_to_next_main_tab": "次のメインタブに切り替え",
+        "switch_to_prev_horizontal_tab": "前の水平タブに切り替え",
+        "switch_to_next_horizontal_tab": "次の水平タブに切り替え"
       },
       "theme.auto": "自動",
       "theme.dark": "ダークテーマ",
