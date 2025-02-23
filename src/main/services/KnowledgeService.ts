@@ -87,7 +87,10 @@ class KnowledgeService {
 
     const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {
       const mainWindow = windowService.getMainWindow()
-      mainWindow?.webContents.send(base.id, (processedFiles / totalFiles) * 100)
+      mainWindow?.webContents.send('directory-processing-percent', {
+        itemId: item.id,
+        percent: (processedFiles / totalFiles) * 100
+      })
     }
 
     if (item.type === 'directory') {

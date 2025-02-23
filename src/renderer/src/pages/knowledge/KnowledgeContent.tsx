@@ -65,7 +65,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     return null
   }
 
-  const progressingPercent = getDirectoryProcessingPercent(base?.id)
+  const getProgressingPercentForItem = (itemId: string) => getDirectoryProcessingPercent(itemId)
 
   const handleAddFile = () => {
     if (disabled) {
@@ -278,7 +278,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       sourceId={item.id}
                       base={base}
                       getProcessingStatus={getProcessingStatus}
-                      progressingPercent={progressingPercent}
+                      getProcessingPercent={getProgressingPercentForItem}
                       type="directory"
                     />
                   </StatusIconWrapper>
