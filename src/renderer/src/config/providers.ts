@@ -337,7 +337,7 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://console.volcengine.com/ark/',
-      apiKey: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
+      apiKey: 'https://www.volcengine.com/experience/ark?utm_term=202502dsinvite&ac=DSASUQY5&rc=DB4II4FC',
       docs: 'https://www.volcengine.com/docs/82379/1182403',
       models: 'https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint'
     }

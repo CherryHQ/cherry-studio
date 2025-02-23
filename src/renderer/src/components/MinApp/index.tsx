@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unknown-property */
-import { CloseOutlined, ExportOutlined, PushpinOutlined, ReloadOutlined } from '@ant-design/icons'
+import { CloseOutlined, CodeOutlined, ExportOutlined, PushpinOutlined, ReloadOutlined } from '@ant-design/icons'
 import { isMac, isWindows } from '@renderer/config/constant'
 import { AppLogo } from '@renderer/config/env'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
@@ -42,7 +42,11 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
   }
 
   MinApp.onClose = onClose
-
+  const openDevTools = () => {
+    if (webviewRef.current) {
+      webviewRef.current.openDevTools()
+    }
+  }
   const onReload = () => {
     if (webviewRef.current) {
       webviewRef.current.src = app.url
@@ -60,7 +64,7 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
     const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
     updatePinnedMinapps(newPinned)
   }
-
+  const isInDevelopment = process.env.NODE_ENV === 'development'
   const Title = () => {
     return (
       <TitleContainer style={{ justifyContent: 'space-between' }}>
@@ -77,6 +81,11 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
           {canOpenExternalLink && (
             <Button onClick={onOpenLink}>
               <ExportOutlined />
+            </Button>
+          )}
+          {isInDevelopment && (
+            <Button onClick={openDevTools}>
+              <CodeOutlined />
             </Button>
           )}
           <Button onClick={() => onClose()}>

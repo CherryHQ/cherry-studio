@@ -11,6 +11,13 @@ const initialState: ShortcutsState = {
   shortcuts: [
     ...ZOOM_SHORTCUTS,
     {
+      key: 'show_settings',
+      shortcut: [isMac ? 'Command' : 'Ctrl', ','],
+      editable: false,
+      enabled: true,
+      system: true
+    },
+    {
       key: 'show_app',
       shortcut: [],
       editable: true,

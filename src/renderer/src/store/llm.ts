@@ -388,16 +388,6 @@ const initialState: LlmState = {
       enabled: false
     },
     {
-      id: 'lmstudio',
-      name: 'LM Studio',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'http://localhost:1234',
-      models: SYSTEM_MODELS.lmstudio,
-      isSystem: true,
-      enabled: true
-    },
-    {
       id: 'modelscope',
       name: 'ModelScope',
       type: 'openai',

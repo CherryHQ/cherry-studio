@@ -27,7 +27,8 @@ import {
   setPasteLongTextThreshold,
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
-  setShowMessageDivider
+  setShowMessageDivider,
+  setThoughtAutoCollapse
 } from '@renderer/store/settings'
 import { Assistant, AssistantSettings, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
@@ -69,7 +70,8 @@ const SettingsTab: FC<Props> = (props) => {
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
-    multiModelMessageStyle
+    multiModelMessageStyle,
+    thoughtAutoCollapse
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -258,6 +260,20 @@ const SettingsTab: FC<Props> = (props) => {
             size="small"
             checked={codeCollapsible}
             onChange={(checked) => dispatch(setCodeCollapsible(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>
+            {t('chat.settings.thought_auto_collapse')}
+            <Tooltip title={t('chat.settings.thought_auto_collapse.tip')}>
+              <QuestionIcon style={{ marginLeft: 4 }} />
+            </Tooltip>
+          </SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={thoughtAutoCollapse}
+            onChange={(checked) => dispatch(setThoughtAutoCollapse(checked))}
           />
         </SettingRow>
         <SettingDivider />

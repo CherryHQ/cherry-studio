@@ -35,7 +35,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   onDelete
 }) => {
   return (
-    <GroupMenuBar $layout={multiModelMessageStyle}>
+    <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
       <HStack style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
         <LayoutContainer>
           {['fold', 'vertical', 'horizontal', 'grid'].map((layout) => (
@@ -93,6 +93,7 @@ const GroupMenuBar = styled.div<{ $layout: MultiModelMessageStyle }>`
   flex-direction: row;
   align-items: center;
   gap: 10px;
+  margin: 0 20px;
   padding: 6px 10px;
   border-radius: 6px;
   margin-top: 10px;
@@ -100,7 +101,6 @@ const GroupMenuBar = styled.div<{ $layout: MultiModelMessageStyle }>`
   overflow: hidden;
   border: 0.5px solid var(--color-border);
   height: 40px;
-  transition: all 0.3s ease;
   background-color: var(--color-background);
 `
 
