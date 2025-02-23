@@ -10,7 +10,7 @@ import { getErrorMessage } from '@renderer/utils/error'
 import { Form, Input, Modal, Select } from 'antd'
 import { find, sortBy } from 'lodash'
 import { nanoid } from 'nanoid'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -28,15 +28,16 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const [open, setOpen] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [form] = Form.useForm<FormData>()
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { addKnowledgeBase } = useKnowledgeBases()
-  const [loading, setLoading] = useState(false)
   const allModels = providers
     .map((p) => p.models)
     .flat()
     .filter((model) => isEmbeddingModel(model))
+  const nameInputRef = useRef<any>(null)
 
   const selectOptions = providers
     .filter((p) => p.models.length > 0)
@@ -114,6 +115,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
+      afterOpenChange={(visible) => visible && nameInputRef.current?.focus()}
       destroyOnClose
       centered
       okButtonProps={{ loading }}>
@@ -122,7 +124,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           name="name"
           label={t('common.name')}
           rules={[{ required: true, message: t('message.error.enter.name') }]}>
-          <Input placeholder={t('common.name')} />
+          <Input placeholder={t('common.name')} ref={nameInputRef} />
         </Form.Item>
 
         <Form.Item
