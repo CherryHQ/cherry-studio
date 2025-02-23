@@ -24,6 +24,7 @@ files:
   - '!**/{LICENSE,LICENSE.txt,LICENSE-MIT.txt,*.LICENSE.txt,NOTICE.txt,README.md,CHANGELOG.md}'
   - '!node_modules/rollup-plugin-visualizer'
   - '!node_modules/js-tiktoken'
+  - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
   - '!node_modules/html2canvas/dist/{html2canvas.min.js,html2canvas.esm.js}'
@@ -80,5 +81,4 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    修复助手 Emoji 选择问题
-    添加Notion导出自动分页功能
+    全部模型支持 Web 搜索

@@ -13,6 +13,7 @@ import paintings from './paintings'
 import runtime from './runtime'
 import settings from './settings'
 import shortcuts from './shortcuts'
+import websearch from './websearch'
 
 const rootReducer = combineReducers({
   assistants,
@@ -23,7 +24,8 @@ const rootReducer = combineReducers({
   runtime,
   shortcuts,
   knowledge,
-  minapps
+  minapps,
+  websearch
 })
 
 const persistedReducer = persistReducer(

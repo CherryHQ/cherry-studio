@@ -2,8 +2,9 @@ import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import AiProvider from '@renderer/providers/AiProvider'
-import { FileType, KnowledgeBase, KnowledgeBaseParams, Message } from '@renderer/types'
-import { take } from 'lodash'
+import store from '@renderer/store'
+import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference, Message } from '@renderer/types'
+import { isEmpty, take } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
@@ -78,7 +79,7 @@ export const getKnowledgeSourceUrl = async (item: ExtractChunkData & { file: Fil
   return item.metadata.source
 }
 
-export const getKnowledgeReferences = async (base: KnowledgeBase, message: Message) => {
+export const getKnowledgeBaseReference = async (base: KnowledgeBase, message: Message) => {
   const searchResults = await window.api.knowledgeBase
     .search({
       search: message.content,
@@ -108,9 +109,27 @@ export const getKnowledgeReferences = async (base: KnowledgeBase, message: Messa
         content: item.pageContent,
         sourceUrl: await getKnowledgeSourceUrl(item),
         type: baseItem?.type
-      }
+      } as KnowledgeReference
     })
   )
+
+  return references
+}
+
+export const getKnowledgeBaseReferences = async (message: Message) => {
+  if (isEmpty(message.knowledgeBaseIds)) {
+    return []
+  }
+
+  const bases = store.getState().knowledge.bases.filter((kb) => message.knowledgeBaseIds?.includes(kb.id))
+
+  if (!bases || bases.length === 0) {
+    return []
+  }
+
+  const referencesPromises = bases.map(async (base) => await getKnowledgeBaseReference(base, message))
+
+  const references = (await Promise.all(referencesPromises)).filter((result) => !isEmpty(result)).flat()
 
   return references
 }

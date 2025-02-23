@@ -101,6 +101,9 @@
       "input.upload": "Загрузить изображение или документ",
       "input.upload.document": "Загрузить документ (модель не поддерживает изображения)",
       "input.web_search": "Включить веб-поиск",
+      "input.web_search.enable": "Включить веб-поиск",
+      "input.web_search.enable_content": "Необходимо включить веб-поиск в Настройки",
+      "input.web_search.button.ok": "Перейти в Настройки",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",
@@ -401,7 +404,10 @@
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
-      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!"
+      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
+      "searching": "Поиск в Интернете...",
+      "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
+      "info.notion.block_reach_limit": "Диалог слишком длинный, экспортируется в Notion по страницам"
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -627,7 +633,12 @@
           "syncStatus": "Статус резервного копирования",
           "title": "WebDAV",
           "user": "Пользователь WebDAV"
-        }
+        },
+        "notion.auto_split_tip": "Автоматическое разбиение на страницы при экспорте в Notion, если тема слишком длинная",
+        "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
+        "notion.split_size": "Размер автоматического разбиения",
+        "notion.split_size_placeholder": "Введите ограничение количества блоков на странице (по умолчанию 90)",
+        "notion.split_size_help": "Рекомендуется 90 для пользователей бесплатной версии Notion, 24990 для пользователей премиум-версии, значение по умолчанию — 90"
       },
       "display.custom.css": "Пользовательский CSS",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
@@ -785,7 +796,17 @@
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
-      "tray.title": "Включить значок системного трея"
+      "tray.title": "Включить значок системного трея",
+      "websearch": {
+        "title": "Поиск в Интернете",
+        "get_api_key": "Получить ключ API",
+        "tavily": {
+          "title": "Tavily",
+          "description": "Tavily — это инструмент поиска в Интернете, интегрирующий несколько поисковых систем. Он поддерживает несколько языков и поисковых систем.",
+          "api_key": "Ключ API Tavily",
+          "api_key.placeholder": "Введите ключ API Tavily"
+        }
+      }
     },
     "translate": {
       "any.language": "Любой язык",

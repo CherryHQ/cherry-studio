@@ -101,6 +101,9 @@
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
       "input.web_search": "Enable web search",
+      "input.web_search.enable": "Enable web search",
+      "input.web_search.enable_content": "Enable web search in Settings",
+      "input.web_search.button.ok": "Go to Settings",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
       "message.new.context": "New Context",
@@ -401,7 +404,10 @@
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!"
+      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
+      "searching": "Searching the internet...",
+      "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
+      "info.notion.block_reach_limit": "Dialogue too long, exporting to Notion in pages"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -592,11 +598,11 @@
         "notion.api_key_placeholder": "Enter Notion API Key",
         "notion.check": {
           "button": "Check",
-          "empty_api_key": "Api_key is not configured",
-          "empty_database_id": "Database_id is not configured",
-          "error": "Connection error, please check network configuration and Api_key and Database_id",
           "fail": "Connection failed, please check network and Api_key and Database_id",
-          "success": "Connection successful"
+          "success": "Connection successful",
+          "error": "Connection error, please check network configuration and Api_key and Database_id",
+          "empty_api_key": "Api_key is not configured",
+          "empty_database_id": "Database_id is not configured"
         },
         "notion.database_id": "Notion Database ID",
         "notion.database_id_placeholder": "Enter Notion Database ID",
@@ -604,15 +610,6 @@
         "notion.page_name_key": "Page Title Field Name",
         "notion.page_name_key_placeholder": "Enter page title field name, default is Name",
         "notion.title": "Notion Configuration",
-        "notion.help": "Notion Configuration Documentation",
-        "notion.check": {
-          "button": "Check",
-          "fail": "Connection failed, please check network and Api_key and Database_id",
-          "success": "Connection successful",
-          "error": "Connection error, please check network configuration and Api_key and Database_id",
-          "empty_api_key": "Api_key is not configured",
-          "empty_database_id": "Database_id is not configured"
-        },
         "notion.auto_split": "Auto split when exporting",
         "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
         "notion.split_size": "Split size",
@@ -799,7 +796,17 @@
       "topic.position.left": "Left",
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
-      "tray.title": "Enable System Tray Icon"
+      "tray.title": "Enable System Tray Icon",
+      "websearch": {
+        "title": "Web Search",
+        "get_api_key": "Get API Key",
+        "tavily": {
+          "title": "Tavily",
+          "description": "Tavily is a web search tool that integrates multiple search engines. It supports multiple languages and search engines.",
+          "api_key": "Tavily API Key",
+          "api_key.placeholder": "Enter Tavily API Key"
+        }
+      }
     },
     "translate": {
       "any.language": "Any language",

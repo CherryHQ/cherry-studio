@@ -101,6 +101,9 @@
       "input.upload": "上传图片或文档",
       "input.upload.document": "上传文档（模型不支持图片）",
       "input.web_search": "开启网络搜索",
+      "input.web_search.enable": "开启网络搜索",
+      "input.web_search.enable_content": "需要先在设置中开启网络搜索",
+      "input.web_search.button.ok": "去设置",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -402,7 +405,9 @@
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
       "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!",
-      "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion"
+      "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion",
+      "searching": "正在联网搜索...",
+      "ignore.knowledge.base": "联网模式开启，忽略知识库"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
@@ -800,7 +805,17 @@
       "topic.position.left": "左侧",
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
-      "tray.title": "启用系统托盘图标"
+      "tray.title": "启用系统托盘图标",
+      "websearch": {
+        "title": "网络搜索",
+        "get_api_key": "点击这里获取密钥",
+        "tavily": {
+          "title": "Tavily",
+          "description": "Tavily 是一个集成了多个搜索引擎的网络搜索工具，支持多种语言和多种搜索引擎。",
+          "api_key": "Tavily API 密钥",
+          "api_key.placeholder": "请输入 Tavily API 密钥"
+        }
+      }
     },
     "translate": {
       "any.language": "任意语言",

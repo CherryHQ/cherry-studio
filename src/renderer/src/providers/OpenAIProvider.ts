@@ -228,8 +228,8 @@ export default class OpenAIProvider extends BaseProvider {
           max_tokens: maxTokens,
           keep_alive: this.keepAliveTime,
           stream: isSupportStreamOutput(),
-          ...this.getReasoningEffort(assistant, model),
           ...getOpenAIWebSearchParams(assistant, model),
+          ...this.getReasoningEffort(assistant, model),
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getCustomParameters(assistant)
         },
