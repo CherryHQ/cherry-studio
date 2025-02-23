@@ -4,7 +4,6 @@ import {
   HistoryOutlined,
   SendOutlined,
   SettingOutlined,
-  SwapOutlined,
   WarningOutlined
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
@@ -17,7 +16,7 @@ import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { Assistant, Message, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
-import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space } from 'antd'
+import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -140,6 +139,13 @@ const TranslatePage: FC = () => {
     })
   }, [])
 
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault()
+      onTranslate()
+    }
+  }
+
   const SettingButton = () => {
     if (isLocalAi) {
       return null
@@ -184,13 +190,11 @@ const TranslatePage: FC = () => {
         <HistoryContainner $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
             <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
-            {translateHistory?.length && (
+            {!isEmpty(translateHistory) && (
               <Popconfirm
                 title={t('translate.history.clear')}
                 description={t('translate.history.clear_description')}
-                onConfirm={clearHistory}
-                okText="Yes"
-                cancelText="No">
+                onConfirm={clearHistory}>
                 <Button type="text" size="small" danger icon={<DeleteOutlined />}>
                   {t('translate.history.clear')}
                 </Button>
@@ -245,14 +249,25 @@ const TranslatePage: FC = () => {
               <SettingButton />
             </Flex>
 
-            <TranslateButton
-              type="primary"
-              loading={loading}
-              onClick={onTranslate}
-              disabled={!text.trim()}
-              icon={<SendOutlined />}>
-              {t('translate.button.translate')}
-            </TranslateButton>
+            <Tooltip
+              mouseEnterDelay={0.5}
+              styles={{ body: { fontSize: '12px' } }}
+              title={
+                <div style={{ textAlign: 'center' }}>
+                  Enter: {t('translate.button.translate')}
+                  <br />
+                  Shift + Enter: {t('translate.tooltip.newline')}
+                </div>
+              }>
+              <TranslateButton
+                type="primary"
+                loading={loading}
+                onClick={onTranslate}
+                disabled={!text.trim()}
+                icon={<SendOutlined />}>
+                {t('translate.button.translate')}
+              </TranslateButton>
+            </Tooltip>
           </OperationBar>
 
           <Textarea
@@ -261,15 +276,12 @@ const TranslatePage: FC = () => {
             placeholder={t('translate.input.placeholder')}
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
             disabled={loading}
             spellCheck={false}
             allowClear
           />
         </InputContainer>
-
-        <Flex justify="center" align="center">
-          <SwapOutlined style={{ color: 'var(--color-text-2)' }} />
-        </Flex>
 
         <OutputContainer>
           <OperationBar>
@@ -313,9 +325,9 @@ const Container = styled.div`
 const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
   height: calc(100vh - var(--navbar-height));
   display: grid;
-  grid-template-columns: auto 1fr 40px 1fr;
+  grid-template-columns: auto 1fr 1fr;
   flex: 1;
-  padding: 20px;
+  padding: 20px 15px;
   position: relative;
 `
 
@@ -328,6 +340,7 @@ const InputContainer = styled.div`
   border-radius: 10px;
   padding-bottom: 5px;
   padding-right: 2px;
+  margin-right: 15px;
 `
 
 const OperationBar = styled.div`
@@ -347,6 +360,9 @@ const Textarea = styled(TextArea)`
   .ant-input {
     resize: none;
     padding: 5px 16px;
+  }
+  .ant-input-clear-icon {
+    font-size: 16px;
   }
 `
 
@@ -381,7 +397,7 @@ const HistoryContainner = styled.div<{ $historyDrawerVisible: boolean }>`
     opacity 0.2s;
   border: 1px solid var(--color-border-soft);
   border-radius: 10px;
-  margin-right: 20px;
+  margin-right: 15px;
   display: flex;
   flex-direction: column;
   overflow: hidden;

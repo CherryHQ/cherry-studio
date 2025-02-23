@@ -1,6 +1,11 @@
+import 'emoji-picker-element'
+
+import { CloseCircleFilled } from '@ant-design/icons'
+import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HStack } from '@renderer/components/Layout'
 import { Assistant, AssistantSettings } from '@renderer/types'
-import { Button, Input } from 'antd'
+import { getLeadingEmoji } from '@renderer/utils'
+import { Button, Input, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,12 +19,25 @@ interface Props {
 }
 
 const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, onOk }) => {
-  const [name, setName] = useState(assistant.name)
+  const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
+  const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
   const [prompt, setPrompt] = useState(assistant.prompt)
   const { t } = useTranslation()
 
   const onUpdate = () => {
-    const _assistant = { ...assistant, name, prompt }
+    const _assistant = { ...assistant, name: `${emoji} ${name}`.trim(), prompt }
+    updateAssistant(_assistant)
+  }
+
+  const handleEmojiSelect = (selectedEmoji: string) => {
+    setEmoji(selectedEmoji)
+    const _assistant = { ...assistant, name: `${selectedEmoji} ${name}`.trim(), prompt }
+    updateAssistant(_assistant)
+  }
+
+  const handleEmojiDelete = () => {
+    setEmoji('')
+    const _assistant = { ...assistant, name: name.trim(), prompt, emoji: '' }
     updateAssistant(_assistant)
   }
 
@@ -28,12 +46,38 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
       <Box mb={8} style={{ fontWeight: 'bold' }}>
         {t('common.name')}
       </Box>
-      <Input
-        placeholder={t('common.assistant') + t('common.name')}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={onUpdate}
-      />
+      <HStack gap={8} alignItems="center">
+        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
+          <EmojiButtonWrapper>
+            <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
+            {emoji && (
+              <CloseCircleFilled
+                className="delete-icon"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEmojiDelete()
+                }}
+                style={{
+                  display: 'none',
+                  position: 'absolute',
+                  top: '-8px',
+                  right: '-8px',
+                  fontSize: '16px',
+                  color: '#ff4d4f',
+                  cursor: 'pointer'
+                }}
+              />
+            )}
+          </EmojiButtonWrapper>
+        </Popover>
+        <Input
+          placeholder={t('common.assistant') + t('common.name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={onUpdate}
+          style={{ flex: 1 }}
+        />
+      </HStack>
       <Box mt={8} mb={8} style={{ fontWeight: 'bold' }}>
         {t('common.prompt')}
       </Box>
@@ -61,6 +105,15 @@ const Container = styled.div`
   flex-direction: column;
   overflow: hidden;
   padding: 5px;
+`
+
+const EmojiButtonWrapper = styled.div`
+  position: relative;
+  display: inline-block;
+
+  &:hover .delete-icon {
+    display: block !important;
+  }
 `
 
 export default AssistantPromptSettings

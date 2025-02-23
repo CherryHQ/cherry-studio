@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "0.9.27",
+  "version": "1.0.0",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -88,6 +88,7 @@
     "@kangfenmao/keyv-storage": "^0.1.0",
     "@llm-tools/embedjs-loader-image": "^0.1.28",
     "@reduxjs/toolkit": "^2.2.5",
+    "@tavily/core": "patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch",
     "@types/adm-zip": "^0",
     "@types/fs-extra": "^11",
     "@types/lodash": "^4.17.5",
@@ -162,5 +163,5 @@
     "@langchain/openai@npm:>=0.1.0 <0.4.0": "patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch",
     "openai@npm:^4.77.0": "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
   },
-  "packageManager": "yarn@4.5.0"
+  "packageManager": "yarn@4.6.0"
 }

@@ -22,6 +22,7 @@ import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/servic
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model, ModelType, Provider } from '@renderer/types'
+import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
 import { Avatar, Button, Card, Checkbox, Divider, Flex, Input, Popover, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
@@ -160,7 +161,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return apiHost.replace('#', '')
     }
 
-    return (apiHost.endsWith('/') ? apiHost : `${apiHost}/v1/`) + 'chat/completions'
+    return formatApiHost(apiHost) + 'chat/completions'
   }
 
   const onUpdateModelTypes = (model: Model, types: ModelType[]) => {

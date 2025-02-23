@@ -213,21 +213,31 @@ export default class OpenAIProvider extends BaseProvider {
     let time_first_token_millsec = 0
     let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
+    const lastUserMessage = _messages.findLast((m) => m.role === 'user')
+    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { signal } = abortController
 
-    // @ts-ignore key is not typed
-    const stream = await this.sdk.chat.completions.create({
-      model: model.id,
-      messages: [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[],
-      temperature: this.getTemperature(assistant, model),
-      top_p: this.getTopP(assistant, model),
-      max_tokens: maxTokens,
-      keep_alive: this.keepAliveTime,
-      stream: isSupportStreamOutput(),
-      ...this.getReasoningEffort(assistant, model),
-      ...getOpenAIWebSearchParams(assistant, model),
-      ...this.getProviderSpecificParameters(assistant, model),
-      ...this.getCustomParameters(assistant)
-    })
+    const stream = await this.sdk.chat.completions
+      // @ts-ignore key is not typed
+      .create(
+        {
+          model: model.id,
+          messages: [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[],
+          temperature: this.getTemperature(assistant, model),
+          top_p: this.getTopP(assistant, model),
+          max_tokens: maxTokens,
+          keep_alive: this.keepAliveTime,
+          stream: isSupportStreamOutput(),
+          ...getOpenAIWebSearchParams(assistant, model),
+          ...this.getReasoningEffort(assistant, model),
+          ...this.getProviderSpecificParameters(assistant, model),
+          ...this.getCustomParameters(assistant)
+        },
+        {
+          signal
+        }
+      )
+      .finally(cleanup)
 
     if (!isSupportStreamOutput()) {
       const time_completion_millsec = new Date().getTime() - start_time_millsec
@@ -242,6 +252,7 @@ export default class OpenAIProvider extends BaseProvider {
       })
     }
 
+    // @ts-expect-error `stream` is not typed
     for await (const chunk of stream) {
       if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
         break
@@ -249,7 +260,6 @@ export default class OpenAIProvider extends BaseProvider {
 
       const delta = chunk.choices[0]?.delta
 
-      // @ts-expect-error `reasoning_content` not supported by OpenAI for now
       if (delta?.reasoning_content) {
         hasReasoningContent = true
       }

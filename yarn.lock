@@ -2351,6 +2351,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tavily/core@npm:0.3.1":
+  version: 0.3.1
+  resolution: "@tavily/core@npm:0.3.1"
+  dependencies:
+    axios: "npm:^1.7.7"
+  checksum: 10c0/ddf711848f09c9dfe7f094ffdf4ea1291f7af980a8335a52e5c534a62ed9fbd234b3405e3b7baa598926cdd241425e0a4890badc85f883281c03840145de6d98
+  languageName: node
+  linkType: hard
+
+"@tavily/core@patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch":
+  version: 0.3.1
+  resolution: "@tavily/core@patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch::version=0.3.1&hash=d1f3ab"
+  dependencies:
+    axios: "npm:^1.7.7"
+  checksum: 10c0/e25a76960491a8a463ae8f38a058b8b48d2d72314aa12d922aea4bf8d2cb1231c5357d1b0f7ed9650c48a756fc68617f0de3e1ff929aaca3fc5319dc250a545c
+  languageName: node
+  linkType: hard
+
 "@tokenizer/token@npm:^0.3.0":
   version: 0.3.0
   resolution: "@tokenizer/token@npm:0.3.0"
@@ -3001,6 +3019,7 @@ __metadata:
     "@llm-tools/embedjs-openai": "npm:^0.1.28"
     "@notionhq/client": "npm:^2.2.15"
     "@reduxjs/toolkit": "npm:^2.2.5"
+    "@tavily/core": "patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch"
     "@types/adm-zip": "npm:^0"
     "@types/fs-extra": "npm:^11"
     "@types/lodash": "npm:^4.17.5"
@@ -3676,7 +3695,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"axios@npm:^1.7.3":
+"axios@npm:^1.7.3, axios@npm:^1.7.7":
   version: 1.7.9
   resolution: "axios@npm:1.7.9"
   dependencies:
@@ -13845,11 +13864,11 @@ __metadata:
 
 "typescript@patch:typescript@npm%3A^5.3.3#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.6.2#optional!builtin<compat/typescript>":
   version: 5.7.2
-  resolution: "typescript@patch:typescript@npm%3A5.7.2#optional!builtin<compat/typescript>::version=5.7.2&hash=8c6c40"
+  resolution: "typescript@patch:typescript@npm%3A5.7.2#optional!builtin<compat/typescript>::version=5.7.2&hash=5786d5"
   bin:
     tsc: bin/tsc
     tsserver: bin/tsserver
-  checksum: 10c0/c891ccf04008bc1305ba34053db951f8a4584b4a1bf2f68fd972c4a354df3dc5e62c8bfed4f6ac2d12e5b3b1c49af312c83a651048f818cd5b4949d17baacd79
+  checksum: 10c0/f3b8082c9d1d1629a215245c9087df56cb784f9fb6f27b5d55577a20e68afe2a889c040aacff6d27e35be165ecf9dca66e694c42eb9a50b3b2c451b36b5675cb
   languageName: node
   linkType: hard
 

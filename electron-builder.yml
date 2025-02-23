@@ -24,6 +24,7 @@ files:
   - '!**/{LICENSE,LICENSE.txt,LICENSE-MIT.txt,*.LICENSE.txt,NOTICE.txt,README.md,CHANGELOG.md}'
   - '!node_modules/rollup-plugin-visualizer'
   - '!node_modules/js-tiktoken'
+  - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
   - '!node_modules/html2canvas/dist/{html2canvas.min.js,html2canvas.esm.js}'
@@ -80,11 +81,4 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    消息分组支持网格模式
-    知识库支持多选
-    知识库添加目录支持显示进度
-    知识库支持 DRAFTS, EPUB、代码等
-    知识库支持调节匹配度阈值
-    添加 NotebookLM, Coze 小程序
-    增加话题提示词
-    OpenRouter 支持 Web 搜索
+    全部模型支持 Web 搜索

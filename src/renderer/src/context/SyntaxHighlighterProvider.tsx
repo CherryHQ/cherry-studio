@@ -60,7 +60,7 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
 
     const mappedLanguage = languageMap[language] || language
 
-    code = code.trimEnd()
+    code = code?.trimEnd() ?? ''
     const escapedCode = code?.replace(/[<>]/g, (char) => ({ '<': '&lt;', '>': '&gt;' })[char]!)
 
     try {

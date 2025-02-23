@@ -208,6 +208,7 @@ const MessageItem: FC<Props> = ({
               isLastMessage={isLastMessage}
               isAssistantMessage={isAssistantMessage}
               isGrouped={isGrouped}
+              messageContainerRef={messageContainerRef}
               setModel={setModel}
               onEditMessage={onEditMessage}
               onDeleteMessage={onDeleteMessage}
@@ -225,6 +226,7 @@ const MessageContainer = styled.div`
   flex-direction: column;
   position: relative;
   transition: background-color 0.3s ease;
+  padding: 0 20px;
   &.message-highlight {
     background-color: var(--color-primary-mute);
   }
