@@ -316,7 +316,9 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "edit_remark": "Edit Remark",
+      "edit_remark_placeholder": "Please enter remark content"
     },
     "languages": {
       "arabic": "Arabic",

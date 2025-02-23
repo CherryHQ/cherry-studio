@@ -316,7 +316,9 @@
       "title": "知识库",
       "url_added": "网址已添加",
       "url_placeholder": "请输入网址, 多个网址用回车分隔",
-      "urls": "网址"
+      "urls": "网址",
+      "edit_remark": "修改备注",
+      "edit_remark_placeholder": "请输入备注内容"
     },
     "languages": {
       "arabic": "阿拉伯文",

@@ -316,7 +316,9 @@
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "edit_remark": "備考を編集",
+      "edit_remark_placeholder": "備考内容を入力してください"
     },
     "languages": {
       "arabic": "アラビア語",

@@ -316,7 +316,9 @@
       "title": "База знаний",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "edit_remark": "Изменить примечание",
+      "edit_remark_placeholder": "Пожалуйста, введите содержание примечания"
     },
     "languages": {
       "arabic": "Арабский",

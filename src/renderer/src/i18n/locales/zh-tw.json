@@ -316,7 +316,9 @@
       "title": "知識庫",
       "url_added": "網址已添加",
       "url_placeholder": "請輸入網址, 多個網址用回車分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "edit_remark": "修改備註",
+      "edit_remark_placeholder": "請輸入備註內容"
     },
     "languages": {
       "arabic": "阿拉伯文",

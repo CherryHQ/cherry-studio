@@ -1,4 +1,5 @@
 import {
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   FileTextOutlined,
@@ -17,9 +18,9 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { FileType, FileTypes, KnowledgeBase } from '@renderer/types'
+import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Alert, Button, Card, Divider, message, Tag, Tooltip, Typography, Upload } from 'antd'
+import { Alert, Button, Card, Divider, Dropdown, message, Tag, Tooltip, Typography, Upload } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -55,7 +56,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     getProcessingStatus,
     getDirectoryProcessingPercent,
     addNote,
-    addDirectory
+    addDirectory,
+    updateItem
   } = useKnowledge(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model.provider || '')
@@ -197,6 +199,31 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     path && addDirectory(path)
   }
 
+  const handleEditRemark = async (item: KnowledgeItem) => {
+    if (disabled) {
+      return
+    }
+
+    const editedRemark: string | undefined = await PromptPopup.show({
+      title: t('knowledge.edit_remark'),
+      message: '',
+      inputPlaceholder: t('knowledge.edit_remark_placeholder'),
+      defaultValue: item.remark || '',
+      inputProps: {
+        maxLength: 100,
+        rows: 1
+      }
+    })
+
+    if (editedRemark !== undefined && editedRemark !== null) {
+      updateItem({
+        ...item,
+        remark: editedRemark,
+        updated_at: Date.now()
+      })
+    }
+  }
+
   return (
     <MainContent>
       {!base?.version && (
@@ -303,11 +330,33 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               <ItemContent>
                 <ItemInfo>
                   <LinkOutlined />
-                  <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                    <Tooltip title={item.content as string}>
-                      <Ellipsis text={item.content as string} />
-                    </Tooltip>
-                  </a>
+                  <Dropdown
+                    menu={{
+                      items: [
+                        {
+                          key: 'edit',
+                          icon: <EditOutlined />,
+                          label: t('knowledge.edit_remark'),
+                          onClick: () => handleEditRemark(item)
+                        },
+                        {
+                          key: 'copy',
+                          icon: <CopyOutlined />,
+                          label: t('common.copy'),
+                          onClick: () => {
+                            navigator.clipboard.writeText(item.content as string)
+                            message.success(t('message.copied'))
+                          }
+                        }
+                      ]
+                    }}
+                    trigger={['contextMenu']}>
+                    <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                      <Tooltip title={item.content as string}>
+                        <Ellipsis text={item.remark || (item.content as string)} />
+                      </Tooltip>
+                    </a>
+                  </Dropdown>
                 </ItemInfo>
                 <FlexAlignCenter>
                   {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
