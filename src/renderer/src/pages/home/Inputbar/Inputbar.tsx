@@ -437,7 +437,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         _setEstimateTokenCount(tokensCount)
         setContextCount(contextCount)
       }),
-      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
+      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
+      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
+        setText((prevText) => {
+          const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
+          setTimeout(() => resizeTextArea(), 0)
+          return newText
+        })
+        textareaRef.current?.focus()
+      })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [addNewTopic])
