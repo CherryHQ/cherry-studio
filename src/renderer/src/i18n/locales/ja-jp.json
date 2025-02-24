@@ -141,6 +141,7 @@
       "topics.export.image": "画像としてエクスポート",
       "topics.export.md": "Markdownとしてエクスポート",
       "topics.export.notion": "Notion にエクスポート",
+      "topics.export.yuque": "語雀にエクスポート",
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
       "topics.list": "トピックリスト",
@@ -380,7 +381,9 @@
       "error.invalid.proxy.url": "無効なプロキシURL",
       "error.invalid.webdav": "無効なWebDAV設定",
       "error.notion.export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
+      "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
+      "error.yuque.no_config": "語雀Token または 知識ベースID が設定されていません",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
       "mention.title": "モデルを切り替える",
@@ -402,6 +405,7 @@
       "restore.success": "復元に成功しました",
       "save.success.title": "保存に成功しました",
       "success.notion.export": "Notionへのエクスポートに成功しました",
+      "success.yuque.export": "語雀へのエクスポートに成功しました",
       "switch.disabled": "現在の応答が完了するまで切り替えを無効にします",
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
@@ -641,6 +645,21 @@
           "syncStatus": "バックアップ状態",
           "title": "WebDAV",
           "user": "WebDAVユーザー"
+        },
+        "yuque": {
+          "title": "Yuque設定",
+          "repo_url": "ナレッジベースURL",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "token": "Yuqueトークン",
+          "token_placeholder": "Yuqueトークンを入力してください",
+          "help": "Yuqueトークンを取得",
+          "check": {
+            "button": "接続確認",
+            "success": "Yuque接続確認に成功しました",
+            "fail": "Yuque接続確認に失敗しました",
+            "empty_token": "先にYuqueトークンを入力してください",
+            "empty_repo_url": "先にナレッジベースURLを入力してください"
+          }
         }
       },
       "display.custom.css": "カスタムCSS",

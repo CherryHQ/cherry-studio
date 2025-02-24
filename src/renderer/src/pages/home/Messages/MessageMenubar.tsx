@@ -26,7 +26,12 @@ import {
   removeTrailingDoubleSpaces,
   uuid
 } from '@renderer/utils'
-import { exportMarkdownToNotion, exportMessageAsMarkdown, messageToMarkdown } from '@renderer/utils/export'
+import {
+  exportMarkdownToNotion,
+  exportMessageAsMarkdown,
+  messageToMarkdown,
+  exportMarkdownToYuque
+} from '@renderer/utils/export'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
@@ -257,6 +262,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const title = getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToNotion(title, markdown)
+            }
+          },
+          {
+            label: t('chat.topics.export.yuque'),
+            key: 'yuque',
+            onClick: async () => {
+              const title = getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMarkdownToYuque(title, markdown)
             }
           }
         ]

@@ -141,6 +141,7 @@
       "topics.export.image": "匯出為圖片",
       "topics.export.md": "匯出為 Markdown",
       "topics.export.notion": "匯出到 Notion",
+      "topics.export.yuque": "匯出到語雀",
       "topics.export.title": "匯出",
       "topics.export.word": "導出為 Word",
       "topics.list": "話題列表",
@@ -380,7 +381,9 @@
       "error.invalid.proxy.url": "無效的代理 URL",
       "error.invalid.webdav": "無效的 WebDAV 設定",
       "error.notion.export": "導出Notion錯誤，請檢查連接狀態並對照文檔檢查配置",
+      "error.yuque.export": "導出語雀錯誤，請檢查連接狀態並對照文檔檢查配置",
       "error.notion.no_api_key": "未配置 Notion ApiKey 或 Notion DatabaseID",
+      "error.yuque.no_config": "未配置語雀Token 或 知識庫Url",
       "group.delete.content": "刪除分組消息會刪除用戶提問和所有助手的回答",
       "group.delete.title": "刪除分組消息",
       "mention.title": "切換模型回答",
@@ -402,6 +405,7 @@
       "restore.success": "恢復成功",
       "save.success.title": "保存成功",
       "success.notion.export": "成功導出到Notion",
+      "success.yuque.export": "成功導出到語雀",
       "switch.disabled": "請等待當前回覆完成",
       "topic.added": "新話題已添加",
       "upgrade.success.button": "重新啟動",
@@ -641,6 +645,21 @@
           "syncStatus": "備份狀態",
           "title": "WebDAV",
           "user": "WebDAV 使用者名稱"
+        },
+        "yuque": {
+          "title": "語雀配置",
+          "repo_url": "知識庫 URL",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "token": "語雀 Token",
+          "token_placeholder": "請輸入語雀Token",
+          "help": "獲取語雀 Token",
+          "check": {
+            "button": "驗證連接",
+            "success": "語雀連接驗證成功",
+            "fail": "語雀連接驗證失敗",
+            "empty_token": "請先輸入語雀Token",
+            "empty_repo_url": "請先輸入知識庫URL"
+          }
         }
       },
       "display.custom.css": "自定義 CSS",

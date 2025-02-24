@@ -141,6 +141,7 @@
       "topics.export.image": "Export as image",
       "topics.export.md": "Export as markdown",
       "topics.export.notion": "Export to Notion",
+      "topics.export.yuque": "Export to Yuque",
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
       "topics.list": "Topic List",
@@ -380,7 +381,9 @@
       "error.invalid.proxy.url": "Invalid proxy URL",
       "error.invalid.webdav": "Invalid WebDAV settings",
       "error.notion.export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
+      "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
+      "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
       "mention.title": "Switch model answer",
@@ -402,6 +405,7 @@
       "restore.success": "Restored successfully",
       "save.success.title": "Saved successfully",
       "success.notion.export": "Successfully exported to Notion",
+      "success.yuque.export": "Successfully exported to Yuque",
       "switch.disabled": "Please wait for the current reply to complete",
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
@@ -641,8 +645,24 @@
           "syncStatus": "Backup Status",
           "title": "WebDAV",
           "user": "WebDAV User"
+        },
+        "yuque": {
+          "title": "Yuque Configuration",
+          "repo_url": "Yuque URL",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "token": "Yuque Token",
+          "token_placeholder": "Please enter the Yuque Token",
+          "help": "Get Yuque Token",
+          "check": {
+            "button": "Verify Connection",
+            "success": "Yuque connection verified successfully",
+            "fail": "Yuque connection verification failed",
+            "empty_token": "Please enter the Yuque Token first",
+            "empty_repo_url": "Please enter the knowledge base URL first"
+          }
         }
       },
+
       "display.custom.css": "Custom CSS",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
       "display.minApp.disabled": "Hidden MinApp",

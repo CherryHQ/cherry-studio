@@ -141,6 +141,7 @@
       "topics.export.image": "导出为图片",
       "topics.export.md": "导出为 Markdown",
       "topics.export.notion": "导出到 Notion",
+      "topics.export.yuque": "导出到语雀",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
       "topics.list": "话题列表",
@@ -380,7 +381,9 @@
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
       "error.notion.export": "导出Notion错误，请检查连接状态并对照文档检查配置",
+      "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
       "error.notion.no_api_key": "未配置Notion ApiKey或Notion DatabaseID",
+      "error.yuque.no_config": "未配置语雀Token 或 知识库Url",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
       "mention.title": "切换模型回答",
@@ -402,6 +405,7 @@
       "restore.success": "恢复成功",
       "save.success.title": "保存成功",
       "success.notion.export": "成功导出到Notion",
+      "success.yuque.export": "成功导出到语雀",
       "switch.disabled": "请等待当前回复完成后操作",
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -641,6 +645,21 @@
           "syncStatus": "备份状态",
           "title": "WebDAV",
           "user": "WebDAV 用户名"
+        },
+        "yuque": {
+          "title": "语雀配置",
+          "repo_url": "知识库 URL",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "token": "语雀 Token",
+          "token_placeholder": "请输入语雀Token",
+          "help": "获取语雀 Token",
+          "check": {
+            "button": "验证连接",
+            "success": "语雀连接验证成功",
+            "fail": "语雀连接验证失败",
+            "empty_token": "请先输入语雀Token",
+            "empty_repo_url": "请先输入知识库URL"
+          }
         }
       },
       "display.custom.css": "自定义 CSS",

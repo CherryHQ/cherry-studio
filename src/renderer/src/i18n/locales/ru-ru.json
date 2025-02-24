@@ -141,6 +141,7 @@
       "topics.export.image": "Экспорт как изображение",
       "topics.export.md": "Экспорт как markdown",
       "topics.export.notion": "Экспорт в Notion",
+      "topics.export.yuque": "Экспорт в Yuque",
       "topics.export.title": "Экспорт",
       "topics.export.word": "Экспорт как Word",
       "topics.list": "Список топиков",
@@ -380,7 +381,9 @@
       "error.invalid.proxy.url": "Неверный URL прокси",
       "error.invalid.webdav": "Неверные настройки WebDAV",
       "error.notion.export": "Ошибка экспорта в Notion, пожалуйста, проверьте состояние подключения и настройки в документации",
+      "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
+      "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "mention.title": "Переключить модель ответа",
@@ -402,6 +405,7 @@
       "restore.success": "Успешно восстановлено",
       "save.success.title": "Успешно сохранено",
       "success.notion.export": "Успешный экспорт в Notion",
+      "success.yuque.export": "Успешный экспорт в Yuque",
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -636,6 +640,21 @@
           "syncStatus": "Статус резервного копирования",
           "title": "WebDAV",
           "user": "Пользователь WebDAV"
+        },
+        "yuque": {
+          "title": "Настройка Yuque",
+          "repo_url": "URL базы знаний",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "token": "Токен Yuque",
+          "token_placeholder": "Введите токен Yuque",
+          "help": "Получить токен Yuque",
+          "check": {
+            "button": "Проверить подключение",
+            "success": "Подключение к Yuque успешно проверено",
+            "fail": "Не удалось проверить подключение к Yuque",
+            "empty_token": "Сначала введите токен Yuque",
+            "empty_repo_url": "Сначала введите URL базы знаний"
+          }
         },
         "notion.auto_split_tip": "Автоматическое разбиение на страницы при экспорте в Notion, если тема слишком длинная",
         "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
