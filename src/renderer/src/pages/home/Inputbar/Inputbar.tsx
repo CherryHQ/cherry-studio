@@ -412,22 +412,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
           const { type } = item
           if (type === 'codefiles') {
             item.getAsString(async (filePathListString) => {
-              let filePathList: string[] | null = null
-              filePathList = JSON.parse(filePathListString) as string[]
-
-              if (filePathList) {
-                const filePathListPromises = filePathList.map((filePath) => window.api.file.get(filePath))
-                resolve(
-                  await Promise.allSettled(filePathListPromises).then((results) =>
-                    results
-                      .filter((result) => result.status === 'fulfilled')
-                      .filter((result) => result.value !== null)
-                      .map((result) => result.value!)
-                  )
+              const filePathList: string[] = JSON.parse(filePathListString)
+              const filePathListPromises = filePathList.map((filePath) => window.api.file.get(filePath))
+              resolve(
+                await Promise.allSettled(filePathListPromises).then((results) =>
+                  results
+                    .filter((result) => result.status === 'fulfilled')
+                    .filter((result) => result.value !== null)
+                    .map((result) => result.value!)
                 )
-              } else {
-                resolve([])
-              }
+              )
             })
 
             existCodefilesFormat = true
