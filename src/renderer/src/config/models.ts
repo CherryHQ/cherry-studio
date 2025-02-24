@@ -20,6 +20,7 @@ import ClaudeModelLogo from '@renderer/assets/images/models/claude.png'
 import ClaudeModelLogoDark from '@renderer/assets/images/models/claude_dark.png'
 import CodegeexModelLogo from '@renderer/assets/images/models/codegeex.png'
 import CodegeexModelLogoDark from '@renderer/assets/images/models/codegeex_dark.png'
+import CodestralModelLogo from '@renderer/assets/images/models/codestral.png'
 import CohereModelLogo from '@renderer/assets/images/models/cohere.png'
 import CohereModelLogoDark from '@renderer/assets/images/models/cohere_dark.png'
 import CopilotModelLogo from '@renderer/assets/images/models/copilot.png'
@@ -203,6 +204,8 @@ export function getModelLogo(modelId: string) {
     llama: isLight ? LlamaModelLogo : LlamaModelLogoDark,
     mixtral: isLight ? MistralModelLogo : MistralModelLogo,
     mistral: isLight ? MistralModelLogo : MistralModelLogoDark,
+    codestral: CodestralModelLogo,
+    ministral: isLight ? MistralModelLogo : MistralModelLogoDark,
     moonshot: isLight ? MoonshotModelLogo : MoonshotModelLogoDark,
     kimi: isLight ? MoonshotModelLogo : MoonshotModelLogoDark,
     phi: isLight ? MicrosoftModelLogo : MicrosoftModelLogoDark,
@@ -1068,14 +1071,56 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     {
       id: 'pixtral-12b-2409',
       provider: 'mistral',
-      name: 'Pixtral-12B-2409',
+      name: 'Pixtral 12B [Free]',
       group: 'Pixtral'
+    },
+    {
+      id: 'pixtral-large-latest',
+      provider: 'mistral',
+      name: 'Pixtral Large',
+      group: 'Pixtral'
+    },
+    {
+      id: 'ministral-3b-latest',
+      provider: 'mistral',
+      name: 'Mistral 3B [Free]',
+      group: 'Mistral Mini'
+    },
+    {
+      id: 'ministral-8b-latest',
+      provider: 'mistral',
+      name: 'Mistral 8B [Free]',
+      group: 'Mistral Mini'
+    },
+    {
+      id: 'codestral-latest',
+      provider: 'mistral',
+      name: 'Mistral Codestral',
+      group: 'Mistral Code'
+    },
+    {
+      id: 'mistral-large-latest',
+      provider: 'mistral',
+      name: 'Mistral Large',
+      group: 'Mistral Chat'
+    },
+    {
+      id: 'mistral-small-latest',
+      provider: 'mistral',
+      name: 'Mistral Small',
+      group: 'Mistral Chat'
     },
     {
       id: 'open-mistral-nemo',
       provider: 'mistral',
-      name: 'Open-Mistral-Nemo',
-      group: 'Mistral'
+      name: 'Mistral Nemo',
+      group: 'Mistral Chat'
+    },
+    {
+      id: 'mistral-embed',
+      provider: 'mistral',
+      name: 'Mistral Embedding',
+      group: 'Mistral Embed'
     }
   ],
   jina: [
