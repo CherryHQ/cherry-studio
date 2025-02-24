@@ -126,6 +126,8 @@ import WenxinModelLogo from '@renderer/assets/images/models/wenxin.png'
 import WenxinModelLogoDark from '@renderer/assets/images/models/wenxin_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
+import XirangModelLogo from '@renderer/assets/images/models/xirang.png'
+import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
@@ -275,6 +277,7 @@ export function getModelLogo(modelId: string) {
     rakutenai: isLight ? RakutenaiModelLogo : RakutenaiModelLogoDark,
     ibm: isLight ? IbmModelLogo : IbmModelLogoDark,
     'google/': isLight ? GoogleModelLogo : GoogleModelLogoDark,
+    xirang: isLight ? XirangModelLogo : XirangModelLogoDark,
     hugging: isLight ? HuggingfaceModelLogo : HuggingfaceModelLogoDark,
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
@@ -1557,6 +1560,20 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'infini',
       name: 'jina-embeddings-v2-base-code',
       group: 'Jina'
+    }
+  ],
+  xirang: [
+    {
+      id: 'xirang',
+      name: 'DeepSeek-R1',
+      provider: 'xirang',
+      group: 'xirang'
+    },
+    {
+      id: 'xirang',
+      name: 'DeepSeek-V3',
+      provider: 'xirang',
+      group: 'xirang'
     }
   ]
 }

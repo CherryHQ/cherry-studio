@@ -36,6 +36,7 @@ import TogetherProviderLogo from '@renderer/assets/images/providers/together.png
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 export function getProviderLogo(providerId: string) {
   switch (providerId) {
     case 'openai':
@@ -66,6 +67,8 @@ export function getProviderLogo(providerId: string) {
       return BailianProviderLogo
     case 'modelscope':
       return ModelScopeProviderLogo
+    case 'xirang':
+      return XirangProviderLogo
     case 'anthropic':
       return AnthropicProviderLogo
     case 'aihubmix':
