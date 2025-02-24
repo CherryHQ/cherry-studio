@@ -251,6 +251,7 @@ export interface KnowledgeBase {
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  isEmeddingModelChange: boolean
 }
 
 export type KnowledgeBaseParams = {

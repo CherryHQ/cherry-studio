@@ -18,10 +18,10 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Alert, Button, Card, Divider, Dropdown, message, Tag, Tooltip, Typography, Upload } from 'antd'
-import { FC } from 'react'
+import { FileType, FileTypes, KnowledgeBase } from '@renderer/types'
+import { bookExts, documentExts, textExts } from '@shared/config/constant'
+import { Alert, Button, Card, Divider, message, Tag, Tooltip, Typography, Upload } from 'antd'
+import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -57,11 +57,26 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     getDirectoryProcessingPercent,
     addNote,
     addDirectory,
+    updateKnowledgeBase
     updateItem
   } = useKnowledge(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
+
+  useEffect(() => {
+    if (!base?.isEmeddingModelChange) {
+      return
+    }
+
+    if (base.items.length > 0) {
+      base.items.forEach((item) => {
+        refreshItem(item)
+      })
+    }
+    console.log('[KnowledgeContent] Model changed, refreshing items:', base)
+    updateKnowledgeBase({ ...base, isEmeddingModelChange: false })
+  }, [base?.model, base?.isEmeddingModelChange])
 
   if (!base) {
     return null
@@ -118,7 +133,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       inputPlaceholder: t('knowledge.url_placeholder'),
       inputProps: {
         rows: 10,
-        onPressEnter: () => {}
+        onPressEnter: () => { }
       }
     })
 
