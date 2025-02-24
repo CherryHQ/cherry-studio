@@ -18,6 +18,7 @@ class BackupManager {
     this.backupToWebdav = this.backupToWebdav.bind(this)
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
   }
+
   private async setWritableRecursive(dirPath: string): Promise<void> {
     try {
       const items = await fs.readdir(dirPath, { withFileTypes: true });
@@ -123,6 +124,7 @@ class BackupManager {
       // 恢复 Data 目录
       const sourcePath = path.join(this.tempDir, 'Data')
       const destPath = path.join(app.getPath('userData'), 'Data')
+      await this.setWritableRecursive(destPath)
       await fs.remove(destPath)
       await fs.copy(sourcePath, destPath)
 
