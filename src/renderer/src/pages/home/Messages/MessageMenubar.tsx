@@ -146,11 +146,10 @@ const MessageMenubar: FC<Props> = (props) => {
     resendMessage && onResend()
   }, [message, onEditMessage, onResend, t])
 
-    const onResend = useCallback(async () => {
-    let resendMessage = false
+  const onResend = useCallback(async () => {
     await onEditMessage?.({ ...message, content: message.content })
-    resendMessage && onResend()
-  }, [message, onEditMessage, onResend, t])
+    onResend && onResend()
+  }, [message, onEditMessage, onResend])
 
   const handleTranslate = useCallback(
     async (language: string) => {
