@@ -207,8 +207,33 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     let hasReasoningContent = false
-    const isReasoningJustDone = (delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta) =>
-      hasReasoningContent ? !!delta?.content : delta?.content === '</think>'
+    let lastChunk = ''
+    const isReasoningJustDone = (
+      delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & { reasoning_content?: string }
+    ) => {
+      if (!delta?.content) return false
+
+      // 检查当前chunk和上一个chunk的组合是否形成###Response标记
+      const combinedChunks = lastChunk + delta.content
+      lastChunk = delta.content
+
+      // 检测思考结束
+      if (combinedChunks.includes('###Response') || delta.content === '</think>') {
+        return true
+      }
+
+      // 如果有reasoning_content，说明是在思考中
+      if (delta?.reasoning_content) {
+        hasReasoningContent = true
+      }
+
+      // 如果之前有reasoning_content，现在有普通content，说明思考结束
+      if (hasReasoningContent && delta.content) {
+        return true
+      }
+
+      return false
+    }
 
     let time_first_token_millsec = 0
     let time_first_content_millsec = 0

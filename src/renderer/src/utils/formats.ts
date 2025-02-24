@@ -81,28 +81,60 @@ export function withGeminiGrounding(message: Message) {
   return content
 }
 
+interface ThoughtProcessor {
+  canProcess: (content: string) => boolean
+  process: (content: string) => { reasoning: string; content: string }
+}
+
+const glmZeroPreviewProcessor: ThoughtProcessor = {
+  canProcess: (content: string) => content.includes('###Thinking'),
+  process: (content: string) => {
+    const parts = content.split('###')
+    const thinkingMatch = parts.find((part) => part.trim().startsWith('Thinking'))
+    const responseMatch = parts.find((part) => part.trim().startsWith('Response'))
+
+    return {
+      reasoning: thinkingMatch ? thinkingMatch.replace('Thinking', '').trim() : '',
+      content: responseMatch ? responseMatch.replace('Response', '').trim() : ''
+    }
+  }
+}
+
+const thinkTagProcessor: ThoughtProcessor = {
+  canProcess: (content: string) => content.startsWith('<think>'),
+  process: (content: string) => {
+    const thinkPattern = /^<think>(.*?)<\/think>/s
+    const matches = content.match(thinkPattern)
+
+    // 处理正常闭合的 think 标签
+    if (matches) {
+      return {
+        reasoning: matches[1].trim(),
+        content: content.replace(thinkPattern, '').trim()
+      }
+    }
+
+    // 处理未闭合的 think 标签
+    return {
+      reasoning: content.slice(7).trim(), // 跳过 '<think>' 标签
+      content: ''
+    }
+  }
+}
+
 export function withMessageThought(message: Message) {
   if (message.role !== 'assistant') {
     return message
   }
 
   const content = message.content.trim()
-  const thinkPattern = /^<think>(.*?)<\/think>/s
-  const matches = content.match(thinkPattern)
+  const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor]
 
-  if (!matches) {
-    // 处理未闭合的 think 标签情况
-    if (content.startsWith('<think>')) {
-      message.reasoning_content = content.slice(7) // '<think>'.length === 7
-      message.content = ''
-    }
-    return message
-  }
-
-  const reasoning_content = matches[1].trim()
-  if (reasoning_content) {
-    message.reasoning_content = reasoning_content
-    message.content = content.replace(thinkPattern, '').trim()
+  const processor = processors.find((p) => p.canProcess(content))
+  if (processor) {
+    const { reasoning, content: processedContent } = processor.process(content)
+    message.reasoning_content = reasoning
+    message.content = processedContent
   }
 
   return message
