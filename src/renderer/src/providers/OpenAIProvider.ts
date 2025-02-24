@@ -228,8 +228,8 @@ export default class OpenAIProvider extends BaseProvider {
           max_tokens: maxTokens,
           keep_alive: this.keepAliveTime,
           stream: isSupportStreamOutput(),
-          ...this.getReasoningEffort(assistant, model),
           ...getOpenAIWebSearchParams(assistant, model),
+          ...this.getReasoningEffort(assistant, model),
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getCustomParameters(assistant)
         },
@@ -252,6 +252,7 @@ export default class OpenAIProvider extends BaseProvider {
       })
     }
 
+    // @ts-expect-error `stream` is not typed
     for await (const chunk of stream) {
       if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
         break
@@ -259,7 +260,6 @@ export default class OpenAIProvider extends BaseProvider {
 
       const delta = chunk.choices[0]?.delta
 
-      // @ts-expect-error `reasoning_content` not supported by OpenAI for now
       if (delta?.reasoning_content) {
         hasReasoningContent = true
       }

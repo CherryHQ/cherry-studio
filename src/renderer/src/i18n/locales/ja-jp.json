@@ -101,6 +101,9 @@
       "input.upload": "画像またはドキュメントをアップロード",
       "input.upload.document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
       "input.web_search": "ウェブ検索を有効にする",
+      "input.web_search.enable": "ウェブ検索を有効にする",
+      "input.web_search.enable_content": "ウェブ検索を有効にするには、設定でウェブ検索を有効にする必要があります",
+      "input.web_search.button.ok": "設定に移動",
       "message.new.branch": "新しいブランチ",
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.new.context": "新しいコンテキスト",
@@ -129,9 +132,9 @@
       "thinking": "思考中...",
       "topics.auto_rename": "自動リネーム",
       "topics.clear.title": "メッセージをクリア",
-      "topics.copy.image": "画像",
-      "topics.copy.md": "Markdown",
-      "topics.copy.title": "複製",
+      "topics.copy.image": "画像としてコピー",
+      "topics.copy.md": "Markdownとしてコピー",
+      "topics.copy.title": "コピー",
       "topics.delete.shortcut": "{{key}}キーを押しながらで直接削除",
       "topics.edit.placeholder": "新しい名前を入力",
       "topics.edit.title": "名前を編集",
@@ -401,7 +404,10 @@
       "upgrade.success.button": "再起動",
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
-      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
+      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
+      "searching": "インターネットで検索中...",
+      "ignore.knowledge.base": "インターネットモードが有効になっています。ナレッジベースを無視します",
+      "info.notion.block_reach_limit": "会話が長すぎます。Notionにページごとにエクスポートしています"
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
@@ -592,11 +598,11 @@
         "notion.api_key_placeholder": "Notion APIキーを入力してください",
         "notion.check": {
           "button": "確認",
-          "empty_api_key": "Api_keyが設定されていません",
-          "empty_database_id": "Database_idが設定されていません",
-          "error": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
           "fail": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
-          "success": "接続に成功しました。"
+          "success": "接続に成功しました。",
+          "error": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
+          "empty_api_key": "Api_keyが設定されていません",
+          "empty_database_id": "Database_idが設定されていません"
         },
         "notion.database_id": "Notion データベースID",
         "notion.database_id_placeholder": "Notion データベースIDを入力してください",
@@ -604,6 +610,11 @@
         "notion.page_name_key": "ページタイトルフィールド名",
         "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
         "notion.title": "Notion 設定",
+        "notion.auto_split": "내보내기 시 자동 분할",
+        "notion.auto_split_tip": "긴 주제를 Notion으로 내보낼 때 자동으로 페이지 분할",
+        "notion.split_size": "분할 크기",
+        "notion.split_size_placeholder": "페이지당 블록 제한 입력(기본값 90)",
+        "notion.split_size_help": "권장: 무료 플랜 90, Plus 플랜 24990, 기본값 90",
         "title": "データ設定",
         "webdav": {
           "autoSync": "自動バックアップ",
@@ -785,7 +796,17 @@
       "topic.position.left": "左",
       "topic.position.right": "右",
       "topic.show.time": "トピックの時間を表示",
-      "tray.title": "システムトレイアイコンを有効にする"
+      "tray.title": "システムトレイアイコンを有効にする",
+      "websearch": {
+        "title": "ウェブ検索",
+        "get_api_key": "APIキーを取得",
+        "tavily": {
+          "title": "Tavily",
+          "description": "Tavily は、複数の検索エンジンを統合したウェブ検索ツールです。多くの言語と検索エンジンをサポートしています。",
+          "api_key": "Tavily API キー",
+          "api_key.placeholder": "Tavily API キーを入力してください"
+        }
+      }
     },
     "translate": {
       "any.language": "任意の言語",

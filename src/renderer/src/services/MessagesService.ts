@@ -4,7 +4,8 @@ import { getTopicById } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { Assistant, Message, Model, Topic } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { getTitleFromString, uuid } from '@renderer/utils'
+import dayjs from 'dayjs'
 import { isEmpty, remove, takeRight } from 'lodash'
 import { NavigateFunction } from 'react-router'
 
@@ -167,4 +168,14 @@ export function resetAssistantMessage(message: Message, model?: Model): Message 
     metadata: undefined,
     useful: undefined
   }
+}
+
+export function getMessageTitle(message: Message, length = 30) {
+  let title = getTitleFromString(message.content, length)
+
+  if (!title) {
+    title = dayjs(message.createdAt).format('YYYYMMDDHHmm')
+  }
+
+  return title
 }

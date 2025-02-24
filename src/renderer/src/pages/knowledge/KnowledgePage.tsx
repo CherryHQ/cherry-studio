@@ -22,7 +22,10 @@ const KnowledgePage: FC = () => {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleAddKnowledge = async () => {
-    await AddKnowledgePopup.show({ title: t('knowledge.add.title') })
+    const newBase = await AddKnowledgePopup.show({ title: t('knowledge.add.title') })
+    if (newBase) {
+      setSelectedBase(newBase)
+    }
   }
 
   useEffect(() => {

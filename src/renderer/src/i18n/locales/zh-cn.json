@@ -101,6 +101,9 @@
       "input.upload": "上传图片或文档",
       "input.upload.document": "上传文档（模型不支持图片）",
       "input.web_search": "开启网络搜索",
+      "input.web_search.enable": "开启网络搜索",
+      "input.web_search.enable_content": "需要先在设置中开启网络搜索",
+      "input.web_search.button.ok": "去设置",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -129,9 +132,9 @@
       "thinking": "思考中",
       "topics.auto_rename": "生成话题名",
       "topics.clear.title": "清空消息",
-      "topics.copy.image": "图片",
-      "topics.copy.md": "Markdown",
-      "topics.copy.title": "复制为",
+      "topics.copy.image": "复制为图片",
+      "topics.copy.md": "复制为 Markdown",
+      "topics.copy.title": "复制",
       "topics.delete.shortcut": "按住 {{key}} 可直接删除",
       "topics.edit.placeholder": "输入新名称",
       "topics.edit.title": "编辑话题名",
@@ -401,7 +404,10 @@
       "upgrade.success.button": "重启",
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
-      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!"
+      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!",
+      "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion",
+      "searching": "正在联网搜索...",
+      "ignore.knowledge.base": "联网模式开启，忽略知识库"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
@@ -604,6 +610,20 @@
         "notion.page_name_key": "页面标题字段名",
         "notion.page_name_key_placeholder": "请输入页面标题字段名，默认为 Name",
         "notion.title": "Notion 配置",
+        "notion.help": "Notion 配置文档",
+        "notion.check": {
+          "button": "检查",
+          "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",
+          "success": "连接成功",
+          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
+          "empty_api_key": "未配置Api_key",
+          "empty_database_id": "未配置Database_id"
+        },
+        "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
+        "notion.auto_split": "导出对话时自动分页",
+        "notion.split_size": "自动分页大小",
+        "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
+        "notion.split_size_help": "Notion免费版用户建议设置为90，高级版用户建议设置为24990，默认值为90",
         "title": "数据设置",
         "webdav": {
           "autoSync": "自动备份",
@@ -785,7 +805,17 @@
       "topic.position.left": "左侧",
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
-      "tray.title": "启用系统托盘图标"
+      "tray.title": "启用系统托盘图标",
+      "websearch": {
+        "title": "网络搜索",
+        "get_api_key": "点击这里获取密钥",
+        "tavily": {
+          "title": "Tavily",
+          "description": "Tavily 是一个集成了多个搜索引擎的网络搜索工具，支持多种语言和多种搜索引擎。",
+          "api_key": "Tavily API 密钥",
+          "api_key.placeholder": "请输入 Tavily API 密钥"
+        }
+      }
     },
     "translate": {
       "any.language": "任意语言",
