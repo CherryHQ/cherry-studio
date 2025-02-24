@@ -21,6 +21,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
+import WebSearchService from '@renderer/services/WebSearchService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setGenerating, setSearching } from '@renderer/store/runtime'
 import { Assistant, FileType, KnowledgeBase, Message, Model, Topic } from '@renderer/types'
@@ -33,6 +34,7 @@ import dayjs from 'dayjs'
 import { debounce, isEmpty } from 'lodash'
 import { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
@@ -86,6 +88,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const currentMessageId = useRef<string>()
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
+  const navigate = useNavigate()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
@@ -497,6 +500,31 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setMentionModels(mentionModels.filter((m) => m.id !== model.id))
   }
 
+  const onEnableWebSearch = () => {
+    if (!isWebSearchModel(model)) {
+      if (!WebSearchService.isWebSearchEnabled()) {
+        window.modal.confirm({
+          title: t('chat.input.web_search.enable'),
+          content: t('chat.input.web_search.enable_content'),
+          centered: true,
+          okText: t('chat.input.web_search.button.ok'),
+          onOk: () => {
+            navigate('/settings/web-search')
+          }
+        })
+        return
+      }
+    }
+
+    updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
+  }
+
+  useEffect(() => {
+    if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
+      updateAssistant({ ...assistant, enableWebSearch: false })
+    }
+  }, [assistant, model, updateAssistant])
+
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
@@ -545,17 +573,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 onMentionModel={onMentionModel}
                 ToolbarButton={ToolbarButton}
               />
-              {isWebSearchModel(model) && (
-                <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
-                  <ToolbarButton
-                    type="text"
-                    onClick={() => updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })}>
-                    <GlobalOutlined
-                      style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
-                    />
-                  </ToolbarButton>
-                </Tooltip>
-              )}
+              <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
+                <ToolbarButton type="text" onClick={onEnableWebSearch}>
+                  <GlobalOutlined
+                    style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
+                  />
+                </ToolbarButton>
+              </Tooltip>
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}

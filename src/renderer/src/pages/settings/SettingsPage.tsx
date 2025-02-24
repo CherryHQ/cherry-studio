@@ -1,5 +1,6 @@
 import {
   CloudOutlined,
+  GlobalOutlined,
   InfoCircleOutlined,
   LayoutOutlined,
   MacCommandOutlined,
@@ -23,6 +24,7 @@ import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
+import WebSearchSettings from './WebSearchSettings'
 
 export let settingMenuItemPathList: string[] = []
 
@@ -74,6 +76,12 @@ const SettingsPage: FC = () => {
               </MenuItemLink>
             </>
           )}
+          <MenuItemLink to="/settings/web-search">
+            <MenuItem className={isRoute('/settings/web-search')}>
+              <GlobalOutlined />
+              {t('settings.websearch.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/general">
             <MenuItem className={isRoute('/settings/general')}>
               <SettingOutlined />
@@ -115,6 +123,7 @@ const SettingsPage: FC = () => {
           <Routes>
             <Route path="provider" element={<ProvidersList />} />
             <Route path="model" element={<ModelSettings />} />
+            <Route path="web-search" element={<WebSearchSettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
             <Route path="data/*" element={<DataSettings />} />

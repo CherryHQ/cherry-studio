@@ -1,4 +1,5 @@
-import { InfoCircleOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import { InfoCircleOutlined, SearchOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import { HStack } from '@renderer/components/Layout'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
@@ -6,6 +7,7 @@ import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
 import React, { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import BarLoader from 'react-spinners/BarLoader'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
@@ -26,23 +28,29 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
 
   // Process content to make citation numbers clickable
   const processedContent = useMemo(() => {
-    if (!message.content || !message.metadata?.citations) return message.content
+    if (!(message.metadata?.citations || message.metadata?.tavily)) {
+      return message.content
+    }
 
     let content = message.content
-    const citations = message.metadata.citations
+
+    const searchResultsCitations = message?.metadata?.tavily?.results?.map((result) => result.url) || []
+
+    const citations = message?.metadata?.citations || searchResultsCitations
 
     // Convert [n] format to superscript numbers and make them clickable
+    // Use <sup> tag for superscript and make it a link
     content = content.replace(/\[(\d+)\]/g, (match, num) => {
       const index = parseInt(num) - 1
       if (index >= 0 && index < citations.length) {
-        // Use <sup> tag for superscript and make it a link
-        return `[<sup>${num}</sup>](${citations[index]})`
+        const link = citations[index]
+        return link ? `[<sup>${num}</sup>](${link})` : `<sup>${num}</sup>`
       }
       return match
     })
 
     return content
-  }, [message.content, message.metadata?.citations])
+  }, [message.content, message.metadata])
 
   // Format citations for display
   const formattedCitations = useMemo(() => {
@@ -66,6 +74,16 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
     )
   }
 
+  if (message.status === 'searching') {
+    return (
+      <SearchingContainer>
+        <SearchOutlined size={24} />
+        <SearchingText>{t('message.searching')}</SearchingText>
+        <BarLoader color="#1677ff" />
+      </SearchingContainer>
+    )
+  }
+
   if (message.status === 'error') {
     return <MessageError message={message} />
   }
@@ -82,6 +100,19 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       </Flex>
       <MessageThought message={message} />
       <Markdown message={{ ...message, content: processedContent }} />
+      {message.translatedContent && (
+        <Fragment>
+          <Divider style={{ margin: 0, marginBottom: 10 }}>
+            <TranslationOutlined />
+          </Divider>
+          {message.translatedContent === t('translate.processing') ? (
+            <BeatLoader color="var(--color-text-2)" size="10" style={{ marginBottom: 15 }} />
+          ) : (
+            <Markdown message={{ ...message, content: message.translatedContent }} />
+          )}
+        </Fragment>
+      )}
+      <MessageSearchResults message={message} />
       {formattedCitations && (
         <CitationsContainer>
           <CitationsTitle>
@@ -95,20 +126,24 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           ))}
         </CitationsContainer>
       )}
-      {message.translatedContent && (
-        <Fragment>
-          <Divider style={{ margin: 0, marginBottom: 10 }}>
-            <TranslationOutlined />
-          </Divider>
-          {message.translatedContent === t('translate.processing') ? (
-            <BeatLoader color="var(--color-text-2)" size="10" style={{ marginBottom: 15 }} />
-          ) : (
-            <Markdown message={{ ...message, content: message.translatedContent }} />
-          )}
-        </Fragment>
+      {message?.metadata?.tavily && message.status === 'success' && (
+        <CitationsContainer className="footnotes">
+          <CitationsTitle>
+            {t('message.citations')}
+            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
+          </CitationsTitle>
+          {message.metadata.tavily.results.map((result, index) => (
+            <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
+              <Favicon src={`https://icon.horse/icon/${new URL(result.url).hostname}`} alt={result.title} />
+              <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
+                {result.title}
+              </CitationLink>
+            </HStack>
+          ))}
+        </CitationsContainer>
       )}
       <MessageAttachments message={message} />
-      <MessageSearchResults message={message} />
     </Fragment>
   )
 }
@@ -120,6 +155,17 @@ const MessageContentLoading = styled.div`
   height: 32px;
   margin-top: -5px;
   margin-bottom: 5px;
+`
+
+const SearchingContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  background-color: var(--color-background-mute);
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  gap: 10px;
 `
 
 const MentionTag = styled.span`
@@ -159,6 +205,20 @@ const CitationLink = styled.a`
   &:hover {
     text-decoration: underline;
   }
+`
+
+const SearchingText = styled.div`
+  font-size: 14px;
+  line-height: 1.6;
+  text-decoration: none;
+  color: var(--color-text-1);
+`
+
+const Favicon = styled.img`
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background-color: var(--color-background-mute);
 `
 
 export default React.memo(MessageContent)

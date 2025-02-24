@@ -1,13 +1,22 @@
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
+import { FOOTNOTE_PROMPT, REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
-import { getKnowledgeReferences } from '@renderer/services/KnowledgeService'
-import store from '@renderer/store'
-import type { Assistant, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { getKnowledgeBaseReferences } from '@renderer/services/KnowledgeService'
+import type {
+  Assistant,
+  GenerateImageParams,
+  KnowledgeReference,
+  Message,
+  Model,
+  Provider,
+  Suggestion
+} from '@renderer/types'
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
+import { TavilySearchResponse } from '@tavily/core'
 import { t } from 'i18next'
+import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
 
 import type { CompletionsParams } from '.'
@@ -82,39 +91,43 @@ export default abstract class BaseProvider {
   }
 
   public async getMessageContent(message: Message) {
-    if (!message.knowledgeBaseIds) {
-      return message.content
+    const webSearchReferences = await this.getWebSearchReferences(message)
+
+    if (!isEmpty(webSearchReferences)) {
+      const referenceContent = `\`\`\`json\n${JSON.stringify(webSearchReferences, null, 2)}\n\`\`\``
+      return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
     }
 
-    const bases = store.getState().knowledge.bases.filter((kb) => message.knowledgeBaseIds?.includes(kb.id))
+    const knowledgeReferences = await getKnowledgeBaseReferences(message)
 
-    if (!bases || bases.length === 0) {
-      return message.content
+    if (!isEmpty(message.knowledgeBaseIds) && isEmpty(knowledgeReferences)) {
+      window.message.info({ content: t('knowledge.no_match'), key: 'knowledge-base-no-match-info' })
     }
 
-    const allReferencesPromises = bases.map(async (base) => {
-      const references = await getKnowledgeReferences(base, message)
-
-      return {
-        knowledgeBaseId: base.id,
-        references
-      }
-    })
-    const allReferences = (await Promise.all(allReferencesPromises))
-      .filter((result) => result.references && result.references.length > 0)
-      .flat()
-
-    if (allReferences.length === 0) {
-      window.message.info({
-        content: t('knowledge.no_match'),
-        duration: 4,
-        key: 'knowledge-base-no-match-info'
-      })
-      return message.content
+    if (!isEmpty(knowledgeReferences)) {
+      const referenceContent = `\`\`\`json\n${JSON.stringify(knowledgeReferences, null, 2)}\n\`\`\``
+      return FOOTNOTE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
     }
-    const allReferencesContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
 
-    return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', allReferencesContent)
+    return message.content
+  }
+
+  private async getWebSearchReferences(message: Message) {
+    const webSearch: TavilySearchResponse = window.keyv.get(`web-search-${message.id}`)
+
+    if (webSearch) {
+      return webSearch.results.map(
+        (result, index) =>
+          ({
+            id: index + 1,
+            content: result.content,
+            sourceUrl: result.url,
+            type: 'url'
+          }) as KnowledgeReference
+      )
+    }
+
+    return []
   }
 
   protected getCustomParameters(assistant: Assistant) {

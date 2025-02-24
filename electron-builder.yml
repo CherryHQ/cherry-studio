@@ -24,6 +24,7 @@ files:
   - '!**/{LICENSE,LICENSE.txt,LICENSE-MIT.txt,*.LICENSE.txt,NOTICE.txt,README.md,CHANGELOG.md}'
   - '!node_modules/rollup-plugin-visualizer'
   - '!node_modules/js-tiktoken'
+  - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
   - '!node_modules/html2canvas/dist/{html2canvas.min.js,html2canvas.esm.js}'
@@ -80,12 +81,4 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    翻译增加历史记录
-    为单个消息增加导出功能
-    支持 PlantUML 显示和预览
-    修复知识库状态指示器显示问题
-    模型思考内容支持折叠设置和复制
-    编辑助手名字支持选择 Emoji
-    删除话题需要二次确认
-    话题右键菜单增加复制选项
-    修复暂停对话之后消息被覆盖问题
+    全部模型支持 Web 搜索

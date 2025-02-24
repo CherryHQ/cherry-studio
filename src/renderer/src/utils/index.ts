@@ -420,4 +420,28 @@ export function modalConfirm(params: ModalFuncProps) {
   })
 }
 
+export function getTitleFromString(str: string, length: number = 80) {
+  let title = str.split('\n')[0]
+
+  if (title.includes('。')) {
+    title = title.split('。')[0]
+  } else if (title.includes('，')) {
+    title = title.split('，')[0]
+  } else if (title.includes('.')) {
+    title = title.split('.')[0]
+  } else if (title.includes(',')) {
+    title = title.split(',')[0]
+  }
+
+  if (title.length > length) {
+    title = title.slice(0, length)
+  }
+
+  if (!title) {
+    title = str.slice(0, length)
+  }
+
+  return title
+}
+
 export { classNames }
