@@ -5,9 +5,9 @@ import {
   FullscreenOutlined,
   GlobalOutlined,
   PauseCircleOutlined,
+  PicCenterOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
-import { PicCenterOutlined } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
@@ -31,8 +31,9 @@ import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Popconfirm, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
+import Logger from 'electron-log'
 import { debounce, isEmpty } from 'lodash'
-import { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -390,18 +391,73 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     e.stopPropagation()
   }
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const filesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>): Promise<FileType[]> => {
+    if (e.dataTransfer.files.length > 0) {
+      const results = await Promise.allSettled([...e.dataTransfer.files].map((file) => window.api.file.get(file.path)))
+      const list: FileType[] = []
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          if (result.value !== null) {
+            list.push(result.value)
+          }
+        } else {
+          Logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] filesFromDropEvent:', result.reason)
+        }
+      }
+      return list
+    } else {
+      return new Promise((resolve) => {
+        let existCodefilesFormat = false
+        for (const item of e.dataTransfer.items) {
+          const { type } = item
+          if (type === 'codefiles') {
+            item.getAsString(async (filePathListString) => {
+              let filePathList: string[] | null = null
+              filePathList = JSON.parse(filePathListString) as string[]
+
+              if (filePathList) {
+                const filePathListPromises = filePathList.map((filePath) => window.api.file.get(filePath))
+                resolve(
+                  await Promise.allSettled(filePathListPromises).then((results) =>
+                    results
+                      .filter((result) => result.status === 'fulfilled')
+                      .filter((result) => result.value !== null)
+                      .map((result) => result.value!)
+                  )
+                )
+              } else {
+                resolve([])
+              }
+            })
+
+            existCodefilesFormat = true
+            break
+          }
+        }
+
+        if (!existCodefilesFormat) {
+          resolve([])
+        }
+      })
+    }
+  }
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
 
-    const files = Array.from(e.dataTransfer.files)
-
-    files.forEach(async (file) => {
-      if (supportExts.includes(getFileExtension(file.path))) {
-        const selectedFile = await window.api.file.get(file.path)
-        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-      }
+    const files = await filesFromDropEvent(e).catch((err) => {
+      Logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] handleDrop:', err)
+      return null
     })
+
+    if (files) {
+      files.forEach((file) => {
+        if (supportExts.includes(getFileExtension(file.path))) {
+          setFiles((prevFiles) => [...prevFiles, file])
+        }
+      })
+    }
   }
 
   const onTranslated = (translatedText: string) => {
