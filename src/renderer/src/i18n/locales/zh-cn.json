@@ -190,7 +190,8 @@
       "select": "选择",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户"
+      "you": "用户",
+      "fullscreen": "已进入全屏模式，按 F11 退出"
     },
     "docs": {
       "title": "帮助文档"

@@ -1,6 +1,8 @@
 import '@renderer/databases'
 
 import store, { persistor } from '@renderer/store'
+import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Provider } from 'react-redux'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
@@ -21,6 +23,24 @@ import SettingsPage from './pages/settings/SettingsPage'
 import TranslatePage from './pages/translate/TranslatePage'
 
 function App(): JSX.Element {
+  const { t } = useTranslation()
+
+  useEffect(() => {
+    const cleanup = window.electron.ipcRenderer.on('fullscreen-status-changed', (_, isFullscreen) => {
+      if (isFullscreen) {
+        window.message.info({
+          content: t('common.fullscreen'),
+          duration: 3,
+          key: 'fullscreen-notification'
+        })
+      }
+    })
+
+    return () => {
+      cleanup()
+    }
+  }, [t])
+
   return (
     <Provider store={store}>
       <ThemeProvider>

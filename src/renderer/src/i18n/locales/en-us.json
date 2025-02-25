@@ -190,7 +190,8 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "fullscreen": "Entered fullscreen mode. Press F11 to exit"
     },
     "docs": {
       "title": "Docs"
