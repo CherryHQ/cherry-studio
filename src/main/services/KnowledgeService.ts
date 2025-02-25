@@ -15,11 +15,11 @@ import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
+import * as KnowledgeWatchService from './KnowledgeWatchService'
 import { windowService } from './WindowService'
 
 class KnowledgeService {
   private storageDir = path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')
-
   constructor() {
     this.initStorageDir()
   }
@@ -95,12 +95,26 @@ class KnowledgeService {
 
     if (item.type === 'directory') {
       const directory = item.content as string
+      const directoryId = `DirectoryLoader_${uuidv4()}`
+      // 先添加目录本身
+      const dirMtime = fs.statSync(directory).mtime
+      console.log('[KnowledgeService] add directory', directoryId)
+      KnowledgeWatchService.knowledgeWatchService.add(item.type, directory, directoryId, dirMtime.toISOString())
       const files = getAllFiles(directory)
       const totalFiles = files.length
       let processedFiles = 0
-
       const loaderPromises = files.map(async (file) => {
         const result = await addFileLoader(ragApplication, file, base, forceReload)
+        const uniqueId = result.uniqueId || path.basename(file.path)
+        const fileMtime = fs.statSync(file.path).mtime
+        KnowledgeWatchService.knowledgeWatchService.add(
+          'file',
+          file.path,
+          uniqueId,
+          fileMtime.toISOString(),
+          directoryId
+        )
+
         processedFiles++
         sendDirectoryProcessingPercent(totalFiles, processedFiles)
         return result
@@ -114,7 +128,7 @@ class KnowledgeService {
 
       return {
         entriesAdded: loaderResults.length,
-        uniqueId: `DirectoryLoader_${uuidv4()}`,
+        uniqueId: directoryId,
         uniqueIds,
         loaderType: 'DirectoryLoader'
       } as LoaderReturn
@@ -168,8 +182,10 @@ class KnowledgeService {
 
     if (item.type === 'file') {
       const file = item.content as FileType
-
-      return await addFileLoader(ragApplication, file, base, forceReload)
+      const fileMtime = fs.statSync(file.path).mtime
+      const result = await addFileLoader(ragApplication, file, base, forceReload)
+      KnowledgeWatchService.knowledgeWatchService.add(item.type, file.path, result.uniqueId, fileMtime.toISOString())
+      return result
     }
 
     return { entriesAdded: 0, uniqueId: '', uniqueIds: [''], loaderType: '' }
@@ -184,6 +200,7 @@ class KnowledgeService {
     for (const id of uniqueIds) {
       await ragApplication.deleteLoader(id)
     }
+    KnowledgeWatchService.knowledgeWatchService.remove(uniqueId)
   }
 
   public search = async (

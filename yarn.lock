@@ -3038,6 +3038,7 @@ __metadata:
     applescript: "npm:^1.0.0"
     axios: "npm:^1.7.3"
     browser-image-compression: "npm:^2.0.2"
+    chokidar: "npm:^4.0.3"
     dayjs: "npm:^1.11.11"
     dexie: "npm:^4.0.8"
     dexie-react-hooks: "npm:^1.1.7"
@@ -4240,7 +4241,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chokidar@npm:^4.0.0":
+"chokidar@npm:^4.0.0, chokidar@npm:^4.0.3":
   version: 4.0.3
   resolution: "chokidar@npm:4.0.3"
   dependencies:

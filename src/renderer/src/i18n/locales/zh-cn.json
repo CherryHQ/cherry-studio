@@ -285,6 +285,7 @@
       "drag_file": "拖拽文件到这里",
       "empty": "暂无知识库",
       "file_hint": "支持 {{file_types}} 格式",
+      "file_or_directory_changed": "检测到知识库文件/文件夹修改",
       "index_all": "索引全部",
       "index_cancelled": "索引已取消",
       "index_started": "索引开始",
@@ -599,6 +600,10 @@
         "minute_interval_other": "{{count}} 分钟",
         "notion.api_key": "Notion 密钥",
         "notion.api_key_placeholder": "请输入Notion 密钥",
+        "notion.database_id": "Notion 数据库 ID",
+        "notion.database_id_placeholder": "请输入Notion 数据库 ID",
+        "notion.title": "Notion 配置",
+        "notion.help": "Notion 配置文档",
         "notion.check": {
           "button": "检查",
           "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",

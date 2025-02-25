@@ -66,6 +66,7 @@
     "@types/react-infinite-scroll-component": "^5.0.0",
     "adm-zip": "^0.5.16",
     "apache-arrow": "^18.1.0",
+    "chokidar": "^4.0.3",
     "docx": "^9.0.2",
     "electron-log": "^5.1.5",
     "electron-store": "^8.2.0",
