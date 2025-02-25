@@ -312,6 +312,17 @@ export const PROVIDER_CONFIG = {
       models: 'https://modelscope.cn/models'
     }
   },
+  xirang: {
+    api: {
+      url: 'https://wishub-x1.ctyun.cn/v1/'
+    },
+    websites: {
+      official: 'https://www.ctyun.cn',
+      apiKey: 'https://www.ctyun.cn/act/xirang/deepseek',
+      docs: 'https://www.ctyun.cn/document',
+      models: 'https://www.ctyun.cn/act/xirang/deepseek'
+    }
+  },
   dashscope: {
     api: {
       url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/'
