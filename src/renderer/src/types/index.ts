@@ -292,6 +292,8 @@ export type WebSearchProvider = {
   id: string
   name: string
   apiKey: string
+  maxResults?: number
+  excludedDomains?: string[]
 }
 
 export type KnowledgeReference = {

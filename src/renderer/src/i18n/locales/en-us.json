@@ -823,6 +823,14 @@
       "websearch": {
         "title": "Web Search",
         "get_api_key": "Get API Key",
+        "max_results": {
+          "label": "Max Results"
+        },
+        "excluded_domains": {
+          "label": "Excluded Domains",
+          "placeholder": "Separate domains with commas, e.g.: example.com, test.org",
+          "help": "Use commas to separate multiple domains"
+        },
         "tavily": {
           "title": "Tavily",
           "description": "Tavily is a web search tool that integrates multiple search engines. It supports multiple languages and search engines.",
