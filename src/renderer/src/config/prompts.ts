@@ -64,6 +64,8 @@ export const REFERENCE_PROMPT = `请根据参考资料回答问题
 ## 参考资料：
 
 {references}
+
+请使用同用户问题相同的语言进行回答。
 `
 
 export const FOOTNOTE_PROMPT = `请根据参考资料回答问题，并使用脚注格式引用数据来源。请忽略无关的参考资料。
