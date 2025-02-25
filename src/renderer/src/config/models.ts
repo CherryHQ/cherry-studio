@@ -971,11 +971,61 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   bailian: [
+    { id: 'qwen-omni-turbo', name: 'qwen-omni-turbo', provider: 'bailian', group: 'qwen-omni', owned_by: 'system' },
+    {
+      id: 'qwen-omni-turbo-latest',
+      name: 'qwen-omni-turbo-latest',
+      provider: 'bailian',
+      group: 'qwen-omni',
+      owned_by: 'system'
+    },
     { id: 'qwen-vl-plus', name: 'qwen-vl-plus', provider: 'dashscope', group: 'qwen-vl', owned_by: 'system' },
+    {
+      id: 'qwen-vl-plus-latest',
+      name: 'qwen-vl-plus-latest',
+      provider: 'dashscope',
+      group: 'qwen-vl',
+      owned_by: 'system'
+    },
+    { id: 'qwen-vl-max', name: 'qwen-vl-max', provider: 'dashscope', group: 'qwen-vl', owned_by: 'system' },
+    {
+      id: 'qwen-vl-max-latest',
+      name: 'qwen-vl-max-latest',
+      provider: 'dashscope',
+      group: 'qwen-vl',
+      owned_by: 'system'
+    },
     { id: 'qwen-coder-plus', name: 'qwen-coder-plus', provider: 'dashscope', group: 'qwen-coder', owned_by: 'system' },
+    {
+      id: 'qwen-coder-plus-latest',
+      name: 'qwen-coder-plus-latest',
+      provider: 'dashscope',
+      group: 'qwen-coder',
+      owned_by: 'system'
+    },
     { id: 'qwen-turbo', name: 'qwen-turbo', provider: 'dashscope', group: 'qwen-turbo', owned_by: 'system' },
+    {
+      id: 'qwen-turbo-latest',
+      name: 'qwen-turbo-latest',
+      provider: 'dashscope',
+      group: 'qwen-turbo',
+      owned_by: 'system'
+    },
+    { id: 'qwen-long', name: 'qwen-long', provider: 'dashscope', group: 'qwen-long', owned_by: 'system' },
     { id: 'qwen-plus', name: 'qwen-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
-    { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' }
+    { id: 'qwen-plus-latest', name: 'qwen-plus-latest', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
+    { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
+    { id: 'qwen-max-latest', name: 'qwen-max-latest', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
+    { id: 'qwen-math-plus', name: 'qwen-math-plus', provider: 'dashscope', group: 'qwen-math', owned_by: 'system' },
+    {
+      id: 'qwen-math-plus-latest',
+      name: 'qwen-math-plus-latest',
+      provider: 'dashscope',
+      group: 'qwen-math',
+      owned_by: 'system'
+    },
+    { id: 'qwen-mt-plus', name: 'qwen-mt-plus', provider: 'dashscope', group: 'qwen-mt', owned_by: 'system' },
+    { id: 'qwen-mt-turbo', name: 'qwen-mt-turbo', provider: 'dashscope', group: 'qwen-mt', owned_by: 'system' }
   ],
   stepfun: [
     {
