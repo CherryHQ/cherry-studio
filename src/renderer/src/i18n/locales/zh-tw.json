@@ -800,6 +800,14 @@
       "websearch": {
         "title": "網路搜索",
         "get_api_key": "點擊這裡獲取密鑰",
+        "max_results": {
+          "label": "搜索結果數量"
+        },
+        "excluded_domains": {
+          "label": "排除的域名",
+          "placeholder": "使用逗號分隔多個域名，例如: example.com, test.org",
+          "help": "多個域名請使用逗號分隔"
+        },
         "tavily": {
           "title": "Tavily",
           "description": "Tavily 是一個集成了多個搜索引擎的網路搜索工具，支持多種語言和多種搜索引擎。",

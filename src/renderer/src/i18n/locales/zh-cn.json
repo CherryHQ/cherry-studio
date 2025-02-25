@@ -809,6 +809,14 @@
       "websearch": {
         "title": "网络搜索",
         "get_api_key": "点击这里获取密钥",
+        "max_results": {
+          "label": "搜索结果数量"
+        },
+        "excluded_domains": {
+          "label": "排除的域名",
+          "placeholder": "使用逗号分隔多个域名，例如: example.com, test.org",
+          "help": "多个域名请使用逗号分隔"
+        },
         "tavily": {
           "title": "Tavily",
           "description": "Tavily 是一个集成了多个搜索引擎的网络搜索工具，支持多种语言和多种搜索引擎。",

@@ -800,6 +800,14 @@
       "websearch": {
         "title": "ウェブ検索",
         "get_api_key": "APIキーを取得",
+        "max_results": {
+          "label": "検索結果の数"
+        },
+        "excluded_domains": {
+          "label": "除外ドメイン",
+          "placeholder": "カンマで区切って複数のドメインを入力、例: example.com, test.org",
+          "help": "複数のドメインはカンマで区切ってください"
+        },
         "tavily": {
           "title": "Tavily",
           "description": "Tavily は、複数の検索エンジンを統合したウェブ検索ツールです。多くの言語と検索エンジンをサポートしています。",
