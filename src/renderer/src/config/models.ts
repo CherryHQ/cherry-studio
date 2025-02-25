@@ -475,21 +475,33 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   anthropic: [
     {
-      id: 'claude-3-5-sonnet-latest',
+      id: 'claude-3-7-sonnet-20250219',
+      provider: 'anthropic',
+      name: 'Claude 3.7 Sonnet',
+      group: 'Claude 3.7'
+    },
+    {
+      id: 'claude-3-5-sonnet-20241022',
       provider: 'anthropic',
       name: 'Claude 3.5 Sonnet',
       group: 'Claude 3.5'
     },
     {
-      id: 'claude-3-opus-latest',
+      id: 'claude-3-5-haiku-20241022',
       provider: 'anthropic',
-      name: 'Claude 3 Opus',
-      group: 'Claude 3'
+      name: 'Claude 3 Haiku',
+      group: 'Claude 3.5'
     },
     {
-      id: 'claude-3-sonnet-20240229',
+      id: 'claude-3-5-sonnet-20240620',
       provider: 'anthropic',
-      name: 'Claude 3 Sonnet',
+      name: 'Claude 3.5 Sonnet (Legacy)',
+      group: 'Claude 3.5'
+    },
+    {
+      id: 'claude-3-opus-20240229',
+      provider: 'anthropic',
+      name: 'Claude 3 Opus',
       group: 'Claude 3'
     },
     {
