@@ -23,7 +23,12 @@ import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
-import { exportMarkdownToNotion, exportTopicAsMarkdown, topicToMarkdown } from '@renderer/utils/export'
+import {
+  exportMarkdownToNotion,
+  exportMarkdownToYuque,
+  exportTopicAsMarkdown,
+  topicToMarkdown
+} from '@renderer/utils/export'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
@@ -238,6 +243,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
                 exportMarkdownToNotion(topic.name, markdown)
+              }
+            },
+            {
+              label: t('chat.topics.export.yuque'),
+              key: 'yuque',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToYuque(topic.name, markdown)
               }
             }
           ]

@@ -141,6 +141,7 @@
       "topics.export.image": "导出为图片",
       "topics.export.md": "导出为 Markdown",
       "topics.export.notion": "导出到 Notion",
+      "topics.export.yuque": "导出到语雀",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
       "topics.list": "话题列表",
@@ -190,7 +191,8 @@
       "select": "选择",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户"
+      "you": "用户",
+      "fullscreen": "已进入全屏模式，按 F11 退出"
     },
     "docs": {
       "title": "帮助文档"
@@ -379,7 +381,9 @@
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
       "error.notion.export": "导出Notion错误，请检查连接状态并对照文档检查配置",
+      "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
       "error.notion.no_api_key": "未配置Notion ApiKey或Notion DatabaseID",
+      "error.yuque.no_config": "未配置语雀Token 或 知识库Url",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
       "mention.title": "切换模型回答",
@@ -401,6 +405,7 @@
       "restore.success": "恢复成功",
       "save.success.title": "保存成功",
       "success.notion.export": "成功导出到Notion",
+      "success.yuque.export": "成功导出到语雀",
       "switch.disabled": "请等待当前回复完成后操作",
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -600,11 +605,11 @@
         "notion.api_key_placeholder": "请输入Notion 密钥",
         "notion.check": {
           "button": "检查",
-          "empty_api_key": "未配置Api_key",
-          "empty_database_id": "未配置Database_id",
-          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
           "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",
-          "success": "连接成功"
+          "success": "连接成功",
+          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
+          "empty_api_key": "未配置Api_key",
+          "empty_database_id": "未配置Database_id"
         },
         "notion.database_id": "Notion 数据库 ID",
         "notion.database_id_placeholder": "请输入Notion 数据库 ID",
@@ -612,15 +617,6 @@
         "notion.page_name_key": "页面标题字段名",
         "notion.page_name_key_placeholder": "请输入页面标题字段名，默认为 Name",
         "notion.title": "Notion 配置",
-        "notion.help": "Notion 配置文档",
-        "notion.check": {
-          "button": "检查",
-          "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",
-          "success": "连接成功",
-          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
-          "empty_api_key": "未配置Api_key",
-          "empty_database_id": "未配置Database_id"
-        },
         "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
         "notion.auto_split": "导出对话时自动分页",
         "notion.split_size": "自动分页大小",
@@ -649,6 +645,21 @@
           "syncStatus": "备份状态",
           "title": "WebDAV",
           "user": "WebDAV 用户名"
+        },
+        "yuque": {
+          "title": "语雀配置",
+          "repo_url": "知识库 URL",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "token": "语雀 Token",
+          "token_placeholder": "请输入语雀Token",
+          "help": "获取语雀 Token",
+          "check": {
+            "button": "验证连接",
+            "success": "语雀连接验证成功",
+            "fail": "语雀连接验证失败",
+            "empty_token": "请先输入语雀Token",
+            "empty_repo_url": "请先输入知识库URL"
+          }
         }
       },
       "display.custom.css": "自定义 CSS",
@@ -816,7 +827,8 @@
           "description": "Tavily 是一个集成了多个搜索引擎的网络搜索工具，支持多种语言和多种搜索引擎。",
           "api_key": "Tavily API 密钥",
           "api_key.placeholder": "请输入 Tavily API 密钥"
-        }
+        },
+        "search_with_time": "搜索包含日期"
       }
     },
     "translate": {

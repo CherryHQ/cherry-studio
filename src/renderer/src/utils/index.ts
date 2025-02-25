@@ -308,6 +308,16 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
         imageTimeout: 0, // Disable image timeout
         backgroundColor: getComputedStyle(div).getPropertyValue('--color-background'),
         onclone: (clonedDoc) => {
+          // 克隆时保留原始样式
+          if (div.id) {
+            const clonedDiv = clonedDoc.querySelector(`#${div.id}`) as HTMLElement
+            if (clonedDiv) {
+              const computedStyle = getComputedStyle(div)
+              clonedDiv.style.backgroundColor = computedStyle.backgroundColor
+              clonedDiv.style.color = computedStyle.color
+            }
+          }
+
           // Ensure all images in cloned document are loaded
           const images = clonedDoc.getElementsByTagName('img')
           return Promise.all(

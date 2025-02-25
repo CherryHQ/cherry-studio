@@ -73,6 +73,9 @@ export interface SettingsState {
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
+  yuqueToken: string | null
+  yuqueUrl: string | null
+  yuqueRepoId: string | null
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -131,7 +134,10 @@ const initialState: SettingsState = {
   notionPageNameKey: 'Name',
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
-  notionSplitSize: 90
+  notionSplitSize: 90,
+  yuqueToken: '',
+  yuqueUrl: '',
+  yuqueRepoId: ''
 }
 
 const settingsSlice = createSlice({
@@ -189,7 +195,6 @@ const settingsSlice = createSlice({
     },
     setWindowStyle: (state, action: PayloadAction<'transparent' | 'opaque'>) => {
       state.windowStyle = action.payload
-      console.log(state.windowStyle)
     },
     setTopicPosition: (state, action: PayloadAction<'left' | 'right'>) => {
       state.topicPosition = action.payload
@@ -303,6 +308,15 @@ const settingsSlice = createSlice({
     },
     setNotionSplitSize: (state, action: PayloadAction<number>) => {
       state.notionSplitSize = action.payload
+    },
+    setYuqueToken: (state, action: PayloadAction<string>) => {
+      state.yuqueToken = action.payload
+    },
+    setYuqueRepoId: (state, action: PayloadAction<string>) => {
+      state.yuqueRepoId = action.payload
+    },
+    setYuqueUrl: (state, action: PayloadAction<string>) => {
+      state.yuqueUrl = action.payload
     }
   }
 })
@@ -360,7 +374,10 @@ export const {
   setNotionPageNameKey,
   setThoughtAutoCollapse,
   setNotionAutoSplit,
-  setNotionSplitSize
+  setNotionSplitSize,
+  setYuqueToken,
+  setYuqueRepoId,
+  setYuqueUrl
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
