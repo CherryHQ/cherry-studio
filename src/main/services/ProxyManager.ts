@@ -35,7 +35,6 @@ export class ProxyManager {
       } else {
         await this.clearProxy()
       }
-      console.log(this.config)
     } catch (error) {
       console.error('Failed to config proxy:', error)
       throw error
