@@ -33,9 +33,9 @@ class WebSearchService {
 
     const provider = this.getWebSearchProvider()
     const tvly = tavily({ apiKey: provider.apiKey })
-    return await tvly.search(query, {
+    return await tvly.search(formatted_query, {
       maxResults: provider.maxResults || 5,
-      excludedDomains: provider.excludedDomains || []
+      excludeDomains: provider.excludedDomains || []
     })
   }
 }
