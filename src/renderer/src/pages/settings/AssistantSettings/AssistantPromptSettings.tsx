@@ -19,26 +19,43 @@ interface Props {
 }
 
 const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, onOk }) => {
-  const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
-  const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
+  const extractedEmoji = getLeadingEmoji(assistant.name)
+  const initialEmoji = extractedEmoji || assistant.emoji
+  const initialName = assistant.name.replace(extractedEmoji || '', '').trim()
+
+  const [emoji, setEmoji] = useState(initialEmoji)
+  const [name, setName] = useState(initialName)
   const [prompt, setPrompt] = useState(assistant.prompt)
   const { t } = useTranslation()
 
   const onUpdate = () => {
-    const _assistant = { ...assistant, name: `${emoji} ${name}`.trim(), prompt }
+    const currentPureName = name.trim()
+    const nameChanged = currentPureName !== initialName
+    const updatedName = nameChanged ? (emoji ? `${emoji} ${currentPureName}` : currentPureName) : assistant.name
+    const _assistant = { ...assistant, name: updatedName, prompt }
     updateAssistant(_assistant)
+  }
+
+  const updateAssistantWithName = (newEmoji: string, preserveEmoji: boolean = true) => {
+    const pureName = name.trim()
+    const newName = newEmoji && preserveEmoji ? `${newEmoji} ${pureName}` : pureName
+
+    updateAssistant({
+      ...assistant,
+      name: newName,
+      prompt,
+      ...(preserveEmoji ? {} : { emoji: '' })
+    })
   }
 
   const handleEmojiSelect = (selectedEmoji: string) => {
     setEmoji(selectedEmoji)
-    const _assistant = { ...assistant, name: `${selectedEmoji} ${name}`.trim(), prompt }
-    updateAssistant(_assistant)
+    updateAssistantWithName(selectedEmoji)
   }
 
   const handleEmojiDelete = () => {
     setEmoji('')
-    const _assistant = { ...assistant, name: name.trim(), prompt, emoji: '' }
-    updateAssistant(_assistant)
+    updateAssistantWithName('', false)
   }
 
   return (
