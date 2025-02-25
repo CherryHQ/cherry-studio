@@ -77,6 +77,7 @@
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
     "tokenx": "^0.4.1",
+    "undici": "^7.3.0",
     "webdav": "4.11.4"
   },
   "devDependencies": {
