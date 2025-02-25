@@ -190,7 +190,8 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "fullscreen": "Entered fullscreen mode. Press F11 to exit"
     },
     "docs": {
       "title": "Docs"
@@ -316,7 +317,9 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "edit_remark": "Edit Remark",
+      "edit_remark_placeholder": "Please enter remark content"
     },
     "languages": {
       "arabic": "Arabic",
@@ -812,8 +815,9 @@
           "title": "Tavily",
           "description": "Tavily is a web search tool that integrates multiple search engines. It supports multiple languages and search engines.",
           "api_key": "Tavily API Key",
-          "api_key.placeholder": "Enter your Tavily API Key"
-        }
+          "api_key.placeholder": "Enter Tavily API Key"
+        },
+        "search_with_time": "Search with dates included"
       }
     },
     "translate": {

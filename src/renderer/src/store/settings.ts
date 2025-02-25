@@ -189,7 +189,6 @@ const settingsSlice = createSlice({
     },
     setWindowStyle: (state, action: PayloadAction<'transparent' | 'opaque'>) => {
       state.windowStyle = action.payload
-      console.log(state.windowStyle)
     },
     setTopicPosition: (state, action: PayloadAction<'left' | 'right'>) => {
       state.topicPosition = action.payload

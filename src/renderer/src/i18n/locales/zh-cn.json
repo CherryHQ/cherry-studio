@@ -190,7 +190,8 @@
       "select": "选择",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户"
+      "you": "用户",
+      "fullscreen": "已进入全屏模式，按 F11 退出"
     },
     "docs": {
       "title": "帮助文档"
@@ -316,7 +317,9 @@
       "title": "知识库",
       "url_added": "网址已添加",
       "url_placeholder": "请输入网址, 多个网址用回车分隔",
-      "urls": "网址"
+      "urls": "网址",
+      "edit_remark": "修改备注",
+      "edit_remark_placeholder": "请输入备注内容"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -598,11 +601,11 @@
         "notion.api_key_placeholder": "请输入Notion 密钥",
         "notion.check": {
           "button": "检查",
-          "empty_api_key": "未配置Api_key",
-          "empty_database_id": "未配置Database_id",
-          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
           "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",
-          "success": "连接成功"
+          "success": "连接成功",
+          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
+          "empty_api_key": "未配置Api_key",
+          "empty_database_id": "未配置Database_id"
         },
         "notion.database_id": "Notion 数据库 ID",
         "notion.database_id_placeholder": "请输入Notion 数据库 ID",
@@ -610,15 +613,6 @@
         "notion.page_name_key": "页面标题字段名",
         "notion.page_name_key_placeholder": "请输入页面标题字段名，默认为 Name",
         "notion.title": "Notion 配置",
-        "notion.help": "Notion 配置文档",
-        "notion.check": {
-          "button": "检查",
-          "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",
-          "success": "连接成功",
-          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
-          "empty_api_key": "未配置Api_key",
-          "empty_database_id": "未配置Database_id"
-        },
         "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
         "notion.auto_split": "导出对话时自动分页",
         "notion.split_size": "自动分页大小",
@@ -822,7 +816,8 @@
           "description": "Tavily 是一个集成了多个搜索引擎的网络搜索工具，支持多种语言和多种搜索引擎。",
           "api_key": "Tavily API 密钥",
           "api_key.placeholder": "请输入 Tavily API 密钥"
-        }
+        },
+        "search_with_time": "搜索包含日期"
       }
     },
     "translate": {

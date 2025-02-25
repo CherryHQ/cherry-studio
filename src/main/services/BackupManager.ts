@@ -6,6 +6,7 @@ import * as fs from 'fs-extra'
 import * as path from 'path'
 
 import WebDav from './WebDav'
+import { exec } from 'child_process'
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -16,6 +17,53 @@ class BackupManager {
     this.restore = this.restore.bind(this)
     this.backupToWebdav = this.backupToWebdav.bind(this)
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
+  }
+
+  private async setWritableRecursive(dirPath: string): Promise<void> {
+    try {
+      const items = await fs.readdir(dirPath, { withFileTypes: true });
+
+      for (const item of items) {
+        const fullPath = path.join(dirPath, item.name);
+
+        // 先处理子目录
+        if (item.isDirectory()) {
+          await this.setWritableRecursive(fullPath);
+        }
+
+        // 统一设置权限（Windows需要特殊处理）
+        await this.forceSetWritable(fullPath);
+      }
+
+      // 确保根目录权限
+      await this.forceSetWritable(dirPath);
+    } catch (error) {
+      Logger.error(`权限设置失败：${dirPath}`, error);
+      throw error;
+    }
+  }
+
+  // 新增跨平台权限设置方法
+  private async forceSetWritable(targetPath: string): Promise<void> {
+    try {
+      // Windows系统需要先取消只读属性
+      if (process.platform === 'win32') {
+        await fs.chmod(targetPath, 0o666); // Windows会忽略权限位但能移除只读
+      } else {
+        const stats = await fs.stat(targetPath);
+        const mode = stats.isDirectory() ? 0o777 : 0o666;
+        await fs.chmod(targetPath, mode);
+      }
+
+      // 双重保险：使用文件属性命令（Windows专用）
+      if (process.platform === 'win32') {
+        await exec(`attrib -R "${targetPath}" /L /D`);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        Logger.warn(`权限设置警告：${targetPath}`, error);
+      }
+    }
   }
 
   async backup(
@@ -35,6 +83,7 @@ class BackupManager {
       const sourcePath = path.join(app.getPath('userData'), 'Data')
       const tempDataDir = path.join(this.tempDir, 'Data')
       await fs.copy(sourcePath, tempDataDir)
+      await this.setWritableRecursive(tempDataDir)
 
       // 使用 adm-zip 创建压缩文件
       const zip = new AdmZip()
@@ -75,6 +124,7 @@ class BackupManager {
       // 恢复 Data 目录
       const sourcePath = path.join(this.tempDir, 'Data')
       const destPath = path.join(app.getPath('userData'), 'Data')
+      await this.setWritableRecursive(destPath)
       await fs.remove(destPath)
       await fs.copy(sourcePath, destPath)
 

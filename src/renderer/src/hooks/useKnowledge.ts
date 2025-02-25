@@ -207,9 +207,14 @@ export const useKnowledge = (baseId: string) => {
         return
       }
 
-      const cleanup = window.electron.ipcRenderer.on(itemId, (_, progressingPercent: number) => {
-        setPercent(progressingPercent)
-      })
+      const cleanup = window.electron.ipcRenderer.on(
+        'directory-processing-percent',
+        (_, { itemId: id, percent }: { itemId: string; percent: number }) => {
+          if (itemId === id) {
+            setPercent(percent)
+          }
+        }
+      )
 
       return () => {
         cleanup()

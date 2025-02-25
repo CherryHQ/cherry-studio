@@ -87,7 +87,10 @@ class KnowledgeService {
 
     const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {
       const mainWindow = windowService.getMainWindow()
-      mainWindow?.webContents.send(base.id, (processedFiles / totalFiles) * 100)
+      mainWindow?.webContents.send('directory-processing-percent', {
+        itemId: item.id,
+        percent: (processedFiles / totalFiles) * 100
+      })
     }
 
     if (item.type === 'directory') {
@@ -105,7 +108,9 @@ class KnowledgeService {
 
       const loaderResults = await Promise.allSettled(loaderPromises)
       // @ts-ignore uniqueId
-      const uniqueIds = loaderResults.filter((result) => result.status === 'fulfilled').map((result) => result.uniqueId)
+      const uniqueIds = loaderResults
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value.uniqueId)
 
       return {
         entriesAdded: loaderResults.length,

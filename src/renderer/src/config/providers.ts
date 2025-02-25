@@ -234,7 +234,7 @@ export const PROVIDER_CONFIG = {
   },
   infini: {
     api: {
-      url: 'https://cloud.infini-ai.com'
+      url: 'https://cloud.infini-ai.com/maas'
     },
     websites: {
       official: 'https://cloud.infini-ai.com/',
