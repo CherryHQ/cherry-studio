@@ -3094,6 +3094,7 @@ __metadata:
     tinycolor2: "npm:^1.6.0"
     tokenx: "npm:^0.4.1"
     typescript: "npm:^5.6.2"
+    undici: "npm:^7.3.0"
     uuid: "npm:^10.0.0"
     vite: "npm:^5.0.12"
     webdav: "npm:4.11.4"
@@ -13940,6 +13941,13 @@ __metadata:
   version: 6.20.0
   resolution: "undici-types@npm:6.20.0"
   checksum: 10c0/68e659a98898d6a836a9a59e6adf14a5d799707f5ea629433e025ac90d239f75e408e2e5ff086afc3cace26f8b26ee52155293564593fbb4a2f666af57fc59bf
+  languageName: node
+  linkType: hard
+
+"undici@npm:^7.3.0":
+  version: 7.3.0
+  resolution: "undici@npm:7.3.0"
+  checksum: 10c0/62c5e335725cadb02e19950932c7823fc330cbfd80106e6836daa6db1379aa727510b77de0a4e6f912087b288ded93f7daf4b8c154ad36fd5c9c4b96b26888b8
   languageName: node
   linkType: hard
 
