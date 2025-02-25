@@ -29,6 +29,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
   const { t } = useTranslation()
   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
   const { clickAssistantToShowTopic, topicPosition } = useSettings()
+  const assistantName = assistant.name || t('chat.default.name')
 
   const getMenuItems = useCallback(
     (assistant: Assistant): ItemType[] => [
@@ -110,7 +111,9 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
   return (
     <Dropdown menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
       <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
-        <AssistantName className="name">{assistant.name || t('chat.default.name')}</AssistantName>
+        <AssistantName className="name" title={assistantName}>
+          {assistantName}
+        </AssistantName>
         {isActive && (
           <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
             <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
