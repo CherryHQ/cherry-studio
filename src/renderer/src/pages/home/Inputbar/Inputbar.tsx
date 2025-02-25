@@ -5,9 +5,9 @@ import {
   FullscreenOutlined,
   GlobalOutlined,
   PauseCircleOutlined,
+  PicCenterOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
-import { PicCenterOutlined } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
@@ -27,12 +27,14 @@ import { setGenerating, setSearching } from '@renderer/store/runtime'
 import { Assistant, FileType, KnowledgeBase, Message, Model, Topic } from '@renderer/types'
 import { classNames, delay, getFileExtension, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
+import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Popconfirm, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
+import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
-import { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -390,18 +392,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     e.stopPropagation()
   }
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
 
-    const files = Array.from(e.dataTransfer.files)
-
-    files.forEach(async (file) => {
-      if (supportExts.includes(getFileExtension(file.path))) {
-        const selectedFile = await window.api.file.get(file.path)
-        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-      }
+    const files = await getFilesFromDropEvent(e).catch((err) => {
+      Logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] handleDrop:', err)
+      return null
     })
+
+    if (files) {
+      files.forEach((file) => {
+        if (supportExts.includes(getFileExtension(file.path))) {
+          setFiles((prevFiles) => [...prevFiles, file])
+        }
+      })
+    }
   }
 
   const onTranslated = (translatedText: string) => {

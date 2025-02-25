@@ -9,6 +9,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
+import useFullScreenNotice from './useFullScreenNotice'
 import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
@@ -21,6 +22,8 @@ export function useAppInit() {
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
 
   useUpdateHandler()
+
+  useFullScreenNotice()
 
   useEffect(() => {
     avatar?.value && dispatch(setAvatar(avatar.value))

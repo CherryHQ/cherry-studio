@@ -137,6 +137,7 @@ const visionAllowedModels = [
   'moondream',
   'minicpm',
   'gemini-1\\.5',
+  'gemini-2\\.0',
   'gemini-exp',
   'claude-3',
   'vision',
@@ -454,29 +455,53 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Gemini 1.5'
     },
     {
+      id: 'gemini-1.5-flash-8b',
+      provider: 'gemini',
+      name: 'Gemini 1.5 Flash (8B)',
+      group: 'Gemini 1.5'
+    },
+    {
       id: 'gemini-1.5-pro',
       name: 'Gemini 1.5 Pro',
       provider: 'gemini',
-      group: 'gemini-1.5'
+      group: 'Gemini 1.5'
+    },
+    {
+      id: 'gemini-2.0-flash',
+      provider: 'gemini',
+      name: 'Gemini 2.0 Flash',
+      group: 'Gemini 2.0'
     }
   ],
   anthropic: [
     {
-      id: 'claude-3-5-sonnet-latest',
+      id: 'claude-3-7-sonnet-20250219',
+      provider: 'anthropic',
+      name: 'Claude 3.7 Sonnet',
+      group: 'Claude 3.7'
+    },
+    {
+      id: 'claude-3-5-sonnet-20241022',
       provider: 'anthropic',
       name: 'Claude 3.5 Sonnet',
       group: 'Claude 3.5'
     },
     {
-      id: 'claude-3-opus-latest',
+      id: 'claude-3-5-haiku-20241022',
       provider: 'anthropic',
-      name: 'Claude 3 Opus',
-      group: 'Claude 3'
+      name: 'Claude 3 Haiku',
+      group: 'Claude 3.5'
     },
     {
-      id: 'claude-3-sonnet-20240229',
+      id: 'claude-3-5-sonnet-20240620',
       provider: 'anthropic',
-      name: 'Claude 3 Sonnet',
+      name: 'Claude 3.5 Sonnet (Legacy)',
+      group: 'Claude 3.5'
+    },
+    {
+      id: 'claude-3-opus-20240229',
+      provider: 'anthropic',
+      name: 'Claude 3 Opus',
       group: 'Claude 3'
     },
     {
@@ -833,10 +858,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   yi: [
-    { id: 'yi-lightning', name: 'yi-lightning', provider: 'yi', group: 'yi-lightning', owned_by: '01.ai' },
-    { id: 'yi-medium', name: 'yi-medium', provider: 'yi', group: 'yi-medium', owned_by: '01.ai' },
-    { id: 'yi-large', name: 'yi-large', provider: 'yi', group: 'yi-large', owned_by: '01.ai' },
-    { id: 'yi-vision', name: 'yi-vision', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
+    { id: 'yi-lightning', name: 'Yi Lightning', provider: 'yi', group: 'yi-lightning', owned_by: '01.ai' },
+    // yi-medium, yi-large, yi-vision 已被 yi-lightning 替代 (详见 https://archive.ph/0Idg3)
+    // { id: 'yi-medium', name: 'yi-medium', provider: 'yi', group: 'yi-medium', owned_by: '01.ai' },
+    // { id: 'yi-large', name: 'yi-large', provider: 'yi', group: 'yi-large', owned_by: '01.ai' },
+    // { id: 'yi-vision', name: 'yi-vision', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
+    { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
   ],
   zhipu: [
     {
