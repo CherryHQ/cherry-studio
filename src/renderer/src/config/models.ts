@@ -1564,13 +1564,13 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   xirang: [
     {
-      id: 'xirang',
+      id: 'xirang-1',
       name: 'DeepSeek-R1',
       provider: 'xirang',
       group: 'xirang'
     },
     {
-      id: 'xirang',
+      id: 'xirang-2',
       name: 'DeepSeek-V3',
       provider: 'xirang',
       group: 'xirang'
