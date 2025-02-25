@@ -3,6 +3,7 @@ import type { WebSearchProvider } from '@renderer/types'
 export interface WebSearchState {
   defaultProvider: string
   providers: WebSearchProvider[]
+  searchWithTime: boolean
 }
 
 const initialState: WebSearchState = {
@@ -13,7 +14,8 @@ const initialState: WebSearchState = {
       name: 'Tavily',
       apiKey: ''
     }
-  ]
+  ],
+  searchWithTime: true
 }
 
 const websearchSlice = createSlice({
@@ -31,10 +33,14 @@ const websearchSlice = createSlice({
       if (index !== -1) {
         state.providers[index] = action.payload
       }
+    },
+    setSearchWithTime: (state, action: PayloadAction<boolean>) => {
+      state.searchWithTime = action.payload
     }
   }
 })
 
-export const { setWebSearchProviders, updateWebSearchProvider, setDefaultProvider } = websearchSlice.actions
+export const { setWebSearchProviders, updateWebSearchProvider, setDefaultProvider, setSearchWithTime } =
+  websearchSlice.actions
 
 export default websearchSlice.reducer

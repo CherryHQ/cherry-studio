@@ -3,12 +3,23 @@ import tavilyLogoDark from '@renderer/assets/images/search/tavily-dark.svg'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
-import { Input, Typography } from 'antd'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setSearchWithTime } from '@renderer/store/websearch'
+import { Input, Switch, Typography } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingHelpLink, SettingHelpTextRow } from '.'
+import {
+  SettingContainer,
+  SettingDivider,
+  SettingGroup,
+  SettingHelpLink,
+  SettingHelpTextRow,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '.'
 
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
@@ -16,12 +27,12 @@ const WebSearchSettings: FC = () => {
   const { theme } = useTheme()
   const { provider, updateProvider } = useWebSearchProvider('tavily')
   const [apiKey, setApiKey] = useState(provider.apiKey)
-
   const logo = theme === 'dark' ? tavilyLogoDark : tavilyLogo
+  const searchWithTime = useAppSelector((state) => state.websearch.searchWithTime)
+  const dispatch = useAppDispatch()
 
   useEffect(() => {
     return () => {
-      console.log('apiKey', apiKey, provider.apiKey)
       if (apiKey && apiKey !== provider.apiKey) {
         updateProvider({ ...provider, apiKey })
       }
@@ -50,6 +61,15 @@ const WebSearchSettings: FC = () => {
             {t('settings.websearch.get_api_key')}
           </SettingHelpLink>
         </SettingHelpTextRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.general.title')}</SettingTitle>
+        <SettingDivider />
+
+        <SettingRow>
+          <SettingRowTitle>{t('settings.websearch.search_with_time')}</SettingRowTitle>
+          <Switch checked={searchWithTime} onChange={(checked) => dispatch(setSearchWithTime(checked))} />
+        </SettingRow>
       </SettingGroup>
     </SettingContainer>
   )

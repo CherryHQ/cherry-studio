@@ -190,7 +190,8 @@
       "select": "選択",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた"
+      "you": "あなた",
+      "fullscreen": "全画面モードに入りました。F11キーで終了します"
     },
     "docs": {
       "title": "ドキュメント"
@@ -808,7 +809,8 @@
           "description": "Tavily は、複数の検索エンジンを統合したウェブ検索ツールです。多くの言語と検索エンジンをサポートしています。",
           "api_key": "Tavily API キー",
           "api_key.placeholder": "Tavily API キーを入力してください"
-        }
+        },
+        "search_with_time": "日付を含む検索"
       }
     },
     "translate": {

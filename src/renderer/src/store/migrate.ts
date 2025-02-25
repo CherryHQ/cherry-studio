@@ -1093,11 +1093,10 @@ const migrateConfig = {
           state.minapps.enabled.push(app)
         }
       })
+      // remove zhihu-zhiada
+      state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
+      state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
     }
-
-    // remove zhihu-zhiada
-    state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
-    state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
 
     state.settings.thoughtAutoCollapse = true
 
@@ -1124,8 +1123,8 @@ const migrateConfig = {
   },
   '73': (state: RootState) => {
     const tempProviders = state.llm.providers
-    const xirangProvider = tempProviders.find(provider=>provider.id==='xirang')
-    if(!xirangProvider) {
+    const xirangProvider = tempProviders.find((provider) => provider.id === 'xirang')
+    if (!xirangProvider) {
       tempProviders.unshift({
         id: 'xirang',
         name: 'Xirang',
@@ -1144,6 +1143,24 @@ const migrateConfig = {
         providers: tempProviders
       }
     }
+  },
+  '74': (state: RootState) => {
+    if (state.websearch) {
+      state.websearch.searchWithTime = true
+    }
+    if (!state.llm.providers.find((provider) => provider.id === 'lmstudio')) {
+      state.llm.providers.push({
+        id: 'lmstudio',
+        name: 'LM Studio',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'http://localhost:1234',
+        models: SYSTEM_MODELS.lmstudio,
+        isSystem: true,
+        enabled: false
+      })
+    }
+    return state
   }
 }
 

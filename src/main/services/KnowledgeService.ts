@@ -108,7 +108,9 @@ class KnowledgeService {
 
       const loaderResults = await Promise.allSettled(loaderPromises)
       // @ts-ignore uniqueId
-      const uniqueIds = loaderResults.filter((result) => result.status === 'fulfilled').map((result) => result.uniqueId)
+      const uniqueIds = loaderResults
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value.uniqueId)
 
       return {
         entriesAdded: loaderResults.length,
