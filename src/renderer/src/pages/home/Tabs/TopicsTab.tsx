@@ -16,6 +16,7 @@ import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -287,6 +288,20 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     },
     [assistant, assistants, onClearMessages, onDeleteTopic, onPinTopic, onMoveTopic, t, updateTopic]
   )
+
+  useShortcut('switch_to_prev_main_tab', () => {
+    const index = assistant.topics.findIndex((topic) => topic.id === activeTopic.id)
+    if (index !== -1) {
+      onSwitchTopic(assistant.topics[index === 0 ? assistant.topics.length - 1 : index - 1]).then()
+    }
+  })
+
+  useShortcut('switch_to_next_main_tab', () => {
+    const index = assistant.topics.findIndex((topic) => topic.id === activeTopic.id)
+    if (index !== -1) {
+      onSwitchTopic(assistant.topics[index === assistant.topics.length - 1 ? 0 : index + 1]).then()
+    }
+  })
 
   return (
     <Container right={topicPosition === 'right'} className="topics-tab">

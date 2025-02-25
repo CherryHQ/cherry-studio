@@ -1,6 +1,7 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
@@ -24,6 +25,7 @@ const AgentsPage: FC = () => {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const systemAgents = useSystemAgents()
+  const [tabActiveKey, setTabActiveKey] = useState('1')
 
   const agentGroups = useMemo(() => {
     if (Object.keys(_agentGroups).length === 0) {
@@ -159,6 +161,24 @@ const AgentsPage: FC = () => {
     }
   }
 
+  useShortcut('switch_to_prev_main_tab', () => {
+    if (tabItems.length > 1) {
+      const index = tabItems.findIndex((item) => item.key === tabActiveKey)
+      if (index !== -1) {
+        setTabActiveKey(tabItems[index === 0 ? tabItems.length - 1 : index - 1].key)
+      }
+    }
+  })
+
+  useShortcut('switch_to_next_main_tab', () => {
+    if (tabItems.length > 1) {
+      const index = tabItems.findIndex((item) => item.key === tabActiveKey)
+      if (index !== -1) {
+        setTabActiveKey(tabItems[index === tabItems.length - 1 ? 0 : index + 1].key)
+      }
+    }
+  })
+
   return (
     <Container>
       <Navbar>
@@ -177,6 +197,7 @@ const AgentsPage: FC = () => {
             maxLength={50}
             onChange={(e) => setSearchInput(e.target.value)}
             onPressEnter={handleSearch}
+            autoFocus
           />
           <div style={{ width: 80 }} />
         </NavbarCenter>
@@ -187,7 +208,14 @@ const AgentsPage: FC = () => {
             search.trim() ? (
               <TabContent>{renderAgentList(Object.values(filteredAgentGroups).flat())}</TabContent>
             ) : (
-              <Tabs tabPosition="right" animated={false} items={tabItems} $language={i18n.language} />
+              <Tabs
+                tabPosition="right"
+                animated={false}
+                items={tabItems}
+                $language={i18n.language}
+                activeKey={tabActiveKey}
+                onTabClick={(key) => setTabActiveKey(key)}
+              />
             )
           ) : (
             <EmptyView>
@@ -251,7 +279,11 @@ const EmptyView = styled.div`
   color: var(--color-text-secondary);
 `
 
-const Tabs = styled(TabsAntd)<{ $language: string }>`
+const Tabs = styled(TabsAntd)<{
+  $language: string
+  activeKey: string
+  onTabClick: (key: string, event: MouseEvent) => void
+}>`
   display: flex;
   flex: 1;
   flex-direction: row-reverse;
@@ -259,18 +291,22 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
   .ant-tabs-tabpane {
     padding-right: 0 !important;
   }
+
   .ant-tabs-nav {
     min-width: ${({ $language }) => ($language.startsWith('zh') ? '120px' : '140px')};
     max-width: ${({ $language }) => ($language.startsWith('zh') ? '120px' : '140px')};
     position: relative;
     overflow: hidden;
   }
+
   .ant-tabs-nav-list {
     padding: 10px 8px;
   }
+
   .ant-tabs-nav-operations {
     display: none !important;
   }
+
   .ant-tabs-tab {
     margin: 0 !important;
     border-radius: var(--list-item-border-radius);
@@ -283,6 +319,7 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
     user-select: none;
     transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
     outline: none !important;
+
     .ant-tabs-tab-btn {
       white-space: nowrap;
       overflow: hidden;
@@ -291,31 +328,38 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
       transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
       outline: none !important;
     }
+
     &:hover {
       color: var(--color-text) !important;
       background-color: var(--color-background-soft);
     }
   }
+
   .ant-tabs-tab-active {
     background-color: var(--color-background-soft);
     border: 0.5px solid var(--color-border);
     transform: scale(1.02);
   }
+
   .ant-tabs-content-holder {
     border-left: 0.5px solid var(--color-border);
     border-right: none;
   }
+
   .ant-tabs-ink-bar {
     display: none;
   }
+
   .ant-tabs-tab-btn:active {
     color: var(--color-text) !important;
   }
+
   .ant-tabs-tab-active {
     .ant-tabs-tab-btn {
       color: var(--color-text) !important;
     }
   }
+
   .ant-tabs-content {
     transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
   }

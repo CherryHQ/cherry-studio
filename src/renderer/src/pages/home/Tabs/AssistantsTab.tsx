@@ -2,7 +2,13 @@ import { PlusOutlined } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
-import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { modelGenerating } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
+import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant } from '@renderer/types'
 import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +43,24 @@ const Assistants: FC<AssistantsTabProps> = ({
     },
     [assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
   )
+
+  useShortcut('switch_to_prev_main_tab', () => {
+    if (assistants.length > 1) {
+      const assistantIndex = assistants.findIndex((assistant) => assistant.id === activeAssistant?.id)
+      if (assistantIndex !== -1) {
+        onSwitchAssistant(assistants[assistantIndex === 0 ? assistants.length - 1 : assistantIndex - 1]).then()
+      }
+    }
+  })
+
+  useShortcut('switch_to_next_main_tab', () => {
+    if (assistants.length > 1) {
+      const assistantIndex = assistants.findIndex((assistant) => assistant.id === activeAssistant?.id)
+      if (assistantIndex !== -1) {
+        onSwitchAssistant(assistants[assistantIndex === assistants.length - 1 ? 0 : assistantIndex + 1]).then()
+      }
+    }
+  })
 
   return (
     <Container className="assistants-tab">

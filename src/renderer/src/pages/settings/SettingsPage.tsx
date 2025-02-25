@@ -12,7 +12,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { isLocalAi } from '@renderer/config/env'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AboutSettings from './AboutSettings'
@@ -23,13 +23,35 @@ import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import WebSearchSettings from './WebSearchSettings'
+
+export let settingMenuItemPathList: string[] = []
 
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  settingMenuItemPathList = []
 
-  const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
+  const isRoute = (path: string) => {
+    settingMenuItemPathList.push(path)
+    return ((path: string): string => (pathname.startsWith(path) ? 'active' : ''))(path)
+  }
+
+  useShortcut('switch_to_prev_main_tab', () => {
+    const index = settingMenuItemPathList.indexOf(pathname)
+    if (index !== -1) {
+      navigate(settingMenuItemPathList[index === 0 ? settingMenuItemPathList.length - 1 : index - 1])
+    }
+  })
+
+  useShortcut('switch_to_next_main_tab', () => {
+    const index = settingMenuItemPathList.indexOf(pathname)
+    if (index !== -1) {
+      navigate(settingMenuItemPathList[index === settingMenuItemPathList.length - 1 ? 0 : index + 1])
+    }
+  })
 
   return (
     <Container>

@@ -1125,6 +1125,7 @@ const migrateConfig = {
     if (state.websearch) {
       state.websearch.searchWithTime = true
     }
+
     if (!state.llm.providers.find((provider) => provider.id === 'lmstudio')) {
       state.llm.providers.push({
         id: 'lmstudio',
@@ -1137,6 +1138,54 @@ const migrateConfig = {
         enabled: false
       })
     }
+
+    if (state.shortcuts) {
+      state.shortcuts.shortcuts.push(
+        {
+          key: 'switch_to_prev_main_navigation',
+          shortcut: [isMac ? 'Command' : 'Ctrl', isMac ? 'Option' : 'Alt', 'ArrowUp'],
+          editable: true,
+          enabled: false,
+          system: false
+        },
+        {
+          key: 'switch_to_next_main_navigation',
+          shortcut: [isMac ? 'Command' : 'Ctrl', isMac ? 'Option' : 'Alt', 'ArrowDown'],
+          editable: true,
+          enabled: false,
+          system: false
+        },
+        {
+          key: 'switch_to_prev_main_tab',
+          shortcut: [isMac ? 'Option' : 'Alt', 'ArrowUp'],
+          editable: true,
+          enabled: false,
+          system: false
+        },
+        {
+          key: 'switch_to_next_main_tab',
+          shortcut: [isMac ? 'Option' : 'Alt', 'ArrowDown'],
+          editable: true,
+          enabled: false,
+          system: false
+        },
+        {
+          key: 'switch_to_prev_horizontal_tab',
+          shortcut: [isMac ? 'Option' : 'Alt', 'ArrowLeft'],
+          editable: true,
+          enabled: false,
+          system: false
+        },
+        {
+          key: 'switch_to_next_horizontal_tab',
+          shortcut: [isMac ? 'Option' : 'Alt', 'ArrowRight'],
+          editable: true,
+          enabled: false,
+          system: false
+        }
+      )
+    }
+
     return state
   }
 }

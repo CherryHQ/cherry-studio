@@ -5,6 +5,7 @@ import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { KnowledgeBase } from '@renderer/types'
 import { Dropdown, Empty, MenuProps } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -80,6 +81,24 @@ const KnowledgePage: FC = () => {
     },
     [deleteKnowledgeBase, renameKnowledgeBase, t]
   )
+
+  useShortcut('switch_to_prev_main_tab', () => {
+    if (bases.length > 1) {
+      const index = bases.findIndex((item) => item.id === selectedBase?.id)
+      if (index !== -1) {
+        setSelectedBase(bases[index === 0 ? bases.length - 1 : index - 1])
+      }
+    }
+  })
+
+  useShortcut('switch_to_next_main_tab', () => {
+    if (bases.length > 1) {
+      const index = bases.findIndex((item) => item.id === selectedBase?.id)
+      if (index !== -1) {
+        setSelectedBase(bases[index === bases.length - 1 ? 0 : index + 1])
+      }
+    }
+  })
 
   return (
     <Container>
