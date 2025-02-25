@@ -472,7 +472,8 @@
         "vision": "画像"
       },
       "vision": "画像",
-      "websearch": "ウェブ検索"
+      "websearch": "ウェブ検索",
+      "edit": "モデルを編集"
     },
     "ollama": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",

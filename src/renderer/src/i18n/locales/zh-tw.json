@@ -472,7 +472,8 @@
         "vision": "圖像"
       },
       "vision": "視覺",
-      "websearch": "網路搜索"
+      "websearch": "網路搜索",
+      "edit": "編輯模型"
     },
     "ollama": {
       "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）。",

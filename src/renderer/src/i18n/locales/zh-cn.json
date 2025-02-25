@@ -472,7 +472,8 @@
         "vision": "图像"
       },
       "vision": "视觉",
-      "websearch": "联网"
+      "websearch": "联网",
+      "edit": "编辑模型"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
