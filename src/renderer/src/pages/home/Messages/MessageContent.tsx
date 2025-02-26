@@ -5,7 +5,7 @@ import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
-import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Fragment, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -29,14 +29,17 @@ interface FallbackFaviconProps {
 }
 
 const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
-  const [faviconSrc, setFaviconSrc] = useState<string | null>(null)
-  const [loadFailed, setLoadFailed] = useState(false)
-  const hasLoadedRef = useRef(false)
+  type FaviconState =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'failed' }
+    | { status: 'loaded'; src: string }
+
+  const [faviconState, setFaviconState] = useState<FaviconState>({ status: 'idle' })
+
   useEffect(() => {
-    // Reset states when hostname changes
-    setFaviconSrc(null)
-    setLoadFailed(false)
-    hasLoadedRef.current = false
+    // Reset state when hostname changes
+    setFaviconState({ status: 'loading' })
 
     // Generate all possible favicon URLs
     const faviconUrls = [
@@ -47,70 +50,79 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
       `https://www.google.com/s2/favicons?domain=${hostname}`
     ]
 
-    // Track if component is still mounted
-    let isMounted = true
+    // Main controller to abort all requests when needed
+    const controller = new AbortController()
+    const { signal } = controller
 
-    // Create an AbortController for each URL
-    const controllers = faviconUrls.map(() => new AbortController())
-
-    // Function to fetch a single favicon
-    const fetchFavicon = async (url: string, index: number) => {
-      try {
-        const response = await fetch(url, {
-          method: 'HEAD',
-          signal: controllers[index].signal,
-          // Don't include credentials for cross-origin requests
-          credentials: 'omit'
+    // Create a promise for each favicon URL
+    const faviconPromises = faviconUrls.map((url) =>
+      fetch(url, {
+        method: 'HEAD',
+        signal,
+        credentials: 'omit'
+      })
+        .then((response) => {
+          if (response.ok) {
+            return url
+          }
+          throw new Error(`Failed to fetch ${url}`)
         })
-
-        if (response.ok && isMounted && !hasLoadedRef.current) {
-          // Cancel all other pending requests
-          controllers.forEach((controller, i) => {
-            if (i !== index) controller.abort()
-          })
-          hasLoadedRef.current = true
-          setFaviconSrc(url)
-        }
-      } catch (error: any) {
-        // Ignore aborted requests
-        if (error?.name !== 'AbortError' && isMounted) {
+        .catch((error) => {
+          // Rethrow aborted errors but silence other failures
+          if (error.name === 'AbortError') {
+            throw error
+          }
           console.debug(`Failed to fetch favicon from ${url}:`, error)
-        }
-      }
-    }
+          return null // Return null for failed requests
+        })
+    )
 
-    // Start all favicon fetch requests in parallel
-    faviconUrls.forEach((url, index) => {
-      fetchFavicon(url, index)
+    // Create a timeout promise
+    const timeoutPromise = new Promise<string>((resolve) => {
+      const timer = setTimeout(() => {
+        resolve(faviconUrls[0]) // Default to first URL after timeout
+      }, 2000)
+
+      // Clear timeout if signal is aborted
+      signal.addEventListener('abort', () => clearTimeout(timer))
     })
 
-    // Default to first URL if none load within timeout
-    const timeoutId = setTimeout(() => {
-      if (isMounted && !hasLoadedRef.current) {
-        hasLoadedRef.current = true
-        setFaviconSrc(faviconUrls[0])
-      }
-    }, 2000)
+    // Use Promise.race to get the first successful result
+    Promise.race([
+      // Filter out failed requests (null results)
+      Promise.any(faviconPromises)
+        .then((result) => result || faviconUrls[0]) // Ensure we always have a string, not null
+        .catch(() => faviconUrls[0]),
+      timeoutPromise
+    ])
+      .then((url) => {
+        setFaviconState({ status: 'loaded', src: url })
+      })
+      .catch((error) => {
+        console.debug('All favicon requests failed:', error)
+        setFaviconState({ status: 'loaded', src: faviconUrls[0] })
+      })
 
     // Cleanup function
     return () => {
-      isMounted = false
-      controllers.forEach((controller) => controller.abort())
-      clearTimeout(timeoutId)
+      controller.abort()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostname]) // Intentionally remove faviconSrc from deps, using ref instead
+  }, [hostname]) // Only depend on hostname
 
   const handleError = () => {
-    setLoadFailed(true)
+    setFaviconState({ status: 'failed' })
   }
 
-  // Display a placeholder if all favicon attempts failed
-  if (loadFailed) {
+  // Render based on current state
+  if (faviconState.status === 'failed') {
     return <FaviconPlaceholder>{hostname.charAt(0).toUpperCase()}</FaviconPlaceholder>
   }
 
-  return faviconSrc ? <Favicon src={faviconSrc} alt={alt} onError={handleError} /> : <FaviconLoading />
+  if (faviconState.status === 'loaded') {
+    return <Favicon src={faviconState.src} alt={alt} onError={handleError} />
+  }
+
+  return <FaviconLoading />
 }
 
 const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
