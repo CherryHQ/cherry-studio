@@ -22,6 +22,7 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
 
     // Generate all possible favicon URLs
     const faviconUrls = [
+      `https://favicon.splitbee.io/?url=${hostname}`,
       `https://${hostname}/favicon.ico`,
       `https://icon.horse/icon/${hostname}`,
       `https://favicon.cccyun.cc/${hostname}`,
