@@ -19,6 +19,8 @@ export const textExts = [
   '.ini', // 配置文件
   '.log', // 日志文件
   '.rtf', // 富文本格式文件
+  '.org', // org-mode 文件
+  '.wiki', // VimWiki 文件
   '.tex', // LaTeX 文件
   '.srt', // 字幕文件
   '.xhtml', // XHTML 文件
@@ -35,6 +37,7 @@ export const textExts = [
   '.bat', // Windows 批处理文件
   '.sh', // Unix/Linux Shell 脚本文件
   '.py', // Python 脚本文件
+  '.ipynb', // Jupyter 笔记本格式
   '.rb', // Ruby 脚本文件
   '.pl', // Perl 脚本文件
   '.sql', // SQL 脚本文件

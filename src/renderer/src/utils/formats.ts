@@ -101,12 +101,11 @@ const glmZeroPreviewProcessor: ThoughtProcessor = {
 }
 
 const thinkTagProcessor: ThoughtProcessor = {
-  canProcess: (content: string) => content.startsWith('<think>'),
+  canProcess: (content: string) => content.startsWith('<think>') || content.includes('</think>'),
   process: (content: string) => {
+    // 处理正常闭合的 think 标签
     const thinkPattern = /^<think>(.*?)<\/think>/s
     const matches = content.match(thinkPattern)
-
-    // 处理正常闭合的 think 标签
     if (matches) {
       return {
         reasoning: matches[1].trim(),
@@ -114,10 +113,26 @@ const thinkTagProcessor: ThoughtProcessor = {
       }
     }
 
-    // 处理未闭合的 think 标签
+    // 处理只有结束标签的情况
+    if (content.includes('</think>') && !content.startsWith('<think>')) {
+      const parts = content.split('</think>')
+      return {
+        reasoning: parts[0].trim(),
+        content: parts.slice(1).join('</think>').trim()
+      }
+    }
+
+    // 处理只有开始标签的情况
+    if (content.startsWith('<think>')) {
+      return {
+        reasoning: content.slice(7).trim(), // 跳过 '<think>' 标签
+        content: ''
+      }
+    }
+
     return {
-      reasoning: content.slice(7).trim(), // 跳过 '<think>' 标签
-      content: ''
+      reasoning: '',
+      content
     }
   }
 }

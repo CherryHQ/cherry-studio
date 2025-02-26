@@ -4,8 +4,10 @@ import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setSearchWithTime } from '@renderer/store/websearch'
-import { Input, Switch, Typography } from 'antd'
+import { setExcludeDomains, setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
+import { formatDomains } from '@renderer/utils/blacklist'
+import { Alert, Input, Slider, Switch, Typography } from 'antd'
+import TextArea from 'antd/es/input/TextArea'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -29,6 +31,11 @@ const WebSearchSettings: FC = () => {
   const [apiKey, setApiKey] = useState(provider.apiKey)
   const logo = theme === 'dark' ? tavilyLogoDark : tavilyLogo
   const searchWithTime = useAppSelector((state) => state.websearch.searchWithTime)
+  const maxResults = useAppSelector((state) => state.websearch.maxResults)
+  const excludeDomains = useAppSelector((state) => state.websearch.excludeDomains)
+  const [errFormat, setErrFormat] = useState(false)
+  const [blacklistInput, setBlacklistInput] = useState('')
+
   const dispatch = useAppDispatch()
 
   useEffect(() => {
@@ -38,6 +45,20 @@ const WebSearchSettings: FC = () => {
       }
     }
   }, [apiKey, provider, updateProvider])
+
+  useEffect(() => {
+    if (excludeDomains) {
+      setBlacklistInput(excludeDomains.join('\n'))
+    }
+  }, [excludeDomains])
+
+  function updateManualBlacklist(blacklist: string) {
+    const blacklistDomains = blacklist.split('\n').filter((url) => url.trim() !== '')
+    const { formattedDomains, hasError } = formatDomains(blacklistDomains)
+    setErrFormat(hasError)
+    if (hasError) return
+    dispatch(setExcludeDomains(formattedDomains))
+  }
 
   return (
     <SettingContainer theme={theme}>
@@ -65,11 +86,39 @@ const WebSearchSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
-
         <SettingRow>
           <SettingRowTitle>{t('settings.websearch.search_with_time')}</SettingRowTitle>
           <Switch checked={searchWithTime} onChange={(checked) => dispatch(setSearchWithTime(checked))} />
         </SettingRow>
+        <SettingDivider style={{ marginTop: 15, marginBottom: 5 }} />
+        <SettingRow style={{ marginBottom: -10 }}>
+          <SettingRowTitle>{t('settings.websearch.search_max_result')}</SettingRowTitle>
+          <Slider
+            defaultValue={maxResults}
+            style={{ width: '200px' }}
+            min={1}
+            max={20}
+            step={1}
+            marks={{ 1: '1', 5: t('settings.websearch.search_result_default'), 20: '20' }}
+            onChangeComplete={(value) => dispatch(setMaxResult(value))}
+          />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.websearch.blacklist')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow style={{ marginBottom: 10 }}>
+          <SettingRowTitle>{t('settings.websearch.blacklist_description')}</SettingRowTitle>
+        </SettingRow>
+        <TextArea
+          value={blacklistInput}
+          onChange={(e) => setBlacklistInput(e.target.value)}
+          onBlur={() => updateManualBlacklist(blacklistInput)}
+          placeholder={t('settings.websearch.blacklist_tooltip')}
+          autoSize={{ minRows: 2, maxRows: 6 }}
+          rows={4}
+        />
+        {errFormat && <Alert message={t('settings.websearch.blacklist_tooltip')} type="error" />}
       </SettingGroup>
     </SettingContainer>
   )
