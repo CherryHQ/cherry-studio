@@ -1,15 +1,22 @@
-import { EditOutlined, MessageOutlined, RedoOutlined, SettingOutlined, TranslationOutlined } from '@ant-design/icons'
+import {
+  EditOutlined,
+  GlobalOutlined,
+  MessageOutlined,
+  RedoOutlined,
+  SettingOutlined,
+  TranslationOutlined
+} from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isEmbeddingModel } from '@renderer/config/models'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { SEARCH_SUMMARY_PROMPT, TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
-import { setTranslateModelPrompt } from '@renderer/store/settings'
+import { setSearchSummaryPrompt, setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
@@ -21,13 +28,21 @@ import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './TopicNamingModalPopup'
 
 const ModelSettings: FC = () => {
-  const { defaultModel, topicNamingModel, translateModel, setDefaultModel, setTopicNamingModel, setTranslateModel } =
-    useDefaultModel()
+  const {
+    defaultModel,
+    topicNamingModel,
+    translateModel,
+    searchSummaryModel,
+    setDefaultModel,
+    setTopicNamingModel,
+    setTranslateModel,
+    setSearchSummaryModel
+  } = useDefaultModel()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { translateModelPrompt } = useSettings()
+  const { translateModelPrompt, searchSummaryPrompt } = useSettings()
 
   const dispatch = useAppDispatch()
 
@@ -59,6 +74,11 @@ const ModelSettings: FC = () => {
     [translateModel]
   )
 
+  const defaultSearchSummaryModel = useMemo(
+    () => (hasModel(searchSummaryModel) ? getModelUniqId(searchSummaryModel) : undefined),
+    [searchSummaryModel]
+  )
+
   const onUpdateTranslateModel = async () => {
     const prompt = await PromptPopup.show({
       title: t('settings.models.translate_model_prompt_title'),
@@ -76,6 +96,25 @@ const ModelSettings: FC = () => {
 
   const onResetTranslatePrompt = () => {
     dispatch(setTranslateModelPrompt(TRANSLATE_PROMPT))
+  }
+
+  const onUpdateSearchSummaryModel = async () => {
+    const prompt = await PromptPopup.show({
+      title: t('settings.models.search_summary_model_prompt_title'),
+      message: t('settings.models.search_summary_model_prompt_message'),
+      defaultValue: searchSummaryPrompt,
+      inputProps: {
+        rows: 10,
+        onPressEnter: () => {}
+      }
+    })
+    if (prompt) {
+      dispatch(setSearchSummaryPrompt(prompt))
+    }
+  }
+
+  const onResetSearchSummaryPrompt = () => {
+    dispatch(setSearchSummaryPrompt(SEARCH_SUMMARY_PROMPT))
   }
 
   return (
@@ -147,6 +186,32 @@ const ModelSettings: FC = () => {
           )}
         </HStack>
         <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle style={{ marginBottom: 12 }}>
+          <div>
+            <GlobalOutlined style={iconStyle} />
+            {t('settings.models.search_summary_model')}
+          </div>
+        </SettingTitle>
+        <HStack alignItems="center">
+          <Select
+            value={defaultSearchSummaryModel}
+            defaultValue={defaultSearchSummaryModel}
+            style={{ width: 360 }}
+            onChange={(value) => setSearchSummaryModel(find(allModels, JSON.parse(value)) as Model)}
+            options={selectOptions}
+            showSearch
+            placeholder={t('settings.models.empty')}
+          />
+          <Button icon={<SettingOutlined />} style={{ marginLeft: 8 }} onClick={onUpdateSearchSummaryModel} />
+          {searchSummaryPrompt !== SEARCH_SUMMARY_PROMPT && (
+            <Tooltip title={t('common.reset')}>
+              <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetSearchSummaryPrompt}></Button>
+            </Tooltip>
+          )}
+        </HStack>
+        <SettingDescription>{t('settings.models.search_summary_model_description')}</SettingDescription>
       </SettingGroup>
     </SettingContainer>
   )

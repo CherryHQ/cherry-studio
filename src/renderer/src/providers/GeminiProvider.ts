@@ -13,7 +13,12 @@ import {
 import { isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import {
+  getAssistantSettings,
+  getDefaultModel,
+  getSearchSummaryModel,
+  getTopNamingModel
+} from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileType, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
@@ -324,6 +329,36 @@ export default class GeminiProvider extends BaseProvider {
 
   public async suggestions(): Promise<Suggestion[]> {
     return []
+  }
+
+  public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string> {
+    const model = getSearchSummaryModel() || assistant.model || getDefaultModel()
+
+    const systemMessage = {
+      role: 'system',
+      content: assistant.prompt
+    }
+
+    const userMessage = {
+      role: 'user',
+      content: messages.map((m) => m.content).join('\n')
+    }
+
+    const geminiModel = this.sdk.getGenerativeModel(
+      {
+        model: model.id,
+        systemInstruction: systemMessage.content,
+        generationConfig: {
+          temperature: assistant?.settings?.temperature
+        }
+      },
+      this.requestOptions
+    )
+
+    const chat = await geminiModel.startChat()
+    const { response } = await chat.sendMessage(userMessage.content)
+
+    return removeSpecialCharacters(response.text())
   }
 
   public async generateImage(): Promise<string[]> {

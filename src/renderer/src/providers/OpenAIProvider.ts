@@ -1,7 +1,12 @@
 import { getOpenAIWebSearchParams, isReasoningModel, isSupportedModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import {
+  getAssistantSettings,
+  getDefaultModel,
+  getSearchSummaryModel,
+  getTopNamingModel
+} from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
@@ -394,6 +399,34 @@ export default class OpenAIProvider extends BaseProvider {
       content: userMessageContent
     }
 
+    // @ts-ignore key is not typed
+    const response = await this.sdk.chat.completions.create({
+      model: model.id,
+      messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
+      stream: false,
+      keep_alive: this.keepAliveTime,
+      max_tokens: 1000
+    })
+
+    // 针对思考类模型的返回，总结仅截取</think>之后的内容
+    let content = response.choices[0].message?.content || ''
+    content = content.replace(/^<think>(.*?)<\/think>/s, '')
+
+    return removeSpecialCharacters(content.substring(0, 50))
+  }
+
+  public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
+    const model = getSearchSummaryModel() || assistant.model || getDefaultModel()
+
+    const systemMessage = {
+      role: 'system',
+      content: assistant.prompt
+    }
+
+    const userMessage = {
+      role: 'user',
+      content: messages.map((m) => m.content).join('\n')
+    }
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,

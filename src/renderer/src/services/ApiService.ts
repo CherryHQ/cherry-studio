@@ -11,7 +11,9 @@ import AiProvider from '../providers/AiProvider'
 import {
   getAssistantProvider,
   getDefaultModel,
+  getDefaultSearchSummaryAssistant,
   getProviderByModel,
+  getSearchSummaryModel,
   getTopNamingModel,
   getTranslateModel
 } from './AssistantService'
@@ -51,6 +53,7 @@ export async function fetchChatCompletion({
   try {
     let _messages: Message[] = []
     let isFirstChunk = true
+    let query = ''
 
     // Search web
     if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
@@ -58,6 +61,7 @@ export async function fetchChatCompletion({
 
       if (isEmpty(webSearchParams)) {
         const lastMessage = findLast(messages, (m) => m.role === 'user')
+        const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
         const hasKnowledgeBase = !isEmpty(lastMessage?.knowledgeBaseIds)
         if (lastMessage) {
           if (hasKnowledgeBase) {
@@ -66,13 +70,26 @@ export async function fetchChatCompletion({
               key: 'knowledge-base-no-match-info'
             })
           }
-          onResponse({ ...message, status: 'searching' })
-          const webSearch = await WebSearchService.search(lastMessage.content)
-          message.metadata = {
-            ...message.metadata,
-            tavily: webSearch
-          }
-          window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
+          fetchSearchSummary({
+            messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
+            assistant: getDefaultSearchSummaryAssistant()
+          })
+            .then((keywords) => {
+              if (keywords) {
+                query = keywords
+              } else {
+                query = lastMessage.content
+              }
+              onResponse({ ...message, status: 'searching' })
+              return WebSearchService.search(query)
+            })
+            .then((webSearch) => {
+              message.metadata = {
+                ...message.metadata,
+                tavily: webSearch
+              }
+              window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
+            })
         }
       }
     }
@@ -173,6 +190,23 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   try {
     return await AI.summaries(filterMessages(messages), assistant)
+  } catch (error: any) {
+    return null
+  }
+}
+
+export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+  const model = getSearchSummaryModel() || assistant.model || getDefaultModel()
+  const provider = getProviderByModel(model)
+
+  if (!hasApiKey(provider)) {
+    return null
+  }
+
+  const AI = new AiProvider(provider)
+
+  try {
+    return await AI.summaryForSearch(messages, assistant)
   } catch (error: any) {
     return null
   }

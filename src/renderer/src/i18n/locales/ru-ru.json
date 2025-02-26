@@ -739,6 +739,10 @@
       "models.translate_model_description": "Модель, используемая для сервиса перевода",
       "models.translate_model_prompt_message": "Введите модель перевода",
       "models.translate_model_prompt_title": "Модель перевода",
+      "models.search_summary_model": "Модель сводки поиска",
+      "models.search_summary_model_description": "Модель, используемая для сервиса сводки поиска",
+      "models.search_summary_model_prompt_message": "Пожалуйста, введите запрос для модели сводки поиска",
+      "models.search_summary_model_prompt_title": "Модель Сводка поиска Подсказка",
       "provider": {
         "add.name": "Имя провайдера",
         "add.name.placeholder": "Пример: OpenAI",

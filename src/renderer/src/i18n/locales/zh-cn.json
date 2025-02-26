@@ -739,6 +739,10 @@
       "models.translate_model_description": "翻译服务使用的模型",
       "models.translate_model_prompt_message": "请输入翻译模型提示词",
       "models.translate_model_prompt_title": "翻译模型提示词",
+      "models.search_summary_model": "搜索摘要模型",
+      "models.search_summary_model_description": "搜索摘要服务使用的模型",
+      "models.search_summary_model_prompt_message": "请输入搜索摘要模型提示词",
+      "models.search_summary_model_prompt_title": "搜索摘要模型提示词",
       "provider": {
         "add.name": "提供商名称",
         "add.name.placeholder": "例如 OpenAI",
