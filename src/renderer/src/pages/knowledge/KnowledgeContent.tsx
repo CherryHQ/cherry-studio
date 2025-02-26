@@ -241,7 +241,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         </TitleWrapper>
         <Dragger
           showUploadList={false}
-          customRequest={({ file }) => handleDrop([file as File])}
+          onDrop={({ dataTransfer }) => handleDrop([...dataTransfer.files])}
           multiple={true}
           accept={fileTypes.join(',')}
           style={{ marginTop: 10, background: 'transparent' }}>
@@ -253,7 +253,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       </FileSection>
 
       <FileListSection>
-        {fileItems.map((item) => {
+        {fileItems.reverse().map((item) => {
           const file = item.content as FileType
           return (
             <ItemCard key={item.id}>
@@ -287,7 +287,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </Button>
         </TitleWrapper>
         <FlexColumn>
-          {directoryItems.map((item) => (
+          {directoryItems.reverse().map((item) => (
             <ItemCard key={item.id}>
               <ItemContent>
                 <ItemInfo>
@@ -325,7 +325,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </Button>
         </TitleWrapper>
         <FlexColumn>
-          {urlItems.map((item) => (
+          {urlItems.reverse().map((item) => (
             <ItemCard key={item.id}>
               <ItemContent>
                 <ItemInfo>
@@ -379,7 +379,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </Button>
         </TitleWrapper>
         <FlexColumn>
-          {sitemapItems.map((item) => (
+          {sitemapItems.reverse().map((item) => (
             <ItemCard key={item.id}>
               <ItemContent>
                 <ItemInfo>
@@ -416,7 +416,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </Button>
         </TitleWrapper>
         <FlexColumn>
-          {noteItems.map((note) => (
+          {noteItems.reverse().map((note) => (
             <ItemCard key={note.id}>
               <ItemContent>
                 <ItemInfo onClick={() => handleEditNote(note)} style={{ cursor: 'pointer' }}>
