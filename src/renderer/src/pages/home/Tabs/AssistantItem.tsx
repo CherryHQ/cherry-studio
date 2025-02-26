@@ -112,7 +112,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
   return (
     <Dropdown menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
       <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
-        <AssistantName className="name">
+        <AssistantName className="name" title={assistantName}>
           {assistant.emoji ? `${assistant.emoji} ${assistantName}` : assistantName}
         </AssistantName>
         {isActive && (
