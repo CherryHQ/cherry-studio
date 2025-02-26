@@ -5,7 +5,7 @@ import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
-import React, { Fragment, useMemo } from 'react'
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -20,6 +20,97 @@ import MessageThought from './MessageThought'
 interface Props {
   message: Message
   model?: Model
+}
+
+// FallbackFavicon component that tries multiple favicon sources
+interface FallbackFaviconProps {
+  hostname: string
+  alt: string
+}
+
+const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
+  const [faviconSrc, setFaviconSrc] = useState<string | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const hasLoadedRef = useRef(false)
+  useEffect(() => {
+    // Reset states when hostname changes
+    setFaviconSrc(null)
+    setLoadFailed(false)
+    hasLoadedRef.current = false
+
+    // Generate all possible favicon URLs
+    const faviconUrls = [
+      `https://${hostname}/favicon.ico`,
+      `https://icon.horse/icon/${hostname}`,
+      `https://favicon.cccyun.cc/${hostname}`,
+      `https://favicon.im/${hostname}`,
+      `https://www.google.com/s2/favicons?domain=${hostname}`
+    ]
+
+    // Track if component is still mounted
+    let isMounted = true
+
+    // Create an AbortController for each URL
+    const controllers = faviconUrls.map(() => new AbortController())
+
+    // Function to fetch a single favicon
+    const fetchFavicon = async (url: string, index: number) => {
+      try {
+        const response = await fetch(url, {
+          method: 'HEAD',
+          signal: controllers[index].signal,
+          // Don't include credentials for cross-origin requests
+          credentials: 'omit'
+        })
+
+        if (response.ok && isMounted && !hasLoadedRef.current) {
+          // Cancel all other pending requests
+          controllers.forEach((controller, i) => {
+            if (i !== index) controller.abort()
+          })
+          hasLoadedRef.current = true
+          setFaviconSrc(url)
+        }
+      } catch (error: any) {
+        // Ignore aborted requests
+        if (error?.name !== 'AbortError' && isMounted) {
+          console.debug(`Failed to fetch favicon from ${url}:`, error)
+        }
+      }
+    }
+
+    // Start all favicon fetch requests in parallel
+    faviconUrls.forEach((url, index) => {
+      fetchFavicon(url, index)
+    })
+
+    // Default to first URL if none load within timeout
+    const timeoutId = setTimeout(() => {
+      if (isMounted && !hasLoadedRef.current) {
+        hasLoadedRef.current = true
+        setFaviconSrc(faviconUrls[0])
+      }
+    }, 2000)
+
+    // Cleanup function
+    return () => {
+      isMounted = false
+      controllers.forEach((controller) => controller.abort())
+      clearTimeout(timeoutId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostname]) // Intentionally remove faviconSrc from deps, using ref instead
+
+  const handleError = () => {
+    setLoadFailed(true)
+  }
+
+  // Display a placeholder if all favicon attempts failed
+  if (loadFailed) {
+    return <FaviconPlaceholder>{hostname.charAt(0).toUpperCase()}</FaviconPlaceholder>
+  }
+
+  return faviconSrc ? <Favicon src={faviconSrc} alt={alt} onError={handleError} /> : <FaviconLoading />
 }
 
 const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
@@ -135,7 +226,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           {message.metadata.tavily.results.map((result, index) => (
             <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
-              <Favicon src={`https://icon.horse/icon/${new URL(result.url).hostname}`} alt={result.title} />
+              <FallbackFavicon hostname={new URL(result.url).hostname} alt={result.title} />
               <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
                 {result.title}
               </CitationLink>
@@ -219,6 +310,25 @@ const Favicon = styled.img`
   height: 16px;
   border-radius: 4px;
   background-color: var(--color-background-mute);
+`
+const FaviconLoading = styled.div`
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background-color: var(--color-background-mute);
+`
+
+const FaviconPlaceholder = styled.div`
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background-color: var(--color-primary-1);
+  color: var(--color-primary-6);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
 `
 
 export default React.memo(MessageContent)
