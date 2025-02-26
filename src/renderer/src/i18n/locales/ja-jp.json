@@ -111,7 +111,8 @@
       "message.useful": "役立つ",
       "resend": "再送信",
       "save": "保存",
-      "settings.code_collapsible": "コードブロックを折りたたむ",
+      "settings.code_collapsible": "コードブロック折り畳み",
+      "settings.code_wrappable": "コードブロック折り返し",
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
@@ -864,6 +865,10 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "code_block": {
+      "enable_wrap": "改行",
+      "disable_wrap": "改行解除"
     }
   }
 }

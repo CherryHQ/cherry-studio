@@ -112,6 +112,7 @@
       "resend": "Переотправить",
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",
+      "settings.code_wrappable": "Блок кода можно переносить",
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
@@ -864,6 +865,10 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "code_block": {
+      "enable_wrap": "Перенос строки",
+      "disable_wrap": "Отменить перенос строки"
     }
   }
 }

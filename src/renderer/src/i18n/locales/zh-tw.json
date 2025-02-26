@@ -111,7 +111,8 @@
       "message.useful": "有用",
       "resend": "重新發送",
       "save": "保存",
-      "settings.code_collapsible": "代码块可折叠",
+      "settings.code_collapsible": "代碼區塊可折疊",
+      "settings.code_wrappable": "代碼區塊可換行",
       "settings.context_count": "上下文",
       "settings.context_count.tip": "在上下文中保留的前幾則訊息。",
       "settings.max": "最大",
@@ -864,6 +865,10 @@
       "quit": "退出",
       "show_window": "顯示視窗",
       "visualization": "可視化"
+    },
+    "code_block": {
+      "enable_wrap": "換行",
+      "disable_wrap": "取消換行"
     }
   }
 }
