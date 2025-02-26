@@ -131,6 +131,7 @@ class BackupManager {
       Logger.log('[backup] step 4: clean up temp directory')
 
       // 清理临时目录
+      await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)
 
       Logger.log('[backup] step 5: Restore completed successfully')
