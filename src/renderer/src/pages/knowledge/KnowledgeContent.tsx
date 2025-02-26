@@ -90,17 +90,19 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     }
 
     if (files) {
-      const _files: FileType[] = files.map((file) => ({
-        id: file.name,
-        name: file.name,
-        path: file.path,
-        size: file.size,
-        ext: `.${file.name.split('.').pop()}`,
-        count: 1,
-        origin_name: file.name,
-        type: file.type as FileTypes,
-        created_at: new Date()
-      }))
+      const _files: FileType[] = files
+        .map((file) => ({
+          id: file.name,
+          name: file.name,
+          path: file.path,
+          size: file.size,
+          ext: `.${file.name.split('.').pop()}`,
+          count: 1,
+          origin_name: file.name,
+          type: file.type as FileTypes,
+          created_at: new Date()
+        }))
+        .filter(({ ext }) => fileTypes.includes(ext))
       console.debug('[KnowledgeContent] Uploading files:', _files, files)
       const uploadedFiles = await FileManager.uploadFiles(_files)
       addFiles(uploadedFiles)
