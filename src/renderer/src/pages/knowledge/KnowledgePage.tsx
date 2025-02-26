@@ -1,10 +1,22 @@
-import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import {
+  DeleteOutlined,
+  EditOutlined,
+  FileTextOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  SettingOutlined
+} from '@ant-design/icons'
+import { Navbar, NavbarCenter, NavbarRight as NavbarRightFromComponents } from '@renderer/components/app/Navbar'
 import DragableList from '@renderer/components/DragableList'
+import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isWindows } from '@renderer/config/constant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { NavbarIcon } from '@renderer/pages/home/Navbar'
+import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
 import { KnowledgeBase } from '@renderer/types'
 import { Dropdown, Empty, MenuProps } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -81,10 +93,23 @@ const KnowledgePage: FC = () => {
     [deleteKnowledgeBase, renameKnowledgeBase, t]
   )
 
+  useShortcut('search_message', () => {
+    if (selectedBase) {
+      KnowledgeSearchPopup.show({ base: selectedBase }).then()
+    }
+  })
+
   return (
     <Container>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
+        <NavbarRight>
+          <HStack alignItems="center">
+            <NarrowIcon onClick={() => selectedBase && KnowledgeSearchPopup.show({ base: selectedBase })}>
+              <SearchOutlined />
+            </NarrowIcon>
+          </HStack>
+        </NavbarRight>
       </Navbar>
       <ContentContainer id="content-container">
         <SideNav>
@@ -219,6 +244,17 @@ const AddKnowledgeName = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+`
+
+const NarrowIcon = styled(NavbarIcon)`
+  @media (max-width: 1000px) {
+    display: none;
+  }
+`
+
+const NavbarRight = styled(NavbarRightFromComponents)`
+  min-width: auto;
+  padding-right: ${isWindows ? '140px' : 15};
 `
 
 export default KnowledgePage

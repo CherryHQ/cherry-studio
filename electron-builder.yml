@@ -81,4 +81,8 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    全部模型支持 Web 搜索
+    Web 搜索增加更多配置选项
+    用户消息支持快速重新发送
+    知识库网址支持右键配置别名
+    支持更多类型的思考内容显示
+    知识库错误修复

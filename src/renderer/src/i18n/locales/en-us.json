@@ -79,7 +79,7 @@
       "assistant.search.placeholder": "Search",
       "deeply_thought": "Deeply thought ({{secounds}} seconds)",
       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
-      "default.name": "⭐️ Default Assistant",
+      "default.name": "Default Assistant",
       "default.topic.name": "Default Topic",
       "input.clear": "Clear {{Command}}",
       "input.clear.content": "Do you want to clear all messages of the current topic?",
@@ -101,9 +101,9 @@
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
       "input.web_search": "Enable web search",
+      "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Enable web search in Settings",
-      "input.web_search.button.ok": "Go to Settings",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
       "message.new.context": "New Context",
@@ -141,9 +141,9 @@
       "topics.export.image": "Export as image",
       "topics.export.md": "Export as markdown",
       "topics.export.notion": "Export to Notion",
-      "topics.export.yuque": "Export to Yuque",
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
+      "topics.export.yuque": "Export to Yuque",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
       "topics.pinned": "Pinned Topics",
@@ -175,6 +175,7 @@
       "edit": "Edit",
       "footnote": "Reference content",
       "footnotes": "References",
+      "fullscreen": "Entered fullscreen mode. Press F11 to exit",
       "knowledge_base": "Knowledge Base",
       "language": "Language",
       "model": "Model",
@@ -191,8 +192,7 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You",
-      "fullscreen": "Entered fullscreen mode. Press F11 to exit"
+      "you": "You"
     },
     "docs": {
       "title": "Docs"
@@ -284,6 +284,8 @@
       "document_count_default": "Default",
       "document_count_help": "The more document chunks requested, the more information is included, but the more tokens are consumed",
       "drag_file": "Drag file here",
+      "edit_remark": "Edit Remark",
+      "edit_remark_placeholder": "Please enter remark content",
       "empty": "No knowledge base found",
       "file_hint": "Support {{file_types}}",
       "index_all": "Index All",
@@ -318,9 +320,7 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs",
-      "edit_remark": "Edit Remark",
-      "edit_remark_placeholder": "Please enter remark content"
+      "urls": "URLs"
     },
     "languages": {
       "arabic": "Arabic",
@@ -381,11 +381,13 @@
       "error.invalid.proxy.url": "Invalid proxy URL",
       "error.invalid.webdav": "Invalid WebDAV settings",
       "error.notion.export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
-      "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
+      "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
+      "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
+      "info.notion.block_reach_limit": "Dialogue too long, exporting to Notion in pages",
       "mention.title": "Switch model answer",
       "message.code_style": "Code style",
       "message.delete.content": "Are you sure you want to delete this message?",
@@ -404,6 +406,7 @@
       "reset.double.confirm.title": "DATA LOST !!!",
       "restore.success": "Restored successfully",
       "save.success.title": "Saved successfully",
+      "searching": "Searching the internet...",
       "success.notion.export": "Successfully exported to Notion",
       "success.yuque.export": "Successfully exported to Yuque",
       "switch.disabled": "Please wait for the current reply to complete",
@@ -411,10 +414,7 @@
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
-      "searching": "Searching the internet...",
-      "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
-      "info.notion.block_reach_limit": "Dialogue too long, exporting to Notion in pages"
+      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -519,6 +519,7 @@
       "title": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols."
     },
     "provider": {
+      "o3": "O3",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -603,25 +604,25 @@
         "minute_interval_other": "{{count}} minutes",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
+        "notion.auto_split": "Auto split when exporting",
+        "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
         "notion.check": {
           "button": "Check",
-          "fail": "Connection failed, please check network and API key and Database ID",
-          "success": "Connection successful",
-          "error": "Connection error, please check network configuration and API key and Database ID",
           "empty_api_key": "API key is not configured",
-          "empty_database_id": "Database ID is not configured"
+          "empty_database_id": "Database ID is not configured",
+          "error": "Connection error, please check network configuration and API key and Database ID",
+          "fail": "Connection failed, please check network and API key and Database ID",
+          "success": "Connection successful"
         },
         "notion.database_id": "Notion Database ID",
         "notion.database_id_placeholder": "Enter Notion Database ID",
         "notion.help": "Notion Configuration Documentation",
         "notion.page_name_key": "Page Title Field Name",
         "notion.page_name_key_placeholder": "Enter page title field name, default is Name",
-        "notion.title": "Notion Configuration",
-        "notion.auto_split": "Auto split when exporting",
-        "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
         "notion.split_size": "Split size",
-        "notion.split_size_placeholder": "Enter block limit per page (default 90)",
         "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
+        "notion.split_size_placeholder": "Enter block limit per page (default 90)",
+        "notion.title": "Notion Configuration",
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",
@@ -647,22 +648,21 @@
           "user": "WebDAV User"
         },
         "yuque": {
-          "title": "Yuque Configuration",
+          "check": {
+            "button": "Check",
+            "empty_repo_url": "Please enter the knowledge base URL first",
+            "empty_token": "Please enter the Yuque Token first",
+            "fail": "Yuque connection verification failed",
+            "success": "Yuque connection verified successfully"
+          },
+          "help": "Get Yuque Token",
           "repo_url": "Yuque URL",
           "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "title": "Yuque Configuration",
           "token": "Yuque Token",
-          "token_placeholder": "Please enter the Yuque Token",
-          "help": "Get Yuque Token",
-          "check": {
-            "button": "Verify Connection",
-            "success": "Yuque connection verified successfully",
-            "fail": "Yuque connection verification failed",
-            "empty_token": "Please enter the Yuque Token first",
-            "empty_repo_url": "Please enter the knowledge base URL first"
-          }
+          "token_placeholder": "Please enter the Yuque Token"
         }
       },
-
       "display.custom.css": "Custom CSS",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
       "display.minApp.disabled": "Hidden MinApp",
@@ -821,15 +821,20 @@
       "topic.show.time": "Show topic time",
       "tray.title": "Enable System Tray Icon",
       "websearch": {
-        "title": "Web Search",
         "get_api_key": "Get API Key",
+        "search_with_time": "Search with dates included",
         "tavily": {
-          "title": "Tavily",
-          "description": "Tavily is a web search tool that integrates multiple search engines. It supports multiple languages and search engines.",
           "api_key": "Tavily API Key",
-          "api_key.placeholder": "Enter Tavily API Key"
+          "api_key.placeholder": "Enter Tavily API Key",
+          "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+          "title": "Tavily"
         },
-        "search_with_time": "Search with dates included"
+        "title": "Web Search",
+        "blacklist": "Blacklist",
+        "blacklist_description": "Results from the following websites will not appear in search results",
+        "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "search_max_result": "Number of search results",
+        "search_result_default": "Default"
       }
     },
     "translate": {

@@ -331,6 +331,134 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Qwen'
     }
   ],
+  o3: [
+    {
+      id: 'gpt-4o',
+      provider: 'o3',
+      name: 'GPT-4o',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o1-mini',
+      provider: 'o3',
+      name: 'o1-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o1-preview',
+      provider: 'o3',
+      name: 'o1-preview',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o3-mini',
+      provider: 'o3',
+      name: 'o3-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o3-mini-high',
+      provider: 'o3',
+      name: 'o3-mini-high',
+      group: 'OpenAI'
+    },
+    {
+      id: 'claude-3-7-sonnet-20250219',
+      provider: 'o3',
+      name: 'claude-3-7-sonnet-20250219',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-5-sonnet-20241022',
+      provider: 'o3',
+      name: 'claude-3-5-sonnet-20241022',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-5-haiku-20241022',
+      provider: 'o3',
+      name: 'claude-3-5-haiku-20241022',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-opus-20240229',
+      provider: 'o3',
+      name: 'claude-3-opus-20240229',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-haiku-20240307',
+      provider: 'o3',
+      name: 'claude-3-haiku-20240307',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-5-sonnet-20240620',
+      provider: 'o3',
+      name: 'claude-3-5-sonnet-20240620',
+      group: 'Anthropic'
+    },
+    {
+      id: 'deepseek-ai/Deepseek-R1',
+      provider: 'o3',
+      name: 'DeepSeek R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-reasoner',
+      provider: 'o3',
+      name: 'deepseek-reasoner',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-chat',
+      provider: 'o3',
+      name: 'deepseek-chat',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-ai/DeepSeek-V3',
+      provider: 'o3',
+      name: 'DeepSeek V3',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'text-embedding-3-small',
+      provider: 'o3',
+      name: 'text-embedding-3-small',
+      group: '嵌入模型'
+    },
+    {
+      id: 'text-embedding-3-small',
+      provider: 'o3',
+      name: 'text-embedding-3-small',
+      group: '嵌入模型'
+    },
+    {
+      id: 'text-embedding-ada-002',
+      provider: 'o3',
+      name: 'text-embedding-ada-002',
+      group: '嵌入模型'
+    },
+    {
+      id: 'text-embedding-v2',
+      provider: 'o3',
+      name: 'text-embedding-v2',
+      group: '嵌入模型'
+    },
+    {
+      id: 'Doubao-embedding',
+      provider: 'o3',
+      name: 'Doubao-embedding',
+      group: '嵌入模型'
+    },
+    {
+      id: 'Doubao-embedding-large',
+      provider: 'o3',
+      name: 'Doubao-embedding-large',
+      group: '嵌入模型'
+    }
+  ],
   ollama: [],
   lmstudio: [],
   silicon: [

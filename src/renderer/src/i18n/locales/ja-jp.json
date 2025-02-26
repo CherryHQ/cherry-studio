@@ -79,7 +79,7 @@
       "assistant.search.placeholder": "検索",
       "deeply_thought": "深く考えています（{{secounds}} 秒）",
       "default.description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
-      "default.name": "⭐️ デフォルトアシスタント",
+      "default.name": "デフォルトアシスタント",
       "default.topic.name": "デフォルトトピック",
       "input.clear": "クリア {{Command}}",
       "input.clear.content": "現在のトピックのすべてのメッセージをクリアしますか？",
@@ -101,9 +101,9 @@
       "input.upload": "画像またはドキュメントをアップロード",
       "input.upload.document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
       "input.web_search": "ウェブ検索を有効にする",
+      "input.web_search.button.ok": "設定に移動",
       "input.web_search.enable": "ウェブ検索を有効にする",
       "input.web_search.enable_content": "ウェブ検索を有効にするには、設定でウェブ検索を有効にする必要があります",
-      "input.web_search.button.ok": "設定に移動",
       "message.new.branch": "新しいブランチ",
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.new.context": "新しいコンテキスト",
@@ -141,9 +141,9 @@
       "topics.export.image": "画像としてエクスポート",
       "topics.export.md": "Markdownとしてエクスポート",
       "topics.export.notion": "Notion にエクスポート",
-      "topics.export.yuque": "語雀にエクスポート",
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
+      "topics.export.yuque": "語雀にエクスポート",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
       "topics.pinned": "トピックを固定",
@@ -175,6 +175,7 @@
       "edit": "編集",
       "footnote": "引用内容",
       "footnotes": "脚注",
+      "fullscreen": "全画面モードに入りました。F11キーで終了します",
       "knowledge_base": "ナレッジベース",
       "language": "言語",
       "model": "モデル",
@@ -191,8 +192,7 @@
       "select": "選択",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた",
-      "fullscreen": "全画面モードに入りました。F11キーで終了します"
+      "you": "あなた"
     },
     "docs": {
       "title": "ドキュメント"
@@ -284,6 +284,8 @@
       "document_count_default": "デフォルト",
       "document_count_help": "要求されたドキュメント分段数が多いほど、付随する情報が多くなりますが、トークンの消費量も増加します",
       "drag_file": "ファイルをここにドラッグ",
+      "edit_remark": "備考を編集",
+      "edit_remark_placeholder": "備考内容を入力してください",
       "empty": "ナレッジベースが見つかりません",
       "file_hint": "{{file_types}} 形式をサポート",
       "index_all": "すべてをインデックス",
@@ -318,9 +320,7 @@
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL",
-      "edit_remark": "備考を編集",
-      "edit_remark_placeholder": "備考内容を入力してください"
+      "urls": "URL"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -381,11 +381,13 @@
       "error.invalid.proxy.url": "無効なプロキシURL",
       "error.invalid.webdav": "無効なWebDAV設定",
       "error.notion.export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
-      "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
+      "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.yuque.no_config": "語雀Token または 知識ベースID が設定されていません",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
+      "ignore.knowledge.base": "インターネットモードが有効になっています。ナレッジベースを無視します",
+      "info.notion.block_reach_limit": "会話が長すぎます。Notionにページごとにエクスポートしています",
       "mention.title": "モデルを切り替える",
       "message.code_style": "コードスタイル",
       "message.delete.content": "このメッセージを削除してもよろしいですか？",
@@ -404,6 +406,7 @@
       "reset.double.confirm.title": "データが失われます！！！",
       "restore.success": "復元に成功しました",
       "save.success.title": "保存に成功しました",
+      "searching": "インターネットで検索中...",
       "success.notion.export": "Notionへのエクスポートに成功しました",
       "success.yuque.export": "語雀へのエクスポートに成功しました",
       "switch.disabled": "現在の応答が完了するまで切り替えを無効にします",
@@ -411,10 +414,7 @@
       "upgrade.success.button": "再起動",
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
-      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
-      "searching": "インターネットで検索中...",
-      "ignore.knowledge.base": "インターネットモードが有効になっています。ナレッジベースを無視します",
-      "info.notion.block_reach_limit": "会話が長すぎます。Notionにページごとにエクスポートしています"
+      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
@@ -519,6 +519,7 @@
       "title": "あなたは会話を得意とするアシスタントです。ユーザーの会話を10文字以内のタイトルに要約し、ユーザーの主言語と一致していることを確認してください。句読点や特殊記号は使用しないでください。"
     },
     "provider": {
+      "o3": "O3",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -603,25 +604,25 @@
         "minute_interval_other": "{{count}} 分",
         "notion.api_key": "Notion APIキー",
         "notion.api_key_placeholder": "Notion APIキーを入力してください",
+        "notion.auto_split": "내보내기 시 자동 분할",
+        "notion.auto_split_tip": "긴 주제를 Notion으로 내보낼 때 자동으로 페이지 분할",
         "notion.check": {
           "button": "確認",
-          "fail": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
-          "success": "接続に成功しました。",
-          "error": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
           "empty_api_key": "Api_keyが設定されていません",
-          "empty_database_id": "Database_idが設定されていません"
+          "empty_database_id": "Database_idが設定されていません",
+          "error": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
+          "fail": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
+          "success": "接続に成功しました。"
         },
         "notion.database_id": "Notion データベースID",
         "notion.database_id_placeholder": "Notion データベースIDを入力してください",
         "notion.help": "Notion 設定ドキュメント",
         "notion.page_name_key": "ページタイトルフィールド名",
         "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
-        "notion.title": "Notion 設定",
-        "notion.auto_split": "내보내기 시 자동 분할",
-        "notion.auto_split_tip": "긴 주제를 Notion으로 내보낼 때 자동으로 페이지 분할",
         "notion.split_size": "분할 크기",
-        "notion.split_size_placeholder": "페이지당 블록 제한 입력(기본값 90)",
         "notion.split_size_help": "권장: 무료 플랜 90, Plus 플랜 24990, 기본값 90",
+        "notion.split_size_placeholder": "페이지당 블록 제한 입력(기본값 90)",
+        "notion.title": "Notion 設定",
         "title": "データ設定",
         "webdav": {
           "autoSync": "自動バックアップ",
@@ -647,19 +648,19 @@
           "user": "WebDAVユーザー"
         },
         "yuque": {
-          "title": "Yuque設定",
-          "repo_url": "ナレッジベースURL",
-          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
-          "token": "Yuqueトークン",
-          "token_placeholder": "Yuqueトークンを入力してください",
-          "help": "Yuqueトークンを取得",
           "check": {
             "button": "接続確認",
-            "success": "Yuque接続確認に成功しました",
-            "fail": "Yuque接続確認に失敗しました",
+            "empty_repo_url": "先にナレッジベースURLを入力してください",
             "empty_token": "先にYuqueトークンを入力してください",
-            "empty_repo_url": "先にナレッジベースURLを入力してください"
-          }
+            "fail": "Yuque接続確認に失敗しました",
+            "success": "Yuque接続確認に成功しました"
+          },
+          "help": "Yuqueトークンを取得",
+          "repo_url": "ナレッジベースURL",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "title": "Yuque設定",
+          "token": "Yuqueトークン",
+          "token_placeholder": "Yuqueトークンを入力してください"
         }
       },
       "display.custom.css": "カスタムCSS",
@@ -820,15 +821,20 @@
       "topic.show.time": "トピックの時間を表示",
       "tray.title": "システムトレイアイコンを有効にする",
       "websearch": {
-        "title": "ウェブ検索",
         "get_api_key": "APIキーを取得",
+        "search_with_time": "日付を含む検索",
         "tavily": {
-          "title": "Tavily",
-          "description": "Tavily は、複数の検索エンジンを統合したウェブ検索ツールです。多くの言語と検索エンジンをサポートしています。",
           "api_key": "Tavily API キー",
-          "api_key.placeholder": "Tavily API キーを入力してください"
+          "api_key.placeholder": "Tavily API キーを入力してください",
+          "description": "Tavily は、AI エージェントのために特別に開発された検索エンジンで、最新の結果、インテリジェントな検索提案、そして深い研究能力を提供します",
+          "title": "Tavily"
         },
-        "search_with_time": "日付を含む検索"
+        "title": "ウェブ検索",
+        "blacklist": "ブラックリスト",
+        "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
+        "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "search_max_result": "検索結果の数",
+        "search_result_default": "デフォルト"
       }
     },
     "translate": {

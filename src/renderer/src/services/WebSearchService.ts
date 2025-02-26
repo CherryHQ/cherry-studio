@@ -25,18 +25,20 @@ class WebSearchService {
 
   public async search(query: string) {
     const searchWithTime = store.getState().websearch.searchWithTime
+    const maxResults = store.getState().websearch.maxResults
+    const excludeDomains = store.getState().websearch.excludeDomains
     let formatted_query = query
-
     if (searchWithTime) {
       formatted_query = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
-
     const provider = this.getWebSearchProvider()
     const tvly = tavily({ apiKey: provider.apiKey })
-
-    return await tvly.search(formatted_query, {
-      maxResults: 5
+    const result = await tvly.search(formatted_query, {
+      maxResults: maxResults,
+      excludeDomains: excludeDomains
     })
+
+    return result
   }
 }
 
