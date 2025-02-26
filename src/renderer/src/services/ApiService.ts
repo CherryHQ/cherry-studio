@@ -21,6 +21,7 @@ import { EVENT_NAMES, EventEmitter } from './EventService'
 import { filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
+
 export async function fetchChatCompletion({
   message,
   messages,
@@ -70,26 +71,35 @@ export async function fetchChatCompletion({
               key: 'knowledge-base-no-match-info'
             })
           }
-          fetchSearchSummary({
-            messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
-            assistant: getDefaultSearchSummaryAssistant()
-          })
-            .then((keywords) => {
-              if (keywords) {
-                query = keywords
-              } else {
-                query = lastMessage.content
-              }
-              onResponse({ ...message, status: 'searching' })
-              return WebSearchService.search(query)
+
+          try {
+            // 等待关键词生成完成
+            const keywords = await fetchSearchSummary({
+              messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
+              assistant: getDefaultSearchSummaryAssistant()
             })
-            .then((webSearch) => {
-              message.metadata = {
-                ...message.metadata,
-                tavily: webSearch
-              }
-              window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
-            })
+
+            if (keywords) {
+              query = keywords
+            } else {
+              query = lastMessage.content
+            }
+
+            // 更新消息状态为搜索中
+            onResponse({ ...message, status: 'searching' })
+
+            // 等待搜索完成
+            const webSearch = await WebSearchService.search(query)
+
+            // 处理搜索结果
+            message.metadata = {
+              ...message.metadata,
+              tavily: webSearch
+            }
+            window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
+          } catch (error) {
+            console.error('Web search failed:', error)
+          }
         }
       }
     }
