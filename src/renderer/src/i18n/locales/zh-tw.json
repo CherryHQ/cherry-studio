@@ -519,6 +519,7 @@
       "title": "你是一名擅長會話的助理，你需要將用戶的會話總結為 10 個字以內的標題，標題語言與用戶的首要語言一致，不要使用標點符號和其他特殊符號"
     },
     "provider": {
+      "o3": "O3",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",

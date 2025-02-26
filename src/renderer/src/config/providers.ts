@@ -24,6 +24,7 @@ import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
 import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
+import O3ProviderLogo from '@renderer/assets/images/providers/o3.png'
 import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
@@ -114,6 +115,8 @@ export function getProviderLogo(providerId: string) {
       return PerplexityProviderLogo
     case 'infini':
       return InfiniProviderLogo
+    case 'o3':
+      return O3ProviderLogo
     default:
       return undefined
   }
@@ -129,6 +132,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://platform.openai.com/api-keys',
       docs: 'https://platform.openai.com/docs',
       models: 'https://platform.openai.com/docs/models'
+    }
+  },
+  o3: {
+    api: {
+      url: 'https://api.o3.fan'
+    },
+    websites: {
+      official: 'https://o3.fan',
+      apiKey: 'https://o3.fan/token',
+      docs: 'https://docs.o3.fan',
+      models: 'https://docs.o3.fan/models'
     }
   },
   ppio: {

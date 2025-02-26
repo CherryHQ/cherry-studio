@@ -1161,6 +1161,26 @@ const migrateConfig = {
         .trim()
     }
     return state
+  },
+  '74': (state: RootState) => {
+    return {
+      ...state,
+      llm: {
+        ...state.llm,
+        providers: [
+          ...state.llm.providers,
+          {
+            id: 'o3',
+            name: 'O3',
+            apiKey: '',
+            apiHost: 'https://api.o3.fan',
+            models: SYSTEM_MODELS.o3,
+            isSystem: true,
+            enabled: false
+          }
+        ]
+      }
+    }
   }
 }
 
