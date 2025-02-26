@@ -64,7 +64,8 @@ export async function estimateMessageUsage(message: Message): Promise<Completion
     }
   }
 
-  const tokens = estimateTextTokens(message.content)
+  const combinedContent = [message.content, message.reasoning_content].filter((s) => s !== undefined).join(' ')
+  const tokens = estimateTextTokens(combinedContent)
 
   return {
     prompt_tokens: tokens,

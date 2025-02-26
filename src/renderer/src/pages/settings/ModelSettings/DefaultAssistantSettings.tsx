@@ -1,11 +1,13 @@
-import { QuestionCircleOutlined } from '@ant-design/icons'
+import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
+import EmojiPicker from '@renderer/components/EmojiPicker'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
-import { Button, Col, Input, InputNumber, Modal, Row, Slider, Switch, Tooltip } from 'antd'
+import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
+import { Button, Col, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,6 +22,10 @@ const AssistantSettings: FC = () => {
   const [enableMaxTokens, setEnableMaxTokens] = useState(defaultAssistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(defaultAssistant?.settings?.maxTokens ?? 0)
   const [topP, setTopP] = useState(defaultAssistant.settings?.topP ?? 1)
+  const [emoji, setEmoji] = useState(defaultAssistant.emoji || getLeadingEmoji(defaultAssistant.name) || '')
+  const [name, setName] = useState(
+    defaultAssistant.name.replace(getLeadingEmoji(defaultAssistant.name) || '', '').trim()
+  )
   const { theme } = useTheme()
 
   const { t } = useTranslation()
@@ -73,15 +79,56 @@ const AssistantSettings: FC = () => {
     })
   }
 
+  const handleEmojiSelect = (selectedEmoji: string) => {
+    setEmoji(selectedEmoji)
+    updateDefaultAssistant({ ...defaultAssistant, emoji: selectedEmoji, name })
+  }
+
+  const handleEmojiDelete = () => {
+    setEmoji('')
+    updateDefaultAssistant({ ...defaultAssistant, emoji: '', name })
+  }
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value
+    setName(newName)
+    updateDefaultAssistant({ ...defaultAssistant, name: newName })
+  }
+
   return (
     <SettingContainer style={{ height: 'auto', background: 'transparent', padding: 0 }} theme={theme}>
       <SettingSubtitle style={{ marginTop: 0 }}>{t('common.name')}</SettingSubtitle>
-      <Input
-        placeholder={t('common.assistant') + t('common.name')}
-        value={defaultAssistant.name}
-        onChange={(e) => updateDefaultAssistant({ ...defaultAssistant, name: e.target.value })}
-        style={{ margin: '10px 0' }}
-      />
+      <HStack gap={8} alignItems="center" style={{ margin: '10px 0' }}>
+        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
+          <EmojiButtonWrapper>
+            <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
+            {emoji && (
+              <CloseCircleFilled
+                className="delete-icon"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEmojiDelete()
+                }}
+                style={{
+                  display: 'none',
+                  position: 'absolute',
+                  top: '-8px',
+                  right: '-8px',
+                  fontSize: '16px',
+                  color: '#ff4d4f',
+                  cursor: 'pointer'
+                }}
+              />
+            )}
+          </EmojiButtonWrapper>
+        </Popover>
+        <Input
+          placeholder={t('common.assistant') + t('common.name')}
+          value={name}
+          onChange={handleNameChange}
+          style={{ flex: 1 }}
+        />
+      </HStack>
       <SettingSubtitle>{t('common.prompt')}</SettingSubtitle>
       <TextArea
         rows={4}
@@ -182,7 +229,7 @@ const AssistantSettings: FC = () => {
           />
         </Col>
       </Row>
-      <Row align="middle">
+      <Row align="middle" style={{ marginBottom: 10 }}>
         <HStack alignItems="center">
           <Label>{t('chat.settings.max_tokens')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
@@ -192,41 +239,39 @@ const AssistantSettings: FC = () => {
         <Switch
           style={{ marginLeft: 10 }}
           checked={enableMaxTokens}
-          onChange={(enabled) => {
+          onChange={async (enabled) => {
+            if (enabled) {
+              const confirmed = await modalConfirm({
+                title: t('chat.settings.max_tokens.confirm'),
+                content: t('chat.settings.max_tokens.confirm_content'),
+                okButtonProps: {
+                  danger: true
+                }
+              })
+              if (!confirmed) return
+            }
+
             setEnableMaxTokens(enabled)
             onUpdateAssistantSettings({ enableMaxTokens: enabled })
           }}
         />
       </Row>
-      <Row align="middle" gutter={20}>
-        <Col span={21}>
-          <Slider
-            disabled={!enableMaxTokens}
-            min={0}
-            max={32000}
-            onChange={setMaxTokens}
-            onChangeComplete={onMaxTokensChange}
-            value={typeof maxTokens === 'number' ? maxTokens : 0}
-            step={100}
-            marks={{
-              0: '0',
-              32000: t('chat.settings.max')
-            }}
-          />
-        </Col>
-        <Col span={3}>
-          <InputNumber
-            disabled={!enableMaxTokens}
-            min={0}
-            max={32000}
-            step={100}
-            value={maxTokens}
-            onChange={onMaxTokensChange}
-            controls={true}
-            style={{ width: '100%' }}
-          />
-        </Col>
-      </Row>
+      {enableMaxTokens && (
+        <Row align="middle" gutter={20}>
+          <Col span={24}>
+            <InputNumber
+              disabled={!enableMaxTokens}
+              min={0}
+              max={10000000}
+              step={100}
+              value={maxTokens}
+              changeOnBlur
+              onChange={onMaxTokensChange}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+      )}
     </SettingContainer>
   )
 }
@@ -289,6 +334,15 @@ export default class DefaultAssistantSettingsPopup {
     })
   }
 }
+
+const EmojiButtonWrapper = styled.div`
+  position: relative;
+  display: inline-block;
+
+  &:hover .delete-icon {
+    display: block !important;
+  }
+`
 
 const Label = styled.p`
   margin: 0;

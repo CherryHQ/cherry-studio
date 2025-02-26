@@ -13,7 +13,7 @@
 
 Cherry Studioは、複数のLLMプロバイダーをサポートするデスクトップクライアントで、Windows、Mac、Linuxで利用可能です。
 
-👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(1022779719)](https://qm.qq.com/q/Qtw8As0cwe)
+👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(1025067911)](https://qm.qq.com/q/RIBAO2pPKS)
 
 ❤️ Cherry Studioをお気に入りにしましたか？小さな星をつけてください 🌟 または [スポンサー](sponsor.md) をして開発をサポートしてください！❤️
 
@@ -66,8 +66,9 @@ Cherry Studioは、複数のLLMプロバイダーをサポートするデスク�
 - [x] クイックポップアップ（クリップボードの読み取り、簡単な質問、説明、翻訳、要約）
 - [x] 複数モデルの回答の比較
 - [x] サービスプロバイダーが提供するSSOを使用したログインをサポート
-- [ ] すべてのモデルがネットワークをサポート（開発中...）
-- [ ] 最初の公式バージョンのリリース
+- [x] すべてのモデルがネットワークをサポート
+- [x] 最初の公式バージョンのリリース
+- [ ] 錯誤修復と改善 (開発中...)
 - [ ] プラグイン機能（JavaScript）
 - [ ] ブラウザ拡張機能（テキストをハイライトして翻訳、要約、ナレッジベースに追加）
 - [ ] iOS & Android クライアント

@@ -79,7 +79,7 @@
       "assistant.search.placeholder": "Поиск",
       "deeply_thought": "Мыслим ({{secounds}} секунд)",
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
-      "default.name": "⭐️ Ассистент по умолчанию",
+      "default.name": "Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
       "input.clear": "Очистить {{Command}}",
       "input.clear.content": "Хотите очистить все сообщения текущего топика?",
@@ -101,9 +101,9 @@
       "input.upload": "Загрузить изображение или документ",
       "input.upload.document": "Загрузить документ (модель не поддерживает изображения)",
       "input.web_search": "Включить веб-поиск",
+      "input.web_search.button.ok": "Перейти в Настройки",
       "input.web_search.enable": "Включить веб-поиск",
       "input.web_search.enable_content": "Необходимо включить веб-поиск в Настройки",
-      "input.web_search.button.ok": "Перейти в Настройки",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",
@@ -143,6 +143,7 @@
       "topics.export.notion": "Экспорт в Notion",
       "topics.export.title": "Экспорт",
       "topics.export.word": "Экспорт как Word",
+      "topics.export.yuque": "Экспорт в Yuque",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
@@ -174,6 +175,7 @@
       "edit": "Редактировать",
       "footnote": "Цитируемый контент",
       "footnotes": "Сноски",
+      "fullscreen": "Вы вошли в полноэкранный режим. Нажмите F11 для выхода",
       "knowledge_base": "База знаний",
       "language": "Язык",
       "model": "Модель",
@@ -282,6 +284,8 @@
       "document_count_default": "По умолчанию",
       "document_count_help": "Количество запрошенных документов, вместе с ними передается больше информации, но и требуется больше токенов",
       "drag_file": "Перетащите файл сюда",
+      "edit_remark": "Изменить примечание",
+      "edit_remark_placeholder": "Пожалуйста, введите содержание примечания",
       "empty": "База знаний не найдена",
       "file_hint": "Поддерживаются {{file_types}}",
       "index_all": "Индексировать все",
@@ -378,8 +382,12 @@
       "error.invalid.webdav": "Неверные настройки WebDAV",
       "error.notion.export": "Ошибка экспорта в Notion, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
+      "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
+      "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
+      "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
+      "info.notion.block_reach_limit": "Диалог слишком длинный, экспортируется в Notion по страницам",
       "mention.title": "Переключить модель ответа",
       "message.code_style": "Стиль кода",
       "message.delete.content": "Вы уверены, что хотите удалить это сообщение?",
@@ -398,16 +406,15 @@
       "reset.double.confirm.title": "ДАННЫЕ БУДУТ УТЕРЯНЫ !!!",
       "restore.success": "Успешно восстановлено",
       "save.success.title": "Успешно сохранено",
+      "searching": "Поиск в Интернете...",
       "success.notion.export": "Успешный экспорт в Notion",
+      "success.yuque.export": "Успешный экспорт в Yuque",
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
-      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
-      "searching": "Поиск в Интернете...",
-      "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
-      "info.notion.block_reach_limit": "Диалог слишком длинный, экспортируется в Notion по страницам"
+      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!"
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -512,6 +519,7 @@
       "title": "Вы - эксперт в общении, который суммирует разговоры пользователя в 10-символьном заголовке, совпадающем с языком пользователя, без использования знаков препинания и других специальных символов"
     },
     "provider": {
+      "o3": "O3",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -596,12 +604,14 @@
         "minute_interval_other": "{{count}} минут",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
+        "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
+        "notion.auto_split_tip": "Автоматическое разбиение на страницы при экспорте в Notion, если тема слишком длинная",
         "notion.check": {
           "button": "Проверить",
-          "empty_api_key": "Не настроен Api_key",
-          "empty_database_id": "Не настроен Database_id",
-          "error": "Аномалия в подключении, пожалуйста, проверьте настройки сети, а также правильность Api_key и Database_id",
-          "fail": "Не удалось подключиться, пожалуйста, проверьте сеть и правильность Api_key и Database_id",
+          "empty_api_key": "Не настроен API key",
+          "empty_database_id": "Не настроен Database ID",
+          "error": "Аномалия в подключении, пожалуйста, проверьте настройки сети, а также правильность API key и Database ID",
+          "fail": "Не удалось подключиться, пожалуйста, проверьте сеть и правильность API key и Database ID",
           "success": "Подключение успешно"
         },
         "notion.database_id": "ID базы данных Notion",
@@ -609,6 +619,9 @@
         "notion.help": "Документация по настройке Notion",
         "notion.page_name_key": "Название поля заголовка страницы",
         "notion.page_name_key_placeholder": "Введите название поля заголовка страницы, по умолчанию Name",
+        "notion.split_size": "Размер автоматического разбиения",
+        "notion.split_size_help": "Рекомендуется 90 для пользователей бесплатной версии Notion, 24990 для пользователей премиум-версии, значение по умолчанию — 90",
+        "notion.split_size_placeholder": "Введите ограничение количества блоков на странице (по умолчанию 90)",
         "notion.title": "Настройки Notion",
         "title": "Настройки данных",
         "webdav": {
@@ -634,11 +647,21 @@
           "title": "WebDAV",
           "user": "Пользователь WebDAV"
         },
-        "notion.auto_split_tip": "Автоматическое разбиение на страницы при экспорте в Notion, если тема слишком длинная",
-        "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
-        "notion.split_size": "Размер автоматического разбиения",
-        "notion.split_size_placeholder": "Введите ограничение количества блоков на странице (по умолчанию 90)",
-        "notion.split_size_help": "Рекомендуется 90 для пользователей бесплатной версии Notion, 24990 для пользователей премиум-версии, значение по умолчанию — 90"
+        "yuque": {
+          "check": {
+            "button": "Проверить",
+            "empty_repo_url": "Сначала введите URL базы знаний",
+            "empty_token": "Сначала введите токен Yuque",
+            "fail": "Не удалось проверить подключение к Yuque",
+            "success": "Подключение к Yuque успешно проверено"
+          },
+          "help": "Получить токен Yuque",
+          "repo_url": "URL базы знаний",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "title": "Настройка Yuque",
+          "token": "Токен Yuque",
+          "token_placeholder": "Введите токен Yuque"
+        }
       },
       "display.custom.css": "Пользовательский CSS",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
@@ -798,14 +821,20 @@
       "topic.show.time": "Показывать время топика",
       "tray.title": "Включить значок системного трея",
       "websearch": {
-        "title": "Поиск в Интернете",
         "get_api_key": "Получить ключ API",
+        "search_with_time": "Поиск, содержащий дату",
         "tavily": {
-          "title": "Tavily",
-          "description": "Tavily — это инструмент поиска в Интернете, интегрирующий несколько поисковых систем. Он поддерживает несколько языков и поисковых систем.",
           "api_key": "Ключ API Tavily",
-          "api_key.placeholder": "Введите ключ API Tavily"
-        }
+          "api_key.placeholder": "Введите ключ API Tavily",
+          "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
+          "title": "Tavily"
+        },
+        "title": "Поиск в Интернете",
+        "blacklist": "Черный список",
+        "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
+        "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "search_max_result": "Количество результатов поиска",
+        "search_result_default": "По умолчанию"
       }
     },
     "translate": {

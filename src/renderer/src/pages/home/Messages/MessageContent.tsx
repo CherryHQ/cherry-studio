@@ -135,7 +135,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           {message.metadata.tavily.results.map((result, index) => (
             <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
-              <Favicon src={`https://icon.horse/icon/${new URL(result.url).hostname}`} alt={result.title} />
+              <Favicon src={`https://favicon.splitbee.io/?url=${new URL(result.url).hostname}`} alt={result.title} />
               <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
                 {result.title}
               </CitationLink>

@@ -210,17 +210,17 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             {
               label: t('models.type.vision'),
               value: 'vision',
-              disabled: isVisionModel(model)
+              disabled: isVisionModel(model) && !selectedTypes.includes('vision')
             },
             {
               label: t('models.type.embedding'),
               value: 'embedding',
-              disabled: isEmbeddingModel(model)
+              disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
             },
             {
               label: t('models.type.reasoning'),
               value: 'reasoning',
-              disabled: isReasoningModel(model)
+              disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
             }
           ]}
         />

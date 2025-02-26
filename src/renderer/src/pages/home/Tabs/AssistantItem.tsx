@@ -107,10 +107,14 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
     onSwitch(assistant)
   }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
 
+  const assistantName = assistant.name || t('chat.default.name')
+
   return (
     <Dropdown menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
       <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
-        <AssistantName className="name">{assistant.name || t('chat.default.name')}</AssistantName>
+        <AssistantName className="name">
+          {assistant.emoji ? `${assistant.emoji} ${assistantName}` : assistantName}
+        </AssistantName>
         {isActive && (
           <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
             <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>

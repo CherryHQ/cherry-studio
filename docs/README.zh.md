@@ -13,7 +13,7 @@
 
 Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客户端，兼容 Windows、Mac 和 Linux 系统。
 
-👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(1022779719)](https://qm.qq.com/q/Qtw8As0cwe)
+👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(1025067911)](https://qm.qq.com/q/RIBAO2pPKS)
 
 ❤️ 喜欢 Cherry Studio? 点亮小星星 🌟 或 [赞助开发者](sponsor.md)! ❤️
 
@@ -66,8 +66,9 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 - [x] 快捷彈窗 (讀取剪貼簿、快速提問、解釋、翻譯、總結）
 - [x] 多模型回答對比
 - [x] 支援使用服務供應商提供的 SSO 進行登入
-- [ ] 全部模型支援連網（開發中...）
-- [ ] 推出第一個正式版
+- [x] 全部模型支援連網（開發中...）
+- [x] 推出第一個正式版
+- [x] 錯誤修復和改進（開發中...）
 - [ ] 插件功能（JavaScript）
 - [ ] 瀏覽器插件（劃詞翻譯、總結、新增至知識庫）
 - [ ] iOS & Android 客戶端
