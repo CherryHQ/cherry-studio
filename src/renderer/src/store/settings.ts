@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { SEARCH_SUMMARY_PROMPT, TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter'
@@ -58,6 +58,7 @@ export interface SettingsState {
   enableTopicNaming: boolean
   customCss: string
   topicNamingPrompt: string
+  searchSummaryPrompt: string
   // Sidebar icons
   sidebarIcons: {
     visible: SidebarIcon[]
@@ -137,7 +138,8 @@ const initialState: SettingsState = {
   notionSplitSize: 90,
   yuqueToken: '',
   yuqueUrl: '',
-  yuqueRepoId: ''
+  yuqueRepoId: '',
+  searchSummaryPrompt: SEARCH_SUMMARY_PROMPT
 }
 
 const settingsSlice = createSlice({
@@ -271,6 +273,9 @@ const settingsSlice = createSlice({
     setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
       state.topicNamingPrompt = action.payload
     },
+    setSearchSummaryPrompt: (state, action: PayloadAction<string>) => {
+      state.searchSummaryPrompt = action.payload
+    },
     setSidebarIcons: (state, action: PayloadAction<{ visible?: SidebarIcon[]; disabled?: SidebarIcon[] }>) => {
       if (action.payload.visible) {
         state.sidebarIcons.visible = action.payload.visible
@@ -364,6 +369,7 @@ export const {
   setPasteLongTextThreshold,
   setCustomCss,
   setTopicNamingPrompt,
+  setSearchSummaryPrompt,
   setSidebarIcons,
   setNarrowMode,
   setClickTrayToShowQuickAssistant,
