@@ -452,6 +452,7 @@
       "embedding": "Embedding",
       "embedding_model": "Embedding Model",
       "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
+      "enable_thinking": "Enable Thinking",
       "free": "Free",
       "parameter_name": "Parameter Name",
       "parameter_type": {

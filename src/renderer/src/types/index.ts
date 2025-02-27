@@ -41,6 +41,7 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: 'low' | 'medium' | 'high'
+  enableThinking?: boolean
 }
 
 export type Agent = Omit<Assistant, 'model'>

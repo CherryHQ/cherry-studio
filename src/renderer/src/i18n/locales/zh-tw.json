@@ -451,7 +451,8 @@
       "dimensions": "{{dimensions}} 維",
       "embedding": "嵌入",
       "embedding_model": "嵌入模型",
-      "embedding_model_tooltip": "在设置->模型服务中点击管理按钮添加",
+      "embedding_model_tooltip": "在 設置->模型提供商->管理 中添加",
+      "enable_thinking": "啟用思考",
       "free": "免費",
       "parameter_name": "參數名稱",
       "parameter_type": {

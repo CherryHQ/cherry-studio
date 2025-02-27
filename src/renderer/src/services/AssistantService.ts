@@ -107,7 +107,8 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     streamOutput: assistant?.settings?.streamOutput ?? true,
     hideMessages: assistant?.settings?.hideMessages ?? false,
     defaultModel: assistant?.defaultModel ?? undefined,
-    customParameters: assistant?.settings?.customParameters ?? []
+    customParameters: assistant?.settings?.customParameters ?? [],
+    enableThinking: assistant?.settings?.enableThinking ?? true
   }
 }
 

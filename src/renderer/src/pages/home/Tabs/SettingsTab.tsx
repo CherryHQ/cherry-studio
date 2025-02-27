@@ -8,6 +8,7 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
+import { isClaudeThinkingModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -51,6 +52,7 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+  const [enableThinking, setEnableThinking] = useState(assistant?.settings?.enableThinking ?? true)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -109,7 +111,8 @@ const SettingsTab: FC<Props> = (props) => {
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
         hideMessages: false,
-        customParameters: []
+        customParameters: [],
+        enableThinking: true
       }
     })
   }
@@ -120,6 +123,7 @@ const SettingsTab: FC<Props> = (props) => {
     setEnableMaxTokens(assistant?.settings?.enableMaxTokens ?? false)
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
+    setEnableThinking(assistant?.settings?.enableThinking ?? true)
   }, [assistant])
 
   return (
@@ -179,6 +183,22 @@ const SettingsTab: FC<Props> = (props) => {
             }}
           />
         </SettingRow>
+        {assistant?.model && isClaudeThinkingModel(assistant.model) && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>{t('models.enable_thinking')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={enableThinking}
+                onChange={(checked) => {
+                  setEnableThinking(checked)
+                  onUpdateAssistantSettings({ enableThinking: checked })
+                }}
+              />
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <Row align="middle" justify="space-between" style={{ marginBottom: 10 }}>
           <HStack alignItems="center">

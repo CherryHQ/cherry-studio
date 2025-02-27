@@ -67,7 +67,7 @@ export default class AnthropicProvider extends BaseProvider {
   public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput, enableThinking } = getAssistantSettings(assistant)
 
     const userMessagesParams: MessageParam[] = []
     const _messages = filterContextMessages(takeRight(messages, contextCount + 2))
@@ -92,6 +92,14 @@ export default class AnthropicProvider extends BaseProvider {
       top_p: assistant?.settings?.topP,
       system: assistant.prompt,
       ...this.getCustomParameters(assistant)
+    }
+
+    // 添加思考参数
+    if (enableThinking) {
+      ;(body as any).thinking = {
+        type: 'enabled',
+        budget_tokens: 2048
+      }
     }
 
     let time_first_token_millsec = 0

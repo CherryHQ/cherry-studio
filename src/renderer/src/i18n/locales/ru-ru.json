@@ -452,6 +452,7 @@
       "embedding": "Встраиваемые",
       "embedding_model": "Встраиваемые модели",
       "embedding_model_tooltip": "Добавьте в настройки->модель сервиса->управление",
+      "enable_thinking": "Включить мышление",
       "free": "Бесплатные",
       "parameter_name": "Имя параметра",
       "parameter_type": {

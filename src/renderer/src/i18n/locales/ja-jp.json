@@ -452,6 +452,7 @@
       "embedding": "埋め込み",
       "embedding_model": "埋め込み模型",
       "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
+      "enable_thinking": "思考を有効にする",
       "free": "無料",
       "parameter_name": "パラメータ名",
       "parameter_type": {
