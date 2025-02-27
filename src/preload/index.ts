@@ -107,6 +107,12 @@ const api = {
   },
   shell: {
     openExternal: shell.openExternal
+  },
+  copilot: {
+    getAuthMessage: () => ipcRenderer.invoke('copilot:get-auth-message'),
+    getCopilotToken: (device_code: string) => ipcRenderer.invoke('copilot:get-copilot-token', device_code),
+    saveCopilotToken: (access_token: string) => ipcRenderer.invoke('copilot:save-copilot-token', access_token),
+    getToken: () => ipcRenderer.invoke('copilot:get-token')
   }
 }
 

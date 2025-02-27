@@ -1178,6 +1178,27 @@ const migrateConfig = {
     }
 
     return state
+  },
+  '74': (state: RootState) => {
+    return {
+      ...state,
+      llm: {
+        ...state.llm,
+        providers: [
+          ...state.llm.providers,
+          {
+            id: 'copilot',
+            name: 'Github Copilot',
+            type: 'openai',
+            apiKey: '',
+            apiHost: 'https://api.githubcopilot.com/',
+            models: SYSTEM_MODELS.copilot,
+            isSystem: true,
+            enabled: false
+          }
+        ]
+      }
+    }
   }
 }
 
