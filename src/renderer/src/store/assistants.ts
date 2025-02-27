@@ -2,17 +2,19 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
-import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
+import { Assistant, AssistantSettings, Model, Topic, AssistantGroup } from '@renderer/types'
 import { uniqBy } from 'lodash'
 
 export interface AssistantsState {
   defaultAssistant: Assistant
   assistants: Assistant[]
+  groups: AssistantGroup[]
 }
 
 const initialState: AssistantsState = {
   defaultAssistant: getDefaultAssistant(),
-  assistants: [getDefaultAssistant()]
+  assistants: [getDefaultAssistant()],
+  groups: []
 }
 
 const assistantsSlice = createSlice({
@@ -123,6 +125,29 @@ const assistantsSlice = createSlice({
             }
           : assistant
       )
+    },
+    addGroup: (state, action: PayloadAction<AssistantGroup>) => {
+      state.groups.push(action.payload)
+    },
+    updateGroup: (state, action: PayloadAction<AssistantGroup>) => {
+      state.groups = state.groups.map((group) =>
+        group.id === action.payload.id ? action.payload : group
+      )
+    },
+    removeGroup: (state, action: PayloadAction<{ id: string }>) => {
+      state.assistants = state.assistants.map((assistant) =>
+        assistant.groupId === action.payload.id
+          ? { ...assistant, groupId: undefined }
+          : assistant
+      )
+      state.groups = state.groups.filter((group) => group.id !== action.payload.id)
+    },
+    updateAssistantGroup: (state, action: PayloadAction<{ assistantId: string; groupId?: string }>) => {
+      state.assistants = state.assistants.map((assistant) =>
+        assistant.id === action.payload.assistantId
+          ? { ...assistant, groupId: action.payload.groupId }
+          : assistant
+      )
     }
   }
 })
@@ -139,7 +164,11 @@ export const {
   updateTopics,
   removeAllTopics,
   setModel,
-  updateAssistantSettings
+  updateAssistantSettings,
+  addGroup,
+  updateGroup,
+  removeGroup,
+  updateAssistantGroup
 } = assistantsSlice.actions
 
 export default assistantsSlice.reducer

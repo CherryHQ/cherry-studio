@@ -1,4 +1,4 @@
-import { DeleteOutlined, EditOutlined, MinusCircleOutlined, SaveOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, FolderOutlined, MinusCircleOutlined, SaveOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
@@ -6,7 +6,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant } from '@renderer/types'
+import { Assistant, AssistantGroup } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Dropdown } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
@@ -23,78 +23,126 @@ interface AssistantItemProps {
   onCreateDefaultAssistant: () => void
   addAgent: (agent: any) => void
   addAssistant: (assistant: Assistant) => void
+  onMoveToGroup?: (assistantId: string, groupId?: string) => void
+  groups?: AssistantGroup[]
 }
 
-const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, onDelete, addAgent, addAssistant }) => {
+const AssistantItem: FC<AssistantItemProps> = ({ 
+  assistant, 
+  isActive, 
+  onSwitch, 
+  onDelete, 
+  addAgent, 
+  addAssistant,
+  onMoveToGroup,
+  groups = []
+}) => {
   const { t } = useTranslation()
   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
   const { clickAssistantToShowTopic, topicPosition } = useSettings()
 
   const getMenuItems = useCallback(
-    (assistant: Assistant): ItemType[] => [
-      {
-        label: t('assistants.edit.title'),
-        key: 'edit',
-        icon: <EditOutlined />,
-        onClick: () => AssistantSettingsPopup.show({ assistant })
-      },
-      {
-        label: t('assistants.copy.title'),
-        key: 'duplicate',
-        icon: <CopyIcon />,
-        onClick: async () => {
-          const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
-          addAssistant(_assistant)
-          onSwitch(_assistant)
+    (assistant: Assistant): ItemType[] => {
+      const baseItems: ItemType[] = [
+        {
+          label: t('assistants.edit.title'),
+          key: 'edit',
+          icon: <EditOutlined />,
+          onClick: () => AssistantSettingsPopup.show({ assistant })
+        },
+        {
+          label: t('assistants.copy.title'),
+          key: 'duplicate',
+          icon: <CopyIcon />,
+          onClick: async () => {
+            const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
+            addAssistant(_assistant)
+            onSwitch(_assistant)
+          }
+        },
+        {
+          label: t('assistants.clear.title'),
+          key: 'clear',
+          icon: <MinusCircleOutlined />,
+          onClick: () => {
+            window.modal.confirm({
+              title: t('assistants.clear.title'),
+              content: t('assistants.clear.content'),
+              centered: true,
+              okButtonProps: { danger: true },
+              onOk: () => removeAllTopics() // 使用当前助手的removeAllTopics
+            })
+          }
+        },
+        {
+          label: t('assistants.save.title'),
+          key: 'save-to-agent',
+          icon: <SaveOutlined />,
+          onClick: async () => {
+            const agent = omit(assistant, ['model', 'emoji'])
+            agent.id = uuid()
+            agent.type = 'agent'
+            addAgent(agent)
+            window.message.success({
+              content: t('assistants.save.success'),
+              key: 'save-to-agent'
+            })
+          }
         }
-      },
-      {
-        label: t('assistants.clear.title'),
-        key: 'clear',
-        icon: <MinusCircleOutlined />,
-        onClick: () => {
-          window.modal.confirm({
-            title: t('assistants.clear.title'),
-            content: t('assistants.clear.content'),
-            centered: true,
-            okButtonProps: { danger: true },
-            onOk: () => removeAllTopics() // 使用当前助手的removeAllTopics
-          })
-        }
-      },
-      {
-        label: t('assistants.save.title'),
-        key: 'save-to-agent',
-        icon: <SaveOutlined />,
-        onClick: async () => {
-          const agent = omit(assistant, ['model', 'emoji'])
-          agent.id = uuid()
-          agent.type = 'agent'
-          addAgent(agent)
-          window.message.success({
-            content: t('assistants.save.success'),
-            key: 'save-to-agent'
-          })
-        }
-      },
-      { type: 'divider' },
-      {
-        label: t('common.delete'),
-        key: 'delete',
-        icon: <DeleteOutlined />,
-        danger: true,
-        onClick: () => {
-          window.modal.confirm({
-            title: t('assistants.delete.title'),
-            content: t('assistants.delete.content'),
-            centered: true,
-            okButtonProps: { danger: true },
-            onOk: () => onDelete(assistant)
-          })
-        }
+      ];
+      
+      // 添加移至分组菜单
+      if (onMoveToGroup && groups.length > 0) {
+        const groupItems: ItemType[] = [
+          {
+            type: 'divider'
+          },
+          {
+            label: t('assistants.move_to_group'),
+            key: 'move-to-group',
+            icon: <FolderOutlined />,
+            children: [
+              // 只有当助手已经在某个分组中时，才显示"移出分组"选项
+              ...(assistant.groupId ? [{
+                label: t('assistants.move_to_no_group'),
+                key: 'move-to-no-group',
+                onClick: () => onMoveToGroup(assistant.id, undefined)
+              }] : []),
+              ...groups.map(group => ({
+                label: group.name,
+                key: `move-to-group-${group.id}`,
+                onClick: () => onMoveToGroup(assistant.id, group.id),
+                disabled: assistant.groupId === group.id // 如果已经在这个组里，禁用该选项
+              }))
+            ]
+          }
+        ];
+        
+        baseItems.push(...groupItems);
       }
-    ],
-    [addAgent, addAssistant, onSwitch, removeAllTopics, t, onDelete]
+      
+      baseItems.push(
+        { type: 'divider' },
+        {
+          label: t('common.delete'),
+          key: 'delete',
+          icon: <DeleteOutlined />,
+          danger: true,
+          onClick: () => {
+            window.modal.confirm({
+              title: t('assistants.delete.title'),
+              content: t('assistants.delete.content'),
+              centered: true,
+              okButtonProps: { danger: true },
+              onOk: () => onDelete(assistant)
+            })
+          }
+        }
+      );
+      
+      return baseItems;
+    },
+    [addAgent, addAssistant, onSwitch, removeAllTopics, t, onDelete, onMoveToGroup, groups, assistant.groupId]
   )
 
   const handleSwitch = useCallback(async () => {
