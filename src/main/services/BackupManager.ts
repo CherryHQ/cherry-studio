@@ -1,12 +1,13 @@
 import { WebDavConfig } from '@types'
 import AdmZip from 'adm-zip'
+import { exec } from 'child_process'
 import { app } from 'electron'
 import Logger from 'electron-log'
 import * as fs from 'fs-extra'
 import * as path from 'path'
+import { createClient, FileStat } from 'webdav'
 
 import WebDav from './WebDav'
-import { exec } from 'child_process'
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -17,29 +18,30 @@ class BackupManager {
     this.restore = this.restore.bind(this)
     this.backupToWebdav = this.backupToWebdav.bind(this)
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
+    this.listWebdavFiles = this.listWebdavFiles.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
     try {
-      const items = await fs.readdir(dirPath, { withFileTypes: true });
+      const items = await fs.readdir(dirPath, { withFileTypes: true })
 
       for (const item of items) {
-        const fullPath = path.join(dirPath, item.name);
+        const fullPath = path.join(dirPath, item.name)
 
         // 先处理子目录
         if (item.isDirectory()) {
-          await this.setWritableRecursive(fullPath);
+          await this.setWritableRecursive(fullPath)
         }
 
         // 统一设置权限（Windows需要特殊处理）
-        await this.forceSetWritable(fullPath);
+        await this.forceSetWritable(fullPath)
       }
 
       // 确保根目录权限
-      await this.forceSetWritable(dirPath);
+      await this.forceSetWritable(dirPath)
     } catch (error) {
-      Logger.error(`权限设置失败：${dirPath}`, error);
-      throw error;
+      Logger.error(`权限设置失败：${dirPath}`, error)
+      throw error
     }
   }
 
@@ -48,20 +50,20 @@ class BackupManager {
     try {
       // Windows系统需要先取消只读属性
       if (process.platform === 'win32') {
-        await fs.chmod(targetPath, 0o666); // Windows会忽略权限位但能移除只读
+        await fs.chmod(targetPath, 0o666) // Windows会忽略权限位但能移除只读
       } else {
-        const stats = await fs.stat(targetPath);
-        const mode = stats.isDirectory() ? 0o777 : 0o666;
-        await fs.chmod(targetPath, mode);
+        const stats = await fs.stat(targetPath)
+        const mode = stats.isDirectory() ? 0o777 : 0o666
+        await fs.chmod(targetPath, mode)
       }
 
       // 双重保险：使用文件属性命令（Windows专用）
       if (process.platform === 'win32') {
-        await exec(`attrib -R "${targetPath}" /L /D`);
+        await exec(`attrib -R "${targetPath}" /L /D`)
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        Logger.warn(`权限设置警告：${targetPath}`, error);
+        Logger.warn(`权限设置警告：${targetPath}`, error)
       }
     }
   }
@@ -145,7 +147,7 @@ class BackupManager {
   }
 
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, data: string, webdavConfig: WebDavConfig) {
-    const filename = 'cherry-studio.backup.zip'
+    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const backupedFilePath = await this.backup(_, filename, data)
     const webdavClient = new WebDav(webdavConfig)
     return await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
@@ -154,18 +156,48 @@ class BackupManager {
   }
 
   async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const filename = 'cherry-studio.backup.zip'
+    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const webdavClient = new WebDav(webdavConfig)
-    const retrievedFile = await webdavClient.getFileContents(filename)
-    const backupedFilePath = path.join(this.backupDir, filename)
+    try {
+      const retrievedFile = await webdavClient.getFileContents(filename)
+      const backupedFilePath = path.join(this.backupDir, filename)
 
-    if (!fs.existsSync(this.backupDir)) {
-      fs.mkdirSync(this.backupDir, { recursive: true })
+      if (!fs.existsSync(this.backupDir)) {
+        fs.mkdirSync(this.backupDir, { recursive: true })
+      }
+
+      // sync为同步写，无须await
+      fs.writeFileSync(backupedFilePath, retrievedFile as Buffer)
+
+      return await this.restore(_, backupedFilePath)
+    } catch (error: any) {
+      Logger.error('[backup] Failed to restore from WebDAV:', error)
+      throw new Error(error.message || 'Failed to restore backup file')
     }
+  }
 
-    await fs.writeFileSync(backupedFilePath, retrievedFile as Buffer)
+  listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
+    try {
+      const client = createClient(config.webdavHost, {
+        username: config.webdavUser,
+        password: config.webdavPass
+      })
 
-    return await this.restore(_, backupedFilePath)
+      const response = await client.getDirectoryContents(config.webdavPath)
+      const files = Array.isArray(response) ? response : response.data
+
+      return files
+        .filter((file: FileStat) => file.type === 'file' && file.basename.endsWith('.zip'))
+        .map((file: FileStat) => ({
+          fileName: file.basename,
+          modifiedTime: file.lastmod,
+          size: file.size
+        }))
+        .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error: any) {
+      Logger.error('Failed to list WebDAV files:', error)
+      throw new Error(error.message || 'Failed to list backup files')
+    }
   }
 }
 
