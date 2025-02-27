@@ -786,7 +786,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系統中 Option 鍵只能與空白鍵組合使用",
         "clear_shortcut": "清除快捷鍵",
         "clear_topic": "清除所有訊息",
         "copy_last_message": "複製上一条消息",

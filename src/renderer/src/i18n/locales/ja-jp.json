@@ -786,7 +786,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "MacではOptionキーとの組み合わせは、スペースキーのみ使用可能です",
         "clear_shortcut": "ショートカットをクリア",
         "clear_topic": "メッセージを消去",
         "copy_last_message": "最後のメッセージをコピー",

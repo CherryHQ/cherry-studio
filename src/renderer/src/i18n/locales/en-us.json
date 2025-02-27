@@ -786,7 +786,6 @@
       },
       "shortcuts": {
         "action": "Action",
-        "alt_warning": "On Mac, Option key combinations only work with the Space key",
         "clear_shortcut": "Clear Shortcut",
         "clear_topic": "Clear Messages",
         "copy_last_message": "Copy Last Message",
