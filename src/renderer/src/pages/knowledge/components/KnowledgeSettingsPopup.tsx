@@ -97,7 +97,9 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       afterClose={onClose}
       destroyOnClose
       maskClosable={false}
-      centered>
+      centered
+      width="80%"
+      bodyStyle={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '20px' }}>
       <Form form={form} layout="vertical">
         <Form.Item
           name="name"
@@ -121,7 +123,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           label={t('knowledge.document_count')}
           tooltip={{ title: t('knowledge.document_count_help') }}>
           <Slider
-            style={{ width: '100%' }}
+            style={{ width: 'calc(100% - 20px)'}}
             min={1}
             max={30}
             step={1}
