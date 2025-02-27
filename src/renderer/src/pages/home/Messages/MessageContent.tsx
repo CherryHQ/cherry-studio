@@ -1,4 +1,5 @@
 import { InfoCircleOutlined, SearchOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
@@ -135,7 +136,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           {message.metadata.tavily.results.map((result, index) => (
             <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
-              <Favicon src={`https://favicon.splitbee.io/?url=${new URL(result.url).hostname}`} alt={result.title} />
+              <Favicon hostname={new URL(result.url).hostname} alt={result.title} />
               <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
                 {result.title}
               </CitationLink>
@@ -212,13 +213,6 @@ const SearchingText = styled.div`
   line-height: 1.6;
   text-decoration: none;
   color: var(--color-text-1);
-`
-
-const Favicon = styled.img`
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  background-color: var(--color-background-mute);
 `
 
 export default React.memo(MessageContent)

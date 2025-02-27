@@ -472,7 +472,8 @@
         "vision": "Vision"
       },
       "vision": "Vision",
-      "websearch": "WebSearch"
+      "websearch": "WebSearch",
+      "edit": "Edit Model"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, ipcMain, ProxyConfig, session, shell } from 'electron'
+import { BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
@@ -14,12 +14,12 @@ import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
+import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
-import { decrypt } from './utils/aes'
-import { encrypt } from './utils/aes'
+import { decrypt, encrypt } from './utils/aes'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -40,9 +40,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   }))
 
   ipcMain.handle('app:proxy', async (_, proxy: string) => {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
-    const proxyConfig: ProxyConfig = proxy === 'system' ? { mode: 'system' } : proxy ? { proxyRules: proxy } : {}
-    await Promise.all(sessions.map((session) => session.setProxy(proxyConfig)))
+    const proxyConfig: ProxyConfig =
+      proxy === 'system' ? { mode: 'system' } : proxy ? { mode: 'custom', url: proxy } : { mode: 'none' }
+    await proxyManager.configureProxy(proxyConfig)
   })
 
   ipcMain.handle('app:reload', () => mainWindow.reload())
