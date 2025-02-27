@@ -3,6 +3,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setWebDAVSyncState } from '@renderer/store/runtime'
 import dayjs from 'dayjs'
+import Logger from 'electron-log'
 
 export async function backup() {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
@@ -59,16 +60,27 @@ export async function reset() {
 }
 
 // 备份到 webdav
-export async function backupToWebdav({ showMessage = false }: { showMessage?: boolean } = {}) {
+export async function backupToWebdav({
+  showMessage = false,
+  customFileName = ''
+}: { showMessage?: boolean; customFileName?: string } = {}) {
   if (isManualBackupRunning) {
-    console.log('[Backup] Manual backup already in progress')
+    Logger.log('[Backup] Manual backup already in progress')
     return
   }
 
   store.dispatch(setWebDAVSyncState({ syncing: true, lastSyncError: null }))
 
   const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
-
+  let deviceType = 'unknown'
+  try {
+    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+  } catch (error) {
+    Logger.error('[Backup] Failed to get device type:', error)
+  }
+  const timestamp = dayjs().format('YYYYMMDDHHmmss')
+  const backupFileName = customFileName || `cherry-studio.${timestamp}.${deviceType}.zip`
+  const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
   const backupData = await getBackupData()
 
   // 上传文件
@@ -77,7 +89,8 @@ export async function backupToWebdav({ showMessage = false }: { showMessage?: bo
       webdavHost,
       webdavUser,
       webdavPass,
-      webdavPath
+      webdavPath,
+      fileName: finalFileName
     })
     if (success) {
       store.dispatch(
@@ -106,12 +119,12 @@ export async function backupToWebdav({ showMessage = false }: { showMessage?: bo
 }
 
 // 从 webdav 恢复
-export async function restoreFromWebdav() {
+export async function restoreFromWebdav(fileName?: string) {
   const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
   let data = ''
 
   try {
-    data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath })
+    data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
   } catch (error: any) {
     console.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
     window.modal.error({
