@@ -38,6 +38,11 @@ export const useKnowledge = (baseId: string) => {
     dispatch(renameBase({ baseId, name }))
   }
 
+  const queryKnowledgeBase = async (baseId: string) => {
+    const base = await db.knowledge_notes.get(baseId)
+    return base
+  }
+
   // 更新知识库
   const updateKnowledgeBase = (base: KnowledgeBase) => {
     dispatch(updateBase(base))
@@ -295,6 +300,7 @@ export const useKnowledge = (baseId: string) => {
     noteItems,
     renameKnowledgeBase,
     updateKnowledgeBase,
+    queryKnowledgeBase,
     addFiles,
     addUrl,
     addSitemap,

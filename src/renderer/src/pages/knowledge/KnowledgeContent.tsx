@@ -9,7 +9,8 @@ import {
   PlusOutlined,
   RedoOutlined,
   SearchOutlined,
-  SettingOutlined
+  SettingOutlined,
+  SyncOutlined
 } from '@ant-design/icons'
 import Ellipsis from '@renderer/components/Ellipsis'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -17,11 +18,12 @@ import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileManager from '@renderer/services/FileManager'
+import { NotionService } from '@renderer/services/NotionService'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Alert, Button, Card, Divider, Dropdown, message, Tag, Tooltip, Typography, Upload } from 'antd'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,6 +41,7 @@ interface KnowledgeContentProps {
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
+  const [syncLoading, setSyncLoading] = useState(false)
 
   const {
     base,
@@ -226,6 +229,29 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     }
   }
 
+  const handleSyncFromNotion = async () => {
+    if (disabled) {
+      return
+    }
+
+    setSyncLoading(true)
+    try {
+      if (!base.notionConfig?.apiKey || !base.notionConfig?.databaseId) {
+        message.error(t('knowledge.notion_config_missing'))
+        return
+      }
+      const notionService = new NotionService(base.notionConfig.apiKey)
+      const notionFiles = await notionService.getDatabaseContent(base.notionConfig.databaseId, fileItems)
+      console.log('[KnowledgeContent] notionFiles:', notionFiles)
+      addFiles(notionFiles)
+    } catch (error) {
+      console.error('Failed to sync from Notion:', error)
+      message.error(t('knowledge.notion_sync_failed'))
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
   return (
     <MainContent>
       {!base?.version && (
@@ -237,9 +263,18 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <FileSection>
         <TitleWrapper>
           <Title level={5}>{t('files.title')}</Title>
-          <Button icon={<PlusOutlined />} onClick={handleAddFile} disabled={disabled}>
-            {t('knowledge.add_file')}
-          </Button>
+          <ButtonGroup>
+            <Button icon={<PlusOutlined />} onClick={handleAddFile} disabled={disabled}>
+              {t('knowledge.add_file')}
+            </Button>
+            <Button
+              icon={<SyncOutlined />}
+              onClick={handleSyncFromNotion}
+              disabled={disabled || syncLoading}
+              loading={syncLoading}>
+              {t('knowledge.sync_from_notion')}
+            </Button>
+          </ButtonGroup>
         </TitleWrapper>
         <Dragger
           showUploadList={false}
@@ -592,6 +627,11 @@ const StatusIconWrapper = styled.div`
 const RefreshIcon = styled(RedoOutlined)`
   font-size: 15px !important;
   color: var(--color-text-2);
+`
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 8px;
 `
 
 export default KnowledgeContent

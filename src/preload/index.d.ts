@@ -43,6 +43,7 @@ declare global {
         get: (filePath: string) => Promise<FileType | null>
         selectFolder: () => Promise<string | null>
         create: (fileName: string) => Promise<string>
+        createOrgin: (fileName: string) => Promise<string>
         write: (filePath: string, data: Uint8Array | string) => Promise<void>
         open: (options?: OpenDialogOptions) => Promise<{ fileName: string; filePath: string; content: Buffer } | null>
         openPath: (path: string) => Promise<void>

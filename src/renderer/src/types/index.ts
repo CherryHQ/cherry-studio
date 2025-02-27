@@ -251,6 +251,10 @@ export interface KnowledgeBase {
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  notionConfig?: {
+    databaseId: string
+    apiKey: string
+  }
 }
 
 export type KnowledgeBaseParams = {
