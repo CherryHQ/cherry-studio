@@ -137,13 +137,51 @@ const thinkTagProcessor: ThoughtProcessor = {
   }
 }
 
+// Claude思考内容处理器
+const claudeThinkingProcessor: ThoughtProcessor = {
+  canProcess: (content: string) => {
+    // 检查是否包含Claude的thinking类型内容
+    try {
+      const parsedContent = JSON.parse(content)
+      return (
+        Array.isArray(parsedContent.content) && parsedContent.content.some((block: any) => block.type === 'thinking')
+      )
+    } catch (e) {
+      return false
+    }
+  },
+  process: (content: string) => {
+    try {
+      const parsedContent = JSON.parse(content)
+
+      if (Array.isArray(parsedContent.content)) {
+        // 提取thinking内容
+        const thinkingBlock = parsedContent.content.find((block: any) => block.type === 'thinking')
+        const textBlock = parsedContent.content.find((block: any) => block.type === 'text')
+
+        return {
+          reasoning: thinkingBlock?.thinking || '',
+          content: textBlock?.text || ''
+        }
+      }
+    } catch (e) {
+      // 解析失败，返回原始内容
+    }
+
+    return {
+      reasoning: '',
+      content
+    }
+  }
+}
+
 export function withMessageThought(message: Message) {
   if (message.role !== 'assistant') {
     return message
   }
 
   const content = message.content.trim()
-  const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor]
+  const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor, claudeThinkingProcessor]
 
   const processor = processors.find((p) => p.canProcess(content))
   if (processor) {

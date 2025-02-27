@@ -103,13 +103,34 @@ export default class AnthropicProvider extends BaseProvider {
     }
 
     let time_first_token_millsec = 0
+    let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
 
     if (!streamOutput) {
       const message = await this.sdk.messages.create({ ...body, stream: false })
       const time_completion_millsec = new Date().getTime() - start_time_millsec
+
+      // 处理非流式输出的思考内容
+      let text = ''
+      let reasoning_content = ''
+
+      if (message.content && message.content.length > 0) {
+        // 检查是否有思考内容
+        const thinkingBlock = message.content.find((block) => block.type === 'thinking')
+        const textBlock = message.content.find((block) => block.type === 'text')
+
+        if (thinkingBlock && 'thinking' in thinkingBlock) {
+          reasoning_content = thinkingBlock.thinking
+        }
+
+        if (textBlock && 'text' in textBlock) {
+          text = textBlock.text
+        }
+      }
+
       return onChunk({
-        text: message.content[0].type === 'text' ? message.content[0].text : '',
+        text,
+        reasoning_content,
         usage: message.usage,
         metrics: {
           completion_tokens: message.usage.output_tokens,
@@ -125,6 +146,8 @@ export default class AnthropicProvider extends BaseProvider {
     const { signal } = abortController
 
     return new Promise<void>((resolve, reject) => {
+      let hasThinkingContent = false
+
       const stream = this.sdk.messages
         .stream({ ...body, stream: true }, { signal })
         .on('text', (text) => {
@@ -135,9 +158,36 @@ export default class AnthropicProvider extends BaseProvider {
           if (time_first_token_millsec == 0) {
             time_first_token_millsec = new Date().getTime() - start_time_millsec
           }
+
+          // 如果之前有思考内容，现在有文本内容，记录思考结束时间
+          if (hasThinkingContent && time_first_content_millsec === 0) {
+            time_first_content_millsec = new Date().getTime()
+          }
+
           const time_completion_millsec = new Date().getTime() - start_time_millsec
+          const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
+
           onChunk({
             text,
+            metrics: {
+              completion_tokens: undefined,
+              time_completion_millsec,
+              time_first_token_millsec,
+              time_thinking_millsec
+            }
+          })
+        })
+        .on('thinking', (thinking) => {
+          hasThinkingContent = true
+
+          if (time_first_token_millsec == 0) {
+            time_first_token_millsec = new Date().getTime() - start_time_millsec
+          }
+
+          const time_completion_millsec = new Date().getTime() - start_time_millsec
+
+          onChunk({
+            reasoning_content: thinking,
             metrics: {
               completion_tokens: undefined,
               time_completion_millsec,
@@ -146,6 +196,9 @@ export default class AnthropicProvider extends BaseProvider {
           })
         })
         .on('finalMessage', (message) => {
+          const time_completion_millsec = new Date().getTime() - start_time_millsec
+          const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
+
           onChunk({
             text: '',
             usage: {
@@ -155,8 +208,9 @@ export default class AnthropicProvider extends BaseProvider {
             },
             metrics: {
               completion_tokens: message.usage.output_tokens,
-              time_completion_millsec: new Date().getTime() - start_time_millsec,
-              time_first_token_millsec
+              time_completion_millsec,
+              time_first_token_millsec,
+              time_thinking_millsec
             }
           })
           resolve()
