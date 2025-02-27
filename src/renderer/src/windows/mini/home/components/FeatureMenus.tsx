@@ -1,5 +1,6 @@
 import { BulbOutlined, EnterOutlined, FileTextOutlined, MessageOutlined, TranslationOutlined } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { CustomPrompt } from '@renderer/store/settings'
 import { Col } from 'antd'
 import { Dispatch, forwardRef, SetStateAction, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +10,7 @@ interface FeatureMenusProps {
   text: string
   setRoute: Dispatch<SetStateAction<'translate' | 'summary' | 'chat' | 'explanation' | 'home'>>
   onSendMessage: (prompt?: string) => void
+  customPrompts?: CustomPrompt[]
 }
 
 export interface FeatureMenusRef {
@@ -18,83 +20,97 @@ export interface FeatureMenusRef {
   resetSelectedIndex: () => void
 }
 
-const FeatureMenus = forwardRef<FeatureMenusRef, FeatureMenusProps>(({ text, setRoute, onSendMessage }, ref) => {
-  const { t } = useTranslation()
-  const [selectedIndex, setSelectedIndex] = useState(0)
+const FeatureMenus = forwardRef<FeatureMenusRef, FeatureMenusProps>(
+  ({ text, setRoute, onSendMessage, customPrompts = [] }, ref) => {
+    const { t } = useTranslation()
+    const [selectedIndex, setSelectedIndex] = useState(0)
 
-  const features = useMemo(
-    () => [
-      {
+    const features = useMemo(() => {
+      const presetFeatures = [
+        {
+          icon: <MessageOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+          title: t('miniwindow.feature.chat'),
+          active: true,
+          onClick: () => {
+            if (text) {
+              setRoute('chat')
+              onSendMessage()
+            }
+          }
+        },
+        {
+          icon: <TranslationOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+          title: t('miniwindow.feature.translate'),
+          onClick: () => text && setRoute('translate')
+        },
+        {
+          icon: <FileTextOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+          title: t('miniwindow.feature.summary'),
+          onClick: () => {
+            if (text) {
+              setRoute('summary')
+              onSendMessage(t('prompts.summarize'))
+            }
+          }
+        },
+        {
+          icon: <BulbOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+          title: t('miniwindow.feature.explanation'),
+          onClick: () => {
+            if (text) {
+              setRoute('explanation')
+              onSendMessage(t('prompts.explanation'))
+            }
+          }
+        }
+      ]
+
+      const customFeatures = customPrompts.map((prompt) => ({
         icon: <MessageOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
-        title: t('miniwindow.feature.chat'),
-        active: true,
+        title: prompt.name,
         onClick: () => {
           if (text) {
             setRoute('chat')
-            onSendMessage()
+            onSendMessage(prompt.prompt)
           }
         }
+      }))
+
+      return [...presetFeatures, ...customFeatures]
+    }, [onSendMessage, setRoute, t, text, customPrompts])
+
+    useImperativeHandle(ref, () => ({
+      nextFeature() {
+        setSelectedIndex((prev) => (prev < features.length - 1 ? prev + 1 : 0))
       },
-      {
-        icon: <TranslationOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
-        title: t('miniwindow.feature.translate'),
-        onClick: () => text && setRoute('translate')
+      prevFeature() {
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : features.length - 1))
       },
-      {
-        icon: <FileTextOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
-        title: t('miniwindow.feature.summary'),
-        onClick: () => {
-          if (text) {
-            setRoute('summary')
-            onSendMessage(t('prompts.summarize'))
-          }
-        }
+      useFeature() {
+        features[selectedIndex].onClick?.()
       },
-      {
-        icon: <BulbOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
-        title: t('miniwindow.feature.explanation'),
-        onClick: () => {
-          if (text) {
-            setRoute('explanation')
-            onSendMessage(t('prompts.explanation'))
-          }
-        }
+      resetSelectedIndex() {
+        setSelectedIndex(0)
       }
-    ],
-    [onSendMessage, setRoute, t, text]
-  )
+    }))
 
-  useImperativeHandle(ref, () => ({
-    nextFeature() {
-      setSelectedIndex((prev) => (prev < features.length - 1 ? prev + 1 : 0))
-    },
-    prevFeature() {
-      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : features.length - 1))
-    },
-    useFeature() {
-      features[selectedIndex].onClick?.()
-    },
-    resetSelectedIndex() {
-      setSelectedIndex(0)
-    }
-  }))
-
-  return (
-    <FeatureList>
-      <FeatureListWrapper>
-        {features.map((feature, index) => (
-          <Col span={24} key={index}>
-            <FeatureItem onClick={feature.onClick} className={index === selectedIndex ? 'active' : ''}>
-              <FeatureIcon>{feature.icon}</FeatureIcon>
-              <FeatureTitle>{feature.title}</FeatureTitle>
-              {index === selectedIndex && <EnterOutlined />}
-            </FeatureItem>
-          </Col>
-        ))}
-      </FeatureListWrapper>
-    </FeatureList>
-  )
-})
+    return (
+      <FeatureList>
+        <FeatureListWrapper>
+          {features.map((feature, index) => (
+            <Col span={24} key={index}>
+              <FeatureItem onClick={feature.onClick} className={index === selectedIndex ? 'active' : ''}>
+                <FeatureIcon>{feature.icon}</FeatureIcon>
+                <FeatureTitle>{feature.title}</FeatureTitle>
+                {index === selectedIndex && <EnterOutlined />}
+              </FeatureItem>
+            </Col>
+          ))}
+        </FeatureListWrapper>
+      </FeatureList>
+    )
+  }
+)
 FeatureMenus.displayName = 'FeatureMenus'
 
 const FeatureList = styled(Scrollbar)`

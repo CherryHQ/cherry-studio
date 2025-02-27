@@ -1,11 +1,16 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
+import { CaretRightOutlined, DeleteOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
-import { setClickTrayToShowQuickAssistant, setEnableQuickAssistant } from '@renderer/store/settings'
+import {
+  CustomPrompt,
+  setClickTrayToShowQuickAssistant,
+  setCustomPrompts,
+  setEnableQuickAssistant
+} from '@renderer/store/settings'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
-import { Switch, Tooltip } from 'antd'
-import { FC } from 'react'
+import { Button, Form, Input, List, message, Modal, Switch, Tooltip } from 'antd'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -14,8 +19,12 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowT
 const QuickAssistantSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray } = useSettings()
+  const { enableQuickAssistant, clickTrayToShowQuickAssistant, customPrompts, setTray } = useSettings()
   const dispatch = useAppDispatch()
+  const [isModalVisible, setIsModalVisible] = useState(false)
+  const [editingPrompt, setEditingPrompt] = useState<CustomPrompt | null>(null)
+  const [form] = Form.useForm()
+  const [isPromptsExpanded, setIsPromptsExpanded] = useState(false)
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
     dispatch(setEnableQuickAssistant(enable))
@@ -44,6 +53,57 @@ const QuickAssistantSettings: FC = () => {
     checked && setTray(true)
   }
 
+  const showModal = (prompt?: CustomPrompt) => {
+    setEditingPrompt(prompt || null)
+    if (prompt) {
+      form.setFieldsValue(prompt)
+    } else {
+      form.resetFields()
+    }
+    setIsModalVisible(true)
+  }
+
+  const handleCancel = () => {
+    setIsModalVisible(false)
+    setEditingPrompt(null)
+  }
+
+  const handleFinish = (values: { name: string; prompt: string }) => {
+    const prompts = Array.isArray(customPrompts) ? [...customPrompts] : []
+    const currentName = values.name.trim()
+
+    if (editingPrompt) {
+      const updatedPrompts = prompts.map((cp) =>
+        cp.id === editingPrompt.id ? { ...cp, name: currentName, prompt: values.prompt } : cp
+      )
+      const isModified = editingPrompt.name !== currentName || editingPrompt.prompt !== values.prompt
+
+      if (isModified) {
+        dispatch(setCustomPrompts(updatedPrompts))
+        message.success(t('settings.quickAssistant.customPrompts.updated'))
+      }
+    } else {
+      const exists = prompts.some((cp) => cp.name === currentName)
+      if (!exists) {
+        const newPrompt: CustomPrompt = {
+          id: Date.now().toString(),
+          name: currentName,
+          prompt: values.prompt
+        }
+        dispatch(setCustomPrompts([...prompts, newPrompt]))
+        message.success(t('settings.quickAssistant.customPrompts.added'))
+      }
+    }
+    setIsModalVisible(false)
+    form.resetFields()
+  }
+
+  const handleDelete = (id: string) => {
+    const filteredPrompts = customPrompts.filter((cp) => cp.id !== id)
+    dispatch(setCustomPrompts(filteredPrompts))
+    message.success(t('settings.quickAssistant.customPrompts.deleted'))
+  }
+
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -67,6 +127,84 @@ const QuickAssistantSettings: FC = () => {
             </SettingRow>
           </>
         )}
+        {enableQuickAssistant && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CaretRightOutlined
+                  rotate={isPromptsExpanded ? 90 : 0}
+                  style={{ cursor: 'pointer', transition: 'all 0.3s' }}
+                  onClick={() => setIsPromptsExpanded(!isPromptsExpanded)}
+                />
+                <span>{t('settings.quickAssistant.customPrompts.title')}</span>
+              </SettingRowTitle>
+              <Button type="text" icon={<PlusOutlined />} onClick={() => showModal()} />
+            </SettingRow>
+            <CollapseContainer expanded={isPromptsExpanded}>
+              <SettingDivider />
+              <List
+                dataSource={customPrompts}
+                renderItem={(item) => (
+                  <List.Item
+                    actions={[
+                      <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => showModal(item)} />,
+                      <Button
+                        key="delete"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleDelete(item.id)}
+                      />
+                    ]}>
+                    <List.Item.Meta title={item.name} />
+                  </List.Item>
+                )}
+              />
+            </CollapseContainer>
+            <Modal
+              title={
+                editingPrompt
+                  ? t('settings.quickAssistant.customPrompts.editPrompt')
+                  : t('settings.quickAssistant.customPrompts.addPrompt')
+              }
+              visible={isModalVisible}
+              onCancel={handleCancel}
+              onOk={() => form.submit()}
+              okText={t('common.save')}
+              cancelText={t('common.cancel')}>
+              <Form form={form} layout="vertical" onFinish={handleFinish}>
+                <Form.Item
+                  label={t('settings.quickAssistant.customPrompts.functionName')}
+                  name="name"
+                  rules={[
+                    { required: true, message: t('settings.quickAssistant.customPrompts.nameRequired') },
+                    () => ({
+                      validator(_, value) {
+                        const currentValue = (value || '').trim()
+                        if (!currentValue) return Promise.resolve()
+
+                        const exists = customPrompts?.some(
+                          (cp) => cp.name.trim() === currentValue && cp.id !== editingPrompt?.id
+                        )
+                        return exists
+                          ? Promise.reject(new Error(t('settings.quickAssistant.customPrompts.nameUnique')))
+                          : Promise.resolve()
+                      }
+                    })
+                  ]}>
+                  <Input placeholder={t('settings.quickAssistant.customPrompts.functionNamePlaceholder')} />
+                </Form.Item>
+                <Form.Item
+                  label={t('settings.quickAssistant.customPrompts.prompt')}
+                  name="prompt"
+                  rules={[{ required: true, message: t('settings.quickAssistant.customPrompts.promptRequired') }]}>
+                  <Input.TextArea rows={4} placeholder={t('settings.quickAssistant.customPrompts.promptPlaceholder')} />
+                </Form.Item>
+              </Form>
+            </Modal>
+          </>
+        )}
       </SettingGroup>
       {enableQuickAssistant && (
         <AssistantContainer>
@@ -85,6 +223,14 @@ const AssistantContainer = styled.div`
   border: 0.5px solid var(--color-border);
   margin: 0 auto;
   overflow: hidden;
+`
+
+const CollapseContainer = styled.div<{ expanded: boolean }>`
+  max-height: ${(props) => (props.expanded ? '500px' : '0')};
+  overflow: hidden;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: ${(props) => (props.expanded ? 1 : 0)};
+  visibility: ${(props) => (props.expanded ? 'visible' : 'hidden')};
 `
 
 export default QuickAssistantSettings

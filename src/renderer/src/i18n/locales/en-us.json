@@ -782,7 +782,25 @@
         "click_tray_to_show": "Click the tray icon to start",
         "enable_quick_assistant": "Enable Quick Assistant",
         "title": "Quick Assistant",
-        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start",
+        "customPrompts": {
+          "title": "Custom Prompts",
+          "add": "Add",
+          "edit": "Edit",
+          "delete": "Delete",
+          "addPrompt": "Add Prompt",
+          "editPrompt": "Edit Prompt",
+          "functionName": "Function Name",
+          "functionNamePlaceholder": "Enter function name...",
+          "nameRequired": "Please enter function name",
+          "nameUnique": "Function name must be unique",
+          "prompt": "Prompt",
+          "promptPlaceholder": "Enter prompt content...",
+          "promptRequired": "Please input prompt content",
+          "added": "Prompt added",
+          "updated": "Prompt updated",
+          "deleted": "Prompt deleted"
+        }
       },
       "shortcuts": {
         "action": "Action",

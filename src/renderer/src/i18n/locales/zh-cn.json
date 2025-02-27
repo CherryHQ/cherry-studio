@@ -782,7 +782,25 @@
         "click_tray_to_show": "点击托盘图标启动",
         "enable_quick_assistant": "启用快捷助手",
         "title": "快捷助手",
-        "use_shortcut_to_show": "右键点击托盘图标或使用快捷键启动"
+        "use_shortcut_to_show": "右键点击托盘图标或使用快捷键启动",
+        "customPrompts": {
+          "title": "自定义提示词管理",
+          "add": "新增",
+          "edit": "修改",
+          "delete": "删除",
+          "addPrompt": "新增提示词",
+          "editPrompt": "编辑提示词",
+          "functionName": "功能命名",
+          "functionNamePlaceholder": "请输入功能名称...",
+          "nameRequired": "功能名称为必填项",
+          "nameUnique": "已经存在相同名称的提示词",
+          "prompt": "提示词内容",
+          "promptPlaceholder": "请输入提示词内容...",
+          "promptRequired": "提示词内容为必填项",
+          "added": "提示词添加成功",
+          "updated": "提示词更新成功",
+          "deleted": "提示词删除成功"
+        }
       },
       "shortcuts": {
         "action": "操作",

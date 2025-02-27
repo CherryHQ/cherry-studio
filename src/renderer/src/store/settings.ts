@@ -16,6 +16,12 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'files'
 ]
 
+export interface CustomPrompt {
+  id: string
+  name: string
+  prompt: string
+}
+
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
@@ -58,6 +64,8 @@ export interface SettingsState {
   enableTopicNaming: boolean
   customCss: string
   topicNamingPrompt: string
+  // 自定义提示词
+  customPrompts: CustomPrompt[]
   // Sidebar icons
   sidebarIcons: {
     visible: SidebarIcon[]
@@ -121,6 +129,7 @@ const initialState: SettingsState = {
   enableTopicNaming: true,
   customCss: '',
   topicNamingPrompt: '',
+  customPrompts: [],
   sidebarIcons: {
     visible: DEFAULT_SIDEBAR_ICONS,
     disabled: []
@@ -271,6 +280,9 @@ const settingsSlice = createSlice({
     setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
       state.topicNamingPrompt = action.payload
     },
+    setCustomPrompts: (state, action: PayloadAction<CustomPrompt[]>) => {
+      state.customPrompts = action.payload
+    },
     setSidebarIcons: (state, action: PayloadAction<{ visible?: SidebarIcon[]; disabled?: SidebarIcon[] }>) => {
       if (action.payload.visible) {
         state.sidebarIcons.visible = action.payload.visible
@@ -364,6 +376,7 @@ export const {
   setPasteLongTextThreshold,
   setCustomCss,
   setTopicNamingPrompt,
+  setCustomPrompts,
   setSidebarIcons,
   setNarrowMode,
   setClickTrayToShowQuickAssistant,

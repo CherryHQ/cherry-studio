@@ -29,7 +29,7 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const { defaultModel: model } = useDefaultModel()
-  const { language } = useSettings()
+  const { language, customPrompts } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
@@ -255,7 +255,13 @@ const HomeWindow: FC = () => {
       <Divider style={{ margin: '10px 0' }} />
       <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
       <Main>
-        <FeatureMenus setRoute={setRoute} onSendMessage={onSendMessage} text={content} ref={featureMenusRef} />
+        <FeatureMenus
+          setRoute={setRoute}
+          onSendMessage={onSendMessage}
+          text={content}
+          customPrompts={customPrompts}
+          ref={featureMenusRef}
+        />
       </Main>
       <Divider style={{ margin: '10px 0' }} />
       <Footer

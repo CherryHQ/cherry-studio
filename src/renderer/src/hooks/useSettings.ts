@@ -1,6 +1,8 @@
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
+  CustomPrompt,
   SendMessageShortcut,
+  setCustomPrompts,
   setSendMessageShortcut as _setSendMessageShortcut,
   setSidebarIcons,
   setTargetLanguage,
@@ -45,6 +47,9 @@ export function useSettings() {
     },
     updateSidebarDisabledIcons(icons: SidebarIcon[]) {
       dispatch(setSidebarIcons({ disabled: icons }))
+    },
+    setCustomPrompts(customPrompts: CustomPrompt[]) {
+      dispatch(setCustomPrompts(customPrompts))
     }
   }
 }
