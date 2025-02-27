@@ -453,6 +453,8 @@
       "embedding_model": "埋め込み模型",
       "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
       "enable_thinking": "思考を有効にする",
+      "thinking_budget_tokens": "思考予算 tokens",
+      "thinking_budget_tokens.tip": "Claude が内部推理過程で使用できるトークン数を決定します。より大きな予算は、複雑な問題に対してより徹底的な分析を可能にし、回答の質を向上させます。<br/><br/>1024 以上で、max_tokens 未満である必要があります。",
       "free": "無料",
       "parameter_name": "パラメータ名",
       "parameter_type": {

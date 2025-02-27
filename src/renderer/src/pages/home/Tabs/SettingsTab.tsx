@@ -53,6 +53,7 @@ const SettingsTab: FC<Props> = (props) => {
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const [enableThinking, setEnableThinking] = useState(assistant?.settings?.enableThinking ?? true)
+  const [thinkingBudgetTokens, setThinkingBudgetTokens] = useState(assistant?.settings?.thinkingBudgetTokens ?? 1024)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -98,6 +99,12 @@ const SettingsTab: FC<Props> = (props) => {
     }
   }
 
+  const onThinkingBudgetTokensChange = (value) => {
+    if (!isNaN(value as number)) {
+      onUpdateAssistantSettings({ thinkingBudgetTokens: value })
+    }
+  }
+
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
     setContextCount(DEFAULT_CONTEXTCOUNT)
@@ -112,7 +119,8 @@ const SettingsTab: FC<Props> = (props) => {
         streamOutput: true,
         hideMessages: false,
         customParameters: [],
-        enableThinking: true
+        enableThinking: true,
+        thinkingBudgetTokens: 1024
       }
     })
   }
@@ -124,6 +132,7 @@ const SettingsTab: FC<Props> = (props) => {
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
     setEnableThinking(assistant?.settings?.enableThinking ?? true)
+    setThinkingBudgetTokens(assistant?.settings?.thinkingBudgetTokens ?? 1024)
   }, [assistant])
 
   return (
@@ -197,6 +206,31 @@ const SettingsTab: FC<Props> = (props) => {
                 }}
               />
             </SettingRow>
+            {enableThinking && (
+              <>
+                <SettingDivider />
+                <Row align="middle">
+                  <Label>{t('models.thinking_budget_tokens')}</Label>
+                  <Tooltip title={<div dangerouslySetInnerHTML={{ __html: t('models.thinking_budget_tokens.tip') }} />}>
+                    <QuestionIcon />
+                  </Tooltip>
+                </Row>
+                <Row align="middle" gutter={10}>
+                  <Col span={24}>
+                    <InputNumber
+                      min={1024}
+                      max={10000000}
+                      step={1000}
+                      value={typeof thinkingBudgetTokens === 'number' ? thinkingBudgetTokens : 1024}
+                      changeOnBlur
+                      onChange={(value) => value && setThinkingBudgetTokens(value)}
+                      onBlur={() => onThinkingBudgetTokensChange(thinkingBudgetTokens)}
+                      style={{ width: '100%' }}
+                    />
+                  </Col>
+                </Row>
+              </>
+            )}
           </>
         )}
         <SettingDivider />

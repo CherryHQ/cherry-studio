@@ -453,6 +453,8 @@
       "embedding_model": "嵌入模型",
       "embedding_model_tooltip": "在 設置->模型提供商->管理 中添加",
       "enable_thinking": "啟用思考",
+      "thinking_budget_tokens": "思考預算 tokens",
+      "thinking_budget_tokens.tip": "確定 Claude 在內部推理過程中可以使用多少個標記。更大的預算可以允許對複雜問題進行更徹底的分析，從而提高響應質量。<br/><br/>必須≥1024 且小於 max_tokens 。",
       "free": "免費",
       "parameter_name": "參數名稱",
       "parameter_type": {

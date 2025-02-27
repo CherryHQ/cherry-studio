@@ -42,6 +42,7 @@ export type AssistantSettings = {
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: 'low' | 'medium' | 'high'
   enableThinking?: boolean
+  thinkingBudgetTokens?: number
 }
 
 export type Agent = Omit<Assistant, 'model'>

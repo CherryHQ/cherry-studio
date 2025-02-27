@@ -453,6 +453,8 @@
       "embedding_model": "Embedding Model",
       "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
       "enable_thinking": "Enable Thinking",
+      "thinking_budget_tokens": "Thinking Budget Tokens",
+      "thinking_budget_tokens.tip": "Determines how many tokens Claude can use for its internal reasoning process. Larger budgets can enable more thorough analysis for complex problems, improving response quality. <br/><br/>Must be ≥1024 and less than max_tokens.",
       "free": "Free",
       "parameter_name": "Parameter Name",
       "parameter_type": {

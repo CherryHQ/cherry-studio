@@ -67,7 +67,8 @@ export default class AnthropicProvider extends BaseProvider {
   public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput, enableThinking } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput, enableThinking, thinkingBudgetTokens } =
+      getAssistantSettings(assistant)
 
     const userMessagesParams: MessageParam[] = []
     const _messages = filterContextMessages(takeRight(messages, contextCount + 2))
@@ -98,7 +99,7 @@ export default class AnthropicProvider extends BaseProvider {
     if (enableThinking) {
       ;(body as any).thinking = {
         type: 'enabled',
-        budget_tokens: 2048
+        budget_tokens: thinkingBudgetTokens
       }
     }
 

@@ -108,7 +108,8 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     hideMessages: assistant?.settings?.hideMessages ?? false,
     defaultModel: assistant?.defaultModel ?? undefined,
     customParameters: assistant?.settings?.customParameters ?? [],
-    enableThinking: assistant?.settings?.enableThinking ?? true
+    enableThinking: assistant?.settings?.enableThinking ?? true,
+    thinkingBudgetTokens: assistant?.settings?.thinkingBudgetTokens ?? 1024
   }
 }
 
