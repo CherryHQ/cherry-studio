@@ -67,10 +67,10 @@ export async function fetchChatCompletion({
             })
           }
           onResponse({ ...message, status: 'searching' })
-          const webSearch = await WebSearchService.search(lastMessage.content)
+          const webSearch = await WebSearchService.search(provider, lastMessage.content)
           message.metadata = {
             ...message.metadata,
-            tavily: webSearch
+            webSearch: webSearch
           }
           window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
         }
