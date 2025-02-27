@@ -188,6 +188,7 @@ export default class AnthropicProvider extends BaseProvider {
 
           onChunk({
             reasoning_content: thinking,
+            text: '',
             metrics: {
               completion_tokens: undefined,
               time_completion_millsec,
