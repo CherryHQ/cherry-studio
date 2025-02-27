@@ -37,6 +37,7 @@ import TogetherProviderLogo from '@renderer/assets/images/providers/together.png
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 export function getProviderLogo(providerId: string) {
   switch (providerId) {
     case 'openai':
@@ -67,6 +68,8 @@ export function getProviderLogo(providerId: string) {
       return BailianProviderLogo
     case 'modelscope':
       return ModelScopeProviderLogo
+    case 'xirang':
+      return XirangProviderLogo
     case 'anthropic':
       return AnthropicProviderLogo
     case 'aihubmix':
@@ -321,6 +324,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://modelscope.cn/my/myaccesstoken',
       docs: 'https://modelscope.cn/docs/model-service/API-Inference/intro',
       models: 'https://modelscope.cn/models'
+    }
+  },
+  xirang: {
+    api: {
+      url: 'https://wishub-x1.ctyun.cn/v1/'
+    },
+    websites: {
+      official: 'https://www.ctyun.cn',
+      apiKey: 'https://www.ctyun.cn/act/xirang/deepseek',
+      docs: 'https://www.ctyun.cn/document',
+      models: 'https://www.ctyun.cn/act/xirang/deepseek'
     }
   },
   dashscope: {
