@@ -293,16 +293,21 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       <DragableList list={assistant.topics} onUpdate={updateTopics}>
         {(topic) => {
           const isActive = topic.id === activeTopic?.id
+          const topicName = topic.name.replace('`', '')
+          const topicPrompt = topic.prompt
+          const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
           return (
             <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
               <TopicListItem
                 className={isActive ? 'active' : ''}
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
-                <TopicName className="name">{topic.name.replace('`', '')}</TopicName>
-                {topic.prompt && (
-                  <TopicPromptText className="prompt">
-                    {t('common.prompt')}: {topic.prompt}
+                <TopicName className="name" title={topicName}>
+                  {topicName}
+                </TopicName>
+                {topicPrompt && (
+                  <TopicPromptText className="prompt" title={fullTopicPrompt}>
+                    {fullTopicPrompt}
                   </TopicPromptText>
                 )}
                 {showTopicTime && (
