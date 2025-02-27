@@ -160,6 +160,7 @@ const SettingsTab: FC<Props> = (props) => {
               onChangeComplete={onTemperatureChange}
               value={typeof temperature === 'number' ? temperature : 0}
               step={0.1}
+              disabled={assistant?.model ? isClaudeThinkingModel(assistant.model) && enableThinking : false}
             />
           </Col>
         </Row>
@@ -202,7 +203,12 @@ const SettingsTab: FC<Props> = (props) => {
                 checked={enableThinking}
                 onChange={(checked) => {
                   setEnableThinking(checked)
-                  onUpdateAssistantSettings({ enableThinking: checked })
+                  if (checked) {
+                    setTemperature(1)
+                    onUpdateAssistantSettings({ enableThinking: checked, temperature: 1 })
+                  } else {
+                    onUpdateAssistantSettings({ enableThinking: checked })
+                  }
                 }}
               />
             </SettingRow>
