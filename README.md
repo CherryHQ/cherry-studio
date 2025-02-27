@@ -65,8 +65,9 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 - [x] Quick popup (read clipboard, quick question, explain, translate, summarize)
 - [x] Comparison of multi-model answers
 - [x] Support login using SSO provided by service providers
-- [ ] All models support networking (in development...)
-- [ ] Launch of the first official version
+- [x] All models support networking
+- [x] Launch of the first official version
+- [x] Bug fixes and improvements (In progress...)
 - [ ] Plugin functionality (JavaScript)
 - [ ] Browser extension (highlight text to translate, summarize, add to knowledge base)
 - [ ] iOS & Android client
