@@ -27,7 +27,7 @@ import { providerCharge } from '@renderer/utils/oauth'
 import { Avatar, Button, Card, Checkbox, Divider, Flex, Input, Popover, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { groupBy, isEmpty } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -76,11 +76,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const modelsWebsite = providerConfig?.websites?.models
   const configedApiHost = providerConfig?.api?.url
 
-  const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
-      updateProvider({ ...provider, apiKey })
-    }
-  }
+  const inputRef = useRef<any>(null)
+  const [updateScheduled, setUpdateScheduled] = useState(false)
 
   const onUpdateApiHost = () => {
     if (apiHost.trim()) {
@@ -267,13 +264,33 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
-          value={apiKey}
+          ref={inputRef}
+          defaultValue={provider.apiKey} // 使用defaultValue而不是value
           placeholder={t('settings.provider.api_key')}
-          onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
-          onBlur={onUpdateApiKey}
+          onChange={() => {
+            // 使用原生DOM值而不是立即更新React状态
+            // 延迟更新状态，给浏览器撤销功能留出空间
+            if (!updateScheduled) {
+              setUpdateScheduled(true)
+              setTimeout(() => {
+                // 从DOM获取最新值，而不是使用闭包中的值
+                const finalValue = inputRef.current?.input?.value || ''
+                setApiKey(formatApiKeys(finalValue))
+                setUpdateScheduled(false)
+              }, 100)
+            }
+          }}
+          onBlur={(e) => {
+            // 只在失焦时格式化并提交更改
+            const formattedValue = formatApiKeys(e.target.value)
+            setApiKey(formattedValue)
+            if (formattedValue !== provider.apiKey) {
+              updateProvider({ ...provider, apiKey: formattedValue })
+            }
+          }}
           spellCheck={false}
           type="password"
-          autoFocus={provider.enabled && apiKey === ''}
+          autoFocus={provider.enabled && !provider.apiKey}
         />
         {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
         <Button
