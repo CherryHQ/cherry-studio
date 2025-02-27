@@ -16,7 +16,7 @@ import type { MenuProps } from 'antd'
 import { Tooltip } from 'antd'
 import { Avatar } from 'antd'
 import { Dropdown } from 'antd'
-import { FC } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -35,6 +35,28 @@ const Sidebar: FC = () => {
   const { windowStyle, sidebarIcons } = useSettings()
   const { theme, toggleTheme } = useTheme()
   const { pinned } = useMinapps()
+
+  useEffect(() => {
+    try {
+      const EVENT_EMITTER = (window as any).EventEmitter
+      const EVENT_NAMES_OBJ = (window as any).EVENT_NAMES
+
+      if (EVENT_EMITTER && EVENT_NAMES_OBJ?.MINIAPP_CHANGED) {
+        const handler = () => {
+          console.log('[Sidebar] 收到MINIAPP_CHANGED事件，更新状态')
+        }
+
+        EVENT_EMITTER.on(EVENT_NAMES_OBJ.MINIAPP_CHANGED, handler)
+        return () => {
+          EVENT_EMITTER.off(EVENT_NAMES_OBJ.MINIAPP_CHANGED, handler)
+        }
+      }
+    } catch (err) {
+      console.error('[Sidebar] 事件监听设置失败:', err)
+    }
+
+    return () => {}
+  }, [])
 
   const onEditUser = () => UserPopup.show()
 
@@ -119,6 +141,37 @@ const MainMenus: FC = () => {
   const { sidebarIcons } = useSettings()
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
+  const [forceUpdate, setForceUpdate] = useState(0)
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setForceUpdate((prev) => prev + 1)
+    }, 300)
+
+    try {
+      const EVENT_EMITTER = (window as any).EventEmitter
+      const EVENT_NAMES_OBJ = (window as any).EVENT_NAMES
+
+      if (EVENT_EMITTER && EVENT_NAMES_OBJ?.MINIAPP_CHANGED) {
+        const handler = () => {
+          console.log('[MainMenus] 收到MINIAPP_CHANGED事件，更新状态')
+          setForceUpdate((prev) => prev + 1)
+        }
+
+        EVENT_EMITTER.on(EVENT_NAMES_OBJ.MINIAPP_CHANGED, handler)
+        return () => {
+          EVENT_EMITTER.off(EVENT_NAMES_OBJ.MINIAPP_CHANGED, handler)
+          clearInterval(intervalId)
+        }
+      }
+    } catch (err) {
+      console.error('[MainMenus] 事件监听设置失败:', err)
+    }
+
+    return () => clearInterval(intervalId)
+  }, [])
+
+  console.log('[MainMenus] 重新渲染', forceUpdate)
 
   const isRoute = (path: string): string => (pathname === path && !minappShow ? 'active' : '')
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
@@ -167,6 +220,37 @@ const PinnedApps: FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
   const { minappShow } = useRuntime()
+  const [forceUpdate, setForceUpdate] = useState(0)
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setForceUpdate((prev) => prev + 1)
+    }, 300)
+
+    try {
+      const EVENT_EMITTER = (window as any).EventEmitter
+      const EVENT_NAMES_OBJ = (window as any).EVENT_NAMES
+
+      if (EVENT_EMITTER && EVENT_NAMES_OBJ?.MINIAPP_CHANGED) {
+        const handler = () => {
+          console.log('[PinnedApps] 收到MINIAPP_CHANGED事件，更新状态')
+          setForceUpdate((prev) => prev + 1)
+        }
+
+        EVENT_EMITTER.on(EVENT_NAMES_OBJ.MINIAPP_CHANGED, handler)
+        return () => {
+          EVENT_EMITTER.off(EVENT_NAMES_OBJ.MINIAPP_CHANGED, handler)
+          clearInterval(intervalId)
+        }
+      }
+    } catch (err) {
+      console.error('[PinnedApps] 事件监听设置失败:', err)
+    }
+
+    return () => clearInterval(intervalId)
+  }, [])
+
+  console.log('[PinnedApps] 重新渲染', forceUpdate)
 
   return (
     <DragableList list={pinned} onUpdate={updatePinnedMinapps} listStyle={{ marginBottom: 5 }}>
