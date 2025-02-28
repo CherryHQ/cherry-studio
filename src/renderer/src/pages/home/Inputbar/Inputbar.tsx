@@ -329,7 +329,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       if (isExpended) {
         textArea.style.height = '70vh'
       } else {
-        resizeTextArea()
+        resetHeight()
       }
     }
 
@@ -453,10 +453,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       if (!isDragging) return
 
       const delta = startDragY.current - e.clientY // 改变计算方向
-      const newHeight = Math.min(400, Math.max(startHeight.current + delta, 50))
+      const viewportHeight = window.innerHeight
+      const maxHeightInPixels = viewportHeight * 0.7
+
+      const newHeight = Math.min(maxHeightInPixels, Math.max(startHeight.current + delta, 50))
       const textArea = textareaRef.current?.resizableTextArea?.textArea
       if (textArea) {
         textArea.style.height = `${newHeight}px`
+        setExpend(newHeight == maxHeightInPixels)
         setTextareaHeight(newHeight)
       }
     },
@@ -603,6 +607,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   }, [assistant, model, updateAssistant])
 
   const resetHeight = () => {
+    if (expended) {
+      setExpend(false)
+    }
     setTextareaHeight(undefined)
     requestAnimationFrame(() => {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
