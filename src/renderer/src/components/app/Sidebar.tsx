@@ -57,6 +57,10 @@ const Sidebar: FC = () => {
     })
   }
 
+  const isEmoji = (str: string) => {
+    return str && typeof str === 'string' && !str.startsWith('data:') && !str.startsWith('http');
+  }
+
   return (
     <Container
       id="app-sidebar"
@@ -64,7 +68,11 @@ const Sidebar: FC = () => {
         backgroundColor: sidebarBgColor,
         zIndex: minappShow ? 10000 : 'initial'
       }}>
-      <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
+      {isEmoji(avatar) ? (
+        <EmojiAvatarSidebar onClick={onEditUser}>{avatar}</EmojiAvatarSidebar>
+      ) : (
+        <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
+      )}
       <MainMenusContainer>
         <Menus onClick={MinApp.onClose}>
           <MainMenus />
@@ -220,6 +228,22 @@ const AvatarImg = styled(Avatar)`
   border: none;
   cursor: pointer;
 `
+
+const EmojiAvatarSidebar = styled.div`
+  width: 31px;
+  height: 31px;
+  background-color: var(--color-background-soft);
+  margin-bottom: ${isMac ? '12px' : '12px'};
+  margin-top: ${isMac ? '0px' : '2px'};
+  border-radius: 20%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  -webkit-app-region: none;
+`
+
 const MainMenusContainer = styled.div`
   display: flex;
   flex: 1;

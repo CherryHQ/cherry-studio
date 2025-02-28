@@ -694,6 +694,8 @@
       "general.title": "一般設定",
       "general.user_name": "使用者名稱",
       "general.user_name.placeholder": "輸入您的名稱",
+      "general.image_upload": "圖片上傳",
+      "general.emoji_picker": "表情選擇器",
       "general.view_webdav_settings": "查看 WebDAV 設定",
       "input.auto_translate_with_space": "快速敲擊3次空格翻譯",
       "input.target_language": "目標語言",
