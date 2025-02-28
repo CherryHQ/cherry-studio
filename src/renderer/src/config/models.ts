@@ -1822,6 +1822,10 @@ export function isVisionModel(model: Model): boolean {
   return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
 }
 
+export function isOpenAIoSeries(model: Model): boolean {
+  return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.startsWith('o3')
+}
+
 export function isReasoningModel(model: Model): boolean {
   if (!model) {
     return false
@@ -1831,7 +1835,7 @@ export function isReasoningModel(model: Model): boolean {
     return REASONING_REGEX.test(model.name) || model.type?.includes('reasoning') || false
   }
 
-  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')) {
+  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
     return true
   }
 
