@@ -164,6 +164,12 @@ export default class OpenAIProvider extends BaseProvider {
         }
       }
 
+      if (this.isOpenAIoSeries(model)) {
+        return {
+          reasoning_effort: assistant?.settings?.reasoning_effort
+        }
+      }
+
       const effort_ratio =
         assistant?.settings?.reasoning_effort === 'high'
           ? 0.8
@@ -179,9 +185,7 @@ export default class OpenAIProvider extends BaseProvider {
         }
       }
 
-      return {
-        reasoning_effort: assistant?.settings?.reasoning_effort
-      }
+      return {}
     }
 
     return {}
@@ -191,6 +195,10 @@ export default class OpenAIProvider extends BaseProvider {
     return model.id.startsWith('o1')
   }
 
+  private isOpenAIoSeries(model: Model) {
+    return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.startsWith('o3')
+  }
+
   async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -198,7 +206,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     let systemMessage = assistant.prompt ? { role: 'system', content: assistant.prompt } : undefined
 
-    if (['o1', 'o1-2024-12-17'].includes(model.id) || model.id.startsWith('o3')) {
+    if (this.isOpenAIoSeries(model)) {
       systemMessage = {
         role: 'developer',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
