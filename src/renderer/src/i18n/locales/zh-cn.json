@@ -559,7 +559,8 @@
       "together": "Together",
       "yi": "零一万物",
       "zhinao": "360智脑",
-      "zhipu": "智谱AI"
+      "zhipu": "智谱AI",
+      "xirang": "天翼云息壤"
     },
     "settings": {
       "about": "关于我们",
@@ -740,6 +741,10 @@
       "models.translate_model_description": "翻译服务使用的模型",
       "models.translate_model_prompt_message": "请输入翻译模型提示词",
       "models.translate_model_prompt_title": "翻译模型提示词",
+      "moresetting": "更多设置",
+      "moresetting.warn": "风险警告",
+      "moresetting.check.warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！",
+      "moresetting.check.confirm": "确认勾选",
       "provider": {
         "add.name": "提供商名称",
         "add.name.placeholder": "例如 OpenAI",
@@ -786,7 +791,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系统中 Option 键只能与空格键组合使用",
         "clear_shortcut": "清除快捷键",
         "clear_topic": "清空消息",
         "copy_last_message": "复制上一条消息",

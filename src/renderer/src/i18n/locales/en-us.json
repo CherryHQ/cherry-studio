@@ -559,7 +559,8 @@
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "xirang": "State Cloud Xirang"
     },
     "settings": {
       "about": "About & Feedback",
@@ -740,6 +741,10 @@
       "models.translate_model_description": "Model used for translation service",
       "models.translate_model_prompt_message": "Please enter the translate model prompt",
       "models.translate_model_prompt_title": "Translate Model Prompt",
+      "moresetting": "More Settings",
+      "moresetting.warn": "Risk Warning",
+      "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
+      "moresetting.check.confirm": "Confirm Selection",
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",
@@ -786,7 +791,6 @@
       },
       "shortcuts": {
         "action": "Action",
-        "alt_warning": "On Mac, Option key combinations only work with the Space key",
         "clear_shortcut": "Clear Shortcut",
         "clear_topic": "Clear Messages",
         "copy_last_message": "Copy Last Message",

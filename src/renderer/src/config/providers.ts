@@ -35,6 +35,7 @@ import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.p
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
+import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 export function getProviderLogo(providerId: string) {
@@ -67,6 +68,8 @@ export function getProviderLogo(providerId: string) {
       return BailianProviderLogo
     case 'modelscope':
       return ModelScopeProviderLogo
+    case 'xirang':
+      return XirangProviderLogo
     case 'anthropic':
       return AnthropicProviderLogo
     case 'aihubmix':
@@ -321,6 +324,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://modelscope.cn/my/myaccesstoken',
       docs: 'https://modelscope.cn/docs/model-service/API-Inference/intro',
       models: 'https://modelscope.cn/models'
+    }
+  },
+  xirang: {
+    api: {
+      url: 'https://wishub-x1.ctyun.cn'
+    },
+    websites: {
+      official: 'https://www.ctyun.cn',
+      apiKey: 'https://huiju.ctyun.cn/service/serviceGroup',
+      docs: 'https://www.ctyun.cn/products/ctxirang',
+      models: 'https://huiju.ctyun.cn/modelSquare/'
     }
   },
   dashscope: {

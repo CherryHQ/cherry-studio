@@ -1,11 +1,13 @@
 import {
   CheckOutlined,
+  DownOutlined,
   EditOutlined,
   ExportOutlined,
   LoadingOutlined,
   MinusCircleOutlined,
   PlusOutlined,
-  SettingOutlined
+  SettingOutlined,
+  UpOutlined
 } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import ModelTags from '@renderer/components/ModelTags'
@@ -62,7 +64,7 @@ interface ModelEditContentProps {
 const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, open, onClose }) => {
   const [form] = Form.useForm()
   const { t } = useTranslation()
-
+  const [showModelTypes, setShowModelTypes] = useState(false)
   const onFinish = (values: any) => {
     const updatedModel = {
       ...model,
@@ -71,20 +73,26 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
       group: values.group || model.group
     }
     onUpdateModel(updatedModel)
+    setShowModelTypes(false)
     onClose()
   }
-
+  const handleClose = () => {
+    setShowModelTypes(false)
+    onClose()
+  }
   return (
     <Modal
       title={t('models.edit')}
       open={open}
-      onCancel={onClose}
+      onCancel={handleClose}
       footer={null}
       maskClosable={false}
       centered
       afterOpenChange={(visible) => {
         if (visible) {
           form.getFieldInstance('id')?.focus()
+        } else {
+          setShowModelTypes(false)
         }
       }}>
       <Form
@@ -128,48 +136,83 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>
-          <Button type="primary" htmlType="submit" size="middle">
-            {t('common.save')}
-          </Button>
+          <Flex justify="center" align="center" style={{ position: 'relative' }}>
+            <div>
+              <Button type="primary" htmlType="submit" size="middle">
+                {t('common.save')}
+              </Button>
+            </div>
+            <MoreSettingsRow
+              onClick={() => setShowModelTypes(!showModelTypes)}
+              style={{ position: 'absolute', right: 0 }}>
+              {t('settings.moresetting')}
+              <ExpandIcon>{showModelTypes ? <UpOutlined /> : <DownOutlined />}</ExpandIcon>
+            </MoreSettingsRow>
+          </Flex>
         </Form.Item>
         <Divider style={{ margin: '0 0 15px 0' }} />
-        <div>
-          <TypeTitle>{t('models.type.select')}:</TypeTitle>
-          {(() => {
-            const defaultTypes = [
-              ...(isVisionModel(model) ? ['vision'] : []),
-              ...(isEmbeddingModel(model) ? ['embedding'] : []),
-              ...(isReasoningModel(model) ? ['reasoning'] : [])
-            ] as ModelType[]
+        {showModelTypes && (
+          <div>
+            <TypeTitle>{t('models.type.select')}:</TypeTitle>
+            {(() => {
+              const defaultTypes = [
+                ...(isVisionModel(model) ? ['vision'] : []),
+                ...(isEmbeddingModel(model) ? ['embedding'] : []),
+                ...(isReasoningModel(model) ? ['reasoning'] : [])
+              ] as ModelType[]
 
-            // 合并现有选择和默认类型
-            const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
+              // 合并现有选择和默认类型
+              const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
 
-            return (
-              <Checkbox.Group
-                value={selectedTypes}
-                onChange={(types) => onUpdateModel({ ...model, type: types as ModelType[] })}
-                options={[
-                  {
-                    label: t('models.type.vision'),
-                    value: 'vision',
-                    disabled: isVisionModel(model) && !selectedTypes.includes('vision')
-                  },
-                  {
-                    label: t('models.type.embedding'),
-                    value: 'embedding',
-                    disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
-                  },
-                  {
-                    label: t('models.type.reasoning'),
-                    value: 'reasoning',
-                    disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
-                  }
-                ]}
-              />
-            )
-          })()}
-        </div>
+              const showTypeConfirmModal = (type: string) => {
+                Modal.confirm({
+                  title: t('settings.moresetting.warn'),
+                  content: t('settings.moresetting.check.warn'),
+                  okText: t('settings.moresetting.check.confirm'),
+                  cancelText: t('common.cancel'),
+                  okButtonProps: { danger: true },
+                  cancelButtonProps: { type: 'primary' },
+                  onOk: () => onUpdateModel({ ...model, type: [...selectedTypes, type] as ModelType[] }),
+                  onCancel: () => {},
+                  centered: true
+                })
+              }
+
+              const handleTypeChange = (types: string[]) => {
+                const newType = types.find((type) => !selectedTypes.includes(type as ModelType))
+
+                if (newType) {
+                  showTypeConfirmModal(newType)
+                } else {
+                  onUpdateModel({ ...model, type: types as ModelType[] })
+                }
+              }
+              return (
+                <Checkbox.Group
+                  value={selectedTypes}
+                  onChange={handleTypeChange}
+                  options={[
+                    {
+                      label: t('models.type.vision'),
+                      value: 'vision',
+                      disabled: isVisionModel(model) && !selectedTypes.includes('vision')
+                    },
+                    {
+                      label: t('models.type.embedding'),
+                      value: 'embedding',
+                      disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
+                    },
+                    {
+                      label: t('models.type.reasoning'),
+                      value: 'reasoning',
+                      disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
+                    }
+                  ]}
+                />
+              )
+            })()}
+          </div>
+        )}
       </Form>
     </Modal>
   )
@@ -538,6 +581,28 @@ const TypeTitle = styled.div`
   margin-bottom: 12px;
   font-size: 14px;
   font-weight: 600;
+`
+
+const ExpandIcon = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const MoreSettingsRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-3);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+  }
 `
 
 export default ProviderSetting

@@ -6,7 +6,7 @@ import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setExcludeDomains, setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
 import { formatDomains } from '@renderer/utils/blacklist'
-import { Alert, Input, Slider, Switch, Typography } from 'antd'
+import { Alert, Button, Input, Slider, Switch, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -113,11 +113,11 @@ const WebSearchSettings: FC = () => {
         <TextArea
           value={blacklistInput}
           onChange={(e) => setBlacklistInput(e.target.value)}
-          onBlur={() => updateManualBlacklist(blacklistInput)}
           placeholder={t('settings.websearch.blacklist_tooltip')}
-          autoSize={{ minRows: 2, maxRows: 6 }}
+          autoSize={{ minRows: 4, maxRows: 8 }}
           rows={4}
         />
+        <Button onClick={() => updateManualBlacklist(blacklistInput)}>{t('common.save')}</Button>
         {errFormat && <Alert message={t('settings.websearch.blacklist_tooltip')} type="error" />}
       </SettingGroup>
     </SettingContainer>

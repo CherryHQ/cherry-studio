@@ -559,7 +559,8 @@
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "xirang": "State Cloud Xirang"
     },
     "settings": {
       "about": "О программе и обратная связь",
@@ -740,6 +741,10 @@
       "models.translate_model_description": "Модель, используемая для сервиса перевода",
       "models.translate_model_prompt_message": "Введите модель перевода",
       "models.translate_model_prompt_title": "Модель перевода",
+      "moresetting": "Дополнительные настройки",
+      "moresetting.warn": "Предупреждение о риске",
+      "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",
+      "moresetting.check.confirm": "Подтвердить выбор",
       "provider": {
         "add.name": "Имя провайдера",
         "add.name.placeholder": "Пример: OpenAI",
@@ -786,7 +791,6 @@
       },
       "shortcuts": {
         "action": "Действие",
-        "alt_warning": "В Mac сочетания с клавишей Option работают только с пробелом",
         "clear_shortcut": "Очистить сочетание клавиш",
         "clear_topic": "Очистить все сообщения",
         "copy_last_message": "Копировать последнее сообщение",
