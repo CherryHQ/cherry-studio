@@ -69,26 +69,6 @@ const splitNotionBlocks = (blocks: any[]) => {
   return pages
 }
 
-// 创建页面标题块
-const createPageTitleBlocks = (title: string, pageNumber: number, totalPages: number) => {
-  return [
-    {
-      object: 'block',
-      type: 'heading_1',
-      heading_1: {
-        rich_text: [{ type: 'text', text: { content: `${title} (${pageNumber}/${totalPages})` } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: []
-      }
-    }
-  ]
-}
-
 export const exportTopicToNotion = async (topic: Topic) => {
   const { isExporting } = store.getState().runtime.export
   if (isExporting) {
@@ -127,26 +107,31 @@ export const exportTopicToNotion = async (topic: Topic) => {
 
     // 创建主页面和子页面
     let mainPageResponse: any = null
+    let parentBlockId: string | null = null
     for (let i = 0; i < blockPages.length; i++) {
-      const pageTitle = blockPages.length > 1 ? `${topic.name} (${i + 1}/${blockPages.length})` : topic.name
+      const pageTitle = topic.name
       const pageBlocks = blockPages[i]
 
-      const pageContent =
-        i === 0 ? pageBlocks : [...createPageTitleBlocks(topic.name, i + 1, blockPages.length), ...pageBlocks]
-
-      const response = await notion.pages.create({
-        parent: { database_id: notionDatabaseID },
-        properties: {
-          [store.getState().settings.notionPageNameKey || 'Name']: {
-            title: [{ text: { content: pageTitle } }]
-          }
-        },
-        children: pageContent
-      })
-
-      // 保存主页面响应
       if (i === 0) {
+        const response = await notion.pages.create({
+          parent: { database_id: notionDatabaseID },
+          properties: {
+            [store.getState().settings.notionPageNameKey || 'Name']: {
+              title: [{ text: { content: pageTitle } }]
+            }
+          },
+          children: pageBlocks
+        })
         mainPageResponse = response
+        parentBlockId = response.id
+      } else {
+        if (!parentBlockId) {
+          throw new Error('Parent block ID is null')
+        }
+        await notion.blocks.children.append({
+          block_id: parentBlockId,
+          children: pageBlocks
+        })
       }
     }
 
