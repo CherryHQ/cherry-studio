@@ -556,6 +556,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   openai: [
+    { id: 'gpt-4.5-preview', provider: 'openai', name: ' gpt-4.5-preview', group: 'gpt-4.5' },
     { id: 'gpt-4o', provider: 'openai', name: ' GPT-4o', group: 'GPT 4o' },
     { id: 'gpt-4o-mini', provider: 'openai', name: ' GPT-4o-mini', group: 'GPT 4o' },
     { id: 'o1-mini', provider: 'openai', name: ' o1-mini', group: 'o1' },
