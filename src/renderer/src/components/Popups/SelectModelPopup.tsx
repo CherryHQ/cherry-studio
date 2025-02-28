@@ -319,7 +319,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
             />
           </Container>
         )}
-        <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
+        <Divider style={{ 
+          margin: '0', 
+          borderBlockStartWidth: 0.8,
+          borderColor: 'var(--color-border)',
+        }} />
       </div>
       <Scrollbar style={{ height: 'calc(50vh - 100px)' }} ref={scrollContainerRef}>
         <Container>
