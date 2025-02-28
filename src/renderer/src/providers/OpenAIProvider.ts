@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
   isOpenAIoSeries,
@@ -181,12 +182,22 @@ export default class OpenAIProvider extends BaseProvider {
           ? 0.8
           : assistant?.settings?.reasoning_effort === 'medium'
             ? 0.5
-            : 0.2
+            : assistant?.settings?.reasoning_effort === 'low'
+              ? 0.2
+              : undefined
 
       if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
+        if (!effort_ratio) {
+          return {
+            type: 'disabled'
+          }
+        }
         return {
           thinking: {
-            budget_tokens: Math.max(Math.min((assistant?.settings?.maxTokens || 0) * effort_ratio, 32000), 1024)
+            budget_tokens: Math.max(
+              Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000),
+              1024
+            )
           }
         }
       }
