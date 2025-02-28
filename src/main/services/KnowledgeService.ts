@@ -356,7 +356,7 @@ class KnowledgeService {
           const { state, task: taskPromise, evaluateTaskWorkload } = item
 
           if (state !== LoaderTaskItemState.PENDING) {
-            break
+            continue
           }
 
           const { workload } = evaluateTaskWorkload
