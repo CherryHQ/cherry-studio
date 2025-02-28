@@ -236,29 +236,37 @@ class KnowledgeService {
   ): LoaderTask {
     const { base, item, forceReload } = options
     const content = item.content as string
-    const loaderReturn = ragApplication.addLoader(
-      new WebLoader({ urlOrContent: content, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }) as any,
-      forceReload
-    )
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
-          task: () =>
-            loaderReturn
-              .then(({ entriesAdded, uniqueId, loaderType }) => {
+          task: () => {
+            const loaderReturn = ragApplication.addLoader(
+              new WebLoader({
+                urlOrContent: content,
+                chunkSize: base.chunkSize,
+                chunkOverlap: base.chunkOverlap
+              }),
+              forceReload
+            ) as Promise<LoaderReturn>
+
+            return loaderReturn
+              .then((result) => {
+                const { entriesAdded, uniqueId, loaderType } = result
                 loaderTask.loaderDoneReturn = {
                   entriesAdded: entriesAdded,
                   uniqueId: uniqueId,
                   uniqueIds: [uniqueId],
                   loaderType: loaderType
                 }
+                return result
               })
               .catch((err) => {
                 Logger.error(err)
                 return KnowledgeService.ERROR_LOADER_RETURN
-              }),
+              })
+          },
           evaluateTaskWorkload: { workload: 1024 * 1024 * 2 }
         }
       ],
@@ -273,24 +281,26 @@ class KnowledgeService {
   ): LoaderTask {
     const { base, item, forceReload } = options
     const content = item.content as string
-    const loaderReturn = ragApplication.addLoader(
-      new SitemapLoader({ url: content, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }) as any,
-      forceReload
-    )
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
           task: () =>
-            loaderReturn
-              .then(({ entriesAdded, uniqueId, loaderType }) => {
+            ragApplication
+              .addLoader(
+                new SitemapLoader({ url: content, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }) as any,
+                forceReload
+              )
+              .then((result) => {
+                const { entriesAdded, uniqueId, loaderType } = result
                 loaderTask.loaderDoneReturn = {
                   entriesAdded: entriesAdded,
                   uniqueId: uniqueId,
                   uniqueIds: [uniqueId],
                   loaderType: loaderType
                 }
+                return result
               })
               .catch((err) => {
                 Logger.error(err)
@@ -311,10 +321,6 @@ class KnowledgeService {
     const { base, item, forceReload } = options
     const content = item.content as string
     console.debug('chunkSize', base.chunkSize)
-    const loaderReturn = ragApplication.addLoader(
-      new TextLoader({ text: content, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }),
-      forceReload
-    )
 
     const encoder = new TextEncoder()
     const contentBytes = encoder.encode(content)
@@ -322,8 +328,13 @@ class KnowledgeService {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
-          task: () =>
-            loaderReturn
+          task: () => {
+            const loaderReturn = ragApplication.addLoader(
+              new TextLoader({ text: content, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }),
+              forceReload
+            ) as Promise<LoaderReturn>
+
+            return loaderReturn
               .then(({ entriesAdded, uniqueId, loaderType }) => {
                 loaderTask.loaderDoneReturn = {
                   entriesAdded: entriesAdded,
@@ -335,7 +346,8 @@ class KnowledgeService {
               .catch((err) => {
                 Logger.error(err)
                 return KnowledgeService.ERROR_LOADER_RETURN
-              }),
+              })
+          },
           evaluateTaskWorkload: { workload: contentBytes.length }
         }
       ],
