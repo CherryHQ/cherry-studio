@@ -534,6 +534,9 @@ export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
 
 // Define the styled component with hover state styling
 const SegmentedContainer = styled.div`
+  .ant-segmented-item {
+    font-size: 12px;
+  }
   .ant-segmented-item-selected {
     background-color: var(--color-primary) !important;
     color: white !important;
