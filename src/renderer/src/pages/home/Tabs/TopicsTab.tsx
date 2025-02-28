@@ -24,9 +24,9 @@ import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
-  exportMarkdownToNotion,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
+  exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
@@ -241,8 +241,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               label: t('chat.topics.export.notion'),
               key: 'notion',
               onClick: async () => {
-                const markdown = await topicToMarkdown(topic)
-                exportMarkdownToNotion(topic.name, markdown)
+                exportTopicToNotion(topic)
               }
             },
             {
