@@ -65,7 +65,6 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
   const [form] = Form.useForm()
   const { t } = useTranslation()
   const [showModelTypes, setShowModelTypes] = useState(false)
-
   const onFinish = (values: any) => {
     const updatedModel = {
       ...model,
@@ -74,20 +73,26 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
       group: values.group || model.group
     }
     onUpdateModel(updatedModel)
+    setShowModelTypes(false)
     onClose()
   }
-
+  const handleClose = () => {
+    setShowModelTypes(false)
+    onClose()
+  }
   return (
     <Modal
       title={t('models.edit')}
       open={open}
-      onCancel={onClose}
+      onCancel={handleClose}
       footer={null}
       maskClosable={false}
       centered
       afterOpenChange={(visible) => {
         if (visible) {
           form.getFieldInstance('id')?.focus()
+        } else {
+          setShowModelTypes(false)
         }
       }}>
       <Form
@@ -591,6 +596,9 @@ const MoreSettingsRow = styled.div`
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 4px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   &:hover {
     background-color: var(--color-background-soft);
