@@ -472,7 +472,8 @@
         "vision": "图像"
       },
       "vision": "视觉",
-      "websearch": "联网"
+      "websearch": "联网",
+      "edit": "编辑模型"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -785,7 +786,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系统中 Option 键只能与空格键组合使用",
         "clear_shortcut": "清除快捷键",
         "clear_topic": "清空消息",
         "copy_last_message": "复制上一条消息",

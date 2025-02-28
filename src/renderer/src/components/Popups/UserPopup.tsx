@@ -49,14 +49,18 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <Center mt="30px">
         <Upload
           customRequest={() => {}}
-          accept="image/png, image/jpeg"
+          accept="image/png, image/jpeg, image/gif"
           itemRender={() => null}
           maxCount={1}
           onChange={async ({ file }) => {
             try {
               const _file = file.originFileObj as File
-              const compressedFile = await compressImage(_file)
-              await ImageStorage.set('avatar', compressedFile)
+              if (_file.type === 'image/gif') {
+                await ImageStorage.set('avatar', _file)
+              } else {
+                const compressedFile = await compressImage(_file)
+                await ImageStorage.set('avatar', compressedFile)
+              }
               dispatch(setAvatar(await ImageStorage.get('avatar')))
             } catch (error: any) {
               window.message.error(error.message)

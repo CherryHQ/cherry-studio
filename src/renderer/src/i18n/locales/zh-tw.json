@@ -472,7 +472,8 @@
         "vision": "圖像"
       },
       "vision": "視覺",
-      "websearch": "網路搜索"
+      "websearch": "網路搜索",
+      "edit": "編輯模型"
     },
     "ollama": {
       "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）。",
@@ -785,7 +786,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系統中 Option 鍵只能與空白鍵組合使用",
         "clear_shortcut": "清除快捷鍵",
         "clear_topic": "清除所有訊息",
         "copy_last_message": "複製上一条消息",

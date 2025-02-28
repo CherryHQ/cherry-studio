@@ -472,7 +472,8 @@
         "vision": "Vision"
       },
       "vision": "Vision",
-      "websearch": "WebSearch"
+      "websearch": "WebSearch",
+      "edit": "Edit Model"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -785,7 +786,6 @@
       },
       "shortcuts": {
         "action": "Action",
-        "alt_warning": "On Mac, Option key combinations only work with the Space key",
         "clear_shortcut": "Clear Shortcut",
         "clear_topic": "Clear Messages",
         "copy_last_message": "Copy Last Message",

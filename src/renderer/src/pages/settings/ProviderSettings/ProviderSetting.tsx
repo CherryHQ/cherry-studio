@@ -22,9 +22,10 @@ import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/servic
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model, ModelType, Provider } from '@renderer/types'
+import { getDefaultGroupName } from '@renderer/utils'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Avatar, Button, Card, Checkbox, Divider, Flex, Input, Popover, Space, Switch } from 'antd'
+import { Avatar, Button, Card, Checkbox, Divider, Flex, Form, Input, Modal, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { groupBy, isEmpty } from 'lodash'
 import { FC, useEffect, useState } from 'react'
@@ -51,6 +52,129 @@ interface Props {
   provider: Provider
 }
 
+interface ModelEditContentProps {
+  model: Model
+  onUpdateModel: (model: Model) => void
+  open: boolean
+  onClose: () => void
+}
+
+const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, open, onClose }) => {
+  const [form] = Form.useForm()
+  const { t } = useTranslation()
+
+  const onFinish = (values: any) => {
+    const updatedModel = {
+      ...model,
+      id: values.id || model.id,
+      name: values.name || model.name,
+      group: values.group || model.group
+    }
+    onUpdateModel(updatedModel)
+    onClose()
+  }
+
+  return (
+    <Modal
+      title={t('models.edit')}
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      maskClosable={false}
+      centered
+      afterOpenChange={(visible) => {
+        if (visible) {
+          form.getFieldInstance('id')?.focus()
+        }
+      }}>
+      <Form
+        form={form}
+        labelCol={{ flex: '110px' }}
+        labelAlign="left"
+        colon={false}
+        style={{ marginTop: 15 }}
+        initialValues={{
+          id: model.id,
+          name: model.name,
+          group: model.group
+        }}
+        onFinish={onFinish}>
+        <Form.Item
+          name="id"
+          label={t('settings.models.add.model_id')}
+          tooltip={t('settings.models.add.model_id.tooltip')}
+          rules={[{ required: true }]}>
+          <Input
+            placeholder={t('settings.models.add.model_id.placeholder')}
+            spellCheck={false}
+            maxLength={200}
+            onChange={(e) => {
+              const value = e.target.value
+              form.setFieldValue('name', value)
+              form.setFieldValue('group', getDefaultGroupName(value))
+            }}
+          />
+        </Form.Item>
+        <Form.Item
+          name="name"
+          label={t('settings.models.add.model_name')}
+          tooltip={t('settings.models.add.model_name.tooltip')}>
+          <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
+        </Form.Item>
+        <Form.Item
+          name="group"
+          label={t('settings.models.add.group_name')}
+          tooltip={t('settings.models.add.group_name.tooltip')}>
+          <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
+        </Form.Item>
+        <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>
+          <Button type="primary" htmlType="submit" size="middle">
+            {t('common.save')}
+          </Button>
+        </Form.Item>
+        <Divider style={{ margin: '0 0 15px 0' }} />
+        <div>
+          <TypeTitle>{t('models.type.select')}:</TypeTitle>
+          {(() => {
+            const defaultTypes = [
+              ...(isVisionModel(model) ? ['vision'] : []),
+              ...(isEmbeddingModel(model) ? ['embedding'] : []),
+              ...(isReasoningModel(model) ? ['reasoning'] : [])
+            ] as ModelType[]
+
+            // 合并现有选择和默认类型
+            const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
+
+            return (
+              <Checkbox.Group
+                value={selectedTypes}
+                onChange={(types) => onUpdateModel({ ...model, type: types as ModelType[] })}
+                options={[
+                  {
+                    label: t('models.type.vision'),
+                    value: 'vision',
+                    disabled: isVisionModel(model) && !selectedTypes.includes('vision')
+                  },
+                  {
+                    label: t('models.type.embedding'),
+                    value: 'embedding',
+                    disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
+                  },
+                  {
+                    label: t('models.type.reasoning'),
+                    value: 'reasoning',
+                    disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
+                  }
+                ]}
+              />
+            )
+          })()}
+        </div>
+      </Form>
+    </Modal>
+  )
+}
+
 const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { provider } = useProvider(_provider.id)
   const [apiKey, setApiKey] = useState(provider.apiKey)
@@ -75,6 +199,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
   const configedApiHost = providerConfig?.api?.url
+
+  const [editingModel, setEditingModel] = useState<Model | null>(null)
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
@@ -164,67 +290,42 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     return formatApiHost(apiHost) + 'chat/completions'
   }
 
-  const onUpdateModelTypes = (model: Model, types: ModelType[]) => {
+  const onUpdateModel = (updatedModel: Model) => {
     const updatedModels = models.map((m) => {
-      if (m.id === model.id) {
-        return { ...m, type: types }
+      if (m.id === updatedModel.id) {
+        return updatedModel
       }
       return m
     })
 
     updateProvider({ ...provider, models: updatedModels })
 
+    // Update assistants using this model
     assistants.forEach((assistant) => {
-      if (assistant?.model?.id === model.id && assistant.model.provider === provider.id) {
+      if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
         dispatch(
           setModel({
             assistantId: assistant.id,
-            model: { ...model, type: types }
+            model: updatedModel
           })
         )
       }
     })
 
-    if (defaultModel?.id === model.id && defaultModel?.provider === provider.id) {
-      setDefaultModel({ ...defaultModel, type: types })
+    // Update default model if needed
+    if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
+      setDefaultModel(updatedModel)
     }
   }
 
   const modelTypeContent = (model: Model) => {
-    // 获取默认选中的类型
-    const defaultTypes = [
-      ...(isVisionModel(model) ? ['vision'] : []),
-      ...(isEmbeddingModel(model) ? ['embedding'] : []),
-      ...(isReasoningModel(model) ? ['reasoning'] : [])
-    ] as ModelType[]
-
-    // 合并现有选择和默认类型
-    const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
-
     return (
-      <div>
-        <Checkbox.Group
-          value={selectedTypes}
-          onChange={(types) => onUpdateModelTypes(model, types as ModelType[])}
-          options={[
-            {
-              label: t('models.type.vision'),
-              value: 'vision',
-              disabled: isVisionModel(model) && !selectedTypes.includes('vision')
-            },
-            {
-              label: t('models.type.embedding'),
-              value: 'embedding',
-              disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
-            },
-            {
-              label: t('models.type.reasoning'),
-              value: 'reasoning',
-              disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
-            }
-          ]}
-        />
-      </div>
+      <ModelEditContent
+        model={model}
+        onUpdateModel={onUpdateModel}
+        open={editingModel?.id === model.id}
+        onClose={() => setEditingModel(null)}
+      />
     )
   }
 
@@ -355,9 +456,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
                   <span>{model?.name}</span>
                   <ModelTags model={model} />
                 </ModelNameRow>
-                <Popover content={modelTypeContent(model)} title={t('models.type.select')} trigger="click">
-                  <SettingIcon />
-                </Popover>
+                <SettingIcon onClick={() => setEditingModel(model)} />
               </ModelListHeader>
               <RemoveIcon onClick={() => removeModel(model)} />
             </ModelListItem>
@@ -386,6 +485,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           {t('button.add')}
         </Button>
       </Flex>
+      {models.map((model) => modelTypeContent(model))}
     </SettingContainer>
   )
 }
@@ -432,6 +532,12 @@ const SettingIcon = styled(SettingOutlined)`
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
+`
+
+const TypeTitle = styled.div`
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
 `
 
 export default ProviderSetting
