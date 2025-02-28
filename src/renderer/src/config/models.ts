@@ -617,7 +617,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     {
       id: 'claude-3-5-haiku-20241022',
       provider: 'anthropic',
-      name: 'Claude 3 Haiku',
+      name: 'Claude 3.5 Haiku',
       group: 'Claude 3.5'
     },
     {
