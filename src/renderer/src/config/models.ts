@@ -1831,6 +1831,10 @@ export function isReasoningModel(model: Model): boolean {
     return REASONING_REGEX.test(model.name) || model.type?.includes('reasoning') || false
   }
 
+  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')) {
+    return true
+  }
+
   return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
 }
 

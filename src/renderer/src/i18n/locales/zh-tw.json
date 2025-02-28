@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "關",
-      "settings.reasoning_effort.tip": "該設置僅支持推理模型",
+      "settings.reasoning_effort.tip": "僅支持OpenAI o系列和Anthropic推理模型",
       "title": "助手"
     },
     "auth": {

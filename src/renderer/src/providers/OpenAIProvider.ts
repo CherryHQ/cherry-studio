@@ -156,6 +156,29 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     if (isReasoningModel(model)) {
+      if (model.provider === 'openrouter') {
+        return {
+          reasoning: {
+            effort: assistant?.settings?.reasoning_effort
+          }
+        }
+      }
+
+      const effort_ratio =
+        assistant?.settings?.reasoning_effort === 'high'
+          ? 0.8
+          : assistant?.settings?.reasoning_effort === 'medium'
+            ? 0.5
+            : 0.2
+
+      if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
+        return {
+          thinking: {
+            budget_tokens: Math.max(Math.min((assistant?.settings?.maxTokens || 0) * effort_ratio, 32000), 1024)
+          }
+        }
+      }
+
       return {
         reasoning_effort: assistant?.settings?.reasoning_effort
       }
@@ -207,6 +230,7 @@ export default class OpenAIProvider extends BaseProvider {
       delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & {
         reasoning_content?: string
         reasoning?: string
+        thinking?: string
       }
     ) => {
       if (!delta?.content) return false
@@ -221,7 +245,7 @@ export default class OpenAIProvider extends BaseProvider {
       }
 
       // 如果有reasoning_content或reasoning，说明是在思考中
-      if (delta?.reasoning_content || delta?.reasoning) {
+      if (delta?.reasoning_content || delta?.reasoning || delta?.thinking) {
         hasReasoningContent = true
       }
 

@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "low",
       "settings.reasoning_effort.medium": "medium",
       "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supports reasoning models",
+      "settings.reasoning_effort.tip": "Only supports OpenAI o-series and Anthropic reasoning models",
       "title": "Assistants"
     },
     "auth": {
