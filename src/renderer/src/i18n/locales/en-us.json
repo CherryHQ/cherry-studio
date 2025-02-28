@@ -835,7 +835,8 @@
         "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "Number of search results",
         "search_result_default": "Default"
-      }
+      },
+      "more": "More Settings"
     },
     "translate": {
       "any.language": "Any language",
