@@ -740,7 +740,10 @@
       "models.translate_model_description": "Модель, используемая для сервиса перевода",
       "models.translate_model_prompt_message": "Введите модель перевода",
       "models.translate_model_prompt_title": "Модель перевода",
-      "models.more": "Дополнительные настройки",
+      "moresetting": "Дополнительные настройки",
+      "moresetting.warn": "Предупреждение о риске",
+      "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",
+      "moresetting.check.confirm": "Подтвердить выбор",
       "provider": {
         "add.name": "Имя провайдера",
         "add.name.placeholder": "Пример: OpenAI",

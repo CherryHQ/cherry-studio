@@ -140,7 +140,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
             <MoreSettingsRow
               onClick={() => setShowModelTypes(!showModelTypes)}
               style={{ position: 'absolute', right: 0 }}>
-              {t('settings.more')}
+              {t('settings.moresetting')}
               <ExpandIcon>{showModelTypes ? <UpOutlined /> : <DownOutlined />}</ExpandIcon>
             </MoreSettingsRow>
           </Flex>
@@ -159,10 +159,33 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
               // 合并现有选择和默认类型
               const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
 
+              const showTypeConfirmModal = (type: string) => {
+                Modal.confirm({
+                  title: t('settings.moresetting.warn'),
+                  content: t('settings.moresetting.check.warn'),
+                  okText: t('settings.moresetting.check.confirm'),
+                  cancelText: t('common.cancel'),
+                  okButtonProps: { danger: true },
+                  cancelButtonProps: { type: 'primary' },
+                  onOk: () => onUpdateModel({ ...model, type: [...selectedTypes, type] as ModelType[] }),
+                  onCancel: () => {},
+                  centered: true
+                })
+              }
+
+              const handleTypeChange = (types: string[]) => {
+                const newType = types.find((type) => !selectedTypes.includes(type as ModelType))
+
+                if (newType) {
+                  showTypeConfirmModal(newType)
+                } else {
+                  onUpdateModel({ ...model, type: types as ModelType[] })
+                }
+              }
               return (
                 <Checkbox.Group
                   value={selectedTypes}
-                  onChange={(types) => onUpdateModel({ ...model, type: types as ModelType[] })}
+                  onChange={handleTypeChange}
                   options={[
                     {
                       label: t('models.type.vision'),

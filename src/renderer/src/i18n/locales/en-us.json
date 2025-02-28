@@ -740,6 +740,10 @@
       "models.translate_model_description": "Model used for translation service",
       "models.translate_model_prompt_message": "Please enter the translate model prompt",
       "models.translate_model_prompt_title": "Translate Model Prompt",
+      "moresetting": "More Settings",
+      "moresetting.warn": "Risk Warning",
+      "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
+      "moresetting.check.confirm": "Confirm Selection",
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",

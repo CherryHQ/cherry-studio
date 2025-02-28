@@ -740,7 +740,10 @@
       "models.translate_model_description": "翻訳サービスに使用されるモデル",
       "models.translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
       "models.translate_model_prompt_title": "翻訳モデルのプロンプト",
-      "models.more": "もっと設定",
+      "moresetting": "詳細設定",
+      "moresetting.warn": "リスク警告",
+      "moresetting.check.warn": "このオプションを選択する際は慎重に行ってください。誤った選択はモデルの誤動作を引き起こす可能性があります！",
+      "moresetting.check.confirm": "選択を確認",
       "provider": {
         "add.name": "プロバイダー名",
         "add.name.placeholder": "例：OpenAI",

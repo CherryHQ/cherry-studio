@@ -740,7 +740,10 @@
       "models.translate_model_description": "翻譯服務使用的模型",
       "models.translate_model_prompt_message": "請輸入翻譯模型提示詞",
       "models.translate_model_prompt_title": "翻譯模型提示詞",
-      "models.more": "更多設定",
+      "moresetting": "更多設置",
+      "moresetting.warn": "風險警告",
+      "moresetting.check.warn": "請謹慎勾選此選項，勾選錯誤會導致模型無法正常使用！！！",
+      "moresetting.check.confirm": "確認勾選",
       "provider": {
         "add.name": "提供者名稱",
         "add.name.placeholder": "例如：OpenAI",
