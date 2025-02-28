@@ -231,14 +231,14 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
       const cursorPosition = textArea.selectionStart
       const textBeforeCursor = textArea.value.substring(0, cursorPosition)
       const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-
+      const textBeforeLastAt = textBeforeCursor.slice(0, lastAtIndex)
       if (lastAtIndex === -1 || textBeforeCursor.slice(lastAtIndex + 1).includes(' ')) {
         setIsOpen(false)
         setSearchText('')
         setMenuDismissed(false) // Reset dismissed flag when @ is removed
       } else {
         // Only open menu if it wasn't explicitly dismissed
-        if (!menuDismissed) {
+        if (!menuDismissed && (textBeforeLastAt.slice(-1) === ' ' || lastAtIndex === 0)) {
           setIsOpen(true)
           const searchStr = textBeforeCursor.slice(lastAtIndex + 1)
           setSearchText(searchStr)

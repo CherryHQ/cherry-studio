@@ -89,8 +89,7 @@ const Link = styled.a`
 `
 
 const SearchEntryPoint = styled.div`
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin: 10px 2px;
 `
 
 export default MessageSearchResults

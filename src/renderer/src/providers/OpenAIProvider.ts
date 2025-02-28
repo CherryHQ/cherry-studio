@@ -42,7 +42,7 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   private get isNotSupportFiles() {
-    const providers = ['deepseek', 'baichuan', 'minimax', 'doubao']
+    const providers = ['deepseek', 'baichuan', 'minimax', 'doubao', 'xirang']
     return providers.includes(this.provider.id)
   }
 
@@ -207,27 +207,65 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     let hasReasoningContent = false
-    const isReasoningJustDone = (delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta) =>
-      hasReasoningContent ? !!delta?.content : delta?.content === '</think>'
+    let lastChunk = ''
+    const isReasoningJustDone = (
+      delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & {
+        reasoning_content?: string
+        reasoning?: string
+      }
+    ) => {
+      if (!delta?.content) return false
+
+      // 检查当前chunk和上一个chunk的组合是否形成###Response标记
+      const combinedChunks = lastChunk + delta.content
+      lastChunk = delta.content
+
+      // 检测思考结束
+      if (combinedChunks.includes('###Response') || delta.content === '</think>') {
+        return true
+      }
+
+      // 如果有reasoning_content或reasoning，说明是在思考中
+      if (delta?.reasoning_content || delta?.reasoning) {
+        hasReasoningContent = true
+      }
+
+      // 如果之前有reasoning_content或reasoning，现在有普通content，说明思考结束
+      if (hasReasoningContent && delta.content) {
+        return true
+      }
+
+      return false
+    }
 
     let time_first_token_millsec = 0
     let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
+    const lastUserMessage = _messages.findLast((m) => m.role === 'user')
+    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { signal } = abortController
 
-    // @ts-ignore key is not typed
-    const stream = await this.sdk.chat.completions.create({
-      model: model.id,
-      messages: [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[],
-      temperature: this.getTemperature(assistant, model),
-      top_p: this.getTopP(assistant, model),
-      max_tokens: maxTokens,
-      keep_alive: this.keepAliveTime,
-      stream: isSupportStreamOutput(),
-      ...this.getReasoningEffort(assistant, model),
-      ...getOpenAIWebSearchParams(assistant, model),
-      ...this.getProviderSpecificParameters(assistant, model),
-      ...this.getCustomParameters(assistant)
-    })
+    const stream = await this.sdk.chat.completions
+      // @ts-ignore key is not typed
+      .create(
+        {
+          model: model.id,
+          messages: [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[],
+          temperature: this.getTemperature(assistant, model),
+          top_p: this.getTopP(assistant, model),
+          max_tokens: maxTokens,
+          keep_alive: this.keepAliveTime,
+          stream: isSupportStreamOutput(),
+          ...getOpenAIWebSearchParams(assistant, model),
+          ...this.getReasoningEffort(assistant, model),
+          ...this.getProviderSpecificParameters(assistant, model),
+          ...this.getCustomParameters(assistant)
+        },
+        {
+          signal
+        }
+      )
+      .finally(cleanup)
 
     if (!isSupportStreamOutput()) {
       const time_completion_millsec = new Date().getTime() - start_time_millsec
@@ -242,6 +280,7 @@ export default class OpenAIProvider extends BaseProvider {
       })
     }
 
+    // @ts-expect-error `stream` is not typed
     for await (const chunk of stream) {
       if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
         break
@@ -249,8 +288,7 @@ export default class OpenAIProvider extends BaseProvider {
 
       const delta = chunk.choices[0]?.delta
 
-      // @ts-expect-error `reasoning_content` not supported by OpenAI for now
-      if (delta?.reasoning_content) {
+      if (delta?.reasoning_content || delta?.reasoning) {
         hasReasoningContent = true
       }
 

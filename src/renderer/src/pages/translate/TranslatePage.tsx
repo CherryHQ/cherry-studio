@@ -16,7 +16,7 @@ import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { Assistant, Message, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
-import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space } from 'antd'
+import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -139,6 +139,13 @@ const TranslatePage: FC = () => {
     })
   }, [])
 
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault()
+      onTranslate()
+    }
+  }
+
   const SettingButton = () => {
     if (isLocalAi) {
       return null
@@ -183,13 +190,11 @@ const TranslatePage: FC = () => {
         <HistoryContainner $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
             <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
-            {translateHistory?.length && (
+            {!isEmpty(translateHistory) && (
               <Popconfirm
                 title={t('translate.history.clear')}
                 description={t('translate.history.clear_description')}
-                onConfirm={clearHistory}
-                okText="Yes"
-                cancelText="No">
+                onConfirm={clearHistory}>
                 <Button type="text" size="small" danger icon={<DeleteOutlined />}>
                   {t('translate.history.clear')}
                 </Button>
@@ -244,14 +249,25 @@ const TranslatePage: FC = () => {
               <SettingButton />
             </Flex>
 
-            <TranslateButton
-              type="primary"
-              loading={loading}
-              onClick={onTranslate}
-              disabled={!text.trim()}
-              icon={<SendOutlined />}>
-              {t('translate.button.translate')}
-            </TranslateButton>
+            <Tooltip
+              mouseEnterDelay={0.5}
+              styles={{ body: { fontSize: '12px' } }}
+              title={
+                <div style={{ textAlign: 'center' }}>
+                  Enter: {t('translate.button.translate')}
+                  <br />
+                  Shift + Enter: {t('translate.tooltip.newline')}
+                </div>
+              }>
+              <TranslateButton
+                type="primary"
+                loading={loading}
+                onClick={onTranslate}
+                disabled={!text.trim()}
+                icon={<SendOutlined />}>
+                {t('translate.button.translate')}
+              </TranslateButton>
+            </Tooltip>
           </OperationBar>
 
           <Textarea
@@ -260,6 +276,7 @@ const TranslatePage: FC = () => {
             placeholder={t('translate.input.placeholder')}
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
             disabled={loading}
             spellCheck={false}
             allowClear

@@ -166,6 +166,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
+  padding: 2px 0;
 `
 
 const ProviderListContainer = styled.div`

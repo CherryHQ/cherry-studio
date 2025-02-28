@@ -2,6 +2,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import { Message, Topic } from '@renderer/types'
+import { classNames } from '@renderer/utils'
 import { Popover } from 'antd'
 import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,6 +41,7 @@ const MessageGroup: FC<Props> = ({
 
   const isGrouped = messageLength > 1
   const isHorizontal = multiModelMessageStyle === 'horizontal'
+  const isGrid = multiModelMessageStyle === 'grid'
 
   const onDelete = useCallback(async () => {
     window.modal.confirm({
@@ -62,10 +64,17 @@ const MessageGroup: FC<Props> = ({
   }, [messageLength])
 
   return (
-    <GroupContainer $isGrouped={isGrouped} $layout={multiModelMessageStyle}>
-      <GridContainer $count={messageLength} $layout={multiModelMessageStyle} $gridColumns={gridColumns}>
+    <GroupContainer
+      $isGrouped={isGrouped}
+      $layout={multiModelMessageStyle}
+      className={classNames([isGrouped && 'group-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
+      <GridContainer
+        $count={messageLength}
+        $layout={multiModelMessageStyle}
+        $gridColumns={gridColumns}
+        className={classNames([isGrouped && 'group-grid-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
         {messages.map((message, index) => {
-          const isGridGroupMessage = multiModelMessageStyle === 'grid' && message.role === 'assistant' && isGrouped
+          const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
           if (isGridGroupMessage) {
             return (
               <Popover
@@ -161,30 +170,46 @@ const MessageGroup: FC<Props> = ({
 
 const GroupContainer = styled.div<{ $isGrouped: boolean; $layout: MultiModelMessageStyle }>`
   padding-top: ${({ $isGrouped, $layout }) => ($isGrouped && 'horizontal' === $layout ? '15px' : '0')};
+  &.group-container.horizontal,
+  &.group-container.grid {
+    padding: 0 20px;
+    .message {
+      padding: 0;
+    }
+    .group-menu-bar {
+      margin-left: 0;
+      margin-right: 0;
+    }
+  }
 `
 
 const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageStyle; $gridColumns: number }>`
   width: 100%;
   display: grid;
+  gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
+  overflow-y: auto;
   grid-template-columns: repeat(
     ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
     minmax(550px, 1fr)
   );
-  gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
   @media (max-width: 800px) {
     grid-template-columns: repeat(
       ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
       minmax(400px, 1fr)
     );
   }
-  overflow-y: auto;
+  ${({ $layout }) =>
+    $layout === 'horizontal' &&
+    css`
+      margin-top: 15px;
+    `}
   ${({ $gridColumns, $layout, $count }) =>
     $layout === 'grid' &&
     css`
+      margin-top: 15px;
       grid-template-columns: repeat(${$count > 1 ? $gridColumns || 2 : 1}, minmax(0, 1fr));
       grid-template-rows: auto;
       gap: 16px;
-      margin-top: 20px;
     `}
 `
 
@@ -220,11 +245,11 @@ const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
     return ''
   }}
 
-  ${({ $layout, $isInPopover, $isGrouped }) =>
-    $layout === 'grid' && $isGrouped
+  ${({ $layout, $isInPopover, $isGrouped }) => {
+    return $layout === 'grid' && $isGrouped
       ? css`
           max-height: ${$isInPopover ? '50vh' : '300px'};
-          overflow-y: auto;
+          overflow-y: ${$isInPopover ? 'auto' : 'hidden'};
           border: 0.5px solid ${$isInPopover ? 'transparent' : 'var(--color-border)'};
           padding: 10px;
           border-radius: 6px;
@@ -233,7 +258,8 @@ const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
       : css`
           overflow-y: auto;
           border-radius: 6px;
-        `}
+        `
+  }}
 `
 
 export default memo(MessageGroup)

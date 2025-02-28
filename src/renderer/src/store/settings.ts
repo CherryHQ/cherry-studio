@@ -71,6 +71,11 @@ export interface SettingsState {
   notionApiKey: string | null
   notionPageNameKey: string | null
   thoughtAutoCollapse: boolean
+  notionAutoSplit: boolean
+  notionSplitSize: number
+  yuqueToken: string | null
+  yuqueUrl: string | null
+  yuqueRepoId: string | null
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -127,7 +132,12 @@ const initialState: SettingsState = {
   notionDatabaseID: '',
   notionApiKey: '',
   notionPageNameKey: 'Name',
-  thoughtAutoCollapse: true
+  thoughtAutoCollapse: true,
+  notionAutoSplit: false,
+  notionSplitSize: 90,
+  yuqueToken: '',
+  yuqueUrl: '',
+  yuqueRepoId: ''
 }
 
 const settingsSlice = createSlice({
@@ -185,7 +195,6 @@ const settingsSlice = createSlice({
     },
     setWindowStyle: (state, action: PayloadAction<'transparent' | 'opaque'>) => {
       state.windowStyle = action.payload
-      console.log(state.windowStyle)
     },
     setTopicPosition: (state, action: PayloadAction<'left' | 'right'>) => {
       state.topicPosition = action.payload
@@ -293,6 +302,21 @@ const settingsSlice = createSlice({
     },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
+    },
+    setNotionAutoSplit: (state, action: PayloadAction<boolean>) => {
+      state.notionAutoSplit = action.payload
+    },
+    setNotionSplitSize: (state, action: PayloadAction<number>) => {
+      state.notionSplitSize = action.payload
+    },
+    setYuqueToken: (state, action: PayloadAction<string>) => {
+      state.yuqueToken = action.payload
+    },
+    setYuqueRepoId: (state, action: PayloadAction<string>) => {
+      state.yuqueRepoId = action.payload
+    },
+    setYuqueUrl: (state, action: PayloadAction<string>) => {
+      state.yuqueUrl = action.payload
     }
   }
 })
@@ -348,7 +372,12 @@ export const {
   setNotionDatabaseID,
   setNotionApiKey,
   setNotionPageNameKey,
-  setThoughtAutoCollapse
+  setThoughtAutoCollapse,
+  setNotionAutoSplit,
+  setNotionSplitSize,
+  setYuqueToken,
+  setYuqueRepoId,
+  setYuqueUrl
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

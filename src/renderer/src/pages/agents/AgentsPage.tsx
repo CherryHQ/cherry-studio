@@ -66,14 +66,10 @@ const AgentsPage: FC = () => {
     return { 搜索结果: Array.from(uniqueAgents.values()) }
   }, [agentGroups, search])
 
-  const getAgentName = (agent: Agent) => {
-    return agent.emoji ? agent.emoji + ' ' + agent.name : agent.name
-  }
-
   const onAddAgentConfirm = useCallback(
     (agent: Agent) => {
       window.modal.confirm({
-        title: getAgentName(agent),
+        title: agent.name,
         content: (
           <AgentPrompt>
             <ReactMarkdown className="markdown">{agent.description || agent.prompt}</ReactMarkdown>

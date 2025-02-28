@@ -73,13 +73,13 @@
     "chat": {
       "add.assistant.title": "添加助手",
       "artifacts.button.download": "下载",
-      "artifacts.button.preview": "预览",
       "artifacts.button.openExternal": "外部浏览器打开",
+      "artifacts.button.preview": "预览",
       "artifacts.preview.openExternal.error.content": "外部浏览器打开出错",
       "assistant.search.placeholder": "搜索",
       "deeply_thought": "已深度思考（用时 {{secounds}} 秒）",
       "default.description": "你好，我是默认助手。你可以立刻开始跟我聊天。",
-      "default.name": "⭐️ 默认助手",
+      "default.name": "默认助手",
       "default.topic.name": "默认话题",
       "input.clear": "清空消息 {{Command}}",
       "input.clear.content": "确定要清除当前会话所有消息吗?",
@@ -88,6 +88,7 @@
       "input.context_count.tip": "上下文数",
       "input.estimated_tokens.tip": "预估 token 数",
       "input.expand": "展开",
+      "input.file_not_supported": "模型不支持此文件类型",
       "input.knowledge_base": "知识库",
       "input.new.context": "清除上下文 {{Command}}",
       "input.new_topic": "新话题 {{Command}}",
@@ -100,7 +101,9 @@
       "input.upload": "上传图片或文档",
       "input.upload.document": "上传文档（模型不支持图片）",
       "input.web_search": "开启网络搜索",
-      "input.file_not_supported": "模型不支持此文件类型",
+      "input.web_search.button.ok": "去设置",
+      "input.web_search.enable": "开启网络搜索",
+      "input.web_search.enable_content": "需要先在设置中开启网络搜索",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -113,22 +116,26 @@
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
       "settings.max_tokens": "开启消息长度限制",
+      "settings.max_tokens.confirm": "开启消息长度限制",
+      "settings.max_tokens.confirm_content": "开启消息长度限制后，单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "settings.max_tokens.tip": "单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "settings.reset": "重置",
       "settings.set_as_default": "应用到默认助手",
       "settings.show_line_numbers": "代码显示行号",
       "settings.temperature": "模型温度",
       "settings.temperature.tip": "模型生成文本的随机程度。值越大，回复内容越赋有多样性、创造性、随机性；设为 0 根据事实回答。日常聊天建议设置为 0.7",
-      "settings.top_p": "Top-P",
-      "settings.top_p.tip": "默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇围越大，越多样化",
-      "settings.max_tokens.confirm": "开启消息长度限制",
-      "settings.max_tokens.confirm_content": "开启消息长度限制后，单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "settings.thought_auto_collapse": "思考内容自动折叠",
       "settings.thought_auto_collapse.tip": "思考结束后思考内容自动折叠",
+      "settings.top_p": "Top-P",
+      "settings.top_p.tip": "默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇围越大，越多样化",
       "suggestions.title": "建议的问题",
       "thinking": "思考中",
       "topics.auto_rename": "生成话题名",
       "topics.clear.title": "清空消息",
+      "topics.copy.image": "复制为图片",
+      "topics.copy.md": "复制为 Markdown",
+      "topics.copy.title": "复制",
+      "topics.delete.shortcut": "按住 {{key}} 可直接删除",
       "topics.edit.placeholder": "输入新名称",
       "topics.edit.title": "编辑话题名",
       "topics.export.image": "导出为图片",
@@ -136,15 +143,16 @@
       "topics.export.notion": "导出到 Notion",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
+      "topics.export.yuque": "导出到语雀",
       "topics.list": "话题列表",
       "topics.move_to": "移动到",
       "topics.pinned": "固定话题",
+      "topics.prompt": "话题提示词",
+      "topics.prompt.edit.title": "编辑话题提示词",
+      "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词",
       "topics.title": "话题",
       "topics.unpinned": "取消固定",
-      "topics.delete.shortcut": "按住 {{key}} 可直接删除",
-      "translate": "翻译",
-      "topics.prompt": "话题提示词",
-      "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词"
+      "translate": "翻译"
     },
     "common": {
       "add": "添加",
@@ -167,6 +175,7 @@
       "edit": "编辑",
       "footnote": "引用内容",
       "footnotes": "引用内容",
+      "fullscreen": "已进入全屏模式，按 F11 退出",
       "knowledge_base": "知识库",
       "language": "语言",
       "model": "模型",
@@ -185,15 +194,18 @@
       "warning": "警告",
       "you": "用户"
     },
+    "docs": {
+      "title": "帮助文档"
+    },
     "error": {
       "backup.file_format": "备份文件格式错误",
       "chat.response": "出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥",
       "http": {
         "400": "请求错误，请检查请求参数是否正确。如果修改了模型设置，请重置到默认设置",
         "401": "身份验证失败，请检查 API 密钥是否正确",
-        "403": "禁止访问，请检查是否实名认证，或联系服务商询问被禁止原因",
+        "403": "禁止访问，请翻译具体报错信息查看原因，或联系服务商询问被禁止原因",
         "404": "模型不存在或者请求路径错误",
-        "429": "请求过多，请稍后再试",
+        "429": "请求速率超过限制，请稍后再试",
         "500": "服务器错误，请稍后再试",
         "502": "网关错误，请稍后再试",
         "503": "服务不可用，请稍后再试",
@@ -272,6 +284,8 @@
       "document_count_default": "默认",
       "document_count_help": "请求文档分段数量越多，附带的信息越多，但需要消耗的 Token 也越多",
       "drag_file": "拖拽文件到这里",
+      "edit_remark": "修改备注",
+      "edit_remark_placeholder": "请输入备注内容",
       "empty": "暂无知识库",
       "file_hint": "支持 {{file_types}} 格式",
       "index_all": "索引全部",
@@ -300,9 +314,9 @@
       "status_pending": "等待中",
       "status_processing": "处理中",
       "threshold": "匹配度阈值",
-      "threshold_tooltip": "用于衡量用户问题与知识库内容之间的相关性（0-1）",
       "threshold_placeholder": "未设置",
       "threshold_too_large_or_small": "阈值不能大于1或小于0",
+      "threshold_tooltip": "用于衡量用户问题与知识库内容之间的相关性（0-1）",
       "title": "知识库",
       "url_added": "网址已添加",
       "url_placeholder": "请输入网址, 多个网址用回车分隔",
@@ -314,13 +328,19 @@
       "chinese-traditional": "繁体中文",
       "english": "英文",
       "french": "法文",
+      "german": "德文",
       "italian": "意大利文",
       "japanese": "日文",
       "korean": "韩文",
       "portuguese": "葡萄牙文",
       "russian": "俄文",
-      "spanish": "西班牙文",
-      "german": "德文"
+      "spanish": "西班牙文"
+    },
+    "lmstudio": {
+      "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
+      "keep_alive_time.placeholder": "分钟",
+      "keep_alive_time.title": "保持活跃时间",
+      "title": "LM Studio"
     },
     "mermaid": {
       "download": {
@@ -336,18 +356,6 @@
         "source": "源码"
       },
       "title": "Mermaid 图表"
-    },
-    "plantuml": {
-      "title": "PlantUML 图表",
-      "download": {
-        "png": "下载 PNG",
-        "svg": "下载 SVG",
-        "failed": "下载失败，请检查网络"
-      },
-      "tabs": {
-        "preview": "预览",
-        "source": "源码"
-      }
     },
     "message": {
       "api.check.model.title": "请选择要检测的模型",
@@ -372,19 +380,23 @@
       "error.invalid.enter.model": "请选择一个模型",
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
-      "error.notion.export": "导出Notion错误，请检查连接状态并对照文档检查配置",
-      "error.notion.no_api_key": "未配置Notion ApiKey或Notion DatabaseID",
+      "error.notion.export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
+      "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
+      "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
+      "error.yuque.no_config": "未配置语雀 Token 或 知识库 URL",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
+      "ignore.knowledge.base": "联网模式开启，忽略知识库",
+      "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion",
       "mention.title": "切换模型回答",
       "message.code_style": "代码风格",
       "message.delete.content": "确定要删除此消息吗?",
       "message.delete.title": "删除消息",
       "message.multi_model_style": "多模型回答样式",
       "message.multi_model_style.fold": "折叠",
+      "message.multi_model_style.grid": "网格",
       "message.multi_model_style.horizontal": "水平",
       "message.multi_model_style.vertical": "垂直",
-      "message.multi_model_style.grid": "网格",
       "message.style": "消息样式",
       "message.style.bubble": "气泡",
       "message.style.plain": "简洁",
@@ -394,7 +406,9 @@
       "reset.double.confirm.title": "数据丢失！！！",
       "restore.success": "恢复成功",
       "save.success.title": "保存成功",
+      "searching": "正在联网搜索...",
       "success.notion.export": "成功导出到Notion",
+      "success.yuque.export": "成功导出到语雀",
       "switch.disabled": "请等待当前回复完成后操作",
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -458,19 +472,14 @@
         "vision": "图像"
       },
       "vision": "视觉",
-      "websearch": "联网"
+      "websearch": "联网",
+      "edit": "编辑模型"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
       "keep_alive_time.placeholder": "分钟",
       "keep_alive_time.title": "保持活跃时间",
       "title": "Ollama"
-    },
-    "lmstudio": {
-      "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
-      "keep_alive_time.placeholder": "分钟",
-      "keep_alive_time.title": "保持活跃时间",
-      "title": "LM Studio"
     },
     "paintings": {
       "button.delete.image": "删除图片",
@@ -493,23 +502,33 @@
       "seed_tip": "相同的种子和提示词可以生成相似的图片",
       "title": "图片"
     },
+    "plantuml": {
+      "download": {
+        "failed": "下载失败，请检查网络",
+        "png": "下载 PNG",
+        "svg": "下载 SVG"
+      },
+      "tabs": {
+        "preview": "预览",
+        "source": "源码"
+      },
+      "title": "PlantUML 图表"
+    },
     "prompts": {
       "explanation": "帮我解释一下这个概念",
       "summarize": "帮我总结一下这段话",
       "title": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号"
     },
     "provider": {
-      "infini": "无问芯穹",
-      "perplexity": "Perplexity",
-      "dmxapi": "DMXAPI",
+      "o3": "O3",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "百川",
       "baidu-cloud": "百度云千帆",
       "dashscope": "阿里云百炼",
-      "modelscope": "ModelScope 魔搭",
       "deepseek": "深度求索",
+      "dmxapi": "DMXAPI",
       "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
@@ -520,16 +539,19 @@
       "groq": "Groq",
       "hunyuan": "腾讯混元",
       "hyperbolic": "Hyperbolic",
+      "infini": "无问芯穹",
       "jina": "Jina",
+      "lmstudio": "LM Studio",
       "minimax": "MiniMax",
       "mistral": "Mistral",
+      "modelscope": "ModelScope 魔搭",
       "moonshot": "月之暗面",
       "nvidia": "英伟达",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
-      "lmstudio": "LM Studio",
       "openai": "OpenAI",
       "openrouter": "OpenRouter",
+      "perplexity": "Perplexity",
       "ppio": "PPIO 派欧云",
       "qwenlm": "QwenLM",
       "silicon": "硅基流动",
@@ -537,7 +559,8 @@
       "together": "Together",
       "yi": "零一万物",
       "zhinao": "360智脑",
-      "zhipu": "智谱AI"
+      "zhipu": "智谱AI",
+      "xirang": "天翼云息壤"
     },
     "settings": {
       "about": "关于我们",
@@ -577,22 +600,31 @@
           "title": "清除缓存"
         },
         "data.title": "数据目录",
+        "hour_interval_one": "{{count}} 小时",
+        "hour_interval_other": "{{count}} 小时",
+        "minute_interval_one": "{{count}} 分钟",
+        "minute_interval_other": "{{count}} 分钟",
         "notion.api_key": "Notion 密钥",
         "notion.api_key_placeholder": "请输入Notion 密钥",
-        "notion.database_id": "Notion 数据库 ID",
-        "notion.database_id_placeholder": "请输入Notion 数据库 ID",
-        "notion.page_name_key": "页面标题字段名",
-        "notion.page_name_key_placeholder": "请输入页面标题字段名，默认为 Name",
-        "notion.title": "Notion 配置",
-        "notion.help": "Notion 配置文档",
+        "notion.auto_split": "导出对话时自动分页",
+        "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
         "notion.check": {
           "button": "检查",
-          "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",
-          "success": "连接成功",
-          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
-          "empty_api_key": "未配置Api_key",
-          "empty_database_id": "未配置Database_id"
+          "empty_api_key": "未配置 API key",
+          "empty_database_id": "未配置 Database ID",
+          "error": "连接异常，请检查网络及 API key 和 Database ID 是否正确",
+          "fail": "连接失败，请检查网络及 API key 和 Database ID 是否正确",
+          "success": "连接成功"
         },
+        "notion.database_id": "Notion 数据库 ID",
+        "notion.database_id_placeholder": "请输入Notion 数据库 ID",
+        "notion.help": "Notion 配置文档",
+        "notion.page_name_key": "页面标题字段名",
+        "notion.page_name_key_placeholder": "请输入页面标题字段名，默认为 Name",
+        "notion.split_size": "自动分页大小",
+        "notion.split_size_help": "Notion免费版用户建议设置为90，高级版用户建议设置为24990，默认值为90",
+        "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
+        "notion.title": "Notion 配置",
         "title": "数据设置",
         "webdav": {
           "autoSync": "自动备份",
@@ -600,11 +632,11 @@
           "backup.button": "备份到 WebDAV",
           "host": "WebDAV 地址",
           "host.placeholder": "http://localhost:8080",
-          "minute_interval_one": "{{count}} 分钟",
-          "minute_interval_other": "{{count}} 分钟",
           "hour_interval_one": "{{count}} 小时",
           "hour_interval_other": "{{count}} 小时",
           "lastSync": "上次备份时间",
+          "minute_interval_one": "{{count}} 分钟",
+          "minute_interval_other": "{{count}} 分钟",
           "noSync": "等待下次备份",
           "password": "WebDAV 密码",
           "path": "WebDAV 路径",
@@ -617,10 +649,21 @@
           "title": "WebDAV",
           "user": "WebDAV 用户名"
         },
-        "minute_interval_one": "{{count}} 分钟",
-        "minute_interval_other": "{{count}} 分钟",
-        "hour_interval_one": "{{count}} 小时",
-        "hour_interval_other": "{{count}} 小时"
+        "yuque": {
+          "check": {
+            "button": "检查",
+            "empty_repo_url": "请先输入知识库URL",
+            "empty_token": "请先输入语雀Token",
+            "fail": "语雀连接验证失败",
+            "success": "语雀连接验证成功"
+          },
+          "help": "获取语雀 Token",
+          "repo_url": "知识库 URL",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "title": "语雀配置",
+          "token": "语雀 Token",
+          "token_placeholder": "请输入语雀Token"
+        }
       },
       "display.custom.css": "自定义 CSS",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
@@ -661,6 +704,10 @@
       "input.target_language.japanese": "日文",
       "input.target_language.russian": "俄文",
       "messages.divider": "消息分割线",
+      "messages.grid_columns": "消息网格展示列数",
+      "messages.grid_popover_trigger": "网格详情触发",
+      "messages.grid_popover_trigger.click": "点击显示",
+      "messages.grid_popover_trigger.hover": "悬停显示",
       "messages.input.paste_long_text_as_file": "长文本粘贴为文件",
       "messages.input.paste_long_text_threshold": "长文本长度",
       "messages.input.send_shortcuts": "发送快捷键",
@@ -668,10 +715,6 @@
       "messages.input.title": "输入设置",
       "messages.markdown_rendering_input_message": "Markdown 渲染输入消息",
       "messages.math_engine": "数学公式引擎",
-      "messages.grid_columns": "消息网格展示列数",
-      "messages.grid_popover_trigger": "网格详情触发",
-      "messages.grid_popover_trigger.hover": "悬停显示",
-      "messages.grid_popover_trigger.click": "点击显示",
       "messages.metrics": "首字时延 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
       "messages.model.title": "模型设置",
       "messages.title": "消息设置",
@@ -744,7 +787,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系统中 Option 键只能与空格键组合使用",
         "clear_shortcut": "清除快捷键",
         "clear_topic": "清空消息",
         "copy_last_message": "复制上一条消息",
@@ -778,7 +820,23 @@
       "topic.position.left": "左侧",
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
-      "tray.title": "启用系统托盘图标"
+      "tray.title": "启用系统托盘图标",
+      "websearch": {
+        "blacklist": "黑名单",
+        "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+        "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "get_api_key": "点击这里获取密钥",
+        "search_max_result": "搜索结果个数",
+        "search_result_default": "默认",
+        "search_with_time": "搜索包含日期",
+        "tavily": {
+          "api_key": "Tavily API 密钥",
+          "api_key.placeholder": "请输入 Tavily API 密钥",
+          "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
+          "title": "Tavily"
+        },
+        "title": "网络搜索"
+      }
     },
     "translate": {
       "any.language": "任意语言",
@@ -790,17 +848,18 @@
       },
       "error.failed": "翻译失败",
       "error.not_configured": "翻译模型未配置",
+      "history": {
+        "clear": "清空历史",
+        "clear_description": "清空历史将删除所有翻译历史记录，是否继续？",
+        "delete": "删除",
+        "empty": "暂无翻译历史",
+        "title": "翻译历史"
+      },
       "input.placeholder": "输入文本进行翻译",
       "output.placeholder": "翻译",
       "processing": "翻译中...",
       "title": "翻译",
-      "history": {
-        "title": "翻译历史",
-        "empty": "暂无翻译历史",
-        "clear": "清空历史",
-        "delete": "删除",
-        "clear_description": "清空历史将删除所有翻译历史记录，是否继续？"
-      }
+      "tooltip.newline": "换行"
     },
     "tray": {
       "quit": "退出",
@@ -812,9 +871,6 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
-    },
-    "docs": {
-      "title": "帮助文档"
     }
   }
 }

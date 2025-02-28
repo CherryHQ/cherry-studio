@@ -5,16 +5,33 @@ import MinApp from '@renderer/components/MinApp'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { backup, reset, restore } from '@renderer/services/BackupService'
 import { RootState, useAppDispatch } from '@renderer/store'
-import { setNotionApiKey, setNotionDatabaseID, setNotionPageNameKey } from '@renderer/store/settings'
+import {
+  setNotionApiKey,
+  setNotionAutoSplit,
+  setNotionDatabaseID,
+  setNotionPageNameKey,
+  setNotionSplitSize,
+  setYuqueRepoId,
+  setYuqueToken,
+  setYuqueUrl
+} from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
-import { Button, Modal, Tooltip, Typography } from 'antd'
+import { Button, InputNumber, Modal, Switch, Tooltip, Typography } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import {
+  SettingContainer,
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '..'
 import WebDavSettings from './WebDavSettings'
 
 // 新增的 NotionSettings 组件
@@ -26,6 +43,8 @@ const NotionSettings: FC = () => {
   const notionApiKey = useSelector((state: RootState) => state.settings.notionApiKey)
   const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID)
   const notionPageNameKey = useSelector((state: RootState) => state.settings.notionPageNameKey)
+  const notionAutoSplit = useSelector((state: RootState) => state.settings.notionAutoSplit)
+  const notionSplitSize = useSelector((state: RootState) => state.settings.notionSplitSize)
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch(setNotionApiKey(e.target.value))
@@ -71,6 +90,16 @@ const NotionSettings: FC = () => {
       name: 'Notion Help',
       url: 'https://docs.cherry-ai.com/advanced-basic/notion'
     })
+  }
+
+  const handleNotionAutoSplitChange = (checked: boolean) => {
+    dispatch(setNotionAutoSplit(checked))
+  }
+
+  const handleNotionSplitSizeChange = (value: number | null) => {
+    if (value !== null) {
+      dispatch(setNotionSplitSize(value))
+    }
   }
 
   return (
@@ -128,6 +157,138 @@ const NotionSettings: FC = () => {
         </HStack>
       </SettingRow>
       <SettingDivider /> {/* 添加分割线 */}
+      <SettingRow>
+        <SettingRowTitle>
+          <Tooltip title={t('settings.data.notion.auto_split_tip')} placement="right">
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {t('settings.data.notion.auto_split')}
+              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+            </span>
+          </Tooltip>
+        </SettingRowTitle>
+        <Switch checked={notionAutoSplit} onChange={handleNotionAutoSplitChange} />
+      </SettingRow>
+      {notionAutoSplit && (
+        <>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.notion.split_size')}</SettingRowTitle>
+            <InputNumber
+              min={30}
+              max={25000}
+              value={notionSplitSize}
+              onChange={handleNotionSplitSizeChange}
+              keyboard={true}
+              controls={true}
+              style={{ width: 120 }}
+            />
+          </SettingRow>
+          <SettingRow>
+            <SettingHelpText style={{ marginLeft: 10 }}>{t('settings.data.notion.split_size_help')}</SettingHelpText>
+          </SettingRow>
+        </>
+      )}
+    </SettingGroup>
+  )
+}
+
+const YuqueSettings: FC = () => {
+  const { t } = useTranslation()
+  const { theme } = useTheme()
+  const dispatch = useAppDispatch()
+
+  const yuqueToken = useSelector((state: RootState) => state.settings.yuqueToken)
+  const yuqueUrl = useSelector((state: RootState) => state.settings.yuqueUrl)
+
+  const handleYuqueTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setYuqueToken(e.target.value))
+  }
+
+  const handleYuqueRepoUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setYuqueUrl(e.target.value))
+  }
+
+  const handleYuqueConnectionCheck = async () => {
+    if (!yuqueToken) {
+      window.message.error(t('settings.data.yuque.check.empty_token'))
+      return
+    }
+    if (!yuqueUrl) {
+      window.message.error(t('settings.data.yuque.check.empty_url'))
+      return
+    }
+
+    const response = await fetch('https://www.yuque.com/api/v2/hello', {
+      headers: {
+        'X-Auth-Token': yuqueToken
+      }
+    })
+
+    if (!response.ok) {
+      window.message.error(t('settings.data.yuque.check.fail'))
+      return
+    }
+    const yuqueSlug = yuqueUrl.replace('https://www.yuque.com/', '')
+    const repoIDResponse = await fetch(`https://www.yuque.com/api/v2/repos/${yuqueSlug}`, {
+      headers: {
+        'X-Auth-Token': yuqueToken
+      }
+    })
+    if (!repoIDResponse.ok) {
+      window.message.error(t('settings.data.yuque.check.fail'))
+      return
+    }
+    const data = await repoIDResponse.json()
+    dispatch(setYuqueRepoId(data.data.id))
+    window.message.success(t('settings.data.yuque.check.success'))
+  }
+
+  const handleYuqueHelpClick = () => {
+    MinApp.start({
+      id: 'yuque-help',
+      name: 'Yuque Help',
+      url: 'https://www.yuque.com/settings/tokens'
+    })
+  }
+
+  return (
+    <SettingGroup theme={theme}>
+      <SettingTitle>{t('settings.data.yuque.title')}</SettingTitle>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
+        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+          <Input
+            type="text"
+            value={yuqueUrl || ''}
+            onChange={handleYuqueRepoUrlChange}
+            style={{ width: 315 }}
+            placeholder={t('settings.data.yuque.repo_url_placeholder')}
+          />
+        </HStack>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>
+          {t('settings.data.yuque.token')}
+          <Tooltip title={t('settings.data.yuque.help')} placement="left">
+            <InfoCircleOutlined
+              style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
+              onClick={handleYuqueHelpClick}
+            />
+          </Tooltip>
+        </SettingRowTitle>
+        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+          <Input
+            type="password"
+            value={yuqueToken || ''}
+            onChange={handleYuqueTokenChange}
+            style={{ width: 250 }}
+            placeholder={t('settings.data.yuque.token_placeholder')}
+          />
+          <Button onClick={handleYuqueConnectionCheck}>{t('settings.data.yuque.check.button')}</Button>
+        </HStack>
+      </SettingRow>
     </SettingGroup>
   )
 }
@@ -201,6 +362,7 @@ const DataSettings: FC = () => {
         <WebDavSettings />
       </SettingGroup>
       <NotionSettings />
+      <YuqueSettings />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />

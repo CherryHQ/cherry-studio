@@ -24,6 +24,7 @@ import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
 import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
+import O3ProviderLogo from '@renderer/assets/images/providers/o3.png'
 import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
 import OllamaProviderLogo from '@renderer/assets/images/providers/ollama.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
@@ -34,6 +35,7 @@ import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.p
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
+import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 export function getProviderLogo(providerId: string) {
@@ -66,6 +68,8 @@ export function getProviderLogo(providerId: string) {
       return BailianProviderLogo
     case 'modelscope':
       return ModelScopeProviderLogo
+    case 'xirang':
+      return XirangProviderLogo
     case 'anthropic':
       return AnthropicProviderLogo
     case 'aihubmix':
@@ -114,6 +118,8 @@ export function getProviderLogo(providerId: string) {
       return PerplexityProviderLogo
     case 'infini':
       return InfiniProviderLogo
+    case 'o3':
+      return O3ProviderLogo
     default:
       return undefined
   }
@@ -129,6 +135,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://platform.openai.com/api-keys',
       docs: 'https://platform.openai.com/docs',
       models: 'https://platform.openai.com/docs/models'
+    }
+  },
+  o3: {
+    api: {
+      url: 'https://api.o3.fan'
+    },
+    websites: {
+      official: 'https://o3.fan',
+      apiKey: 'https://o3.fan/token',
+      docs: 'https://docs.o3.fan',
+      models: 'https://docs.o3.fan/models'
     }
   },
   ppio: {
@@ -234,7 +251,7 @@ export const PROVIDER_CONFIG = {
   },
   infini: {
     api: {
-      url: 'https://cloud.infini-ai.com'
+      url: 'https://cloud.infini-ai.com/maas'
     },
     websites: {
       official: 'https://cloud.infini-ai.com/',
@@ -309,6 +326,17 @@ export const PROVIDER_CONFIG = {
       models: 'https://modelscope.cn/models'
     }
   },
+  xirang: {
+    api: {
+      url: 'https://wishub-x1.ctyun.cn'
+    },
+    websites: {
+      official: 'https://www.ctyun.cn',
+      apiKey: 'https://huiju.ctyun.cn/service/serviceGroup',
+      docs: 'https://www.ctyun.cn/products/ctxirang',
+      models: 'https://huiju.ctyun.cn/modelSquare/'
+    }
+  },
   dashscope: {
     api: {
       url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/'
@@ -337,7 +365,7 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://console.volcengine.com/ark/',
-      apiKey: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
+      apiKey: 'https://www.volcengine.com/experience/ark?utm_term=202502dsinvite&ac=DSASUQY5&rc=DB4II4FC',
       docs: 'https://www.volcengine.com/docs/82379/1182403',
       models: 'https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint'
     }

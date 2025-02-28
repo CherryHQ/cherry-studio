@@ -37,6 +37,16 @@ const initialState: LlmState = {
       enabled: true
     },
     {
+      id: 'o3',
+      name: 'O3',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.o3.fan',
+      models: SYSTEM_MODELS.o3,
+      isSystem: true,
+      enabled: false
+    },
+    {
       id: 'aihubmix',
       name: 'AiHubMix',
       type: 'openai',
@@ -388,22 +398,22 @@ const initialState: LlmState = {
       enabled: false
     },
     {
-      id: 'lmstudio',
-      name: 'LM Studio',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'http://localhost:1234',
-      models: SYSTEM_MODELS.lmstudio,
-      isSystem: true,
-      enabled: true
-    },
-    {
       id: 'modelscope',
       name: 'ModelScope',
       type: 'openai',
       apiKey: '',
       apiHost: 'https://api-inference.modelscope.cn/v1/',
       models: SYSTEM_MODELS.modelscope,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'xirang',
+      name: 'Xirang',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://wishub-x1.ctyun.cn',
+      models: SYSTEM_MODELS.xirang,
       isSystem: true,
       enabled: false
     }
@@ -502,6 +512,21 @@ const settingsSlice = createSlice({
     },
     setLMStudioKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.lmstudio.keepAliveTime = action.payload
+    },
+    updateModel: (
+      state,
+      action: PayloadAction<{
+        providerId: string
+        model: Model
+      }>
+    ) => {
+      const provider = state.providers.find((p) => p.id === action.payload.providerId)
+      if (provider) {
+        const modelIndex = provider.models.findIndex((m) => m.id === action.payload.model.id)
+        if (modelIndex !== -1) {
+          provider.models[modelIndex] = action.payload.model
+        }
+      }
     }
   }
 })
@@ -517,7 +542,8 @@ export const {
   setTopicNamingModel,
   setTranslateModel,
   setOllamaKeepAliveTime,
-  setLMStudioKeepAliveTime
+  setLMStudioKeepAliveTime,
+  updateModel
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
