@@ -26,8 +26,8 @@ export default class WebDav {
       password: params.webdavPass,
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
-      httpAgent: httpAgent,
-      httpsAgent: httpsAgent
+      httpAgent: httpProxy ? new HttpProxyAgent(httpProxy) : undefined,
+      httpsAgent: httpsProxy ? new HttpsProxyAgent(httpsProxy) : undefined
     })
 
     this.putFileContents = this.putFileContents.bind(this)

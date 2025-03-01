@@ -51,7 +51,7 @@ export class WindowService {
       show: false, // 初始不显示
       autoHideMenuBar: true,
       transparent: isMac,
-      vibrancy: 'under-window',
+      vibrancy: 'sidebar',
       visualEffectState: 'active',
       titleBarStyle: isLinux ? 'default' : 'hidden',
       titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,

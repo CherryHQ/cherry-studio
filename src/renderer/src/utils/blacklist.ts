@@ -57,4 +57,3 @@ export function formatDomains(urls: string[]): FormatDomainsResult {
 
   return { formattedDomains, hasError }
 }
-

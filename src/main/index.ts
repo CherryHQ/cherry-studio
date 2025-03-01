@@ -34,6 +34,7 @@ if (!app.requestSingleInstanceLock()) {
         windowService.showMainWindow()
       }
     })
+
     registerShortcuts(mainWindow)
 
     registerIpc(mainWindow, app)

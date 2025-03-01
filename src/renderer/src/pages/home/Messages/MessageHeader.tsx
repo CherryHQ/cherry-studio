@@ -15,6 +15,10 @@ import { CSSProperties, FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+const isEmoji = (str: string) => {
+  return str && typeof str === 'string' && !str.startsWith('data:') && !str.startsWith('http');
+}
+
 interface Props {
   message: Message
   assistant: Assistant
@@ -81,12 +85,18 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
             {avatarName}
           </Avatar>
         ) : (
-          <Avatar
-            src={avatar}
-            size={35}
-            style={{ borderRadius: '20%', cursor: 'pointer' }}
-            onClick={() => UserPopup.show()}
-          />
+          <>
+            {isEmoji(avatar) ? (
+              <EmojiAvatar onClick={() => UserPopup.show()}>{avatar}</EmojiAvatar>
+            ) : (
+              <Avatar
+                src={avatar}
+                size={35}
+                style={{ borderRadius: '20%', cursor: 'pointer' }}
+                onClick={() => UserPopup.show()}
+              />
+            )}
+          </>
         )}
         <UserWrap>
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
@@ -100,6 +110,19 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
 })
 
 MessageHeader.displayName = 'MessageHeader'
+
+const EmojiAvatar = styled.div`
+  width: 35px;
+  height: 35px;
+  background-color: var(--color-background-soft);
+  border-radius: 20%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  border: 0.5px solid var(--color-border);
+`
 
 const Container = styled.div`
   display: flex;

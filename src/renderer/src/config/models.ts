@@ -1408,6 +1408,18 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'hunyuan',
       name: 'hunyuan-turbo',
       group: 'Hunyuan'
+    },
+    {
+      id: 'hunyuan-turbos-latest',
+      provider: 'hunyuan',
+      name: 'hunyuan-turbos-latest',
+      group: 'Hunyuan'
+    },
+    {
+      id: 'hunyuan-embedding',
+      provider: 'hunyuan',
+      name: 'hunyuan-embedding',
+      group: 'Embedding'
     }
   ],
   nvidia: [
@@ -1827,6 +1839,10 @@ export function isVisionModel(model: Model): boolean {
   return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
 }
 
+export function isOpenAIoSeries(model: Model): boolean {
+  return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
+}
+
 export function isReasoningModel(model: Model): boolean {
   if (!model) {
     return false
@@ -1834,6 +1850,10 @@ export function isReasoningModel(model: Model): boolean {
 
   if (model.provider === 'doubao') {
     return REASONING_REGEX.test(model.name) || model.type?.includes('reasoning') || false
+  }
+
+  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
+    return true
   }
 
   return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
@@ -1855,6 +1875,12 @@ export function isWebSearchModel(model: Model): boolean {
   const provider = getProviderByModel(model)
 
   if (!provider) {
+    return false
+  }
+
+  const isEmbedding = isEmbeddingModel(model)
+
+  if (isEmbedding) {
     return false
   }
 

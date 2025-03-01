@@ -32,7 +32,7 @@ import {
 } from '@renderer/store/settings'
 import { Assistant, AssistantSettings, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -51,6 +51,7 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+  const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -96,9 +97,14 @@ const SettingsTab: FC<Props> = (props) => {
     }
   }
 
+  const onReasoningEffortChange = (value) => {
+    updateAssistantSettings({ reasoning_effort: value })
+  }
+
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
     setContextCount(DEFAULT_CONTEXTCOUNT)
+    setReasoningEffort(undefined)
     updateAssistant({
       ...assistant,
       settings: {
@@ -109,6 +115,7 @@ const SettingsTab: FC<Props> = (props) => {
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
         hideMessages: false,
+        reasoning_effort: undefined,
         customParameters: []
       }
     })
@@ -120,6 +127,7 @@ const SettingsTab: FC<Props> = (props) => {
     setEnableMaxTokens(assistant?.settings?.enableMaxTokens ?? false)
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
+    setReasoningEffort(assistant?.settings?.reasoning_effort)
   }, [assistant])
 
   return (
@@ -223,6 +231,45 @@ const SettingsTab: FC<Props> = (props) => {
             </Col>
           </Row>
         )}
+        <SettingDivider />
+        <Row align="middle">
+          <Label>{t('assistants.settings.reasoning_effort')}</Label>
+          <Tooltip title={t('assistants.settings.reasoning_effort.tip')}>
+            <QuestionIcon />
+          </Tooltip>
+        </Row>
+        <Row align="middle" gutter={10}>
+          <Col span={24}>
+            <SegmentedContainer>
+              <Segmented<'low' | 'medium' | 'high' | undefined>
+                value={reasoningEffort}
+                onChange={(value) => {
+                  setReasoningEffort(value)
+                  onReasoningEffortChange(value)
+                }}
+                options={[
+                  {
+                    value: 'low',
+                    label: t('assistants.settings.reasoning_effort.low')
+                  },
+                  {
+                    value: 'medium',
+                    label: t('assistants.settings.reasoning_effort.medium')
+                  },
+                  {
+                    value: 'high',
+                    label: t('assistants.settings.reasoning_effort.high')
+                  },
+                  {
+                    value: undefined,
+                    label: t('assistants.settings.reasoning_effort.off')
+                  }
+                ]}
+                block
+              />
+            </SegmentedContainer>
+          </Col>
+        </Row>
       </SettingGroup>
       <SettingGroup>
         <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.title')}</SettingSubtitle>
@@ -483,6 +530,26 @@ export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   margin-top: 0;
   border-radius: 8px;
   margin-bottom: 10px;
+`
+
+// Define the styled component with hover state styling
+const SegmentedContainer = styled.div`
+  .ant-segmented-item {
+    font-size: 12px;
+  }
+  .ant-segmented-item-selected {
+    background-color: var(--color-primary) !important;
+    color: white !important;
+  }
+
+  .ant-segmented-item:hover:not(.ant-segmented-item-selected) {
+    background-color: var(--color-primary-bg) !important;
+    color: var(--color-primary) !important;
+  }
+
+  .ant-segmented-thumb {
+    background-color: var(--color-primary) !important;
+  }
 `
 
 export default SettingsTab
