@@ -6,7 +6,7 @@ import { TopView } from '@renderer/components/TopView'
 import { getModelLogo } from '@renderer/config/models'
 import { checkApi } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
-import { Avatar, Button, List, Modal, Radio, Space, Spin, Switch, Tooltip, Typography } from 'antd'
+import { Avatar, Button, List, Modal, Radio, Segmented, Space, Spin, Tooltip, Typography } from 'antd'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -524,24 +524,34 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
       footer={
         <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
           <Space>
-            <Radio.Group
-              value={checkMode}
-              onChange={(e) => dispatch({ type: 'SET_CHECK_MODE', payload: e.target.value })}
-              disabled={isChecking}>
-              <Radio value="single">{t('settings.models.check.check_with_single_key')}</Radio>
-              <Radio value="all">{t('settings.models.check.check_with_all_keys')}</Radio>
-            </Radio.Group>
-          </Space>
-          <Space>
             <Space align="center">
-              <Typography.Text>{t('settings.models.check.use_concurrent_checks')}</Typography.Text>
-              <Switch
-                checked={useConcurrentChecks}
-                onChange={(checked) => dispatch({ type: 'SET_USE_CONCURRENT', payload: checked })}
+              <Typography.Text strong>{t('settings.models.check.use_all_keys')}</Typography.Text>
+              <Segmented
+                value={checkMode}
+                onChange={(value) => dispatch({ type: 'SET_CHECK_MODE', payload: value as 'single' | 'all' })}
                 disabled={isChecking}
                 size="small"
+                options={[
+                  { value: 'single', label: t('settings.models.check.single') },
+                  { value: 'all', label: t('settings.models.check.all') }
+                ]}
               />
             </Space>
+            <Space align="center">
+              <Typography.Text strong>{t('settings.models.check.enable_concurrent')}</Typography.Text>
+              <Segmented
+                value={useConcurrentChecks ? 'enabled' : 'disabled'}
+                onChange={(value) => dispatch({ type: 'SET_USE_CONCURRENT', payload: value === 'enabled' })}
+                disabled={isChecking}
+                size="small"
+                options={[
+                  { value: 'disabled', label: t('settings.models.check.disabled') },
+                  { value: 'enabled', label: t('settings.models.check.enabled') }
+                ]}
+              />
+            </Space>
+          </Space>
+          <Space>
             <Button key="check" type="primary" ghost onClick={onCheckModels} disabled={isChecking}>
               {isChecking ? (
                 <Spin indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />} />
