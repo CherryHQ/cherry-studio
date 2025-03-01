@@ -19,6 +19,15 @@ const ModelNameRow = styled.div`
 `
 
 /**
+ * Extract color constants
+ */
+const STATUS_COLORS = {
+  success: '#52c41a',
+  error: '#ff4d4f',
+  warning: '#faad14'
+}
+
+/**
  * Enum for model check status states
  */
 export enum ModelCheckStatus {
@@ -70,9 +79,9 @@ interface ModelStatus {
 type State = {
   open: boolean
   selectedKeyIndex: number
-  checkMode: 'single' | 'all' // Whether to check with single key or all keys
+  keyCheckMode: 'single' | 'all' // Whether to check with single key or all keys
   isChecking: boolean
-  useConcurrentChecks: boolean
+  isConcurrent: boolean
   modelStatuses: ModelStatus[]
 }
 
@@ -82,9 +91,9 @@ type State = {
 type Action =
   | { type: 'SET_OPEN'; payload: boolean }
   | { type: 'SET_KEY_INDEX'; payload: number }
-  | { type: 'SET_CHECK_MODE'; payload: 'single' | 'all' }
+  | { type: 'SET_KEY_CHECK_MODE'; payload: 'single' | 'all' }
   | { type: 'SET_CHECKING'; payload: boolean }
-  | { type: 'SET_USE_CONCURRENT'; payload: boolean }
+  | { type: 'SET_CONCURRENT'; payload: boolean }
   | { type: 'UPDATE_MODEL_STATUS'; payload: { index: number; status: Partial<ModelStatus> } }
   | { type: 'SET_MODEL_STATUSES'; payload: ModelStatus[] }
 
@@ -97,12 +106,12 @@ function reducer(state: State, action: Action): State {
       return { ...state, open: action.payload }
     case 'SET_KEY_INDEX':
       return { ...state, selectedKeyIndex: action.payload }
-    case 'SET_CHECK_MODE':
-      return { ...state, checkMode: action.payload }
+    case 'SET_KEY_CHECK_MODE':
+      return { ...state, keyCheckMode: action.payload }
     case 'SET_CHECKING':
       return { ...state, isChecking: action.payload }
-    case 'SET_USE_CONCURRENT':
-      return { ...state, useConcurrentChecks: action.payload }
+    case 'SET_CONCURRENT':
+      return { ...state, isConcurrent: action.payload }
     case 'UPDATE_MODEL_STATUS':
       return {
         ...state,
@@ -141,22 +150,61 @@ type ProcessResultsFn = (keyResults: ApiKeyStatus[]) => {
 }
 
 /**
+ * Helper function to check a model with a specific API key
+ */
+async function checkModelWithKey(
+  provider: Provider,
+  model: Model,
+  key: string,
+  checkFn: ModelCheckFn
+): Promise<ApiKeyStatus> {
+  try {
+    const startTime = performance.now()
+    const { valid, error } = await checkFn({ ...provider, apiKey: key }, model)
+    const checkTime = performance.now() - startTime
+    return { key, isValid: valid, error: error?.message, checkTime }
+  } catch (err) {
+    return {
+      key,
+      isValid: false,
+      error: err instanceof Error ? err.message : String(err),
+      checkTime: undefined
+    }
+  }
+}
+
+/**
+ * Process results and update model status
+ */
+function updateModelStatus(
+  modelIndex: number,
+  keyResults: ApiKeyStatus[],
+  processResultsFn: ProcessResultsFn,
+  dispatch: React.Dispatch<Action>
+) {
+  const processedResult = processResultsFn(keyResults)
+
+  dispatch({
+    type: 'UPDATE_MODEL_STATUS',
+    payload: {
+      index: modelIndex,
+      status: {
+        checking: false,
+        ...processedResult
+      }
+    }
+  })
+}
+
+/**
  * Main function to perform model checks
  * Handles both concurrent and serial checking modes
- *
- * @param modelStatuses - Current status of all models
- * @param provider - The provider to check models against
- * @param keysToUse - Array of API keys to use for checking
- * @param useConcurrentChecks - Whether to check models concurrently
- * @param checkFn - Function to check a model with a provider
- * @param processResultsFn - Function to process the results of checks
- * @param dispatch - Reducer dispatch function
  */
 async function performModelChecks({
   modelStatuses,
   provider,
   keysToUse,
-  useConcurrentChecks,
+  isConcurrent,
   checkFn,
   processResultsFn,
   dispatch
@@ -164,7 +212,7 @@ async function performModelChecks({
   modelStatuses: ModelStatus[]
   provider: Provider
   keysToUse: string[]
-  useConcurrentChecks: boolean
+  isConcurrent: boolean
   checkFn: ModelCheckFn
   processResultsFn: ProcessResultsFn
   dispatch: React.Dispatch<Action>
@@ -173,9 +221,8 @@ async function performModelChecks({
   dispatch({ type: 'SET_CHECKING', payload: true })
 
   try {
-    if (useConcurrentChecks) {
-      // === CONCURRENT MODE ===
-      // First, set all models to 'checking' state
+    if (isConcurrent) {
+      // Mark all models as checking
       modelStatuses.forEach((_, modelIndex) => {
         dispatch({
           type: 'UPDATE_MODEL_STATUS',
@@ -183,48 +230,17 @@ async function performModelChecks({
         })
       })
 
-      // Create promises for all model checks, but don't wait for all to complete
-      // This allows each model's UI to update as soon as its check completes
+      // Create promises for each model check
       const checkPromises = modelStatuses.map(async (status, modelIndex) => {
         try {
-          // Check all API keys for this model concurrently
+          // Check all keys for this model concurrently
           const keyResults = await Promise.all(
-            keysToUse.map(async (key) => {
-              try {
-                // Record start time for latency measurement
-                const startTime = performance.now()
-                const { valid, error } = await checkFn({ ...provider, apiKey: key }, status.model)
-                // Calculate elapsed time
-                const checkTime = performance.now() - startTime
-                return { key, isValid: valid, error: error?.message, checkTime }
-              } catch (err) {
-                return {
-                  key,
-                  isValid: false,
-                  error: err instanceof Error ? err.message : String(err),
-                  checkTime: undefined
-                }
-              }
-            })
+            keysToUse.map((key) => checkModelWithKey(provider, status.model, key, checkFn))
           )
 
-          // Process the results for this model
-          const processedResult = processResultsFn(keyResults)
-
-          // Immediately update this model's status, without waiting for other models
-          // This is key for responsive UI updates in concurrent mode
-          dispatch({
-            type: 'UPDATE_MODEL_STATUS',
-            payload: {
-              index: modelIndex,
-              status: {
-                checking: false,
-                ...processedResult
-              }
-            }
-          })
+          // Update model status immediately
+          updateModelStatus(modelIndex, keyResults, processResultsFn, dispatch)
         } catch (error) {
-          // Handle errors for individual model checks
           console.error(`Error checking model at index ${modelIndex}:`, error)
           dispatch({
             type: 'UPDATE_MODEL_STATUS',
@@ -240,11 +256,9 @@ async function performModelChecks({
         }
       })
 
-      // Wait for all checks to complete, but UI updates happen independently
       await Promise.all(checkPromises)
     } else {
-      // === SERIAL MODE ===
-      // Process models one at a time
+      // Serial processing
       for (let m = 0; m < modelStatuses.length; m++) {
         dispatch({
           type: 'UPDATE_MODEL_STATUS',
@@ -253,45 +267,14 @@ async function performModelChecks({
 
         const keyResults: ApiKeyStatus[] = []
 
-        // Process each API key for the current model
+        // Process each key for the current model
         for (let k = 0; k < keysToUse.length; k++) {
-          const currentKey = keysToUse[k]
-          try {
-            // Record start time for latency measurement
-            const startTime = performance.now()
-            const { valid, error } = await checkFn({ ...provider, apiKey: currentKey }, modelStatuses[m].model)
-            // Calculate elapsed time
-            const checkTime = performance.now() - startTime
-            keyResults.push({
-              key: currentKey,
-              isValid: valid,
-              error: error?.message,
-              checkTime
-            })
-          } catch (err) {
-            keyResults.push({
-              key: currentKey,
-              isValid: false,
-              error: err instanceof Error ? err.message : String(err),
-              checkTime: undefined
-            })
-          }
+          const result = await checkModelWithKey(provider, modelStatuses[m].model, keysToUse[k], checkFn)
+          keyResults.push(result)
         }
 
-        // Process the results for this model
-        const processedResult = processResultsFn(keyResults)
-
-        // Update the model's status
-        dispatch({
-          type: 'UPDATE_MODEL_STATUS',
-          payload: {
-            index: m,
-            status: {
-              checking: false,
-              ...processedResult
-            }
-          }
-        })
+        // Update model status
+        updateModelStatus(m, keyResults, processResultsFn, dispatch)
       }
     }
   } finally {
@@ -307,13 +290,22 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
   const [state, dispatch] = useReducer(reducer, {
     open: true,
     selectedKeyIndex: 0,
-    checkMode: 'single',
+    keyCheckMode: 'single',
     isChecking: false,
-    useConcurrentChecks: false,
+    isConcurrent: false,
     modelStatuses: provider.models.map((model) => ({ model }))
   })
 
-  const { open, selectedKeyIndex, checkMode, isChecking, useConcurrentChecks, modelStatuses } = state
+  const { open, selectedKeyIndex, keyCheckMode, isChecking, isConcurrent, modelStatuses } = state
+
+  const formatCheckTime = useCallback((time?: number) => {
+    if (!time) return ''
+    return `${(time / 1000).toFixed(2)}s`
+  }, [])
+
+  const maskApiKey = useCallback((key: string) => {
+    return key.length > 16 ? `${key.slice(0, 8)}...${key.slice(-8)}` : key
+  }, [])
 
   /**
    * Process the result of a single API key check
@@ -398,12 +390,12 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
       modelStatuses,
       provider,
       keysToUse: [apiKey], // Only use the selected API key
-      useConcurrentChecks,
+      isConcurrent,
       checkFn: checkApi,
       processResultsFn: processSingleKeyResult,
       dispatch
     })
-  }, [apiKeys, provider, selectedKeyIndex, modelStatuses, useConcurrentChecks, processSingleKeyResult])
+  }, [apiKeys, provider, selectedKeyIndex, modelStatuses, isConcurrent, processSingleKeyResult])
 
   /**
    * Check all models with all available API keys
@@ -413,23 +405,23 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
       modelStatuses,
       provider,
       keysToUse: apiKeys, // Use all API keys
-      useConcurrentChecks,
+      isConcurrent,
       checkFn: checkApi,
       processResultsFn: processMultipleKeysResult,
       dispatch
     })
-  }, [apiKeys, provider, modelStatuses, useConcurrentChecks, processMultipleKeysResult])
+  }, [apiKeys, provider, modelStatuses, isConcurrent, processMultipleKeysResult])
 
   /**
    * Initiate model checking based on the selected mode
    */
   const onCheckModels = useCallback(async () => {
-    if (checkMode === 'single') {
+    if (keyCheckMode === 'single') {
       await checkAllModels()
     } else {
       await checkAllModelsWithAllKeys()
     }
-  }, [checkMode, checkAllModels, checkAllModelsWithAllKeys])
+  }, [keyCheckMode, checkAllModels, checkAllModelsWithAllKeys])
 
   /**
    * Handle the OK button click - resolve with checked models
@@ -469,7 +461,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
         return (
           <div>
             <strong>{statusTitle}</strong>
-            {status.error && <div style={{ marginTop: 5, color: '#ff4d4f' }}>{status.error}</div>}
+            {status.error && <div style={{ marginTop: 5, color: STATUS_COLORS.error }}>{status.error}</div>}
           </div>
         )
       }
@@ -483,13 +475,15 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
             <ul style={{ maxHeight: '300px', overflowY: 'auto', margin: 0, padding: 0, listStyleType: 'none' }}>
               {status.keyResults.map((kr, idx) => {
                 // Mask API key for security
-                const maskedKey = kr.key.length > 16 ? `${kr.key.slice(0, 8)}...${kr.key.slice(-8)}` : kr.key
+                const maskedKey = maskApiKey(kr.key)
 
                 return (
-                  <li key={idx} style={{ marginBottom: '5px', color: kr.isValid ? '#52c41a' : '#ff4d4f' }}>
+                  <li
+                    key={idx}
+                    style={{ marginBottom: '5px', color: kr.isValid ? STATUS_COLORS.success : STATUS_COLORS.error }}>
                     {maskedKey}: {kr.isValid ? t('settings.models.check.passed') : t('settings.models.check.failed')}
                     {kr.error && !kr.isValid && ` (${kr.error})`}
-                    {kr.checkTime && kr.isValid && ` (${(kr.checkTime / 1000).toFixed(2)}s)`}
+                    {kr.checkTime && kr.isValid && ` (${formatCheckTime(kr.checkTime)})`}
                   </li>
                 )
               })}
@@ -498,7 +492,40 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
         </div>
       )
     },
-    [t]
+    [t, formatCheckTime, maskApiKey]
+  )
+
+  // Function to render the appropriate status indicator based on the model's check status
+  const renderStatusIndicator = useCallback(
+    (status: ModelStatus) => {
+      if (status.checking) {
+        return <Spin indicator={<LoadingOutlined spin />} />
+      }
+
+      switch (status.status) {
+        case ModelCheckStatus.SUCCESS:
+          return (
+            <Tooltip title={renderKeyCheckResultTooltip(status)}>
+              <CheckCircleFilled style={{ color: STATUS_COLORS.success }} />
+            </Tooltip>
+          )
+        case ModelCheckStatus.FAILED:
+          return (
+            <Tooltip title={renderKeyCheckResultTooltip(status)}>
+              <CloseCircleFilled style={{ color: STATUS_COLORS.error }} />
+            </Tooltip>
+          )
+        case ModelCheckStatus.PARTIAL:
+          return (
+            <Tooltip title={renderKeyCheckResultTooltip(status)}>
+              <ExclamationCircleFilled style={{ color: STATUS_COLORS.warning }} />
+            </Tooltip>
+          )
+        default:
+          return <span>{t('settings.models.check.not_checked')}</span>
+      }
+    },
+    [t, renderKeyCheckResultTooltip]
   )
 
   // Check if we have multiple API keys
@@ -520,8 +547,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
             <Space align="center">
               <Typography.Text strong>{t('settings.models.check.use_all_keys')}</Typography.Text>
               <Segmented
-                value={checkMode}
-                onChange={(value) => dispatch({ type: 'SET_CHECK_MODE', payload: value as 'single' | 'all' })}
+                value={keyCheckMode}
+                onChange={(value) => dispatch({ type: 'SET_KEY_CHECK_MODE', payload: value as 'single' | 'all' })}
                 disabled={isChecking}
                 size="small"
                 options={[
@@ -533,8 +560,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
             <Space align="center">
               <Typography.Text strong>{t('settings.models.check.enable_concurrent')}</Typography.Text>
               <Segmented
-                value={useConcurrentChecks ? 'enabled' : 'disabled'}
-                onChange={(value) => dispatch({ type: 'SET_USE_CONCURRENT', payload: value === 'enabled' })}
+                value={isConcurrent ? 'enabled' : 'disabled'}
+                onChange={(value) => dispatch({ type: 'SET_CONCURRENT', payload: value === 'enabled' })}
                 disabled={isChecking}
                 size="small"
                 options={[
@@ -556,7 +583,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
         </Space>
       }>
       {/* API key selection section - only shown for 'single' mode and multiple keys */}
-      {checkMode === 'single' && hasMultipleKeys && (
+      {keyCheckMode === 'single' && hasMultipleKeys && (
         <Box style={{ marginBottom: 16 }}>
           <strong>{t('settings.models.check.select_api_key')}</strong>
           <Radio.Group
@@ -567,7 +594,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
             {apiKeys.map((key, index) => (
               <Radio key={index} value={index} style={{ display: 'block', marginBottom: 8 }}>
                 <Typography.Text copyable={{ text: key }} style={{ maxWidth: '450px' }}>
-                  {key.slice(0, 8)}...{key.slice(-8)}
+                  {maskApiKey(key)}
                 </Typography.Text>
               </Radio>
             ))}
@@ -593,37 +620,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
                   {/* Display response time for successful or partially successful models */}
                   {status.checkTime &&
                     (status.status === ModelCheckStatus.SUCCESS || status.status === ModelCheckStatus.PARTIAL) && (
-                      <Typography.Text type="secondary">{(status.checkTime / 1000).toFixed(2)}s</Typography.Text>
+                      <Typography.Text type="secondary">{formatCheckTime(status.checkTime)}</Typography.Text>
                     )}
                 </Space>
-                <Space>
-                  {/* Show spinner for models being checked */}
-                  {status.checking && <Spin indicator={<LoadingOutlined spin />} />}
-
-                  {/* Status indicators with tooltips */}
-                  {status.status === ModelCheckStatus.SUCCESS && (
-                    <Tooltip title={renderKeyCheckResultTooltip(status)}>
-                      <CheckCircleFilled style={{ color: '#52c41a' }} />
-                    </Tooltip>
-                  )}
-
-                  {status.status === ModelCheckStatus.FAILED && (
-                    <Tooltip title={renderKeyCheckResultTooltip(status)}>
-                      <CloseCircleFilled style={{ color: '#ff4d4f' }} />
-                    </Tooltip>
-                  )}
-
-                  {status.status === ModelCheckStatus.PARTIAL && (
-                    <Tooltip title={renderKeyCheckResultTooltip(status)}>
-                      <ExclamationCircleFilled style={{ color: '#faad14' }} />
-                    </Tooltip>
-                  )}
-
-                  {/* Show 'not checked' for models without status */}
-                  {(!status.status || status.status === ModelCheckStatus.NOT_CHECKED) && !status.checking && (
-                    <span>{t('settings.models.check.not_checked')}</span>
-                  )}
-                </Space>
+                <Space>{renderStatusIndicator(status)}</Space>
               </HStack>
             </List.Item>
           )}
