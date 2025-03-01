@@ -138,6 +138,7 @@ export default class AnthropicProvider extends BaseProvider {
 
     if (isReasoningModel(model)) {
       ;(body as any).thinking = this.getReasoningEffort(assistant, model)
+      ;(body as any).betas = ['output-128k-2025-02-19']
     }
 
     let time_first_token_millsec = 0
