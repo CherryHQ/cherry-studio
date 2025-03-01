@@ -1084,7 +1084,7 @@ const migrateConfig = {
     return state
   },
   '71': (state: RootState) => {
-    const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat', 'baidu-ai-search', 'cici']
+    const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat', 'baidu-ai-search']
 
     if (state.minapps) {
       appIds.forEach((id) => {
