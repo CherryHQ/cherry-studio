@@ -7,6 +7,7 @@ import { getModelLogo } from '@renderer/config/models'
 import { checkApi } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { Avatar, Button, List, Modal, Radio, Segmented, Space, Spin, Tooltip, Typography } from 'antd'
+import { TFunction } from 'i18next'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -283,21 +284,10 @@ async function performModelChecks({
   }
 }
 
-const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) => {
-  const { t } = useTranslation()
-
-  // Initialize state with reducer
-  const [state, dispatch] = useReducer(reducer, {
-    open: true,
-    selectedKeyIndex: 0,
-    keyCheckMode: 'single',
-    isChecking: false,
-    isConcurrent: false,
-    modelStatuses: provider.models.map((model) => ({ model }))
-  })
-
-  const { open, selectedKeyIndex, keyCheckMode, isChecking, isConcurrent, modelStatuses } = state
-
+/**
+ * Helper hook for formatting utilities
+ */
+function useFormatUtils() {
   const formatCheckTime = useCallback((time?: number) => {
     if (!time) return ''
     return `${(time / 1000).toFixed(2)}s`
@@ -307,9 +297,15 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
     return key.length > 16 ? `${key.slice(0, 8)}...${key.slice(-8)}` : key
   }, [])
 
+  return { formatCheckTime, maskApiKey }
+}
+
+/**
+ * Hook for processing API key check results
+ */
+function useResultProcessors(t: TFunction) {
   /**
    * Process the result of a single API key check
-   * Used when checking with a single API key
    */
   const processSingleKeyResult = useCallback(
     (keyResults: ApiKeyStatus[]): { status: ModelCheckStatus; error?: string; checkTime?: number } => {
@@ -326,7 +322,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
 
   /**
    * Process the results of multiple API key checks
-   * Used when checking with all API keys
    * Calculates an aggregate status and finds the fastest successful check time
    */
   const processMultipleKeysResult = useCallback(
@@ -362,7 +357,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
       }
 
       // Calculate the fastest response time from valid API keys
-      // This helps users identify the most responsive keys/models
       const validKeyResults = keyResults.filter((kr) => kr.isValid && kr.checkTime !== undefined)
       let checkTime: number | undefined = undefined
 
@@ -381,6 +375,66 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
     [t]
   )
 
+  return { processSingleKeyResult, processMultipleKeysResult }
+}
+
+/**
+ * Hook for modal dialog actions
+ */
+function useModalActions(
+  resolve: (data: ResolveData) => void,
+  modelStatuses: ModelStatus[],
+  dispatch: React.Dispatch<Action>
+) {
+  const onOk = useCallback(() => {
+    resolve({ checkedModels: modelStatuses })
+    dispatch({ type: 'SET_OPEN', payload: false })
+  }, [modelStatuses, resolve, dispatch])
+
+  const onCancel = useCallback(() => {
+    dispatch({ type: 'SET_OPEN', payload: false })
+  }, [dispatch])
+
+  const onClose = useCallback(() => {
+    resolve({})
+  }, [resolve])
+
+  return { onOk, onCancel, onClose }
+}
+
+/**
+ * Hook for handling model check operations
+ */
+function useModelChecks({
+  apiKeys,
+  provider,
+  modelStatuses,
+  selectedKeyIndex,
+  keyCheckMode,
+  isConcurrent,
+  dispatch,
+  processSingleKeyResult,
+  processMultipleKeysResult
+}: {
+  apiKeys: string[]
+  provider: Provider
+  modelStatuses: ModelStatus[]
+  selectedKeyIndex: number
+  keyCheckMode: 'single' | 'all'
+  isConcurrent: boolean
+  dispatch: React.Dispatch<Action>
+  processSingleKeyResult: (keyResults: ApiKeyStatus[]) => {
+    status: ModelCheckStatus
+    error?: string
+    checkTime?: number
+  }
+  processMultipleKeysResult: (keyResults: ApiKeyStatus[]) => {
+    status: ModelCheckStatus
+    error?: string
+    keyResults: ApiKeyStatus[]
+    checkTime?: number
+  }
+}) {
   /**
    * Check all models with a single selected API key
    */
@@ -395,7 +449,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
       processResultsFn: processSingleKeyResult,
       dispatch
     })
-  }, [apiKeys, provider, selectedKeyIndex, modelStatuses, isConcurrent, processSingleKeyResult])
+  }, [apiKeys, provider, selectedKeyIndex, modelStatuses, isConcurrent, processSingleKeyResult, dispatch])
 
   /**
    * Check all models with all available API keys
@@ -410,7 +464,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
       processResultsFn: processMultipleKeysResult,
       dispatch
     })
-  }, [apiKeys, provider, modelStatuses, isConcurrent, processMultipleKeysResult])
+  }, [apiKeys, provider, modelStatuses, isConcurrent, processMultipleKeysResult, dispatch])
 
   /**
    * Initiate model checking based on the selected mode
@@ -423,31 +477,19 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
     }
   }, [keyCheckMode, checkAllModels, checkAllModelsWithAllKeys])
 
-  /**
-   * Handle the OK button click - resolve with checked models
-   */
-  const onOk = useCallback(() => {
-    resolve({ checkedModels: modelStatuses })
-    dispatch({ type: 'SET_OPEN', payload: false })
-  }, [modelStatuses, resolve])
+  return { onCheckModels }
+}
 
-  /**
-   * Handle the Cancel button click
-   */
-  const onCancel = useCallback(() => {
-    dispatch({ type: 'SET_OPEN', payload: false })
-  }, [])
-
-  /**
-   * Handle modal close
-   */
-  const onClose = useCallback(() => {
-    resolve({})
-  }, [resolve])
-
+/**
+ * Hook for rendering model status UI elements
+ */
+function useModelStatusRendering(
+  t: TFunction,
+  formatCheckTime: (time?: number) => string,
+  maskApiKey: (key: string) => string
+) {
   /**
    * Generate tooltip content for model check results
-   * Shows check status, error messages, and response time
    */
   const renderKeyCheckResultTooltip = useCallback(
     (status: ModelStatus) => {
@@ -495,7 +537,9 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
     [t, formatCheckTime, maskApiKey]
   )
 
-  // Function to render the appropriate status indicator based on the model's check status
+  /**
+   * Render the appropriate status indicator based on the model's check status
+   */
   const renderStatusIndicator = useCallback(
     (status: ModelStatus) => {
       if (status.checking) {
@@ -527,6 +571,41 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
     },
     [t, renderKeyCheckResultTooltip]
   )
+
+  return { renderKeyCheckResultTooltip, renderStatusIndicator }
+}
+
+const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) => {
+  const { t } = useTranslation()
+
+  // Initialize state with reducer
+  const [state, dispatch] = useReducer(reducer, {
+    open: true,
+    selectedKeyIndex: 0,
+    keyCheckMode: 'single',
+    isChecking: false,
+    isConcurrent: false,
+    modelStatuses: provider.models.map((model) => ({ model }))
+  })
+
+  const { open, selectedKeyIndex, keyCheckMode, isChecking, isConcurrent, modelStatuses } = state
+
+  // Use custom hooks
+  const { formatCheckTime, maskApiKey } = useFormatUtils()
+  const { processSingleKeyResult, processMultipleKeysResult } = useResultProcessors(t)
+  const { onCheckModels } = useModelChecks({
+    apiKeys,
+    provider,
+    modelStatuses,
+    selectedKeyIndex,
+    keyCheckMode,
+    isConcurrent,
+    dispatch,
+    processSingleKeyResult,
+    processMultipleKeysResult
+  })
+  const { renderStatusIndicator } = useModelStatusRendering(t, formatCheckTime, maskApiKey)
+  const { onOk, onCancel, onClose } = useModalActions(resolve, modelStatuses, dispatch)
 
   // Check if we have multiple API keys
   const hasMultipleKeys = useMemo(() => apiKeys.length > 1, [apiKeys.length])
