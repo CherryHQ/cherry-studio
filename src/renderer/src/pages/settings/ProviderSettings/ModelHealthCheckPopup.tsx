@@ -294,7 +294,7 @@ function useFormatUtils() {
   }, [])
 
   const maskApiKey = useCallback((key: string) => {
-    return key.length > 16 ? `${key.slice(0, 8)}...${key.slice(-8)}` : key
+    return key.length > 6 ? `${key.slice(0, 2)}****${key.slice(-4)}` : key
   }, [])
 
   return { formatCheckTime, maskApiKey }
