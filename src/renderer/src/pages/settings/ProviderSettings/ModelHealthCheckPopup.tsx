@@ -3,11 +3,20 @@ import { Box, HStack } from '@renderer/components/Layout'
 import ModelTags from '@renderer/components/ModelTags'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
+import { getModelLogo } from '@renderer/config/models'
 import { checkApi } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
-import { Button, List, Modal, Radio, Space, Spin, Switch, Tooltip, Typography } from 'antd'
+import { Avatar, Button, List, Modal, Radio, Space, Spin, Switch, Tooltip, Typography } from 'antd'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+const ModelNameRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+`
 
 /**
  * Enum for model check status states
@@ -571,10 +580,13 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
             <List.Item>
               <HStack style={{ width: '100%', justifyContent: 'space-between' }}>
                 <Space>
-                  <span style={{ maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {status.model.name}
-                  </span>
-                  <ModelTags model={status.model} />
+                  <Avatar src={getModelLogo(status.model.id)} size={22} style={{ marginRight: '2px' }}>
+                    {status.model?.name?.[0]?.toUpperCase()}
+                  </Avatar>
+                  <ModelNameRow>
+                    <span>{status.model?.name}</span>
+                    <ModelTags model={status.model} />
+                  </ModelNameRow>
                   {/* Display response time for successful or partially successful models */}
                   {status.checkTime &&
                     (status.status === ModelCheckStatus.SUCCESS || status.status === ModelCheckStatus.PARTIAL) && (
