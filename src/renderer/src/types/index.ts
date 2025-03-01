@@ -17,6 +17,17 @@ export type Assistant = {
   settings?: Partial<AssistantSettings>
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
+  groupId?: string
+  createTime?: number
+  updateTime?: number
+}
+
+export type AssistantGroup = {
+  id: string
+  name: string
+  description?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export type AssistantMessage = {

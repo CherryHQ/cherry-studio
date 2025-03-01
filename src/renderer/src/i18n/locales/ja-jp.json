@@ -39,6 +39,23 @@
       "delete.content": "アシスタントを削除すると、そのアシスタントのすべてのトピックとファイルが削除されます。削除しますか？",
       "delete.title": "アシスタントを削除",
       "edit.title": "アシスタントを編集",
+      "group": {
+        "add": "グループを作成",
+        "edit": "グループを編集",
+        "delete": {
+          "title": "グループを削除",
+          "content": "このグループを削除してもよろしいですか？このグループ内のすべてのアシスタントは未グループ化されます。"
+        },
+        "name": "グループ名",
+        "name.required": "グループ名を入力してください",
+        "name.placeholder": "グループ名を入力してください",
+        "description": "グループの説明",
+        "description.placeholder": "グループの説明を入力してください（任意）"
+      },
+      "move_to_group": "グループに移動",
+      "move_to_no_group": "グループから削除",
+      "moved_to_group": "グループに移動しました：{group}",
+      "moved_to_no_group": "グループから削除しました",
       "save.success": "保存に成功しました",
       "save.title": "エージェントに保存",
       "search": "アシスタントを検索...",
@@ -164,6 +181,7 @@
       "chat": "チャット",
       "clear": "クリア",
       "close": "閉じる",
+      "confirm": "OK",
       "copy": "コピー",
       "cut": "切り取り",
       "default": "デフォルト",
@@ -776,9 +794,13 @@
         "title": "モデルプロバイダー"
       },
       "proxy": {
+        "addTitle": "プロキシを追加",
+        "enabled": "プロキシを有効にする",
+        "host": "ホスト",
         "mode": {
-          "custom": "カスタムプロキシ",
-          "none": "プロキシを使用しない",
+          "direct": "直接接続",
+          "manual": "手動",
+          "pac": "PAC",
           "system": "システムプロキシ",
           "title": "プロキシモード"
         },

@@ -1,0 +1,45 @@
+{
+  "translation": {
+    "assistants": {
+      "abbr": "助手",
+      "clear.content": "清空話題會刪除助手下所有主題和文件，確定要繼續嗎？",
+      "clear.title": "清空話題",
+      "copy.title": "複製助手",
+      "delete.content": "刪除助手會刪除所有該助手下的話題和文件，確定要繼續嗎？",
+      "delete.title": "刪除助手",
+      "edit.title": "編輯助手",
+      "group": {
+        "add": "創建分組",
+        "edit": "編輯分組",
+        "delete": {
+          "title": "刪除分組",
+          "content": "確定要刪除此分組嗎？該分組中的所有助手將被移至未分組。"
+        },
+        "name": "分組名稱",
+        "name.required": "請輸入分組名稱",
+        "name.placeholder": "請輸入分組名稱",
+        "description": "分組描述",
+        "description.placeholder": "請輸入分組描述（選填）"
+      },
+      "move_to_group": "移至分組",
+      "move_to_no_group": "從分組中移除",
+      "moved_to_group": "已移至分組：{group}",
+      "moved_to_no_group": "已從分組中移除",
+      "save.success": "儲存成功",
+      "save.title": "儲存到智能體",
+      "search": "搜尋助手...",
+      "settings.default_model": "預設模型",
+      "settings.knowledge_base": "知識庫設定",
+      "settings.model": "模型設定",
+      "settings.preset_messages": "預設訊息",
+      "settings.prompt": "提示詞設定",
+      "settings.reasoning_effort": "思維鏈長度",
+      "settings.reasoning_effort.high": "長",
+      "settings.reasoning_effort.low": "短",
+      "settings.reasoning_effort.medium": "中",
+      "settings.reasoning_effort.off": "關",
+      "settings.reasoning_effort.tip": "該設置僅支持推理模型",
+      "title": "助手"
+    }
+  }
+}

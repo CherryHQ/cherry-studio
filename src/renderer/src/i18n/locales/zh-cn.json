@@ -39,6 +39,23 @@
       "delete.content": "删除助手会删除所有该助手下的话题和文件，确定要继续吗？",
       "delete.title": "删除助手",
       "edit.title": "编辑助手",
+      "group": {
+        "add": "创建分组",
+        "edit": "编辑分组",
+        "delete": {
+          "title": "删除分组",
+          "content": "确定要删除此分组吗？该分组中的所有助手将被移至未分组。"
+        },
+        "name": "分组名称",
+        "name.required": "请输入分组名称",
+        "name.placeholder": "请输入分组名称",
+        "description": "分组描述",
+        "description.placeholder": "请输入分组描述（可选）"
+      },
+      "move_to_group": "移动到分组",
+      "move_to_no_group": "移出分组",
+      "moved_to_group": "已移动到分组：{group}",
+      "moved_to_no_group": "已移出分组",
       "save.success": "保存成功",
       "save.title": "保存到智能体",
       "search": "搜索助手",
@@ -164,6 +181,7 @@
       "chat": "聊天",
       "clear": "清除",
       "close": "关闭",
+      "confirm": "OK",
       "copy": "复制",
       "cut": "剪切",
       "default": "默认",

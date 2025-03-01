@@ -7,10 +7,11 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
+import { hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
+import { safeFilter, safeMap } from '@renderer/utils/safeArrayUtils'
 import { Button, Select, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
 import { FC, useMemo } from 'react'
@@ -24,38 +25,34 @@ const ModelSettings: FC = () => {
   const { defaultModel, topicNamingModel, translateModel, setDefaultModel, setTopicNamingModel, setTranslateModel } =
     useDefaultModel()
   const { providers } = useProviders()
-  const allModels = providers.map((p) => p.models).flat()
+  const providersArray = Array.isArray(providers) ? providers : []
+  const allModels = safeMap(providersArray, (p) => p.models || []).flat()
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
 
   const dispatch = useAppDispatch()
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((m) => !isEmbeddingModel(m))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
+  const selectOptions = safeFilter(providersArray, (p) => (p.models || []).length > 0).map((p) => ({
+    label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+    title: p.name,
+    options: sortBy(p.models || [], 'name')
+      .filter((m) => !isEmbeddingModel(m))
+      .map((m) => ({
+        label: m.name,
+        value: m.id
+      }))
+  }))
 
-  const defaultModelValue = useMemo(
-    () => (hasModel(defaultModel) ? getModelUniqId(defaultModel) : undefined),
-    [defaultModel]
-  )
+  const defaultModelValue = useMemo(() => (hasModel(defaultModel) ? defaultModel.id : undefined), [defaultModel])
 
   const defaultTopicNamingModel = useMemo(
-    () => (hasModel(topicNamingModel) ? getModelUniqId(topicNamingModel) : undefined),
+    () => (hasModel(topicNamingModel) ? topicNamingModel.id : undefined),
     [topicNamingModel]
   )
 
   const defaultTranslateModel = useMemo(
-    () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
+    () => (hasModel(translateModel) ? translateModel.id : undefined),
     [translateModel]
   )
 
@@ -92,7 +89,7 @@ const ModelSettings: FC = () => {
             value={defaultModelValue}
             defaultValue={defaultModelValue}
             style={{ width: 360 }}
-            onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
+            onChange={(value) => setDefaultModel(find(allModels, { id: value }) as Model)}
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}
@@ -113,7 +110,7 @@ const ModelSettings: FC = () => {
             value={defaultTopicNamingModel}
             defaultValue={defaultTopicNamingModel}
             style={{ width: 360 }}
-            onChange={(value) => setTopicNamingModel(find(allModels, JSON.parse(value)) as Model)}
+            onChange={(value) => setTopicNamingModel(find(allModels, { id: value }) as Model)}
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}
@@ -134,7 +131,7 @@ const ModelSettings: FC = () => {
             value={defaultTranslateModel}
             defaultValue={defaultTranslateModel}
             style={{ width: 360 }}
-            onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
+            onChange={(value) => setTranslateModel(find(allModels, { id: value }) as Model)}
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}

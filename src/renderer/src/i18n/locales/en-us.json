@@ -32,13 +32,30 @@
       "title": "Agents"
     },
     "assistants": {
-      "abbr": "Assistant",
-      "clear.content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
-      "clear.title": "Clear topics",
+      "abbr": "Assistants",
+      "clear.content": "Clearing topics will delete all topics and files under this assistant, do you want to continue?",
+      "clear.title": "Clear Topics",
       "copy.title": "Copy Assistant",
-      "delete.content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
+      "delete.content": "Deleting assistant will delete all topics and files under this assistant, do you want to continue?",
       "delete.title": "Delete Assistant",
       "edit.title": "Edit Assistant",
+      "group": {
+        "add": "Create Group",
+        "edit": "Edit Group",
+        "delete": {
+          "title": "Delete Group",
+          "content": "Are you sure you want to delete this group? All assistants in this group will be moved to ungrouped."
+        },
+        "name": "Group Name",
+        "name.required": "Please enter a group name",
+        "name.placeholder": "Please enter a group name",
+        "description": "Group Description",
+        "description.placeholder": "Please enter a group description (optional)"
+      },
+      "move_to_group": "Move to Group",
+      "move_to_no_group": "Remove from Group",
+      "moved_to_group": "Moved to group: {group}",
+      "moved_to_no_group": "Removed from group",
       "save.success": "Saved successfully",
       "save.title": "Save to agent",
       "search": "Search assistants...",
@@ -164,6 +181,7 @@
       "chat": "Chat",
       "clear": "Clear",
       "close": "Close",
+      "confirm": "OK",
       "copy": "Copy",
       "cut": "Cut",
       "default": "Default",

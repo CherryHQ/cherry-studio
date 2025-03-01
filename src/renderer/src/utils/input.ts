@@ -3,7 +3,10 @@ import Logger from 'electron-log/renderer'
 
 export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>): Promise<FileType[]> => {
   if (e.dataTransfer.files.length > 0) {
-    const results = await Promise.allSettled([...e.dataTransfer.files].map((file) => window.api.file.get(file.path)))
+    // 使用Array.from而不是扩展操作符
+    const results = await Promise.allSettled(
+      Array.from(e.dataTransfer.files).map((file) => window.api.file.get(file.path))
+    )
     const list: FileType[] = []
     for (const result of results) {
       if (result.status === 'fulfilled') {
@@ -18,7 +21,9 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
   } else {
     return new Promise((resolve) => {
       let existCodefilesFormat = false
-      for (const item of e.dataTransfer.items) {
+      // 使用Array.from转换DataTransferItemList
+      const items = Array.from(e.dataTransfer.items)
+      for (const item of items) {
         const { type } = item
         if (type === 'codefiles') {
           item.getAsString(async (filePathListString) => {

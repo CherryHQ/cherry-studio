@@ -1,4 +1,10 @@
-import { getOpenAIWebSearchParams, isReasoningModel, isSupportedModel, isVisionModel } from '@renderer/config/models'
+import {
+  getOpenAIWebSearchParams,
+  isReasoningModel,
+  isSupportedModel,
+  isVisionModel,
+  NOT_SUPPORTED_REGEX
+} from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -6,6 +12,7 @@ import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
+import { safeMap } from '@renderer/utils/safeArrayUtils'
 import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
@@ -479,26 +486,34 @@ export default class OpenAIProvider extends BaseProvider {
 
       if (this.provider.id === 'github') {
         // @ts-ignore key is not typed
-        return response.body
-          .map((model) => ({
-            id: model.name,
-            description: model.summary,
-            object: 'model',
-            owned_by: model.publisher
-          }))
-          .filter(isSupportedModel)
+        const githubModels = safeMap(response.body, (model: any) => ({
+          id: model.name,
+          description: model.summary,
+          object: 'model' as const, // 使用const断言确保类型为"model"
+          owned_by: model.publisher,
+          created: Date.now(), // 添加required created属性
+          provider: 'github', // 添加Model所需的provider属性
+          name: model.name, // 添加Model所需的name属性
+          group: 'github' // 添加Model所需的group属性
+        }))
+        // 转换为Model类型
+        return githubModels.filter((model) => !NOT_SUPPORTED_REGEX.test(model.id)) as unknown as OpenAI.Models.Model[]
       }
 
       if (this.provider.id === 'together') {
         // @ts-ignore key is not typed
-        return response?.body
-          .map((model: any) => ({
-            id: model.id,
-            description: model.display_name,
-            object: 'model',
-            owned_by: model.organization
-          }))
-          .filter(isSupportedModel)
+        const togetherModels = safeMap(response?.body, (model: any) => ({
+          id: model.id,
+          description: model.display_name,
+          object: 'model' as const, // 使用const断言确保类型为"model"
+          owned_by: model.organization,
+          created: Date.now(), // 添加required created属性
+          provider: 'together', // 添加Model所需的provider属性
+          name: model.display_name || model.id, // 添加Model所需的name属性
+          group: 'together' // 添加Model所需的group属性
+        }))
+        // 转换为Model类型
+        return togetherModels.filter((model) => !NOT_SUPPORTED_REGEX.test(model.id)) as unknown as OpenAI.Models.Model[]
       }
 
       const models = response?.data || []

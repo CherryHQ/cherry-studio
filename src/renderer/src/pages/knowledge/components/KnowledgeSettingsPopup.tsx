@@ -11,6 +11,7 @@ import { Alert, Form, Input, InputNumber, Modal, Select, Slider } from 'antd'
 import { sortBy } from 'lodash'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { safeFilter } from '@renderer/utils/safeArrayUtils'
 
 interface ShowParams {
   base: KnowledgeBase
@@ -45,13 +46,11 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
     return null
   }
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
+  const selectOptions = safeFilter(providers, (p) => p.models?.length > 0)
     .map((p) => ({
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model))
+      options: sortBy(safeFilter(p.models, (model) => isEmbeddingModel(model)), 'name')
         .map((m) => ({
           label: m.name,
           value: getModelUniqId(m)

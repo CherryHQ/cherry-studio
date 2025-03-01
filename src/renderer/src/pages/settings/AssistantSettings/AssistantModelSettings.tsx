@@ -6,6 +6,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/cons
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
+import { ensureValidAssistant, getAssistantSettings } from '@renderer/utils/safeAssistantUtils'
 import { Button, Col, Divider, Input, InputNumber, Radio, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
@@ -19,16 +20,19 @@ interface Props {
 }
 
 const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateAssistantSettings }) => {
-  const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
-  const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
-  const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
-  const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
-  const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
-  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
-  const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
-  const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
+  const safeAssistant = ensureValidAssistant(assistant)
+  const settings = getAssistantSettings(safeAssistant)
+
+  const [temperature, setTemperature] = useState(settings.temperature ?? DEFAULT_TEMPERATURE)
+  const [contextCount, setContextCount] = useState(settings.contextCount ?? DEFAULT_CONTEXTCOUNT)
+  const [enableMaxTokens, setEnableMaxTokens] = useState(settings.enableMaxTokens ?? false)
+  const [maxTokens, setMaxTokens] = useState(settings.maxTokens ?? 0)
+  const [reasoningEffort, setReasoningEffort] = useState(settings.reasoning_effort)
+  const [streamOutput, setStreamOutput] = useState(settings.streamOutput ?? true)
+  const [defaultModel, setDefaultModel] = useState(safeAssistant.defaultModel)
+  const [topP, setTopP] = useState(settings.topP ?? 1)
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
-    assistant?.settings?.customParameters ?? []
+    settings.customParameters ?? []
   )
 
   const customParametersRef = useRef(customParameters)
@@ -167,11 +171,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   }
 
   const onSelectModel = async () => {
-    const selectedModel = await SelectModelPopup.show({ model: assistant?.model })
+    const selectedModel = await SelectModelPopup.show({ model: safeAssistant.model })
     if (selectedModel) {
       setDefaultModel(selectedModel)
       updateAssistant({
-        ...assistant,
+        ...safeAssistant,
         model: selectedModel,
         defaultModel: selectedModel
       })
@@ -180,7 +184,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
-  }, [])
+  }, [updateAssistantSettings])
 
   return (
     <Container>
@@ -199,7 +203,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
                 type="text"
                 onClick={() => {
                   setDefaultModel(undefined)
-                  updateAssistant({ ...assistant, defaultModel: undefined })
+                  updateAssistant({ ...safeAssistant, defaultModel: undefined })
                 }}
                 danger
               />

@@ -5,6 +5,7 @@ import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HStack } from '@renderer/components/Layout'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
+import { ensureValidAssistant } from '@renderer/utils/safeAssistantUtils'
 import { Button, Input, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useState } from 'react'
@@ -14,30 +15,31 @@ import styled from 'styled-components'
 interface Props {
   assistant: Assistant
   updateAssistant: (assistant: Assistant) => void
-  updateAssistantSettings: (settings: AssistantSettings) => void
+  updateAssistantSettings: (settings: Partial<AssistantSettings>) => void
   onOk: () => void
 }
 
 const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, onOk }) => {
-  const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
-  const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
-  const [prompt, setPrompt] = useState(assistant.prompt)
+  const safeAssistant = ensureValidAssistant(assistant)
+  const [emoji, setEmoji] = useState(getLeadingEmoji(safeAssistant.name) || safeAssistant.emoji || '')
+  const [name, setName] = useState(safeAssistant.name.replace(getLeadingEmoji(safeAssistant.name) || '', '').trim())
+  const [prompt, setPrompt] = useState(safeAssistant.prompt)
   const { t } = useTranslation()
 
   const onUpdate = () => {
-    const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
+    const _assistant = { ...safeAssistant, name: name.trim(), emoji, prompt }
     updateAssistant(_assistant)
   }
 
   const handleEmojiSelect = (selectedEmoji: string) => {
     setEmoji(selectedEmoji)
-    const _assistant = { ...assistant, name: name.trim(), emoji: selectedEmoji, prompt }
+    const _assistant = { ...safeAssistant, name: name.trim(), emoji: selectedEmoji, prompt }
     updateAssistant(_assistant)
   }
 
   const handleEmojiDelete = () => {
     setEmoji('')
-    const _assistant = { ...assistant, name: name.trim(), prompt, emoji: '' }
+    const _assistant = { ...safeAssistant, name: name.trim(), prompt, emoji: '' }
     updateAssistant(_assistant)
   }
 

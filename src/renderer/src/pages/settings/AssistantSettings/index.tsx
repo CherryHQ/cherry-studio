@@ -4,6 +4,7 @@ import { useAgent } from '@renderer/hooks/useAgents'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { Assistant } from '@renderer/types'
+import { ensureValidAssistant } from '@renderer/utils/safeAssistantUtils'
 import { Menu, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +32,9 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
   const _useAgent = useAgent(props.assistant.id)
   const isAgent = props.assistant.type === 'agent'
 
-  const assistant = isAgent ? _useAgent.agent : _useAssistant.assistant
+  // 确保assistant是一个有效的Assistant对象
+  const rawAssistant = isAgent ? _useAgent.agent : _useAssistant.assistant
+  const assistant = ensureValidAssistant(rawAssistant)
   const updateAssistant = isAgent ? _useAgent.updateAgent : _useAssistant.updateAssistant
   const updateAssistantSettings = isAgent ? _useAgent.updateAgentSettings : _useAssistant.updateAssistantSettings
 

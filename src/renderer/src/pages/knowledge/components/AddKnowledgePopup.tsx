@@ -7,6 +7,7 @@ import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
+import { safeFilter, safeFind, safeFlat, safeMap } from '@renderer/utils/safeArrayUtils'
 import { Form, Input, Modal, Select } from 'antd'
 import { find, sortBy } from 'lodash'
 import { nanoid } from 'nanoid'
@@ -33,19 +34,15 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { addKnowledgeBase } = useKnowledgeBases()
-  const allModels = providers
-    .map((p) => p.models)
-    .flat()
+  const allModels = safeFlat(safeMap(providers, (p) => p.models))
     .filter((model) => isEmbeddingModel(model))
   const nameInputRef = useRef<any>(null)
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
+  const selectOptions = safeFilter(providers, (p) => p.models?.length > 0)
     .map((p) => ({
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model))
+      options: sortBy(safeFilter(p.models, (model) => isEmbeddingModel(model)), 'name')
         .map((m) => ({
           label: m.name,
           value: getModelUniqId(m)
@@ -60,7 +57,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
       if (selectedModel) {
         setLoading(true)
-        const provider = providers.find((p) => p.id === selectedModel.provider)
+        const provider = safeFind(providers, (p) => p.id === selectedModel.provider)
 
         if (!provider) {
           return

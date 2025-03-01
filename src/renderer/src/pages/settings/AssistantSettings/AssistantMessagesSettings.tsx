@@ -1,5 +1,6 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { Assistant, AssistantMessage, AssistantSettings } from '@renderer/types'
+import { ensureValidAssistant } from '@renderer/utils/safeAssistantUtils'
 import { Button, Card, Col, Divider, Form as FormAntd, FormInstance, Row, Space, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useMemo, useRef, useState } from 'react'
@@ -14,20 +15,21 @@ interface Props {
 
 const AssistantMessagesSettings: FC<Props> = ({ assistant, updateAssistant, updateAssistantSettings }) => {
   const { t } = useTranslation()
-  const [form] = Form.useForm()
+  const [form] = FormAntd.useForm()
   const formRef = useRef<FormInstance>(null)
-  const [messages, setMessagess] = useState<AssistantMessage[]>(assistant?.messages || [])
-  const [hideMessages, setHideMessages] = useState(assistant?.settings?.hideMessages || false)
+  const safeAssistant = ensureValidAssistant(assistant)
+  const [messages, setMessagess] = useState<AssistantMessage[]>(safeAssistant.messages || [])
+  const [hideMessages, setHideMessages] = useState(safeAssistant.settings?.hideMessages || false)
 
   const showSaveButton = useMemo(() => {
-    const originalMessages = assistant?.messages || []
+    const originalMessages = safeAssistant.messages || []
     if (originalMessages.length !== messages.length) return true
 
     return messages.some((msg, index) => {
       const originalMsg = originalMessages[index]
       return !originalMsg || msg.content.trim() !== originalMsg.content.trim()
     })
-  }, [messages, assistant?.messages])
+  }, [messages, safeAssistant.messages])
 
   const onSave = () => {
     // 检查是否有空对话组
@@ -56,7 +58,7 @@ const AssistantMessagesSettings: FC<Props> = ({ assistant, updateAssistant, upda
     }, [] as AssistantMessage[])
 
     updateAssistant({
-      ...assistant,
+      ...safeAssistant,
       messages: filteredMessagess
     })
 
@@ -79,17 +81,16 @@ const AssistantMessagesSettings: FC<Props> = ({ assistant, updateAssistant, upda
     setMessagess(newMessagess)
   }
 
+  const onChangeHideMessages = (checked: boolean) => {
+    setHideMessages(checked)
+    updateAssistantSettings({ hideMessages: checked })
+  }
+
   return (
     <Container>
       <Form ref={formRef} layout="vertical" form={form} labelAlign="right" colon={false}>
         <Form.Item label={t('agents.edit.settings.hide_preset_messages')}>
-          <Switch
-            checked={hideMessages}
-            onChange={(checked) => {
-              setHideMessages(checked)
-              updateAssistantSettings({ hideMessages: checked })
-            }}
-          />
+          <Switch checked={hideMessages} onChange={onChangeHideMessages} />
         </Form.Item>
         <Divider style={{ marginBottom: 15 }} />
         <Form.Item label={t('agents.edit.message.group.title')}>
