@@ -405,6 +405,7 @@
       "reset.double.confirm.content": "所有資料將會被清除，您確定要繼續嗎？",
       "reset.double.confirm.title": "資料將會丟失！！！",
       "restore.success": "恢復成功",
+      "restore.failed": "恢復失敗",
       "save.success.title": "保存成功",
       "searching": "正在網路搜索...",
       "success.notion.export": "成功導出到 Notion",
@@ -559,7 +560,8 @@
       "together": "Together",
       "yi": "零一萬物",
       "zhinao": "360智腦",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "xirang": "天翼雲息壤"
     },
     "settings": {
       "about": "關於與回饋",
@@ -740,6 +742,10 @@
       "models.translate_model_description": "翻譯服務使用的模型",
       "models.translate_model_prompt_message": "請輸入翻譯模型提示詞",
       "models.translate_model_prompt_title": "翻譯模型提示詞",
+      "moresetting": "更多設置",
+      "moresetting.warn": "風險警告",
+      "moresetting.check.warn": "請謹慎勾選此選項，勾選錯誤會導致模型無法正常使用！！！",
+      "moresetting.check.confirm": "確認勾選",
       "provider": {
         "add.name": "提供者名稱",
         "add.name.placeholder": "例如：OpenAI",
@@ -786,7 +792,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系統中 Option 鍵只能與空白鍵組合使用",
         "clear_shortcut": "清除快捷鍵",
         "clear_topic": "清除所有訊息",
         "copy_last_message": "複製上一条消息",
@@ -809,8 +814,8 @@
         "zoom_reset": "重置縮放"
       },
       "theme.auto": "自動",
-      "theme.dark": "深色主題",
-      "theme.light": "淺色主題",
+      "theme.dark": "深色",
+      "theme.light": "淺色",
       "theme.title": "主題",
       "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
@@ -820,6 +825,7 @@
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
+      "assistant.show.icon": "顯示模型圖標",
       "tray.title": "啟用系統托盤圖標",
       "websearch": {
         "get_api_key": "點擊這裡獲取密鑰",
@@ -836,7 +842,8 @@
         "blacklist_tooltip": "請使用以下格式(換行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "搜索結果個數",
         "search_result_default": "預設"
-      }
+      },
+      "display.assistant.title": "助手設定"
     },
     "translate": {
       "any.language": "任意語言",

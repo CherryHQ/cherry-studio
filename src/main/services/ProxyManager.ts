@@ -66,6 +66,7 @@ export class ProxyManager {
   private async setCustomProxy(): Promise<void> {
     try {
       if (this.config.url) {
+        this.proxyUrl = this.config.url
         this.proxyAgent = new HttpsProxyAgent(this.config.url)
         this.setEnvironment(this.config.url)
         await this.setSessionsProxy({ proxyRules: this.config.url })

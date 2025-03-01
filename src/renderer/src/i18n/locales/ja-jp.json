@@ -405,6 +405,7 @@
       "reset.double.confirm.content": "すべてのデータが失われます。続行しますか？",
       "reset.double.confirm.title": "データが失われます！！！",
       "restore.success": "復元に成功しました",
+      "restore.failed": "復元に失敗しました",
       "save.success.title": "保存に成功しました",
       "searching": "インターネットで検索中...",
       "success.notion.export": "Notionへのエクスポートに成功しました",
@@ -559,7 +560,8 @@
       "together": "Together",
       "yi": "零一万物",
       "zhinao": "360智脳",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "xirang": "天翼クラウド 息壤"
     },
     "settings": {
       "about": "について",
@@ -682,6 +684,7 @@
       "display.sidebar.visible": "アイコンを表示",
       "display.title": "表示設定",
       "display.topic.title": "トピック設定",
+      "display.assistant.title": "アシスタント設定",
       "font_size.title": "メッセージのフォントサイズ",
       "general": "一般設定",
       "general.backup.button": "バックアップ",
@@ -740,6 +743,10 @@
       "models.translate_model_description": "翻訳サービスに使用されるモデル",
       "models.translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
       "models.translate_model_prompt_title": "翻訳モデルのプロンプト",
+      "moresetting": "詳細設定",
+      "moresetting.warn": "リスク警告",
+      "moresetting.check.warn": "このオプションを選択する際は慎重に行ってください。誤った選択はモデルの誤動作を引き起こす可能性があります！",
+      "moresetting.check.confirm": "選択を確認",
       "provider": {
         "add.name": "プロバイダー名",
         "add.name.placeholder": "例：OpenAI",
@@ -786,7 +793,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "MacではOptionキーとの組み合わせは、スペースキーのみ使用可能です",
         "clear_shortcut": "ショートカットをクリア",
         "clear_topic": "メッセージを消去",
         "copy_last_message": "最後のメッセージをコピー",
@@ -809,8 +815,8 @@
         "zoom_reset": "ズームをリセット"
       },
       "theme.auto": "自動",
-      "theme.dark": "ダークテーマ",
-      "theme.light": "ライトテーマ",
+      "theme.dark": "ダーク",
+      "theme.light": "ライト",
       "theme.title": "テーマ",
       "theme.window.style.opaque": "不透明ウィンドウ",
       "theme.window.style.title": "ウィンドウスタイル",
@@ -820,6 +826,7 @@
       "topic.position.left": "左",
       "topic.position.right": "右",
       "topic.show.time": "トピックの時間を表示",
+      "assistant.show.icon": "モデルアイコンを表示",
       "tray.title": "システムトレイアイコンを有効にする",
       "websearch": {
         "get_api_key": "APIキーを取得",

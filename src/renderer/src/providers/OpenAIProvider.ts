@@ -49,7 +49,7 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   private get isNotSupportFiles() {
-    const providers = ['deepseek', 'baichuan', 'minimax', 'doubao']
+    const providers = ['deepseek', 'baichuan', 'minimax', 'doubao', 'xirang']
     return providers.includes(this.provider.id)
   }
 
@@ -241,7 +241,12 @@ export default class OpenAIProvider extends BaseProvider {
       userMessages.push(await this.getMessageParam(message, model))
     }
 
+    const isOpenAIo1 = this.isOpenAIo1(model)
+
     const isSupportStreamOutput = () => {
+      if (isOpenAIo1) {
+        return false
+      }
       return streamOutput
     }
 
@@ -372,8 +377,13 @@ export default class OpenAIProvider extends BaseProvider {
         ]
       : [{ role: 'user', content: assistant.prompt }]
 
+    const isOpenAIo1 = this.isOpenAIo1(model)
+
     const isSupportedStreamOutput = () => {
       if (!onResponse) {
+        return false
+      }
+      if (isOpenAIo1) {
         return false
       }
       return true

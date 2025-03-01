@@ -81,8 +81,9 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    Web 搜索增加更多配置选项
-    用户消息支持快速重新发送
-    知识库网址支持右键配置别名
-    支持更多类型的思考内容显示
-    知识库错误修复
+    服务商新增天翼云
+    助手支持使用模型图标当作头像
+    网络搜索网站图标快速加载
+    macOS 移除 Option 开头快捷键限制
+    代理配置优化
+    界面优化和错误修复

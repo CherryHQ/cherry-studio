@@ -14,7 +14,15 @@ const ModelAvatar: FC<Props> = ({ model, size, props }) => {
   return (
     <Avatar
       src={getModelLogo(model?.id || '')}
-      style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      style={{
+        width: size,
+        height: size,
+        minWidth: size,
+        minHeight: size,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
       {...props}>
       {first(model?.name)}
     </Avatar>

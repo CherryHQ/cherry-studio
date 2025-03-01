@@ -405,6 +405,7 @@
       "reset.double.confirm.content": "All data will be lost, do you want to continue?",
       "reset.double.confirm.title": "DATA LOST !!!",
       "restore.success": "Restored successfully",
+      "restore.failed": "Restore failed",
       "save.success.title": "Saved successfully",
       "searching": "Searching the internet...",
       "success.notion.export": "Successfully exported to Notion",
@@ -559,7 +560,8 @@
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "xirang": "State Cloud Xirang"
     },
     "settings": {
       "about": "About & Feedback",
@@ -682,6 +684,7 @@
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
       "display.topic.title": "Topic Settings",
+      "display.assistant.title": "Assistant Settings",
       "font_size.title": "Message font size",
       "general": "General Settings",
       "general.backup.button": "Backup",
@@ -740,6 +743,10 @@
       "models.translate_model_description": "Model used for translation service",
       "models.translate_model_prompt_message": "Please enter the translate model prompt",
       "models.translate_model_prompt_title": "Translate Model Prompt",
+      "moresetting": "More Settings",
+      "moresetting.warn": "Risk Warning",
+      "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
+      "moresetting.check.confirm": "Confirm Selection",
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",
@@ -786,7 +793,6 @@
       },
       "shortcuts": {
         "action": "Action",
-        "alt_warning": "On Mac, Option key combinations only work with the Space key",
         "clear_shortcut": "Clear Shortcut",
         "clear_topic": "Clear Messages",
         "copy_last_message": "Copy Last Message",
@@ -820,6 +826,7 @@
       "topic.position.left": "Left",
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
+      "assistant.show.icon": "Show model icon",
       "tray.title": "Enable System Tray Icon",
       "websearch": {
         "get_api_key": "Get API Key",

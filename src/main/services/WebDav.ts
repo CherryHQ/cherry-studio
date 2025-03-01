@@ -14,16 +14,16 @@ export default class WebDav {
   constructor(params: WebDavConfig) {
     this.webdavPath = params.webdavPath
 
-    const httpAgent = new HttpProxyAgent(proxyManager.getProxyUrl() || '')
-    const httpsAgent = new HttpsProxyAgent(proxyManager.getProxyUrl() || '')
+    const httpProxy = proxyManager.getProxyUrl() || ''
+    const httpsProxy = proxyManager.getProxyUrl() || ''
 
     this.instance = createClient(params.webdavHost, {
       username: params.webdavUser,
       password: params.webdavPass,
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
-      httpAgent: httpAgent,
-      httpsAgent: httpsAgent
+      httpAgent: httpProxy ? new HttpProxyAgent(httpProxy) : undefined,
+      httpsAgent: httpsProxy ? new HttpsProxyAgent(httpsProxy) : undefined
     })
 
     this.putFileContents = this.putFileContents.bind(this)

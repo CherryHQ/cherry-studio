@@ -10,7 +10,7 @@ import {
 import { HStack } from '@renderer/components/Layout'
 import ModelTags from '@renderer/components/ModelTags'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
-import { getModelLogo, isEmbeddingModel, isReasoningModel, isVisionModel } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -21,13 +21,12 @@ import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
-import { Model, ModelType, Provider } from '@renderer/types'
-import { getDefaultGroupName } from '@renderer/utils'
+import { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Avatar, Button, Card, Checkbox, Divider, Flex, Form, Input, Modal, Space, Switch } from 'antd'
+import { Avatar, Button, Card, Divider, Flex, Input, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { groupBy, isEmpty } from 'lodash'
+import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -45,134 +44,12 @@ import ApiCheckPopup from './ApiCheckPopup'
 import EditModelsPopup from './EditModelsPopup'
 import GraphRAGSettings from './GraphRAGSettings'
 import LMStudioSettings from './LMStudioSettings'
+import ModelEditContent from './ModelEditContent'
 import OllamSettings from './OllamaSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
 interface Props {
   provider: Provider
-}
-
-interface ModelEditContentProps {
-  model: Model
-  onUpdateModel: (model: Model) => void
-  open: boolean
-  onClose: () => void
-}
-
-const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, open, onClose }) => {
-  const [form] = Form.useForm()
-  const { t } = useTranslation()
-
-  const onFinish = (values: any) => {
-    const updatedModel = {
-      ...model,
-      id: values.id || model.id,
-      name: values.name || model.name,
-      group: values.group || model.group
-    }
-    onUpdateModel(updatedModel)
-    onClose()
-  }
-
-  return (
-    <Modal
-      title={t('models.edit')}
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      maskClosable={false}
-      centered
-      afterOpenChange={(visible) => {
-        if (visible) {
-          form.getFieldInstance('id')?.focus()
-        }
-      }}>
-      <Form
-        form={form}
-        labelCol={{ flex: '110px' }}
-        labelAlign="left"
-        colon={false}
-        style={{ marginTop: 15 }}
-        initialValues={{
-          id: model.id,
-          name: model.name,
-          group: model.group
-        }}
-        onFinish={onFinish}>
-        <Form.Item
-          name="id"
-          label={t('settings.models.add.model_id')}
-          tooltip={t('settings.models.add.model_id.tooltip')}
-          rules={[{ required: true }]}>
-          <Input
-            placeholder={t('settings.models.add.model_id.placeholder')}
-            spellCheck={false}
-            maxLength={200}
-            onChange={(e) => {
-              const value = e.target.value
-              form.setFieldValue('name', value)
-              form.setFieldValue('group', getDefaultGroupName(value))
-            }}
-          />
-        </Form.Item>
-        <Form.Item
-          name="name"
-          label={t('settings.models.add.model_name')}
-          tooltip={t('settings.models.add.model_name.tooltip')}>
-          <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
-        </Form.Item>
-        <Form.Item
-          name="group"
-          label={t('settings.models.add.group_name')}
-          tooltip={t('settings.models.add.group_name.tooltip')}>
-          <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
-        </Form.Item>
-        <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>
-          <Button type="primary" htmlType="submit" size="middle">
-            {t('common.save')}
-          </Button>
-        </Form.Item>
-        <Divider style={{ margin: '0 0 15px 0' }} />
-        <div>
-          <TypeTitle>{t('models.type.select')}:</TypeTitle>
-          {(() => {
-            const defaultTypes = [
-              ...(isVisionModel(model) ? ['vision'] : []),
-              ...(isEmbeddingModel(model) ? ['embedding'] : []),
-              ...(isReasoningModel(model) ? ['reasoning'] : [])
-            ] as ModelType[]
-
-            // 合并现有选择和默认类型
-            const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
-
-            return (
-              <Checkbox.Group
-                value={selectedTypes}
-                onChange={(types) => onUpdateModel({ ...model, type: types as ModelType[] })}
-                options={[
-                  {
-                    label: t('models.type.vision'),
-                    value: 'vision',
-                    disabled: isVisionModel(model) && !selectedTypes.includes('vision')
-                  },
-                  {
-                    label: t('models.type.embedding'),
-                    value: 'embedding',
-                    disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
-                  },
-                  {
-                    label: t('models.type.reasoning'),
-                    value: 'reasoning',
-                    disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
-                  }
-                ]}
-              />
-            )
-          })()}
-        </div>
-      </Form>
-    </Modal>
-  )
 }
 
 const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
@@ -191,6 +68,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { defaultModel, setDefaultModel } = useDefaultModel()
 
   const modelGroups = groupBy(models, 'group')
+  const sortedModelGroups = sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
+    acc[key] = value
+    return acc
+  }, {})
+
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
@@ -318,17 +200,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
   }
 
-  const modelTypeContent = (model: Model) => {
-    return (
-      <ModelEditContent
-        model={model}
-        onUpdateModel={onUpdateModel}
-        open={editingModel?.id === model.id}
-        onClose={() => setEditingModel(null)}
-      />
-    )
-  }
-
   const formatApiKeys = (value: string) => {
     return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
   }
@@ -439,14 +310,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <GraphRAGSettings provider={provider} />
       )}
       <SettingSubtitle style={{ marginBottom: 5 }}>{t('common.models')}</SettingSubtitle>
-      {Object.keys(modelGroups).map((group) => (
+      {Object.keys(sortedModelGroups).map((group) => (
         <Card
           key={group}
           type="inner"
           title={group}
           style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}
           size="small">
-          {modelGroups[group].map((model) => (
+          {sortedModelGroups[group].map((model) => (
             <ModelListItem key={model.id}>
               <ModelListHeader>
                 <Avatar src={getModelLogo(model.id)} size={22} style={{ marginRight: '8px' }}>
@@ -485,7 +356,15 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           {t('button.add')}
         </Button>
       </Flex>
-      {models.map((model) => modelTypeContent(model))}
+      {models.map((model) => (
+        <ModelEditContent
+          model={model}
+          onUpdateModel={onUpdateModel}
+          open={editingModel?.id === model.id}
+          onClose={() => setEditingModel(null)}
+          key={model.id}
+        />
+      ))}
     </SettingContainer>
   )
 }
@@ -532,12 +411,6 @@ const SettingIcon = styled(SettingOutlined)`
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
-`
-
-const TypeTitle = styled.div`
-  margin-bottom: 12px;
-  font-size: 14px;
-  font-weight: 600;
 `
 
 export default ProviderSetting

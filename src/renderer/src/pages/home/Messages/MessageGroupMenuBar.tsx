@@ -131,9 +131,14 @@ const ModelsContainer = styled(Scrollbar)`
 `
 
 const Segmented = styled(AntdSegmented)`
+  &.ant-segmented {
+    background: transparent !important;
+  }
   .ant-segmented-item {
     background-color: transparent !important;
     transition: none !important;
+    border-radius: var(--list-item-border-radius) !important;
+    box-shadow: none !important;
     &:hover {
       background: transparent !important;
     }
@@ -143,6 +148,8 @@ const Segmented = styled(AntdSegmented)`
     background-color: transparent !important;
     border: 0.5px solid var(--color-border);
     transition: none !important;
+    border-radius: var(--list-item-border-radius) !important;
+    box-shadow: none !important;
   }
 `
 
