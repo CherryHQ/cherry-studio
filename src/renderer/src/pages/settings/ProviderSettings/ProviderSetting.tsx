@@ -2,6 +2,7 @@ import {
   CheckOutlined,
   EditOutlined,
   ExportOutlined,
+  HeartOutlined,
   LoadingOutlined,
   MinusCircleOutlined,
   PlusOutlined,
@@ -45,6 +46,7 @@ import EditModelsPopup from './EditModelsPopup'
 import GraphRAGSettings from './GraphRAGSettings'
 import LMStudioSettings from './LMStudioSettings'
 import ModelEditContent from './ModelEditContent'
+import ModelHealthCheckPopup, { ModelCheckStatus } from './ModelHealthCheckPopup'
 import OllamSettings from './OllamaSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
@@ -101,6 +103,61 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
   const onManageModel = () => EditModelsPopup.show({ provider })
   const onAddModel = () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+
+  const onHealthCheck = async () => {
+    if (isEmpty(models)) {
+      window.message.error({
+        key: 'no-models',
+        style: { marginTop: '3vh' },
+        duration: 5,
+        content: t('settings.provider.no_models')
+      })
+      return
+    }
+
+    const keys = apiKey
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k)
+
+    if (keys.length === 0) {
+      window.message.error({
+        key: 'no-api-keys',
+        style: { marginTop: '3vh' },
+        duration: 5,
+        content: t('settings.models.check.no_api_keys')
+      })
+      return
+    }
+
+    const result = await ModelHealthCheckPopup.show({
+      title: t('settings.models.check.title'),
+      provider: { ...provider, apiHost },
+      apiKeys: keys
+    })
+
+    if (result?.checkedModels) {
+      const failedModels = result.checkedModels.filter((status) => status.status === ModelCheckStatus.FAILED)
+      const partialModels = result.checkedModels.filter((status) => status.status === ModelCheckStatus.PARTIAL)
+      const successModels = result.checkedModels.filter((status) => status.status === ModelCheckStatus.SUCCESS)
+
+      if (failedModels.length > 0) {
+        window.message.warning({
+          key: 'health-check-summary',
+          style: { marginTop: '3vh' },
+          duration: 10,
+          content: t('settings.models.check.count_failed_models', { count: failedModels.length })
+        })
+      } else if (successModels.length > 0 || partialModels.length > 0) {
+        window.message.success({
+          key: 'health-check-summary',
+          style: { marginTop: '3vh' },
+          duration: 5,
+          content: t('settings.models.check.all_models_passed')
+        })
+      }
+    }
+  }
 
   const onCheckApi = async () => {
     if (isEmpty(models)) {
@@ -309,7 +366,19 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
         <GraphRAGSettings provider={provider} />
       )}
-      <SettingSubtitle style={{ marginBottom: 5 }}>{t('common.models')}</SettingSubtitle>
+      <SettingSubtitle style={{ marginBottom: 5 }}>
+        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+          <span>{t('common.models')}</span>
+          {!isEmpty(models) && (
+            <Button
+              type="text"
+              size="small"
+              icon={<HeartOutlined />}
+              onClick={onHealthCheck}
+              title={t('settings.models.check.button_caption')}></Button>
+          )}
+        </Flex>
+      </SettingSubtitle>
       {Object.keys(sortedModelGroups).map((group) => (
         <Card
           key={group}
