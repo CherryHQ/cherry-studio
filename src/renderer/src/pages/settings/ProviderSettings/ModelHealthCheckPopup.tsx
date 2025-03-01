@@ -470,9 +470,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
           <div>
             <strong>{statusTitle}</strong>
             {status.error && <div style={{ marginTop: 5, color: '#ff4d4f' }}>{status.error}</div>}
-            {status.checkTime && status.status !== ModelCheckStatus.FAILED && (
-              <div style={{ marginTop: 5 }}>{(status.checkTime / 1000).toFixed(2)}s</div>
-            )}
           </div>
         )
       }
@@ -482,12 +479,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
         <div>
           {statusTitle}
           {status.error && <div style={{ marginTop: 5, marginBottom: 5 }}>{status.error}</div>}
-          {status.checkTime && status.status !== ModelCheckStatus.FAILED && (
-            <div style={{ marginTop: 5 }}>{(status.checkTime / 1000).toFixed(2)}s</div>
-          )}
           <div style={{ marginTop: 5 }}>
-            <strong>{t('settings.models.check.result_in_detail')}:</strong>
-            <ul style={{ maxHeight: '300px', overflowY: 'auto', padding: '5px 0 5px 20px', margin: 0 }}>
+            <ul style={{ maxHeight: '300px', overflowY: 'auto', margin: 0, padding: 0, listStyleType: 'none' }}>
               {status.keyResults.map((kr, idx) => {
                 // Mask API key for security
                 const maskedKey = kr.key.length > 16 ? `${kr.key.slice(0, 8)}...${kr.key.slice(-8)}` : kr.key
