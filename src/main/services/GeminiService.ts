@@ -1,14 +1,31 @@
 import { FileMetadataResponse, FileState, GoogleAIFileManager } from '@google/generative-ai/server'
 import { FileType } from '@types'
+import { socksDispatcher } from 'fetch-socks'
 import fs from 'fs'
+import { ProxyAgent, setGlobalDispatcher } from 'undici'
 
 import { CacheService } from './CacheService'
+import { proxyManager } from './ProxyManager'
 
 export class GeminiService {
   private static readonly FILE_LIST_CACHE_KEY = 'gemini_file_list'
   private static readonly CACHE_DURATION = 3000
 
   static async uploadFile(_: Electron.IpcMainInvokeEvent, file: FileType, apiKey: string) {
+    const proxyUrl = proxyManager.getProxyUrl()
+    if (proxyUrl) {
+      const [protocol, host, port] = proxyUrl.split(':')
+      if (!protocol.includes('socks')) {
+        setGlobalDispatcher(new ProxyAgent(proxyUrl))
+      } else {
+        const dispatcher = socksDispatcher({
+          port: parseInt(port),
+          type: protocol === 'socks5' ? 5 : 4,
+          host: host
+        })
+        global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
+      }
+    }
     const fileManager = new GoogleAIFileManager(apiKey)
     const uploadResult = await fileManager.uploadFile(file.path, {
       mimeType: 'application/pdf',
@@ -29,6 +46,20 @@ export class GeminiService {
     file: FileType,
     apiKey: string
   ): Promise<FileMetadataResponse | undefined> {
+    const proxyUrl = proxyManager.getProxyUrl()
+    if (proxyUrl) {
+      const [protocol, host, port] = proxyUrl.split(':')
+      if (!protocol.includes('socks')) {
+        setGlobalDispatcher(new ProxyAgent(proxyUrl))
+      } else {
+        const dispatcher = socksDispatcher({
+          port: parseInt(port),
+          type: protocol === 'socks5' ? 5 : 4,
+          host: host
+        })
+        global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
+      }
+    }
     const fileManager = new GoogleAIFileManager(apiKey)
 
     const cachedResponse = CacheService.get<any>(GeminiService.FILE_LIST_CACHE_KEY)
@@ -52,11 +83,39 @@ export class GeminiService {
   }
 
   static async listFiles(_: Electron.IpcMainInvokeEvent, apiKey: string) {
+    const proxyUrl = proxyManager.getProxyUrl()
+    if (proxyUrl) {
+      const [protocol, host, port] = proxyUrl.split(':')
+      if (!protocol.includes('socks')) {
+        setGlobalDispatcher(new ProxyAgent(proxyUrl))
+      } else {
+        const dispatcher = socksDispatcher({
+          port: parseInt(port),
+          type: protocol === 'socks5' ? 5 : 4,
+          host: host
+        })
+        global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
+      }
+    }
     const fileManager = new GoogleAIFileManager(apiKey)
     return await fileManager.listFiles()
   }
 
   static async deleteFile(_: Electron.IpcMainInvokeEvent, apiKey: string, fileId: string) {
+    const proxyUrl = proxyManager.getProxyUrl()
+    if (proxyUrl) {
+      const [protocol, host, port] = proxyUrl.split(':')
+      if (!protocol.includes('socks')) {
+        setGlobalDispatcher(new ProxyAgent(proxyUrl))
+      } else {
+        const dispatcher = socksDispatcher({
+          port: parseInt(port),
+          type: protocol === 'socks5' ? 5 : 4,
+          host: host
+        })
+        global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
+      }
+    }
     const fileManager = new GoogleAIFileManager(apiKey)
     await fileManager.deleteFile(fileId)
   }
