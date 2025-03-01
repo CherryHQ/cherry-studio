@@ -5,6 +5,7 @@ import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
+import CiciAppLogo from '@renderer/assets/images/apps/cici-app-logo.png?url'
 import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
 import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
 import DifyAppLogo from '@renderer/assets/images/apps/dify.svg?url'
@@ -118,6 +119,12 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: '豆包',
     url: 'https://www.doubao.com/chat/',
     logo: DoubaoAppLogo
+  },
+  {
+    id: 'cici',
+    name: 'Cici',
+    url: 'https://www.cici.com/chat/',
+    logo: CiciAppLogo
   },
   {
     id: 'minimax',
