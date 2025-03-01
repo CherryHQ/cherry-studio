@@ -13,6 +13,7 @@ import { getAllFiles } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
 import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { app } from 'electron'
+import { socksDispatcher } from 'fetch-socks'
 import { ProxyAgent, setGlobalDispatcher } from 'undici'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -86,7 +87,20 @@ class KnowledgeService {
     _: Electron.IpcMainInvokeEvent,
     { base, item, forceReload = false }: { base: KnowledgeBaseParams; item: KnowledgeItem; forceReload: boolean }
   ): Promise<LoaderReturn> => {
-    setGlobalDispatcher(new ProxyAgent(proxyManager.getProxyUrl() || ''))
+    const proxyUrl = proxyManager.getProxyUrl()
+    if (proxyUrl) {
+      const [protocol, host, port] = proxyUrl.split(':')
+      if (!protocol.includes('socks')) {
+        setGlobalDispatcher(new ProxyAgent(proxyUrl))
+      } else {
+        const dispatcher = socksDispatcher({
+          port: parseInt(port),
+          type: protocol === 'socks5' ? 5 : 4,
+          host: host
+        })
+        global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
+      }
+    }
     const ragApplication = await this.getRagApplication(base)
 
     const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {

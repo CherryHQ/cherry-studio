@@ -51,12 +51,13 @@ export class ProxyManager {
 
   private async setSystemProxy(): Promise<void> {
     try {
-      this.proxyUrl = await this.resolveSystemProxy()
-      if (this.proxyUrl) {
+      const url = await this.resolveSystemProxy()
+      if (url) {
+        this.proxyUrl = url.toLowerCase()
         this.proxyAgent = new HttpsProxyAgent(this.proxyUrl)
         this.setEnvironment(this.proxyUrl)
-        await this.setSessionsProxy({ mode: 'system' })
       }
+      await this.setSessionsProxy({ mode: 'system' })
     } catch (error) {
       console.error('Failed to set system proxy:', error)
       throw error
@@ -66,10 +67,10 @@ export class ProxyManager {
   private async setCustomProxy(): Promise<void> {
     try {
       if (this.config.url) {
-        this.proxyUrl = this.config.url
-        this.proxyAgent = new HttpsProxyAgent(this.config.url)
-        this.setEnvironment(this.config.url)
-        await this.setSessionsProxy({ proxyRules: this.config.url })
+        this.proxyUrl = this.config.url.toLowerCase()
+        this.proxyAgent = new HttpsProxyAgent(this.proxyUrl)
+        this.setEnvironment(this.proxyUrl)
+        await this.setSessionsProxy({ proxyRules: this.proxyUrl })
       }
     } catch (error) {
       console.error('Failed to set custom proxy:', error)

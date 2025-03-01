@@ -13,9 +13,13 @@ export default class WebDav {
 
   constructor(params: WebDavConfig) {
     this.webdavPath = params.webdavPath
-
-    const httpAgent = new HttpProxyAgent(proxyManager.getProxyUrl() || '')
-    const httpsAgent = new HttpsProxyAgent(proxyManager.getProxyUrl() || '')
+    let httpAgent: HttpProxyAgent | null = null
+    let httpsAgent: HttpsProxyAgent | null = null
+    const proxyUrl = proxyManager.getProxyUrl()
+    if (proxyUrl) {
+      httpAgent = new HttpProxyAgent(proxyUrl)
+      httpsAgent = new HttpsProxyAgent(proxyUrl)
+    }
 
     this.instance = createClient(params.webdavHost, {
       username: params.webdavUser,
