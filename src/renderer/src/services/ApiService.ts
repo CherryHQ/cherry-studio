@@ -1,4 +1,5 @@
 import { getOpenAIWebSearchParams } from '@renderer/config/models'
+import { isEmbeddingModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -19,6 +20,7 @@ import { EVENT_NAMES, EventEmitter } from './EventService'
 import { filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
+
 export async function fetchChatCompletion({
   message,
   messages,
@@ -239,7 +241,13 @@ export async function fetchSuggestions({
   }
 }
 
-export async function checkApi(provider: Provider, model: Model) {
+// Private helper function to handle common base validation logic
+// Validates provider's basic settings such as API key, host, and model list
+function validateProviderBasics(provider: Provider): {
+  valid: boolean
+  error: Error | null
+  shouldContinue: boolean
+} {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
@@ -248,7 +256,8 @@ export async function checkApi(provider: Provider, model: Model) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
       return {
         valid: false,
-        error: new Error(i18n.t('message.error.enter.api.key'))
+        error: new Error(i18n.t('message.error.enter.api.key')),
+        shouldContinue: false
       }
     }
   }
@@ -257,7 +266,8 @@ export async function checkApi(provider: Provider, model: Model) {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.api.host')
+      error: new Error('message.error.enter.api.host'),
+      shouldContinue: false
     }
   }
 
@@ -265,17 +275,64 @@ export async function checkApi(provider: Provider, model: Model) {
     window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.model')
+      error: new Error('message.error.enter.model'),
+      shouldContinue: false
+    }
+  }
+
+  return {
+    valid: true,
+    error: null,
+    shouldContinue: true
+  }
+}
+
+// Generic function to perform model checks
+// Abstracts provider validation and error handling, allowing different types of check logic
+async function performModelCheck<T>(
+  provider: Provider,
+  model: Model,
+  checkFn: (ai: AiProvider, model: Model) => Promise<T>,
+  processResult: (result: T) => { valid: boolean; error: Error | null }
+): Promise<{ valid: boolean; error: Error | null }> {
+  const validation = validateProviderBasics(provider)
+  if (!validation.shouldContinue) {
+    return {
+      valid: validation.valid,
+      error: validation.error
     }
   }
 
   const AI = new AiProvider(provider)
 
-  const { valid, error } = await AI.check(model)
+  try {
+    const result = await checkFn(AI, model)
+    return processResult(result)
+  } catch (error: any) {
+    return {
+      valid: false,
+      error
+    }
+  }
+}
 
-  return {
-    valid,
-    error
+// Unified API check function
+// Automatically selects appropriate check method based on model type
+export async function checkApi(provider: Provider, model: Model) {
+  if (isEmbeddingModel(model)) {
+    return performModelCheck(
+      provider,
+      model,
+      (ai, model) => ai.getEmbeddingDimensions(model),
+      (dimensions) => ({ valid: dimensions > 0, error: null })
+    )
+  } else {
+    return performModelCheck(
+      provider,
+      model,
+      (ai, model) => ai.check(model),
+      ({ valid, error }) => ({ valid, error: error || null })
+    )
   }
 }
 
