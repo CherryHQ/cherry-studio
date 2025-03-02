@@ -111,48 +111,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     })
     .filter(Boolean) as MenuItem[] // Filter out null items
 
-  if (pinnedModels.length > 0 && searchText.length === 0) {
-    const pinnedItems = providers
-      .flatMap((p) => p.models || [])
-      .filter((m) => pinnedModels.includes(getModelUniqId(m)))
-      .map((m) => ({
-        key: getModelUniqId(m) + '_pinned',
-        label: (
-          <ModelItem>
-            <ModelNameRow>
-              <span>{m?.name}</span> <ModelTags model={m} />
-            </ModelNameRow>
-            <PinIcon
-              onClick={(e) => {
-                e.stopPropagation()
-                togglePin(getModelUniqId(m))
-              }}
-              isPinned={true}>
-              <PushpinOutlined />
-            </PinIcon>
-          </ModelItem>
-        ),
-        icon: (
-          <Avatar src={getModelLogo(m?.id || '')} size={24}>
-            {first(m?.name)}
-          </Avatar>
-        ),
-        onClick: () => {
-          resolve(m)
-          setOpen(false)
-        }
-      }))
-
-    if (pinnedItems.length > 0) {
-      filteredItems.unshift({
-        key: 'pinned',
-        label: t('models.pinned'),
-        type: 'group',
-        children: pinnedItems
-      } as MenuItem)
-    }
-  }
-
   const onCancel = () => {
     setKeyboardSelectedId('')
     setOpen(false)
@@ -281,35 +239,101 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       }}
       closeIcon={null}
       footer={null}>
-      <HStack style={{ padding: '0 12px', marginTop: 5 }}>
-        <Input
-          prefix={
-            <SearchIcon>
-              <SearchOutlined />
-            </SearchIcon>
-          }
-          ref={inputRef}
-          placeholder={t('models.search')}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-          autoFocus
-          style={{ paddingLeft: 0 }}
-          bordered={false}
-          size="middle"
-          onKeyDown={(e) => {
-            // 防止上下键移动光标
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-              e.preventDefault()
+      <div style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--color-background)' }}>
+        <HStack style={{ padding: '0 12px', marginTop: 5 }}>
+          <Input
+            prefix={
+              <SearchIcon>
+                <SearchOutlined />
+              </SearchIcon>
             }
-          }}
-        />
-      </HStack>
-      <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
-      <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
+            ref={inputRef}
+            placeholder={t('models.search')}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            allowClear
+            autoFocus
+            style={{ paddingLeft: 0 }}
+            bordered={false}
+            size="middle"
+            onKeyDown={(e) => {
+              // 防止上下键移动光标
+              if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault()
+              }
+            }}
+          />
+        </HStack>
+        <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
+        {pinnedModels.length > 0 && searchText.length === 0 && (
+          <Container>
+            <StyledMenu
+              items={[
+                {
+                  key: 'pinned',
+                  label: t('models.pinned'),
+                  type: 'group',
+                  children: providers
+                    .flatMap((p) => p.models || [])
+                    .filter((m) => pinnedModels.includes(getModelUniqId(m)))
+                    .map((m) => ({
+                      key: getModelUniqId(m) + '_pinned',
+                      label: (
+                        <ModelItem>
+                          <PinnedModelNameRow>
+                            <span>{m?.name}</span>
+                            <span>|</span>
+                            <span>
+                              {providers.find((p) => p.models?.includes(m))?.isSystem
+                                ? t(`provider.${providers.find((p) => p.models?.includes(m))?.id}`)
+                                : providers.find((p) => p.models?.includes(m))?.name}
+                            </span>
+                            <span> </span>
+                            <ModelTags model={m} />
+                          </PinnedModelNameRow>
+                          <PinIcon
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              togglePin(getModelUniqId(m))
+                            }}
+                            isPinned={true}>
+                            <PushpinOutlined />
+                          </PinIcon>
+                        </ModelItem>
+                      ),
+                      icon: (
+                        <Avatar src={getModelLogo(m?.id || '')} size={24}>
+                          {first(m?.name)}
+                        </Avatar>
+                      ),
+                      onClick: () => {
+                        resolve(m)
+                        setOpen(false)
+                      }
+                    }))
+                }
+              ]}
+              selectedKeys={model ? [getModelUniqId(model)] : []}
+              mode="inline"
+              inlineIndent={6}
+            />
+          </Container>
+        )}
+        <Divider style={{ 
+          margin: '0', 
+          borderBlockStartWidth: 0.8,
+          borderColor: 'var(--color-border)',
+        }} />
+      </div>
+      <Scrollbar style={{ height: 'calc(50vh - 100px)' }} ref={scrollContainerRef}>
         <Container>
           {filteredItems.length > 0 ? (
-            <StyledMenu items={filteredItems} selectedKeys={[keyboardSelectedId]} mode="inline" inlineIndent={6} />
+            <StyledMenu
+              items={filteredItems.filter((item): item is MenuItem => item !== null && item.key !== 'pinned')}
+              selectedKeys={[keyboardSelectedId]}
+              mode="inline"
+              inlineIndent={6}
+            />
           ) : (
             <EmptyState>
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -372,6 +396,10 @@ const ModelNameRow = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 8px;
+`
+
+const PinnedModelNameRow = styled(ModelNameRow)`
+  gap: 4px;
 `
 
 const EmptyState = styled.div`
