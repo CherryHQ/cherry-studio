@@ -64,34 +64,37 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     {
       key: 'upload',
       label: (
-        <Upload
-          customRequest={() => {}}
-          accept="image/png, image/jpeg, image/gif"
-          itemRender={() => null}
-          maxCount={1}
-          onChange={async ({ file }) => {
-            try {
-              const _file = file.originFileObj as File
-              if (_file.type === 'image/gif') {
-                await ImageStorage.set('avatar', _file)
-              } else {
-                const compressedFile = await compressImage(_file)
-                await ImageStorage.set('avatar', compressedFile)
+        <div style={{ width: '100%', textAlign: 'center' }}>
+          <Upload
+            customRequest={() => {}}
+            accept="image/png, image/jpeg, image/gif"
+            itemRender={() => null}
+            maxCount={1}
+            onChange={async ({ file }) => {
+              try {
+                const _file = file.originFileObj as File
+                if (_file.type === 'image/gif') {
+                  await ImageStorage.set('avatar', _file)
+                } else {
+                  const compressedFile = await compressImage(_file)
+                  await ImageStorage.set('avatar', compressedFile)
+                }
+                dispatch(setAvatar(await ImageStorage.get('avatar')))
+                setDropdownOpen(false)
+              } catch (error: any) {
+                window.message.error(error.message)
               }
-              dispatch(setAvatar(await ImageStorage.get('avatar')))
-              setDropdownOpen(false)
-            } catch (error: any) {
-              window.message.error(error.message)
-            }
-          }}>
-          <div>{t('settings.general.image_upload')}</div>
-        </Upload>
+            }}>
+            {t('settings.general.image_upload')}
+          </Upload>
+        </div>
       )
     },
     {
       key: 'emoji',
       label: (
         <div
+          style={{ width: '100%', textAlign: 'center' }}
           onClick={(e) => {
             e.stopPropagation()
             setEmojiPickerOpen(true)
@@ -105,6 +108,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       key: 'reset',
       label: (
         <div
+          style={{ width: '100%', textAlign: 'center' }}
           onClick={(e) => {
             e.stopPropagation()
             handleReset()
