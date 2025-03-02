@@ -191,7 +191,7 @@ export function getModelLogo(modelId: string) {
     'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'babbage-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'sora-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
-    '^omni-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    '(^|/)omni-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'Embedding-V1': isLight ? WenxinModelLogo : WenxinModelLogoDark,
     'text-embedding-v': isLight ? QwenModelLogo : QwenModelLogoDark,
     'text-embedding': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
