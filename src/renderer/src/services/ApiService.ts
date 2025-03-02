@@ -240,8 +240,7 @@ export async function fetchSuggestions({
   }
 }
 
-// Private helper function to handle common base validation logic
-// Validates provider's basic settings such as API key, host, and model list
+// Helper function to validate provider's basic settings such as API key, host, and model list
 export function checkApiProvider(provider: Provider): {
   valid: boolean
   error: Error | null
