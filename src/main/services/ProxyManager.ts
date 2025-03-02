@@ -1,5 +1,7 @@
 import { ProxyConfig as _ProxyConfig, session } from 'electron'
+import { socksDispatcher } from 'fetch-socks'
 import { HttpsProxyAgent } from 'https-proxy-agent'
+import { ProxyAgent, setGlobalDispatcher } from 'undici'
 
 type ProxyMode = 'system' | 'custom' | 'none'
 
@@ -120,6 +122,24 @@ export class ProxyManager {
 
   getProxyUrl(): string | null {
     return this.proxyUrl
+  }
+
+
+  setGlobalProxy() {
+    const proxyUrl = this.proxyUrl
+    if (proxyUrl) {
+      const [protocol, host, port] = proxyUrl.split(':')
+      if (!protocol.includes('socks')) {
+        setGlobalDispatcher(new ProxyAgent(proxyUrl))
+      } else {
+        const dispatcher = socksDispatcher({
+          port: parseInt(port),
+          type: protocol === 'socks5' ? 5 : 4,
+          host: host
+        })
+        global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
+      }
+    }
   }
 }
 

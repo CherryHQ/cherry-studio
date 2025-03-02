@@ -29,8 +29,6 @@ import { getAllFiles } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
 import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { app } from 'electron'
-import { socksDispatcher } from 'fetch-socks'
-import { ProxyAgent, setGlobalDispatcher } from 'undici'
 import Logger from 'electron-log'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -428,6 +426,7 @@ class KnowledgeService {
   }
 
   public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
+    proxyManager.setGlobalProxy()
     return new Promise((resolve) => {
       const { base, item, forceReload = false } = options
       const optionsNonNullableAttribute = { base, item, forceReload }
