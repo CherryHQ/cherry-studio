@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "关",
-      "settings.reasoning_effort.tip": "该设置仅支持推理模型",
+      "settings.reasoning_effort.tip": "仅支持 OpenAI o-series 和 Anthropic 推理模型",
       "title": "助手"
     },
     "auth": {
@@ -79,7 +79,7 @@
       "assistant.search.placeholder": "搜索",
       "deeply_thought": "已深度思考（用时 {{secounds}} 秒）",
       "default.description": "你好，我是默认助手。你可以立刻开始跟我聊天。",
-      "default.name": "⭐️ 默认助手",
+      "default.name": "默认助手",
       "default.topic.name": "默认话题",
       "input.clear": "清空消息 {{Command}}",
       "input.clear.content": "确定要清除当前会话所有消息吗?",
@@ -101,9 +101,9 @@
       "input.upload": "上传图片或文档",
       "input.upload.document": "上传文档（模型不支持图片）",
       "input.web_search": "开启网络搜索",
+      "input.web_search.button.ok": "去设置",
       "input.web_search.enable": "开启网络搜索",
       "input.web_search.enable_content": "需要先在设置中开启网络搜索",
-      "input.web_search.button.ok": "去设置",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -144,6 +144,7 @@
       "topics.export.notion": "导出到 Notion",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
+      "topics.export.yuque": "导出到语雀",
       "topics.list": "话题列表",
       "topics.move_to": "移动到",
       "topics.pinned": "固定话题",
@@ -175,6 +176,7 @@
       "edit": "编辑",
       "footnote": "引用内容",
       "footnotes": "引用内容",
+      "fullscreen": "已进入全屏模式，按 F11 退出",
       "knowledge_base": "知识库",
       "language": "语言",
       "model": "模型",
@@ -202,9 +204,9 @@
       "http": {
         "400": "请求错误，请检查请求参数是否正确。如果修改了模型设置，请重置到默认设置",
         "401": "身份验证失败，请检查 API 密钥是否正确",
-        "403": "禁止访问，请检查是否实名认证，或联系服务商询问被禁止原因",
+        "403": "禁止访问，请翻译具体报错信息查看原因，或联系服务商询问被禁止原因",
         "404": "模型不存在或者请求路径错误",
-        "429": "请求过多，请稍后再试",
+        "429": "请求速率超过限制，请稍后再试",
         "500": "服务器错误，请稍后再试",
         "502": "网关错误，请稍后再试",
         "503": "服务不可用，请稍后再试",
@@ -283,6 +285,8 @@
       "document_count_default": "默认",
       "document_count_help": "请求文档分段数量越多，附带的信息越多，但需要消耗的 Token 也越多",
       "drag_file": "拖拽文件到这里",
+      "edit_remark": "修改备注",
+      "edit_remark_placeholder": "请输入备注内容",
       "empty": "暂无知识库",
       "file_hint": "支持 {{file_types}} 格式",
       "index_all": "索引全部",
@@ -317,9 +321,7 @@
       "title": "知识库",
       "url_added": "网址已添加",
       "url_placeholder": "请输入网址, 多个网址用回车分隔",
-      "urls": "网址",
-      "edit_remark": "修改备注",
-      "edit_remark_placeholder": "请输入备注内容"
+      "urls": "网址"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -379,19 +381,23 @@
       "error.invalid.enter.model": "请选择一个模型",
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
-      "error.notion.export": "导出Notion错误，请检查连接状态并对照文档检查配置",
-      "error.notion.no_api_key": "未配置Notion ApiKey或Notion DatabaseID",
+      "error.notion.export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
+      "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
+      "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
+      "error.yuque.no_config": "未配置语雀 Token 或 知识库 URL",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
+      "ignore.knowledge.base": "联网模式开启，忽略知识库",
+      "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion",
       "mention.title": "切换模型回答",
       "message.code_style": "代码风格",
       "message.delete.content": "确定要删除此消息吗?",
       "message.delete.title": "删除消息",
       "message.multi_model_style": "多模型回答样式",
-      "message.multi_model_style.fold": "折叠",
-      "message.multi_model_style.grid": "网格",
-      "message.multi_model_style.horizontal": "水平",
-      "message.multi_model_style.vertical": "垂直",
+      "message.multi_model_style.fold": "标签模式",
+      "message.multi_model_style.grid": "卡片布局",
+      "message.multi_model_style.horizontal": "横向排列",
+      "message.multi_model_style.vertical": "纵向堆叠",
       "message.style": "消息样式",
       "message.style.bubble": "气泡",
       "message.style.plain": "简洁",
@@ -400,17 +406,17 @@
       "reset.double.confirm.content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
       "reset.double.confirm.title": "数据丢失！！！",
       "restore.success": "恢复成功",
+      "restore.failed": "恢复失败",
       "save.success.title": "保存成功",
+      "searching": "正在联网搜索...",
       "success.notion.export": "成功导出到Notion",
+      "success.yuque.export": "成功导出到语雀",
       "switch.disabled": "请等待当前回复完成后操作",
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
-      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!",
-      "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion",
-      "searching": "正在联网搜索...",
-      "ignore.knowledge.base": "联网模式开启，忽略知识库"
+      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
@@ -468,7 +474,8 @@
         "vision": "图像"
       },
       "vision": "视觉",
-      "websearch": "联网"
+      "websearch": "联网",
+      "edit": "编辑模型"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -515,6 +522,7 @@
       "title": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号"
     },
     "provider": {
+      "o3": "O3",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -553,7 +561,8 @@
       "together": "Together",
       "yi": "零一万物",
       "zhinao": "360智脑",
-      "zhipu": "智谱AI"
+      "zhipu": "智谱AI",
+      "xirang": "天翼云息壤"
     },
     "settings": {
       "about": "关于我们",
@@ -599,12 +608,14 @@
         "minute_interval_other": "{{count}} 分钟",
         "notion.api_key": "Notion 密钥",
         "notion.api_key_placeholder": "请输入Notion 密钥",
+        "notion.auto_split": "导出对话时自动分页",
+        "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
         "notion.check": {
           "button": "检查",
-          "empty_api_key": "未配置Api_key",
-          "empty_database_id": "未配置Database_id",
-          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
-          "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",
+          "empty_api_key": "未配置 API key",
+          "empty_database_id": "未配置 Database ID",
+          "error": "连接异常，请检查网络及 API key 和 Database ID 是否正确",
+          "fail": "连接失败，请检查网络及 API key 和 Database ID 是否正确",
           "success": "连接成功"
         },
         "notion.database_id": "Notion 数据库 ID",
@@ -612,21 +623,10 @@
         "notion.help": "Notion 配置文档",
         "notion.page_name_key": "页面标题字段名",
         "notion.page_name_key_placeholder": "请输入页面标题字段名，默认为 Name",
-        "notion.title": "Notion 配置",
-        "notion.help": "Notion 配置文档",
-        "notion.check": {
-          "button": "检查",
-          "fail": "连接失败，请检查网络及Api_key和Database_id是否正确",
-          "success": "连接成功",
-          "error": "连接异常，请检查网络及Api_key和Database_id是否正确",
-          "empty_api_key": "未配置Api_key",
-          "empty_database_id": "未配置Database_id"
-        },
-        "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
-        "notion.auto_split": "导出对话时自动分页",
         "notion.split_size": "自动分页大小",
-        "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
         "notion.split_size_help": "Notion免费版用户建议设置为90，高级版用户建议设置为24990，默认值为90",
+        "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
+        "notion.title": "Notion 配置",
         "title": "数据设置",
         "webdav": {
           "autoSync": "自动备份",
@@ -650,6 +650,21 @@
           "syncStatus": "备份状态",
           "title": "WebDAV",
           "user": "WebDAV 用户名"
+        },
+        "yuque": {
+          "check": {
+            "button": "检查",
+            "empty_repo_url": "请先输入知识库URL",
+            "empty_token": "请先输入语雀Token",
+            "fail": "语雀连接验证失败",
+            "success": "语雀连接验证成功"
+          },
+          "help": "获取语雀 Token",
+          "repo_url": "知识库 URL",
+          "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "title": "语雀配置",
+          "token": "语雀 Token",
+          "token_placeholder": "请输入语雀Token"
         }
       },
       "display.custom.css": "自定义 CSS",
@@ -670,6 +685,7 @@
       "display.sidebar.visible": "显示的图标",
       "display.title": "显示设置",
       "display.topic.title": "话题设置",
+      "display.assistant.title": "助手设置",
       "font_size.title": "消息字体大小",
       "general": "常规设置",
       "general.backup.button": "备份",
@@ -682,6 +698,8 @@
       "general.title": "常规设置",
       "general.user_name": "用户名",
       "general.user_name.placeholder": "请输入用户名",
+      "general.image_upload": "图片上传",
+      "general.emoji_picker": "表情选择器",
       "general.view_webdav_settings": "查看 WebDAV 设置",
       "input.auto_translate_with_space": "快速敲击3次空格翻译",
       "input.target_language": "目标语言",
@@ -728,6 +746,10 @@
       "models.translate_model_description": "翻译服务使用的模型",
       "models.translate_model_prompt_message": "请输入翻译模型提示词",
       "models.translate_model_prompt_title": "翻译模型提示词",
+      "moresetting": "更多设置",
+      "moresetting.warn": "风险警告",
+      "moresetting.check.warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！",
+      "moresetting.check.confirm": "确认勾选",
       "provider": {
         "add.name": "提供商名称",
         "add.name.placeholder": "例如 OpenAI",
@@ -774,7 +796,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系统中 Option 键只能与空格键组合使用",
         "clear_shortcut": "清除快捷键",
         "clear_topic": "清空消息",
         "copy_last_message": "复制上一条消息",
@@ -796,9 +817,9 @@
         "zoom_out": "缩小界面",
         "zoom_reset": "重置缩放"
       },
-      "theme.auto": "跟随系统",
-      "theme.dark": "深色主题",
-      "theme.light": "浅色主题",
+      "theme.auto": "自动",
+      "theme.dark": "深色",
+      "theme.light": "浅色",
       "theme.title": "主题",
       "theme.window.style.opaque": "不透明窗口",
       "theme.window.style.title": "窗口样式",
@@ -808,16 +829,23 @@
       "topic.position.left": "左侧",
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
+      "assistant.show.icon": "显示模型图标",
       "tray.title": "启用系统托盘图标",
       "websearch": {
-        "title": "网络搜索",
+        "blacklist": "黑名单",
+        "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+        "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "get_api_key": "点击这里获取密钥",
+        "search_max_result": "搜索结果个数",
+        "search_result_default": "默认",
+        "search_with_time": "搜索包含日期",
         "tavily": {
-          "title": "Tavily",
-          "description": "Tavily 是一个集成了多个搜索引擎的网络搜索工具，支持多种语言和多种搜索引擎。",
           "api_key": "Tavily API 密钥",
-          "api_key.placeholder": "请输入 Tavily API 密钥"
-        }
+          "api_key.placeholder": "请输入 Tavily API 密钥",
+          "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
+          "title": "Tavily"
+        },
+        "title": "网络搜索"
       }
     },
     "translate": {

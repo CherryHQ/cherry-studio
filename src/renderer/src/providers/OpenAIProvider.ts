@@ -1,4 +1,11 @@
-import { getOpenAIWebSearchParams, isReasoningModel, isSupportedModel, isVisionModel } from '@renderer/config/models'
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
+import {
+  getOpenAIWebSearchParams,
+  isOpenAIoSeries,
+  isReasoningModel,
+  isSupportedModel,
+  isVisionModel
+} from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -42,7 +49,7 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   private get isNotSupportFiles() {
-    const providers = ['deepseek', 'baichuan', 'minimax', 'doubao']
+    const providers = ['deepseek', 'baichuan', 'minimax', 'doubao', 'xirang']
     return providers.includes(this.provider.id)
   }
 
@@ -156,9 +163,46 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     if (isReasoningModel(model)) {
-      return {
-        reasoning_effort: assistant?.settings?.reasoning_effort
+      if (model.provider === 'openrouter') {
+        return {
+          reasoning: {
+            effort: assistant?.settings?.reasoning_effort
+          }
+        }
       }
+
+      if (isOpenAIoSeries(model)) {
+        return {
+          reasoning_effort: assistant?.settings?.reasoning_effort
+        }
+      }
+
+      const effort_ratio =
+        assistant?.settings?.reasoning_effort === 'high'
+          ? 0.8
+          : assistant?.settings?.reasoning_effort === 'medium'
+            ? 0.5
+            : assistant?.settings?.reasoning_effort === 'low'
+              ? 0.2
+              : undefined
+
+      if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
+        if (!effort_ratio) {
+          return {
+            type: 'disabled'
+          }
+        }
+        return {
+          thinking: {
+            budget_tokens: Math.max(
+              Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000),
+              1024
+            )
+          }
+        }
+      }
+
+      return {}
     }
 
     return {}
@@ -175,7 +219,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     let systemMessage = assistant.prompt ? { role: 'system', content: assistant.prompt } : undefined
 
-    if (['o1', 'o1-2024-12-17'].includes(model.id) || model.id.startsWith('o3')) {
+    if (isOpenAIoSeries(model)) {
       systemMessage = {
         role: 'developer',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
@@ -207,8 +251,37 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     let hasReasoningContent = false
-    const isReasoningJustDone = (delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta) =>
-      hasReasoningContent ? !!delta?.content : delta?.content === '</think>'
+    let lastChunk = ''
+    const isReasoningJustDone = (
+      delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & {
+        reasoning_content?: string
+        reasoning?: string
+        thinking?: string
+      }
+    ) => {
+      if (!delta?.content) return false
+
+      // 检查当前chunk和上一个chunk的组合是否形成###Response标记
+      const combinedChunks = lastChunk + delta.content
+      lastChunk = delta.content
+
+      // 检测思考结束
+      if (combinedChunks.includes('###Response') || delta.content === '</think>') {
+        return true
+      }
+
+      // 如果有reasoning_content或reasoning，说明是在思考中
+      if (delta?.reasoning_content || delta?.reasoning || delta?.thinking) {
+        hasReasoningContent = true
+      }
+
+      // 如果之前有reasoning_content或reasoning，现在有普通content，说明思考结束
+      if (hasReasoningContent && delta.content) {
+        return true
+      }
+
+      return false
+    }
 
     let time_first_token_millsec = 0
     let time_first_content_millsec = 0
@@ -260,7 +333,7 @@ export default class OpenAIProvider extends BaseProvider {
 
       const delta = chunk.choices[0]?.delta
 
-      if (delta?.reasoning_content) {
+      if (delta?.reasoning_content || delta?.reasoning) {
         hasReasoningContent = true
       }
 

@@ -20,25 +20,6 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     await updateUserDataPath()
 
-    // Register custom protocol
-    if (!app.isDefaultProtocolClient('cherrystudio')) {
-      app.setAsDefaultProtocolClient('cherrystudio')
-    }
-
-    // Handle protocol open
-    app.on('open-url', (event, url) => {
-      event.preventDefault()
-      const parsedUrl = new URL(url)
-      if (parsedUrl.pathname === 'siliconflow.oauth.login') {
-        const code = parsedUrl.searchParams.get('code')
-        if (code) {
-          // Handle the OAuth code here
-          console.log('OAuth code received:', code)
-          // You can send this code to your renderer process via IPC if needed
-        }
-      }
-    })
-
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
@@ -53,6 +34,7 @@ if (!app.requestSingleInstanceLock()) {
         windowService.showMainWindow()
       }
     })
+
     registerShortcuts(mainWindow)
 
     registerIpc(mainWindow, app)

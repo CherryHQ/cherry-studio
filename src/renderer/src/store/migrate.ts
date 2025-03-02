@@ -5,7 +5,7 @@ import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant } from '@renderer/types'
-import { getDefaultGroupName, runAsyncFunction, uuid } from '@renderer/utils'
+import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
@@ -1093,11 +1093,10 @@ const migrateConfig = {
           state.minapps.enabled.push(app)
         }
       })
+      // remove zhihu-zhiada
+      state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
+      state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
     }
-
-    // remove zhihu-zhiada
-    state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
-    state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
 
     state.settings.thoughtAutoCollapse = true
 
@@ -1120,6 +1119,88 @@ const migrateConfig = {
       state.llm.providers.splice(emptyLmStudioProviderIndex, 1)
     }
 
+    return state
+  },
+  '73': (state: RootState) => {
+    if (state.websearch) {
+      state.websearch.searchWithTime = true
+      state.websearch.maxResults = 5
+      state.websearch.excludeDomains = []
+    }
+
+    if (!state.llm.providers.find((provider) => provider.id === 'lmstudio')) {
+      state.llm.providers.push({
+        id: 'lmstudio',
+        name: 'LM Studio',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'http://localhost:1234',
+        models: SYSTEM_MODELS.lmstudio,
+        isSystem: true,
+        enabled: false
+      })
+    }
+
+    state.llm.providers.splice(1, 0, {
+      id: 'o3',
+      name: 'O3',
+      apiKey: '',
+      apiHost: 'https://api.o3.fan',
+      models: SYSTEM_MODELS.o3,
+      isSystem: true,
+      type: 'openai',
+      enabled: false
+    })
+
+    state.assistants.assistants.forEach((assistant) => {
+      const leadingEmoji = getLeadingEmoji(assistant.name)
+      if (leadingEmoji) {
+        assistant.emoji = leadingEmoji
+        assistant.name = assistant.name.replace(leadingEmoji, '').trim()
+      }
+    })
+
+    state.agents.agents.forEach((agent) => {
+      const leadingEmoji = getLeadingEmoji(agent.name)
+      if (leadingEmoji) {
+        agent.emoji = leadingEmoji
+        agent.name = agent.name.replace(leadingEmoji, '').trim()
+      }
+    })
+
+    const defaultAssistantEmoji = getLeadingEmoji(state.assistants.defaultAssistant.name)
+
+    if (defaultAssistantEmoji) {
+      state.assistants.defaultAssistant.emoji = defaultAssistantEmoji
+      state.assistants.defaultAssistant.name = state.assistants.defaultAssistant.name
+        .replace(defaultAssistantEmoji, '')
+        .trim()
+    }
+
+    return state
+  },
+  '74': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'xirang',
+      name: 'Xirang',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://wishub-x1.ctyun.cn',
+      models: SYSTEM_MODELS.xirang,
+      isSystem: true,
+      enabled: false
+    })
+    return state
+  },
+  '75': (state: RootState) => {
+    if (state.minapps) {
+      const you = DEFAULT_MIN_APPS.find((app) => app.id === 'you')
+      const cici = DEFAULT_MIN_APPS.find((app) => app.id === 'cici')
+      const zhihu = DEFAULT_MIN_APPS.find((app) => app.id === 'zhihu')
+      you && state.minapps.enabled.push(you)
+      cici && state.minapps.enabled.push(cici)
+      zhihu && state.minapps.enabled.push(zhihu)
+    }
     return state
   }
 }

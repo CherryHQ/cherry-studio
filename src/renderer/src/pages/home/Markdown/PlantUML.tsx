@@ -136,9 +136,10 @@ const PlantUMLPopupCantaier: React.FC<PlantUMLPopupProps> = ({ resolve, diagram 
     png: false,
     svg: false
   })
+
   const [activeTab, setActiveTab] = useState('preview')
   const { t } = useTranslation()
-  console.log(`plantuml diagram: ${diagram}`)
+
   const encodedDiagram = encodeDiagram(diagram)
   const onOk = () => {
     setOpen(false)

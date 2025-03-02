@@ -124,6 +124,8 @@ import ViduModelLogo from '@renderer/assets/images/models/vidu.png'
 import ViduModelLogoDark from '@renderer/assets/images/models/vidu_dark.png'
 import WenxinModelLogo from '@renderer/assets/images/models/wenxin.png'
 import WenxinModelLogoDark from '@renderer/assets/images/models/wenxin_dark.png'
+import XirangModelLogo from '@renderer/assets/images/models/xirang.png'
+import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
@@ -137,6 +139,7 @@ const visionAllowedModels = [
   'moondream',
   'minicpm',
   'gemini-1\\.5',
+  'gemini-2\\.0',
   'gemini-exp',
   'claude-3',
   'vision',
@@ -275,6 +278,7 @@ export function getModelLogo(modelId: string) {
     rakutenai: isLight ? RakutenaiModelLogo : RakutenaiModelLogoDark,
     ibm: isLight ? IbmModelLogo : IbmModelLogoDark,
     'google/': isLight ? GoogleModelLogo : GoogleModelLogoDark,
+    xirang: isLight ? XirangModelLogo : XirangModelLogoDark,
     hugging: isLight ? HuggingfaceModelLogo : HuggingfaceModelLogoDark,
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
@@ -328,6 +332,134 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'aihubmix',
       name: 'Qwen/QVQ-72B',
       group: 'Qwen'
+    }
+  ],
+  o3: [
+    {
+      id: 'gpt-4o',
+      provider: 'o3',
+      name: 'GPT-4o',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o1-mini',
+      provider: 'o3',
+      name: 'o1-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o1-preview',
+      provider: 'o3',
+      name: 'o1-preview',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o3-mini',
+      provider: 'o3',
+      name: 'o3-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o3-mini-high',
+      provider: 'o3',
+      name: 'o3-mini-high',
+      group: 'OpenAI'
+    },
+    {
+      id: 'claude-3-7-sonnet-20250219',
+      provider: 'o3',
+      name: 'claude-3-7-sonnet-20250219',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-5-sonnet-20241022',
+      provider: 'o3',
+      name: 'claude-3-5-sonnet-20241022',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-5-haiku-20241022',
+      provider: 'o3',
+      name: 'claude-3-5-haiku-20241022',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-opus-20240229',
+      provider: 'o3',
+      name: 'claude-3-opus-20240229',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-haiku-20240307',
+      provider: 'o3',
+      name: 'claude-3-haiku-20240307',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-5-sonnet-20240620',
+      provider: 'o3',
+      name: 'claude-3-5-sonnet-20240620',
+      group: 'Anthropic'
+    },
+    {
+      id: 'deepseek-ai/Deepseek-R1',
+      provider: 'o3',
+      name: 'DeepSeek R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-reasoner',
+      provider: 'o3',
+      name: 'deepseek-reasoner',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-chat',
+      provider: 'o3',
+      name: 'deepseek-chat',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-ai/DeepSeek-V3',
+      provider: 'o3',
+      name: 'DeepSeek V3',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'text-embedding-3-small',
+      provider: 'o3',
+      name: 'text-embedding-3-small',
+      group: '嵌入模型'
+    },
+    {
+      id: 'text-embedding-3-small',
+      provider: 'o3',
+      name: 'text-embedding-3-small',
+      group: '嵌入模型'
+    },
+    {
+      id: 'text-embedding-ada-002',
+      provider: 'o3',
+      name: 'text-embedding-ada-002',
+      group: '嵌入模型'
+    },
+    {
+      id: 'text-embedding-v2',
+      provider: 'o3',
+      name: 'text-embedding-v2',
+      group: '嵌入模型'
+    },
+    {
+      id: 'Doubao-embedding',
+      provider: 'o3',
+      name: 'Doubao-embedding',
+      group: '嵌入模型'
+    },
+    {
+      id: 'Doubao-embedding-large',
+      provider: 'o3',
+      name: 'Doubao-embedding-large',
+      group: '嵌入模型'
     }
   ],
   ollama: [],
@@ -427,6 +559,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   openai: [
+    { id: 'gpt-4.5-preview', provider: 'openai', name: ' gpt-4.5-preview', group: 'gpt-4.5' },
     { id: 'gpt-4o', provider: 'openai', name: ' GPT-4o', group: 'GPT 4o' },
     { id: 'gpt-4o-mini', provider: 'openai', name: ' GPT-4o-mini', group: 'GPT 4o' },
     { id: 'o1-mini', provider: 'openai', name: ' o1-mini', group: 'o1' },
@@ -454,29 +587,53 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Gemini 1.5'
     },
     {
+      id: 'gemini-1.5-flash-8b',
+      provider: 'gemini',
+      name: 'Gemini 1.5 Flash (8B)',
+      group: 'Gemini 1.5'
+    },
+    {
       id: 'gemini-1.5-pro',
       name: 'Gemini 1.5 Pro',
       provider: 'gemini',
-      group: 'gemini-1.5'
+      group: 'Gemini 1.5'
+    },
+    {
+      id: 'gemini-2.0-flash',
+      provider: 'gemini',
+      name: 'Gemini 2.0 Flash',
+      group: 'Gemini 2.0'
     }
   ],
   anthropic: [
     {
-      id: 'claude-3-5-sonnet-latest',
+      id: 'claude-3-7-sonnet-20250219',
+      provider: 'anthropic',
+      name: 'Claude 3.7 Sonnet',
+      group: 'Claude 3.7'
+    },
+    {
+      id: 'claude-3-5-sonnet-20241022',
       provider: 'anthropic',
       name: 'Claude 3.5 Sonnet',
       group: 'Claude 3.5'
     },
     {
-      id: 'claude-3-opus-latest',
+      id: 'claude-3-5-haiku-20241022',
       provider: 'anthropic',
-      name: 'Claude 3 Opus',
-      group: 'Claude 3'
+      name: 'Claude 3.5 Haiku',
+      group: 'Claude 3.5'
     },
     {
-      id: 'claude-3-sonnet-20240229',
+      id: 'claude-3-5-sonnet-20240620',
       provider: 'anthropic',
-      name: 'Claude 3 Sonnet',
+      name: 'Claude 3.5 Sonnet (Legacy)',
+      group: 'Claude 3.5'
+    },
+    {
+      id: 'claude-3-opus-20240229',
+      provider: 'anthropic',
+      name: 'Claude 3 Opus',
       group: 'Claude 3'
     },
     {
@@ -833,10 +990,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   yi: [
-    { id: 'yi-lightning', name: 'yi-lightning', provider: 'yi', group: 'yi-lightning', owned_by: '01.ai' },
-    { id: 'yi-medium', name: 'yi-medium', provider: 'yi', group: 'yi-medium', owned_by: '01.ai' },
-    { id: 'yi-large', name: 'yi-large', provider: 'yi', group: 'yi-large', owned_by: '01.ai' },
-    { id: 'yi-vision', name: 'yi-vision', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
+    { id: 'yi-lightning', name: 'Yi Lightning', provider: 'yi', group: 'yi-lightning', owned_by: '01.ai' },
+    // yi-medium, yi-large, yi-vision 已被 yi-lightning 替代 (详见 https://archive.ph/0Idg3)
+    // { id: 'yi-medium', name: 'yi-medium', provider: 'yi', group: 'yi-medium', owned_by: '01.ai' },
+    // { id: 'yi-large', name: 'yi-large', provider: 'yi', group: 'yi-large', owned_by: '01.ai' },
+    // { id: 'yi-vision', name: 'yi-vision', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
+    { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
   ],
   zhipu: [
     {
@@ -1249,6 +1408,18 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'hunyuan',
       name: 'hunyuan-turbo',
       group: 'Hunyuan'
+    },
+    {
+      id: 'hunyuan-turbos-latest',
+      provider: 'hunyuan',
+      name: 'hunyuan-turbos-latest',
+      group: 'Hunyuan'
+    },
+    {
+      id: 'hunyuan-embedding',
+      provider: 'hunyuan',
+      name: 'hunyuan-embedding',
+      group: 'Embedding'
     }
   ],
   nvidia: [
@@ -1558,7 +1729,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'jina-embeddings-v2-base-code',
       group: 'Jina'
     }
-  ]
+  ],
+  xirang: []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -1667,13 +1839,21 @@ export function isVisionModel(model: Model): boolean {
   return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
 }
 
-export function isReasoningModel(model: Model): boolean {
+export function isOpenAIoSeries(model: Model): boolean {
+  return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
+}
+
+export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
 
   if (model.provider === 'doubao') {
     return REASONING_REGEX.test(model.name) || model.type?.includes('reasoning') || false
+  }
+
+  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
+    return true
   }
 
   return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
@@ -1695,6 +1875,12 @@ export function isWebSearchModel(model: Model): boolean {
   const provider = getProviderByModel(model)
 
   if (!provider) {
+    return false
+  }
+
+  const isEmbedding = isEmbeddingModel(model)
+
+  if (isEmbedding) {
     return false
   }
 

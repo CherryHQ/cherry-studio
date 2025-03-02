@@ -5,6 +5,7 @@ import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
+import CiciAppLogo from '@renderer/assets/images/apps/cici.webp?url'
 import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
 import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
 import DifyAppLogo from '@renderer/assets/images/apps/dify.svg?url'
@@ -15,7 +16,7 @@ import FlowithAppLogo from '@renderer/assets/images/apps/flowith.svg?url'
 import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png?url'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg?url'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?url'
-import GrokAppLogo from '@renderer/assets/images/apps/grok.webp?url'
+import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
@@ -37,8 +38,10 @@ import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
 import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webp?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
+import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
+import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png?url'
@@ -118,6 +121,12 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: '豆包',
     url: 'https://www.doubao.com/chat/',
     logo: DoubaoAppLogo
+  },
+  {
+    id: 'cici',
+    name: 'Cici',
+    url: 'https://www.cici.com/chat/',
+    logo: CiciAppLogo
   },
   {
     id: 'minimax',
@@ -370,6 +379,19 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Monica',
     logo: MonicaLogo,
     url: 'https://monica.im/home/',
+    bodered: true
+  },
+  {
+    id: 'you',
+    name: 'You',
+    logo: YouLogo,
+    url: 'https://you.com/'
+  },
+  {
+    id: 'zhihu',
+    name: '知乎直答',
+    logo: ZhihuAppLogo,
+    url: 'https://zhida.zhihu.com/',
     bodered: true
   }
 ]

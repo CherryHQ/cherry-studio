@@ -1,14 +1,19 @@
 import { useHotkeys } from 'react-hotkeys-hook'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 const NavigationHandler: React.FC = () => {
+  const location = useLocation()
   const navigate = useNavigate()
+
   useHotkeys(
     'meta+, ! ctrl+,',
     function () {
+      if (location.pathname.startsWith('/settings')) {
+        return
+      }
       navigate('/settings/provider')
     },
-    { splitKey: '!' }
+    { splitKey: '!', enableOnContentEditable: true, enableOnFormTags: true }
   )
 
   return null

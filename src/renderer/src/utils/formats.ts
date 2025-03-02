@@ -1,3 +1,4 @@
+import { isReasoningModel } from '@renderer/config/models'
 import { Message } from '@renderer/types'
 
 export function escapeDollarNumber(text: string) {
@@ -81,28 +82,94 @@ export function withGeminiGrounding(message: Message) {
   return content
 }
 
+interface ThoughtProcessor {
+  canProcess: (content: string, message?: Message) => boolean
+  process: (content: string) => { reasoning: string; content: string }
+}
+
+const glmZeroPreviewProcessor: ThoughtProcessor = {
+  canProcess: (content: string, message?: Message) => {
+    if (!message) return false
+
+    const model = message.model
+    if (!model || !isReasoningModel(model)) return false
+
+    const modelId = message.modelId || ''
+    const modelName = model.name || ''
+    const isGLMZeroPreview =
+      modelId.toLowerCase().includes('glm-zero-preview') || modelName.toLowerCase().includes('glm-zero-preview')
+
+    return isGLMZeroPreview && content.includes('###Thinking')
+  },
+  process: (content: string) => {
+    const parts = content.split('###')
+    const thinkingMatch = parts.find((part) => part.trim().startsWith('Thinking'))
+    const responseMatch = parts.find((part) => part.trim().startsWith('Response'))
+
+    return {
+      reasoning: thinkingMatch ? thinkingMatch.replace('Thinking', '').trim() : '',
+      content: responseMatch ? responseMatch.replace('Response', '').trim() : ''
+    }
+  }
+}
+
+const thinkTagProcessor: ThoughtProcessor = {
+  canProcess: (content: string, message?: Message) => {
+    if (!message) return false
+
+    const model = message.model
+    if (!model || !isReasoningModel(model)) return false
+
+    return content.startsWith('<think>') || content.includes('</think>')
+  },
+  process: (content: string) => {
+    // 处理正常闭合的 think 标签
+    const thinkPattern = /^<think>(.*?)<\/think>/s
+    const matches = content.match(thinkPattern)
+    if (matches) {
+      return {
+        reasoning: matches[1].trim(),
+        content: content.replace(thinkPattern, '').trim()
+      }
+    }
+
+    // 处理只有结束标签的情况
+    if (content.includes('</think>') && !content.startsWith('<think>')) {
+      const parts = content.split('</think>')
+      return {
+        reasoning: parts[0].trim(),
+        content: parts.slice(1).join('</think>').trim()
+      }
+    }
+
+    // 处理只有开始标签的情况
+    if (content.startsWith('<think>')) {
+      return {
+        reasoning: content.slice(7).trim(), // 跳过 '<think>' 标签
+        content: ''
+      }
+    }
+
+    return {
+      reasoning: '',
+      content
+    }
+  }
+}
+
 export function withMessageThought(message: Message) {
   if (message.role !== 'assistant') {
     return message
   }
 
   const content = message.content.trim()
-  const thinkPattern = /^<think>(.*?)<\/think>/s
-  const matches = content.match(thinkPattern)
+  const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor]
 
-  if (!matches) {
-    // 处理未闭合的 think 标签情况
-    if (content.startsWith('<think>')) {
-      message.reasoning_content = content.slice(7) // '<think>'.length === 7
-      message.content = ''
-    }
-    return message
-  }
-
-  const reasoning_content = matches[1].trim()
-  if (reasoning_content) {
-    message.reasoning_content = reasoning_content
-    message.content = content.replace(thinkPattern, '').trim()
+  const processor = processors.find((p) => p.canProcess(content, message))
+  if (processor) {
+    const { reasoning, content: processedContent } = processor.process(content)
+    message.reasoning_content = reasoning
+    message.content = processedContent
   }
 
   return message

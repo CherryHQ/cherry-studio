@@ -215,3 +215,76 @@ export const exportMarkdownToNotion = async (title: string, content: string) => 
     })
   }
 }
+
+export const exportMarkdownToYuque = async (title: string, content: string) => {
+  const { isExporting } = store.getState().runtime.export
+  const { yuqueToken, yuqueRepoId } = store.getState().settings
+
+  if (isExporting) {
+    window.message.warning({ content: i18n.t('message.warn.yuque.exporting'), key: 'yuque-exporting' })
+    return
+  }
+
+  if (!yuqueToken || !yuqueRepoId) {
+    window.message.error({ content: i18n.t('message.error.yuque.no_config'), key: 'yuque-no-config-error' })
+    return
+  }
+
+  setExportState({ isExporting: true })
+
+  try {
+    const response = await fetch(`https://www.yuque.com/api/v2/repos/${yuqueRepoId}/docs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': yuqueToken,
+        'User-Agent': 'CherryAI'
+      },
+      body: JSON.stringify({
+        title: title,
+        slug: Date.now().toString(), // 使用时间戳作为唯一slug
+        format: 'markdown',
+        body: content
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const doc_id = data.data.id
+
+    const tocResponse = await fetch(`https://www.yuque.com/api/v2/repos/${yuqueRepoId}/toc`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': yuqueToken,
+        'User-Agent': 'CherryAI'
+      },
+      body: JSON.stringify({
+        action: 'appendNode',
+        action_mode: 'sibling',
+        doc_ids: [doc_id]
+      })
+    })
+
+    if (!tocResponse.ok) {
+      throw new Error(`HTTP error! status: ${tocResponse.status}`)
+    }
+
+    window.message.success({
+      content: i18n.t('message.success.yuque.export'),
+      key: 'yuque-success'
+    })
+    return data
+  } catch (error: any) {
+    window.message.error({
+      content: i18n.t('message.error.yuque.export'),
+      key: 'yuque-error'
+    })
+    return null
+  } finally {
+    setExportState({ isExporting: false })
+  }
+}

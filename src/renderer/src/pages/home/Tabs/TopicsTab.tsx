@@ -23,7 +23,12 @@ import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
-import { exportMarkdownToNotion, exportTopicAsMarkdown, topicToMarkdown } from '@renderer/utils/export'
+import {
+  exportMarkdownToNotion,
+  exportMarkdownToYuque,
+  exportTopicAsMarkdown,
+  topicToMarkdown
+} from '@renderer/utils/export'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
@@ -239,6 +244,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 const markdown = await topicToMarkdown(topic)
                 exportMarkdownToNotion(topic.name, markdown)
               }
+            },
+            {
+              label: t('chat.topics.export.yuque'),
+              key: 'yuque',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToYuque(topic.name, markdown)
+              }
             }
           ]
         }
@@ -280,16 +293,21 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       <DragableList list={assistant.topics} onUpdate={updateTopics}>
         {(topic) => {
           const isActive = topic.id === activeTopic?.id
+          const topicName = topic.name.replace('`', '')
+          const topicPrompt = topic.prompt
+          const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
           return (
             <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
               <TopicListItem
                 className={isActive ? 'active' : ''}
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
-                <TopicName className="name">{topic.name.replace('`', '')}</TopicName>
-                {topic.prompt && (
-                  <TopicPromptText className="prompt">
-                    {t('common.prompt')}: {topic.prompt}
+                <TopicName className="name" title={topicName}>
+                  {topicName}
+                </TopicName>
+                {topicPrompt && (
+                  <TopicPromptText className="prompt" title={fullTopicPrompt}>
+                    {fullTopicPrompt}
                   </TopicPromptText>
                 )}
                 {showTopicTime && (

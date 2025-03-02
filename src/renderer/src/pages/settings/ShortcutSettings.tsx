@@ -59,15 +59,6 @@ const ShortcutSettings: FC = () => {
     const hasModifier = keys.some((key) => ['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
     const hasNonModifier = keys.some((key) => !['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
 
-    // only allows option + space
-    if (isMac && keys[0] === 'Alt' && !['Space', undefined].includes(keys[1])) {
-      window.message.warning({
-        content: t('settings.shortcuts.alt_warning'),
-        key: 'shortcut-alt-warning'
-      })
-      return false
-    }
-
     return hasModifier && hasNonModifier && keys.length >= 2
   }
 
