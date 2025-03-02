@@ -1843,7 +1843,7 @@ export function isOpenAIoSeries(model: Model): boolean {
   return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
 }
 
-export function isReasoningModel(model: Model): boolean {
+export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }

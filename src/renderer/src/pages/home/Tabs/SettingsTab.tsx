@@ -8,6 +8,7 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
+import { isReasoningModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -231,45 +232,49 @@ const SettingsTab: FC<Props> = (props) => {
             </Col>
           </Row>
         )}
-        <SettingDivider />
-        <Row align="middle">
-          <Label>{t('assistants.settings.reasoning_effort')}</Label>
-          <Tooltip title={t('assistants.settings.reasoning_effort.tip')}>
-            <QuestionIcon />
-          </Tooltip>
-        </Row>
-        <Row align="middle" gutter={10}>
-          <Col span={24}>
-            <SegmentedContainer>
-              <Segmented<'low' | 'medium' | 'high' | undefined>
-                value={reasoningEffort}
-                onChange={(value) => {
-                  setReasoningEffort(value)
-                  onReasoningEffortChange(value)
-                }}
-                options={[
-                  {
-                    value: 'low',
-                    label: t('assistants.settings.reasoning_effort.low')
-                  },
-                  {
-                    value: 'medium',
-                    label: t('assistants.settings.reasoning_effort.medium')
-                  },
-                  {
-                    value: 'high',
-                    label: t('assistants.settings.reasoning_effort.high')
-                  },
-                  {
-                    value: undefined,
-                    label: t('assistants.settings.reasoning_effort.off')
-                  }
-                ]}
-                block
-              />
-            </SegmentedContainer>
-          </Col>
-        </Row>
+        {isReasoningModel(assistant?.model) && (
+          <>
+            <SettingDivider />
+            <Row align="middle">
+              <Label>{t('assistants.settings.reasoning_effort')}</Label>
+              <Tooltip title={t('assistants.settings.reasoning_effort.tip')}>
+                <QuestionIcon />
+              </Tooltip>
+            </Row>
+            <Row align="middle" gutter={10}>
+              <Col span={24}>
+                <SegmentedContainer>
+                  <Segmented<'low' | 'medium' | 'high' | undefined>
+                    value={reasoningEffort}
+                    onChange={(value) => {
+                      setReasoningEffort(value)
+                      onReasoningEffortChange(value)
+                    }}
+                    options={[
+                      {
+                        value: 'low',
+                        label: t('assistants.settings.reasoning_effort.low')
+                      },
+                      {
+                        value: 'medium',
+                        label: t('assistants.settings.reasoning_effort.medium')
+                      },
+                      {
+                        value: 'high',
+                        label: t('assistants.settings.reasoning_effort.high')
+                      },
+                      {
+                        value: undefined,
+                        label: t('assistants.settings.reasoning_effort.off')
+                      }
+                    ]}
+                    block
+                  />
+                </SegmentedContainer>
+              </Col>
+            </Row>
+          </>
+        )}
       </SettingGroup>
       <SettingGroup>
         <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.title')}</SettingSubtitle>
@@ -534,6 +539,7 @@ export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
 
 // Define the styled component with hover state styling
 const SegmentedContainer = styled.div`
+  margin-top: 5px;
   .ant-segmented-item {
     font-size: 12px;
   }

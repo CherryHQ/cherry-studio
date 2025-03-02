@@ -12,6 +12,10 @@
   outline: none;
 }
 
+.ant-tabs-tabpane:focus-visible {
+  outline: none;
+}
+
 .ant-segmented-group {
   gap: 4px;
 }

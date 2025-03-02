@@ -150,6 +150,17 @@ export class WindowService {
       this.wasFullScreen = false
       mainWindow.webContents.send('fullscreen-status-changed', false)
     })
+
+    // 添加Escape键退出全屏的支持
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      // 当按下Escape键且窗口处于全屏状态时退出全屏
+      if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
+        if (mainWindow.isFullScreen()) {
+          event.preventDefault()
+          mainWindow.setFullScreen(false)
+        }
+      }
+    })
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
@@ -241,11 +252,16 @@ export class WindowService {
         return app.quit()
       }
 
-      // 如果是全屏状态，直接退出
+      // 如果是Windows或Linux，且处于全屏状态，则退出应用
       if (this.wasFullScreen) {
-        return app.quit()
+        if (isWin || isLinux) {
+          return app.quit()
+        } else {
+          event.preventDefault()
+          mainWindow.setFullScreen(false)
+          return
+        }
       }
-
       event.preventDefault()
       mainWindow.hide()
     })

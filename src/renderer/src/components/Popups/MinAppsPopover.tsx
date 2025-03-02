@@ -75,7 +75,7 @@ const PopoverContent = styled(Scrollbar)<{ maxHeight: number }>`
 
 const AppsContainer = styled.div`
   display: grid;
-  grid-template-columns: repeat(6, minmax(90px, 1fr));
+  grid-template-columns: repeat(8, minmax(90px, 1fr));
   gap: 18px;
 `
 
