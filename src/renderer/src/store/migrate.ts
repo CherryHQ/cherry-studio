@@ -1191,6 +1191,15 @@ const migrateConfig = {
       enabled: false
     })
     return state
+  },
+  '75': (state: RootState) => {
+    if (state.minapps) {
+      const you = DEFAULT_MIN_APPS.find((app) => app.id === 'you')
+      if (you) {
+        state.minapps.enabled.push(you)
+      }
+    }
+    return state
   }
 }
 

@@ -37,6 +37,7 @@ import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
 import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webp?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
+import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
@@ -371,6 +372,12 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: MonicaLogo,
     url: 'https://monica.im/home/',
     bodered: true
+  },
+  {
+    id: 'you',
+    name: 'You',
+    logo: YouLogo,
+    url: 'https://you.com/'
   }
 ]
 
