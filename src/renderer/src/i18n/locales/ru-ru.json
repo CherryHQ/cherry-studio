@@ -320,7 +320,30 @@
       "title": "База знаний",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "notion": {
+        "sync": {
+          "title": "Синхронизация с Notion",
+          "success": "Синхронизация с Notion успешно завершена",
+          "failed": "Не удалось синхронизировать с Notion"
+        },
+        "enabled": "Включить синхронизацию с Notion",
+        "database_id": {
+          "label": "ID базы данных",
+          "required": "Введите ID базы данных Notion",
+          "placeholder": "Введите ID базы данных Notion"
+        },
+        "api_key": {
+          "label": "API ключ",
+          "required": "Введите API ключ Notion",
+          "placeholder": "Введите API ключ Notion"
+        },
+        "save_config": "Сохранить настройки",
+        "start_sync": "Начать синхронизацию"
+      },
+      "sync_notion": "Синхронизация с Notion",
+      "notion_config_missing": "Отсутствует конфигурация Notion",
+      "notion_sync_failed": "Не удалось синхронизировать с Notion"
     },
     "languages": {
       "arabic": "Арабский",

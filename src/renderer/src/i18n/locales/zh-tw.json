@@ -320,7 +320,30 @@
       "title": "知識庫",
       "url_added": "網址已添加",
       "url_placeholder": "請輸入網址, 多個網址用回車分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "notion": {
+        "sync": {
+          "title": "從 Notion 同步",
+          "success": "從 Notion 同步成功",
+          "failed": "從 Notion 同步失敗"
+        },
+        "enabled": "啟用 Notion 同步",
+        "database_id": {
+          "label": "資料庫 ID",
+          "required": "請輸入 Notion 資料庫 ID",
+          "placeholder": "輸入您的 Notion 資料庫 ID"
+        },
+        "api_key": {
+          "label": "API 密鑰",
+          "required": "請輸入 Notion API 密鑰",
+          "placeholder": "輸入您的 Notion API 密鑰"
+        },
+        "save_config": "儲存配置",
+        "start_sync": "開始同步"
+      },
+      "sync_notion": "從 Notion 同步",
+      "notion_config_missing": "Notion 設定缺失",
+      "notion_sync_failed": "從 Notion 同步失敗"
     },
     "languages": {
       "arabic": "阿拉伯文",

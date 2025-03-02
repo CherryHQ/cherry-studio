@@ -320,7 +320,30 @@
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "notion": {
+        "sync": {
+          "title": "Notion から同期",
+          "success": "Notion からの同期が成功しました",
+          "failed": "Notion からの同期に失敗しました"
+        },
+        "enabled": "Notion 同期を有効にする",
+        "database_id": {
+          "label": "データベース ID",
+          "required": "Notion データベース ID を入力してください",
+          "placeholder": "Notion データベース ID を入力"
+        },
+        "api_key": {
+          "label": "API キー",
+          "required": "Notion API キーを入力してください",
+          "placeholder": "Notion API キーを入力"
+        },
+        "save_config": "設定を保存",
+        "start_sync": "同期を開始"
+      },
+      "sync_notion": "Notion から同期",
+      "notion_config_missing": "Notion の設定が不足しています",
+      "notion_sync_failed": "Notion からの同期に失敗しました"
     },
     "languages": {
       "arabic": "アラビア語",

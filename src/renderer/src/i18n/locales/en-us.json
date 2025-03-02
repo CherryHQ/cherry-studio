@@ -298,6 +298,7 @@
       "no_provider": "Knowledge base model provider is not set, the knowledge base will no longer be supported, please create a new knowledge base",
       "not_set": "Not Set",
       "not_support": "Knowledge base database engine updated, the knowledge base will no longer be supported, please create a new knowledge base",
+      "sync_from_notion": "Sync from Notion",
       "notes": "Notes",
       "notes_placeholder": "Enter additional information or context for this knowledge base...",
       "rename": "Rename",
@@ -320,7 +321,32 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "notion": {
+        "sync": {
+          "title": "Sync from Notion",
+          "started": "Notion sync started"
+        },
+        "database_id": {
+          "label": "Database ID",
+          "required": "Please input Notion database ID",
+          "placeholder": "Enter your Notion database ID"
+        },
+        "api_key": {
+          "label": "API Key",
+          "required": "Please input Notion API key",
+          "placeholder": "Enter your Notion API key"
+        },
+        "save_config": "Save Config",
+        "start_sync": "Start Sync",
+        "config": {
+          "saved": "Notion configuration saved successfully",
+          "save_failed": "Failed to save Notion configuration"
+        }
+      },
+      "sync_notion": "Sync from Notion",
+      "notion_config_missing": "Notion configuration is missing",
+      "notion_sync_failed": "Failed to sync from Notion"
     },
     "languages": {
       "arabic": "Arabic",

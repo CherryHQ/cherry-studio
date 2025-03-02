@@ -7,7 +7,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase } from '@renderer/types'
-import { Alert, Form, Input, InputNumber, Modal, Select, Slider } from 'antd'
+import { Alert, Form, Input, InputNumber, Modal, Select, Slider, Switch } from 'antd'
 import { sortBy } from 'lodash'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +23,9 @@ interface FormData {
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  notionEnabled?: boolean
+  notionDatabaseId?: string
+  notionApiKey?: string
 }
 
 interface Props extends ShowParams {
@@ -68,7 +71,14 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         documentCount: values.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
         chunkSize: values.chunkSize,
         chunkOverlap: values.chunkOverlap,
-        threshold: values.threshold ?? undefined
+        threshold: values.threshold ?? undefined,
+        notionConfig:
+          values.notionEnabled && values.notionDatabaseId && values.notionApiKey
+            ? {
+                databaseId: values.notionDatabaseId,
+                apiKey: values.notionApiKey
+              }
+            : undefined
       }
       updateKnowledgeBase(newBase)
       setOpen(false)
@@ -176,6 +186,8 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             placeholder={t('knowledge.chunk_overlap_placeholder')}
           />
         </Form.Item>
+        <Alert message={t('knowledge.chunk_size_change_warning')} type="warning" showIcon icon={<WarningOutlined />} />
+
         <Form.Item
           name="threshold"
           label={t('knowledge.threshold')}
@@ -193,8 +205,38 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           ]}>
           <InputNumber placeholder={t('knowledge.threshold_placeholder')} step={0.1} style={{ width: '100%' }} />
         </Form.Item>
+        <Form.Item
+          name="notionEnabled"
+          label={t('knowledge.notion.enabled')}
+          valuePropName="checked"
+          initialValue={!!base.notionConfig}>
+          <Switch />
+        </Form.Item>
+
+        <Form.Item noStyle shouldUpdate={(prev, curr) => prev.notionEnabled !== curr.notionEnabled}>
+          {({ getFieldValue }) =>
+            getFieldValue('notionEnabled') ? (
+              <>
+                <Form.Item
+                  name="notionDatabaseId"
+                  label={t('knowledge.notion.database_id.label')}
+                  initialValue={base.notionConfig?.databaseId}
+                  tooltip={{ title: t('knowledge.notion.database_id.placeholder') }}>
+                  <Input placeholder={t('knowledge.notion.database_id.placeholder')} />
+                </Form.Item>
+
+                <Form.Item
+                  name="notionApiKey"
+                  label={t('knowledge.notion.api_key.label')}
+                  initialValue={base.notionConfig?.apiKey}
+                  tooltip={{ title: t('knowledge.notion.api_key.placeholder') }}>
+                  <Input.Password placeholder={t('knowledge.notion.api_key.placeholder')} />
+                </Form.Item>
+              </>
+            ) : null
+          }
+        </Form.Item>
       </Form>
-      <Alert message={t('knowledge.chunk_size_change_warning')} type="warning" showIcon icon={<WarningOutlined />} />
     </Modal>
   )
 }

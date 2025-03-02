@@ -240,6 +240,14 @@ class FileStorage {
     return tempFilePath
   }
 
+  public createOrginFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
+    if (!fs.existsSync(this.tempDir)) {
+      fs.mkdirSync(this.tempDir, { recursive: true })
+    }
+    const tempFilePath = path.join(this.tempDir, `${fileName}`)
+    return tempFilePath
+  }
+
   public writeFile = async (
     _: Electron.IpcMainInvokeEvent,
     filePath: string,

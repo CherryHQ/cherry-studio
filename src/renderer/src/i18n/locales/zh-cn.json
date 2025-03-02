@@ -298,6 +298,7 @@
       "no_provider": "知识库模型服务商丢失，该知识库将不再支持，请重新创建知识库",
       "not_set": "未设置",
       "not_support": "知识库数据库引擎已更新，该知识库将不再支持，请重新创建知识库",
+      "sync_from_notion": "从 Notion 同步",
       "notes": "笔记",
       "notes_placeholder": "输入此知识库的附加信息或上下文...",
       "rename": "重命名",
@@ -320,7 +321,29 @@
       "title": "知识库",
       "url_added": "网址已添加",
       "url_placeholder": "请输入网址, 多个网址用回车分隔",
-      "urls": "网址"
+      "urls": "网址",
+      "notion": {
+        "enabled": "启用 Notion 同步",
+        "sync": {
+          "success": "Notion 同步成功",
+          "failed": "Notion 同步失败"
+        },
+        "database_id": {
+          "label": "数据库 ID",
+          "required": "请输入 Notion 数据库 ID",
+          "placeholder": "输入您的 Notion 数据库 ID"
+        },
+        "api_key": {
+          "label": "API 密钥",
+          "required": "请输入 Notion API 密钥",
+          "placeholder": "输入您的 Notion API 密钥"
+        },
+        "save_config": "保存配置",
+        "start_sync": "开始同步"
+      },
+      "sync_notion": "从 Notion 同步",
+      "notion_config_missing": "Notion 配置缺失",
+      "notion_sync_failed": "从 Notion 同步失败"
     },
     "languages": {
       "arabic": "阿拉伯文",
