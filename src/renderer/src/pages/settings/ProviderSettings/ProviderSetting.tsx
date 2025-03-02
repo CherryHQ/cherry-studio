@@ -44,9 +44,9 @@ import AddModelPopup from './AddModelPopup'
 import ApiCheckPopup from './ApiCheckPopup'
 import EditModelsPopup from './EditModelsPopup'
 import GraphRAGSettings from './GraphRAGSettings'
+import HealthCheckPopup, { ModelCheckStatus } from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelEditContent from './ModelEditContent'
-import ModelHealthCheckPopup, { ModelCheckStatus } from './ModelHealthCheckPopup'
 import OllamSettings from './OllamaSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
@@ -130,7 +130,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    const result = await ModelHealthCheckPopup.show({
+    const result = await HealthCheckPopup.show({
       title: t('settings.models.check.title'),
       provider: { ...provider, apiHost },
       apiKeys: keys
