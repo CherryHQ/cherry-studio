@@ -1,25 +1,14 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { Box } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { checkModel } from '@renderer/services/ModelService'
+import { ApiKeyCheckStatus, checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { Model, Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, Modal, Radio, Segmented, Space, Spin, Typography } from 'antd'
-import { TFunction } from 'i18next'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HealthCheckModelList from './HealthCheckModelList'
-
-/**
- * Enum for model check status states
- */
-export enum ModelCheckStatus {
-  NOT_CHECKED = 'not_checked',
-  SUCCESS = 'success',
-  FAILED = 'failed',
-  PARTIAL = 'partial' // Some API keys worked, some failed
-}
 
 interface ShowParams {
   title: string
@@ -36,16 +25,6 @@ interface Props extends ShowParams {
 }
 
 /**
- * Interface representing the check status of a single API key
- */
-export interface ApiKeyStatus {
-  key: string
-  isValid: boolean
-  error?: string
-  checkTime?: number // Check latency in milliseconds
-}
-
-/**
  * Interface representing the status of a model, including the results of API key checks
  */
 export interface ModelStatus {
@@ -53,7 +32,7 @@ export interface ModelStatus {
   status?: ModelCheckStatus
   checking?: boolean
   error?: string
-  keyResults?: ApiKeyStatus[]
+  keyResults?: ApiKeyCheckStatus[]
   checkTime?: number // Check latency in milliseconds (uses the fastest successful check)
 }
 
@@ -78,6 +57,7 @@ type Action =
   | { type: 'SET_KEY_CHECK_MODE'; payload: 'single' | 'all' }
   | { type: 'SET_CHECKING'; payload: boolean }
   | { type: 'SET_CONCURRENT'; payload: boolean }
+  | { type: 'SET_MODEL_CHECKING'; payload: { indices: number[] } }
   | { type: 'UPDATE_MODEL_STATUS'; payload: { index: number; status: Partial<ModelStatus> } }
   | { type: 'SET_MODEL_STATUSES'; payload: ModelStatus[] }
 
@@ -96,6 +76,16 @@ function reducer(state: State, action: Action): State {
       return { ...state, isChecking: action.payload }
     case 'SET_CONCURRENT':
       return { ...state, isConcurrent: action.payload }
+    case 'SET_MODEL_CHECKING':
+      return {
+        ...state,
+        modelStatuses: state.modelStatuses.map((status, idx) => ({
+          ...status,
+          checking: action.payload.indices.includes(idx),
+          // Reset status when checking starts
+          status: action.payload.indices.includes(idx) ? undefined : status.status
+        }))
+      }
     case 'UPDATE_MODEL_STATUS':
       return {
         ...state,
@@ -108,196 +98,6 @@ function reducer(state: State, action: Action): State {
     default:
       return state
   }
-}
-
-/**
- * Type definition for processing the results of API key checks
- */
-type ProcessResultsFn = (keyResults: ApiKeyStatus[]) => {
-  status: ModelCheckStatus
-  error?: string
-  keyResults?: ApiKeyStatus[]
-  checkTime?: number
-}
-
-/**
- * Create ApiKeyStatus object from checkModel result
- */
-function createApiKeyStatus(key: string, result: any): ApiKeyStatus {
-  return {
-    key,
-    isValid: result.valid,
-    error: result.error?.message,
-    checkTime: result.latency
-  }
-}
-
-/**
- * Process results and update model status
- */
-function updateModelStatus(
-  modelIndex: number,
-  keyResults: ApiKeyStatus[],
-  processResultsFn: ProcessResultsFn,
-  dispatch: React.Dispatch<Action>
-) {
-  const processedResult = processResultsFn(keyResults)
-
-  dispatch({
-    type: 'UPDATE_MODEL_STATUS',
-    payload: {
-      index: modelIndex,
-      status: {
-        checking: false,
-        ...processedResult
-      }
-    }
-  })
-}
-
-/**
- * Main function to perform model checks
- * Handles both concurrent and serial checking modes
- */
-async function performModelChecks({
-  modelStatuses,
-  provider,
-  keysToUse,
-  isConcurrent,
-  processResultsFn,
-  dispatch
-}: {
-  modelStatuses: ModelStatus[]
-  provider: Provider
-  keysToUse: string[]
-  isConcurrent: boolean
-  processResultsFn: ProcessResultsFn
-  dispatch: React.Dispatch<Action>
-}) {
-  // Set global checking state to true
-  dispatch({ type: 'SET_CHECKING', payload: true })
-
-  try {
-    if (isConcurrent) {
-      // Mark all models as checking
-      modelStatuses.forEach((_, modelIndex) => {
-        dispatch({
-          type: 'UPDATE_MODEL_STATUS',
-          payload: { index: modelIndex, status: { checking: true } }
-        })
-      })
-
-      // Concurrently check all models
-      await Promise.all(
-        modelStatuses.map(async (status, modelIndex) => {
-          const keyResults = await Promise.all(
-            keysToUse.map(async (key) => {
-              const result = await checkModel({ ...provider, apiKey: key }, status.model)
-              return createApiKeyStatus(key, result)
-            })
-          )
-          updateModelStatus(modelIndex, keyResults, processResultsFn, dispatch)
-        })
-      )
-    } else {
-      // Serial processing of models
-      for (let i = 0; i < modelStatuses.length; i++) {
-        dispatch({
-          type: 'UPDATE_MODEL_STATUS',
-          payload: { index: i, status: { checking: true } }
-        })
-
-        const keyResults: ApiKeyStatus[] = []
-        for (const key of keysToUse) {
-          const result = await checkModel({ ...provider, apiKey: key }, modelStatuses[i].model)
-          keyResults.push(createApiKeyStatus(key, result))
-        }
-
-        updateModelStatus(i, keyResults, processResultsFn, dispatch)
-      }
-    }
-  } finally {
-    // Always reset the global checking state when done
-    dispatch({ type: 'SET_CHECKING', payload: false })
-  }
-}
-
-/**
- * Hook for processing API key check results
- */
-function useResultProcessors(t: TFunction) {
-  /**
-   * Process the result of a single API key check
-   */
-  const processSingleKeyResult = useCallback(
-    (keyResults: ApiKeyStatus[]): { status: ModelCheckStatus; error?: string; checkTime?: number } => {
-      const result = keyResults[0] // Only one result when using a single key
-      return {
-        status: result.isValid ? ModelCheckStatus.SUCCESS : ModelCheckStatus.FAILED,
-        error: result.error,
-        // Only return time for successful checks
-        checkTime: result.isValid ? result.checkTime : undefined
-      }
-    },
-    []
-  )
-
-  /**
-   * Process the results of multiple API key checks
-   * Calculates an aggregate status and finds the fastest successful check time
-   */
-  const processMultipleKeysResult = useCallback(
-    (
-      keyResults: ApiKeyStatus[]
-    ): { status: ModelCheckStatus; error?: string; keyResults: ApiKeyStatus[]; checkTime?: number } => {
-      const validKeyCount = keyResults.filter((kr) => kr.isValid).length
-      const invalidKeyCount = keyResults.length - validKeyCount
-
-      let modelStatus: ModelCheckStatus = ModelCheckStatus.NOT_CHECKED
-      let modelError: string | undefined = undefined
-
-      // Determine the model status based on API key check results
-      if (validKeyCount > 0 && invalidKeyCount > 0) {
-        // Some keys passed, some failed
-        modelStatus = ModelCheckStatus.PARTIAL
-        modelError = t('settings.models.check.keys_status_count', {
-          count_passed: validKeyCount,
-          count_failed: invalidKeyCount
-        })
-      } else if (validKeyCount > 0) {
-        // All keys passed
-        modelStatus = ModelCheckStatus.SUCCESS
-      } else {
-        // All keys failed
-        modelStatus = ModelCheckStatus.FAILED
-        // Combine unique error messages
-        const errors = keyResults
-          .filter((kr) => kr.error)
-          .map((kr) => kr.error)
-          .filter((v, i, a) => a.indexOf(v) === i)
-        modelError = errors.join('; ')
-      }
-
-      // Calculate the fastest response time from valid API keys
-      const validKeyResults = keyResults.filter((kr) => kr.isValid && kr.checkTime !== undefined)
-      let checkTime: number | undefined = undefined
-
-      if (validKeyResults.length > 0) {
-        // Find the minimum check time
-        checkTime = Math.min(...validKeyResults.map((kr) => kr.checkTime as number))
-      }
-
-      return {
-        status: modelStatus,
-        error: modelError,
-        keyResults,
-        checkTime
-      }
-    },
-    [t]
-  )
-
-  return { processSingleKeyResult, processMultipleKeysResult }
 }
 
 /**
@@ -325,7 +125,7 @@ function useModalActions(
 }
 
 /**
- * Hook for handling model check operations
+ * Hook for handling model check operations using the HealthCheckService
  */
 function useModelChecks({
   apiKeys,
@@ -334,9 +134,7 @@ function useModelChecks({
   selectedKeyIndex,
   keyCheckMode,
   isConcurrent,
-  dispatch,
-  processSingleKeyResult,
-  processMultipleKeysResult
+  dispatch
 }: {
   apiKeys: string[]
   provider: Provider
@@ -345,57 +143,74 @@ function useModelChecks({
   keyCheckMode: 'single' | 'all'
   isConcurrent: boolean
   dispatch: React.Dispatch<Action>
-  processSingleKeyResult: (keyResults: ApiKeyStatus[]) => {
-    status: ModelCheckStatus
-    error?: string
-    checkTime?: number
-  }
-  processMultipleKeysResult: (keyResults: ApiKeyStatus[]) => {
-    status: ModelCheckStatus
-    error?: string
-    keyResults: ApiKeyStatus[]
-    checkTime?: number
-  }
 }) {
   /**
-   * Check all models with a single selected API key
-   */
-  const checkAllModels = useCallback(async () => {
-    const apiKey = apiKeys[selectedKeyIndex]
-    await performModelChecks({
-      modelStatuses,
-      provider,
-      keysToUse: [apiKey], // Only use the selected API key
-      isConcurrent,
-      processResultsFn: processSingleKeyResult,
-      dispatch
-    })
-  }, [apiKeys, provider, selectedKeyIndex, modelStatuses, isConcurrent, processSingleKeyResult, dispatch])
-
-  /**
-   * Check all models with all available API keys
-   */
-  const checkAllModelsWithAllKeys = useCallback(async () => {
-    await performModelChecks({
-      modelStatuses,
-      provider,
-      keysToUse: apiKeys, // Use all API keys
-      isConcurrent,
-      processResultsFn: processMultipleKeysResult,
-      dispatch
-    })
-  }, [apiKeys, provider, modelStatuses, isConcurrent, processMultipleKeysResult, dispatch])
-
-  /**
-   * Initiate model checking based on the selected mode
+   * Initiate model checking using the HealthCheckService
    */
   const onCheckModels = useCallback(async () => {
-    if (keyCheckMode === 'single') {
-      await checkAllModels()
-    } else {
-      await checkAllModelsWithAllKeys()
+    // Set all models and global checking state
+    dispatch({ type: 'SET_CHECKING', payload: true })
+    dispatch({
+      type: 'SET_MODEL_CHECKING',
+      payload: { indices: modelStatuses.map((_, index) => index) }
+    })
+
+    try {
+      // Determine which API keys to use
+      const keysToUse = keyCheckMode === 'single' ? [apiKeys[selectedKeyIndex]] : apiKeys
+
+      // Get all models
+      const models = modelStatuses.map((status) => status.model)
+
+      // Call the service to perform health checks with a callback
+      // for immediate UI updates when each model check completes
+      await checkModelsHealth(
+        {
+          provider,
+          models,
+          apiKeys: keysToUse,
+          isConcurrent
+        },
+        // Callback function for real-time updates
+        (result, index) => {
+          // Update UI immediately when a model check completes
+          dispatch({
+            type: 'UPDATE_MODEL_STATUS',
+            payload: {
+              index,
+              status: {
+                checking: false,
+                status: result.status,
+                error: result.error,
+                keyResults: result.keyResults,
+                checkTime: result.checkTime
+              }
+            }
+          })
+        }
+      )
+    } catch (error) {
+      console.error('Health check failed:', error)
+
+      // Reset checking state for all models on error
+      modelStatuses.forEach((_, index) => {
+        dispatch({
+          type: 'UPDATE_MODEL_STATUS',
+          payload: {
+            index,
+            status: {
+              checking: false,
+              status: ModelCheckStatus.FAILED,
+              error: 'Check process failed'
+            }
+          }
+        })
+      })
+    } finally {
+      // Always reset global checking state
+      dispatch({ type: 'SET_CHECKING', payload: false })
     }
-  }, [keyCheckMode, checkAllModels, checkAllModelsWithAllKeys])
+  }, [apiKeys, provider, modelStatuses, selectedKeyIndex, keyCheckMode, isConcurrent, dispatch])
 
   return { onCheckModels }
 }
@@ -419,7 +234,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
   const { open, selectedKeyIndex, keyCheckMode, isChecking, isConcurrent, modelStatuses } = state
 
   // Use custom hooks
-  const { processSingleKeyResult, processMultipleKeysResult } = useResultProcessors(t)
   const { onCheckModels } = useModelChecks({
     apiKeys,
     provider,
@@ -427,9 +241,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
     selectedKeyIndex,
     keyCheckMode,
     isConcurrent,
-    dispatch,
-    processSingleKeyResult,
-    processMultipleKeysResult
+    dispatch
   })
   const { onOk, onCancel, onClose } = useModalActions(resolve, modelStatuses, dispatch)
 
@@ -515,23 +327,14 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
 
 /**
  * Static class for showing the Health Check popup
- * Uses TopView to display as a modal
  */
 export default class HealthCheckPopup {
   static readonly topviewId = 'HealthCheckPopup'
 
-  /**
-   * Hide the popup
-   */
   static hide(): void {
     TopView.hide(this.topviewId)
   }
 
-  /**
-   * Show the popup and return a promise that resolves with the check results
-   * @param props Popup configuration
-   * @returns Promise with check results
-   */
   static show(props: ShowParams): Promise<ResolveData> {
     return new Promise<ResolveData>((resolve) => {
       TopView.show(

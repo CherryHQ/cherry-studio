@@ -3,13 +3,14 @@ import { HStack } from '@renderer/components/Layout'
 import ModelTags from '@renderer/components/ModelTags'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getModelLogo } from '@renderer/config/models'
+import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, List, Space, Spin, Tooltip, Typography } from 'antd'
 import { TFunction } from 'i18next'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ModelCheckStatus, ModelStatus } from './HealthCheckPopup'
+import { ModelStatus } from './HealthCheckPopup'
 
 // Status colors
 const STATUS_COLORS = {
