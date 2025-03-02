@@ -1,13 +1,14 @@
 import 'katex/dist/katex.min.css'
 import 'katex/dist/contrib/copy-tex'
 
+import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Message } from '@renderer/types'
+import type { Message } from '@renderer/types'
 import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
 import { isEmpty } from 'lodash'
-import { FC, useMemo } from 'react'
+import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown, { Components } from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 // @ts-ignore next-line
 import rehypeMathjax from 'rehype-mathjax'
@@ -52,11 +53,12 @@ const Markdown: FC<Props> = ({ message }) => {
 
   return (
     <ReactMarkdown
-      className="markdown"
       rehypePlugins={rehypePlugins}
       remarkPlugins={[remarkMath, remarkGfm]}
+      className="markdown"
       components={
         {
+          style: MarkdownShadowDOMRenderer,
           a: Link,
           code: CodeBlock,
           img: ImagePreview
