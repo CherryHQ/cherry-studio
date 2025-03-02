@@ -5,6 +5,7 @@ import {
   FileTextOutlined,
   FolderOutlined,
   GlobalOutlined,
+  InfoCircleOutlined,
   LinkOutlined,
   PlusOutlined,
   RedoOutlined,
@@ -16,13 +17,15 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
+import { RootState } from '@renderer/store'
+import { clearPendingChanges } from '@renderer/store/knowledgeFile'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Alert, Button, Card, Divider, Dropdown, message, Tag, Tooltip, Typography, Upload } from 'antd'
-import { FC } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
@@ -62,6 +65,69 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
+  const dispatch = useDispatch()
+  const pendingChanges = useSelector((state: RootState) => state.knowledgeFile.pendingChanges)
+  const [refresh, setRefresh] = useState<boolean>(false)
+  useEffect(() => {
+    if (!refresh || !base) {
+      return
+    }
+
+    if (base.items.length > 0) {
+      base.items.forEach((item) => {
+        refreshItem(item)
+      })
+    }
+    setRefresh(false)
+  }, [refresh, base, refreshItem])
+
+  useEffect(() => {
+    if (pendingChanges.length === 0) {
+      return
+    }
+
+    pendingChanges.forEach((change) => {
+      const { type, uniqueId } = change
+
+      let item: KnowledgeItem | undefined
+      if (type === 'directory-changed') {
+        item = directoryItems.find((item) => item.uniqueId === uniqueId)
+      } else if (type === 'file-changed') {
+        item = fileItems.find((item) => item.uniqueId === uniqueId)
+      } else if (type === 'file-removed') {
+        item = fileItems.find((item) => item.uniqueId === uniqueId)
+      } else if (type === 'directory-removed') {
+        item = directoryItems.find((item) => item.uniqueId === uniqueId)
+      }
+      switch (type) {
+        case 'directory-changed':
+        case 'file-changed':
+          if (item) {
+            console.log('[KnowledgeContent] Refreshing item:', item)
+            window.message.info({
+              content: t('knowledge.file_or_directory_changed'),
+              duration: 4,
+              icon: <InfoCircleOutlined />,
+              key: 'knowledge-file-directory-changed-info'
+            })
+
+            refreshItem(item)
+          }
+          break
+        case 'directory-removed':
+        case 'file-removed':
+          if (item) {
+            console.log('[KnowledgeContent] Removing item:', item)
+            removeItem(item)
+          }
+          break
+        default:
+          break
+      }
+    })
+
+    dispatch(clearPendingChanges())
+  }, [pendingChanges, directoryItems, fileItems, refreshItem, removeItem, dispatch])
 
   if (!base) {
     return null
@@ -103,9 +169,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           created_at: new Date()
         }))
         .filter(({ ext }) => fileTypes.includes(ext))
-      console.debug('[KnowledgeContent] Uploading files:', _files, files)
-      const uploadedFiles = await FileManager.uploadFiles(_files)
-      addFiles(uploadedFiles)
+      // console.debug('[KnowledgeContent] Uploading files:', _files, files)
+      // const uploadedFiles = await FileManager.uploadFiles(_files)
+      // addFiles(uploadedFiles)
+      addFiles(_files)
     }
   }
 
@@ -444,7 +511,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         <Tag color="blue">{base.model.name}</Tag>
         <Tag color="cyan">{t('models.dimensions', { dimensions: base.dimensions || 0 })}</Tag>
         {providerName && <Tag color="purple">{providerName}</Tag>}
-        <Button icon={<SettingOutlined />} onClick={() => KnowledgeSettingsPopup.show({ base })} size="small" />
+        <Button
+          icon={<SettingOutlined />}
+          onClick={() => KnowledgeSettingsPopup.show({ base, setRefresh })}
+          size="small"
+        />
       </ModelInfo>
 
       <IndexSection>

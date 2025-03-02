@@ -39,7 +39,8 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     apiVersion: provider.apiVersion,
     baseURL: host,
     chunkSize,
-    chunkOverlap: base.chunkOverlap
+    chunkOverlap: base.chunkOverlap,
+    autoUpdate: base.autoUpdate
   }
 }
 

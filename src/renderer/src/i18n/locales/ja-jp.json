@@ -320,7 +320,10 @@
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "file_or_directory_changed": "知識ベースのファイル/フォルダーが変更されました。",
+      "auto_update": "自動更新",
+      "auto_update_tooltip": "[リスク警告] 自動更新を有効にすると、ファイルの変更によりナレッジベースが再インデックスされますので、トークンの消耗にご注意ください！"
     },
     "languages": {
       "arabic": "アラビア語",
