@@ -782,7 +782,6 @@
       "models.check.not_checked": "Not checked",
       "models.check.no_api_keys": "No API keys found, please add API keys first.",
       "models.check.select_api_key": "Select the API key to use:",
-      "models.check.result_in_detail": "Detailed check results",
       "models.check.all_keys_passed": "All API keys check passed",
       "models.check.all_keys_failed": "All API keys check failed",
       "models.check.some_keys_passed": "Some API keys check passed",

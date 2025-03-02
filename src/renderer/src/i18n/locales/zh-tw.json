@@ -781,7 +781,6 @@
       "models.check.not_checked": "未檢查",
       "models.check.no_api_keys": "未找到API密鑰，請先添加API密鑰。",
       "models.check.select_api_key": "選擇要使用的API密鑰：",
-      "models.check.result_in_detail": "詳細檢查結果",
       "models.check.all_keys_passed": "所有API密鑰檢查通過",
       "models.check.all_keys_failed": "所有API密鑰檢查失敗",
       "models.check.some_keys_passed": "部分API密鑰檢查通過",

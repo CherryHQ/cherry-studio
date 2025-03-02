@@ -782,7 +782,6 @@
       "models.check.not_checked": "未检查",
       "models.check.no_api_keys": "未找到API密钥，请先添加API密钥。",
       "models.check.select_api_key": "选择要使用的API密钥：",
-      "models.check.result_in_detail": "详细检查结果",
       "models.check.all_keys_passed": "所有API密钥检查通过",
       "models.check.all_keys_failed": "所有API密钥检查失败",
       "models.check.some_keys_passed": "部分API密钥检查通过",

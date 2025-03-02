@@ -782,7 +782,6 @@
       "models.check.not_checked": "Не проверено",
       "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
       "models.check.select_api_key": "Выберите API ключ для использования:",
-      "models.check.result_in_detail": "Подробные результаты проверки",
       "models.check.all_keys_passed": "Все API ключи прошли проверку",
       "models.check.all_keys_failed": "Все API ключи не прошли проверку",
       "models.check.some_keys_passed": "Некоторые API ключи прошли проверку",
