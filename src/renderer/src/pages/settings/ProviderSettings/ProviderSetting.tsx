@@ -4,14 +4,10 @@ import {
   ExportOutlined,
   HeartOutlined,
   LoadingOutlined,
-  MinusCircleOutlined,
-  PlusOutlined,
-  SettingOutlined
+  PlusOutlined
 } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import ModelTags from '@renderer/components/ModelTags'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
-import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -26,9 +22,9 @@ import { setModel } from '@renderer/store/assistants'
 import { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Avatar, Button, Card, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
+import { isEmpty } from 'lodash'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -48,6 +44,7 @@ import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelEditContent from './ModelEditContent'
+import ModelList from './ModelList'
 import OllamSettings from './OllamaSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
@@ -69,12 +66,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const dispatch = useAppDispatch()
 
   const { defaultModel, setDefaultModel } = useDefaultModel()
-
-  const modelGroups = groupBy(models, 'group')
-  const sortedModelGroups = sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
-    acc[key] = value
-    return acc
-  }, {})
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -276,6 +267,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
   }, [apiKey, provider, updateProvider])
 
+  const handleEditModel = (model: Model) => {
+    setEditingModel(model)
+  }
+
   return (
     <SettingContainer theme={theme}>
       <SettingTitle>
@@ -380,41 +375,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           )}
         </Flex>
       </SettingSubtitle>
-      {Object.keys(sortedModelGroups).map((group) => (
-        <Card
-          key={group}
-          type="inner"
-          title={group}
-          extra={
-            <Tooltip title={t('settings.models.manage.remove_whole_group')}>
-              <HoveredRemoveIcon
-                onClick={() =>
-                  modelGroups[group]
-                    .filter((model) => provider.models.some((m) => m.id === model.id))
-                    .forEach((model) => removeModel(model))
-                }
-              />
-            </Tooltip>
-          }
-          style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}
-          size="small">
-          {sortedModelGroups[group].map((model) => (
-            <ModelListItem key={model.id}>
-              <ModelListHeader>
-                <Avatar src={getModelLogo(model.id)} size={22} style={{ marginRight: '8px' }}>
-                  {model?.name?.[0]?.toUpperCase()}
-                </Avatar>
-                <ModelNameRow>
-                  <span>{model?.name}</span>
-                  <ModelTags model={model} />
-                </ModelNameRow>
-                <SettingIcon onClick={() => setEditingModel(model)} />
-              </ModelListHeader>
-              <RemoveIcon onClick={() => removeModel(model)} />
-            </ModelListItem>
-          ))}
-        </Card>
-      ))}
+      <ModelList provider={provider} models={models} onRemoveModel={removeModel} onEditModel={handleEditModel} />
       {docsWebsite && (
         <SettingHelpTextRow>
           <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
@@ -449,53 +410,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     </SettingContainer>
   )
 }
-
-const ModelListItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 0;
-`
-
-const ModelListHeader = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-`
-
-const ModelNameRow = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-`
-
-const RemoveIcon = styled(MinusCircleOutlined)`
-  font-size: 18px;
-  margin-left: 10px;
-  color: var(--color-error);
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-`
-
-const HoveredRemoveIcon = styled(RemoveIcon)`
-  opacity: 0;
-  margin-top: 2px;
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const SettingIcon = styled(SettingOutlined)`
-  margin-left: 2px;
-  color: var(--color-text);
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  &:hover {
-    color: var(--color-text-2);
-  }
-`
 
 const ProviderName = styled.span`
   font-size: 14px;
