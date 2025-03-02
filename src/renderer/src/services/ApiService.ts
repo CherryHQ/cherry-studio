@@ -1,5 +1,4 @@
 import { getOpenAIWebSearchParams } from '@renderer/config/models'
-import { isEmbeddingModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -243,10 +242,9 @@ export async function fetchSuggestions({
 
 // Private helper function to handle common base validation logic
 // Validates provider's basic settings such as API key, host, and model list
-function validateProviderBasics(provider: Provider): {
+export function checkApiProvider(provider: Provider): {
   valid: boolean
   error: Error | null
-  shouldContinue: boolean
 } {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
@@ -256,8 +254,7 @@ function validateProviderBasics(provider: Provider): {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
       return {
         valid: false,
-        error: new Error(i18n.t('message.error.enter.api.key')),
-        shouldContinue: false
+        error: new Error(i18n.t('message.error.enter.api.key'))
       }
     }
   }
@@ -266,8 +263,7 @@ function validateProviderBasics(provider: Provider): {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.api.host'),
-      shouldContinue: false
+      error: new Error(i18n.t('message.error.enter.api.host'))
     }
   }
 
@@ -275,28 +271,19 @@ function validateProviderBasics(provider: Provider): {
     window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.model'),
-      shouldContinue: false
+      error: new Error(i18n.t('message.error.enter.model'))
     }
   }
 
   return {
     valid: true,
-    error: null,
-    shouldContinue: true
+    error: null
   }
 }
 
-// Generic function to perform model checks
-// Abstracts provider validation and error handling, allowing different types of check logic
-async function performModelCheck<T>(
-  provider: Provider,
-  model: Model,
-  checkFn: (ai: AiProvider, model: Model) => Promise<T>,
-  processResult: (result: T) => { valid: boolean; error: Error | null }
-): Promise<{ valid: boolean; error: Error | null; latency?: number }> {
-  const validation = validateProviderBasics(provider)
-  if (!validation.shouldContinue) {
+export async function checkApi(provider: Provider, model: Model) {
+  const validation = checkApiProvider(provider)
+  if (!validation.valid) {
     return {
       valid: validation.valid,
       error: validation.error
@@ -305,40 +292,11 @@ async function performModelCheck<T>(
 
   const AI = new AiProvider(provider)
 
-  try {
-    const startTime = performance.now()
-    const result = await checkFn(AI, model)
-    const latency = performance.now() - startTime
+  const { valid, error } = await AI.check(model)
 
-    return {
-      ...processResult(result),
-      latency
-    }
-  } catch (error: any) {
-    return {
-      valid: false,
-      error
-    }
-  }
-}
-
-// Unified API check function
-// Automatically selects appropriate check method based on model type
-export async function checkApi(provider: Provider, model: Model) {
-  if (isEmbeddingModel(model)) {
-    return performModelCheck(
-      provider,
-      model,
-      (ai, model) => ai.getEmbeddingDimensions(model),
-      (dimensions) => ({ valid: dimensions > 0, error: null })
-    )
-  } else {
-    return performModelCheck(
-      provider,
-      model,
-      (ai, model) => ai.check(model),
-      ({ valid, error }) => ({ valid, error: error || null })
-    )
+  return {
+    valid,
+    error
   }
 }
 

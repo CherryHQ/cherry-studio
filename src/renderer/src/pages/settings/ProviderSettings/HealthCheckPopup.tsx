@@ -1,7 +1,7 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { Box } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { checkApi } from '@renderer/services/ApiService'
+import { checkModel } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, Modal, Radio, Segmented, Space, Spin, Typography } from 'antd'
@@ -121,7 +121,7 @@ type ProcessResultsFn = (keyResults: ApiKeyStatus[]) => {
 }
 
 /**
- * Create ApiKeyStatus object from checkApi result
+ * Create ApiKeyStatus object from checkModel result
  */
 function createApiKeyStatus(key: string, result: any): ApiKeyStatus {
   return {
@@ -192,7 +192,7 @@ async function performModelChecks({
         modelStatuses.map(async (status, modelIndex) => {
           const keyResults = await Promise.all(
             keysToUse.map(async (key) => {
-              const result = await checkApi({ ...provider, apiKey: key }, status.model)
+              const result = await checkModel({ ...provider, apiKey: key }, status.model)
               return createApiKeyStatus(key, result)
             })
           )
@@ -209,7 +209,7 @@ async function performModelChecks({
 
         const keyResults: ApiKeyStatus[] = []
         for (const key of keysToUse) {
-          const result = await checkApi({ ...provider, apiKey: key }, modelStatuses[i].model)
+          const result = await checkModel({ ...provider, apiKey: key }, modelStatuses[i].model)
           keyResults.push(createApiKeyStatus(key, result))
         }
 
