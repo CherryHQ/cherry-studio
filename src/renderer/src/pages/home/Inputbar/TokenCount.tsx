@@ -9,7 +9,7 @@ import styled from 'styled-components'
 type Props = {
   estimateTokenCount: number
   inputTokenCount: number
-  contextCount: number
+  contextCount: { current: number; max: number }
   ToolbarButton: any
 } & React.HTMLAttributes<HTMLDivElement>
 
@@ -26,7 +26,9 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
       <VStack w="150px" background="100%">
         <HStack justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
-          <Text>{contextCount}</Text>
+          <Text>
+            {contextCount.current} / {contextCount.max}
+          </Text>
         </HStack>
         <Divider style={{ margin: '5px 0' }} />
         <HStack justifyContent="space-between" w="100%">
@@ -40,7 +42,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
   return (
     <Container>
       <Popover content={PopoverContent}>
-        <MenuOutlined /> {contextCount}
+        <MenuOutlined /> {contextCount.current} / {contextCount.max}
         <Divider type="vertical" style={{ marginTop: 0, marginLeft: 5, marginRight: 5 }} />
         <ArrowUpOutlined />
         {inputTokenCount} / {estimateTokenCount}
