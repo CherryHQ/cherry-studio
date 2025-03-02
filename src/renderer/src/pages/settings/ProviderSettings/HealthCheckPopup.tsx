@@ -1,32 +1,15 @@
-import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
-import { Box, HStack } from '@renderer/components/Layout'
-import ModelTags from '@renderer/components/ModelTags'
-import Scrollbar from '@renderer/components/Scrollbar'
+import { LoadingOutlined } from '@ant-design/icons'
+import { Box } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { getModelLogo } from '@renderer/config/models'
 import { checkApi } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
-import { Avatar, Button, List, Modal, Radio, Segmented, Space, Spin, Tooltip, Typography } from 'antd'
+import { maskApiKey } from '@renderer/utils/api'
+import { Button, Modal, Radio, Segmented, Space, Spin, Typography } from 'antd'
 import { TFunction } from 'i18next'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-const ModelNameRow = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 5px;
-`
-
-/**
- * Extract color constants
- */
-const STATUS_COLORS = {
-  success: '#52c41a',
-  error: '#ff4d4f',
-  warning: '#faad14'
-}
+import HealthCheckModelList from './HealthCheckModelList'
 
 /**
  * Enum for model check status states
@@ -55,7 +38,7 @@ interface Props extends ShowParams {
 /**
  * Interface representing the check status of a single API key
  */
-interface ApiKeyStatus {
+export interface ApiKeyStatus {
   key: string
   isValid: boolean
   error?: string
@@ -65,7 +48,7 @@ interface ApiKeyStatus {
 /**
  * Interface representing the status of a model, including the results of API key checks
  */
-interface ModelStatus {
+export interface ModelStatus {
   model: Model
   status?: ModelCheckStatus
   checking?: boolean
@@ -285,22 +268,6 @@ async function performModelChecks({
 }
 
 /**
- * Helper hook for formatting utilities
- */
-function useFormatUtils() {
-  const formatCheckTime = useCallback((time?: number) => {
-    if (!time) return ''
-    return `${(time / 1000).toFixed(2)}s`
-  }, [])
-
-  const maskApiKey = useCallback((key: string) => {
-    return key.length > 6 ? `${key.slice(0, 2)}****${key.slice(-4)}` : key
-  }, [])
-
-  return { formatCheckTime, maskApiKey }
-}
-
-/**
  * Hook for processing API key check results
  */
 function useResultProcessors(t: TFunction) {
@@ -481,100 +448,8 @@ function useModelChecks({
 }
 
 /**
- * Hook for rendering model status UI elements
+ * Main container component for the health check popup
  */
-function useModelStatusRendering(
-  t: TFunction,
-  formatCheckTime: (time?: number) => string,
-  maskApiKey: (key: string) => string
-) {
-  /**
-   * Generate tooltip content for model check results
-   */
-  const renderKeyCheckResultTooltip = useCallback(
-    (status: ModelStatus) => {
-      const statusTitle =
-        status.status === ModelCheckStatus.SUCCESS
-          ? t('settings.models.check.passed')
-          : t('settings.models.check.failed')
-
-      if (!status.keyResults || status.keyResults.length === 0) {
-        // Simple tooltip for single key result
-        return (
-          <div>
-            <strong>{statusTitle}</strong>
-            {status.error && <div style={{ marginTop: 5, color: STATUS_COLORS.error }}>{status.error}</div>}
-          </div>
-        )
-      }
-
-      // Detailed tooltip for multiple key results
-      return (
-        <div>
-          {statusTitle}
-          {status.error && <div style={{ marginTop: 5, marginBottom: 5 }}>{status.error}</div>}
-          <div style={{ marginTop: 5 }}>
-            <ul style={{ maxHeight: '300px', overflowY: 'auto', margin: 0, padding: 0, listStyleType: 'none' }}>
-              {status.keyResults.map((kr, idx) => {
-                // Mask API key for security
-                const maskedKey = maskApiKey(kr.key)
-
-                return (
-                  <li
-                    key={idx}
-                    style={{ marginBottom: '5px', color: kr.isValid ? STATUS_COLORS.success : STATUS_COLORS.error }}>
-                    {maskedKey}: {kr.isValid ? t('settings.models.check.passed') : t('settings.models.check.failed')}
-                    {kr.error && !kr.isValid && ` (${kr.error})`}
-                    {kr.checkTime && kr.isValid && ` (${formatCheckTime(kr.checkTime)})`}
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        </div>
-      )
-    },
-    [t, formatCheckTime, maskApiKey]
-  )
-
-  /**
-   * Render the appropriate status indicator based on the model's check status
-   */
-  const renderStatusIndicator = useCallback(
-    (status: ModelStatus) => {
-      if (status.checking) {
-        return <Spin indicator={<LoadingOutlined spin />} />
-      }
-
-      switch (status.status) {
-        case ModelCheckStatus.SUCCESS:
-          return (
-            <Tooltip title={renderKeyCheckResultTooltip(status)}>
-              <CheckCircleFilled style={{ color: STATUS_COLORS.success }} />
-            </Tooltip>
-          )
-        case ModelCheckStatus.FAILED:
-          return (
-            <Tooltip title={renderKeyCheckResultTooltip(status)}>
-              <CloseCircleFilled style={{ color: STATUS_COLORS.error }} />
-            </Tooltip>
-          )
-        case ModelCheckStatus.PARTIAL:
-          return (
-            <Tooltip title={renderKeyCheckResultTooltip(status)}>
-              <ExclamationCircleFilled style={{ color: STATUS_COLORS.warning }} />
-            </Tooltip>
-          )
-        default:
-          return <span>{t('settings.models.check.not_checked')}</span>
-      }
-    },
-    [t, renderKeyCheckResultTooltip]
-  )
-
-  return { renderKeyCheckResultTooltip, renderStatusIndicator }
-}
-
 const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) => {
   const { t } = useTranslation()
 
@@ -591,7 +466,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
   const { open, selectedKeyIndex, keyCheckMode, isChecking, isConcurrent, modelStatuses } = state
 
   // Use custom hooks
-  const { formatCheckTime, maskApiKey } = useFormatUtils()
   const { processSingleKeyResult, processMultipleKeysResult } = useResultProcessors(t)
   const { onCheckModels } = useModelChecks({
     apiKeys,
@@ -604,7 +478,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
     processSingleKeyResult,
     processMultipleKeysResult
   })
-  const { renderStatusIndicator } = useModelStatusRendering(t, formatCheckTime, maskApiKey)
   const { onOk, onCancel, onClose } = useModalActions(resolve, modelStatuses, dispatch)
 
   // Check if we have multiple API keys
@@ -681,43 +554,18 @@ const PopupContainer: React.FC<Props> = ({ title, provider, apiKeys, resolve }) 
         </Box>
       )}
 
-      {/* Model list with check status */}
-      <Scrollbar style={{ maxHeight: '50vh', overflowX: 'hidden' }}>
-        <List
-          dataSource={modelStatuses}
-          renderItem={(status) => (
-            <List.Item>
-              <HStack style={{ width: '100%', justifyContent: 'space-between' }}>
-                <Space>
-                  <Avatar src={getModelLogo(status.model.id)} size={22} style={{ marginRight: '2px' }}>
-                    {status.model?.name?.[0]?.toUpperCase()}
-                  </Avatar>
-                  <ModelNameRow>
-                    <span>{status.model?.name}</span>
-                    <ModelTags model={status.model} />
-                  </ModelNameRow>
-                  {/* Display response time for successful or partially successful models */}
-                  {status.checkTime &&
-                    (status.status === ModelCheckStatus.SUCCESS || status.status === ModelCheckStatus.PARTIAL) && (
-                      <Typography.Text type="secondary">{formatCheckTime(status.checkTime)}</Typography.Text>
-                    )}
-                </Space>
-                <Space>{renderStatusIndicator(status)}</Space>
-              </HStack>
-            </List.Item>
-          )}
-        />
-      </Scrollbar>
+      {/* Model list with status indicators */}
+      <HealthCheckModelList modelStatuses={modelStatuses} />
     </Modal>
   )
 }
 
 /**
- * Static class for showing the Model Health Check popup
+ * Static class for showing the Health Check popup
  * Uses TopView to display as a modal
  */
-export default class ModelHealthCheckPopup {
-  static readonly topviewId = 'ModelHealthCheckPopup'
+export default class HealthCheckPopup {
+  static readonly topviewId = 'HealthCheckPopup'
 
   /**
    * Hide the popup
