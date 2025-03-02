@@ -228,7 +228,9 @@ const MessageItem: FC<Props> = ({
                   key: 'copy',
                   label: t('common.copy'),
                   onClick: () => {
-                    navigator.clipboard.writeText(selectedQuoteText.replace(/^> /gm, ''))
+                    navigator.clipboard.writeText(
+                      selectedQuoteText.replace(/^> /gm, '').replace(/\n-------------$/, '')
+                    )
                     window.message.success({ content: t('message.copied'), key: 'copy-message' })
                   }
                 },
