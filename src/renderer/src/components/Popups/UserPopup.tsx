@@ -1,3 +1,4 @@
+import DefaultAvatar from '@renderer/assets/images/avatar.png'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import ImageStorage from '@renderer/services/ImageStorage'
@@ -50,7 +51,15 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       window.message.error(error.message)
     }
   }
-
+  const handleReset = async () => {
+    try {
+      await ImageStorage.set('avatar', DefaultAvatar)
+      dispatch(setAvatar(DefaultAvatar))
+      setDropdownOpen(false)
+    } catch (error: any) {
+      window.message.error(error.message)
+    }
+  }
   const items = [
     {
       key: 'upload',
@@ -89,6 +98,18 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             setDropdownOpen(false)
           }}>
           {t('settings.general.emoji_picker')}
+        </div>
+      )
+    },
+    {
+      key: 'reset',
+      label: (
+        <div
+          onClick={(e) => {
+            e.stopPropagation()
+            handleReset()
+          }}>
+          {t('settings.general.avatar.reset')}
         </div>
       )
     }
