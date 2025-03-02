@@ -192,7 +192,8 @@
       "select": "選択",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた"
+      "you": "あなた",
+      "copied": "コピーされました"
     },
     "docs": {
       "title": "ドキュメント"
@@ -561,6 +562,7 @@
       "yi": "零一万物",
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
+      "copilot": "GitHub Copilot",
       "xirang": "天翼クラウド 息壤"
     },
     "settings": {
@@ -775,7 +777,22 @@
         "remove_duplicate_keys": "重複キーを削除",
         "remove_invalid_keys": "無効なキーを削除",
         "search_placeholder": "モデルIDまたは名前を検索",
-        "title": "モデルプロバイダー"
+        "title": "モデルプロバイダー",
+        "copilot": {
+          "tooltip": "Cherry StudioでGithub Copilotを使用するには、まずGithubにログインする必要があります。",
+          "description": "あなたのGithubアカウントはCopilotを購読する必要があります。",
+          "login": "GitHubにログインする",
+          "connect": "GitHubに接続する",
+          "logout": "GitHubから退出する",
+          "auth_success_title": "認証成功",
+          "code_generated_title": "デバイスコードを取得する",
+          "code_generated_desc": "デバイスコードを下記のブラウザリンクにコピーしてください。",
+          "code_failed": "デバイスコードの取得に失敗しました。再試行してください。",
+          "auth_success": "Github Copilotの認証が成功しました",
+          "auth_failed": "Github Copilotの認証に失敗しました。",
+          "logout_success": "正常にログアウトしました。",
+          "logout_failed": "ログアウトに失敗しました。もう一度お試しください。"
+        }
       },
       "proxy": {
         "mode": {

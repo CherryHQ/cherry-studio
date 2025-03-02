@@ -86,6 +86,8 @@ export function getProviderLogo(providerId: string) {
       return MinimaxProviderLogo
     case 'github':
       return GithubProviderLogo
+    case 'copilot':
+      return GithubProviderLogo
     case 'ocoolai':
       return OcoolAiProviderLogo
     case 'together':
@@ -269,6 +271,11 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://github.com/settings/tokens',
       docs: 'https://docs.github.com/en/github-models',
       models: 'https://github.com/marketplace/models'
+    }
+  },
+  copilot: {
+    api: {
+      url: 'https://api.githubcopilot.com/'
     }
   },
   yi: {

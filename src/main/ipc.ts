@@ -9,6 +9,7 @@ import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
+import CopilotService from './services/CopilotService'
 import { ExportService } from './services/ExportService'
 import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
@@ -207,4 +208,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('aes:decrypt', (_, encryptedData: string, iv: string, secretKey: string) =>
     decrypt(encryptedData, iv, secretKey)
   )
+
+  //copilot
+  ipcMain.handle('copilot:get-auth-message', CopilotService.getAuthMessage)
+  ipcMain.handle('copilot:get-copilot-token', CopilotService.getCopilotToken)
+  ipcMain.handle('copilot:save-copilot-token', CopilotService.saveCopilotToken)
+  ipcMain.handle('copilot:get-token', CopilotService.getToken)
 }
