@@ -124,6 +124,8 @@ import ViduModelLogo from '@renderer/assets/images/models/vidu.png'
 import ViduModelLogoDark from '@renderer/assets/images/models/vidu_dark.png'
 import WenxinModelLogo from '@renderer/assets/images/models/wenxin.png'
 import WenxinModelLogoDark from '@renderer/assets/images/models/wenxin_dark.png'
+import XirangModelLogo from '@renderer/assets/images/models/xirang.png'
+import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
@@ -276,6 +278,7 @@ export function getModelLogo(modelId: string) {
     rakutenai: isLight ? RakutenaiModelLogo : RakutenaiModelLogoDark,
     ibm: isLight ? IbmModelLogo : IbmModelLogoDark,
     'google/': isLight ? GoogleModelLogo : GoogleModelLogoDark,
+    xirang: isLight ? XirangModelLogo : XirangModelLogoDark,
     hugging: isLight ? HuggingfaceModelLogo : HuggingfaceModelLogoDark,
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
@@ -1405,6 +1408,18 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'hunyuan',
       name: 'hunyuan-turbo',
       group: 'Hunyuan'
+    },
+    {
+      id: 'hunyuan-turbos-latest',
+      provider: 'hunyuan',
+      name: 'hunyuan-turbos-latest',
+      group: 'Hunyuan'
+    },
+    {
+      id: 'hunyuan-embedding',
+      provider: 'hunyuan',
+      name: 'hunyuan-embedding',
+      group: 'Embedding'
     }
   ],
   nvidia: [
@@ -1714,7 +1729,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'jina-embeddings-v2-base-code',
       group: 'Jina'
     }
-  ]
+  ],
+  xirang: []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -1823,13 +1839,21 @@ export function isVisionModel(model: Model): boolean {
   return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
 }
 
-export function isReasoningModel(model: Model): boolean {
+export function isOpenAIoSeries(model: Model): boolean {
+  return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
+}
+
+export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
 
   if (model.provider === 'doubao') {
     return REASONING_REGEX.test(model.name) || model.type?.includes('reasoning') || false
+  }
+
+  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
+    return true
   }
 
   return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
@@ -1851,6 +1875,12 @@ export function isWebSearchModel(model: Model): boolean {
   const provider = getProviderByModel(model)
 
   if (!provider) {
+    return false
+  }
+
+  const isEmbedding = isEmbeddingModel(model)
+
+  if (isEmbedding) {
     return false
   }
 

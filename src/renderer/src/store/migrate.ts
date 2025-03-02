@@ -1178,6 +1178,30 @@ const migrateConfig = {
     }
 
     return state
+  },
+  '74': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'xirang',
+      name: 'Xirang',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://wishub-x1.ctyun.cn',
+      models: SYSTEM_MODELS.xirang,
+      isSystem: true,
+      enabled: false
+    })
+    return state
+  },
+  '75': (state: RootState) => {
+    if (state.minapps) {
+      const you = DEFAULT_MIN_APPS.find((app) => app.id === 'you')
+      const cici = DEFAULT_MIN_APPS.find((app) => app.id === 'cici')
+      const zhihu = DEFAULT_MIN_APPS.find((app) => app.id === 'zhihu')
+      you && state.minapps.enabled.push(you)
+      cici && state.minapps.enabled.push(cici)
+      zhihu && state.minapps.enabled.push(zhihu)
+    }
+    return state
   }
 }
 

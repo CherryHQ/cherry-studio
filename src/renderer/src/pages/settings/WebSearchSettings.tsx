@@ -117,7 +117,9 @@ const WebSearchSettings: FC = () => {
           autoSize={{ minRows: 4, maxRows: 8 }}
           rows={4}
         />
-        <Button onClick={() => updateManualBlacklist(blacklistInput)}>{t('common.save')}</Button>
+        <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
+          {t('common.save')}
+        </Button>
         {errFormat && <Alert message={t('settings.websearch.blacklist_tooltip')} type="error" />}
       </SettingGroup>
     </SettingContainer>

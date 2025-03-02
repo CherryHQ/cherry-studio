@@ -1,12 +1,12 @@
 import { WebDavConfig } from '@types'
 import AdmZip from 'adm-zip'
+import { exec } from 'child_process'
 import { app } from 'electron'
 import Logger from 'electron-log'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
 import WebDav from './WebDav'
-import { exec } from 'child_process'
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -21,25 +21,25 @@ class BackupManager {
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
     try {
-      const items = await fs.readdir(dirPath, { withFileTypes: true });
+      const items = await fs.readdir(dirPath, { withFileTypes: true })
 
       for (const item of items) {
-        const fullPath = path.join(dirPath, item.name);
+        const fullPath = path.join(dirPath, item.name)
 
         // 先处理子目录
         if (item.isDirectory()) {
-          await this.setWritableRecursive(fullPath);
+          await this.setWritableRecursive(fullPath)
         }
 
         // 统一设置权限（Windows需要特殊处理）
-        await this.forceSetWritable(fullPath);
+        await this.forceSetWritable(fullPath)
       }
 
       // 确保根目录权限
-      await this.forceSetWritable(dirPath);
+      await this.forceSetWritable(dirPath)
     } catch (error) {
-      Logger.error(`权限设置失败：${dirPath}`, error);
-      throw error;
+      Logger.error(`权限设置失败：${dirPath}`, error)
+      throw error
     }
   }
 
@@ -48,20 +48,20 @@ class BackupManager {
     try {
       // Windows系统需要先取消只读属性
       if (process.platform === 'win32') {
-        await fs.chmod(targetPath, 0o666); // Windows会忽略权限位但能移除只读
+        await fs.chmod(targetPath, 0o666) // Windows会忽略权限位但能移除只读
       } else {
-        const stats = await fs.stat(targetPath);
-        const mode = stats.isDirectory() ? 0o777 : 0o666;
-        await fs.chmod(targetPath, mode);
+        const stats = await fs.stat(targetPath)
+        const mode = stats.isDirectory() ? 0o777 : 0o666
+        await fs.chmod(targetPath, mode)
       }
 
       // 双重保险：使用文件属性命令（Windows专用）
       if (process.platform === 'win32') {
-        await exec(`attrib -R "${targetPath}" /L /D`);
+        await exec(`attrib -R "${targetPath}" /L /D`)
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        Logger.warn(`权限设置警告：${targetPath}`, error);
+        Logger.warn(`权限设置警告：${targetPath}`, error)
       }
     }
   }

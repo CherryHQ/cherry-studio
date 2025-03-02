@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
+import { isReasoningModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -18,7 +19,11 @@ export default class AnthropicProvider extends BaseProvider {
 
   constructor(provider: Provider) {
     super(provider)
-    this.sdk = new Anthropic({ apiKey: this.apiKey, baseURL: this.getBaseURL() })
+    this.sdk = new Anthropic({
+      apiKey: this.apiKey,
+      baseURL: this.getBaseURL(),
+      dangerouslyAllowBrowser: true
+    })
   }
 
   public getBaseURL(): string {
@@ -60,6 +65,47 @@ export default class AnthropicProvider extends BaseProvider {
     }
   }
 
+  private getTemperature(assistant: Assistant, model: Model) {
+    if (isReasoningModel(model)) return undefined
+
+    return assistant?.settings?.temperature
+  }
+
+  private getTopP(assistant: Assistant, model: Model) {
+    if (isReasoningModel(model)) return undefined
+
+    return assistant?.settings?.topP
+  }
+
+  private getReasoningEffort(assistant: Assistant, model: Model) {
+    if (isReasoningModel(model)) {
+      const effort_ratio =
+        assistant?.settings?.reasoning_effort === 'high'
+          ? 0.8
+          : assistant?.settings?.reasoning_effort === 'medium'
+            ? 0.5
+            : assistant?.settings?.reasoning_effort === 'low'
+              ? 0.2
+              : undefined
+      if (!effort_ratio)
+        return {
+          type: 'disabled'
+        }
+
+      if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
+        return {
+          type: 'enabled',
+          budget_tokens: Math.max(
+            Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000),
+            1024
+          )
+        }
+      }
+    }
+
+    return undefined
+  }
+
   public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -84,20 +130,43 @@ export default class AnthropicProvider extends BaseProvider {
       model: model.id,
       messages: userMessages,
       max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
-      temperature: assistant?.settings?.temperature,
-      top_p: assistant?.settings?.topP,
+      temperature: this.getTemperature(assistant, model),
+      top_p: this.getTopP(assistant, model),
       system: assistant.prompt,
       ...this.getCustomParameters(assistant)
     }
 
+    if (isReasoningModel(model)) {
+      ;(body as any).thinking = this.getReasoningEffort(assistant, model)
+      ;(body as any).betas = ['output-128k-2025-02-19']
+    }
+
     let time_first_token_millsec = 0
+    let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
 
     if (!streamOutput) {
       const message = await this.sdk.messages.create({ ...body, stream: false })
       const time_completion_millsec = new Date().getTime() - start_time_millsec
+
+      let text = ''
+      let reasoning_content = ''
+
+      if (message.content && message.content.length > 0) {
+        const thinkingBlock = message.content.find((block) => block.type === 'thinking')
+        const textBlock = message.content.find((block) => block.type === 'text')
+
+        if (thinkingBlock && 'thinking' in thinkingBlock) {
+          reasoning_content = thinkingBlock.thinking
+        }
+
+        if (textBlock && 'text' in textBlock) {
+          text = textBlock.text
+        }
+      }
       return onChunk({
-        text: message.content[0].type === 'text' ? message.content[0].text : '',
+        text,
+        reasoning_content,
         usage: message.usage,
         metrics: {
           completion_tokens: message.usage.output_tokens,
@@ -113,6 +182,7 @@ export default class AnthropicProvider extends BaseProvider {
     const { signal } = abortController
 
     return new Promise<void>((resolve, reject) => {
+      let hasThinkingContent = false
       const stream = this.sdk.messages
         .stream({ ...body, stream: true }, { signal })
         .on('text', (text) => {
@@ -123,9 +193,34 @@ export default class AnthropicProvider extends BaseProvider {
           if (time_first_token_millsec == 0) {
             time_first_token_millsec = new Date().getTime() - start_time_millsec
           }
+
+          if (hasThinkingContent && time_first_content_millsec === 0) {
+            time_first_content_millsec = new Date().getTime()
+          }
+
+          const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
+
           const time_completion_millsec = new Date().getTime() - start_time_millsec
           onChunk({
             text,
+            metrics: {
+              completion_tokens: undefined,
+              time_completion_millsec,
+              time_first_token_millsec,
+              time_thinking_millsec
+            }
+          })
+        })
+        .on('thinking', (thinking) => {
+          hasThinkingContent = true
+          if (time_first_token_millsec == 0) {
+            time_first_token_millsec = new Date().getTime() - start_time_millsec
+          }
+
+          const time_completion_millsec = new Date().getTime() - start_time_millsec
+          onChunk({
+            reasoning_content: thinking,
+            text: '',
             metrics: {
               completion_tokens: undefined,
               time_completion_millsec,
@@ -134,6 +229,8 @@ export default class AnthropicProvider extends BaseProvider {
           })
         })
         .on('finalMessage', (message) => {
+          const time_completion_millsec = new Date().getTime() - start_time_millsec
+          const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
           onChunk({
             text: '',
             usage: {
@@ -143,8 +240,9 @@ export default class AnthropicProvider extends BaseProvider {
             },
             metrics: {
               completion_tokens: message.usage.output_tokens,
-              time_completion_millsec: new Date().getTime() - start_time_millsec,
-              time_first_token_millsec
+              time_completion_millsec,
+              time_first_token_millsec,
+              time_thinking_millsec
             }
           })
           resolve()

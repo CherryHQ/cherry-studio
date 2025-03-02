@@ -1,3 +1,4 @@
+import { SyncOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -12,8 +13,8 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, Input, Select, Switch } from 'antd'
-import { FC, useCallback, useState } from 'react'
+import { Button, Input, Segmented, Switch } from 'antd'
+import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -32,7 +33,9 @@ const DisplaySettings: FC = () => {
     clickAssistantToShowTopic,
     showTopicTime,
     customCss,
-    sidebarIcons
+    sidebarIcons,
+    showAssistantIcon,
+    setShowAssistantIcon
   } = useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
   const { theme: themeMode } = useTheme()
@@ -65,6 +68,39 @@ const DisplaySettings: FC = () => {
     updateDisabledMinapps([])
   }, [updateDisabledMinapps, updateMinapps])
 
+  const themeOptions = useMemo(
+    () => [
+      {
+        value: ThemeMode.light,
+        label: (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <i className="iconfont icon-theme icon-theme-light" />
+            <span>{t('settings.theme.light')}</span>
+          </div>
+        )
+      },
+      {
+        value: ThemeMode.dark,
+        label: (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <i className="iconfont icon-theme icon-dark1" />
+            <span>{t('settings.theme.dark')}</span>
+          </div>
+        )
+      },
+      {
+        value: ThemeMode.auto,
+        label: (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <SyncOutlined />
+            <span>{t('settings.theme.auto')}</span>
+          </div>
+        )
+      }
+    ],
+    [t]
+  )
+
   return (
     <SettingContainer theme={themeMode}>
       <SettingGroup theme={theme}>
@@ -72,16 +108,7 @@ const DisplaySettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <Select
-            value={theme}
-            style={{ width: 120 }}
-            onChange={setTheme}
-            options={[
-              { value: ThemeMode.light, label: t('settings.theme.light') },
-              { value: ThemeMode.dark, label: t('settings.theme.dark') },
-              { value: ThemeMode.auto, label: t('settings.theme.auto') }
-            ]}
-          />
+          <Segmented value={theme} onChange={setTheme} options={themeOptions} />
         </SettingRow>
         {isMac && (
           <>
@@ -94,13 +121,21 @@ const DisplaySettings: FC = () => {
         )}
       </SettingGroup>
       <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.assistant.show.icon')}</SettingRowTitle>
+          <Switch checked={showAssistantIcon} onChange={(checked) => setShowAssistantIcon(checked)} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.position')}</SettingRowTitle>
-          <Select
+          <Segmented
             value={topicPosition || 'right'}
-            style={{ width: 120 }}
+            shape="round"
             onChange={setTopicPosition}
             options={[
               { value: 'left', label: t('settings.topic.position.left') },

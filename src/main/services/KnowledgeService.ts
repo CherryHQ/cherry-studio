@@ -16,7 +16,6 @@ import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
 import { v4 as uuidv4 } from 'uuid'
-import { proxyManager } from './ProxyManager'
 import { windowService } from './WindowService'
 
 export interface KnowledgeBaseAddItemOptions {
@@ -110,14 +109,13 @@ class KnowledgeService {
               azureOpenAIApiVersion: apiVersion,
               azureOpenAIApiDeploymentName: model,
               azureOpenAIApiInstanceName: getInstanceName(baseURL),
-              configuration: { httpAgent: proxyManager.getProxyAgent() },
               dimensions,
               batchSize
             })
           : new OpenAiEmbeddings({
               model,
               apiKey,
-              configuration: { baseURL, httpAgent: proxyManager.getProxyAgent() },
+              configuration: { baseURL },
               dimensions,
               batchSize
             })
