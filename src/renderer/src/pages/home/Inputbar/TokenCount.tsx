@@ -23,7 +23,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
 
   const PopoverContent = () => {
     return (
-      <VStack w="150px" background="100%">
+      <VStack w="185px" background="100%">
         <HStack justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
