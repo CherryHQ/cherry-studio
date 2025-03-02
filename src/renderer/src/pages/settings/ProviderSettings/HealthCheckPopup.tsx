@@ -111,19 +111,6 @@ function reducer(state: State, action: Action): State {
 }
 
 /**
- * Interface for the result of a model check operation
- */
-interface ModelCheckResult {
-  valid: boolean
-  error: Error | null
-}
-
-/**
- * Type definition for model check function
- */
-type ModelCheckFn = (provider: Provider, model: Model) => Promise<ModelCheckResult>
-
-/**
  * Type definition for processing the results of API key checks
  */
 type ProcessResultsFn = (keyResults: ApiKeyStatus[]) => {
@@ -134,26 +121,14 @@ type ProcessResultsFn = (keyResults: ApiKeyStatus[]) => {
 }
 
 /**
- * Helper function to check a model with a specific API key
+ * Create ApiKeyStatus object from checkApi result
  */
-async function checkModelWithKey(
-  provider: Provider,
-  model: Model,
-  key: string,
-  checkFn: ModelCheckFn
-): Promise<ApiKeyStatus> {
-  try {
-    const startTime = performance.now()
-    const { valid, error } = await checkFn({ ...provider, apiKey: key }, model)
-    const checkTime = performance.now() - startTime
-    return { key, isValid: valid, error: error?.message, checkTime }
-  } catch (err) {
-    return {
-      key,
-      isValid: false,
-      error: err instanceof Error ? err.message : String(err),
-      checkTime: undefined
-    }
+function createApiKeyStatus(key: string, result: any): ApiKeyStatus {
+  return {
+    key,
+    isValid: result.valid,
+    error: result.error?.message,
+    checkTime: result.latency
   }
 }
 
@@ -189,7 +164,6 @@ async function performModelChecks({
   provider,
   keysToUse,
   isConcurrent,
-  checkFn,
   processResultsFn,
   dispatch
 }: {
@@ -197,7 +171,6 @@ async function performModelChecks({
   provider: Provider
   keysToUse: string[]
   isConcurrent: boolean
-  checkFn: ModelCheckFn
   processResultsFn: ProcessResultsFn
   dispatch: React.Dispatch<Action>
 }) {
@@ -214,51 +187,33 @@ async function performModelChecks({
         })
       })
 
-      // Create promises for each model check
-      const checkPromises = modelStatuses.map(async (status, modelIndex) => {
-        try {
-          // Check all keys for this model concurrently
+      // Concurrently check all models
+      await Promise.all(
+        modelStatuses.map(async (status, modelIndex) => {
           const keyResults = await Promise.all(
-            keysToUse.map((key) => checkModelWithKey(provider, status.model, key, checkFn))
+            keysToUse.map(async (key) => {
+              const result = await checkApi({ ...provider, apiKey: key }, status.model)
+              return createApiKeyStatus(key, result)
+            })
           )
-
-          // Update model status immediately
           updateModelStatus(modelIndex, keyResults, processResultsFn, dispatch)
-        } catch (error) {
-          console.error(`Error checking model at index ${modelIndex}:`, error)
-          dispatch({
-            type: 'UPDATE_MODEL_STATUS',
-            payload: {
-              index: modelIndex,
-              status: {
-                checking: false,
-                status: ModelCheckStatus.FAILED,
-                error: error instanceof Error ? error.message : String(error)
-              }
-            }
-          })
-        }
-      })
-
-      await Promise.all(checkPromises)
+        })
+      )
     } else {
-      // Serial processing
-      for (let m = 0; m < modelStatuses.length; m++) {
+      // Serial processing of models
+      for (let i = 0; i < modelStatuses.length; i++) {
         dispatch({
           type: 'UPDATE_MODEL_STATUS',
-          payload: { index: m, status: { checking: true } }
+          payload: { index: i, status: { checking: true } }
         })
 
         const keyResults: ApiKeyStatus[] = []
-
-        // Process each key for the current model
-        for (let k = 0; k < keysToUse.length; k++) {
-          const result = await checkModelWithKey(provider, modelStatuses[m].model, keysToUse[k], checkFn)
-          keyResults.push(result)
+        for (const key of keysToUse) {
+          const result = await checkApi({ ...provider, apiKey: key }, modelStatuses[i].model)
+          keyResults.push(createApiKeyStatus(key, result))
         }
 
-        // Update model status
-        updateModelStatus(m, keyResults, processResultsFn, dispatch)
+        updateModelStatus(i, keyResults, processResultsFn, dispatch)
       }
     }
   } finally {
@@ -412,7 +367,6 @@ function useModelChecks({
       provider,
       keysToUse: [apiKey], // Only use the selected API key
       isConcurrent,
-      checkFn: checkApi,
       processResultsFn: processSingleKeyResult,
       dispatch
     })
@@ -427,7 +381,6 @@ function useModelChecks({
       provider,
       keysToUse: apiKeys, // Use all API keys
       isConcurrent,
-      checkFn: checkApi,
       processResultsFn: processMultipleKeysResult,
       dispatch
     })

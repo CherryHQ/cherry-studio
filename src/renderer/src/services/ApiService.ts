@@ -294,7 +294,7 @@ async function performModelCheck<T>(
   model: Model,
   checkFn: (ai: AiProvider, model: Model) => Promise<T>,
   processResult: (result: T) => { valid: boolean; error: Error | null }
-): Promise<{ valid: boolean; error: Error | null }> {
+): Promise<{ valid: boolean; error: Error | null; latency?: number }> {
   const validation = validateProviderBasics(provider)
   if (!validation.shouldContinue) {
     return {
@@ -306,8 +306,14 @@ async function performModelCheck<T>(
   const AI = new AiProvider(provider)
 
   try {
+    const startTime = performance.now()
     const result = await checkFn(AI, model)
-    return processResult(result)
+    const latency = performance.now() - startTime
+
+    return {
+      ...processResult(result),
+      latency
+    }
   } catch (error: any) {
     return {
       valid: false,
