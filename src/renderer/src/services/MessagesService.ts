@@ -30,16 +30,21 @@ export function filterContextMessages(messages: Message[]): Message[] {
 }
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
-  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const _messages = takeRight(messages, contextCount)
+  const maxContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
+  const _messages = takeRight(messages, maxContextCount)
   const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
-  const messagesCount = _messages.length
 
+  let currentContextCount = 0
   if (clearIndex === -1) {
-    return contextCount
+    currentContextCount = _messages.length
+  } else {
+    currentContextCount = _messages.length - (clearIndex + 1)
   }
 
-  return messagesCount - (clearIndex + 1)
+  return {
+    current: currentContextCount,
+    max: maxContextCount
+  }
 }
 
 export function deleteMessageFiles(message: Message) {

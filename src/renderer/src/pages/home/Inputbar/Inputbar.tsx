@@ -72,7 +72,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
-  const [contextCount, setContextCount] = useState(0)
+  const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
   const generating = useAppSelector((state) => state.runtime.generating)
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
@@ -441,7 +441,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       }),
       EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount }) => {
         _setEstimateTokenCount(tokensCount)
-        setContextCount(contextCount)
+        setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
       }),
       EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
     ]
