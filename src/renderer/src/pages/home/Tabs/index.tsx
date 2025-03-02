@@ -21,6 +21,7 @@ interface Props {
   setActiveAssistant: (assistant: Assistant) => void
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
+  sizes?: number[]
 }
 
 type Tab = 'assistants' | 'topic' | 'settings'
@@ -35,10 +36,6 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
   const { toggleShowTopics } = useShowTopics()
 
   const { t } = useTranslation()
-
-  const borderStyle = '0.5px solid var(--color-border)'
-  const border =
-    position === 'left' ? { borderRight: borderStyle } : { borderLeft: borderStyle, borderTopLeftRadius: 0 }
 
   if (position === 'left' && topicPosition === 'left') {
     _tab = tab
@@ -94,7 +91,7 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
   }, [position, tab, topicPosition])
 
   return (
-    <Container style={border} className="home-tabs">
+    <Container className="home-tabs">
       {showTab && (
         <Segmented
           value={tab}
@@ -139,8 +136,7 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  max-width: var(--assistants-width);
-  min-width: var(--assistants-width);
+  width: '100%';
   height: calc(100vh - var(--navbar-height));
   background-color: var(--color-background);
   overflow: hidden;
