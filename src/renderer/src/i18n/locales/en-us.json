@@ -782,7 +782,8 @@
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "search": "Search Providers..."
       },
       "proxy": {
         "mode": {

@@ -562,7 +562,7 @@ export const PROVIDER_CONFIG = {
       models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
     }
   },
-  'tencent-cloud-ti': {
+  'tentent-cloud-ti': {
     api: {
       url: 'https://api.lkeap.cloud.tencent.com'
     },

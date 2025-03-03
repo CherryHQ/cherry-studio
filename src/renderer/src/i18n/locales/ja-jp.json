@@ -782,7 +782,8 @@
         "remove_duplicate_keys": "重複キーを削除",
         "remove_invalid_keys": "無効なキーを削除",
         "search_placeholder": "モデルIDまたは名前を検索",
-        "title": "モデルプロバイダー"
+        "title": "モデルプロバイダー",
+        "search": "プロバイダーを検索..."
       },
       "proxy": {
         "mode": {

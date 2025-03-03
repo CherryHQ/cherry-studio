@@ -781,7 +781,8 @@
         "remove_duplicate_keys": "移除重複密鑰",
         "remove_invalid_keys": "刪除無效密鑰",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "search": "搜尋模型平台..."
       },
       "proxy": {
         "mode": {
