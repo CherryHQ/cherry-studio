@@ -189,6 +189,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         content: t('settings.models.check.all_models_passed')
       })
     }
+
+    // Reset health check status
+    setIsHealthChecking(false)
   }
 
   const onCheckApi = async () => {
@@ -425,7 +428,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         onEditModel={handleEditModel}
         modelStatuses={modelStatuses}
       />
-
       {docsWebsite && (
         <SettingHelpTextRow>
           <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
