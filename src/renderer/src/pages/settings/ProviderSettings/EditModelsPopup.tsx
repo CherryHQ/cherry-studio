@@ -156,7 +156,12 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             <Radio.Button value="embedding">{t('models.embedding')}</Radio.Button>
           </Radio.Group>
         </Center>
-        <Search placeholder={t('settings.provider.search_placeholder')} allowClear onSearch={setSearchText} />
+        <Search
+          placeholder={t('settings.provider.search_placeholder')}
+          allowClear
+          onChange={(e) => setSearchText(e.target.value)}
+          onSearch={setSearchText}
+        />
       </SearchContainer>
       <ListContainer>
         {Object.keys(modelGroups).map((group) => (
