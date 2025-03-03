@@ -392,7 +392,7 @@
       "message.code_style": "Code style",
       "message.delete.content": "Are you sure you want to delete this message?",
       "message.delete.title": "Delete Message",
-            "message.multi_model_style": "Multi-model response style",
+      "message.multi_model_style": "Multi-model response style",
       "message.multi_model_style.fold": "Fold view",
       "message.multi_model_style.grid": "Grid layout",
       "message.multi_model_style.horizontal": "Side by side",
@@ -561,7 +561,8 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
-      "xirang": "State Cloud Xirang"
+      "xirang": "State Cloud Xirang",
+      "tencent-cloud": "Tencent Cloud TI"
     },
     "settings": {
       "about": "About & Feedback",

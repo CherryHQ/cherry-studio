@@ -1202,6 +1202,19 @@ const migrateConfig = {
       zhihu && state.minapps.enabled.push(zhihu)
     }
     return state
+  },
+  '76': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'tencent-cloud',
+      name: 'Tencent Cloud TI',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.lkeap.cloud.tencent.com',
+      models: SYSTEM_MODELS['tencent-cloud'],
+      isSystem: true,
+      enabled: false
+    })
+    return state
   }
 }
 
