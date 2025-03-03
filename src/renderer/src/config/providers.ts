@@ -33,8 +33,10 @@ import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
+import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
+import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 export function getProviderLogo(providerId: string) {
@@ -67,6 +69,8 @@ export function getProviderLogo(providerId: string) {
       return BailianProviderLogo
     case 'modelscope':
       return ModelScopeProviderLogo
+    case 'xirang':
+      return XirangProviderLogo
     case 'anthropic':
       return AnthropicProviderLogo
     case 'aihubmix':
@@ -117,6 +121,8 @@ export function getProviderLogo(providerId: string) {
       return InfiniProviderLogo
     case 'o3':
       return O3ProviderLogo
+    case 'tencent-cloud-ti':
+      return TencentCloudProviderLogo
     default:
       return undefined
   }
@@ -321,6 +327,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://modelscope.cn/my/myaccesstoken',
       docs: 'https://modelscope.cn/docs/model-service/API-Inference/intro',
       models: 'https://modelscope.cn/models'
+    }
+  },
+  xirang: {
+    api: {
+      url: 'https://wishub-x1.ctyun.cn'
+    },
+    websites: {
+      official: 'https://www.ctyun.cn',
+      apiKey: 'https://huiju.ctyun.cn/service/serviceGroup',
+      docs: 'https://www.ctyun.cn/products/ctxirang',
+      models: 'https://huiju.ctyun.cn/modelSquare/'
     }
   },
   dashscope: {
@@ -543,6 +560,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
       docs: 'https://cloud.baidu.com/doc/index.html',
       models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
+    }
+  },
+  'tencent-cloud-ti': {
+    api: {
+      url: 'https://api.lkeap.cloud.tencent.com'
+    },
+    websites: {
+      official: 'https://cloud.tencent.com/product/ti',
+      apiKey: 'https://console.cloud.tencent.com/lkeap/api',
+      docs: 'https://cloud.tencent.com/document/product/1772',
+      models: 'https://console.cloud.tencent.com/tione/v2/aimarket'
     }
   }
 }

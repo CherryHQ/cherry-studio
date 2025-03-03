@@ -34,6 +34,7 @@ export interface SettingsState {
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
+  showAssistantIcon: boolean
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
@@ -99,6 +100,7 @@ const initialState: SettingsState = {
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
+  showAssistantIcon: false,
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: false,
@@ -203,6 +205,9 @@ const settingsSlice = createSlice({
     },
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
+    },
+    setShowAssistantIcon: (state, action: PayloadAction<boolean>) => {
+      state.showAssistantIcon = action.payload
     },
     setPasteLongTextAsFile: (state, action: PayloadAction<boolean>) => {
       state.pasteLongTextAsFile = action.payload
@@ -346,6 +351,7 @@ export const {
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
+  setShowAssistantIcon,
   setPasteLongTextAsFile,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,

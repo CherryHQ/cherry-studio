@@ -31,11 +31,11 @@ const Prompt: FC<Props> = ({ assistant, topic }) => {
 
 const Container = styled.div<{ $isDark: boolean }>`
   padding: 10px 20px;
-  margin: 4px 20px 0 20px;
+  margin: 5px 20px 0 20px;
   border-radius: 6px;
   cursor: pointer;
   border: 0.5px solid var(--color-border);
-  background-color: ${({ $isDark }) => ($isDark ? 'var(--color-background-soft)' : 'transparent')};
+  background-color: ${({ $isDark }) => ($isDark ? 'var(--color-background-opacity)' : 'transparent')};
 `
 
 const Text = styled.div`

@@ -1,3 +1,5 @@
+@use './container.scss';
+
 #inputbar {
   resize: none;
 }
@@ -7,6 +9,10 @@
 }
 
 .ant-btn:not(:disabled):focus-visible {
+  outline: none;
+}
+
+.ant-tabs-tabpane:focus-visible {
   outline: none;
 }
 

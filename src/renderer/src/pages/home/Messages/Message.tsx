@@ -11,7 +11,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { estimateHistoryTokens, estimateMessageUsage } from '@renderer/services/TokenService'
 import { Message, Topic } from '@renderer/types'
 import { classNames, runAsyncFunction } from '@renderer/utils'
-import { Divider } from 'antd'
+import { Divider, Dropdown } from 'antd'
 import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -35,14 +35,6 @@ interface Props {
   onDeleteMessage?: (message: Message) => Promise<void>
 }
 
-const getMessageBackground = (isBubbleStyle: boolean, isAssistantMessage: boolean) => {
-  return isBubbleStyle
-    ? isAssistantMessage
-      ? 'var(--chat-background-assistant)'
-      : 'var(--chat-background-user)'
-    : undefined
-}
-
 const MessageItem: FC<Props> = ({
   message: _message,
   topic: _topic,
@@ -62,6 +54,9 @@ const MessageItem: FC<Props> = ({
   const { showMessageDivider, messageFont, fontSize } = useSettings()
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const topic = useTopic(assistant, _topic?.id)
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
+  const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
+  const [selectedText, setSelectedText] = useState<string>('')
 
   const isLastMessage = index === 0
   const isAssistantMessage = message.role === 'assistant'
@@ -74,6 +69,31 @@ const MessageItem: FC<Props> = ({
 
   const messageBorder = showMessageDivider ? undefined : 'none'
   const messageBackground = getMessageBackground(isBubbleStyle, isAssistantMessage)
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const _selectedText = window.getSelection()?.toString()
+    if (_selectedText) {
+      const quotedText =
+        _selectedText
+          .split('\n')
+          .map((line) => `> ${line}`)
+          .join('\n') + '\n-------------'
+      setSelectedQuoteText(quotedText)
+      setContextMenuPosition({ x: e.clientX, y: e.clientY })
+      setSelectedText(_selectedText)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleClick = () => {
+      setContextMenuPosition(null)
+    }
+    document.addEventListener('click', handleClick)
+    return () => {
+      document.removeEventListener('click', handleClick)
+    }
+  }, [])
 
   const onEditMessage = useCallback(
     async (msg: Message) => {
@@ -185,7 +205,18 @@ const MessageItem: FC<Props> = ({
         'message-user': !isAssistantMessage
       })}
       ref={messageContainerRef}
+      onContextMenu={handleContextMenu}
       style={{ ...style, alignItems: isBubbleStyle ? (isAssistantMessage ? 'start' : 'end') : undefined }}>
+      {contextMenuPosition && (
+        <ContextMenuOverlay style={{ left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}>
+          <Dropdown
+            menu={{ items: getContextMenuItems(t, selectedQuoteText, selectedText) }}
+            open={true}
+            trigger={['contextMenu']}>
+            <div />
+          </Dropdown>
+        </ContextMenuOverlay>
+      )}
       <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
       <MessageContentContainer
         className="message-content-container"
@@ -220,6 +251,32 @@ const MessageItem: FC<Props> = ({
     </MessageContainer>
   )
 }
+
+const getMessageBackground = (isBubbleStyle: boolean, isAssistantMessage: boolean) => {
+  return isBubbleStyle
+    ? isAssistantMessage
+      ? 'var(--chat-background-assistant)'
+      : 'var(--chat-background-user)'
+    : undefined
+}
+
+const getContextMenuItems = (t: (key: string) => string, selectedQuoteText: string, selectedText: string) => [
+  {
+    key: 'copy',
+    label: t('common.copy'),
+    onClick: () => {
+      navigator.clipboard.writeText(selectedText)
+      window.message.success({ content: t('message.copied'), key: 'copy-message' })
+    }
+  },
+  {
+    key: 'quote',
+    label: t('chat.message.quote'),
+    onClick: () => {
+      EventEmitter.emit(EVENT_NAMES.QUOTE_TEXT, selectedQuoteText)
+    }
+  }
+]
 
 const MessageContainer = styled.div`
   display: flex;
@@ -268,6 +325,10 @@ const MessageFooter = styled.div`
 
 const NewContextMessage = styled.div`
   cursor: pointer;
+`
+
+const ContextMenuOverlay = styled.div`
+  position: fixed;
 `
 
 export default memo(MessageItem)

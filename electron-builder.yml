@@ -81,8 +81,11 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    Web 搜索增加更多配置选项
-    用户消息支持快速重新发送
-    知识库网址支持右键配置别名
-    支持更多类型的思考内容显示
-    知识库错误修复
+    知识库增强：优化了知识库并发处理机制
+    小程序集成：新增了对知乎、Cici 和 you.com 小程序的支持
+    数学公式：可以复制和渲染更复杂的化学方程式
+    模型支持: 新增了对 Hunyuan TurboS 模型
+    推理控制： 为部分模型添加了推理工作量控制选项
+    表情头像： 现在您可以使用表情符号作为头像
+    全屏修复: 增加 ESC 键退出全屏模式、
+    界面优化： 对多个组件进行了重构和样式优化

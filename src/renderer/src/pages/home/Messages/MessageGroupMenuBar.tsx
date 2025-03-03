@@ -11,8 +11,9 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import { Message, Model } from '@renderer/types'
-import { Button, Segmented as AntdSegmented } from 'antd'
+import { Button, Segmented as AntdSegmented, Tooltip } from 'antd'
 import { FC, memo } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import MessageGroupSettings from './MessageGroupSettings'
@@ -34,25 +35,29 @@ const MessageGroupMenuBar: FC<Props> = ({
   setSelectedIndex,
   onDelete
 }) => {
+  const { t } = useTranslation()
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
       <HStack style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
         <LayoutContainer>
           {['fold', 'vertical', 'horizontal', 'grid'].map((layout) => (
-            <LayoutOption
+            <Tooltip
               key={layout}
-              $active={multiModelMessageStyle === layout}
-              onClick={() => setMultiModelMessageStyle(layout as MultiModelMessageStyle)}>
-              {layout === 'fold' ? (
-                <FolderOutlined />
-              ) : layout === 'horizontal' ? (
-                <ColumnWidthOutlined />
-              ) : layout === 'vertical' ? (
-                <ColumnHeightOutlined />
-              ) : (
-                <NumberOutlined />
-              )}
-            </LayoutOption>
+              title={t(`message.message.multi_model_style`) + ': ' + t(`message.message.multi_model_style.${layout}`)}>
+              <LayoutOption
+                $active={multiModelMessageStyle === layout}
+                onClick={() => setMultiModelMessageStyle(layout as MultiModelMessageStyle)}>
+                {layout === 'fold' ? (
+                  <FolderOutlined />
+                ) : layout === 'horizontal' ? (
+                  <ColumnWidthOutlined />
+                ) : layout === 'vertical' ? (
+                  <ColumnHeightOutlined />
+                ) : (
+                  <NumberOutlined />
+                )}
+              </LayoutOption>
+            </Tooltip>
           ))}
         </LayoutContainer>
         {multiModelMessageStyle === 'fold' && (
@@ -131,9 +136,14 @@ const ModelsContainer = styled(Scrollbar)`
 `
 
 const Segmented = styled(AntdSegmented)`
+  &.ant-segmented {
+    background: transparent !important;
+  }
   .ant-segmented-item {
     background-color: transparent !important;
     transition: none !important;
+    border-radius: var(--list-item-border-radius) !important;
+    box-shadow: none !important;
     &:hover {
       background: transparent !important;
     }
@@ -143,6 +153,8 @@ const Segmented = styled(AntdSegmented)`
     background-color: transparent !important;
     border: 0.5px solid var(--color-border);
     transition: none !important;
+    border-radius: var(--list-item-border-radius) !important;
+    box-shadow: none !important;
   }
 `
 

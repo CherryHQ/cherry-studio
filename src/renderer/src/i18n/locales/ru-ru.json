@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "Короткая",
       "settings.reasoning_effort.medium": "Средняя",
       "settings.reasoning_effort.off": "Выключено",
-      "settings.reasoning_effort.tip": "Эта настройка поддерживается только моделями с рассуждением",
+      "settings.reasoning_effort.tip": "Поддерживается только моделями с рассуждением OpenAI o-series и Anthropic",
       "title": "Ассистенты"
     },
     "auth": {
@@ -109,6 +109,7 @@
       "message.new.context": "Новый контекст",
       "message.regenerate.model": "Переключить модель",
       "message.useful": "Полезно",
+      "message.quote": "Цитата",
       "resend": "Переотправить",
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",
@@ -393,10 +394,10 @@
       "message.delete.content": "Вы уверены, что хотите удалить это сообщение?",
       "message.delete.title": "Удалить сообщение",
       "message.multi_model_style": "Стиль ответов от нескольких моделей",
-      "message.multi_model_style.fold": "Свернуть",
-      "message.multi_model_style.grid": "клетчатый вид",
-      "message.multi_model_style.horizontal": "Горизонтальный",
-      "message.multi_model_style.vertical": "Вертикальный",
+      "message.multi_model_style.fold": "Вкладки",
+      "message.multi_model_style.grid": "Карточки",
+      "message.multi_model_style.horizontal": "Горизонтальное расположение",
+      "message.multi_model_style.vertical": "Вертикальное расположение",
       "message.style": "Стиль сообщения",
       "message.style.bubble": "Пузырь",
       "message.style.plain": "Простой",
@@ -405,6 +406,7 @@
       "reset.double.confirm.content": "Все данные будут утеряны, хотите продолжить?",
       "reset.double.confirm.title": "ДАННЫЕ БУДУТ УТЕРЯНЫ !!!",
       "restore.success": "Успешно восстановлено",
+      "restore.failed": "Восстановление не удалось",
       "save.success.title": "Успешно сохранено",
       "searching": "Поиск в Интернете...",
       "success.notion.export": "Успешный экспорт в Notion",
@@ -472,7 +474,8 @@
         "vision": "Изображение"
       },
       "vision": "Визуальные",
-      "websearch": "Веб-поисковые"
+      "websearch": "Веб-поисковые",
+      "edit": "Редактировать модель"
     },
     "ollama": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -558,7 +561,9 @@
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "xirang": "State Cloud Xirang",
+      "tencent-cloud-ti": "Tencent Cloud TI"
     },
     "settings": {
       "about": "О программе и обратная связь",
@@ -681,6 +686,7 @@
       "display.sidebar.visible": "Показывать иконки",
       "display.title": "Настройки отображения",
       "display.topic.title": "Настройки топиков",
+      "display.assistant.title": "Настройки ассистентов",
       "font_size.title": "Размер шрифта сообщений",
       "general": "Общие настройки",
       "general.backup.button": "Резервное копирование",
@@ -693,6 +699,9 @@
       "general.title": "Общие настройки",
       "general.user_name": "Имя пользователя",
       "general.user_name.placeholder": "Введите ваше имя",
+      "general.image_upload": "Загрузка изображений",
+      "general.emoji_picker": "Выбор эмодзи",
+      "general.avatar.reset": "Сброс аватара",
       "general.view_webdav_settings": "Просмотр настроек WebDAV",
       "input.auto_translate_with_space": "Быстрый перевод с помощью 3-х пробелов",
       "input.target_language": "Целевой язык",
@@ -743,6 +752,10 @@
       "models.search_summary_model_description": "Модель, используемая для сервиса сводки поиска",
       "models.search_summary_model_prompt_message": "Пожалуйста, введите запрос для модели сводки поиска",
       "models.search_summary_model_prompt_title": "Модель Сводка поиска Подсказка",
+      "moresetting": "Дополнительные настройки",
+      "moresetting.warn": "Предупреждение о риске",
+      "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",
+      "moresetting.check.confirm": "Подтвердить выбор",
       "provider": {
         "add.name": "Имя провайдера",
         "add.name.placeholder": "Пример: OpenAI",
@@ -789,7 +802,6 @@
       },
       "shortcuts": {
         "action": "Действие",
-        "alt_warning": "В Mac сочетания с клавишей Option работают только с пробелом",
         "clear_shortcut": "Очистить сочетание клавиш",
         "clear_topic": "Очистить все сообщения",
         "copy_last_message": "Копировать последнее сообщение",
@@ -823,6 +835,7 @@
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
+      "assistant.show.icon": "Показывать модельный иконки",
       "tray.title": "Включить значок системного трея",
       "websearch": {
         "get_api_key": "Получить ключ API",

@@ -1,3 +1,4 @@
+import { isReasoningModel } from '@renderer/config/models'
 import { Message } from '@renderer/types'
 
 export function escapeDollarNumber(text: string) {
@@ -82,12 +83,24 @@ export function withGeminiGrounding(message: Message) {
 }
 
 interface ThoughtProcessor {
-  canProcess: (content: string) => boolean
+  canProcess: (content: string, message?: Message) => boolean
   process: (content: string) => { reasoning: string; content: string }
 }
 
 const glmZeroPreviewProcessor: ThoughtProcessor = {
-  canProcess: (content: string) => content.includes('###Thinking'),
+  canProcess: (content: string, message?: Message) => {
+    if (!message) return false
+
+    const model = message.model
+    if (!model || !isReasoningModel(model)) return false
+
+    const modelId = message.modelId || ''
+    const modelName = model.name || ''
+    const isGLMZeroPreview =
+      modelId.toLowerCase().includes('glm-zero-preview') || modelName.toLowerCase().includes('glm-zero-preview')
+
+    return isGLMZeroPreview && content.includes('###Thinking')
+  },
   process: (content: string) => {
     const parts = content.split('###')
     const thinkingMatch = parts.find((part) => part.trim().startsWith('Thinking'))
@@ -101,7 +114,14 @@ const glmZeroPreviewProcessor: ThoughtProcessor = {
 }
 
 const thinkTagProcessor: ThoughtProcessor = {
-  canProcess: (content: string) => content.startsWith('<think>') || content.includes('</think>'),
+  canProcess: (content: string, message?: Message) => {
+    if (!message) return false
+
+    const model = message.model
+    if (!model || !isReasoningModel(model)) return false
+
+    return content.startsWith('<think>') || content.includes('</think>')
+  },
   process: (content: string) => {
     // 处理正常闭合的 think 标签
     const thinkPattern = /^<think>(.*?)<\/think>/s
@@ -145,7 +165,7 @@ export function withMessageThought(message: Message) {
   const content = message.content.trim()
   const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor]
 
-  const processor = processors.find((p) => p.canProcess(content))
+  const processor = processors.find((p) => p.canProcess(content, message))
   if (processor) {
     const { reasoning, content: processedContent } = processor.process(content)
     message.reasoning_content = reasoning

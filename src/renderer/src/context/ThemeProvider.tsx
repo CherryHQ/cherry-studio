@@ -1,7 +1,6 @@
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
-import { isMiniWindow } from '@renderer/utils'
 import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
 
 interface ThemeContextType {
@@ -40,9 +39,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
 
   useEffect(() => {
     document.body.setAttribute('theme-mode', _theme)
-    if (!isMiniWindow()) {
-      window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
-    }
+    // 移除迷你窗口的条件判断，让所有窗口都能设置主题
+    window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
   }, [_theme])
 
   useEffect(() => {

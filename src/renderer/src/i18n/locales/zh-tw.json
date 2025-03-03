@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "關",
-      "settings.reasoning_effort.tip": "該設置僅支持推理模型",
+      "settings.reasoning_effort.tip": "僅支持OpenAI o系列和Anthropic推理模型",
       "title": "助手"
     },
     "auth": {
@@ -109,6 +109,7 @@
       "message.new.context": "新上下文",
       "message.regenerate.model": "切換模型",
       "message.useful": "有用",
+      "message.quote": "引用",
       "resend": "重新發送",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",
@@ -393,10 +394,10 @@
       "message.delete.content": "確定要刪除此訊息嗎？",
       "message.delete.title": "刪除訊息",
       "message.multi_model_style": "多模型回答樣式",
-      "message.multi_model_style.fold": "折疊",
-      "message.multi_model_style.grid": "网格",
-      "message.multi_model_style.horizontal": "水平",
-      "message.multi_model_style.vertical": "垂直",
+      "message.multi_model_style.fold": "標籤模式",
+      "message.multi_model_style.grid": "卡片佈局",
+      "message.multi_model_style.horizontal": "橫向排列",
+      "message.multi_model_style.vertical": "縱向堆疊",
       "message.style": "消息樣式",
       "message.style.bubble": "氣泡",
       "message.style.plain": "簡潔",
@@ -405,6 +406,7 @@
       "reset.double.confirm.content": "所有資料將會被清除，您確定要繼續嗎？",
       "reset.double.confirm.title": "資料將會丟失！！！",
       "restore.success": "恢復成功",
+      "restore.failed": "恢復失敗",
       "save.success.title": "保存成功",
       "searching": "正在網路搜索...",
       "success.notion.export": "成功導出到 Notion",
@@ -472,7 +474,8 @@
         "vision": "圖像"
       },
       "vision": "視覺",
-      "websearch": "網路搜索"
+      "websearch": "網路搜索",
+      "edit": "編輯模型"
     },
     "ollama": {
       "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）。",
@@ -524,7 +527,7 @@
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "百川",
-      "baidu-cloud": "百度云千帆",
+      "baidu-cloud": "百度雲千帆",
       "dashscope": "阿里雲百鍊",
       "deepseek": "深度求索",
       "dmxapi": "DMXAPI",
@@ -558,7 +561,9 @@
       "together": "Together",
       "yi": "零一萬物",
       "zhinao": "360智腦",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "xirang": "天翼雲息壤",
+      "tencent-cloud-ti": "騰訊雲TI"
     },
     "settings": {
       "about": "關於與回饋",
@@ -693,6 +698,9 @@
       "general.title": "一般設定",
       "general.user_name": "使用者名稱",
       "general.user_name.placeholder": "輸入您的名稱",
+      "general.image_upload": "圖片上傳",
+      "general.emoji_picker": "表情選擇器",
+      "general.avatar.reset": "重置頭像",
       "general.view_webdav_settings": "查看 WebDAV 設定",
       "input.auto_translate_with_space": "快速敲擊3次空格翻譯",
       "input.target_language": "目標語言",
@@ -743,6 +751,10 @@
       "models.search_summary_model_description": "搜尋摘要服務使用的模型",
       "models.search_summary_model_prompt_message": "請輸入搜尋摘要模型提示詞",
       "models.search_summary_model_prompt_title": "搜尋摘要模型提示詞",
+      "moresetting": "更多設置",
+      "moresetting.warn": "風險警告",
+      "moresetting.check.warn": "請謹慎勾選此選項，勾選錯誤會導致模型無法正常使用！！！",
+      "moresetting.check.confirm": "確認勾選",
       "provider": {
         "add.name": "提供者名稱",
         "add.name.placeholder": "例如：OpenAI",
@@ -789,7 +801,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系統中 Option 鍵只能與空白鍵組合使用",
         "clear_shortcut": "清除快捷鍵",
         "clear_topic": "清除所有訊息",
         "copy_last_message": "複製上一条消息",
@@ -812,8 +823,8 @@
         "zoom_reset": "重置縮放"
       },
       "theme.auto": "自動",
-      "theme.dark": "深色主題",
-      "theme.light": "淺色主題",
+      "theme.dark": "深色",
+      "theme.light": "淺色",
       "theme.title": "主題",
       "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
@@ -823,6 +834,7 @@
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
+      "assistant.show.icon": "顯示模型圖標",
       "tray.title": "啟用系統托盤圖標",
       "websearch": {
         "get_api_key": "點擊這裡獲取密鑰",
@@ -839,7 +851,8 @@
         "blacklist_tooltip": "請使用以下格式(換行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "搜索結果個數",
         "search_result_default": "預設"
-      }
+      },
+      "display.assistant.title": "助手設定"
     },
     "translate": {
       "any.language": "任意語言",

@@ -94,11 +94,24 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
-  const estimateTextTokens = useCallback(debounce(estimateTxtTokens, 1000), [])
-  const inputTokenCount = useMemo(
-    () => (showInputEstimatedTokens ? estimateTextTokens(text) || 0 : 0),
-    [estimateTextTokens, showInputEstimatedTokens, text]
+  const [tokenCount, setTokenCount] = useState(0)
+
+  const debouncedEstimate = useCallback(
+    debounce((newText) => {
+      if (showInputEstimatedTokens) {
+        const count = estimateTxtTokens(newText) || 0
+        setTokenCount(count)
+      }
+    }, 500),
+    [showInputEstimatedTokens]
   )
+
+  useEffect(() => {
+    debouncedEstimate(text)
+  }, [text, debouncedEstimate])
+
+  const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
+
   const newTopicShortcut = useShortcutDisplay('new_topic')
   const newContextShortcut = useShortcutDisplay('toggle_new_context')
   const cleanTopicShortcut = useShortcutDisplay('clear_topic')
@@ -443,7 +456,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         _setEstimateTokenCount(tokensCount)
         setContextCount(contextCount)
       }),
-      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
+      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
+      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
+        setText((prevText) => {
+          const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
+          setTimeout(() => resizeTextArea(), 0)
+          return newText
+        })
+        textareaRef.current?.focus()
+      })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [addNewTopic])
@@ -595,7 +616,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
                   okText={t('chat.input.clear.title')}>
                   <ToolbarButton type="text">
-                    <ClearOutlined />
+                    <ClearOutlined style={{ fontSize: 17 }} />
                   </ToolbarButton>
                 </Popconfirm>
               </Tooltip>
@@ -650,11 +671,13 @@ const Container = styled.div`
 `
 
 const InputBarContainer = styled.div`
-  border: 1px solid var(--color-border);
+  border: 0.5px solid var(--color-border);
   transition: all 0.3s ease;
   position: relative;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
+  margin: 14px 20px;
+  margin-top: 12px;
+  border-radius: 15px;
+  background-color: var(--color-background-opacity);
 `
 
 const TextareaStyle: CSSProperties = {
@@ -697,7 +720,7 @@ const ToolbarMenu = styled.div`
 const ToolbarButton = styled(Button)`
   width: 30px;
   height: 30px;
-  font-size: 17px;
+  font-size: 16px;
   border-radius: 50%;
   transition: all 0.3s ease;
   color: var(--color-icon);
@@ -712,7 +735,7 @@ const ToolbarButton = styled(Button)`
     color: var(--color-icon);
   }
   .icon-a-addchat {
-    font-size: 19px;
+    font-size: 18px;
     margin-bottom: -2px;
   }
   &:hover {

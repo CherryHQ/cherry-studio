@@ -13,7 +13,6 @@ import { useTheme } from './ThemeProvider'
 const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
   const { language } = useSettings()
   const { theme: _theme } = useTheme()
-  const isDarkTheme = _theme === 'dark'
 
   return (
     <ConfigProvider
@@ -21,14 +20,6 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
       theme={{
         algorithm: [_theme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm],
         components: {
-          Segmented: {
-            trackBg: 'transparent',
-            itemSelectedBg: isDarkTheme ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-            boxShadowTertiary: undefined,
-            borderRadiusLG: 16,
-            borderRadiusSM: 16,
-            borderRadiusXS: 16
-          },
           Menu: {
             activeBarBorderWidth: 0,
             darkItemBg: 'transparent'
