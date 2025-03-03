@@ -21,13 +21,17 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
     return null
   }
 
+  const formatMaxCount = (max: number) => {
+    return max == 20 ? '♾️' : max.toString()
+  }
+
   const PopoverContent = () => {
     return (
       <VStack w="185px" background="100%">
         <HStack justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
-            {contextCount.current} / {contextCount.max}
+            {contextCount.current} / {formatMaxCount(contextCount.max)}
           </Text>
         </HStack>
         <Divider style={{ margin: '5px 0' }} />
@@ -42,7 +46,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
   return (
     <Container>
       <Popover content={PopoverContent}>
-        <MenuOutlined /> {contextCount.current} / {contextCount.max}
+        <MenuOutlined /> {contextCount.current} / {formatMaxCount(contextCount.max)}
         <Divider type="vertical" style={{ marginTop: 0, marginLeft: 5, marginRight: 5 }} />
         <ArrowUpOutlined />
         {inputTokenCount} / {estimateTokenCount}
