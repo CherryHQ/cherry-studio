@@ -121,7 +121,7 @@ export function getProviderLogo(providerId: string) {
       return InfiniProviderLogo
     case 'o3':
       return O3ProviderLogo
-    case 'tencent-cloud':
+    case 'tencent-cloud-ti':
       return TencentCloudProviderLogo
     default:
       return undefined
@@ -562,7 +562,7 @@ export const PROVIDER_CONFIG = {
       models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
     }
   },
-  'tentent-cloud': {
+  'tentent-cloud-ti': {
     api: {
       url: 'https://api.lkeap.cloud.tencent.com'
     },
