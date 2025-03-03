@@ -180,6 +180,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       style: { marginTop: '3vh' },
       duration: 10,
       content: t('settings.models.check.model_status_summary', {
+        provider: provider.name,
         count_passed: successModels.length,
         count_failed: failedModels.length,
         count_partial: partialModels.length
