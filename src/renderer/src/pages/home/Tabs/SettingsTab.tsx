@@ -19,6 +19,7 @@ import {
   setCodeCollapsible,
   setCodeShowLineNumbers,
   setCodeStyle,
+  setCodeWrappable,
   setFontSize,
   setMathEngine,
   setMessageFont,
@@ -69,6 +70,7 @@ const SettingsTab: FC<Props> = (props) => {
     renderInputMessageAsMarkdown,
     codeShowLineNumbers,
     codeCollapsible,
+    codeWrappable,
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
@@ -313,6 +315,11 @@ const SettingsTab: FC<Props> = (props) => {
             checked={codeCollapsible}
             onChange={(checked) => dispatch(setCodeCollapsible(checked))}
           />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
+          <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
