@@ -748,7 +748,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 // Add these styled components at the bottom
 const DragHandle = styled.div`
   position: absolute;
-  top: 0;
+  top: -3px;
   left: 0;
   right: 0;
   height: 6px;
