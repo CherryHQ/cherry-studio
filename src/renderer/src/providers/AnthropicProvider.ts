@@ -14,6 +14,14 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+
+type ReasoningEffort = 'high' | 'medium' | 'low'
+
+interface ReasoningConfig {
+  type: 'enabled' | 'disabled'
+  budget_tokens?: number
+}
+
 export default class AnthropicProvider extends BaseProvider {
   private sdk: Anthropic
 
@@ -77,33 +85,37 @@ export default class AnthropicProvider extends BaseProvider {
     return assistant?.settings?.topP
   }
 
-  private getReasoningEffort(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model)) {
-      const effort_ratio =
-        assistant?.settings?.reasoning_effort === 'high'
-          ? 0.8
-          : assistant?.settings?.reasoning_effort === 'medium'
-            ? 0.5
-            : assistant?.settings?.reasoning_effort === 'low'
-              ? 0.2
-              : undefined
-      if (!effort_ratio)
-        return {
-          type: 'disabled'
-        }
-
-      if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
-        return {
-          type: 'enabled',
-          budget_tokens: Math.max(
-            Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000),
-            1024
-          )
-        }
-      }
+  private getReasoningEffort(assistant: Assistant, model: Model): ReasoningConfig | undefined {
+    if (!isReasoningModel(model)) {
+      return undefined
     }
 
-    return undefined
+    const effortRatios: Record<ReasoningEffort, number> = {
+      high: 0.8,
+      medium: 0.5,
+      low: 0.2
+    }
+
+    const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
+    const effortRatio = effortRatios[effort]
+
+    if (!effortRatio) {
+      return undefined
+    }
+
+    const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
+
+    if (!isClaude37Sonnet) {
+      return undefined
+    }
+
+    const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
+    const budgetTokens = Math.trunc(Math.max(Math.min(maxTokens * effortRatio, 32000), 1024))
+
+    return {
+      type: 'enabled',
+      budget_tokens: budgetTokens
+    }
   }
 
   public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
@@ -137,8 +149,8 @@ export default class AnthropicProvider extends BaseProvider {
     }
 
     if (isReasoningModel(model)) {
-      ;(body as any).thinking = this.getReasoningEffort(assistant, model)
-      ;(body as any).betas = ['output-128k-2025-02-19']
+      // @ts-ignore thinking
+      body.thinking = this.getReasoningEffort(assistant, model)
     }
 
     let time_first_token_millsec = 0

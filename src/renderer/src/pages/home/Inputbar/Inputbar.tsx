@@ -94,11 +94,24 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
-  const estimateTextTokens = useCallback(debounce(estimateTxtTokens, 1000), [])
-  const inputTokenCount = useMemo(
-    () => (showInputEstimatedTokens ? estimateTextTokens(text) || 0 : 0),
-    [estimateTextTokens, showInputEstimatedTokens, text]
+  const [tokenCount, setTokenCount] = useState(0)
+
+  const debouncedEstimate = useCallback(
+    debounce((newText) => {
+      if (showInputEstimatedTokens) {
+        const count = estimateTxtTokens(newText) || 0
+        setTokenCount(count)
+      }
+    }, 500),
+    [showInputEstimatedTokens]
   )
+
+  useEffect(() => {
+    debouncedEstimate(text)
+  }, [text, debouncedEstimate])
+
+  const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
+
   const newTopicShortcut = useShortcutDisplay('new_topic')
   const newContextShortcut = useShortcutDisplay('toggle_new_context')
   const cleanTopicShortcut = useShortcutDisplay('clear_topic')
@@ -443,7 +456,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         _setEstimateTokenCount(tokensCount)
         setContextCount(contextCount)
       }),
-      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
+      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
+      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
+        setText((prevText) => {
+          const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
+          setTimeout(() => resizeTextArea(), 0)
+          return newText
+        })
+        textareaRef.current?.focus()
+      })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [addNewTopic])
