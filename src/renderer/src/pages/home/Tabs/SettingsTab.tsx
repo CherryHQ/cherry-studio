@@ -244,11 +244,12 @@ const SettingsTab: FC<Props> = (props) => {
             <Row align="middle" gutter={10}>
               <Col span={24}>
                 <SegmentedContainer>
-                  <Segmented<'low' | 'medium' | 'high' | undefined>
-                    value={reasoningEffort}
+                  <Segmented<'low' | 'medium' | 'high' | 'off'>
+                    value={reasoningEffort === undefined ? 'off' : reasoningEffort}
                     onChange={(value) => {
-                      setReasoningEffort(value)
-                      onReasoningEffortChange(value)
+                      const newValue = value === 'off' ? undefined : value
+                      setReasoningEffort(newValue)
+                      onReasoningEffortChange(newValue)
                     }}
                     options={[
                       {
@@ -264,7 +265,7 @@ const SettingsTab: FC<Props> = (props) => {
                         label: t('assistants.settings.reasoning_effort.high')
                       },
                       {
-                        value: undefined,
+                        value: 'off',
                         label: t('assistants.settings.reasoning_effort.off')
                       }
                     ]}
