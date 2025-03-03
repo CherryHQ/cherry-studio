@@ -24,7 +24,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setGenerating, setSearching } from '@renderer/store/runtime'
-import { Assistant, FileType, KnowledgeBase, Message, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, Message, MessageHistory, Model, Topic } from '@renderer/types'
 import { classNames, delay, getFileExtension, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
@@ -55,10 +55,15 @@ interface Props {
 
 let _text = ''
 let _files: FileType[] = []
+const MAX_HISTORY_MESSAGES = 20
 
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
+  const [historyState, setHistoryState] = useState({
+    messages: [] as MessageHistory[],
+    index: -1
+  })
   const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
   const {
     targetLanguage,
@@ -120,11 +125,84 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   _text = text
   _files = files
 
+  const fetchMessageHistory = useCallback(async () => {
+    const messages = await db.message_history.orderBy('createdAt').reverse().toArray()
+    setHistoryState((prev) => ({
+      ...prev,
+      messages
+    }))
+  }, [])
+
+  useEffect(() => {
+    fetchMessageHistory()
+  }, [fetchMessageHistory])
+
+  const saveMessageHistory = async (content: string) => {
+    await db.transaction('rw', db.message_history, async () => {
+      const count = await db.message_history.count()
+
+      if (count >= MAX_HISTORY_MESSAGES) {
+        await db.message_history
+          .orderBy('createdAt')
+          .limit(count - MAX_HISTORY_MESSAGES + 1)
+          .delete()
+      }
+
+      await db.message_history.add({
+        id: uuid(),
+        content,
+        createdAt: new Date().toISOString()
+      })
+    })
+
+    await fetchMessageHistory()
+  }
+
+  const updateHistoryStateAndText = (newIndex: number) => {
+    setHistoryState((prev) => ({
+      ...prev,
+      index: newIndex
+    }))
+    setText(newIndex === -1 ? '' : historyState.messages[newIndex].content)
+    newIndex !== -1 && selectAllText()
+  }
+
+  const handleHistoryNavigation = (direction: 'up' | 'down', event: React.KeyboardEvent) => {
+    event.preventDefault()
+
+    const { messages, index } = historyState
+    let newIndex = index
+
+    if (direction === 'up') {
+      if (messages.length > 0) {
+        newIndex = index < messages.length - 1 ? index + 1 : index
+      }
+    } else {
+      if (index > 0) {
+        newIndex = index - 1
+      } else if (index === 0) {
+        newIndex = -1
+      }
+    }
+
+    if (newIndex !== index) {
+      updateHistoryStateAndText(newIndex)
+    }
+  }
+
   const sendMessage = useCallback(async () => {
     await modelGenerating()
 
     if (inputEmpty) {
       return
+    }
+
+    if (text.trim()) {
+      await saveMessageHistory(text.trim())
+      setHistoryState((prev) => ({
+        ...prev,
+        index: -1
+      }))
     }
 
     const message: Message = {
@@ -177,8 +255,28 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
   }
 
+  const selectAllText = () => {
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (textArea) {
+      setTimeout(() => {
+        textArea.setSelectionRange(0, textArea.value.length)
+      }, 0)
+    }
+  }
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+
+    const isAllSelected = textArea && textArea.selectionStart === 0 && textArea.selectionEnd === textArea.value.length
+
+    if (text.trim() === '' || isAllSelected) {
+      if (event.key === 'ArrowUp') {
+        handleHistoryNavigation('up', event)
+      } else if (event.key === 'ArrowDown') {
+        handleHistoryNavigation('down', event)
+      }
+    }
 
     if (event.key === '@') {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
@@ -527,6 +625,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setMentionModels(mentionModels.filter((m) => m.id !== model.id))
   }
 
+  const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    const textArea = e.target as HTMLTextAreaElement
+    const isAllSelected = textArea.selectionStart === 0 && textArea.selectionEnd === textArea.value.length
+
+    if (!isAllSelected) {
+      setHistoryState((prev) => ({
+        ...prev,
+        index: -1
+      }))
+    }
+  }
+
   const onEnableWebSearch = () => {
     if (!isWebSearchModel(model)) {
       if (!WebSearchService.isWebSearchEnabled()) {
@@ -565,6 +675,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             value={text}
             onChange={onChange}
             onKeyDown={handleKeyDown}
+            onSelect={handleSelect}
             placeholder={isTranslating ? t('chat.input.translating') : t('chat.input.placeholder')}
             autoFocus
             contextMenu="true"
