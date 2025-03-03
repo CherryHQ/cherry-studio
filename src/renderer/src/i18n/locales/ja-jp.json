@@ -778,7 +778,7 @@
       "models.check.enable_concurrent": "並行チェック",
       "models.check.use_all_keys": "キー",
       "models.check.all_models_passed": "すべてのモデルチェックが成功しました",
-      "models.check.model_status_summary": "{{count_passed}}個のモデルが成功しました、{{count_failed}}個のモデルが失敗しました、{{count_partial}}個のモデルが一部成功しました",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}}個のモデルが成功しました、{{count_failed}}個のモデルが失敗しました、{{count_partial}}個のモデルが一部成功しました",
       "models.check.no_api_keys": "APIキーが見つかりません。まずAPIキーを追加してください。",
       "models.check.select_api_key": "使用するAPIキーを選択：",
       "models.check.keys_status_count": "合格：{{count_passed}}個のキー、不合格：{{count_failed}}個のキー",

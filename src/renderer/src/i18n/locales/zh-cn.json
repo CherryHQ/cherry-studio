@@ -778,7 +778,7 @@
       "models.check.enable_concurrent": "并发检查",
       "models.check.use_all_keys": "使用密钥",
       "models.check.all_models_passed": "所有模型检查通过",
-      "models.check.model_status_summary": "{{count_passed}}个模型通过所有密钥，{{count_failed}}个模型未通过任何密钥，{{count_partial}}个模型未通过某些密钥",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}}个模型通过所有密钥，{{count_failed}}个模型未通过任何密钥，{{count_partial}}个模型未通过某些密钥",
       "models.check.no_api_keys": "未找到API密钥，请先添加API密钥。",
       "models.check.select_api_key": "选择要使用的API密钥：",
       "models.check.keys_status_count": "通过：{{count_passed}}个密钥，失败：{{count_failed}}个密钥",
