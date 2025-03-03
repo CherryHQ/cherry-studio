@@ -361,58 +361,12 @@ export const captureScrollableDivAsDataURL = async (divRef: React.RefObject<HTML
 }
 
 export const captureScrollableDivAsBlob = async (divRef: React.RefObject<HTMLDivElement>, func: BlobCallback) => {
-  if (divRef.current) {
-    try {
-      const div = divRef.current
-
-      // Save original styles
-      const originalStyle = {
-        height: div.style.height,
-        maxHeight: div.style.maxHeight,
-        overflow: div.style.overflow,
-        position: div.style.position
-      }
-
-      const originalScrollTop = div.scrollTop
-
-      // Modify styles to show full content
-      div.style.height = 'auto'
-      div.style.maxHeight = 'none'
-      div.style.overflow = 'visible'
-      div.style.position = 'static'
-
-      // Use htmlToImage.toBlob directly
-      await htmlToImage
-        .toBlob(div, {
-          backgroundColor: getComputedStyle(div).getPropertyValue('--color-background'),
-          cacheBust: true,
-          pixelRatio: window.devicePixelRatio,
-          skipAutoScale: true,
-          canvasWidth: div.scrollWidth,
-          canvasHeight: div.scrollHeight,
-          style: {
-            backgroundColor: getComputedStyle(div).backgroundColor,
-            color: getComputedStyle(div).color
-          }
-        })
-        .then((blob) => {
-          if (blob) func(blob)
-        })
-
-      // Restore original styles
-      div.style.height = originalStyle.height
-      div.style.maxHeight = originalStyle.maxHeight
-      div.style.overflow = originalStyle.overflow
-      div.style.position = originalStyle.position
-
-      // Restore original scroll position
-      setTimeout(() => {
-        div.scrollTop = originalScrollTop
-      }, 0)
-    } catch (error) {
-      console.error('Error capturing scrollable div as blob:', error)
+  await captureScrollableDiv(divRef).then((canvas) => {
+    if (canvas) {
+      return canvas.toBlob(func)
     }
-  }
+    return Promise.resolve(undefined)
+  })
 }
 
 export function hasPath(url: string): boolean {
