@@ -89,7 +89,7 @@ const initialState: ShortcutsState = {
     },
     {
       key: 'toggle_web_search',
-      shortcut: [isMac ? 'Command' : 'Ctrl', 'W'],
+      shortcut: [isMac ? 'Command' : 'Ctrl', 'B'],
       editable: true,
       enabled: true,
       system: false
