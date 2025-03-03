@@ -148,13 +148,11 @@ const ProvidersList: FC = () => {
             </DragDropContext>
           </ProviderList>
         </Scrollbar>
-        {!dragging && (
-          <AddButtonWrapper>
-            <Button style={{ width: '100%' }} icon={<PlusOutlined />} onClick={onAddProvider}>
-              {t('button.add')}
-            </Button>
-          </AddButtonWrapper>
-        )}
+        <AddButtonWrapper isDragging={dragging}>
+          <Button style={{ width: '100%' }} icon={<PlusOutlined />} onClick={onAddProvider}>
+            {t('button.add')}
+          </Button>
+        </AddButtonWrapper>
       </ProviderListContainer>
       <ProviderSetting provider={selectedProvider} key={JSON.stringify(selectedProvider)} />
     </Container>
@@ -215,12 +213,14 @@ const ProviderItemName = styled.div`
   font-family: Ubuntu;
 `
 
-const AddButtonWrapper = styled.div`
+const AddButtonWrapper = styled.div<{ isDragging: boolean }>`
   height: 50px;
   flex-direction: row;
   justify-content: center;
   align-items: center;
   padding: 10px 8px;
+  opacity: ${(props) => (props.isDragging ? 0.5 : 1)};
+  pointer-events: ${(props) => (props.isDragging ? 'none' : 'auto')};
 `
 
 export default ProvidersList
