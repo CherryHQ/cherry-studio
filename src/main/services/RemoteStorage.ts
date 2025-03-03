@@ -44,13 +44,13 @@ export default class RemoteStorage {
 
   public getFileContents = async (filename: string) => {
     if (!this.instance) {
-      throw new Error('WebDAV client not initialized')
+      throw new Error('RemoteStorage client not initialized')
     }
 
     try {
       return await this.instance.read(filename)
     } catch (error) {
-      Logger.error('[WebDAV] Error getting file contents on WebDAV:', error)
+      Logger.error('[RemoteStorage] Error getting file contents:', error)
       throw error
     }
   }
