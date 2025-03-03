@@ -193,7 +193,8 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "copied": "Copied"
     },
     "docs": {
       "title": "Docs"
@@ -562,6 +563,7 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot",
       "xirang": "State Cloud Xirang",
       "tencent-cloud-ti": "Tencent Cloud TI"
     },
@@ -782,7 +784,22 @@
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "copilot": {
+          "tooltip": "You need to log in to Github before using Github Copilot in Cherry Studio.",
+          "description": "Your GitHub account needs to subscribe to Copilot.",
+          "login": "Log in to Github",
+          "connect": "Connect to Github",
+          "logout": "Exit GitHub",
+          "auth_success_title": "Certification successful.",
+          "code_generated_title": "Obtain Device Code",
+          "code_generated_desc": "Please copy the device code into the browser link below.",
+          "code_failed": "Failed to obtain Device Code, please try again.",
+          "auth_success": "GitHub Copilot authentication successful.",
+          "auth_failed": "Github Copilot authentication failed.",
+          "logout_success": "Successfully logged out.",
+          "logout_failed": "Exit failed, please try again."
+        }
       },
       "proxy": {
         "mode": {

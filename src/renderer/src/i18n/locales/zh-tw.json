@@ -193,7 +193,8 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "copied": "已複製"
     },
     "docs": {
       "title": "幫助文件"
@@ -781,7 +782,22 @@
         "remove_duplicate_keys": "移除重複密鑰",
         "remove_invalid_keys": "刪除無效密鑰",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "copilot": {
+          "tooltip": "在Cherry Studio中使用Github Copilot需要先登入Github。",
+          "description": "您的Github帳號需要訂閱Copilot",
+          "login": "登入Github",
+          "connect": "連接Github",
+          "logout": "退出Github",
+          "auth_success_title": "認證成功",
+          "code_generated_title": "獲取設備代碼",
+          "code_generated_desc": "請將裝置代碼複製到下面的瀏覽器連結中",
+          "code_failed": "獲取設備代碼失敗，請重試。",
+          "auth_success": "Github Copilot認證成功",
+          "auth_failed": "Github Copilot 認證失敗",
+          "logout_success": "已成功登出",
+          "logout_failed": "退出失敗，請重試"
+        }
       },
       "proxy": {
         "mode": {
