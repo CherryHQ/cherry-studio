@@ -95,9 +95,8 @@ export default class AnthropicProvider extends BaseProvider {
       if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
         return {
           type: 'enabled',
-          budget_tokens: Math.max(
-            Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000),
-            1024
+          budget_tokens: Math.trunc(
+            Math.max(Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000), 1024)
           )
         }
       }
@@ -138,7 +137,6 @@ export default class AnthropicProvider extends BaseProvider {
 
     if (isReasoningModel(model)) {
       ;(body as any).thinking = this.getReasoningEffort(assistant, model)
-      ;(body as any).betas = ['output-128k-2025-02-19']
     }
 
     let time_first_token_millsec = 0

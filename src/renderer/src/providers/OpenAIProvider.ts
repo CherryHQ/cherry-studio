@@ -194,9 +194,8 @@ export default class OpenAIProvider extends BaseProvider {
         }
         return {
           thinking: {
-            budget_tokens: Math.max(
-              Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000),
-              1024
+            budget_tokens: Math.trunc(
+              Math.max(Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000), 1024)
             )
           }
         }
