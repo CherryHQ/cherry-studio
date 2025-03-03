@@ -362,10 +362,7 @@ export const captureScrollableDivAsDataURL = async (divRef: React.RefObject<HTML
 
 export const captureScrollableDivAsBlob = async (divRef: React.RefObject<HTMLDivElement>, func: BlobCallback) => {
   await captureScrollableDiv(divRef).then((canvas) => {
-    if (canvas) {
-      return canvas.toBlob(func)
-    }
-    return Promise.resolve(undefined)
+    canvas?.toBlob(func)
   })
 }
 
