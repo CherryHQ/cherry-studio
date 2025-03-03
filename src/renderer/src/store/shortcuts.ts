@@ -81,6 +81,13 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
+      key: 'select_model',
+      shortcut: [isMac ? 'Command' : 'Ctrl', 'M'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
       key: 'toggle_web_search',
       shortcut: [isMac ? 'Command' : 'Ctrl', 'W'],
       editable: true,

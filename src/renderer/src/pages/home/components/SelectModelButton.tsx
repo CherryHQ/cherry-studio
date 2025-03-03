@@ -7,6 +7,8 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { Assistant } from '@renderer/types'
 import { Button } from 'antd'
 import { FC } from 'react'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -17,6 +19,19 @@ interface Props {
 const SelectModelButton: FC<Props> = ({ assistant }) => {
   const { model, setModel } = useAssistant(assistant.id)
   const { t } = useTranslation()
+
+  useEffect(() => {
+    const handleShowModelSelector = async () => {
+      const selectedModel = await SelectModelPopup.show({ model })
+      if (selectedModel) {
+        setModel(selectedModel)
+      }
+    }
+    EventEmitter.on(EVENT_NAMES.SHOW_MODEL_POPUP, handleShowModelSelector)
+    return () => {
+      EventEmitter.off(EVENT_NAMES.SHOW_MODEL_POPUP, handleShowModelSelector)
+    }
+  }, [])
 
   if (isLocalAi) {
     return null
