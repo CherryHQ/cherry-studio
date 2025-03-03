@@ -9,7 +9,8 @@ import {
   PlusOutlined,
   RedoOutlined,
   SearchOutlined,
-  SettingOutlined
+  SettingOutlined,
+  SyncOutlined
 } from '@ant-design/icons'
 import Ellipsis from '@renderer/components/Ellipsis'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -20,8 +21,8 @@ import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Alert, Button, Card, Divider, Dropdown, message, Tag, Tooltip, Typography, Upload } from 'antd'
-import { FC } from 'react'
+import { Alert, Button, Card, Divider, Dropdown, List, message, Tag, Tooltip, Typography, Upload } from 'antd'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,11 +40,13 @@ interface KnowledgeContentProps {
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
+  const [syncLoading, setSyncLoading] = useState(false)
 
   const {
     base,
     noteItems,
     fileItems,
+    externalItems,
     urlItems,
     sitemapItems,
     directoryItems,
@@ -57,7 +60,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     getDirectoryProcessingPercent,
     addNote,
     addDirectory,
-    updateItem
+    updateItem,
+    importFromExternalSource
   } = useKnowledge(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model.provider || '')
@@ -226,6 +230,33 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     }
   }
 
+  const handleSyncFromExternalSources = async () => {
+    if (disabled) {
+      return
+    }
+
+    setSyncLoading(true)
+    try {
+      // Try to import from the configured external source
+      if (base.externalImports) {
+        const result = await importFromExternalSource(base.externalImports.type)
+
+        if (result) {
+          message.success(t('knowledge.external_import_success'))
+        } else {
+          message.error(t('knowledge.external_import_failed'))
+        }
+      } else {
+        message.info(t('knowledge.no_enabled_external_sources'))
+      }
+    } catch (error) {
+      console.error('Failed to sync from external sources:', error)
+      message.error(t('knowledge.external_import_failed'))
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
   return (
     <MainContent>
       {!base?.version && (
@@ -237,9 +268,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <FileSection>
         <TitleWrapper>
           <Title level={5}>{t('files.title')}</Title>
-          <Button icon={<PlusOutlined />} onClick={handleAddFile} disabled={disabled}>
-            {t('knowledge.add_file')}
-          </Button>
+          <ButtonGroup>
+            <Button icon={<PlusOutlined />} onClick={handleAddFile} disabled={disabled}>
+              {t('knowledge.add_file')}
+            </Button>
+          </ButtonGroup>
         </TitleWrapper>
         <Dragger
           showUploadList={false}
@@ -445,6 +478,57 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         </FlexColumn>
       </ContentSection>
 
+      <ContentSection>
+        <TitleWrapper>
+          <Title level={5}>{t('knowledge.external_imports')}</Title>
+          <Button
+            icon={<SyncOutlined />}
+            onClick={handleSyncFromExternalSources}
+            disabled={disabled || syncLoading || !base.externalImports}
+            loading={syncLoading}>
+            {t('knowledge.sync_now')}
+          </Button>
+        </TitleWrapper>
+      </ContentSection>
+
+      {externalItems.length > 0 && (
+        <>
+          <List
+            dataSource={externalItems}
+            renderItem={(item) => {
+              const file = item.content as FileType
+              return (
+                <ItemCard key={item.id}>
+                  <ItemContent>
+                    <ItemInfo>
+                      <FileIcon />
+                      <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
+                        <Tooltip title={file.origin_name}>
+                          <Ellipsis maxLine={1}>{file.origin_name}</Ellipsis>
+                        </Tooltip>
+                      </ClickableSpan>
+                    </ItemInfo>
+
+                    <FlexAlignCenter>
+                      {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                      <StatusIconWrapper>
+                        <StatusIcon
+                          sourceId={item.id}
+                          base={base}
+                          getProcessingStatus={getProcessingStatus}
+                          type="external"
+                        />
+                      </StatusIconWrapper>
+                      <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                    </FlexAlignCenter>
+                  </ItemContent>
+                </ItemCard>
+              )
+            }}
+          />
+        </>
+      )}
+
       <Divider style={{ margin: '10px 0' }} />
 
       <ModelInfo>
@@ -595,6 +679,11 @@ const StatusIconWrapper = styled.div`
 const RefreshIcon = styled(RedoOutlined)`
   font-size: 15px !important;
   color: var(--color-text-2);
+`
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 8px;
 `
 
 export default KnowledgeContent

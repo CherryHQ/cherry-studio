@@ -441,6 +441,8 @@ class KnowledgeService {
                 return this.sitemapTask(ragApplication, optionsNonNullableAttribute)
               case 'note':
                 return this.noteTask(ragApplication, optionsNonNullableAttribute)
+              case 'external':
+                return this.fileTask(ragApplication, optionsNonNullableAttribute)
               default:
                 return null
             }

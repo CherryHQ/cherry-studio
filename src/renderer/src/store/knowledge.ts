@@ -50,7 +50,7 @@ const knowledgeSlice = createSlice({
     addItem(state, action: PayloadAction<{ baseId: string; item: KnowledgeItem }>) {
       const base = state.bases.find((b) => b.id === action.payload.baseId)
       if (base) {
-        if (action.payload.item.type === 'file') {
+        if (action.payload.item.type === 'file' || action.payload.item.type === 'external') {
           action.payload.item.created_at = new Date(action.payload.item.created_at).getTime()
           action.payload.item.updated_at = new Date(action.payload.item.updated_at).getTime()
           base.items.push(action.payload.item)

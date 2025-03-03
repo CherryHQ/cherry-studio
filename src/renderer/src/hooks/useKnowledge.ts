@@ -3,10 +3,10 @@ import { db } from '@renderer/databases/index'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import FileManager from '@renderer/services/FileManager'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
+import { NotionService } from '@renderer/services/NotionService'
 import { RootState } from '@renderer/store'
 import {
   addBase,
-  addFiles as addFilesAction,
   addItem,
   clearAllProcessing,
   clearCompletedProcessing,
@@ -19,10 +19,12 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import { FileType, KnowledgeBase, ProcessingStatus } from '@renderer/types'
+import { FileType, FileTypes, KnowledgeBase, ProcessingStatus } from '@renderer/types'
 import { KnowledgeItem } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
+import { message } from 'antd'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -32,10 +34,16 @@ import { useAssistants } from './useAssistant'
 export const useKnowledge = (baseId: string) => {
   const dispatch = useDispatch()
   const base = useSelector((state: RootState) => state.knowledge.bases.find((b) => b.id === baseId))
+  const { t } = useTranslation()
 
   // 重命名知识库
   const renameKnowledgeBase = (name: string) => {
     dispatch(renameBase({ baseId, name }))
+  }
+
+  const queryKnowledgeBase = async (baseId: string) => {
+    const base = await db.knowledge_notes.get(baseId)
+    return base
   }
 
   // 更新知识库
@@ -45,18 +53,30 @@ export const useKnowledge = (baseId: string) => {
 
   // 批量添加文件
   const addFiles = (files: FileType[]) => {
-    const filesItems: KnowledgeItem[] = files.map((file) => ({
-      id: uuidv4(),
-      type: 'file' as const,
-      content: file,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      processingStatus: 'pending',
-      processingProgress: 0,
-      processingError: '',
-      retryCount: 0
-    }))
-    dispatch(addFilesAction({ baseId, items: filesItems }))
+    files.forEach((file) => {
+      // 检查文件是否来自外部源
+      const isExternal = !!file.externalSource
+
+      dispatch(
+        addItem({
+          baseId,
+          item: {
+            id: file.id,
+            uniqueId: file.id,
+            type: isExternal ? 'external' : 'file', // 确保类型正确
+            content: file,
+            processingStatus: 'pending',
+            processingProgress: 0,
+            processingError: '',
+            retryCount: 0,
+            created_at: Date.now(),
+            updated_at: Date.now()
+          }
+        })
+      )
+    })
+
+    // 触发处理队列
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
@@ -272,6 +292,7 @@ export const useKnowledge = (baseId: string) => {
   const directoryItems = base?.items.filter((item) => item.type === 'directory') || []
   const urlItems = base?.items.filter((item) => item.type === 'url') || []
   const sitemapItems = base?.items.filter((item) => item.type === 'sitemap') || []
+  const externalItems = base?.items.filter((item) => item.type === 'external') || []
   const [noteItems, setNoteItems] = useState<KnowledgeItem[]>([])
 
   useEffect(() => {
@@ -287,14 +308,51 @@ export const useKnowledge = (baseId: string) => {
     })
   }, [base?.items])
 
+  const importFromExternalSource = async (sourceType: string) => {
+    if (!base) {
+      return false
+    }
+
+    if (sourceType === 'notion') {
+      // 获取 Notion 配置
+      const notionConfig = base.externalImports?.type === 'notion' ? base.externalImports.notionConfig : undefined
+
+      if (!notionConfig?.apiKey || !notionConfig?.databaseId) {
+        message.error(t('knowledge.notion_config_missing'))
+        return false
+      }
+
+      try {
+        const notionService = new NotionService(notionConfig.apiKey)
+        const externalFiles = await notionService.getDatabaseContent(notionConfig.databaseId, externalItems)
+        const newItems = externalFiles.map((file) => ({
+          ...file,
+          uniqueId: file.id,
+          uniqueIds: [file.id],
+          externalSource: 'notion'
+        }))
+        addFiles(newItems as FileType[])
+        return true
+      } catch (error) {
+        console.error(`Failed to import from Notion:`, error)
+        return false
+      }
+    }
+
+    // Add other external sources as needed
+    return false
+  }
+
   return {
     base,
     fileItems,
+    externalItems,
     urlItems,
     sitemapItems,
     noteItems,
     renameKnowledgeBase,
     updateKnowledgeBase,
+    queryKnowledgeBase,
     addFiles,
     addUrl,
     addSitemap,
@@ -311,7 +369,8 @@ export const useKnowledge = (baseId: string) => {
     clearAll,
     removeItem,
     directoryItems,
-    addDirectory
+    addDirectory,
+    importFromExternalSource
   }
 }
 

@@ -35,6 +35,7 @@ const api = {
     clear: () => ipcRenderer.invoke('file:clear'),
     get: (filePath: string) => ipcRenderer.invoke('file:get', filePath),
     create: (fileName: string) => ipcRenderer.invoke('file:create', fileName),
+    createOrgin: (fileName: string) => ipcRenderer.invoke('file:createOrgin', fileName),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke('file:write', filePath, data),
     open: (options?: { decompress: boolean }) => ipcRenderer.invoke('file:open', options),
     openPath: (path: string) => ipcRenderer.invoke('file:openPath', path),
@@ -45,7 +46,11 @@ const api = {
     base64Image: (fileId: string) => ipcRenderer.invoke('file:base64Image', fileId),
     download: (url: string) => ipcRenderer.invoke('file:download', url),
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke('file:copy', fileId, destPath),
-    binaryFile: (fileId: string) => ipcRenderer.invoke('file:binaryFile', fileId)
+    binaryFile: (fileId: string) => ipcRenderer.invoke('file:binaryFile', fileId),
+    uploadExternalImport: (fileContent: string, fileInfo: any) =>
+      ipcRenderer.invoke('file:uploadExternalImport', fileContent, fileInfo),
+    importFromExternalSource: (content: string, fileName: string, sourceType: string, fileExt: string) =>
+      ipcRenderer.invoke('file:importFromExternalSource', { content, fileName, sourceType, fileExt })
   },
   fs: {
     read: (path: string) => ipcRenderer.invoke('fs:read', path)

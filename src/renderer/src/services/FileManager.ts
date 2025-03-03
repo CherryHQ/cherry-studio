@@ -46,6 +46,53 @@ class FileManager {
     return Promise.all(files.map((file) => this.uploadFile(file)))
   }
 
+  static async uploadExternalImportFile(file: FileType, sourceType: string, content?: string): Promise<FileType> {
+    console.debug(`[FileManager] Starting external import upload`, {
+      fileId: file.id,
+      sourceType,
+      contentLength: content?.length || 0,
+      contentType: typeof content
+    })
+
+    try {
+      if (!content) {
+        throw new Error('No content provided for upload')
+      }
+
+      // Upload content directly
+      const uploadFile = await (window.api.file.uploadExternalImport as any)(content, {
+        id: file.id,
+        name: file.name,
+        ext: file.ext,
+        type: file.type,
+        origin_name: file.origin_name,
+        sourceType
+      })
+
+      const fileRecord = await db.files.get(uploadFile.id)
+
+      if (fileRecord) {
+        // Update with external source info
+        await db.files.update(fileRecord.id, (file) => {
+          file.count = fileRecord.count + 1
+          file.externalSource = sourceType
+        })
+        return fileRecord
+      }
+
+      // Add the file to the database with external source info
+      await db.files.add({
+        ...uploadFile,
+        externalSource: sourceType
+      })
+
+      return uploadFile
+    } catch (error) {
+      console.error('[FileManager] Failed to upload external import file:', error)
+      throw error
+    }
+  }
+
   static async getFile(id: string): Promise<FileType | undefined> {
     const file = await db.files.get(id)
 

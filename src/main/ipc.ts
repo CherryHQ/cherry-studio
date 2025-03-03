@@ -128,12 +128,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('file:get', fileManager.getFile)
   ipcMain.handle('file:selectFolder', fileManager.selectFolder)
   ipcMain.handle('file:create', fileManager.createTempFile)
+  ipcMain.handle('file:createOrgin', fileManager.createOrginFile)
   ipcMain.handle('file:write', fileManager.writeFile)
   ipcMain.handle('file:saveImage', fileManager.saveImage)
   ipcMain.handle('file:base64Image', fileManager.base64Image)
   ipcMain.handle('file:download', fileManager.downloadFile)
   ipcMain.handle('file:copy', fileManager.copyFile)
   ipcMain.handle('file:binaryFile', fileManager.binaryFile)
+  ipcMain.handle('file:importFromExternalSource', (event, params) =>
+    fileManager.importFromExternalSource(event, params)
+  )
 
   // fs
   ipcMain.handle('fs:read', FileService.readFile)

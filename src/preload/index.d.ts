@@ -35,6 +35,13 @@ declare global {
         restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
       }
       file: {
+        importFromExternalSource: (
+          content: string,
+          fileName: string,
+          sourceType: string,
+          fileExt: string
+        ) => Promise<unknown>
+        uploadExternalImport: (fileContent: string, fileInfo: any) => Promise<FileType>
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
         upload: (file: FileType) => Promise<FileType>
         delete: (fileId: string) => Promise<void>
@@ -43,6 +50,7 @@ declare global {
         get: (filePath: string) => Promise<FileType | null>
         selectFolder: () => Promise<string | null>
         create: (fileName: string) => Promise<string>
+        createOrgin: (fileName: string) => Promise<string>
         write: (filePath: string, data: Uint8Array | string) => Promise<void>
         open: (options?: OpenDialogOptions) => Promise<{ fileName: string; filePath: string; content: Buffer } | null>
         openPath: (path: string) => Promise<void>
