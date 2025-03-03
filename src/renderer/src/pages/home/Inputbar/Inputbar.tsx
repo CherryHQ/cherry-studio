@@ -475,6 +475,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
 
+  useEffect(() => {
+    EventEmitter.on(EVENT_NAMES.TOGGLE_WEB_SEARCH, onEnableWebSearch)
+    return () => {
+      EventEmitter.off(EVENT_NAMES.TOGGLE_WEB_SEARCH, onEnableWebSearch)
+    }
+  }, [assistant])
+
   const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
 
   const handleKnowledgeBaseSelect = (bases?: KnowledgeBase[]) => {

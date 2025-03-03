@@ -48,6 +48,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
     SearchPopup.show()
   })
 
+  useShortcut('toggle_web_search', () => {
+    EventEmitter.emit(EVENT_NAMES.TOGGLE_WEB_SEARCH)
+  })
+
   const handleNarrowModeToggle = async () => {
     await modelGenerating()
     dispatch(setNarrowMode(!narrowMode))
