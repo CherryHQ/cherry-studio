@@ -295,7 +295,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           allowClear
           autoFocus
           style={{ paddingLeft: 0 }}
-          bordered={false}
+          variant="borderless"
           size="middle"
           onKeyDown={(e) => {
             // 防止上下键移动光标

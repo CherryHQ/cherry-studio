@@ -240,6 +240,7 @@ const EmojiAvatar = styled.div`
   cursor: pointer;
   -webkit-app-region: none;
   border: 0.5px solid var(--color-border);
+  font-size: 20px;
 `
 
 const MainMenusContainer = styled.div`

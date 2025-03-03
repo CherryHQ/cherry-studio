@@ -109,6 +109,7 @@
       "message.new.context": "新上下文",
       "message.regenerate.model": "切換模型",
       "message.useful": "有用",
+      "message.quote": "引用",
       "resend": "重新發送",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",
@@ -561,7 +562,8 @@
       "yi": "零一萬物",
       "zhinao": "360智腦",
       "zhipu": "智譜AI",
-      "xirang": "天翼雲息壤"
+      "xirang": "天翼雲息壤",
+      "tencent-cloud-ti": "騰訊雲TI"
     },
     "settings": {
       "about": "關於與回饋",
@@ -698,6 +700,7 @@
       "general.user_name.placeholder": "輸入您的名稱",
       "general.image_upload": "圖片上傳",
       "general.emoji_picker": "表情選擇器",
+      "general.avatar.reset": "重置頭像",
       "general.view_webdav_settings": "查看 WebDAV 設定",
       "input.auto_translate_with_space": "快速敲擊3次空格翻譯",
       "input.target_language": "目標語言",

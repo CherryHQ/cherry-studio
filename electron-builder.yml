@@ -81,9 +81,11 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    服务商新增天翼云
-    助手支持使用模型图标当作头像
-    网络搜索网站图标快速加载
-    macOS 移除 Option 开头快捷键限制
-    代理配置优化
-    界面优化和错误修复
+    知识库增强：优化了知识库并发处理机制
+    小程序集成：新增了对知乎、Cici 和 you.com 小程序的支持
+    数学公式：可以复制和渲染更复杂的化学方程式
+    模型支持: 新增了对 Hunyuan TurboS 模型
+    推理控制： 为部分模型添加了推理工作量控制选项
+    表情头像： 现在您可以使用表情符号作为头像
+    全屏修复: 增加 ESC 键退出全屏模式、
+    界面优化： 对多个组件进行了重构和样式优化

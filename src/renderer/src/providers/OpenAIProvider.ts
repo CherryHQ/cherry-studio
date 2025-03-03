@@ -24,6 +24,8 @@ import {
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
 
+type ReasoningEffort = 'high' | 'medium' | 'low'
+
 export default class OpenAIProvider extends BaseProvider {
   private sdk: OpenAI
 
@@ -177,27 +179,26 @@ export default class OpenAIProvider extends BaseProvider {
         }
       }
 
-      const effort_ratio =
-        assistant?.settings?.reasoning_effort === 'high'
-          ? 0.8
-          : assistant?.settings?.reasoning_effort === 'medium'
-            ? 0.5
-            : assistant?.settings?.reasoning_effort === 'low'
-              ? 0.2
-              : undefined
-
       if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
-        if (!effort_ratio) {
-          return {
-            type: 'disabled'
-          }
+        const effortRatios: Record<ReasoningEffort, number> = {
+          high: 0.8,
+          medium: 0.5,
+          low: 0.2
         }
+
+        const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
+        const effortRatio = effortRatios[effort]
+
+        if (!effortRatio) {
+          return {}
+        }
+
+        const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
+        const budgetTokens = Math.trunc(Math.max(Math.min(maxTokens * effortRatio, 32000), 1024))
+
         return {
           thinking: {
-            budget_tokens: Math.max(
-              Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000),
-              1024
-            )
+            budget_tokens: budgetTokens
           }
         }
       }

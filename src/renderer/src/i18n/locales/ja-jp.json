@@ -109,6 +109,7 @@
       "message.new.context": "新しいコンテキスト",
       "message.regenerate.model": "モデルを切り替え",
       "message.useful": "役立つ",
+      "message.quote": "引用",
       "resend": "再送信",
       "save": "保存",
       "settings.code_collapsible": "コードブロックを折りたたむ",
@@ -561,7 +562,8 @@
       "yi": "零一万物",
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
-      "xirang": "天翼クラウド 息壤"
+      "xirang": "天翼クラウド 息壤",
+      "tencent-cloud-ti": "Tencent Cloud TI"
     },
     "settings": {
       "about": "について",
@@ -699,6 +701,7 @@
       "general.user_name.placeholder": "ユーザー名を入力",
       "general.image_upload": "画像アップロード",
       "general.emoji_picker": "絵文字ピッカー",
+      "general.avatar.reset": "アバターをリセット",
       "general.view_webdav_settings": "WebDAV設定を表示",
       "input.auto_translate_with_space": "スペースを3回押して翻訳",
       "input.target_language": "目標言語",

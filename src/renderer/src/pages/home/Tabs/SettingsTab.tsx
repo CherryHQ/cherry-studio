@@ -507,8 +507,8 @@ const Container = styled(Scrollbar)`
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: 0 10px;
-  padding-right: 5px;
+  padding: 0 8px;
+  padding-right: 0;
   padding-top: 2px;
   padding-bottom: 10px;
 `

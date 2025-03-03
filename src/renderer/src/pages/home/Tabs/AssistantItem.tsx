@@ -139,6 +139,7 @@ const Container = styled.div`
   font-family: Ubuntu;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;
+  width: calc(var(--assistants-width) - 20px);
   cursor: pointer;
   .iconfont {
     opacity: 0;
