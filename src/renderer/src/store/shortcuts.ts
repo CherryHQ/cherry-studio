@@ -81,7 +81,7 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
-      key: 'select_model',
+      key: 'toggle_model_selection',
       shortcut: [isMac ? 'Command' : 'Ctrl', 'M'],
       editable: true,
       enabled: true,

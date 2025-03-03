@@ -27,9 +27,9 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
         setModel(selectedModel)
       }
     }
-    EventEmitter.on(EVENT_NAMES.SHOW_MODEL_POPUP, handleShowModelSelector)
+    EventEmitter.on(EVENT_NAMES.TOGGLE_MODEL_POPUP, handleShowModelSelector)
     return () => {
-      EventEmitter.off(EVENT_NAMES.SHOW_MODEL_POPUP, handleShowModelSelector)
+      EventEmitter.off(EVENT_NAMES.TOGGLE_MODEL_POPUP, handleShowModelSelector)
     }
   }, [])
 

@@ -48,8 +48,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
     SearchPopup.show()
   })
 
-  useShortcut('select_model', () => {
-    EventEmitter.emit(EVENT_NAMES.SHOW_MODEL_POPUP)
+  useShortcut('toggle_model_selection', () => {
+    EventEmitter.emit(EVENT_NAMES.TOGGLE_MODEL_POPUP)
   })
 
   useShortcut('toggle_web_search', () => {
