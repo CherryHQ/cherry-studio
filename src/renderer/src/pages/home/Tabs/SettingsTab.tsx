@@ -131,6 +131,11 @@ const SettingsTab: FC<Props> = (props) => {
     setReasoningEffort(assistant?.settings?.reasoning_effort)
   }, [assistant])
 
+  const formatSliderTooltip = (value?: number) => {
+    if (value === undefined) return ''
+    return value === 20 ? '∞' : value.toString()
+  }
+
   return (
     <Container className="settings-tab">
       <SettingGroup style={{ marginTop: 10 }}>
@@ -174,6 +179,7 @@ const SettingsTab: FC<Props> = (props) => {
               onChangeComplete={onContextCountChange}
               value={typeof contextCount === 'number' ? contextCount : 0}
               step={1}
+              tooltip={{ formatter: formatSliderTooltip }}
             />
           </Col>
         </Row>
