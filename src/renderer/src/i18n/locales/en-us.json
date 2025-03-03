@@ -774,7 +774,7 @@
       "models.check.all": "All",
       "models.check.disabled": "Disabled",
       "models.check.enabled": "Enabled",
-      "models.check.check_all_models": "Check all models",
+      "models.check.start": "Start",
       "models.check.enable_concurrent": "Concurrent",
       "models.check.use_all_keys": "Key(s)",
       "models.check.all_models_passed": "All models check passed",

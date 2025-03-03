@@ -15,7 +15,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
 import { checkApi } from '@renderer/services/ApiService'
-import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
+import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
@@ -44,7 +44,7 @@ import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelEditContent from './ModelEditContent'
-import ModelList from './ModelList'
+import ModelList, { ModelStatus } from './ModelList'
 import OllamSettings from './OllamaSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
@@ -77,6 +77,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const configedApiHost = providerConfig?.api?.url
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
+  const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
+  const [isHealthChecking, setIsHealthChecking] = useState(false)
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
@@ -122,32 +124,70 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
+    // Show configuration dialog to get health check parameters
     const result = await HealthCheckPopup.show({
       title: t('settings.models.check.title'),
       provider: { ...provider, apiHost },
       apiKeys: keys
     })
 
-    if (result?.checkedModels) {
-      const failedModels = result.checkedModels.filter((status) => status.status === ModelCheckStatus.FAILED)
-      const partialModels = result.checkedModels.filter((status) => status.status === ModelCheckStatus.PARTIAL)
-      const successModels = result.checkedModels.filter((status) => status.status === ModelCheckStatus.SUCCESS)
+    if (result.cancelled || result.apiKeys.length === 0) {
+      return
+    }
 
-      if (failedModels.length > 0) {
-        window.message.warning({
-          key: 'health-check-summary',
-          style: { marginTop: '3vh' },
-          duration: 10,
-          content: t('settings.models.check.count_failed_models', { count: failedModels.length })
-        })
-      } else if (successModels.length > 0 || partialModels.length > 0) {
-        window.message.success({
-          key: 'health-check-summary',
-          style: { marginTop: '3vh' },
-          duration: 5,
-          content: t('settings.models.check.all_models_passed')
+    // Prepare the list of models to be checked
+    const initialStatuses = models.map((model) => ({
+      model,
+      checking: true,
+      status: undefined
+    }))
+    setModelStatuses(initialStatuses)
+    setIsHealthChecking(true)
+
+    await checkModelsHealth(
+      {
+        provider: { ...provider, apiHost },
+        models,
+        apiKeys: result.apiKeys,
+        isConcurrent: result.isConcurrent
+      },
+      (checkResult, index) => {
+        setModelStatuses((current) => {
+          const updated = [...current]
+          if (updated[index]) {
+            updated[index] = {
+              ...updated[index],
+              checking: false,
+              status: checkResult.status,
+              error: checkResult.error,
+              keyResults: checkResult.keyResults,
+              latency: checkResult.latency
+            }
+          }
+          return updated
         })
       }
+    )
+
+    // Show summary of results after checking
+    const failedModels = modelStatuses.filter((status) => status.status === ModelCheckStatus.FAILED)
+    const partialModels = modelStatuses.filter((status) => status.status === ModelCheckStatus.PARTIAL)
+    const successModels = modelStatuses.filter((status) => status.status === ModelCheckStatus.SUCCESS)
+
+    if (failedModels.length > 0) {
+      window.message.warning({
+        key: 'health-check-summary',
+        style: { marginTop: '3vh' },
+        duration: 10,
+        content: t('settings.models.check.count_failed_models', { count: failedModels.length })
+      })
+    } else if (successModels.length > 0 || partialModels.length > 0) {
+      window.message.success({
+        key: 'health-check-summary',
+        style: { marginTop: '3vh' },
+        duration: 5,
+        content: t('settings.models.check.all_models_passed')
+      })
     }
   }
 
@@ -365,17 +405,27 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Flex align="center" justify="space-between" style={{ width: '100%' }}>
           <span>{t('common.models')}</span>
-          {!isEmpty(models) && (
-            <Button
-              type="text"
-              size="small"
-              icon={<HeartOutlined />}
-              onClick={onHealthCheck}
-              title={t('settings.models.check.button_caption')}></Button>
-          )}
+          <Space>
+            {!isEmpty(models) && (
+              <Button
+                type="text"
+                size="small"
+                icon={<HeartOutlined />}
+                onClick={onHealthCheck}
+                loading={isHealthChecking}
+                title={t('settings.models.check.button_caption')}></Button>
+            )}
+          </Space>
         </Flex>
       </SettingSubtitle>
-      <ModelList provider={provider} models={models} onRemoveModel={removeModel} onEditModel={handleEditModel} />
+      <ModelList
+        provider={provider}
+        models={models}
+        onRemoveModel={removeModel}
+        onEditModel={handleEditModel}
+        modelStatuses={modelStatuses}
+      />
+
       {docsWebsite && (
         <SettingHelpTextRow>
           <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>

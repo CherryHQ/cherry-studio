@@ -773,7 +773,7 @@
       "models.check.all": "所有",
       "models.check.disabled": "關閉",
       "models.check.enabled": "開啟",
-      "models.check.check_all_models": "檢查所有模型",
+      "models.check.start": "開始",
       "models.check.enable_concurrent": "並行檢查",
       "models.check.use_all_keys": "使用密鑰",
       "models.check.all_models_passed": "所有模型檢查通過",

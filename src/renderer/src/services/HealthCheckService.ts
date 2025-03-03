@@ -1,3 +1,4 @@
+import i18n from '@renderer/i18n'
 import { Model, Provider } from '@renderer/types'
 
 import { checkModel } from './ModelService'
@@ -29,7 +30,7 @@ export interface ApiKeyCheckStatus {
   key: string
   isValid: boolean
   error?: string
-  checkTime?: number // Check latency in milliseconds
+  latency?: number // Check latency in milliseconds
 }
 
 /**
@@ -38,7 +39,7 @@ export interface ApiKeyCheckStatus {
 export interface ModelCheckResult {
   model: Model
   keyResults: ApiKeyCheckStatus[]
-  checkTime?: number // Fastest successful check time
+  latency?: number // Smallest latency of all successful checks
   status?: ModelCheckStatus
   error?: string
 }
@@ -49,7 +50,7 @@ export interface ModelCheckResult {
 export function analyzeModelCheckResult(result: ModelCheckResult): {
   status: ModelCheckStatus
   error?: string
-  checkTime?: number
+  latency?: number
 } {
   const validKeyCount = result.keyResults.filter((r) => r.isValid).length
   const totalKeyCount = result.keyResults.length
@@ -57,7 +58,7 @@ export function analyzeModelCheckResult(result: ModelCheckResult): {
   if (validKeyCount === totalKeyCount) {
     return {
       status: ModelCheckStatus.SUCCESS,
-      checkTime: result.checkTime
+      latency: result.latency
     }
   } else if (validKeyCount === 0) {
     // All keys failed
@@ -74,8 +75,11 @@ export function analyzeModelCheckResult(result: ModelCheckResult): {
     // Partial success
     return {
       status: ModelCheckStatus.PARTIAL,
-      checkTime: result.checkTime,
-      error: `${validKeyCount}/${totalKeyCount} keys passed validation`
+      latency: result.latency,
+      error: i18n.t('settings.models.check.keys_status_count', {
+        count_passed: validKeyCount,
+        count_failed: totalKeyCount - validKeyCount
+      })
     }
   }
 }
@@ -100,7 +104,7 @@ export async function checkModelWithMultipleKeys(
         key,
         isValid: result.valid,
         error: result.error?.message,
-        checkTime: result.latency
+        latency: result.latency
       } as ApiKeyCheckStatus
     })
 
@@ -127,16 +131,16 @@ export async function checkModelWithMultipleKeys(
         key,
         isValid: result.valid,
         error: result.error?.message,
-        checkTime: result.latency
+        latency: result.latency
       })
     }
   }
 
   // Calculate fastest successful response time
-  const successResults = keyResults.filter((r) => r.isValid && r.checkTime !== undefined)
-  const checkTime = successResults.length > 0 ? Math.min(...successResults.map((r) => r.checkTime!)) : undefined
+  const successResults = keyResults.filter((r) => r.isValid && r.latency !== undefined)
+  const latency = successResults.length > 0 ? Math.min(...successResults.map((r) => r.latency!)) : undefined
 
-  return { keyResults, checkTime }
+  return { keyResults, latency }
 }
 
 /**

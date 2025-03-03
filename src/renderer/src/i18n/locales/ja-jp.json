@@ -774,7 +774,7 @@
       "models.check.all": "すべて",
       "models.check.disabled": "閉じる",
       "models.check.enabled": "開く",
-      "models.check.check_all_models": "すべてのモデルをチェック",
+      "models.check.start": "開始",
       "models.check.enable_concurrent": "並行チェック",
       "models.check.use_all_keys": "キー",
       "models.check.all_models_passed": "すべてのモデルチェックが成功しました",
