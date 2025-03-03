@@ -1728,7 +1728,21 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Jina'
     }
   ],
-  xirang: []
+  xirang: [],
+  'tencent-cloud': [
+    {
+      id: 'deepseek-r1',
+      provider: 'tencent-cloud',
+      name: 'DeepSeek R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3',
+      provider: 'tencent-cloud',
+      name: 'DeepSeek V3',
+      group: 'DeepSeek'
+    }
+  ]
 }
 
 export const TEXT_TO_IMAGES_MODELS = [

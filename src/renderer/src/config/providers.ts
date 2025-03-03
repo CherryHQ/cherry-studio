@@ -33,6 +33,7 @@ import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
+import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
@@ -120,6 +121,8 @@ export function getProviderLogo(providerId: string) {
       return InfiniProviderLogo
     case 'o3':
       return O3ProviderLogo
+    case 'tencent-cloud':
+      return TencentCloudProviderLogo
     default:
       return undefined
   }
@@ -557,6 +560,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
       docs: 'https://cloud.baidu.com/doc/index.html',
       models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
+    }
+  },
+  'tentent-cloud': {
+    api: {
+      url: 'https://api.lkeap.cloud.tencent.com'
+    },
+    websites: {
+      official: 'https://cloud.tencent.com/product/ti',
+      apiKey: 'https://console.cloud.tencent.com/lkeap/api',
+      docs: 'https://cloud.tencent.com/document/product/1772',
+      models: 'https://console.cloud.tencent.com/tione/v2/aimarket'
     }
   }
 }
