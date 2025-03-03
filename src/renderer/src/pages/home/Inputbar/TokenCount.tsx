@@ -22,7 +22,19 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
   }
 
   const formatMaxCount = (max: number) => {
-    return max == 20 ? '♾️' : max.toString()
+    if (max == 20) {
+      return (
+        <span
+          style={{
+            fontSize: '16px',
+            position: 'relative',
+            top: '1px'
+          }}>
+          ∞
+        </span>
+      )
+    }
+    return max.toString()
   }
 
   const PopoverContent = () => {
@@ -31,7 +43,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
         <HStack justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
-            {contextCount.current} / {formatMaxCount(contextCount.max)}
+            {contextCount.current} / {contextCount.max == 20 ? '∞' : contextCount.max}
           </Text>
         </HStack>
         <Divider style={{ margin: '5px 0' }} />
