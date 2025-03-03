@@ -63,6 +63,7 @@
     "@llm-tools/embedjs-loader-xml": "^0.1.28",
     "@llm-tools/embedjs-openai": "^0.1.28",
     "@notionhq/client": "^2.2.15",
+    "@tryfabric/martian": "^1.2.4",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "adm-zip": "^0.5.16",
     "apache-arrow": "^18.1.0",
