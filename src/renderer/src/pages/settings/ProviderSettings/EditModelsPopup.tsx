@@ -161,7 +161,19 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       <ListContainer>
         {Object.keys(modelGroups).map((group) => (
           <div key={group}>
-            <ListHeader key={group}>{group}</ListHeader>
+            <ListHeader key={group}>
+              {group}
+              <Button
+                type="text"
+                icon={<PlusOutlined />}
+                title={t(`settings.models.manage.add_whole_group`)}
+                onClick={() => {
+                  modelGroups[group]
+                    .filter((model) => !provider.models.find((m) => m.id === model.id))
+                    .forEach(onAddModel)
+                }}
+              />
+            </ListHeader>
             {modelGroups[group].map((model) => {
               const hasModel = provider.models.find((m) => m.id === model.id)
               return (

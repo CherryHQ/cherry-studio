@@ -750,6 +750,7 @@
       "models.add.model_id.tooltip": "例如 gpt-3.5-turbo",
       "models.add.model_name": "模型名稱",
       "models.add.model_name.placeholder": "可選，例如 GPT-4",
+      "models.manage.add_whole_group": "添加整個分組",
       "models.default_assistant_model": "預設助手模型",
       "models.default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "models.empty": "找不到模型",
