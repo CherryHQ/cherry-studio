@@ -1205,12 +1205,12 @@ const migrateConfig = {
   },
   '76': (state: RootState) => {
     state.llm.providers.push({
-      id: 'tencent-cloud',
+      id: 'tencent-cloud-ti',
       name: 'Tencent Cloud TI',
       type: 'openai',
       apiKey: '',
       apiHost: 'https://api.lkeap.cloud.tencent.com',
-      models: SYSTEM_MODELS['tencent-cloud'],
+      models: SYSTEM_MODELS['tencent-cloud-ti'],
       isSystem: true,
       enabled: false
     })

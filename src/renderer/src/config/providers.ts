@@ -34,6 +34,9 @@ import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud.png'
+=======
+import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
+>>>>>>> main
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
