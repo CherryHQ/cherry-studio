@@ -174,6 +174,8 @@ const ModelList: React.FC<ModelListProps> = ({ models, onRemoveModel, onEditMode
           size="small">
           {sortedModelGroups[group].map((model) => {
             const modelStatus = modelStatuses.find((status) => status.model.id === model.id)
+            const isChecking = modelStatus?.checking === true
+
             return (
               <ModelListItem key={model.id}>
                 <ModelListHeader>
@@ -184,12 +186,18 @@ const ModelList: React.FC<ModelListProps> = ({ models, onRemoveModel, onEditMode
                     <span>{model?.name}</span>
                     <ModelTags model={model} />
                   </ModelNameRow>
-                  <SettingIcon onClick={() => onEditModel(model)} />
+                  <SettingIcon
+                    onClick={() => !isChecking && onEditModel(model)}
+                    style={{ cursor: isChecking ? 'not-allowed' : 'pointer', opacity: isChecking ? 0.5 : 1 }}
+                  />
                   {renderLatencyText(modelStatus)}
                 </ModelListHeader>
                 <Space>
                   {renderStatusIndicator(modelStatus)}
-                  <RemoveIcon onClick={() => onRemoveModel(model)} />
+                  <RemoveIcon
+                    onClick={() => !isChecking && onRemoveModel(model)}
+                    style={{ cursor: isChecking ? 'not-allowed' : 'pointer', opacity: isChecking ? 0.5 : 1 }}
+                  />
                 </Space>
               </ModelListItem>
             )

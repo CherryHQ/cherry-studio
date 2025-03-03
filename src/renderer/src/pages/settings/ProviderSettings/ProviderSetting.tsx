@@ -144,7 +144,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     setModelStatuses(initialStatuses)
     setIsHealthChecking(true)
 
-    await checkModelsHealth(
+    const checkResults = await checkModelsHealth(
       {
         provider: { ...provider, apiHost },
         models,
@@ -170,25 +170,21 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     )
 
     // Show summary of results after checking
-    const failedModels = modelStatuses.filter((status) => status.status === ModelCheckStatus.FAILED)
-    const partialModels = modelStatuses.filter((status) => status.status === ModelCheckStatus.PARTIAL)
-    const successModels = modelStatuses.filter((status) => status.status === ModelCheckStatus.SUCCESS)
+    const failedModels = checkResults.filter((result) => result.status === ModelCheckStatus.FAILED)
+    const partialModels = checkResults.filter((result) => result.status === ModelCheckStatus.PARTIAL)
+    const successModels = checkResults.filter((result) => result.status === ModelCheckStatus.SUCCESS)
 
-    if (failedModels.length > 0) {
-      window.message.warning({
-        key: 'health-check-summary',
-        style: { marginTop: '3vh' },
-        duration: 10,
-        content: t('settings.models.check.count_failed_models', { count: failedModels.length })
+    // Display statistics of all model check results
+    window.message.info({
+      key: 'health-check-summary',
+      style: { marginTop: '3vh' },
+      duration: 10,
+      content: t('settings.models.check.model_status_summary', {
+        count_passed: successModels.length,
+        count_failed: failedModels.length,
+        count_partial: partialModels.length
       })
-    } else if (successModels.length > 0 || partialModels.length > 0) {
-      window.message.success({
-        key: 'health-check-summary',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.models.check.all_models_passed')
-      })
-    }
+    })
 
     // Reset health check status
     setIsHealthChecking(false)
