@@ -701,6 +701,7 @@
       "general.user_name.placeholder": "ユーザー名を入力",
       "general.image_upload": "画像アップロード",
       "general.emoji_picker": "絵文字ピッカー",
+      "general.avatar.reset": "アバターをリセット",
       "general.view_webdav_settings": "WebDAV設定を表示",
       "input.auto_translate_with_space": "スペースを3回押して翻訳",
       "input.target_language": "目標言語",

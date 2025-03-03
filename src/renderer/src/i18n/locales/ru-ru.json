@@ -701,6 +701,7 @@
       "general.user_name.placeholder": "Введите ваше имя",
       "general.image_upload": "Загрузка изображений",
       "general.emoji_picker": "Выбор эмодзи",
+      "general.avatar.reset": "Сброс аватара",
       "general.view_webdav_settings": "Просмотр настроек WebDAV",
       "input.auto_translate_with_space": "Быстрый перевод с помощью 3-х пробелов",
       "input.target_language": "Целевой язык",

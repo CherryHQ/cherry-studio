@@ -701,6 +701,7 @@
       "general.user_name.placeholder": "请输入用户名",
       "general.image_upload": "图片上传",
       "general.emoji_picker": "表情选择器",
+      "general.avatar.reset": "重置头像",
       "general.view_webdav_settings": "查看 WebDAV 设置",
       "input.auto_translate_with_space": "快速敲击3次空格翻译",
       "input.target_language": "目标语言",

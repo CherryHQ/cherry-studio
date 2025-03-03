@@ -701,6 +701,7 @@
       "general.user_name.placeholder": "Enter your name",
       "general.image_upload": "Image Upload",
       "general.emoji_picker": "Emoji Picker",
+      "general.avatar.reset": "Reset Avatar",
       "general.view_webdav_settings": "View WebDAV settings",
       "input.auto_translate_with_space": "Quickly translate with 3 spaces",
       "input.target_language": "Target language",
