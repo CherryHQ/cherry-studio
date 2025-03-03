@@ -1191,6 +1191,15 @@ const migrateConfig = {
       enabled: false
     })
     return state
+  },
+  '75': (state: RootState) => {
+    state.websearch.providers.push({
+      id: 'searxng',
+      name: 'Searxng',
+      enabled: false,
+      apiHost: ''
+    })
+    return state
   }
 }
 
