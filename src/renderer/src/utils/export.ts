@@ -10,8 +10,19 @@ export const messageToMarkdown = (message: Message) => {
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
   const titleSection = `### ${roleText}`
   const contentSection = message.content
+  const tavilyCitations = message?.metadata?.tavily?.results
+    ?.map((result, index) => {
+      return `[^${index + 1}]: [${result.title}](${result.url})`
+    })
+    .join('\n')
+  const PerplexityCitations = message?.metadata?.citations
+    ?.map((citation, index) => {
+      return `[^${index + 1}]: ${citation}`
+    })
+    .join('\n')
 
-  return [titleSection, '', contentSection].join('\n')
+  const citations = [tavilyCitations, PerplexityCitations].join('\n')
+  return [titleSection, '', contentSection, '', citations].join('\n')
 }
 
 export const messagesToMarkdown = (messages: Message[]) => {

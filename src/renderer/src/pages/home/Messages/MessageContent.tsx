@@ -41,7 +41,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
 
     // Convert [n] format to superscript numbers and make them clickable
     // Use <sup> tag for superscript and make it a link
-    content = content.replace(/\[(\d+)\]/g, (match, num) => {
+    content = content.replace(/\[\^?(\d+)\]/g, (match, num) => {
       const index = parseInt(num) - 1
       if (index >= 0 && index < citations.length) {
         const link = citations[index]
