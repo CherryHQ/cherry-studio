@@ -816,9 +816,11 @@
         "show_app": "Показать приложение",
         "show_settings": "Открыть настройки",
         "title": "Горячие клавиши",
+        "toggle_model_selection": "Переключить выбор модели",
         "toggle_new_context": "Очистить контекст",
         "toggle_show_assistants": "Переключить отображение ассистентов",
         "toggle_show_topics": "Переключить отображение топиков",
+        "toggle_web_search": "Переключить веб-поиск",
         "zoom_in": "Увеличить",
         "zoom_out": "Уменьшить",
         "zoom_reset": "Сбросить масштаб"

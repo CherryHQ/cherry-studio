@@ -410,12 +410,26 @@ const PinIcon = styled.span.attrs({ className: 'pin-icon' })<{ isPinned: boolean
 `
 
 export default class SelectModelPopup {
+  private static isVisible = false;
+
   static hide() {
+    this.isVisible = false;
     TopView.hide('SelectModelPopup')
   }
+
   static show(params: Props) {
+    this.isVisible = true;
     return new Promise<Model | undefined>((resolve) => {
       TopView.show(<PopupContainer {...params} resolve={resolve} />, 'SelectModelPopup')
     })
+  }
+
+  static toggle(params: Props) {
+    if (this.isVisible) {
+      this.hide();
+      return Promise.resolve(undefined);
+    } else {
+      return this.show(params);
+    }
   }
 }
