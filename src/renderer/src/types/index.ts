@@ -1,4 +1,3 @@
-import type { TavilySearchResponse } from '@tavily/core'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
@@ -74,7 +73,7 @@ export type Message = {
     // Perplexity
     citations?: string[]
     // Web search
-    tavily?: TavilySearchResponse
+    webSearch?: WebSearchResponse
   }
 }
 
@@ -291,7 +290,20 @@ export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 
 export type WebSearchProvider = {
   id: string
   name: string
-  apiKey: string
+  enabled: boolean
+  apiKey?: string
+  apiHost?: string
+  engines?: string[]
+}
+
+export type WebSearchResponse = {
+  query?: string
+  results: WebSearchResult[]
+}
+export type WebSearchResult = {
+  title: string
+  content: string
+  url: string
 }
 
 export type KnowledgeReference = {
