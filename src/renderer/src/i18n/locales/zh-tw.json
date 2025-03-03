@@ -807,10 +807,12 @@
         "search_message": "搜索消息",
         "show_app": "顯示應用",
         "show_settings": "打開設定",
+        "select_model": "選擇模型",
         "title": "快速方式",
         "toggle_new_context": "清除上下文",
         "toggle_show_assistants": "切換助手顯示",
         "toggle_show_topics": "切換話題顯示",
+        "toggle_web_search": "切換網路搜索",
         "zoom_in": "放大界面",
         "zoom_out": "縮小界面",
         "zoom_reset": "重置縮放"

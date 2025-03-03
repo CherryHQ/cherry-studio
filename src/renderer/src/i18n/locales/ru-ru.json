@@ -808,10 +808,12 @@
         "search_message": "Поиск сообщения",
         "show_app": "Показать приложение",
         "show_settings": "Открыть настройки",
+        "select_model": "Выбрать модель",
         "title": "Горячие клавиши",
         "toggle_new_context": "Очистить контекст",
         "toggle_show_assistants": "Переключить отображение ассистентов",
         "toggle_show_topics": "Переключить отображение топиков",
+        "toggle_web_search": "Переключить веб-поиск",
         "zoom_in": "Увеличить",
         "zoom_out": "Уменьшить",
         "zoom_reset": "Сбросить масштаб"
