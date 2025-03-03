@@ -39,6 +39,7 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
   useEffect(() => {
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, async (msg: Message) => {
+        console.log('触发触发触发')
         setLoadingSuggestions(true)
         const _suggestions = await fetchSuggestions({ assistant, messages: [...messages, msg] })
         if (_suggestions.length) {

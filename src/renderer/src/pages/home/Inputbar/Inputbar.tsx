@@ -18,20 +18,19 @@ import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import FileManager from '@renderer/services/FileManager'
 import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import { sendMessage as _sendMessage } from '@renderer/store/messages'
 import { setGenerating, setSearching } from '@renderer/store/runtime'
 import { Assistant, FileType, KnowledgeBase, Message, Model, Topic } from '@renderer/types'
-import { classNames, delay, getFileExtension, uuid } from '@renderer/utils'
+import { classNames, delay, getFileExtension } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Popconfirm, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
-import dayjs from 'dayjs'
 import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -114,38 +113,26 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       return
     }
 
-    const message: Message = {
-      id: uuid(),
-      role: 'user',
-      content: text,
-      assistantId: assistant.id,
-      topicId: assistant.topics[0].id || uuid(),
-      createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-      type: 'text',
-      status: 'success'
+    try {
+      // Dispatch the sendMessage action with all options
+      await dispatch(
+        _sendMessage(text, assistant, assistant.topics[0], {
+          files,
+          knowledgeBaseIds: selectedKnowledgeBases?.map((base) => base.id),
+          mentionModels
+        })
+      )
+
+      // Clear input
+      setText('')
+      setFiles([])
+      setTimeout(() => setText(''), 500)
+      setTimeout(() => resizeTextArea(), 0)
+      setExpend(false)
+    } catch (error) {
+      console.error('Failed to send message:', error)
     }
-
-    if (selectedKnowledgeBases) {
-      message.knowledgeBaseIds = selectedKnowledgeBases.map((base) => base.id)
-    }
-
-    if (files.length > 0) {
-      message.files = await FileManager.uploadFiles(files)
-    }
-
-    if (mentionModels.length > 0) {
-      message.mentions = mentionModels
-    }
-    currentMessageId.current = message.id
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
-
-    setText('')
-    setFiles([])
-    setTimeout(() => setText(''), 500)
-    setTimeout(() => resizeTextArea(), 0)
-
-    setExpend(false)
-  }, [inputEmpty, text, assistant.id, assistant.topics, selectedKnowledgeBases, files, mentionModels])
+  }, [inputEmpty, text, assistant, files, selectedKnowledgeBases, mentionModels, dispatch])
 
   const translate = async () => {
     if (isTranslating) {
