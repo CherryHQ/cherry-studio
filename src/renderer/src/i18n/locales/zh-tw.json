@@ -109,6 +109,7 @@
       "message.new.context": "新上下文",
       "message.regenerate.model": "切換模型",
       "message.useful": "有用",
+      "message.quote": "引用",
       "resend": "重新發送",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",

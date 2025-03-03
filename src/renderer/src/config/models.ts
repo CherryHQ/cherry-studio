@@ -191,17 +191,14 @@ export function getModelLogo(modelId: string) {
     'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'babbage-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'sora-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
-    'omni-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
+    '(^|/)omni-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'Embedding-V1': isLight ? WenxinModelLogo : WenxinModelLogoDark,
     'text-embedding-v': isLight ? QwenModelLogo : QwenModelLogoDark,
     'text-embedding': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     'davinci-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     glm: isLight ? ChatGLMModelLogo : ChatGLMModelLogoDark,
     deepseek: isLight ? DeepSeekModelLogo : DeepSeekModelLogoDark,
-    qwen: isLight ? QwenModelLogo : QwenModelLogoDark,
-    'qwq-': isLight ? QwenModelLogo : QwenModelLogoDark,
-    'qvq-': isLight ? QwenModelLogo : QwenModelLogoDark,
-    Omni: isLight ? QwenModelLogo : QwenModelLogoDark,
+    '(qwen|qwq-|qvq-)': isLight ? QwenModelLogo : QwenModelLogoDark,
     gemma: isLight ? GemmaModelLogo : GemmaModelLogoDark,
     'yi-': isLight ? YiModelLogo : YiModelLogoDark,
     llama: isLight ? LlamaModelLogo : LlamaModelLogoDark,
@@ -287,7 +284,8 @@ export function getModelLogo(modelId: string) {
   }
 
   for (const key in logoMap) {
-    if (modelId.toLowerCase().includes(key)) {
+    const regex = new RegExp(key, 'i')
+    if (regex.test(modelId)) {
       return logoMap[key]
     }
   }

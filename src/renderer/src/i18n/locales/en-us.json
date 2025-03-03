@@ -109,6 +109,7 @@
       "message.new.context": "New Context",
       "message.regenerate.model": "Switch Model",
       "message.useful": "Helpful",
+      "message.quote": "Quote",
       "resend": "Resend",
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
