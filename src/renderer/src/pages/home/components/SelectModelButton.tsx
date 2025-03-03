@@ -22,7 +22,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
 
   useEffect(() => {
     const handleShowModelSelector = async () => {
-      const selectedModel = await SelectModelPopup.show({ model })
+      const selectedModel = await SelectModelPopup.toggle({ model })
       if (selectedModel) {
         setModel(selectedModel)
       }
