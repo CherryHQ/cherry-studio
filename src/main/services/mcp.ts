@@ -11,6 +11,7 @@ export default class MCPService extends EventEmitter {
   private Client: any
   private Transport: any
   private initialized = false
+  private initPromise: Promise<void> | null = null
 
   constructor() {
     super()
@@ -23,17 +24,34 @@ export default class MCPService extends EventEmitter {
   }
 
   public async init() {
+    // If already initialized, return immediately
     if (this.initialized) return
 
-    try {
-      this.Client = await this.importClient()
-      this.Transport = await this.importTransport()
-      await this.load(this.getServersFromStore())
-      this.initialized = true
-    } catch (err) {
-      log.error('[MCP] Failed to initialize:', err)
-      throw err
-    }
+    // If initialization is in progress, return that promise
+    if (this.initPromise) return this.initPromise
+
+    // Create and store the initialization promise
+    this.initPromise = (async () => {
+      try {
+        log.info('[MCP] Starting initialization')
+        this.Client = await this.importClient()
+        this.Transport = await this.importTransport()
+
+        // Mark as initialized before loading servers to prevent recursive initialization
+        this.initialized = true
+
+        await this.load(this.getServersFromStore())
+        log.info('[MCP] Initialization completed successfully')
+      } catch (err) {
+        this.initialized = false // Reset flag on error
+        log.error('[MCP] Failed to initialize:', err)
+        throw err
+      } finally {
+        this.initPromise = null
+      }
+    })()
+
+    return this.initPromise
   }
 
   private async importClient() {
@@ -63,6 +81,7 @@ export default class MCPService extends EventEmitter {
 
   private async ensureInitialized() {
     if (!this.initialized) {
+      log.debug('[MCP] Ensuring initialization')
       await this.init()
     }
   }
