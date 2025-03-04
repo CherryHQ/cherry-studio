@@ -2,7 +2,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
-import { Button, Form, FormProps, Input, Modal } from 'antd'
+import { Button, Flex, Form, FormProps, Input, Modal } from 'antd'
 import { find } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -120,10 +120,14 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
-        <Form.Item label=" ">
-          <Button type="primary" htmlType="submit">
-            {t('settings.models.add.add_model')}
-          </Button>
+        <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>
+          <Flex justify="center" align="center" style={{ position: 'relative' }}>
+            <div>
+              <Button type="primary" htmlType="submit" size="middle">
+                {t('settings.models.add.add_model')}
+              </Button>
+            </div>
+          </Flex>
         </Form.Item>
       </Form>
     </Modal>
