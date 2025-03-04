@@ -335,13 +335,138 @@ export default class OpenAIProvider extends BaseProvider {
     const { signal } = abortController
 
     const tools = mcpTools ? this.mcpToolsToOpenAITools(mcpTools) : undefined
-    console.log(`using mcpTools: ${mcpTools}`)
-    console.log(`using tools: ${tools}`)
 
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
       Boolean
     ) as ChatCompletionMessageParam[]
 
+    const processStream = async (stream: any) => {
+      if (!isSupportStreamOutput()) {
+        const time_completion_millsec = new Date().getTime() - start_time_millsec
+        return onChunk({
+          text: stream.choices[0].message?.content || '',
+          usage: stream.usage,
+          metrics: {
+            completion_tokens: stream.usage?.completion_tokens,
+            time_completion_millsec,
+            time_first_token_millsec: 0
+          }
+        })
+      }
+
+      const toolCalls: ChatCompletionMessageToolCall[] = []
+
+      for await (const chunk of stream) {
+        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+          break
+        }
+
+        const delta = chunk.choices[0]?.delta
+
+        if (delta?.reasoning_content || delta?.reasoning) {
+          hasReasoningContent = true
+        }
+
+        if (time_first_token_millsec == 0) {
+          time_first_token_millsec = new Date().getTime() - start_time_millsec
+        }
+
+        if (time_first_content_millsec == 0 && isReasoningJustDone(delta)) {
+          time_first_content_millsec = new Date().getTime()
+        }
+
+        const time_completion_millsec = new Date().getTime() - start_time_millsec
+        const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
+
+        // Extract citations from the raw response if available
+        const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
+
+        if (delta?.tool_calls) {
+          const chunkToolCalls: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall[] = delta.tool_calls
+          if (chunk.choices[0].finish_reason !== 'tool_calls') {
+            if (toolCalls.length === 0) {
+              for (const toolCall of chunkToolCalls) {
+                toolCalls.push(toolCall as ChatCompletionMessageToolCall)
+              }
+            } else {
+              for (let i = 0; i < chunkToolCalls.length; i++) {
+                toolCalls[i].function.arguments += chunkToolCalls[i].function?.arguments || ''
+              }
+            }
+            continue
+          }
+        }
+
+        if (chunk.choices[0].finish_reason === 'tool_calls') {
+          console.log('start invoke tools', toolCalls)
+          reqMessages.push({
+            role: 'assistant',
+            tool_calls: toolCalls
+          } as ChatCompletionAssistantMessageParam)
+
+          for (const toolCall of toolCalls) {
+            const mcpTool = this.openAIToolsToMcpTool(toolCall)
+            console.log('mcpTool', JSON.stringify(mcpTool, null, 2))
+            if (!mcpTool) {
+              console.log('Invalid tool', toolCall)
+              continue
+            }
+
+            const toolCallResponse = await window.api.mcp.callTool({
+              client: mcpTool.serverName,
+              name: mcpTool.name,
+              args: mcpTool.inputSchema
+            })
+            console.log(`Tool ${mcpTool.serverName} - ${mcpTool.name} Call Response:`)
+            console.log(toolCallResponse)
+
+            reqMessages.push({
+              role: 'tool',
+              content: JSON.stringify(toolCallResponse, null, 2),
+              tool_call_id: toolCall.id
+            } as ChatCompletionToolMessageParam)
+          }
+
+          const newStream = await this.sdk.chat.completions
+            // @ts-ignore key is not typed
+            .create(
+              {
+                model: model.id,
+                messages: reqMessages,
+                temperature: this.getTemperature(assistant, model),
+                top_p: this.getTopP(assistant, model),
+                max_tokens: maxTokens,
+                keep_alive: this.keepAliveTime,
+                stream: isSupportStreamOutput(),
+                tools: tools,
+                ...getOpenAIWebSearchParams(assistant, model),
+                ...this.getReasoningEffort(assistant, model),
+                ...this.getProviderSpecificParameters(assistant, model),
+                ...this.getCustomParameters(assistant)
+              },
+              {
+                signal
+              }
+            )
+            .finally(cleanup)
+          await processStream(newStream)
+        }
+
+        onChunk({
+          text: delta?.content || '',
+          // @ts-ignore key is not typed
+          reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
+          usage: chunk.usage,
+          metrics: {
+            completion_tokens: chunk.usage?.completion_tokens,
+            time_completion_millsec,
+            time_first_token_millsec,
+            time_thinking_millsec
+          },
+          citations
+        })
+      }
+    }
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
@@ -365,128 +490,7 @@ export default class OpenAIProvider extends BaseProvider {
       )
       .finally(cleanup)
 
-    if (!isSupportStreamOutput()) {
-      const time_completion_millsec = new Date().getTime() - start_time_millsec
-      return onChunk({
-        text: stream.choices[0].message?.content || '',
-        usage: stream.usage,
-        metrics: {
-          completion_tokens: stream.usage?.completion_tokens,
-          time_completion_millsec,
-          time_first_token_millsec: 0
-        }
-      })
-    }
-
-    const toolCalls: ChatCompletionMessageToolCall[] = []
-
-    // @ts-expect-error `stream` is not typed
-    for await (const chunk of stream) {
-      if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-        break
-      }
-
-      const delta = chunk.choices[0]?.delta
-
-      if (delta?.reasoning_content || delta?.reasoning) {
-        hasReasoningContent = true
-      }
-
-      if (time_first_token_millsec == 0) {
-        time_first_token_millsec = new Date().getTime() - start_time_millsec
-      }
-
-      if (time_first_content_millsec == 0 && isReasoningJustDone(delta)) {
-        time_first_content_millsec = new Date().getTime()
-      }
-
-      const time_completion_millsec = new Date().getTime() - start_time_millsec
-      const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
-
-      // Extract citations from the raw response if available
-      const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
-
-      if (delta?.tool_calls) {
-        const chunkToolCalls: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall[] = delta.tool_calls
-        if (chunk.choices[0].finish_reason !== 'tool_calls') {
-          if (toolCalls.length === 0) {
-            for (const toolCall of chunkToolCalls) {
-              toolCalls.push(toolCall as ChatCompletionMessageToolCall)
-            }
-          } else {
-            for (let i = 0; i < chunkToolCalls.length; i++) {
-              toolCalls[i].function.arguments += chunkToolCalls[i].function?.arguments
-            }
-          }
-          continue
-        }
-      }
-
-      if (chunk.choices[0].finish_reason === 'tool_calls') {
-        console.log('start invoke tools', toolCalls)
-        reqMessages.push({
-          role: 'assistant',
-          tool_calls: toolCalls
-        } as ChatCompletionAssistantMessageParam)
-
-        for (const toolCall of toolCalls) {
-          const mcpTool = this.openAIToolsToMcpTool(toolCall)
-          if (!mcpTool) {
-            console.log('Invalid tool', toolCall)
-            continue
-          }
-          const toolCallResponse = await window.api.mcp.callTool({
-            client: mcpTool.serverName,
-            name: mcpTool.name,
-            args: JSON.parse(toolCall.function.arguments)
-          })
-          console.log(`Tool ${mcpTool.serverName} - ${mcpTool.name} Call Response:`, toolCallResponse)
-
-          reqMessages.push({
-            role: 'tool',
-            content: JSON.stringify(toolCallResponse, null, 2),
-            tool_call_id: toolCall.id
-          } as ChatCompletionToolMessageParam)
-        }
-
-        stream = await this.sdk.chat.completions
-          // @ts-ignore key is not typed
-          .create(
-            {
-              model: model.id,
-              messages: reqMessages,
-              temperature: this.getTemperature(assistant, model),
-              top_p: this.getTopP(assistant, model),
-              max_tokens: maxTokens,
-              keep_alive: this.keepAliveTime,
-              stream: isSupportStreamOutput(),
-              tools: tools,
-              ...getOpenAIWebSearchParams(assistant, model),
-              ...this.getReasoningEffort(assistant, model),
-              ...this.getProviderSpecificParameters(assistant, model),
-              ...this.getCustomParameters(assistant)
-            },
-            {
-              signal
-            }
-          )
-          .finally(cleanup)
-      }
-
-      onChunk({
-        text: delta?.content || '',
-        // @ts-ignore key is not typed
-        reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
-        usage: chunk.usage,
-        metrics: {
-          completion_tokens: chunk.usage?.completion_tokens,
-          time_completion_millsec,
-          time_first_token_millsec,
-          time_thinking_millsec
-        },
-        citations
-      })
-    }
+    await processStream(stream)
   }
 
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
