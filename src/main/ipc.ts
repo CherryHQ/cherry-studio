@@ -53,6 +53,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setLanguage(language)
   })
 
+  // launch on boot
+  ipcMain.handle('app:set-launch-on-boot', (_, isActive: boolean) => {
+    configManager.setLaunchOnBoot(isActive)
+  })
+
   // tray
   ipcMain.handle('app:set-tray', (_, isActive: boolean) => {
     configManager.setTray(isActive)

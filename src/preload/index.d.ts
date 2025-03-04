@@ -18,6 +18,7 @@ declare global {
       openWebsite: (url: string) => void
       setProxy: (proxy: string | undefined) => void
       setLanguage: (theme: LanguageVarious) => void
+      setLaunchOnBoot: (isActive: boolean) => void
       setTray: (isActive: boolean) => void
       restartTray: () => void
       setTheme: (theme: 'light' | 'dark') => void

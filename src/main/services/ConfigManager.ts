@@ -30,6 +30,23 @@ export class ConfigManager {
     this.store.set('theme', theme)
   }
 
+  getLaunchOnBoot(): boolean {
+    return !!this.store.get('launchOnBoot', false)
+  }
+
+  setLaunchOnBoot(value: boolean) {
+    this.store.set('launchOnBoot', value)
+    this.notifySubscribers('launchOnBoot', value)
+  }
+
+  getLaunchToTray(): boolean {
+    return !!this.store.get('launchToTray', false)
+  }
+
+  setLaunchToTray(value: boolean) {
+    this.store.set('launchToTray', value)
+  }
+
   getTray(): boolean {
     return !!this.store.get('tray', true)
   }

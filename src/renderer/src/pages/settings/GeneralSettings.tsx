@@ -13,7 +13,17 @@ import { useTranslation } from 'react-i18next'
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const GeneralSettings: FC = () => {
-  const { language, proxyUrl: storeProxyUrl, theme, setTray, tray, proxyMode: storeProxyMode } = useSettings()
+  const {
+    language,
+    proxyUrl: storeProxyUrl,
+    theme,
+    setTray,
+    launchOnBoot,
+    launchToTray,
+    trayOnClose,
+    tray,
+    proxyMode: storeProxyMode
+  } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme: themeMode } = useTheme()
 
@@ -52,8 +62,10 @@ const GeneralSettings: FC = () => {
     dispatch(setProxyMode(mode))
     if (mode === 'system') {
       window.api.setProxy('system')
+      dispatch(_setProxyUrl(undefined))
     } else if (mode === 'none') {
       window.api.setProxy(undefined)
+      dispatch(_setProxyUrl(undefined))
     }
   }
 
@@ -112,9 +124,33 @@ const GeneralSettings: FC = () => {
           </>
         )}
         <SettingDivider />
+
+        <SettingDivider />
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.launch.title')}</SettingTitle>
+        <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.tray.title')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
+          <Switch checked={launchOnBoot} onChange={(checked) => window.api.setTheme(checked ? 'dark' : 'light')} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
+          <Switch checked={launchToTray} onChange={(checked) => window.api.setTheme(checked ? 'dark' : 'light')} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.tray.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
           <Switch checked={tray} onChange={(checked) => updateTray(checked)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
+          <Switch checked={trayOnClose} onChange={(checked) => window.api.setTheme(checked ? 'dark' : 'light')} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>
