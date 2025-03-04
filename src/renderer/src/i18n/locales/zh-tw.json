@@ -852,7 +852,9 @@
         "blacklist_description": "以下網站不會出現在搜索結果中",
         "blacklist_tooltip": "請使用以下格式(換行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "搜索結果個數",
-        "search_result_default": "預設"
+        "search_result_default": "預設",
+        "no_provider": "暫無搜尋引擎",
+        "select_provider": "請選擇搜尋引擎"
       },
       "display.assistant.title": "助手設定"
     },

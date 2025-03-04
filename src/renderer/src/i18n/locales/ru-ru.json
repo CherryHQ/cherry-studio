@@ -853,7 +853,9 @@
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
         "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "Количество результатов поиска",
-        "search_result_default": "По умолчанию"
+        "search_result_default": "По умолчанию",
+        "no_provider": "Нет поисковых систем.",
+        "select_provider": "Пожалуйста, выберите поисковую систему"
       }
     },
     "translate": {

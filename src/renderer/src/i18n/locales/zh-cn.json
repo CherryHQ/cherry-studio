@@ -840,6 +840,8 @@
       "assistant.show.icon": "显示模型图标",
       "tray.title": "启用系统托盘图标",
       "websearch": {
+        "no_provider": "暂无搜索引擎",
+        "select_provider": "请选择搜索引擎",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
