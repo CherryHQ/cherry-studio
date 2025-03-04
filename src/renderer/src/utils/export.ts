@@ -5,6 +5,7 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import { Message, Topic } from '@renderer/types'
+import { markdownToBlocks } from '@tryfabric/martian'
 
 export const messageToMarkdown = (message: Message) => {
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
@@ -41,6 +42,9 @@ export const exportMessageAsMarkdown = async (message: Message) => {
   window.api.file.save(fileName, markdown)
 }
 
+const convertMarkdownToNotionBlocks = async (markdown: string) => {
+  return markdownToBlocks(markdown)
+}
 // 修改 splitNotionBlocks 函数
 const splitNotionBlocks = (blocks: any[]) => {
   const { notionAutoSplit, notionSplitSize } = store.getState().settings
@@ -69,26 +73,6 @@ const splitNotionBlocks = (blocks: any[]) => {
   return pages
 }
 
-// 创建页面标题块
-const createPageTitleBlocks = (title: string, pageNumber: number, totalPages: number) => {
-  return [
-    {
-      object: 'block',
-      type: 'heading_1',
-      heading_1: {
-        rich_text: [{ type: 'text', text: { content: `${title} (${pageNumber}/${totalPages})` } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: []
-      }
-    }
-  ]
-}
-
 export const exportTopicToNotion = async (topic: Topic) => {
   const { isExporting } = store.getState().runtime.export
   if (isExporting) {
@@ -107,18 +91,7 @@ export const exportTopicToNotion = async (topic: Topic) => {
   try {
     const notion = new Client({ auth: notionApiKey })
     const markdown = await topicToMarkdown(topic)
-    const requestBody = JSON.stringify({ md: markdown })
-
-    const res = await fetch('https://md2notion.hilars.dev', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: requestBody
-    })
-
-    const data = await res.json()
-    const allBlocks = data
+    const allBlocks = await convertMarkdownToNotionBlocks(markdown)
     const blockPages = splitNotionBlocks(allBlocks)
 
     if (blockPages.length === 0) {
@@ -127,26 +100,31 @@ export const exportTopicToNotion = async (topic: Topic) => {
 
     // 创建主页面和子页面
     let mainPageResponse: any = null
+    let parentBlockId: string | null = null
     for (let i = 0; i < blockPages.length; i++) {
-      const pageTitle = blockPages.length > 1 ? `${topic.name} (${i + 1}/${blockPages.length})` : topic.name
+      const pageTitle = topic.name
       const pageBlocks = blockPages[i]
 
-      const pageContent =
-        i === 0 ? pageBlocks : [...createPageTitleBlocks(topic.name, i + 1, blockPages.length), ...pageBlocks]
-
-      const response = await notion.pages.create({
-        parent: { database_id: notionDatabaseID },
-        properties: {
-          [store.getState().settings.notionPageNameKey || 'Name']: {
-            title: [{ text: { content: pageTitle } }]
-          }
-        },
-        children: pageContent
-      })
-
-      // 保存主页面响应
       if (i === 0) {
+        const response = await notion.pages.create({
+          parent: { database_id: notionDatabaseID },
+          properties: {
+            [store.getState().settings.notionPageNameKey || 'Name']: {
+              title: [{ text: { content: pageTitle } }]
+            }
+          },
+          children: pageBlocks
+        })
         mainPageResponse = response
+        parentBlockId = response.id
+      } else {
+        if (!parentBlockId) {
+          throw new Error('Parent block ID is null')
+        }
+        await notion.blocks.children.append({
+          block_id: parentBlockId,
+          children: pageBlocks
+        })
       }
     }
 
@@ -181,18 +159,11 @@ export const exportMarkdownToNotion = async (title: string, content: string) => 
 
   try {
     const notion = new Client({ auth: notionApiKey })
-    const requestBody = JSON.stringify({ md: content })
+    const notionBlocks = await convertMarkdownToNotionBlocks(content)
 
-    const res = await fetch('https://md2notion.hilars.dev', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: requestBody
-    })
-
-    const data = await res.json()
-    const notionBlocks = data
+    if (notionBlocks.length === 0) {
+      throw new Error('No content to export')
+    }
 
     const response = await notion.pages.create({
       parent: { database_id: notionDatabaseID },
@@ -201,7 +172,7 @@ export const exportMarkdownToNotion = async (title: string, content: string) => 
           title: [{ text: { content: title } }]
         }
       },
-      children: notionBlocks
+      children: notionBlocks as any[]
     })
 
     window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
