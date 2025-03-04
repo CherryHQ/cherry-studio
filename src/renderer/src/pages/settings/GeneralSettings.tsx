@@ -52,10 +52,8 @@ const GeneralSettings: FC = () => {
     dispatch(setProxyMode(mode))
     if (mode === 'system') {
       window.api.setProxy('system')
-      dispatch(_setProxyUrl(undefined))
     } else if (mode === 'none') {
       window.api.setProxy(undefined)
-      dispatch(_setProxyUrl(undefined))
     }
   }
 
