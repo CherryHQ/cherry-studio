@@ -104,6 +104,7 @@
       "input.web_search.button.ok": "設定に移動",
       "input.web_search.enable": "ウェブ検索を有効にする",
       "input.web_search.enable_content": "ウェブ検索を有効にするには、設定でウェブ検索を有効にする必要があります",
+      "input.auto_resize": "高さを自動調整",
       "message.new.branch": "新しいブランチ",
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.new.context": "新しいコンテキスト",
@@ -112,7 +113,8 @@
       "message.quote": "引用",
       "resend": "再送信",
       "save": "保存",
-      "settings.code_collapsible": "コードブロックを折りたたむ",
+      "settings.code_collapsible": "コードブロック折り畳み",
+      "settings.code_wrappable": "コードブロック折り返し",
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
@@ -595,6 +597,10 @@
       "data": {
         "app_data": "アプリデータ",
         "app_logs": "アプリログ",
+        "app_knowledge": "ナレッジベースファイル",
+        "app_knowledge.remove_all": "ファイルを削除",
+        "app_knowledge.remove_all_confirm": "ナレッジベースファイルを削除してもナレッジベース自体は削除されません。これにより、ストレージ容量を節約できます。続行しますか？",
+        "app_knowledge.remove_all_success": "ファイル削除成功",
         "clear_cache": {
           "button": "キャッシュをクリア",
           "confirm": "キャッシュをクリアすると、アプリのキャッシュデータ（ミニアプリデータを含む）が削除されます。この操作は元に戻せません。続行しますか？",
@@ -778,7 +784,8 @@
         "remove_duplicate_keys": "重複キーを削除",
         "remove_invalid_keys": "無効なキーを削除",
         "search_placeholder": "モデルIDまたは名前を検索",
-        "title": "モデルプロバイダー"
+        "title": "モデルプロバイダー",
+        "search": "プロバイダーを検索..."
       },
       "proxy": {
         "mode": {
@@ -888,6 +895,39 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "code_block": {
+      "enable_wrap": "改行",
+      "disable_wrap": "改行解除"
+    },
+    "backup": {
+      "title": "データバックアップ",
+      "confirm": "データをバックアップしますか？",
+      "confirm.button": "バックアップ位置を選択",
+      "content": "バックアップ操作はすべてのアプリデータを含むため、時間がかかる場合があります。",
+      "progress": {
+        "title": "バックアップ進捗",
+        "preparing": "バックアップ準備中...",
+        "writing_data": "データ書き込み中...",
+        "copying_files": "ファイルコピー中... {{progress}}%",
+        "compressing": "圧縮中...",
+        "completed": "バックアップ完了"
+      }
+    },
+    "restore": {
+      "title": "データ復元",
+      "confirm": "データを復元しますか？",
+      "confirm.button": "バックアップファイルを選択",
+      "content": "復元操作は現在のアプリデータをバックアップデータで上書きします。復元処理には時間がかかる場合があります。",
+      "progress": {
+        "title": "復元進捗",
+        "preparing": "復元準備中...",
+        "extracting": "バックアップ解凍中...",
+        "reading_data": "データ読み込み中...",
+        "copying_files": "ファイルコピー中... {{progress}}%",
+        "completed": "復元完了"
+      }
     }
   }
 }
+

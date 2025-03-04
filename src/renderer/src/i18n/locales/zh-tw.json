@@ -104,6 +104,7 @@
       "input.web_search.button.ok": "去設定",
       "input.web_search.enable": "開啟網路搜索",
       "input.web_search.enable_content": "需要先在設定中開啟網路搜索",
+      "input.auto_resize": "自動調整高度", 
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已建立",
       "message.new.context": "新上下文",
@@ -112,7 +113,8 @@
       "message.quote": "引用",
       "resend": "重新發送",
       "save": "保存",
-      "settings.code_collapsible": "代码块可折叠",
+      "settings.code_collapsible": "代碼區塊可折疊",
+      "settings.code_wrappable": "代碼區塊可換行",
       "settings.context_count": "上下文",
       "settings.context_count.tip": "在上下文中保留的前幾則訊息。",
       "settings.max": "最大",
@@ -595,6 +597,10 @@
       "data": {
         "app_data": "應用數據",
         "app_logs": "應用日誌",
+        "app_knowledge": "知識庫文件",
+        "app_knowledge.remove_all": "刪除文件",
+        "app_knowledge.remove_all_confirm": "刪除知識庫文件不會刪除知識庫本身，可以減少存儲空間占用，刪除之後文件無法再打開，是否繼續？",
+        "app_knowledge.remove_all_success": "文件刪除成功",
         "clear_cache": {
           "button": "清除緩存",
           "confirm": "清除緩存將刪除應用緩存數據，包括小程序數據。此操作不可恢復，是否繼續？",
@@ -777,7 +783,8 @@
         "remove_duplicate_keys": "移除重複密鑰",
         "remove_invalid_keys": "刪除無效密鑰",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "search": "搜尋模型平台..."
       },
       "proxy": {
         "mode": {
@@ -888,6 +895,38 @@
       "quit": "退出",
       "show_window": "顯示視窗",
       "visualization": "可視化"
+    },
+    "code_block": {
+      "enable_wrap": "換行",
+      "disable_wrap": "取消換行"
+    },
+    "backup": {
+      "title": "資料備份",
+      "confirm": "確定要備份資料嗎？",
+      "confirm.button": "選擇備份位置",
+      "content": "備份操作將涵蓋所有應用資料，包括聊天記錄、設定、知識庫等全部資料。請注意，備份過程可能需要一些時間，感謝您的耐心等待。",
+      "progress": {
+        "title": "備份進度",
+        "preparing": "準備備份...",
+        "writing_data": "寫入資料...",
+        "copying_files": "複製文件... {{progress}}%",
+        "compressing": "壓縮文件...",
+        "completed": "備份完成"
+      }
+    },
+    "restore": {
+      "title": "資料復原",
+      "confirm": "確定要復原資料嗎？",
+      "confirm.button": "選擇備份檔案",
+      "content": "復原操作將使用備份資料覆蓋當前所有應用資料。請注意，復原過程可能需要一些時間，感謝您的耐心等待。",
+      "progress": {
+        "title": "復原進度",
+        "preparing": "準備復原...",
+        "extracting": "解壓備份...",
+        "reading_data": "讀取資料...",
+        "copying_files": "複製文件... {{progress}}%",
+        "completed": "復原完成"
+      }
     }
   }
 }
