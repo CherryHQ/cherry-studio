@@ -1,22 +1,20 @@
 import { ExportOutlined } from '@ant-design/icons'
 import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { WebSearchProvider } from '@renderer/types'
-import { Divider, Flex, Input, Switch } from 'antd'
+import { Divider, Flex, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingHelpLink, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
+import { SettingHelpLink, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 
 interface Props {
   provider: WebSearchProvider
 }
 const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { provider, updateProvider } = useWebSearchProvider(_provider.id)
-  const { theme } = useTheme()
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
@@ -31,43 +29,30 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   const onUpdateApiHost = () => {
-    if (apiHost && apiHost.trim()) {
-      updateProvider({ ...provider, apiHost })
+    const trimmedHost = apiHost?.trim() || ''
+    if (trimmedHost !== provider.apiHost) {
+      updateProvider({ ...provider, apiHost: trimmedHost })
     } else {
-      setApiHost(provider.apiHost)
+      setApiHost(provider.apiHost || '')
     }
   }
 
   useEffect(() => {
-    if (provider.apiKey !== undefined) {
-      setApiKey(provider.apiKey)
-    }
-    if (provider.apiHost !== undefined) {
-      setApiHost(provider.apiHost)
-    }
+    setApiKey(provider.apiKey ?? '')
+    setApiHost(provider.apiHost ?? '')
   }, [provider.apiKey, provider.apiHost])
 
   return (
-    <SettingContainer theme={theme}>
+    <>
       <SettingTitle>
         <Flex align="center" gap={8}>
           <ProviderName> {provider.name}</ProviderName>
-          {officialWebsite! && (
+          {officialWebsite && webSearchProviderConfig?.websites && (
             <Link target="_blank" href={webSearchProviderConfig.websites.official}>
               <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
             </Link>
           )}
         </Flex>
-        <Switch
-          value={provider.enabled}
-          key={provider.id}
-          onChange={(enabled) => {
-            const updatedProvider = { ...provider, enabled }
-            if (apiKey !== undefined) updatedProvider.apiKey = apiKey
-            if (apiHost !== undefined) updatedProvider.apiHost = apiHost
-            updateProvider(updatedProvider)
-          }}
-        />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {provider.apiKey !== undefined && (
@@ -100,7 +85,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           />
         </>
       )}
-    </SettingContainer>
+    </>
   )
 }
 

@@ -850,7 +850,8 @@
         "check": "檢查",
         "search_provider": "搜尋服務商",
         "search_provider_placeholder": "選擇一個搜尋服務商",
-        "no_provider_selected": "請選擇搜索服務商後再檢查"
+        "no_provider_selected": "請選擇搜索服務商後再檢查",
+        "check_failed": "驗證失敗"
       },
       "display.assistant.title": "助手設定"
     },

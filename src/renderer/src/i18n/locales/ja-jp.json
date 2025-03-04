@@ -851,7 +851,8 @@
         "check": "チェック",
         "search_provider": "検索サービスプロバイダー",
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
-        "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。"
+        "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
+        "check_failed": "検証に失敗しました"
       }
     },
     "translate": {

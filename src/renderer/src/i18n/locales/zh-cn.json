@@ -835,6 +835,7 @@
       "tray.title": "启用系统托盘图标",
       "websearch": {
         "check": "检查",
+        "check_failed": "验证失败",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",

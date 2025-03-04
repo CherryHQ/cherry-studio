@@ -96,15 +96,14 @@ class WebSearchService {
    * @param provider 要检查的搜索提供商
    * @returns 如果提供商可用返回true，否则返回false
    */
-  public async checkSearch(provider: WebSearchProvider): Promise<boolean> {
+  public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
 
       // 优化的判断条件：检查结果是否有效且没有错误
-      return response.results.length > 0
+      return { valid: response.results.length > 0, error: undefined }
     } catch (error) {
-      console.error('Provider check failed:', error)
-      return false
+      return { valid: false, error }
     }
   }
 }
