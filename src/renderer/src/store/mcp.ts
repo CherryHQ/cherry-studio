@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { MCPConfig, MCPServer } from '@renderer/pages/settings/MCPSettings'
+import { MCPConfig, MCPServer } from '@renderer/types'
 
 const initialState: MCPConfig = {
   servers: []
@@ -30,9 +30,22 @@ const mcpSlice = createSlice({
         state.servers[index].isActive = action.payload.isActive
       }
     }
+  },
+  selectors: {
+    getActiveServers: (state) => {
+      return state.servers.filter((server) => server.isActive)
+    },
+    getAllServers: (state) => state.servers
   }
 })
 
 export const { setMCPServers, addMCPServer, updateMCPServer, deleteMCPServer, setMCPServerActive } = mcpSlice.actions
 
+// Export the generated selectors from the slice
+export const { getActiveServers, getAllServers } = mcpSlice.selectors
+
+// Type-safe selector for accessing this slice from the root state
+export const selectMCP = (state: { mcp: MCPConfig }) => state.mcp
+
+// Export the reducer as default export
 export default mcpSlice.reducer

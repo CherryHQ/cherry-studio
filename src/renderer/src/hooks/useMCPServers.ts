@@ -1,4 +1,3 @@
-import { MCPServer } from '@renderer/pages/settings/MCPSettings'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addMCPServer as _addMCPServer,
@@ -6,6 +5,7 @@ import {
   setMCPServerActive as _setMCPServerActive,
   updateMCPServer as _updateMCPServer
 } from '@renderer/store/mcp'
+import { MCPServer } from '@renderer/types'
 
 export const useMCPServers = () => {
   const mcpServers = useAppSelector((state) => state.mcp.servers)
