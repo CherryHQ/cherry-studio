@@ -194,7 +194,12 @@ const DisplaySettings: FC = () => {
         />
       </SettingGroup>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.custom.css')}</SettingTitle>
+        <SettingTitle>
+          {t('settings.display.custom.css')}
+          <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
+            {t('settings.display.custom.css.cherrycss')}
+          </TitleExtra>
+        </SettingTitle>
         <SettingDivider />
         <Input.TextArea
           value={customCss}
@@ -210,6 +215,12 @@ const DisplaySettings: FC = () => {
   )
 }
 
+const TitleExtra = styled.div`
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  opacity: 0.7;
+`
 const ResetButtonWrapper = styled.div`
   display: flex;
   align-items: center;

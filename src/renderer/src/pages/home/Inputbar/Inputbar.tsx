@@ -1,9 +1,11 @@
 import {
   ClearOutlined,
+  ColumnHeightOutlined,
   FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
   GlobalOutlined,
+  HolderOutlined,
   PauseCircleOutlined,
   PicCenterOutlined,
   QuestionCircleOutlined
@@ -87,6 +89,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
   const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [textareaHeight, setTextareaHeight] = useState<number>()
+  const startDragY = useRef<number>(0)
+  const startHeight = useRef<number>(0)
   const currentMessageId = useRef<string>()
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
@@ -305,6 +311,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const resizeTextArea = () => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
+      // 如果已经手动设置了高度,则不自动调整
+      if (textareaHeight) {
+        return
+      }
       textArea.style.height = 'auto'
       textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
     }
@@ -319,7 +329,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       if (isExpended) {
         textArea.style.height = '70vh'
       } else {
-        resizeTextArea()
+        resetHeight()
       }
     }
 
@@ -356,7 +366,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
           event.preventDefault()
 
           if (file.path === '') {
-            if (file.type.startsWith('image/')) {
+            if (file.type.startsWith('image/') && isVisionModel(model)) {
               const tempFilePath = await window.api.file.create(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
@@ -427,6 +437,50 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setText(translatedText)
     setTimeout(() => resizeTextArea(), 0)
   }
+
+  const handleDragStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+    startDragY.current = e.clientY
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (textArea) {
+      startHeight.current = textArea.offsetHeight
+    }
+  }
+
+  const handleDrag = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging) return
+
+      const delta = startDragY.current - e.clientY // 改变计算方向
+      const viewportHeight = window.innerHeight
+      const maxHeightInPixels = viewportHeight * 0.7
+
+      const newHeight = Math.min(maxHeightInPixels, Math.max(startHeight.current + delta, 30))
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        textArea.style.height = `${newHeight}px`
+        setExpend(newHeight == maxHeightInPixels)
+        setTextareaHeight(newHeight)
+      }
+    },
+    [isDragging]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleDrag)
+      document.addEventListener('mouseup', handleDragEnd)
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleDrag)
+      document.removeEventListener('mouseup', handleDragEnd)
+    }
+  }, [isDragging, handleDrag, handleDragEnd])
 
   useShortcut('new_topic', () => {
     if (!generating) {
@@ -552,6 +606,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
   }, [assistant, model, updateAssistant])
 
+  const resetHeight = () => {
+    if (expended) {
+      setExpend(false)
+    }
+    setTextareaHeight(undefined)
+    requestAnimationFrame(() => {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        textArea.style.height = 'auto'
+        const contentHeight = textArea.scrollHeight
+        textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
+      }
+    })
+  }
+
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
@@ -572,7 +641,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             spellCheck={false}
             rows={textareaRows}
             ref={textareaRef}
-            style={{ fontSize }}
+            style={{
+              fontSize,
+              height: textareaHeight ? `${textareaHeight}px` : undefined
+            }}
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
               setInputFocus(true)
@@ -588,6 +660,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             onPaste={(e) => onPaste(e.nativeEvent)}
             onClick={() => searching && dispatch(setSearching(false))}
           />
+          <DragHandle onMouseDown={handleDragStart}>
+            <HolderOutlined />
+          </DragHandle>
           <Toolbar>
             <ToolbarMenu>
               <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
@@ -639,6 +714,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
                 </ToolbarButton>
               </Tooltip>
+              {textareaHeight && (
+                <Tooltip placement="top" title={t('chat.input.auto_resize')} arrow>
+                  <ToolbarButton type="text" onClick={resetHeight}>
+                    <ColumnHeightOutlined />
+                  </ToolbarButton>
+                </Tooltip>
+              )}
               <TokenCount
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
@@ -665,6 +747,32 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   )
 }
 
+// Add these styled components at the bottom
+const DragHandle = styled.div`
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  color: var(--color-icon);
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 1;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  .anticon {
+    transform: rotate(90deg);
+    font-size: 14px;
+  }
+`
+
 const Container = styled.div`
   display: flex;
   flex-direction: column;
@@ -677,12 +785,13 @@ const InputBarContainer = styled.div`
   margin: 14px 20px;
   margin-top: 12px;
   border-radius: 15px;
+  padding-top: 6px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
 `
 
 const TextareaStyle: CSSProperties = {
   paddingLeft: 0,
-  padding: '10px 15px 8px'
+  padding: '4px 15px 8px' // 减小顶部padding
 }
 
 const Textarea = styled(TextArea)`

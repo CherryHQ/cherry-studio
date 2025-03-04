@@ -63,41 +63,59 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     setPinnedModels(sortBy(newPinnedModels, ['group', 'name']))
   }
 
+  // 根据输入的文本筛选模型
+  const getFilteredModels = useCallback(
+    (provider) => {
+      const nonEmbeddingModels = provider.models.filter((m) => !isEmbeddingModel(m))
+
+      if (!searchText.trim()) {
+        return sortBy(nonEmbeddingModels, ['group', 'name'])
+      }
+
+      const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+
+      return sortBy(nonEmbeddingModels, ['group', 'name']).filter((m) => {
+        const fullName = provider.isSystem
+          ? `${m.name}${m.provider}${t('provider.' + provider.id)}`
+          : `${m.name}${m.provider}`
+
+        const lowerFullName = fullName.toLowerCase()
+        return keywords.every((keyword) => lowerFullName.includes(keyword))
+      })
+    },
+    [searchText, t]
+  )
+
   const filteredItems: MenuItem[] = providers
     .filter((p) => p.models && p.models.length > 0)
     .map((p) => {
-      const filteredModels = sortBy(p.models, ['group', 'name'])
-        .filter((m) => !isEmbeddingModel(m))
-        .filter((m) =>
-          [m.name + m.provider + t('provider.' + p.id)].join('').toLowerCase().includes(searchText.toLowerCase())
-        )
-        .map((m) => ({
-          key: getModelUniqId(m),
-          label: (
-            <ModelItem>
-              <ModelNameRow>
-                <span>{m?.name}</span> <ModelTags model={m} />
-              </ModelNameRow>
-              <PinIcon
-                onClick={(e) => {
-                  e.stopPropagation()
-                  togglePin(getModelUniqId(m))
-                }}
-                isPinned={pinnedModels.includes(getModelUniqId(m))}>
-                <PushpinOutlined />
-              </PinIcon>
-            </ModelItem>
-          ),
-          icon: (
-            <Avatar src={getModelLogo(m?.id || '')} size={24}>
-              {first(m?.name)}
-            </Avatar>
-          ),
-          onClick: () => {
-            resolve(m)
-            setOpen(false)
-          }
-        }))
+      const filteredModels = getFilteredModels(p).map((m) => ({
+        key: getModelUniqId(m),
+        label: (
+          <ModelItem>
+            <ModelNameRow>
+              <span>{m?.name}</span> <ModelTags model={m} />
+            </ModelNameRow>
+            <PinIcon
+              onClick={(e) => {
+                e.stopPropagation()
+                togglePin(getModelUniqId(m))
+              }}
+              isPinned={pinnedModels.includes(getModelUniqId(m))}>
+              <PushpinOutlined />
+            </PinIcon>
+          </ModelItem>
+        ),
+        icon: (
+          <Avatar src={getModelLogo(m?.id || '')} size={24}>
+            {first(m?.name)}
+          </Avatar>
+        ),
+        onClick: () => {
+          resolve(m)
+          setOpen(false)
+        }
+      }))
 
       // Only return the group if it has filtered models
       return filteredModels.length > 0
@@ -194,27 +212,22 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     // 添加其他过滤后的模型
     providers.forEach((p) => {
       if (p.models) {
-        sortBy(p.models, ['group', 'name'])
-          .filter((m) => !isEmbeddingModel(m))
-          .filter((m) =>
-            [m.name + m.provider + t('provider.' + p.id)].join('').toLowerCase().includes(searchText.toLowerCase())
-          )
-          .forEach((m) => {
-            const modelId = getModelUniqId(m)
-            const isPinned = pinnedModels.includes(modelId)
-            // 如果是搜索状态，或者不是固定模型，才添加到列表中
-            if (searchText.length > 0 || !isPinned) {
-              items.push({
-                key: isPinned ? modelId + '_pinned' : modelId,
-                model: m
-              })
-            }
-          })
+        getFilteredModels(p).forEach((m) => {
+          const modelId = getModelUniqId(m)
+          const isPinned = pinnedModels.includes(modelId)
+          // 如果是搜索状态，或者不是固定模型，才添加到列表中
+          if (searchText.length > 0 || !isPinned) {
+            items.push({
+              key: isPinned ? modelId + '_pinned' : modelId,
+              model: m
+            })
+          }
+        })
       }
     })
 
     return items
-  }, [pinnedModels, searchText, providers, t])
+  }, [pinnedModels, searchText, providers, getFilteredModels])
 
   // 处理键盘导航
   const handleKeyDown = useCallback(

@@ -97,8 +97,10 @@ const MessageItem: FC<Props> = ({
 
   const onEditMessage = useCallback(
     async (msg: Message) => {
-      const usage = await estimateMessageUsage(msg)
-      msg.usage = usage
+      if (msg.role === 'user') {
+        const usage = await estimateMessageUsage(msg)
+        msg.usage = usage
+      }
 
       setMessage(msg)
       const messages = onGetMessages?.()?.map((m) => (m.id === message.id ? msg : m))

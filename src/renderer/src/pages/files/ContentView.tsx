@@ -35,7 +35,7 @@ const ContentView: React.FC<ContentViewProps> = ({ id, files, dataSource, column
                   }}
                 />
                 <ImageInfo>
-                  <div>{formatFileSize(file)}</div>
+                  <div>{formatFileSize(file.size)}</div>
                 </ImageInfo>
               </ImageWrapper>
             </Col>

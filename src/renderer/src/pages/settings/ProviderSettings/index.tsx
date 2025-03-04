@@ -1,11 +1,11 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
 import { droppableReorder, generateColorFromChar, getFirstCharacter, uuid } from '@renderer/utils'
-import { Avatar, Button, Dropdown, MenuProps, Tag } from 'antd'
+import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -18,6 +18,7 @@ const ProvidersList: FC = () => {
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const [selectedProvider, setSelectedProvider] = useState<Provider>(providers[0])
   const { t } = useTranslation()
+  const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
 
   const onDragEnd = (result: DropResult) => {
@@ -95,17 +96,60 @@ const ProvidersList: FC = () => {
     return menus
   }
 
+  //will match the providers and the models that provider provides
+  const filteredProviders = providers.filter((provider) => {
+    // 获取 provider 的名称
+    const providerName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
+
+    // 检查 provider 的 id 和 name 是否匹配搜索条件
+    const isProviderMatch =
+      provider.id.toLowerCase().includes(searchText.toLowerCase()) ||
+      providerName.toLowerCase().includes(searchText.toLowerCase())
+
+    // 检查 provider.models 中是否有 model 的 id 或 name 匹配搜索条件
+    const isModelMatch = provider.models.some((model) => {
+      return (
+        model.id.toLowerCase().includes(searchText.toLowerCase()) ||
+        model.name.toLowerCase().includes(searchText.toLowerCase())
+      )
+    })
+
+    // 如果 provider 或 model 匹配，则保留该 provider
+    return isProviderMatch || isModelMatch
+  })
+
   return (
     <Container>
       <ProviderListContainer>
+        <AddButtonWrapper>
+          <Input
+            type="text"
+            placeholder={t('settings.provider.search')}
+            value={searchText}
+            style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
+            suffix={<SearchOutlined style={{ color: 'var(--color-text-3)' }} />}
+            onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setSearchText('')
+              }
+            }}
+            allowClear
+            disabled={dragging}
+          />
+        </AddButtonWrapper>
         <Scrollbar>
           <ProviderList>
             <DragDropContext onDragStart={() => setDragging(true)} onDragEnd={onDragEnd}>
               <Droppable droppableId="droppable">
                 {(provided) => (
                   <div {...provided.droppableProps} ref={provided.innerRef}>
-                    {providers.map((provider, index) => (
-                      <Draggable key={`draggable_${provider.id}_${index}`} draggableId={provider.id} index={index}>
+                    {filteredProviders.map((provider, index) => (
+                      <Draggable
+                        key={`draggable_${provider.id}_${index}`}
+                        draggableId={provider.id}
+                        index={index}
+                        isDragDisabled={searchText.length > 0}>
                         {(provided) => (
                           <div
                             ref={provided.innerRef}
@@ -148,13 +192,15 @@ const ProvidersList: FC = () => {
             </DragDropContext>
           </ProviderList>
         </Scrollbar>
-        {!dragging && (
-          <AddButtonWrapper>
-            <Button style={{ width: '100%' }} icon={<PlusOutlined />} onClick={onAddProvider}>
-              {t('button.add')}
-            </Button>
-          </AddButtonWrapper>
-        )}
+        <AddButtonWrapper>
+          <Button
+            style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
+            icon={<PlusOutlined />}
+            onClick={onAddProvider}
+            disabled={dragging}>
+            {t('button.add')}
+          </Button>
+        </AddButtonWrapper>
       </ProviderListContainer>
       <ProviderSetting provider={selectedProvider} key={JSON.stringify(selectedProvider)} />
     </Container>

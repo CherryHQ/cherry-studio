@@ -39,7 +39,7 @@ const ModelSettings: FC = () => {
       options: sortBy(p.models, 'name')
         .filter((m) => !isEmbeddingModel(m))
         .map((m) => ({
-          label: m.name,
+          label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
           value: getModelUniqId(m)
         }))
     }))

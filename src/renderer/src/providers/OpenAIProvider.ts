@@ -213,6 +213,18 @@ export default class OpenAIProvider extends BaseProvider {
     return model.id.startsWith('o1')
   }
 
+  private isForceUserMessageStart(model: Model) {
+    if (model.id === 'deepseek-reasoner') {
+      return true
+    }
+
+    if (model.provider === 'xirang') {
+      return true
+    }
+
+    return false
+  }
+
   async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -232,7 +244,7 @@ export default class OpenAIProvider extends BaseProvider {
     const _messages = filterContextMessages(takeRight(messages, contextCount + 1))
     onFilterMessages(_messages)
 
-    if (model.id === 'deepseek-reasoner') {
+    if (this.isForceUserMessageStart(model)) {
       if (_messages[0]?.role !== 'user') {
         userMessages.push({ role: 'user', content: '' })
       }

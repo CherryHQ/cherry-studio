@@ -7,6 +7,7 @@ import * as fs from 'fs-extra'
 import * as path from 'path'
 
 import WebDav from './WebDav'
+import { windowService } from './WindowService'
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -72,18 +73,39 @@ class BackupManager {
     data: string,
     destinationPath: string = this.backupDir
   ): Promise<string> {
+    const mainWindow = windowService.getMainWindow()
+
+    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
+      mainWindow?.webContents.send('backup-progress', processData)
+      Logger.log('[BackupManager] backup progress', processData)
+    }
+
     try {
       await fs.ensureDir(this.tempDir)
+      onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       // 将 data 写入临时文件
       const tempDataPath = path.join(this.tempDir, 'data.json')
       await fs.writeFile(tempDataPath, data)
+      onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
       // 复制 Data 目录到临时目录
       const sourcePath = path.join(app.getPath('userData'), 'Data')
       const tempDataDir = path.join(this.tempDir, 'Data')
-      await fs.copy(sourcePath, tempDataDir)
+
+      // 获取源目录总大小
+      const totalSize = await this.getDirSize(sourcePath)
+      let copiedSize = 0
+
+      // 使用流式复制
+      await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
+        copiedSize += size
+        const progress = Math.min(80, 20 + Math.floor((copiedSize / totalSize) * 60))
+        onProgress({ stage: 'copying_files', progress, total: 100 })
+      })
+
       await this.setWritableRecursive(tempDataDir)
+      onProgress({ stage: 'compressing', progress: 80, total: 100 })
 
       // 使用 adm-zip 创建压缩文件
       const zip = new AdmZip()
@@ -93,6 +115,7 @@ class BackupManager {
 
       // 清理临时目录
       await fs.remove(this.tempDir)
+      onProgress({ stage: 'completed', progress: 100, total: 100 })
 
       Logger.log('Backup completed successfully')
       return backupedFilePath
@@ -103,36 +126,54 @@ class BackupManager {
   }
 
   async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<string> {
+    const mainWindow = windowService.getMainWindow()
+
+    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
+      mainWindow?.webContents.send('restore-progress', processData)
+      Logger.log('[BackupManager] restore progress', processData)
+    }
+
     try {
       // 创建临时目录
       await fs.ensureDir(this.tempDir)
+      onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       Logger.log('[backup] step 1: unzip backup file', this.tempDir)
-
       // 使用 adm-zip 解压
       const zip = new AdmZip(backupPath)
       zip.extractAllTo(this.tempDir, true) // true 表示覆盖已存在的文件
+      onProgress({ stage: 'extracting', progress: 20, total: 100 })
 
       Logger.log('[backup] step 2: read data.json')
-
       // 读取 data.json
       const dataPath = path.join(this.tempDir, 'data.json')
       const data = await fs.readFile(dataPath, 'utf-8')
+      onProgress({ stage: 'reading_data', progress: 40, total: 100 })
 
       Logger.log('[backup] step 3: restore Data directory')
-
       // 恢复 Data 目录
       const sourcePath = path.join(this.tempDir, 'Data')
       const destPath = path.join(app.getPath('userData'), 'Data')
+
+      // 获取源目录总大小
+      const totalSize = await this.getDirSize(sourcePath)
+      let copiedSize = 0
+
       await this.setWritableRecursive(destPath)
       await fs.remove(destPath)
-      await fs.copy(sourcePath, destPath)
+
+      // 使用流式复制
+      await this.copyDirWithProgress(sourcePath, destPath, (size) => {
+        copiedSize += size
+        const progress = Math.min(90, 40 + Math.floor((copiedSize / totalSize) * 50))
+        onProgress({ stage: 'copying_files', progress, total: 100 })
+      })
 
       Logger.log('[backup] step 4: clean up temp directory')
-
       // 清理临时目录
       await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)
+      onProgress({ stage: 'completed', progress: 100, total: 100 })
 
       Logger.log('[backup] step 5: Restore completed successfully')
 
@@ -166,6 +207,44 @@ class BackupManager {
     await fs.writeFileSync(backupedFilePath, retrievedFile as Buffer)
 
     return await this.restore(_, backupedFilePath)
+  }
+
+  private async getDirSize(dirPath: string): Promise<number> {
+    let size = 0
+    const items = await fs.readdir(dirPath, { withFileTypes: true })
+
+    for (const item of items) {
+      const fullPath = path.join(dirPath, item.name)
+      if (item.isDirectory()) {
+        size += await this.getDirSize(fullPath)
+      } else {
+        const stats = await fs.stat(fullPath)
+        size += stats.size
+      }
+    }
+    return size
+  }
+
+  private async copyDirWithProgress(
+    source: string,
+    destination: string,
+    onProgress: (size: number) => void
+  ): Promise<void> {
+    const items = await fs.readdir(source, { withFileTypes: true })
+
+    for (const item of items) {
+      const sourcePath = path.join(source, item.name)
+      const destPath = path.join(destination, item.name)
+
+      if (item.isDirectory()) {
+        await fs.ensureDir(destPath)
+        await this.copyDirWithProgress(sourcePath, destPath, onProgress)
+      } else {
+        const stats = await fs.stat(sourcePath)
+        await fs.copy(sourcePath, destPath)
+        onProgress(stats.size)
+      }
+    }
   }
 }
 
