@@ -22,11 +22,7 @@ export const messageToMarkdown = (message: Message) => {
     .join('\n')
 
   const citations = [tavilyCitations, PerplexityCitations].join('\n')
-  const markdown = [titleSection, '', contentSection, '', citations].join('\n')
-  // 把markdown中的[^number]替换为[number]，避免脚注引用错误，详情见#2712
-  const newMarkdown = markdown.replace(/\[\^(\d+)\]/g, '[$1]')
-  console.log(newMarkdown)
-  return newMarkdown
+  return [titleSection, '', contentSection, '', citations].join('\n')
 }
 
 export const messagesToMarkdown = (messages: Message[]) => {
@@ -37,11 +33,32 @@ export const topicToMarkdown = async (topic: Topic) => {
   const topicName = `# ${topic.name}`
   const topicMessages = await db.topics.get(topic.id)
 
-  if (topicMessages) {
-    return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages)
+  if (!topicMessages) {
+    return ''
+  }
+  let markdown = topicName + '\n\n' + messagesToMarkdown(topicMessages.messages)
+
+  // 判断markdown中是否存在相同的脚注引用
+  let haveSameReferences = false
+  const references: string[] = []
+  for (const line of markdown.split('\n')) {
+    if (line.startsWith('[^')) {
+      const number = line.match(/\[\^(\d+)\]/)?.[1]
+      if (number) {
+        if (references.includes(number)) {
+          haveSameReferences = true
+          break
+        }
+        references.push(number)
+      }
+    }
   }
 
-  return ''
+  if (haveSameReferences) {
+    // 如果markdown中存在相同的脚注引用，则把markdown中的[^number]替换为(number)，避免脚注引用错误，详情见#2712
+    markdown = markdown.replace(/\[\^(\d+)\]/g, '($1)')
+  }
+  return markdown
 }
 
 export const exportTopicAsMarkdown = async (topic: Topic) => {

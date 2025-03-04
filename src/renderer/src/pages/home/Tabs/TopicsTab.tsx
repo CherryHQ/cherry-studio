@@ -249,7 +249,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               label: t('chat.topics.export.yuque'),
               key: 'yuque',
               onClick: async () => {
-                const markdown = await topicToMarkdown(topic)
+                let markdown = await topicToMarkdown(topic)
+                // 语雀不支持脚注，所以把[^number]替换为(number)
+                markdown = markdown.replace(/\[\^(\d+)\]/g, '($1)')
                 exportMarkdownToYuque(topic.name, markdown)
               }
             }
