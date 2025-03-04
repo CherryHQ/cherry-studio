@@ -205,7 +205,7 @@ const DisplaySettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.display.custom.css')}
-          <TitleExtra onClick={onOpenCherrycss}>从cherrycss获取</TitleExtra>
+          <TitleExtra onClick={onOpenCherrycss}>{t('settings.display.custom.from.cherrycss')}</TitleExtra>
         </SettingTitle>
         <SettingDivider />
         <Input.TextArea
