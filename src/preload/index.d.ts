@@ -128,7 +128,7 @@ declare global {
         deleteServer: (serverName: string) => Promise<void>
         setServerActive: (name: string, isActive: boolean) => Promise<void>
         // tools
-        listTools: () => Promise<any>
+        listTools: () => Promise<MCPTool>
         callTool: ({ client, name, args }: { client: string; name: string; args: any }) => Promise<any>
         // status
         cleanup: () => Promise<void>

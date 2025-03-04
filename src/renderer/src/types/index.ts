@@ -322,6 +322,21 @@ export interface MCPServer {
   isActive: boolean
 }
 
+export interface MCPToolInputSchema {
+  type: string
+  title: string
+  description?: string
+  required?: string[]
+  properties: Record<string, object>
+}
+
+export interface MCPTool {
+  serverName: string
+  name: string
+  description?: string
+  inputSchema: MCPToolInputSchema
+}
+
 export interface MCPConfig {
   servers: MCPServer[]
 }

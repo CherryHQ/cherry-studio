@@ -1,4 +1,4 @@
-import { MCPServer } from '@types'
+import { MCPServer, MCPTool } from '@types'
 import log from 'electron-log'
 import Store from 'electron-store'
 import { EventEmitter } from 'events'
@@ -239,7 +239,7 @@ export default class MCPService extends EventEmitter {
     }
   }
 
-  public async listTools(serverName?: string): Promise<any> {
+  public async listTools(serverName?: string): Promise<MCPTool[]> {
     await this.ensureInitialized()
     try {
       if (serverName) {
@@ -248,17 +248,17 @@ export default class MCPService extends EventEmitter {
         }
         const { tools } = await this.clients[serverName].listTools()
         return tools.map((tool: any) => {
-          tool.name = `${serverName}--${tool.name}`
           return tool
         })
       } else {
-        let allTools: any[] = []
+        let allTools: MCPTool[] = []
         for (const clientName in this.clients) {
           try {
             const { tools } = await this.clients[clientName].listTools()
+            log.info(`[MCP] Tools for ${clientName}:`, tools)
             allTools = allTools.concat(
-              tools.map((tool: any) => {
-                tool.name = `${clientName}--${tool.name}`
+              tools.map((tool: MCPTool) => {
+                tool.serverName = clientName
                 return tool
               })
             )
@@ -266,6 +266,7 @@ export default class MCPService extends EventEmitter {
             log.error(`[MCP] Error listing tools for ${clientName}:`, error)
           }
         }
+        log.info(`[MCP] Total tools listed: ${allTools.length}`)
         return allTools
       }
     } catch (error) {
@@ -282,7 +283,7 @@ export default class MCPService extends EventEmitter {
         throw new Error(`MCP Client ${client} not found`)
       }
 
-      log.debug('[MCP] Calling:', client, name, args)
+      log.info('[MCP] Calling:', client, name, args)
       const result = await this.clients[client].callTool({
         name,
         arguments: args
