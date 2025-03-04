@@ -66,6 +66,7 @@
     "@notionhq/client": "^2.2.15",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "adm-zip": "^0.5.16",
+    "allotment": "^1.20.3",
     "apache-arrow": "^18.1.0",
     "docx": "^9.0.2",
     "electron-log": "^5.1.5",
