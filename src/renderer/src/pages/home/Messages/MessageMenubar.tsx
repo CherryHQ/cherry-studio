@@ -28,9 +28,9 @@ import {
 } from '@renderer/utils'
 import {
   exportMarkdownToNotion,
+  exportMarkdownToYuque,
   exportMessageAsMarkdown,
-  messageToMarkdown,
-  exportMarkdownToYuque
+  messageToMarkdown
 } from '@renderer/utils/export'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
@@ -282,7 +282,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
     e?.stopPropagation?.()
     await modelGenerating()
-    const selectedModel = message.model || (isGrouped ? model : assistantModel)
+    const selectedModel = isGrouped ? model : assistantModel
     const _message = resetAssistantMessage(message, selectedModel)
     onEditMessage?.(_message)
   }

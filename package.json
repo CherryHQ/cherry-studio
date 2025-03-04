@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -51,6 +51,7 @@
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
+    "@emotion/is-prop-valid": "^1.3.1",
     "@google/generative-ai": "^0.21.0",
     "@llm-tools/embedjs": "patch:@llm-tools/embedjs@npm%3A0.1.28#~/.yarn/patches/@llm-tools-embedjs-npm-0.1.28-8e4393fa2d.patch",
     "@llm-tools/embedjs-libsql": "^0.1.28",
@@ -80,7 +81,7 @@
     "webdav": "4.11.4"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.24.3",
+    "@anthropic-ai/sdk": "^0.38.0",
     "@electron-toolkit/eslint-config-prettier": "^2.0.0",
     "@electron-toolkit/eslint-config-ts": "^1.0.1",
     "@electron-toolkit/tsconfig": "^1.0.1",
@@ -104,6 +105,7 @@
     "antd": "^5.22.5",
     "applescript": "^1.0.0",
     "axios": "^1.7.3",
+    "babel-plugin-styled-components": "^2.1.4",
     "browser-image-compression": "^2.0.2",
     "dayjs": "^1.11.11",
     "dexie": "^4.0.8",

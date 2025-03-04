@@ -1,4 +1,4 @@
-import { FileType, Model } from '@renderer/types'
+import { Model } from '@renderer/types'
 import { ModalFuncProps } from 'antd/es/modal/interface'
 import imageCompression from 'browser-image-compression'
 import html2canvas from 'html2canvas'
@@ -121,6 +121,19 @@ export function getLeadingEmoji(str: string): string {
   const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+/u
   const match = str.match(emojiRegex)
   return match ? match[0] : ''
+}
+
+export function isEmoji(str: string) {
+  if (str.startsWith('data:')) {
+    return false
+  }
+
+  if (str.startsWith('http')) {
+    return false
+  }
+
+  const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+/u
+  return str.match(emojiRegex)
 }
 
 export function isFreeModel(model: Model) {
@@ -381,9 +394,7 @@ export function hasPath(url: string): boolean {
   }
 }
 
-export function formatFileSize(file: FileType) {
-  const size = file.size
-
+export function formatFileSize(size: number) {
   if (size > 1024 * 1024) {
     return (size / 1024 / 1024).toFixed(1) + ' MB'
   }

@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "low",
       "settings.reasoning_effort.medium": "medium",
       "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supports reasoning models",
+      "settings.reasoning_effort.tip": "Only supports OpenAI o-series and Anthropic reasoning models",
       "title": "Assistants"
     },
     "auth": {
@@ -79,7 +79,7 @@
       "assistant.search.placeholder": "Search",
       "deeply_thought": "Deeply thought ({{secounds}} seconds)",
       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
-      "default.name": "⭐️ Default Assistant",
+      "default.name": "Default Assistant",
       "default.topic.name": "Default Topic",
       "input.clear": "Clear {{Command}}",
       "input.clear.content": "Do you want to clear all messages of the current topic?",
@@ -101,14 +101,16 @@
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
       "input.web_search": "Enable web search",
+      "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Enable web search in Settings",
-      "input.web_search.button.ok": "Go to Settings",
+      "input.auto_resize": "Auto resize height",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
       "message.new.context": "New Context",
       "message.regenerate.model": "Switch Model",
       "message.useful": "Helpful",
+      "message.quote": "Quote",
       "resend": "Resend",
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
@@ -142,9 +144,9 @@
       "topics.export.image": "Export as image",
       "topics.export.md": "Export as markdown",
       "topics.export.notion": "Export to Notion",
-      "topics.export.yuque": "Export to Yuque",
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
+      "topics.export.yuque": "Export to Yuque",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
       "topics.pinned": "Pinned Topics",
@@ -176,6 +178,7 @@
       "edit": "Edit",
       "footnote": "Reference content",
       "footnotes": "References",
+      "fullscreen": "Entered fullscreen mode. Press F11 to exit",
       "knowledge_base": "Knowledge Base",
       "language": "Language",
       "model": "Model",
@@ -192,8 +195,7 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You",
-      "fullscreen": "Entered fullscreen mode. Press F11 to exit"
+      "you": "You"
     },
     "docs": {
       "title": "Docs"
@@ -285,6 +287,8 @@
       "document_count_default": "Default",
       "document_count_help": "The more document chunks requested, the more information is included, but the more tokens are consumed",
       "drag_file": "Drag file here",
+      "edit_remark": "Edit Remark",
+      "edit_remark_placeholder": "Please enter remark content",
       "empty": "No knowledge base found",
       "file_hint": "Support {{file_types}}",
       "index_all": "Index All",
@@ -319,9 +323,7 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs",
-      "edit_remark": "Edit Remark",
-      "edit_remark_placeholder": "Please enter remark content"
+      "urls": "URLs"
     },
     "languages": {
       "arabic": "Arabic",
@@ -382,20 +384,22 @@
       "error.invalid.proxy.url": "Invalid proxy URL",
       "error.invalid.webdav": "Invalid WebDAV settings",
       "error.notion.export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
-      "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
+      "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
+      "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
+      "info.notion.block_reach_limit": "Dialogue too long, exporting to Notion in pages",
       "mention.title": "Switch model answer",
       "message.code_style": "Code style",
       "message.delete.content": "Are you sure you want to delete this message?",
       "message.delete.title": "Delete Message",
-      "message.multi_model_style": "Group style",
-      "message.multi_model_style.fold": "Fold",
-      "message.multi_model_style.grid": "Grid",
-      "message.multi_model_style.horizontal": "Horizontal",
-      "message.multi_model_style.vertical": "Vertical",
+      "message.multi_model_style": "Multi-model response style",
+      "message.multi_model_style.fold": "Fold view",
+      "message.multi_model_style.grid": "Grid layout",
+      "message.multi_model_style.horizontal": "Side by side",
+      "message.multi_model_style.vertical": "Stacked view",
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
@@ -404,7 +408,9 @@
       "reset.double.confirm.content": "All data will be lost, do you want to continue?",
       "reset.double.confirm.title": "DATA LOST !!!",
       "restore.success": "Restored successfully",
+      "restore.failed": "Restore failed",
       "save.success.title": "Saved successfully",
+      "searching": "Searching the internet...",
       "success.notion.export": "Successfully exported to Notion",
       "success.yuque.export": "Successfully exported to Yuque",
       "switch.disabled": "Please wait for the current reply to complete",
@@ -412,10 +418,7 @@
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
-      "searching": "Searching the internet...",
-      "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
-      "info.notion.block_reach_limit": "Dialogue too long, exporting to Notion in pages"
+      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -473,7 +476,8 @@
         "vision": "Vision"
       },
       "vision": "Vision",
-      "websearch": "WebSearch"
+      "websearch": "WebSearch",
+      "edit": "Edit Model"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -520,6 +524,7 @@
       "title": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols."
     },
     "provider": {
+      "o3": "O3",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -558,7 +563,9 @@
       "together": "Together",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "xirang": "State Cloud Xirang",
+      "tencent-cloud-ti": "Tencent Cloud TI"
     },
     "settings": {
       "about": "About & Feedback",
@@ -590,6 +597,10 @@
       "data": {
         "app_data": "App Data",
         "app_logs": "App Logs",
+        "app_knowledge": "Knowledge Base Files",
+        "app_knowledge.remove_all": "Remove Files",
+        "app_knowledge.remove_all_confirm": "Removing knowledge base files will not delete the knowledge base itself, which will reduce the storage space occupied. Continue?",
+        "app_knowledge.remove_all_success": "Files removed successfully",
         "clear_cache": {
           "button": "Clear Cache",
           "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
@@ -604,25 +615,25 @@
         "minute_interval_other": "{{count}} minutes",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
+        "notion.auto_split": "Auto split when exporting",
+        "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
         "notion.check": {
           "button": "Check",
-          "fail": "Connection failed, please check network and API key and Database ID",
-          "success": "Connection successful",
-          "error": "Connection error, please check network configuration and API key and Database ID",
           "empty_api_key": "API key is not configured",
-          "empty_database_id": "Database ID is not configured"
+          "empty_database_id": "Database ID is not configured",
+          "error": "Connection error, please check network configuration and API key and Database ID",
+          "fail": "Connection failed, please check network and API key and Database ID",
+          "success": "Connection successful"
         },
         "notion.database_id": "Notion Database ID",
         "notion.database_id_placeholder": "Enter Notion Database ID",
         "notion.help": "Notion Configuration Documentation",
         "notion.page_name_key": "Page Title Field Name",
         "notion.page_name_key_placeholder": "Enter page title field name, default is Name",
-        "notion.title": "Notion Configuration",
-        "notion.auto_split": "Auto split when exporting",
-        "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
         "notion.split_size": "Split size",
-        "notion.split_size_placeholder": "Enter block limit per page (default 90)",
         "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
+        "notion.split_size_placeholder": "Enter block limit per page (default 90)",
+        "notion.title": "Notion Configuration",
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",
@@ -648,22 +659,21 @@
           "user": "WebDAV User"
         },
         "yuque": {
-          "title": "Yuque Configuration",
+          "check": {
+            "button": "Check",
+            "empty_repo_url": "Please enter the knowledge base URL first",
+            "empty_token": "Please enter the Yuque Token first",
+            "fail": "Yuque connection verification failed",
+            "success": "Yuque connection verified successfully"
+          },
+          "help": "Get Yuque Token",
           "repo_url": "Yuque URL",
           "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+          "title": "Yuque Configuration",
           "token": "Yuque Token",
-          "token_placeholder": "Please enter the Yuque Token",
-          "help": "Get Yuque Token",
-          "check": {
-            "button": "Verify Connection",
-            "success": "Yuque connection verified successfully",
-            "fail": "Yuque connection verification failed",
-            "empty_token": "Please enter the Yuque Token first",
-            "empty_repo_url": "Please enter the knowledge base URL first"
-          }
+          "token_placeholder": "Please enter the Yuque Token"
         }
       },
-
       "display.custom.css": "Custom CSS",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
       "display.minApp.disabled": "Hidden MinApp",
@@ -682,6 +692,7 @@
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
       "display.topic.title": "Topic Settings",
+      "display.assistant.title": "Assistant Settings",
       "font_size.title": "Message font size",
       "general": "General Settings",
       "general.backup.button": "Backup",
@@ -694,6 +705,9 @@
       "general.title": "General Settings",
       "general.user_name": "User Name",
       "general.user_name.placeholder": "Enter your name",
+      "general.image_upload": "Image Upload",
+      "general.emoji_picker": "Emoji Picker",
+      "general.avatar.reset": "Reset Avatar",
       "general.view_webdav_settings": "View WebDAV settings",
       "input.auto_translate_with_space": "Quickly translate with 3 spaces",
       "input.target_language": "Target language",
@@ -740,6 +754,10 @@
       "models.translate_model_description": "Model used for translation service",
       "models.translate_model_prompt_message": "Please enter the translate model prompt",
       "models.translate_model_prompt_title": "Translate Model Prompt",
+      "moresetting": "More Settings",
+      "moresetting.warn": "Risk Warning",
+      "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
+      "moresetting.check.confirm": "Confirm Selection",
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",
@@ -766,7 +784,8 @@
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "search": "Search Providers..."
       },
       "proxy": {
         "mode": {
@@ -786,7 +805,6 @@
       },
       "shortcuts": {
         "action": "Action",
-        "alt_warning": "On Mac, Option key combinations only work with the Space key",
         "clear_shortcut": "Clear Shortcut",
         "clear_topic": "Clear Messages",
         "copy_last_message": "Copy Last Message",
@@ -820,17 +838,23 @@
       "topic.position.left": "Left",
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
+      "assistant.show.icon": "Show model icon",
       "tray.title": "Enable System Tray Icon",
       "websearch": {
-        "title": "Web Search",
         "get_api_key": "Get API Key",
+        "search_with_time": "Search with dates included",
         "tavily": {
-          "title": "Tavily",
-          "description": "Tavily is a web search tool that integrates multiple search engines. It supports multiple languages and search engines.",
           "api_key": "Tavily API Key",
-          "api_key.placeholder": "Enter Tavily API Key"
+          "api_key.placeholder": "Enter Tavily API Key",
+          "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+          "title": "Tavily"
         },
-        "search_with_time": "Search with dates included"
+        "title": "Web Search",
+        "blacklist": "Blacklist",
+        "blacklist_description": "Results from the following websites will not appear in search results",
+        "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "search_max_result": "Number of search results",
+        "search_result_default": "Default"
       }
     },
     "translate": {
@@ -870,6 +894,34 @@
     "code_block": {
       "enable_wrap": "Wrap",
       "disable_wrap": "Unwrap"
+    },
+    "backup": {
+      "title": "Data Backup",
+      "confirm": "Are you sure you want to backup data?",
+      "confirm.button": "Select Backup Location",
+      "content": "Backup operation will cover all application data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+      "progress": {
+        "title": "Backup Progress",
+        "preparing": "Preparing backup...",
+        "writing_data": "Writing data...",
+        "copying_files": "Copying files... {{progress}}%",
+        "compressing": "Compressing files...",
+        "completed": "Backup completed"
+      }
+    },
+    "restore": {
+      "title": "Data Restore",
+      "confirm": "Are you sure you want to restore data?",
+      "confirm.button": "Select Backup File",
+      "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+      "progress": {
+        "title": "Restore Progress",
+        "preparing": "Preparing restore...",
+        "extracting": "Extracting backup...",
+        "reading_data": "Reading data...",
+        "copying_files": "Copying files... {{progress}}%",
+        "completed": "Restore completed"
+      }
     }
   }
 }

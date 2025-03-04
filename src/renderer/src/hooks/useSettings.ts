@@ -2,6 +2,7 @@ import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   SendMessageShortcut,
   setSendMessageShortcut as _setSendMessageShortcut,
+  setShowAssistantIcon,
   setSidebarIcons,
   setTargetLanguage,
   setTheme,
@@ -45,6 +46,9 @@ export function useSettings() {
     },
     updateSidebarDisabledIcons(icons: SidebarIcon[]) {
       dispatch(setSidebarIcons({ disabled: icons }))
+    },
+    setShowAssistantIcon(showAssistantIcon: boolean) {
+      dispatch(setShowAssistantIcon(showAssistantIcon))
     }
   }
 }

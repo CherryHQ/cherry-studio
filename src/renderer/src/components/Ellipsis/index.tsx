@@ -1,26 +1,35 @@
-import React from 'react'
-import styled from 'styled-components'
+import type { HTMLAttributes } from 'react'
+import styled, { css } from 'styled-components'
 
 type Props = {
-  text: string | number
   maxLine?: number
-} & React.HTMLAttributes<HTMLDivElement>
+} & HTMLAttributes<HTMLDivElement>
 
 const Ellipsis = (props: Props) => {
-  const { text, maxLine = 1, ...rest } = props
+  const { maxLine = 1, children, ...rest } = props
   return (
-    <EllipsisContainer maxLine={maxLine} {...rest}>
-      {text}
+    <EllipsisContainer $maxLine={maxLine} {...rest}>
+      {children}
     </EllipsisContainer>
   )
 }
 
-const EllipsisContainer = styled.div<{ maxLine: number }>`
+const multiLineEllipsis = css<{ $maxLine: number }>`
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  text-overflow: ellipsis;
+  -webkit-line-clamp: ${({ $maxLine }) => $maxLine};
+  overflow-wrap: break-word;
+`
+
+const singleLineEllipsis = css`
+  display: block;
+  white-space: nowrap;
+`
+
+const EllipsisContainer = styled.div<{ $maxLine: number }>`
   overflow: hidden;
-  -webkit-line-clamp: ${({ maxLine }) => maxLine};
+  text-overflow: ellipsis;
+  ${({ $maxLine }) => ($maxLine > 1 ? multiLineEllipsis : singleLineEllipsis)}
 `
 
 export default Ellipsis

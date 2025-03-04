@@ -2,8 +2,11 @@ import { FileSearchOutlined, FolderOpenOutlined, InfoCircleOutlined, SaveOutline
 import { Client } from '@notionhq/client'
 import { HStack } from '@renderer/components/Layout'
 import MinApp from '@renderer/components/MinApp'
+import BackupPopup from '@renderer/components/Popups/BackupPopup'
+import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { backup, reset, restore } from '@renderer/services/BackupService'
+import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
+import { reset } from '@renderer/services/BackupService'
 import { RootState, useAppDispatch } from '@renderer/store'
 import {
   setNotionApiKey,
@@ -16,6 +19,7 @@ import {
   setYuqueUrl
 } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
+import { formatFileSize } from '@renderer/utils'
 import { Button, InputNumber, Modal, Switch, Tooltip, Typography } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC, useEffect, useState } from 'react'
@@ -296,6 +300,7 @@ const YuqueSettings: FC = () => {
 const DataSettings: FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
+  const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
 
   useEffect(() => {
@@ -332,6 +337,22 @@ const DataSettings: FC = () => {
     })
   }
 
+  const handleRemoveAllFiles = () => {
+    Modal.confirm({
+      centered: true,
+      title: t('settings.data.app_knowledge.remove_all') + ` (${formatFileSize(size)}) `,
+      content: t('settings.data.app_knowledge.remove_all_confirm'),
+      onOk: async () => {
+        await removeAllFiles()
+        window.message.success(t('settings.data.app_knowledge.remove_all_success'))
+      },
+      okText: t('common.delete'),
+      okButtonProps: {
+        danger: true
+      }
+    })
+  }
+
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -340,10 +361,10 @@ const DataSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
           <HStack gap="5px" justifyContent="space-between">
-            <Button onClick={backup} icon={<SaveOutlined />}>
+            <Button onClick={BackupPopup.show} icon={<SaveOutlined />}>
               {t('settings.general.backup.button')}
             </Button>
-            <Button onClick={restore} icon={<FolderOpenOutlined />}>
+            <Button onClick={RestorePopup.show} icon={<FolderOpenOutlined />}>
               {t('settings.general.restore.button')}
             </Button>
           </HStack>
@@ -379,6 +400,15 @@ const DataSettings: FC = () => {
           <HStack alignItems="center" gap="5px">
             <Typography.Text style={{ color: 'var(--color-text-3)' }}>{appInfo?.logsPath}</Typography.Text>
             <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} />
+          </HStack>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.app_knowledge')}</SettingRowTitle>
+          <HStack alignItems="center" gap="5px">
+            <Button onClick={handleRemoveAllFiles} danger>
+              {t('settings.data.app_knowledge.remove_all')}
+            </Button>
           </HStack>
         </SettingRow>
         <SettingDivider />

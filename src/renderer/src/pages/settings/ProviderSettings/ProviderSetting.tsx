@@ -10,7 +10,7 @@ import {
 import { HStack } from '@renderer/components/Layout'
 import ModelTags from '@renderer/components/ModelTags'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
-import { getModelLogo, isEmbeddingModel, isReasoningModel, isVisionModel } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -21,12 +21,12 @@ import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
-import { Model, ModelType, Provider } from '@renderer/types'
+import { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Avatar, Button, Card, Checkbox, Divider, Flex, Input, Popover, Space, Switch } from 'antd'
+import { Avatar, Button, Card, Divider, Flex, Input, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { groupBy, isEmpty } from 'lodash'
+import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -44,6 +44,7 @@ import ApiCheckPopup from './ApiCheckPopup'
 import EditModelsPopup from './EditModelsPopup'
 import GraphRAGSettings from './GraphRAGSettings'
 import LMStudioSettings from './LMStudioSettings'
+import ModelEditContent from './ModelEditContent'
 import OllamSettings from './OllamaSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
@@ -67,6 +68,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { defaultModel, setDefaultModel } = useDefaultModel()
 
   const modelGroups = groupBy(models, 'group')
+  const sortedModelGroups = sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
+    acc[key] = value
+    return acc
+  }, {})
+
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
@@ -75,6 +81,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
   const configedApiHost = providerConfig?.api?.url
+
+  const [editingModel, setEditingModel] = useState<Model | null>(null)
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
@@ -164,68 +172,32 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     return formatApiHost(apiHost) + 'chat/completions'
   }
 
-  const onUpdateModelTypes = (model: Model, types: ModelType[]) => {
+  const onUpdateModel = (updatedModel: Model) => {
     const updatedModels = models.map((m) => {
-      if (m.id === model.id) {
-        return { ...m, type: types }
+      if (m.id === updatedModel.id) {
+        return updatedModel
       }
       return m
     })
 
     updateProvider({ ...provider, models: updatedModels })
 
+    // Update assistants using this model
     assistants.forEach((assistant) => {
-      if (assistant?.model?.id === model.id && assistant.model.provider === provider.id) {
+      if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
         dispatch(
           setModel({
             assistantId: assistant.id,
-            model: { ...model, type: types }
+            model: updatedModel
           })
         )
       }
     })
 
-    if (defaultModel?.id === model.id && defaultModel?.provider === provider.id) {
-      setDefaultModel({ ...defaultModel, type: types })
+    // Update default model if needed
+    if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
+      setDefaultModel(updatedModel)
     }
-  }
-
-  const modelTypeContent = (model: Model) => {
-    // 获取默认选中的类型
-    const defaultTypes = [
-      ...(isVisionModel(model) ? ['vision'] : []),
-      ...(isEmbeddingModel(model) ? ['embedding'] : []),
-      ...(isReasoningModel(model) ? ['reasoning'] : [])
-    ] as ModelType[]
-
-    // 合并现有选择和默认类型
-    const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
-
-    return (
-      <div>
-        <Checkbox.Group
-          value={selectedTypes}
-          onChange={(types) => onUpdateModelTypes(model, types as ModelType[])}
-          options={[
-            {
-              label: t('models.type.vision'),
-              value: 'vision',
-              disabled: isVisionModel(model) && !selectedTypes.includes('vision')
-            },
-            {
-              label: t('models.type.embedding'),
-              value: 'embedding',
-              disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
-            },
-            {
-              label: t('models.type.reasoning'),
-              value: 'reasoning',
-              disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
-            }
-          ]}
-        />
-      </div>
-    )
   }
 
   const formatApiKeys = (value: string) => {
@@ -338,14 +310,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <GraphRAGSettings provider={provider} />
       )}
       <SettingSubtitle style={{ marginBottom: 5 }}>{t('common.models')}</SettingSubtitle>
-      {Object.keys(modelGroups).map((group) => (
+      {Object.keys(sortedModelGroups).map((group) => (
         <Card
           key={group}
           type="inner"
           title={group}
           style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}
           size="small">
-          {modelGroups[group].map((model) => (
+          {sortedModelGroups[group].map((model) => (
             <ModelListItem key={model.id}>
               <ModelListHeader>
                 <Avatar src={getModelLogo(model.id)} size={22} style={{ marginRight: '8px' }}>
@@ -355,9 +327,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
                   <span>{model?.name}</span>
                   <ModelTags model={model} />
                 </ModelNameRow>
-                <Popover content={modelTypeContent(model)} title={t('models.type.select')} trigger="click">
-                  <SettingIcon />
-                </Popover>
+                <SettingIcon onClick={() => setEditingModel(model)} />
               </ModelListHeader>
               <RemoveIcon onClick={() => removeModel(model)} />
             </ModelListItem>
@@ -386,6 +356,15 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           {t('button.add')}
         </Button>
       </Flex>
+      {models.map((model) => (
+        <ModelEditContent
+          model={model}
+          onUpdateModel={onUpdateModel}
+          open={editingModel?.id === model.id}
+          onClose={() => setEditingModel(null)}
+          key={model.id}
+        />
+      ))}
     </SettingContainer>
   )
 }
