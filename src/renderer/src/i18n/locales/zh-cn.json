@@ -114,6 +114,7 @@
       "resend": "重新发送",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",
+      "settings.code_wrappable": "代码块可换行",
       "settings.context_count": "上下文数",
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
@@ -386,6 +387,7 @@
       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
       "error.yuque.no_config": "未配置语雀 Token 或 知识库 URL",
+      "error.dimension_too_large": "内容尺寸过大",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
       "ignore.knowledge.base": "联网模式开启，忽略知识库",
@@ -889,6 +891,10 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "code_block": {
+      "enable_wrap": "换行",
+      "disable_wrap": "取消换行"
     },
     "backup": {
       "title": "数据备份",

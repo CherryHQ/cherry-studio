@@ -113,7 +113,8 @@
       "message.quote": "引用",
       "resend": "再送信",
       "save": "保存",
-      "settings.code_collapsible": "コードブロックを折りたたむ",
+      "settings.code_collapsible": "コードブロック折り畳み",
+      "settings.code_wrappable": "コードブロック折り返し",
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
@@ -386,6 +387,7 @@
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
       "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.yuque.no_config": "語雀Token または 知識ベースID が設定されていません",
+      "error.dimension_too_large": "内容のサイズが大きすぎます",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
       "ignore.knowledge.base": "インターネットモードが有効になっています。ナレッジベースを無視します",
@@ -890,6 +892,10 @@
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
     },
+    "code_block": {
+      "enable_wrap": "改行",
+      "disable_wrap": "改行解除"
+    },
     "backup": {
       "title": "データバックアップ",
       "confirm": "データをバックアップしますか？",
@@ -920,3 +926,4 @@
     }
   }
 }
+

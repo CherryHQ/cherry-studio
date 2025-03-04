@@ -114,6 +114,7 @@
       "resend": "Переотправить",
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",
+      "settings.code_wrappable": "Блок кода можно переносить",
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
@@ -386,6 +387,7 @@
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+      "error.dimension_too_large": "Размер содержимого слишком велик",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
@@ -889,6 +891,10 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "code_block": {
+      "enable_wrap": "Перенос строки",
+      "disable_wrap": "Отменить перенос строки"
     },
     "backup": {
       "title": "Резервное копирование данных",

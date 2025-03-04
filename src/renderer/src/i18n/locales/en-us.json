@@ -114,6 +114,7 @@
       "resend": "Resend",
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
+      "settings.code_wrappable": "Code block wrappable",
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
@@ -386,6 +387,7 @@
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
       "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
+      "error.dimension_too_large": "Content size is too large",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
       "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
@@ -889,6 +891,10 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "code_block": {
+      "enable_wrap": "Wrap",
+      "disable_wrap": "Unwrap"
     },
     "backup": {
       "title": "Data Backup",
