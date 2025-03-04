@@ -752,6 +752,7 @@
       "models.add.model_name": "模型名称",
       "models.add.model_name.placeholder": "例如 GPT-3.5",
       "models.manage.add_whole_group": "添加整个分组",
+      "models.manage.remove_whole_group": "移除整个分组",
       "models.default_assistant_model": "默认助手模型",
       "models.default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "models.empty": "没有模型",

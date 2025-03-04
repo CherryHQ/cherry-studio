@@ -752,6 +752,7 @@
       "models.add.model_name": "Имя модели",
       "models.add.model_name.placeholder": "Необязательно, например, GPT-4",
       "models.manage.add_whole_group": "Добавить всю группу",
+      "models.manage.remove_whole_group": "Удалить всю группу",
       "models.default_assistant_model": "Модель ассистента по умолчанию",
       "models.default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
       "models.empty": "Модели не найдены",
