@@ -1,3 +1,4 @@
+import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
 import { ModalFuncProps } from 'antd/es/modal/interface'
 import imageCompression from 'browser-image-compression'
@@ -310,6 +311,31 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
       div.style.maxHeight = 'none'
       div.style.overflow = 'visible'
       div.style.position = 'static'
+
+      // calculate the size of the div
+      const totalWidth = div.scrollWidth
+      const totalHeight = div.scrollHeight
+
+      // check if the size of the div is too large
+      const MAX_ALLOWED_DIMENSION = 32767 // the maximum allowed pixel size
+      if (totalHeight > MAX_ALLOWED_DIMENSION || totalWidth > MAX_ALLOWED_DIMENSION) {
+        // restore the original styles
+        div.style.height = originalStyle.height
+        div.style.maxHeight = originalStyle.maxHeight
+        div.style.overflow = originalStyle.overflow
+        div.style.position = originalStyle.position
+
+        // restore the original scroll position
+        setTimeout(() => {
+          div.scrollTop = originalScrollTop
+        }, 0)
+
+        window.message.error({
+          content: i18n.t('message.error.dimension_too_large'),
+          key: 'export-error'
+        })
+        return Promise.reject()
+      }
 
       const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
         htmlToImage

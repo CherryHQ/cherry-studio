@@ -385,6 +385,7 @@
       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "導出語雀錯誤，請檢查連接狀態並對照文檔檢查配置",
       "error.yuque.no_config": "未配置語雀 Token 或知識庫 Url",
+      "error.dimension_too_large": "內容尺寸過大",
       "group.delete.content": "刪除分組消息會刪除用戶提問和所有助手的回答",
       "group.delete.title": "刪除分組消息",
       "ignore.knowledge.base": "網路模式開啟，忽略知識庫",
