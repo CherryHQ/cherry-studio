@@ -5,6 +5,7 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  ExternalHyperlink,
   HeadingLevel,
   Packer,
   Paragraph,
@@ -41,10 +42,46 @@ export class ExportService {
     let tableColumnCount = 0
     let tableRows: TableRow[] = [] // Store rows temporarily
 
-    const processInlineTokens = (tokens: any[], isHeaderRow: boolean): TextRun[] => {
-      const runs: TextRun[] = []
-      for (const token of tokens) {
+    const processInlineTokens = (tokens: any[], isHeaderRow: boolean): (TextRun | ExternalHyperlink)[] => {
+      const runs: (TextRun | ExternalHyperlink)[] = []
+      let linkText = ''
+      let linkUrl = ''
+      let insideLink = false
+
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i]
         switch (token.type) {
+          case 'link_open':
+            insideLink = true
+            linkUrl = token.attrs.find((attr: [string, string]) => attr[0] === 'href')[1]
+            linkText = tokens[i + 1].content
+            i += 1
+            break
+          case 'link_close':
+            if (insideLink && linkUrl && linkText) {
+              // Handle any accumulated link text with the ExternalHyperlink
+              runs.push(
+                new ExternalHyperlink({
+                  children: [
+                    new TextRun({
+                      text: linkText,
+                      style: 'Hyperlink',
+                      color: '0000FF',
+                      underline: {
+                        type: 'single'
+                      }
+                    })
+                  ],
+                  link: linkUrl
+                })
+              )
+
+              // Reset link variables
+              linkText = ''
+              linkUrl = ''
+              insideLink = false
+            }
+            break
           case 'text':
             runs.push(new TextRun({ text: token.content, bold: isHeaderRow ? true : false }))
             break
