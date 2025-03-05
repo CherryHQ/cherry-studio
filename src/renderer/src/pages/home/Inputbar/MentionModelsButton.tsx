@@ -451,6 +451,9 @@ const DropdownMenuStyle = createGlobalStyle`
       }
 
       .ant-dropdown-menu-item-group-title {
+        position: sticky;
+        top: 0;
+        z-index: 1;
         padding: 5px 12px;
         color: var(--color-text-3);
         font-size: 12px;
@@ -458,6 +461,19 @@ const DropdownMenuStyle = createGlobalStyle`
         text-transform: uppercase;
         letter-spacing: 0.03em;
         opacity: 0.7;
+
+        /* Scroll-driven animation for sticky header */
+        animation: background-change linear both;
+        animation-timeline: scroll();
+        animation-range: entry 0% entry 1%;
+      }
+
+      /* Simple animation that changes background color when sticky */
+      @keyframes background-change {
+        to {
+          background-color: var(--color-background);
+          opacity: 1;
+        }
       }
     }
 

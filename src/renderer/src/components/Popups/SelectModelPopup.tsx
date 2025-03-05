@@ -344,8 +344,23 @@ const StyledMenu = styled(Menu)`
   max-height: calc(60vh - 50px);
 
   .ant-menu-item-group-title {
-    padding: 5px 10px 0;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 5px 10px;
     font-size: 12px;
+
+    /* Scroll-driven animation for sticky header */
+    animation: background-change linear both;
+    animation-timeline: scroll();
+    animation-range: entry 0% entry 1%;
+  }
+
+  /* Simple animation that changes background color when sticky */
+  @keyframes background-change {
+    to {
+      background-color: var(--color-background);
+    }
   }
 
   .ant-menu-item {
