@@ -27,7 +27,7 @@ const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
-  const { autoUpdater } = new AppUpdater(mainWindow)
+  const appUpdater = new AppUpdater(mainWindow)
 
   ipcMain.handle('app:info', () => ({
     version: app.getVersion(),
@@ -47,6 +47,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle('app:reload', () => mainWindow.reload())
   ipcMain.handle('open:website', (_, url: string) => shell.openExternal(url))
+
+  // Update
+  ipcMain.handle('app:show-update-dialog', () => appUpdater.showUpdateDialog(mainWindow))
 
   // language
   ipcMain.handle('app:set-language', (_, language) => {
@@ -99,9 +102,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // check for update
   ipcMain.handle('app:check-for-update', async () => {
-    const update = await autoUpdater.checkForUpdates()
+    const update = await appUpdater.autoUpdater.checkForUpdates()
     return {
-      currentVersion: autoUpdater.currentVersion,
+      currentVersion: appUpdater.autoUpdater.currentVersion,
       updateInfo: update?.updateInfo
     }
   })

@@ -1,7 +1,8 @@
+import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
 import { ModalFuncProps } from 'antd/es/modal/interface'
 import imageCompression from 'browser-image-compression'
-import html2canvas from 'html2canvas'
+import * as htmlToImage from 'html-to-image'
 // @ts-ignore next-line`
 import { v4 as uuidv4 } from 'uuid'
 
@@ -279,7 +280,7 @@ export function getFileExtension(filePath: string) {
 export async function captureDiv(divRef: React.RefObject<HTMLDivElement>) {
   if (divRef.current) {
     try {
-      const canvas = await html2canvas(divRef.current)
+      const canvas = await htmlToImage.toCanvas(divRef.current)
       const imageData = canvas.toDataURL('image/png')
       return imageData
     } catch (error) {
@@ -311,40 +312,47 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
       div.style.overflow = 'visible'
       div.style.position = 'static'
 
-      // Configure html2canvas options
-      const canvas = await html2canvas(div, {
-        scrollY: -window.scrollY,
-        windowHeight: document.documentElement.scrollHeight,
-        useCORS: true, // Allow cross-origin images
-        allowTaint: true, // Allow cross-origin images
-        logging: false, // Disable logging
-        imageTimeout: 0, // Disable image timeout
-        backgroundColor: getComputedStyle(div).getPropertyValue('--color-background'),
-        onclone: (clonedDoc) => {
-          // 克隆时保留原始样式
-          if (div.id) {
-            const clonedDiv = clonedDoc.querySelector(`#${div.id}`) as HTMLElement
-            if (clonedDiv) {
-              const computedStyle = getComputedStyle(div)
-              clonedDiv.style.backgroundColor = computedStyle.backgroundColor
-              clonedDiv.style.color = computedStyle.color
-            }
-          }
+      // calculate the size of the div
+      const totalWidth = div.scrollWidth
+      const totalHeight = div.scrollHeight
 
-          // Ensure all images in cloned document are loaded
-          const images = clonedDoc.getElementsByTagName('img')
-          return Promise.all(
-            Array.from(images).map((img) => {
-              if (img.complete) {
-                return Promise.resolve()
-              }
-              return new Promise((resolve) => {
-                img.onload = resolve
-                img.onerror = resolve
-              })
-            })
-          )
-        }
+      // check if the size of the div is too large
+      const MAX_ALLOWED_DIMENSION = 32767 // the maximum allowed pixel size
+      if (totalHeight > MAX_ALLOWED_DIMENSION || totalWidth > MAX_ALLOWED_DIMENSION) {
+        // restore the original styles
+        div.style.height = originalStyle.height
+        div.style.maxHeight = originalStyle.maxHeight
+        div.style.overflow = originalStyle.overflow
+        div.style.position = originalStyle.position
+
+        // restore the original scroll position
+        setTimeout(() => {
+          div.scrollTop = originalScrollTop
+        }, 0)
+
+        window.message.error({
+          content: i18n.t('message.error.dimension_too_large'),
+          key: 'export-error'
+        })
+        return Promise.reject()
+      }
+
+      const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
+        htmlToImage
+          .toCanvas(div, {
+            backgroundColor: getComputedStyle(div).getPropertyValue('--color-background'),
+            cacheBust: true,
+            pixelRatio: window.devicePixelRatio,
+            skipAutoScale: true,
+            canvasWidth: div.scrollWidth,
+            canvasHeight: div.scrollHeight,
+            style: {
+              backgroundColor: getComputedStyle(div).backgroundColor,
+              color: getComputedStyle(div).color
+            }
+          })
+          .then((canvas) => resolve(canvas))
+          .catch((error) => reject(error))
       })
 
       // Restore original styles

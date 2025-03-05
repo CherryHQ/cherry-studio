@@ -366,7 +366,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
           event.preventDefault()
 
           if (file.path === '') {
-            if (file.type.startsWith('image/')) {
+            if (file.type.startsWith('image/') && isVisionModel(model)) {
               const tempFilePath = await window.api.file.create(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)

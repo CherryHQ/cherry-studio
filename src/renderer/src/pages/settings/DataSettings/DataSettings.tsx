@@ -407,7 +407,7 @@ const DataSettings: FC = () => {
           <SettingRowTitle>{t('settings.data.app_knowledge')}</SettingRowTitle>
           <HStack alignItems="center" gap="5px">
             <Button onClick={handleRemoveAllFiles} danger>
-              {t('settings.data.app_knowledge.remove_all')}
+              {t('settings.data.app_knowledge.button.delete')}
             </Button>
           </HStack>
         </SettingRow>

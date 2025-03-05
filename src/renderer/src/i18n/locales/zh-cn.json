@@ -68,7 +68,8 @@
       "collapse": "收起",
       "manage": "管理",
       "select_model": "选择模型",
-      "show.all": "显示全部"
+      "show.all": "显示全部",
+      "update_available": "有可用更新"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -387,6 +388,7 @@
       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
       "error.yuque.no_config": "未配置语雀 Token 或 知识库 URL",
+      "error.dimension_too_large": "内容尺寸过大",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
       "ignore.knowledge.base": "联网模式开启，忽略知识库",
@@ -598,8 +600,9 @@
         "app_data": "应用数据",
         "app_logs": "应用日志",
         "app_knowledge": "知识库文件",
-        "app_knowledge.remove_all": "删除文件",
-        "app_knowledge.remove_all_confirm": "删除知识库文件不会删除知识库本身，可以减少存储空间占用，删除之后文件无法再打开，是否继续？",
+        "app_knowledge.button.delete": "删除文件",
+        "app_knowledge.remove_all": "删除知识库文件",
+        "app_knowledge.remove_all_confirm": "删除知识库文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
         "app_knowledge.remove_all_success": "文件删除成功",
         "clear_cache": {
           "button": "清除缓存",
@@ -676,6 +679,7 @@
       },
       "display.custom.css": "自定义 CSS",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
+      "display.custom.css.cherrycss": "从 cherrycss.com 获取",
       "display.minApp.disabled": "隐藏的小程序",
       "display.minApp.empty": "把要隐藏的小程序从左侧拖拽到这里",
       "display.minApp.title": "小程序显示设置",
@@ -904,7 +908,7 @@
       "title": "数据备份",
       "confirm": "确定要备份数据吗？",
       "confirm.button": "选择备份位置",
-      "content": "备份操作将涵盖所有应用数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+      "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
       "progress": {
         "title": "备份进度",
         "preparing": "准备备份...",

@@ -68,7 +68,8 @@
       "collapse": "Свернуть",
       "manage": "Редактировать",
       "select_model": "Выбрать модель",
-      "show.all": "Показать все"
+      "show.all": "Показать все",
+      "update_available": "Доступно обновление"
     },
     "chat": {
       "add.assistant.title": "Добавить ассистента",
@@ -387,6 +388,7 @@
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+      "error.dimension_too_large": "Размер содержимого слишком велик",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
@@ -598,7 +600,8 @@
         "app_data": "Данные приложения",
         "app_logs": "Логи приложения",
         "app_knowledge": "База знаний",
-        "app_knowledge.remove_all": "Удалить файлы",
+        "app_knowledge.button.delete": "Удалить файл",
+        "app_knowledge.remove_all": "Удалить файлы базы знаний",
         "app_knowledge.remove_all_confirm": "Удаление файлов базы знаний не удалит саму базу знаний, что позволит уменьшить занимаемый объем памяти, продолжить?",
         "app_knowledge.remove_all_success": "Файлы удалены успешно",
         "clear_cache": {
@@ -676,6 +679,7 @@
       },
       "display.custom.css": "Пользовательский CSS",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
+      "display.custom.css.cherrycss": "Получить из cherrycss.com",
       "display.minApp.disabled": "скрытый апплет",
       "display.minApp.empty": "Перетащите апплет, который хотите скрыть, слева сюда",
       "display.minApp.title": "Настройки отображения мини программы",

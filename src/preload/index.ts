@@ -8,6 +8,7 @@ const api = {
   reload: () => ipcRenderer.invoke('app:reload'),
   setProxy: (proxy: string) => ipcRenderer.invoke('app:proxy', proxy),
   checkForUpdate: () => ipcRenderer.invoke('app:check-for-update'),
+  showUpdateDialog: () => ipcRenderer.invoke('app:show-update-dialog'),
   setLanguage: (lang: string) => ipcRenderer.invoke('app:set-language', lang),
   setTray: (isActive: boolean) => ipcRenderer.invoke('app:set-tray', isActive),
   restartTray: () => ipcRenderer.invoke('app:restart-tray'),
