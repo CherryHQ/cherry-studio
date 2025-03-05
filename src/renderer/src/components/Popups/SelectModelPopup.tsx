@@ -7,7 +7,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
 import { Avatar, Divider, Empty, Input, InputRef, Menu, MenuProps, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,6 +33,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const { providers } = useProviders()
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [keyboardSelectedId, setKeyboardSelectedId] = useState<string>('')
 
   useEffect(() => {
     const loadPinnedModels = async () => {
@@ -62,41 +63,59 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     setPinnedModels(sortBy(newPinnedModels, ['group', 'name']))
   }
 
+  // 根据输入的文本筛选模型
+  const getFilteredModels = useCallback(
+    (provider) => {
+      const nonEmbeddingModels = provider.models.filter((m) => !isEmbeddingModel(m))
+
+      if (!searchText.trim()) {
+        return sortBy(nonEmbeddingModels, ['group', 'name'])
+      }
+
+      const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+
+      return sortBy(nonEmbeddingModels, ['group', 'name']).filter((m) => {
+        const fullName = provider.isSystem
+          ? `${m.name}${m.provider}${t('provider.' + provider.id)}`
+          : `${m.name}${m.provider}`
+
+        const lowerFullName = fullName.toLowerCase()
+        return keywords.every((keyword) => lowerFullName.includes(keyword))
+      })
+    },
+    [searchText, t]
+  )
+
   const filteredItems: MenuItem[] = providers
     .filter((p) => p.models && p.models.length > 0)
     .map((p) => {
-      const filteredModels = sortBy(p.models, ['group', 'name'])
-        .filter((m) => !isEmbeddingModel(m))
-        .filter((m) =>
-          [m.name + m.provider + t('provider.' + p.id)].join('').toLowerCase().includes(searchText.toLowerCase())
-        )
-        .map((m) => ({
-          key: getModelUniqId(m),
-          label: (
-            <ModelItem>
-              <ModelNameRow>
-                <span>{m?.name}</span> <ModelTags model={m} />
-              </ModelNameRow>
-              <PinIcon
-                onClick={(e) => {
-                  e.stopPropagation()
-                  togglePin(getModelUniqId(m))
-                }}
-                isPinned={pinnedModels.includes(getModelUniqId(m))}>
-                <PushpinOutlined />
-              </PinIcon>
-            </ModelItem>
-          ),
-          icon: (
-            <Avatar src={getModelLogo(m?.id || '')} size={24}>
-              {first(m?.name)}
-            </Avatar>
-          ),
-          onClick: () => {
-            resolve(m)
-            setOpen(false)
-          }
-        }))
+      const filteredModels = getFilteredModels(p).map((m) => ({
+        key: getModelUniqId(m),
+        label: (
+          <ModelItem>
+            <ModelNameRow>
+              <span>{m?.name}</span> <ModelTags model={m} />
+            </ModelNameRow>
+            <PinIcon
+              onClick={(e) => {
+                e.stopPropagation()
+                togglePin(getModelUniqId(m))
+              }}
+              isPinned={pinnedModels.includes(getModelUniqId(m))}>
+              <PushpinOutlined />
+            </PinIcon>
+          </ModelItem>
+        ),
+        icon: (
+          <Avatar src={getModelLogo(m?.id || '')} size={24}>
+            {first(m?.name)}
+          </Avatar>
+        ),
+        onClick: () => {
+          resolve(m)
+          setOpen(false)
+        }
+      }))
 
       // Only return the group if it has filtered models
       return filteredModels.length > 0
@@ -153,10 +172,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   }
 
   const onCancel = () => {
+    setKeyboardSelectedId('')
     setOpen(false)
   }
 
   const onClose = async () => {
+    setKeyboardSelectedId('')
     resolve(undefined)
     SelectModelPopup.hide()
   }
@@ -175,6 +196,85 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       }, 100) // Small delay to ensure menu is rendered
     }
   }, [open, model])
+
+  // 获取所有可见的模型项
+  const getVisibleModelItems = useCallback(() => {
+    const items: { key: string; model: Model }[] = []
+
+    // 如果有置顶模型且没有搜索文本，添加置顶模型
+    if (pinnedModels.length > 0 && searchText.length === 0) {
+      providers
+        .flatMap((p) => p.models || [])
+        .filter((m) => pinnedModels.includes(getModelUniqId(m)))
+        .forEach((m) => items.push({ key: getModelUniqId(m) + '_pinned', model: m }))
+    }
+
+    // 添加其他过滤后的模型
+    providers.forEach((p) => {
+      if (p.models) {
+        getFilteredModels(p).forEach((m) => {
+          const modelId = getModelUniqId(m)
+          const isPinned = pinnedModels.includes(modelId)
+          // 如果是搜索状态，或者不是固定模型，才添加到列表中
+          if (searchText.length > 0 || !isPinned) {
+            items.push({
+              key: isPinned ? modelId + '_pinned' : modelId,
+              model: m
+            })
+          }
+        })
+      }
+    })
+
+    return items
+  }, [pinnedModels, searchText, providers, getFilteredModels])
+
+  // 处理键盘导航
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const items = getVisibleModelItems()
+      if (items.length === 0) return
+
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        const currentIndex = items.findIndex((item) => item.key === keyboardSelectedId)
+        let nextIndex
+
+        if (currentIndex === -1) {
+          nextIndex = e.key === 'ArrowDown' ? 0 : items.length - 1
+        } else {
+          nextIndex =
+            e.key === 'ArrowDown' ? (currentIndex + 1) % items.length : (currentIndex - 1 + items.length) % items.length
+        }
+
+        const nextItem = items[nextIndex]
+        setKeyboardSelectedId(nextItem.key)
+
+        const element = document.querySelector(`[data-menu-id="${nextItem.key}"]`)
+        element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      } else if (e.key === 'Enter') {
+        e.preventDefault() // 阻止回车的默认行为
+        if (keyboardSelectedId) {
+          const selectedItem = items.find((item) => item.key === keyboardSelectedId)
+          if (selectedItem) {
+            resolve(selectedItem.model)
+            setOpen(false)
+          }
+        }
+      }
+    },
+    [keyboardSelectedId, getVisibleModelItems, resolve, setOpen]
+  )
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
+
+  // 搜索文本改变时重置键盘选中状态
+  useEffect(() => {
+    setKeyboardSelectedId('')
+  }, [searchText])
 
   return (
     <Modal
@@ -208,20 +308,21 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           allowClear
           autoFocus
           style={{ paddingLeft: 0 }}
-          bordered={false}
+          variant="borderless"
           size="middle"
+          onKeyDown={(e) => {
+            // 防止上下键移动光标
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+              e.preventDefault()
+            }
+          }}
         />
       </HStack>
       <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
       <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
         <Container>
           {filteredItems.length > 0 ? (
-            <StyledMenu
-              items={filteredItems}
-              selectedKeys={model ? [getModelUniqId(model)] : []}
-              mode="inline"
-              inlineIndent={6}
-            />
+            <StyledMenu items={filteredItems} selectedKeys={[keyboardSelectedId]} mode="inline" inlineIndent={6} />
           ) : (
             <EmptyState>
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />

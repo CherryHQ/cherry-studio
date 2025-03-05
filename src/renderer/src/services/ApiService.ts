@@ -114,6 +114,12 @@ export async function fetchChatCompletion({
         assistant,
         messages: [..._messages, message]
       })
+      // Set metrics.completion_tokens
+      if (message.metrics && message?.usage?.completion_tokens) {
+        if (!message.metrics?.completion_tokens) {
+          message.metrics.completion_tokens = message.usage.completion_tokens
+        }
+      }
     }
   } catch (error: any) {
     message.status = 'error'

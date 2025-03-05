@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "关",
-      "settings.reasoning_effort.tip": "该设置仅支持推理模型",
+      "settings.reasoning_effort.tip": "仅支持 OpenAI o-series 和 Anthropic 推理模型",
       "title": "助手"
     },
     "auth": {
@@ -104,14 +104,17 @@
       "input.web_search.button.ok": "去设置",
       "input.web_search.enable": "开启网络搜索",
       "input.web_search.enable_content": "需要先在设置中开启网络搜索",
+      "input.auto_resize": "自动调整高度",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
       "message.regenerate.model": "切换模型",
       "message.useful": "有用",
+      "message.quote": "引用",
       "resend": "重新发送",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",
+      "settings.code_wrappable": "代码块可换行",
       "settings.context_count": "上下文数",
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
@@ -384,6 +387,7 @@
       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
       "error.yuque.no_config": "未配置语雀 Token 或 知识库 URL",
+      "error.dimension_too_large": "内容尺寸过大",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
       "ignore.knowledge.base": "联网模式开启，忽略知识库",
@@ -393,10 +397,10 @@
       "message.delete.content": "确定要删除此消息吗?",
       "message.delete.title": "删除消息",
       "message.multi_model_style": "多模型回答样式",
-      "message.multi_model_style.fold": "折叠",
-      "message.multi_model_style.grid": "网格",
-      "message.multi_model_style.horizontal": "水平",
-      "message.multi_model_style.vertical": "垂直",
+      "message.multi_model_style.fold": "标签模式",
+      "message.multi_model_style.grid": "卡片布局",
+      "message.multi_model_style.horizontal": "横向排列",
+      "message.multi_model_style.vertical": "纵向堆叠",
       "message.style": "消息样式",
       "message.style.bubble": "气泡",
       "message.style.plain": "简洁",
@@ -405,6 +409,7 @@
       "reset.double.confirm.content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
       "reset.double.confirm.title": "数据丢失！！！",
       "restore.success": "恢复成功",
+      "restore.failed": "恢复失败",
       "save.success.title": "保存成功",
       "searching": "正在联网搜索...",
       "success.notion.export": "成功导出到Notion",
@@ -472,7 +477,8 @@
         "vision": "图像"
       },
       "vision": "视觉",
-      "websearch": "联网"
+      "websearch": "联网",
+      "edit": "编辑模型"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -558,7 +564,9 @@
       "together": "Together",
       "yi": "零一万物",
       "zhinao": "360智脑",
-      "zhipu": "智谱AI"
+      "zhipu": "智谱AI",
+      "xirang": "天翼云息壤",
+      "tencent-cloud-ti": "腾讯云TI"
     },
     "settings": {
       "about": "关于我们",
@@ -590,6 +598,10 @@
       "data": {
         "app_data": "应用数据",
         "app_logs": "应用日志",
+        "app_knowledge": "知识库文件",
+        "app_knowledge.remove_all": "删除文件",
+        "app_knowledge.remove_all_confirm": "删除知识库文件不会删除知识库本身，可以减少存储空间占用，删除之后文件无法再打开，是否继续？",
+        "app_knowledge.remove_all_success": "文件删除成功",
         "clear_cache": {
           "button": "清除缓存",
           "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
@@ -665,6 +677,7 @@
       },
       "display.custom.css": "自定义 CSS",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
+      "display.custom.css.cherrycss": "从 cherrycss.com 获取",
       "display.minApp.disabled": "隐藏的小程序",
       "display.minApp.empty": "把要隐藏的小程序从左侧拖拽到这里",
       "display.minApp.title": "小程序显示设置",
@@ -681,6 +694,7 @@
       "display.sidebar.visible": "显示的图标",
       "display.title": "显示设置",
       "display.topic.title": "话题设置",
+      "display.assistant.title": "助手设置",
       "font_size.title": "消息字体大小",
       "general": "常规设置",
       "general.backup.button": "备份",
@@ -693,6 +707,9 @@
       "general.title": "常规设置",
       "general.user_name": "用户名",
       "general.user_name.placeholder": "请输入用户名",
+      "general.image_upload": "图片上传",
+      "general.emoji_picker": "表情选择器",
+      "general.avatar.reset": "重置头像",
       "general.view_webdav_settings": "查看 WebDAV 设置",
       "input.auto_translate_with_space": "快速敲击3次空格翻译",
       "input.target_language": "目标语言",
@@ -739,6 +756,10 @@
       "models.translate_model_description": "翻译服务使用的模型",
       "models.translate_model_prompt_message": "请输入翻译模型提示词",
       "models.translate_model_prompt_title": "翻译模型提示词",
+      "moresetting": "更多设置",
+      "moresetting.warn": "风险警告",
+      "moresetting.check.warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！",
+      "moresetting.check.confirm": "确认勾选",
       "provider": {
         "add.name": "提供商名称",
         "add.name.placeholder": "例如 OpenAI",
@@ -765,7 +786,8 @@
         "remove_duplicate_keys": "移除重复密钥",
         "remove_invalid_keys": "删除无效密钥",
         "search_placeholder": "搜索模型 ID 或名称",
-        "title": "模型服务"
+        "title": "模型服务",
+        "search": "搜索模型平台..."
       },
       "proxy": {
         "mode": {
@@ -785,7 +807,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系统中 Option 键只能与空格键组合使用",
         "clear_shortcut": "清除快捷键",
         "clear_topic": "清空消息",
         "copy_last_message": "复制上一条消息",
@@ -807,9 +828,9 @@
         "zoom_out": "缩小界面",
         "zoom_reset": "重置缩放"
       },
-      "theme.auto": "跟随系统",
-      "theme.dark": "深色主题",
-      "theme.light": "浅色主题",
+      "theme.auto": "自动",
+      "theme.dark": "深色",
+      "theme.light": "浅色",
       "theme.title": "主题",
       "theme.window.style.opaque": "不透明窗口",
       "theme.window.style.title": "窗口样式",
@@ -819,6 +840,7 @@
       "topic.position.left": "左侧",
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
+      "assistant.show.icon": "显示模型图标",
       "tray.title": "启用系统托盘图标",
       "websearch": {
         "blacklist": "黑名单",
@@ -870,6 +892,38 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "code_block": {
+      "enable_wrap": "换行",
+      "disable_wrap": "取消换行"
+    },
+    "backup": {
+      "title": "数据备份",
+      "confirm": "确定要备份数据吗？",
+      "confirm.button": "选择备份位置",
+      "content": "备份操作将涵盖所有应用数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+      "progress": {
+        "title": "备份进度",
+        "preparing": "准备备份...",
+        "writing_data": "写入数据...",
+        "copying_files": "复制文件... {{progress}}%",
+        "compressing": "压缩文件...",
+        "completed": "备份完成"
+      }
+    },
+    "restore": {
+      "title": "数据恢复",
+      "confirm": "确定要恢复数据吗？",
+      "confirm.button": "选择备份文件",
+      "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待。",
+      "progress": {
+        "title": "恢复进度",
+        "preparing": "准备恢复...",
+        "extracting": "解压备份...",
+        "reading_data": "读取数据...",
+        "copying_files": "复制文件... {{progress}}%",
+        "completed": "恢复完成"
+      }
     }
   }
 }

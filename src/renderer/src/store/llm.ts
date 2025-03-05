@@ -406,6 +406,26 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.modelscope,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'xirang',
+      name: 'Xirang',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://wishub-x1.ctyun.cn',
+      models: SYSTEM_MODELS.xirang,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'tencent-cloud-ti',
+      name: 'Tencent Cloud TI',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.lkeap.cloud.tencent.com',
+      models: SYSTEM_MODELS['tencent-cloud-ti'],
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {
@@ -502,6 +522,21 @@ const settingsSlice = createSlice({
     },
     setLMStudioKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.lmstudio.keepAliveTime = action.payload
+    },
+    updateModel: (
+      state,
+      action: PayloadAction<{
+        providerId: string
+        model: Model
+      }>
+    ) => {
+      const provider = state.providers.find((p) => p.id === action.payload.providerId)
+      if (provider) {
+        const modelIndex = provider.models.findIndex((m) => m.id === action.payload.model.id)
+        if (modelIndex !== -1) {
+          provider.models[modelIndex] = action.payload.model
+        }
+      }
     }
   }
 })
@@ -517,7 +552,8 @@ export const {
   setTopicNamingModel,
   setTranslateModel,
   setOllamaKeepAliveTime,
-  setLMStudioKeepAliveTime
+  setLMStudioKeepAliveTime,
+  updateModel
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

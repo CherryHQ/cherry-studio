@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "關",
-      "settings.reasoning_effort.tip": "該設置僅支持推理模型",
+      "settings.reasoning_effort.tip": "僅支持OpenAI o系列和Anthropic推理模型",
       "title": "助手"
     },
     "auth": {
@@ -104,14 +104,17 @@
       "input.web_search.button.ok": "去設定",
       "input.web_search.enable": "開啟網路搜索",
       "input.web_search.enable_content": "需要先在設定中開啟網路搜索",
+      "input.auto_resize": "自動調整高度",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已建立",
       "message.new.context": "新上下文",
       "message.regenerate.model": "切換模型",
       "message.useful": "有用",
+      "message.quote": "引用",
       "resend": "重新發送",
       "save": "保存",
-      "settings.code_collapsible": "代码块可折叠",
+      "settings.code_collapsible": "代碼區塊可折疊",
+      "settings.code_wrappable": "代碼區塊可換行",
       "settings.context_count": "上下文",
       "settings.context_count.tip": "在上下文中保留的前幾則訊息。",
       "settings.max": "最大",
@@ -384,6 +387,7 @@
       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "導出語雀錯誤，請檢查連接狀態並對照文檔檢查配置",
       "error.yuque.no_config": "未配置語雀 Token 或知識庫 Url",
+      "error.dimension_too_large": "內容尺寸過大",
       "group.delete.content": "刪除分組消息會刪除用戶提問和所有助手的回答",
       "group.delete.title": "刪除分組消息",
       "ignore.knowledge.base": "網路模式開啟，忽略知識庫",
@@ -393,10 +397,10 @@
       "message.delete.content": "確定要刪除此訊息嗎？",
       "message.delete.title": "刪除訊息",
       "message.multi_model_style": "多模型回答樣式",
-      "message.multi_model_style.fold": "折疊",
-      "message.multi_model_style.grid": "网格",
-      "message.multi_model_style.horizontal": "水平",
-      "message.multi_model_style.vertical": "垂直",
+      "message.multi_model_style.fold": "標籤模式",
+      "message.multi_model_style.grid": "卡片佈局",
+      "message.multi_model_style.horizontal": "橫向排列",
+      "message.multi_model_style.vertical": "縱向堆疊",
       "message.style": "消息樣式",
       "message.style.bubble": "氣泡",
       "message.style.plain": "簡潔",
@@ -405,6 +409,7 @@
       "reset.double.confirm.content": "所有資料將會被清除，您確定要繼續嗎？",
       "reset.double.confirm.title": "資料將會丟失！！！",
       "restore.success": "恢復成功",
+      "restore.failed": "恢復失敗",
       "save.success.title": "保存成功",
       "searching": "正在網路搜索...",
       "success.notion.export": "成功導出到 Notion",
@@ -472,7 +477,8 @@
         "vision": "圖像"
       },
       "vision": "視覺",
-      "websearch": "網路搜索"
+      "websearch": "網路搜索",
+      "edit": "編輯模型"
     },
     "ollama": {
       "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）。",
@@ -524,7 +530,7 @@
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "百川",
-      "baidu-cloud": "百度云千帆",
+      "baidu-cloud": "百度雲千帆",
       "dashscope": "阿里雲百鍊",
       "deepseek": "深度求索",
       "dmxapi": "DMXAPI",
@@ -558,7 +564,9 @@
       "together": "Together",
       "yi": "零一萬物",
       "zhinao": "360智腦",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "xirang": "天翼雲息壤",
+      "tencent-cloud-ti": "騰訊雲TI"
     },
     "settings": {
       "about": "關於與回饋",
@@ -590,6 +598,10 @@
       "data": {
         "app_data": "應用數據",
         "app_logs": "應用日誌",
+        "app_knowledge": "知識庫文件",
+        "app_knowledge.remove_all": "刪除文件",
+        "app_knowledge.remove_all_confirm": "刪除知識庫文件不會刪除知識庫本身，可以減少存儲空間占用，刪除之後文件無法再打開，是否繼續？",
+        "app_knowledge.remove_all_success": "文件刪除成功",
         "clear_cache": {
           "button": "清除緩存",
           "confirm": "清除緩存將刪除應用緩存數據，包括小程序數據。此操作不可恢復，是否繼續？",
@@ -665,6 +677,7 @@
       },
       "display.custom.css": "自定義 CSS",
       "display.custom.css.placeholder": "/* 這裡寫自定義 CSS */",
+      "display.custom.css.cherrycss": "從 cherrycss.com 獲取",
       "display.minApp.disabled": "隱藏的小程序",
       "display.minApp.empty": "把要隱藏的小程序從左側拖拽到這裡",
       "display.minApp.title": "小程序顯示設定",
@@ -693,6 +706,9 @@
       "general.title": "一般設定",
       "general.user_name": "使用者名稱",
       "general.user_name.placeholder": "輸入您的名稱",
+      "general.image_upload": "圖片上傳",
+      "general.emoji_picker": "表情選擇器",
+      "general.avatar.reset": "重置頭像",
       "general.view_webdav_settings": "查看 WebDAV 設定",
       "input.auto_translate_with_space": "快速敲擊3次空格翻譯",
       "input.target_language": "目標語言",
@@ -739,6 +755,10 @@
       "models.translate_model_description": "翻譯服務使用的模型",
       "models.translate_model_prompt_message": "請輸入翻譯模型提示詞",
       "models.translate_model_prompt_title": "翻譯模型提示詞",
+      "moresetting": "更多設置",
+      "moresetting.warn": "風險警告",
+      "moresetting.check.warn": "請謹慎勾選此選項，勾選錯誤會導致模型無法正常使用！！！",
+      "moresetting.check.confirm": "確認勾選",
       "provider": {
         "add.name": "提供者名稱",
         "add.name.placeholder": "例如：OpenAI",
@@ -765,7 +785,8 @@
         "remove_duplicate_keys": "移除重複密鑰",
         "remove_invalid_keys": "刪除無效密鑰",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "search": "搜尋模型平台..."
       },
       "proxy": {
         "mode": {
@@ -785,7 +806,6 @@
       },
       "shortcuts": {
         "action": "操作",
-        "alt_warning": "Mac 系統中 Option 鍵只能與空白鍵組合使用",
         "clear_shortcut": "清除快捷鍵",
         "clear_topic": "清除所有訊息",
         "copy_last_message": "複製上一条消息",
@@ -808,8 +828,8 @@
         "zoom_reset": "重置縮放"
       },
       "theme.auto": "自動",
-      "theme.dark": "深色主題",
-      "theme.light": "淺色主題",
+      "theme.dark": "深色",
+      "theme.light": "淺色",
       "theme.title": "主題",
       "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
@@ -819,6 +839,7 @@
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
+      "assistant.show.icon": "顯示模型圖標",
       "tray.title": "啟用系統托盤圖標",
       "websearch": {
         "get_api_key": "點擊這裡獲取密鑰",
@@ -835,7 +856,8 @@
         "blacklist_tooltip": "請使用以下格式(換行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "搜索結果個數",
         "search_result_default": "預設"
-      }
+      },
+      "display.assistant.title": "助手設定"
     },
     "translate": {
       "any.language": "任意語言",
@@ -870,6 +892,38 @@
       "quit": "退出",
       "show_window": "顯示視窗",
       "visualization": "可視化"
+    },
+    "code_block": {
+      "enable_wrap": "換行",
+      "disable_wrap": "取消換行"
+    },
+    "backup": {
+      "title": "資料備份",
+      "confirm": "確定要備份資料嗎？",
+      "confirm.button": "選擇備份位置",
+      "content": "備份操作將涵蓋所有應用資料，包括聊天記錄、設定、知識庫等全部資料。請注意，備份過程可能需要一些時間，感謝您的耐心等待。",
+      "progress": {
+        "title": "備份進度",
+        "preparing": "準備備份...",
+        "writing_data": "寫入資料...",
+        "copying_files": "複製文件... {{progress}}%",
+        "compressing": "壓縮文件...",
+        "completed": "備份完成"
+      }
+    },
+    "restore": {
+      "title": "資料復原",
+      "confirm": "確定要復原資料嗎？",
+      "confirm.button": "選擇備份檔案",
+      "content": "復原操作將使用備份資料覆蓋當前所有應用資料。請注意，復原過程可能需要一些時間，感謝您的耐心等待。",
+      "progress": {
+        "title": "復原進度",
+        "preparing": "準備復原...",
+        "extracting": "解壓備份...",
+        "reading_data": "讀取資料...",
+        "copying_files": "複製文件... {{progress}}%",
+        "completed": "復原完成"
+      }
     }
   }
 }

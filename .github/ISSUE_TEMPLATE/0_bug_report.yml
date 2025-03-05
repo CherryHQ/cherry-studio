@@ -1,4 +1,4 @@
-name: 🐛 Bug Report
+name: 🐛 Bug Report (English)
 description: Create a report to help us improve
 title: '[Bug]: '
 labels: ['bug']
@@ -6,8 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to fill out this bug report!
-        Before submitting this issue, please make sure that you have understood the [FAQ](https://docs.cherry-ai.com/question-contact/questions) and [Knowledge Science](https://docs.cherry-ai.com/question-contact/knowledge)
+          Thank you for taking the time to fill out this bug report!
+          Before submitting this issue, please make sure that you have understood the [FAQ](https://docs.cherry-ai.com/question-contact/questions) and [Knowledge Science](https://docs.cherry-ai.com/question-contact/knowledge)
 
   - type: checkboxes
     id: checklist

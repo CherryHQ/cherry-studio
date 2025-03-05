@@ -1,8 +1,11 @@
 import { CheckOutlined, DownloadOutlined, DownOutlined, RightOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import UnWrapIcon from '@renderer/components/Icons/UnWrapIcon'
+import WrapIcon from '@renderer/components/Icons/WrapIcon'
 import { HStack } from '@renderer/components/Layout'
 import { useSyntaxHighlighter } from '@renderer/context/SyntaxHighlighterProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import React, { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,12 +23,13 @@ interface CodeBlockProps {
 }
 
 const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
-  const match = /language-(\w+)/.exec(className || '')
-  const { codeShowLineNumbers, fontSize, codeCollapsible } = useSettings()
+  const match = /language-(\w+)/.exec(className || '') || children?.includes('\n')
+  const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
   const language = match?.[1] ?? 'text'
   const [html, setHtml] = useState<string>('')
   const { codeToHtml } = useSyntaxHighlighter()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
+  const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const [shouldShowExpandButton, setShouldShowExpandButton] = useState(false)
   const codeContentRef = useRef<HTMLDivElement>(null)
 
@@ -59,6 +63,15 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
     }
   }, [codeCollapsible])
 
+  useEffect(() => {
+    if (!codeWrappable) {
+      // 如果未启动代码块换行功能
+      setIsUnwrapped(true)
+    } else {
+      setIsUnwrapped(!codeWrappable) // 被换行
+    }
+  }, [codeWrappable])
+
   if (language === 'mermaid') {
     return <Mermaid chart={children} />
   }
@@ -86,16 +99,19 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           {codeCollapsible && shouldShowExpandButton && (
             <CollapseIcon expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />
           )}
-          <CodeLanguage>{'<' + match[1].toUpperCase() + '>'}</CodeLanguage>
+          <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
         </div>
         <HStack gap={12} alignItems="center">
           {showDownloadButton && <DownloadButton language={language} data={children} />}
+          {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           <CopyButton text={children} />
         </HStack>
       </CodeHeader>
       <CodeContent
         ref={codeContentRef}
         isShowLineNumbers={codeShowLineNumbers}
+        isUnwrapped={isUnwrapped}
+        isCodeWrappable={codeWrappable}
         dangerouslySetInnerHTML={{ __html: html }}
         style={{
           border: '0.5px solid var(--color-code-background)',
@@ -149,6 +165,22 @@ const ExpandButton: React.FC<{
   )
 }
 
+const UnwrapButton: React.FC<{ unwrapped: boolean; onClick: () => void }> = ({ unwrapped, onClick }) => {
+  const { t } = useTranslation()
+  const unwrapLabel = unwrapped ? t('code_block.enable_wrap') : t('code_block.disable_wrap')
+  return (
+    <Tooltip title={unwrapLabel}>
+      <UnwrapButtonWrapper onClick={onClick} title={unwrapLabel}>
+        {unwrapped ? (
+          <UnWrapIcon style={{ width: '100%', height: '100%' }} />
+        ) : (
+          <WrapIcon style={{ width: '100%', height: '100%' }} />
+        )}
+      </UnwrapButtonWrapper>
+    </Tooltip>
+  )
+}
+
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
   const [copied, setCopied] = useState(false)
   const { t } = useTranslation()
@@ -183,9 +215,19 @@ const DownloadButton = ({ language, data }: { language: string; data: string }) 
 
 const CodeBlockWrapper = styled.div``
 
-const CodeContent = styled.div<{ isShowLineNumbers: boolean }>`
+const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolean; isCodeWrappable: boolean }>`
   .shiki {
     padding: 1em;
+
+    code {
+      display: table;
+      width: 100%;
+
+      .line {
+        display: table-row;
+        height: 1.3rem;
+      }
+    }
   }
 
   ${(props) =>
@@ -200,14 +242,23 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean }>`
         content: counter(step);
         counter-increment: step;
         width: 1rem;
-        margin-right: 1rem;
-        display: inline-block;
+        padding-right: 1rem;
+        display: table-cell;
         text-align: right;
         opacity: 0.35;
       }
     `}
-`
 
+  ${(props) =>
+    props.isCodeWrappable &&
+    !props.isUnwrapped &&
+    `
+      code .line * {
+        word-wrap: break-word;
+        white-space: pre-wrap;
+      }
+    `}
+`
 const CodeHeader = styled.div`
   display: flex;
   align-items: center;
@@ -274,6 +325,23 @@ const ExpandButtonWrapper = styled.div`
 `
 
 const CollapseIconWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-3);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+    color: var(--color-text-1);
+  }
+`
+
+const UnwrapButtonWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;

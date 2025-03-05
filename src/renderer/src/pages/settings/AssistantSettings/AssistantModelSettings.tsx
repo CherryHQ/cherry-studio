@@ -154,6 +154,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setMaxTokens(0)
     setStreamOutput(true)
     setTopP(1)
+    setReasoningEffort(undefined)
     setCustomParameters([])
     updateAssistantSettings({
       temperature: DEFAULT_TEMPERATURE,
@@ -162,6 +163,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       maxTokens: 0,
       streamOutput: true,
       topP: 1,
+      reasoning_effort: undefined,
       customParameters: []
     })
   }

@@ -52,10 +52,8 @@ const GeneralSettings: FC = () => {
     dispatch(setProxyMode(mode))
     if (mode === 'system') {
       window.api.setProxy('system')
-      dispatch(_setProxyUrl(undefined))
     } else if (mode === 'none') {
       window.api.setProxy(undefined)
-      dispatch(_setProxyUrl(undefined))
     }
   }
 
@@ -64,7 +62,7 @@ const GeneralSettings: FC = () => {
     { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
     { value: 'en-US', label: 'English', flag: '🇺🇸' },
     { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-    { value: 'ru-RU', label: 'Russian', flag: '🇷🇺' }
+    { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' }
   ]
 
   return (
