@@ -677,6 +677,7 @@
       },
       "display.custom.css": "自定义 CSS",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
+      "display.custom.css.cherrycss": "从 cherrycss.com 获取",
       "display.minApp.disabled": "隐藏的小程序",
       "display.minApp.empty": "把要隐藏的小程序从左侧拖拽到这里",
       "display.minApp.title": "小程序显示设置",

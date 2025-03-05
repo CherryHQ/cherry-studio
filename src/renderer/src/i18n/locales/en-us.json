@@ -677,6 +677,7 @@
       },
       "display.custom.css": "Custom CSS",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
+      "display.custom.css.cherrycss": "Get from cherrycss.com",
       "display.minApp.disabled": "Hidden MinApp",
       "display.minApp.empty": "Drag minApp from the left to hide them here",
       "display.minApp.title": "MinApp  Settings",

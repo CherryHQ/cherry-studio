@@ -1,7 +1,5 @@
 import { SyncOutlined } from '@ant-design/icons'
-import MinApp from '@renderer/components/MinApp'
 import { isMac } from '@renderer/config/constant'
-import { AppLogo } from '@renderer/config/env'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -102,14 +100,7 @@ const DisplaySettings: FC = () => {
     ],
     [t]
   )
-  const onOpenCherrycss = () => {
-    MinApp.start({
-      id: 'cherrycss',
-      name: 'Cherry Studio Theme Gallery',
-      url: 'https://cherrycss.com/',
-      logo: AppLogo
-    })
-  }
+
   return (
     <SettingContainer theme={themeMode}>
       <SettingGroup theme={theme}>
@@ -205,7 +196,9 @@ const DisplaySettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.display.custom.css')}
-          <TitleExtra onClick={onOpenCherrycss}>从cherrycss获取</TitleExtra>
+          <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
+            {t('settings.display.custom.css.cherrycss')}
+          </TitleExtra>
         </SettingTitle>
         <SettingDivider />
         <Input.TextArea
