@@ -11,7 +11,9 @@ import AiProvider from '../providers/AiProvider'
 import {
   getAssistantProvider,
   getDefaultModel,
+  getDefaultSearchSummaryAssistant,
   getProviderByModel,
+  getSearchSummaryModel,
   getTopNamingModel,
   getTranslateModel
 } from './AssistantService'
@@ -19,6 +21,7 @@ import { EVENT_NAMES, EventEmitter } from './EventService'
 import { filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
+
 export async function fetchChatCompletion({
   message,
   messages,
@@ -51,6 +54,7 @@ export async function fetchChatCompletion({
   try {
     let _messages: Message[] = []
     let isFirstChunk = true
+    let query = ''
 
     // Search web
     if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
@@ -58,6 +62,7 @@ export async function fetchChatCompletion({
 
       if (isEmpty(webSearchParams)) {
         const lastMessage = findLast(messages, (m) => m.role === 'user')
+        const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
         const hasKnowledgeBase = !isEmpty(lastMessage?.knowledgeBaseIds)
         if (lastMessage) {
           if (hasKnowledgeBase) {
@@ -66,13 +71,35 @@ export async function fetchChatCompletion({
               key: 'knowledge-base-no-match-info'
             })
           }
-          onResponse({ ...message, status: 'searching' })
-          const webSearch = await WebSearchService.search(lastMessage.content)
-          message.metadata = {
-            ...message.metadata,
-            tavily: webSearch
+
+          try {
+            // 等待关键词生成完成
+            const keywords = await fetchSearchSummary({
+              messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
+              assistant: getDefaultSearchSummaryAssistant()
+            })
+
+            if (keywords) {
+              query = keywords
+            } else {
+              query = lastMessage.content
+            }
+
+            // 更新消息状态为搜索中
+            onResponse({ ...message, status: 'searching' })
+
+            // 等待搜索完成
+            const webSearch = await WebSearchService.search(query)
+
+            // 处理搜索结果
+            message.metadata = {
+              ...message.metadata,
+              tavily: webSearch
+            }
+            window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
+          } catch (error) {
+            console.error('Web search failed:', error)
           }
-          window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
         }
       }
     }
@@ -184,6 +211,23 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   try {
     return await AI.summaries(filterMessages(messages), assistant)
+  } catch (error: any) {
+    return null
+  }
+}
+
+export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+  const model = getSearchSummaryModel() || assistant.model || getDefaultModel()
+  const provider = getProviderByModel(model)
+
+  if (!hasApiKey(provider)) {
+    return null
+  }
+
+  const AI = new AiProvider(provider)
+
+  try {
+    return await AI.summaryForSearch(messages, assistant)
   } catch (error: any) {
     return null
   }
