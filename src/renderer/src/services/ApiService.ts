@@ -77,6 +77,10 @@ export async function fetchChatCompletion({
       }
     }
 
+    const allMCPTools = await window.api.mcp.listTools()
+    if (allMCPTools.length > 0) {
+      console.log('Available MCP tools:', allMCPTools)
+    }
     await AI.completions({
       messages: filterUsefulMessages(messages),
       assistant,
@@ -104,7 +108,8 @@ export async function fetchChatCompletion({
         }
 
         onResponse({ ...message, status: 'pending' })
-      }
+      },
+      mcpTools: allMCPTools
     })
 
     message.status = 'success'

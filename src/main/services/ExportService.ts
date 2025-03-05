@@ -1,7 +1,22 @@
 /* eslint-disable no-case-declarations */
 // ExportService
 
-import { AlignmentType, BorderStyle, Document, HeadingLevel, Packer, Paragraph, ShadingType, TextRun } from 'docx'
+import {
+  AlignmentType,
+  BorderStyle,
+  Document,
+  ExternalHyperlink,
+  HeadingLevel,
+  Packer,
+  Paragraph,
+  ShadingType,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun,
+  VerticalAlign,
+  WidthType
+} from 'docx'
 import { dialog } from 'electron'
 import Logger from 'electron-log'
 import MarkdownIt from 'markdown-it'
@@ -21,13 +36,54 @@ export class ExportService {
     const tokens = this.md.parse(markdown, {})
     const elements: any[] = []
     let listLevel = 0
+    let currentTable: Table | null = null
+    let currentRowCells: TableCell[] = []
+    let isHeaderRow = false
+    let tableColumnCount = 0
+    let tableRows: TableRow[] = [] // Store rows temporarily
 
-    const processInlineTokens = (tokens: any[]): TextRun[] => {
-      const runs: TextRun[] = []
-      for (const token of tokens) {
+    const processInlineTokens = (tokens: any[], isHeaderRow: boolean): (TextRun | ExternalHyperlink)[] => {
+      const runs: (TextRun | ExternalHyperlink)[] = []
+      let linkText = ''
+      let linkUrl = ''
+      let insideLink = false
+
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i]
         switch (token.type) {
+          case 'link_open':
+            insideLink = true
+            linkUrl = token.attrs.find((attr: [string, string]) => attr[0] === 'href')[1]
+            linkText = tokens[i + 1].content
+            i += 1
+            break
+          case 'link_close':
+            if (insideLink && linkUrl && linkText) {
+              // Handle any accumulated link text with the ExternalHyperlink
+              runs.push(
+                new ExternalHyperlink({
+                  children: [
+                    new TextRun({
+                      text: linkText,
+                      style: 'Hyperlink',
+                      color: '0000FF',
+                      underline: {
+                        type: 'single'
+                      }
+                    })
+                  ],
+                  link: linkUrl
+                })
+              )
+
+              // Reset link variables
+              linkText = ''
+              linkUrl = ''
+              insideLink = false
+            }
+            break
           case 'text':
-            runs.push(new TextRun(token.content))
+            runs.push(new TextRun({ text: token.content, bold: isHeaderRow ? true : false }))
             break
           case 'strong':
             runs.push(new TextRun({ text: token.content, bold: true }))
@@ -45,7 +101,6 @@ export class ExportService {
 
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i]
-
       switch (token.type) {
         case 'heading_open':
           // 获取标题级别 (h1 -> h6)
@@ -68,7 +123,7 @@ export class ExportService {
           const inlineTokens = tokens[i + 1].children || []
           elements.push(
             new Paragraph({
-              children: processInlineTokens(inlineTokens),
+              children: processInlineTokens(inlineTokens, false),
               spacing: {
                 before: 120,
                 after: 120
@@ -93,7 +148,7 @@ export class ExportService {
               children: [
                 new TextRun({ text: '•', bold: true }),
                 new TextRun({ text: '\t' }),
-                ...processInlineTokens(itemInlineTokens)
+                ...processInlineTokens(itemInlineTokens, false)
               ],
               indent: {
                 left: listLevel * 720
@@ -170,6 +225,116 @@ export class ExportService {
             })
           )
           i += 3
+          break
+
+        // 表格处理
+        case 'table_open':
+          tableRows = [] // Reset table rows for new table
+          break
+
+        case 'thead_open':
+          isHeaderRow = true
+          break
+
+        case 'tbody_open':
+          isHeaderRow = false
+          break
+
+        case 'tr_open':
+          currentRowCells = []
+          break
+
+        case 'tr_close':
+          const row = new TableRow({
+            children: currentRowCells,
+            tableHeader: isHeaderRow
+          })
+          tableRows.push(row)
+          // 计算表格有多少列（针对第一行）
+          if (tableColumnCount === 0) {
+            tableColumnCount = currentRowCells.length
+          }
+          break
+
+        case 'th_open':
+        case 'td_open':
+          const isFirstColumn = currentRowCells.length === 0 // 判断是否是第一列
+          const borders = {
+            top: {
+              style: BorderStyle.NONE
+            },
+            bottom: isHeaderRow
+              ? {
+                  style: BorderStyle.SINGLE,
+                  size: 0.5,
+                  color: '000000'
+                }
+              : {
+                  style: BorderStyle.NONE
+                },
+            left: {
+              style: BorderStyle.NONE
+            },
+            right: {
+              style: BorderStyle.NONE
+            }
+          }
+          const cellContent = tokens[i + 1]
+          const cellOptions = {
+            children: [
+              new Paragraph({
+                children: cellContent.children
+                  ? processInlineTokens(cellContent.children, isHeaderRow || isFirstColumn)
+                  : [new TextRun({ text: cellContent.content || '', bold: isHeaderRow || isFirstColumn })],
+                alignment: AlignmentType.CENTER
+              })
+            ],
+            verticalAlign: VerticalAlign.CENTER,
+            borders: borders
+          }
+          currentRowCells.push(new TableCell(cellOptions))
+          i += 2 // 跳过内容和结束标记
+          break
+        case 'table_close':
+          // Create table with the collected rows - avoid using protected properties
+          // Create the table with all rows
+          currentTable = new Table({
+            width: {
+              size: 100,
+              type: WidthType.PERCENTAGE
+            },
+            rows: tableRows,
+            borders: {
+              top: {
+                style: BorderStyle.SINGLE,
+                size: 1,
+                color: '000000'
+              },
+              bottom: {
+                style: BorderStyle.SINGLE,
+                size: 1,
+                color: '000000'
+              },
+              left: {
+                style: BorderStyle.NONE
+              },
+              right: {
+                style: BorderStyle.NONE
+              },
+              insideHorizontal: {
+                style: BorderStyle.NONE
+              },
+              insideVertical: {
+                style: BorderStyle.NONE
+              }
+            }
+          })
+          elements.push(currentTable)
+          currentTable = null
+          tableColumnCount = 0
+          tableRows = []
+          currentRowCells = []
+          isHeaderRow = false
           break
       }
     }

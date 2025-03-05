@@ -1,11 +1,12 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
-import type { UpdateInfo } from 'electron-updater'
+import type { UpdateInfo } from 'builder-util-runtime'
 
 export interface UpdateState {
   info: UpdateInfo | null
   checking: boolean
   downloading: boolean
+  downloaded: boolean
   downloadProgress: number
   available: boolean
 }
@@ -43,6 +44,7 @@ const initialState: RuntimeState = {
     info: null,
     checking: false,
     downloading: false,
+    downloaded: false,
     downloadProgress: 0,
     available: false
   },

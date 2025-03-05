@@ -301,3 +301,42 @@ export type KnowledgeReference = {
   type: KnowledgeItemType
   file?: FileType
 }
+
+export type MCPArgType = 'string' | 'list' | 'number'
+export type MCPEnvType = 'string' | 'number'
+export type MCPArgParameter = { [key: string]: MCPArgType }
+export type MCPEnvParameter = { [key: string]: MCPEnvType }
+
+export interface MCPServerParameter {
+  name: string
+  type: MCPArgType | MCPEnvType
+  description: string
+}
+
+export interface MCPServer {
+  name: string
+  command: string
+  description?: string
+  args: string[]
+  env?: Record<string, string>
+  isActive: boolean
+}
+
+export interface MCPToolInputSchema {
+  type: string
+  title: string
+  description?: string
+  required?: string[]
+  properties: Record<string, object>
+}
+
+export interface MCPTool {
+  serverName: string
+  name: string
+  description?: string
+  inputSchema: MCPToolInputSchema
+}
+
+export interface MCPConfig {
+  servers: MCPServer[]
+}

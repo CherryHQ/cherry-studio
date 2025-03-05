@@ -15,4 +15,5 @@ interface CompletionsParams {
   assistant: Assistant
   onChunk: ({ text, reasoning_content, usage, metrics, search, citations }: ChunkCallbackData) => void
   onFilterMessages: (messages: Message[]) => void
+  mcpTools?: MCPTool[]
 }

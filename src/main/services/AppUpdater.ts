@@ -1,11 +1,13 @@
+import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
-import { AppUpdater as _AppUpdater, autoUpdater, UpdateInfo } from 'electron-updater'
+import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
 
 import icon from '../../../build/icon.png?asset'
 
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
+  private releaseInfo: UpdateInfo | undefined
 
   constructor(mainWindow: BrowserWindow) {
     logger.transports.file.level = 'info'
@@ -37,32 +39,38 @@ export default class AppUpdater {
 
     // 当需要更新的内容下载完成后
     autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
-      mainWindow.webContents.send('update-downloaded')
-
-      logger.info('下载完成，询问用户是否更新', releaseInfo)
-
-      dialog
-        .showMessageBox({
-          type: 'info',
-          title: '安装更新',
-          icon,
-          message: `新版本 ${releaseInfo.version} 已准备就绪`,
-          detail: this.formatReleaseNotes(releaseInfo.releaseNotes),
-          buttons: ['稍后安装', '立即安装'],
-          defaultId: 1,
-          cancelId: 0
-        })
-        .then(({ response }) => {
-          if (response === 1) {
-            app.isQuitting = true
-            setImmediate(() => autoUpdater.quitAndInstall())
-          } else {
-            mainWindow.webContents.send('update-downloaded-cancelled')
-          }
-        })
+      mainWindow.webContents.send('update-downloaded', releaseInfo)
+      this.releaseInfo = releaseInfo
+      logger.info('下载完成', releaseInfo)
     })
 
     this.autoUpdater = autoUpdater
+  }
+
+  public async showUpdateDialog(mainWindow: BrowserWindow) {
+    if (!this.releaseInfo) {
+      return
+    }
+
+    dialog
+      .showMessageBox({
+        type: 'info',
+        title: '安装更新',
+        icon,
+        message: `新版本 ${this.releaseInfo.version} 已准备就绪`,
+        detail: this.formatReleaseNotes(this.releaseInfo.releaseNotes),
+        buttons: ['稍后安装', '立即安装'],
+        defaultId: 1,
+        cancelId: 0
+      })
+      .then(({ response }) => {
+        if (response === 1) {
+          app.isQuitting = true
+          setImmediate(() => autoUpdater.quitAndInstall())
+        } else {
+          mainWindow.webContents.send('update-downloaded-cancelled')
+        }
+      })
   }
 
   private formatReleaseNotes(releaseNotes: string | ReleaseNoteInfo[] | null | undefined): string {

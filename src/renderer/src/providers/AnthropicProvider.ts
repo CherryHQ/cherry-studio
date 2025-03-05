@@ -6,7 +6,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
-import { filterContextMessages } from '@renderer/services/MessagesService'
+import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import { first, flatten, sum, takeRight } from 'lodash'
@@ -124,7 +124,7 @@ export default class AnthropicProvider extends BaseProvider {
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
     const userMessagesParams: MessageParam[] = []
-    const _messages = filterContextMessages(takeRight(messages, contextCount + 2))
+    const _messages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
 
     onFilterMessages(_messages)
 
@@ -134,10 +134,6 @@ export default class AnthropicProvider extends BaseProvider {
 
     const userMessages = flatten(userMessagesParams)
 
-    if (first(userMessages)?.role === 'assistant') {
-      userMessages.shift()
-    }
-
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
@@ -145,12 +141,9 @@ export default class AnthropicProvider extends BaseProvider {
       temperature: this.getTemperature(assistant, model),
       top_p: this.getTopP(assistant, model),
       system: assistant.prompt,
-      ...this.getCustomParameters(assistant)
-    }
-
-    if (isReasoningModel(model)) {
       // @ts-ignore thinking
-      body.thinking = this.getReasoningEffort(assistant, model)
+      thinking: this.getReasoningEffort(assistant, model),
+      ...this.getCustomParameters(assistant)
     }
 
     let time_first_token_millsec = 0

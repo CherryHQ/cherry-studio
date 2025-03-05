@@ -16,8 +16,14 @@ export default class AiProvider {
     return this.sdk.fakeCompletions(params)
   }
 
-  public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
-    return this.sdk.completions({ messages, assistant, onChunk, onFilterMessages })
+  public async completions({
+    messages,
+    assistant,
+    onChunk,
+    onFilterMessages,
+    mcpTools
+  }: CompletionsParams): Promise<void> {
+    return this.sdk.completions({ messages, assistant, onChunk, onFilterMessages, mcpTools })
   }
 
   public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void): Promise<string> {

@@ -68,7 +68,8 @@
       "collapse": "收起",
       "manage": "管理",
       "select_model": "選擇模型",
-      "show.all": "顯示全部"
+      "show.all": "顯示全部",
+      "update_available": "有可用更新"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -599,8 +600,9 @@
         "app_data": "應用數據",
         "app_logs": "應用日誌",
         "app_knowledge": "知識庫文件",
-        "app_knowledge.remove_all": "刪除文件",
-        "app_knowledge.remove_all_confirm": "刪除知識庫文件不會刪除知識庫本身，可以減少存儲空間占用，刪除之後文件無法再打開，是否繼續？",
+        "app_knowledge.button.delete": "刪除文件",
+        "app_knowledge.remove_all": "刪除知識庫文件",
+        "app_knowledge.remove_all_confirm": "刪除知識庫文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
         "app_knowledge.remove_all_success": "文件刪除成功",
         "clear_cache": {
           "button": "清除緩存",
@@ -901,7 +903,7 @@
       "title": "資料備份",
       "confirm": "確定要備份資料嗎？",
       "confirm.button": "選擇備份位置",
-      "content": "備份操作將涵蓋所有應用資料，包括聊天記錄、設定、知識庫等全部資料。請注意，備份過程可能需要一些時間，感謝您的耐心等待。",
+      "content": "備份全部資料，包括聊天記錄、設定、知識庫等全部資料。請注意，備份過程可能需要一些時間，感謝您的耐心等待。",
       "progress": {
         "title": "備份進度",
         "preparing": "準備備份...",

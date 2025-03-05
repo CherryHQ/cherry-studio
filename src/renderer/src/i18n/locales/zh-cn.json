@@ -68,7 +68,8 @@
       "collapse": "收起",
       "manage": "管理",
       "select_model": "选择模型",
-      "show.all": "显示全部"
+      "show.all": "显示全部",
+      "update_available": "有可用更新"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -599,8 +600,9 @@
         "app_data": "应用数据",
         "app_logs": "应用日志",
         "app_knowledge": "知识库文件",
-        "app_knowledge.remove_all": "删除文件",
-        "app_knowledge.remove_all_confirm": "删除知识库文件不会删除知识库本身，可以减少存储空间占用，删除之后文件无法再打开，是否继续？",
+        "app_knowledge.button.delete": "删除文件",
+        "app_knowledge.remove_all": "删除知识库文件",
+        "app_knowledge.remove_all_confirm": "删除知识库文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
         "app_knowledge.remove_all_success": "文件删除成功",
         "clear_cache": {
           "button": "清除缓存",
@@ -901,7 +903,7 @@
       "title": "数据备份",
       "confirm": "确定要备份数据吗？",
       "confirm.button": "选择备份位置",
-      "content": "备份操作将涵盖所有应用数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+      "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
       "progress": {
         "title": "备份进度",
         "preparing": "准备备份...",

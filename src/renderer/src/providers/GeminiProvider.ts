@@ -15,11 +15,11 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
-import { filterContextMessages } from '@renderer/services/MessagesService'
+import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileType, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import axios from 'axios'
-import { first, isEmpty, takeRight } from 'lodash'
+import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
@@ -146,12 +146,8 @@ export default class GeminiProvider extends BaseProvider {
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
-    const userMessages = filterContextMessages(takeRight(messages, contextCount + 2))
+    const userMessages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
     onFilterMessages(userMessages)
-
-    if (first(userMessages)?.role === 'assistant') {
-      userMessages.shift()
-    }
 
     const userLastMessage = userMessages.pop()
 
