@@ -104,8 +104,8 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
   const [state, dispatch] = useReducer(reducer, {
     open: true,
     selectedKeyIndex: 0,
-    keyCheckMode: 'single',
-    isConcurrent: false
+    keyCheckMode: 'all',
+    isConcurrent: true
   })
 
   const { open, selectedKeyIndex, keyCheckMode, isConcurrent } = state
