@@ -66,22 +66,21 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   // 根据输入的文本筛选模型
   const getFilteredModels = useCallback(
     (provider) => {
-      const nonEmbeddingModels = provider.models.filter((m) => !isEmbeddingModel(m))
+      let models = provider.models.filter((m) => !isEmbeddingModel(m))
 
-      if (!searchText.trim()) {
-        return sortBy(nonEmbeddingModels, ['group', 'name'])
+      if (searchText.trim()) {
+        const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+        models = models.filter((m) => {
+          const fullName = provider.isSystem
+            ? `${m.name} ${provider.name} ${t('provider.' + provider.id)}`
+            : `${m.name} ${provider.name}`
+
+          const lowerFullName = fullName.toLowerCase()
+          return keywords.every((keyword) => lowerFullName.includes(keyword))
+        })
       }
 
-      const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-
-      return sortBy(nonEmbeddingModels, ['group', 'name']).filter((m) => {
-        const fullName = provider.isSystem
-          ? `${m.name} ${provider.name} ${t('provider.' + provider.id)}`
-          : `${m.name} ${provider.name}`
-
-        const lowerFullName = fullName.toLowerCase()
-        return keywords.every((keyword) => lowerFullName.includes(keyword))
-      })
+      return sortBy(models, ['group', 'name'])
     },
     [searchText, t]
   )
