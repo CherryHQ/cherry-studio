@@ -17,6 +17,7 @@ export type Assistant = {
   settings?: Partial<AssistantSettings>
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
+  websearch?: WebSearchProvider
 }
 
 export type AssistantMessage = {

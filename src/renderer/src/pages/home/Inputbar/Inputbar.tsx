@@ -4,7 +4,6 @@ import {
   FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
-  GlobalOutlined,
   HolderOutlined,
   PauseCircleOutlined,
   PicCenterOutlined,
@@ -26,7 +25,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setGenerating, setSearching } from '@renderer/store/runtime'
-import { Assistant, FileType, KnowledgeBase, Message, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, Message, Model, Topic, WebSearchProvider } from '@renderer/types'
 import { classNames, delay, getFileExtension, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
@@ -49,6 +48,7 @@ import MentionModelsButton from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
+import WebSearchButton from './WebSearchButton'
 
 interface Props {
   assistant: Assistant
@@ -96,11 +96,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const currentMessageId = useRef<string>()
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const navigate = useNavigate()
-
+  const [selectedWebsearch, setSelectedWebsearch] = useState<WebSearchProvider>()
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
   const [tokenCount, setTokenCount] = useState(0)
+  const navigate = useNavigate()
 
   const debouncedEstimate = useCallback(
     debounce((newText) => {
@@ -557,6 +557,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setSelectedKnowledgeBases(bases ?? [])
   }
 
+  const handleWebSearchProviderSelect = (websearch?: WebSearchProvider) => {
+    updateAssistant({ ...assistant, websearch: websearch, enableWebSearch: websearch ? true : false })
+    setSelectedWebsearch(websearch)
+  }
+
   const onMentionModel = (model: Model) => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
@@ -675,13 +680,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 onMentionModel={onMentionModel}
                 ToolbarButton={ToolbarButton}
               />
-              <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
-                <ToolbarButton type="text" onClick={onEnableWebSearch}>
-                  <GlobalOutlined
-                    style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
-                  />
-                </ToolbarButton>
-              </Tooltip>
+              <WebSearchButton
+                selectedWebSearchProvider={selectedWebsearch}
+                onSelect={handleWebSearchProviderSelect}
+                model={model}
+                assistant={assistant}
+                onEnableWebSearch={onEnableWebSearch}
+                ToolbarButton={ToolbarButton}
+              />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}
