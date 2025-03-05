@@ -46,11 +46,31 @@ function formatShortcutKey(shortcut: string[]): string {
 }
 
 function handleZoom(delta: number) {
+  const MAX_ZOOM = 3.0
+  const MIN_ZOOM = 0.5
+  const fractionDigits = 1
+  const floatNumberEqual = (n: number, m: number): boolean => n.toFixed(fractionDigits) === m.toFixed(fractionDigits)
+  const closedIntervalWith = (n: number, lowerBound: number, upperBound: number): boolean =>
+    (n > lowerBound && n < upperBound) || floatNumberEqual(n, lowerBound) || floatNumberEqual(n, upperBound)
+
   return (window: BrowserWindow) => {
     const currentZoom = configManager.getZoomFactor()
+
+    if (currentZoom < MIN_ZOOM && !floatNumberEqual(currentZoom, MIN_ZOOM)) {
+      configManager.setZoomFactor(1.0)
+      window.webContents.zoomFactor = 1.0
+      return
+    }
+
+    if (currentZoom > MAX_ZOOM && !floatNumberEqual(currentZoom, MAX_ZOOM)) {
+      configManager.setZoomFactor(1.0)
+      window.webContents.zoomFactor = 1.0
+      return
+    }
+
     const newZoom = Number((currentZoom + delta).toFixed(1))
-    if (newZoom >= 0.1 && newZoom <= 5.0) {
-      window.webContents.setZoomFactor(newZoom)
+    if (closedIntervalWith(newZoom, MIN_ZOOM, MAX_ZOOM)) {
+      window.webContents.zoomFactor = newZoom
       configManager.setZoomFactor(newZoom)
     }
   }
@@ -113,7 +133,7 @@ const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutForm
 
 export function registerShortcuts(window: BrowserWindow) {
   window.once('ready-to-show', () => {
-    window.webContents.setZoomFactor(configManager.getZoomFactor())
+    window.webContents.zoomFactor = configManager.getZoomFactor()
   })
 
   const register = () => {
