@@ -1,4 +1,5 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
@@ -38,6 +39,8 @@ if (!app.requestSingleInstanceLock()) {
     registerShortcuts(mainWindow)
 
     registerIpc(mainWindow, app)
+
+    replaceDevtoolsFont(mainWindow)
 
     if (process.env.NODE_ENV === 'development') {
       installExtension(REDUX_DEVTOOLS)
