@@ -31,7 +31,7 @@ const Chat: FC<Props> = (props) => {
           topic={props.activeTopic}
           setActiveTopic={props.setActiveTopic}
         />
-        <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} />
+        <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
       </Main>
       {topicPosition === 'right' && showTopics && (
         <Tabs

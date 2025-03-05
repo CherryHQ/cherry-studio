@@ -19,6 +19,8 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
+import { useAppDispatch } from '@renderer/store'
+import { sendMessage } from '@renderer/store/messages'
 import { Message, Model } from '@renderer/types'
 import {
   captureScrollableDivAsBlob,
@@ -71,6 +73,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
+  const dispatch = useAppDispatch()
 
   const isUserMessage = message.role === 'user'
 
@@ -99,7 +102,7 @@ const MessageMenubar: FC<Props> = (props) => {
     const _messages = onGetMessages?.() || []
     const groupdMessages = _messages.filter((m) => m.askId === message.id)
 
-    // Resend all groupd messages
+    // Resend all grouped messages
     if (!isEmpty(groupdMessages)) {
       for (const assistantMessage of groupdMessages) {
         const _model = assistantMessage.model || assistantModel
@@ -111,7 +114,7 @@ const MessageMenubar: FC<Props> = (props) => {
       return
     }
 
-    // If there is no groupd message, resend next message
+    // If there is no grouped message, resend next message
     const index = _messages.findIndex((m) => m.id === message.id)
     const nextIndex = index + 1
     const nextMessage = _messages[nextIndex]
@@ -128,10 +131,10 @@ const MessageMenubar: FC<Props> = (props) => {
 
     // If next message is not exist or next message role is user, delete current message and resend
     if (!nextMessage || nextMessage.role === 'user') {
-      EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { ...message, id: uuid() })
+      await dispatch(sendMessage(message.content, assistant, topic))
       onDeleteMessage?.(message)
     }
-  }, [assistantModel, message, model, onDeleteMessage, onGetMessages])
+  }, [message, assistantModel, model, onDeleteMessage, onGetMessages])
 
   const onEdit = useCallback(async () => {
     let resendMessage = false

@@ -7,6 +7,7 @@ import agents from './agents'
 import assistants from './assistants'
 import knowledge from './knowledge'
 import llm from './llm'
+import messagesReducer from './messages'
 import migrate from './migrate'
 import minapps from './minapps'
 import paintings from './paintings'
@@ -25,7 +26,8 @@ const rootReducer = combineReducers({
   shortcuts,
   knowledge,
   minapps,
-  websearch
+  websearch,
+  messages: messagesReducer
 })
 
 const persistedReducer = persistReducer(

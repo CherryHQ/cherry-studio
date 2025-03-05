@@ -1,15 +1,14 @@
 import { FONT_FAMILY } from '@renderer/config/constant'
-import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useModel } from '@renderer/hooks/useModel'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
-import { useTopic } from '@renderer/hooks/useTopic'
-import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { estimateHistoryTokens, estimateMessageUsage } from '@renderer/services/TokenService'
-import { Message, Topic } from '@renderer/types'
+import { useAppDispatch } from '@renderer/store'
+import { updateMessages } from '@renderer/store/messages'
+import { Assistant, Message, Topic } from '@renderer/types'
 import { classNames, runAsyncFunction } from '@renderer/utils'
 import { Divider, Dropdown } from 'antd'
 import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,28 +24,31 @@ import MessageTokens from './MessageTokens'
 interface Props {
   message: Message
   topic?: Topic
+  assistant?: Assistant
   index?: number
   total?: number
   hidePresetMessages?: boolean
   style?: React.CSSProperties
   isGrouped?: boolean
+  isStreaming?: boolean
   onGetMessages?: () => Message[]
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
   onDeleteMessage?: (message: Message) => Promise<void>
 }
 
 const MessageItem: FC<Props> = ({
-  message: _message,
-  topic: _topic,
+  message,
+  topic,
+  // assistant,
   index,
   hidePresetMessages,
   isGrouped,
+  isStreaming = false,
   style,
   onDeleteMessage,
-  onSetMessages,
   onGetMessages
 }) => {
-  const [message, setMessage] = useState(_message)
+  const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
@@ -60,8 +62,7 @@ const MessageItem: FC<Props> = ({
 
   const isLastMessage = index === 0
   const isAssistantMessage = message.role === 'assistant'
-
-  const showMenubar = !message.status.includes('ing')
+  const showMenubar = !isStreaming && !message.status.includes('ing')
 
   const fontFamily = useMemo(() => {
     return messageFont === 'serif' ? FONT_FAMILY.replace('sans-serif', 'serif').replace('Ubuntu, ', '') : FONT_FAMILY
@@ -113,10 +114,10 @@ const MessageItem: FC<Props> = ({
         EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, { tokensCount, contextCount })
       }
     },
-    [message.id, onGetMessages, onSetMessages, topic, assistant]
+    [message.id, onGetMessages, topic, assistant, dispatch]
   )
 
-  const messageHighlightHandler = (highlight: boolean = true) => {
+  const messageHighlightHandler = useCallback((highlight: boolean = true) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.scrollIntoView({ behavior: 'smooth' })
       if (highlight) {
@@ -127,7 +128,7 @@ const MessageItem: FC<Props> = ({
         }, 500)
       }
     }
-  }
+  }, [])
 
   useEffect(() => {
     const unsubscribes = [
@@ -135,54 +136,20 @@ const MessageItem: FC<Props> = ({
       EventEmitter.on(EVENT_NAMES.RESEND_MESSAGE + ':' + message.id, onEditMessage)
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [message, onEditMessage])
+  }, [message.id, messageHighlightHandler, onEditMessage])
 
   useEffect(() => {
-    if (message.role === 'user' && !message.usage) {
+    if (message.role === 'user' && !message.usage && topic) {
       runAsyncFunction(async () => {
         const usage = await estimateMessageUsage(message)
-        setMessage({ ...message, usage })
-        const topic = await db.topics.get({ id: message.topicId })
-        const messages = topic?.messages.map((m) => (m.id === message.id ? { ...m, usage } : m))
-        db.topics.update(message.topicId, { messages })
+        if (topic) {
+          await dispatch(
+            updateMessages(topic, onGetMessages?.()?.map((m) => (m.id === message.id ? { ...m, usage } : m)) || [])
+          )
+        }
       })
     }
-  }, [message])
-
-  useEffect(() => {
-    if (topic && onGetMessages && onSetMessages) {
-      if (message.status === 'sending') {
-        const messages = onGetMessages()
-        const assistantWithModel = message.model ? { ...assistant, model: message.model } : assistant
-
-        if (topic.prompt) {
-          assistantWithModel.prompt = assistantWithModel.prompt
-            ? `${assistantWithModel.prompt}\n${topic.prompt}`
-            : topic.prompt
-        }
-
-        fetchChatCompletion({
-          message,
-          messages: messages
-            .filter((m) => !m.status.includes('ing'))
-            .slice(
-              0,
-              messages.findIndex((m) => m.id === message.id)
-            ),
-          assistant: assistantWithModel,
-          onResponse: (msg) => {
-            setMessage(msg)
-            if (msg.status !== 'pending') {
-              const _messages = onGetMessages().map((m) => (m.id === msg.id ? msg : m))
-              onSetMessages(_messages)
-              db.topics.update(topic.id, { messages: _messages })
-            }
-          }
-        })
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message.status])
+  }, [message, topic, dispatch, onGetMessages])
 
   if (hidePresetMessages && message.isPreset) {
     return null

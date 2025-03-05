@@ -41,28 +41,34 @@ export async function getTopicById(topicId: string) {
   return { ...topic, messages } as Topic
 }
 
-export class TopicManager {
-  static async getTopic(id: string) {
+// Convert class to object with functions since class only has static methods
+// 只有静态方法,没必要用class
+export const TopicManager = {
+  async getTopic(id: string) {
     return await db.topics.get(id)
-  }
+  },
 
-  static async getTopicMessages(id: string) {
-    const topic = await this.getTopic(id)
+  async getAllTopics() {
+    return await db.topics.toArray()
+  },
+
+  async getTopicMessages(id: string) {
+    const topic = await TopicManager.getTopic(id)
     return topic ? topic.messages : []
-  }
+  },
 
-  static async removeTopic(id: string) {
-    const messages = await this.getTopicMessages(id)
+  async removeTopic(id: string) {
+    const messages = await TopicManager.getTopicMessages(id)
 
     for (const message of messages) {
       await deleteMessageFiles(message)
     }
 
     db.topics.delete(id)
-  }
+  },
 
-  static async clearTopicMessages(id: string) {
-    const topic = await this.getTopic(id)
+  async clearTopicMessages(id: string) {
+    const topic = await TopicManager.getTopic(id)
 
     if (topic) {
       for (const message of topic?.messages ?? []) {

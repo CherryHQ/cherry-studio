@@ -1,10 +1,10 @@
 import { fetchSuggestions } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useAppDispatch } from '@renderer/store'
+import { sendMessage } from '@renderer/store/messages'
 import { Assistant, Message, Suggestion } from '@renderer/types'
-import { uuid } from '@renderer/utils'
-import dayjs from 'dayjs'
 import { last } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
@@ -16,31 +16,30 @@ interface Props {
 const suggestionsMap = new Map<string, Suggestion[]>()
 
 const Suggestions: FC<Props> = ({ assistant, messages }) => {
+  const dispatch = useAppDispatch()
+  const messagesRef = useRef(messages)
   const [suggestions, setSuggestions] = useState<Suggestion[]>(
     suggestionsMap.get(messages[messages.length - 1]?.id) || []
   )
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
 
-  const onClick = (s: Suggestion) => {
-    const message: Message = {
-      id: uuid(),
-      role: 'user',
-      content: s.content,
-      assistantId: assistant.id,
-      topicId: assistant.topics[0].id || uuid(),
-      createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-      type: 'text',
-      status: 'success'
-    }
+  // Update ref when messages change
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
+  const handleSuggestionClick = async (content: string) => {
+    await dispatch(sendMessage(content, assistant, assistant.topics[0]))
   }
 
   useEffect(() => {
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, async (msg: Message) => {
         setLoadingSuggestions(true)
-        const _suggestions = await fetchSuggestions({ assistant, messages: [...messages, msg] })
+        const _suggestions = await fetchSuggestions({
+          assistant,
+          messages: [...messagesRef.current, msg]
+        })
         if (_suggestions.length) {
           setSuggestions(_suggestions)
           suggestionsMap.set(msg.id, _suggestions)
@@ -48,8 +47,12 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
         setLoadingSuggestions(false)
       })
     ]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [assistant, messages])
+    return () => {
+      for (const unsub of unsubscribes) {
+        unsub()
+      }
+    }
+  }, [assistant]) // Remove messages dependency
 
   useEffect(() => {
     setSuggestions(suggestionsMap.get(messages[messages.length - 1]?.id) || [])
@@ -58,7 +61,7 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
   if (last(messages)?.status !== 'success') {
     return null
   }
-
+  console.log('loadingSuggestions', loadingSuggestions)
   if (loadingSuggestions) {
     return (
       <Container>
@@ -75,7 +78,7 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
     <Container>
       <SuggestionsContainer>
         {suggestions.map((s, i) => (
-          <SuggestionItem key={i} onClick={() => onClick(s)}>
+          <SuggestionItem key={i} onClick={() => handleSuggestionClick(s.content)}>
             {s.content} →
           </SuggestionItem>
         ))}
