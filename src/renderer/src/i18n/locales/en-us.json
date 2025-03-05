@@ -86,7 +86,7 @@
       "input.clear.content": "Do you want to clear all messages of the current topic?",
       "input.clear.title": "Clear all messages?",
       "input.collapse": "Collapse",
-      "input.context_count.tip": "Context Count",
+      "input.context_count.tip": "Context / Max Context",
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
       "input.file_not_supported": "Model does not support this file type",

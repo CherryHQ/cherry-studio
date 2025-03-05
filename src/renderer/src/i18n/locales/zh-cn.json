@@ -86,7 +86,7 @@
       "input.clear.content": "确定要清除当前会话所有消息吗?",
       "input.clear.title": "清空消息",
       "input.collapse": "收起",
-      "input.context_count.tip": "上下文数",
+      "input.context_count.tip": "上下文数 / 最大上下文数",
       "input.estimated_tokens.tip": "预估 token 数",
       "input.expand": "展开",
       "input.file_not_supported": "模型不支持此文件类型",

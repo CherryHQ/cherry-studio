@@ -86,7 +86,7 @@
       "input.clear.content": "現在のトピックのすべてのメッセージをクリアしますか？",
       "input.clear.title": "すべてのメッセージをクリアしますか？",
       "input.collapse": "折りたたむ",
-      "input.context_count.tip": "コンテキスト数",
+      "input.context_count.tip": "コンテキスト数 / 最大コンテキスト数",
       "input.estimated_tokens.tip": "推定トークン数",
       "input.expand": "展開",
       "input.file_not_supported": "モデルはこのファイルタイプをサポートしません",
