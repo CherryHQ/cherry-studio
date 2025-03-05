@@ -230,7 +230,7 @@ export default class OpenAIProvider extends BaseProvider {
     return mcpTools.map((tool) => ({
       type: 'function',
       function: {
-        name: `mcp.${tool.serverName}.${tool.name}`,
+        name: `mcp_${tool.serverName}_${tool.name}`,
         description: tool.description,
         parameters: {
           type: 'object',
@@ -241,7 +241,7 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   private openAIToolsToMcpTool(tool: ChatCompletionMessageToolCall): MCPTool | undefined {
-    const parts = tool.function.name.split('.')
+    const parts = tool.function.name.split('_')
     if (parts[0] !== 'mcp') {
       console.log('Invalid tool name', tool.function.name)
       return undefined
