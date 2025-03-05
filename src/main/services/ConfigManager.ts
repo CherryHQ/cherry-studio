@@ -30,15 +30,6 @@ export class ConfigManager {
     this.store.set('theme', theme)
   }
 
-  getLaunchOnBoot(): boolean {
-    return !!this.store.get('launchOnBoot', false)
-  }
-
-  setLaunchOnBoot(value: boolean) {
-    this.store.set('launchOnBoot', value)
-    this.notifySubscribers('launchOnBoot', value)
-  }
-
   getLaunchToTray(): boolean {
     return !!this.store.get('launchToTray', false)
   }
@@ -54,6 +45,14 @@ export class ConfigManager {
   setTray(value: boolean) {
     this.store.set('tray', value)
     this.notifySubscribers('tray', value)
+  }
+
+  getTrayOnClose(): boolean {
+    return !!this.store.get('trayOnClose', true)
+  }
+
+  setTrayOnClose(value: boolean) {
+    this.store.set('trayOnClose', value)
   }
 
   getZoomFactor(): number {

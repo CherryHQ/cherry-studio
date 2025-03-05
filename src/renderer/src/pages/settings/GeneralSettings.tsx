@@ -17,6 +17,7 @@ const GeneralSettings: FC = () => {
     language,
     proxyUrl: storeProxyUrl,
     theme,
+    setLaunch,
     setTray,
     launchOnBoot,
     launchToTray,
@@ -27,9 +28,29 @@ const GeneralSettings: FC = () => {
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme: themeMode } = useTheme()
 
-  const updateTray = (value: boolean) => {
-    setTray(value)
-    window.api.setTray(value)
+  const updateTray = (isShowTray: boolean) => {
+    setTray(isShowTray)
+    //only set tray on close/launch to tray when tray is enabled
+    if (!isShowTray) {
+      updateTrayOnClose(false)
+      updateLaunchToTray(false)
+    }
+  }
+
+  const updateTrayOnClose = (isTrayOnClose: boolean) => {
+    setTray(undefined, isTrayOnClose)
+    //in case tray is not enabled, enable it
+    if (isTrayOnClose && !tray) {
+      updateTray(true)
+    }
+  }
+
+  const updateLaunchOnBoot = (isLaunchOnBoot: boolean) => {
+    setLaunch(isLaunchOnBoot)
+  }
+
+  const updateLaunchToTray = (isLaunchToTray: boolean) => {
+    setLaunch(undefined, isLaunchToTray)
   }
 
   const dispatch = useAppDispatch()
@@ -123,21 +144,18 @@ const GeneralSettings: FC = () => {
             </SettingRow>
           </>
         )}
-        <SettingDivider />
-
-        <SettingDivider />
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.launch.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
-          <Switch checked={launchOnBoot} onChange={(checked) => window.api.setTheme(checked ? 'dark' : 'light')} />
+          <Switch checked={launchOnBoot} onChange={(checked) => updateLaunchOnBoot(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
-          <Switch checked={launchToTray} onChange={(checked) => window.api.setTheme(checked ? 'dark' : 'light')} />
+          <Switch checked={launchToTray} onChange={(checked) => updateLaunchToTray(checked)} disabled={!tray} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -150,7 +168,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
-          <Switch checked={trayOnClose} onChange={(checked) => window.api.setTheme(checked ? 'dark' : 'light')} />
+          <Switch checked={trayOnClose} onChange={(checked) => updateTrayOnClose(checked)} disabled={!tray} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

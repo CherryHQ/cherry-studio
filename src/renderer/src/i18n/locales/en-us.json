@@ -841,7 +841,12 @@
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
       "assistant.show.icon": "Show model icon",
-      "tray.title": "Enable System Tray Icon",
+      "tray.title": "Tray",
+      "tray.show": "Show Tray Icon",
+      "tray.onclose": "Minimize to Tray on Close",
+      "launch.title": "Launch",
+      "launch.onboot": "Start Automatically on Boot",
+      "launch.totray": "Minimize to Tray on Launch",
       "websearch": {
         "get_api_key": "Get API Key",
         "search_with_time": "Search with dates included",

@@ -19,7 +19,9 @@ declare global {
       setProxy: (proxy: string | undefined) => void
       setLanguage: (theme: LanguageVarious) => void
       setLaunchOnBoot: (isActive: boolean) => void
+      setLaunchToTray: (isActive: boolean) => void
       setTray: (isActive: boolean) => void
+      setTrayOnClose: (isActive: boolean) => void
       restartTray: () => void
       setTheme: (theme: 'light' | 'dark') => void
       minApp: (options: { url: string; windowOptions?: Electron.BrowserWindowConstructorOptions }) => void

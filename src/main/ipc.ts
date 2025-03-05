@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { isMac, isWin } from '@main/constant'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, ProxyConfig, session, shell } from 'electron'
 import log from 'electron-log'
@@ -55,12 +56,34 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // launch on boot
   ipcMain.handle('app:set-launch-on-boot', (_, isActive: boolean) => {
-    configManager.setLaunchOnBoot(isActive)
+    // Set login item settings for windows and mac
+    // linux is not supported because it requires more file operations
+    if (isWin || isMac) {
+      if (isActive) {
+        app.setLoginItemSettings({
+          openAtLogin: true
+        })
+      } else {
+        app.setLoginItemSettings({
+          openAtLogin: false
+        })
+      }
+    }
+  })
+
+  // launch to tray
+  ipcMain.handle('app:set-launch-to-tray', (_, isActive: boolean) => {
+    configManager.setLaunchToTray(isActive)
   })
 
   // tray
   ipcMain.handle('app:set-tray', (_, isActive: boolean) => {
     configManager.setTray(isActive)
+  })
+
+  // to tray on close
+  ipcMain.handle('app:set-tray-on-close', (_, isActive: boolean) => {
+    configManager.setTrayOnClose(isActive)
   })
 
   ipcMain.handle('app:restart-tray', () => TrayService.getInstance().restartTray())

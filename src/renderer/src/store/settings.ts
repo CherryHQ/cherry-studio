@@ -98,7 +98,7 @@ const initialState: SettingsState = {
   messageFont: 'system',
   showInputEstimatedTokens: false,
   launchOnBoot: false,
-  launchToTray: true,
+  launchToTray: false,
   trayOnClose: true,
   tray: true,
   theme: ThemeMode.auto,
@@ -195,16 +195,16 @@ const settingsSlice = createSlice({
       state.showInputEstimatedTokens = action.payload
     },
     setLaunchOnBoot: (state, action: PayloadAction<boolean>) => {
-      state.tray = action.payload
+      state.launchOnBoot = action.payload
     },
     setLaunchToTray: (state, action: PayloadAction<boolean>) => {
-      state.tray = action.payload
-    },
-    setTrayOnClose: (state, action: PayloadAction<boolean>) => {
-      state.tray = action.payload
+      state.launchToTray = action.payload
     },
     setTray: (state, action: PayloadAction<boolean>) => {
       state.tray = action.payload
+    },
+    setTrayOnClose: (state, action: PayloadAction<boolean>) => {
+      state.trayOnClose = action.payload
     },
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
       state.theme = action.payload

@@ -841,7 +841,12 @@
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
       "assistant.show.icon": "显示模型图标",
-      "tray.title": "启用系统托盘图标",
+      "tray.title": "托盘",
+      "tray.show": "显示托盘图标",
+      "tray.onclose": "关闭时最小化到托盘",
+      "launch.title": "启动",
+      "launch.onboot": "开机自动启动",
+      "launch.totray": "启动时最小化到托盘",
       "websearch": {
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",

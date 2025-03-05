@@ -841,7 +841,12 @@
       "topic.position.right": "右",
       "topic.show.time": "トピックの時間を表示",
       "assistant.show.icon": "モデルアイコンを表示",
-      "tray.title": "システムトレイアイコンを有効にする",
+      "tray.title": "トレイ",
+      "tray.show": "トレイアイコンを表示",
+      "tray.onclose": "閉じるときにトレイに最小化",
+      "launch.title": "起動",
+      "launch.onboot": "起動時に自動で開始",
+      "launch.totray": "起動時にトレイに最小化",
       "websearch": {
         "get_api_key": "APIキーを取得",
         "search_with_time": "日付を含む検索",

@@ -840,7 +840,12 @@
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
       "assistant.show.icon": "顯示模型圖標",
-      "tray.title": "啟用系統托盤圖標",
+      "tray.title": "托盤",
+      "tray.show": "顯示托盤圖示",
+      "tray.onclose": "關閉時最小化到托盤",
+      "launch.title": "啟動",
+      "launch.onboot": "開機自動啟動",
+      "launch.totray": "啟動時最小化到托盤",
       "websearch": {
         "get_api_key": "點擊這裡獲取密鑰",
         "search_with_time": "搜尋包含日期",

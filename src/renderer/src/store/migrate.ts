@@ -1215,6 +1215,17 @@ const migrateConfig = {
       enabled: false
     })
     return state
+  },
+  '77': (state: RootState) => {
+    return {
+      ...state,
+      settings: {
+        ...state.settings,
+        launchOnBoot: false,
+        launchToTray: false,
+        trayOnClose: true
+      }
+    }
   }
 }
 

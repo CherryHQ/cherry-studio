@@ -841,7 +841,12 @@
       "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
       "assistant.show.icon": "Показывать модельный иконки",
-      "tray.title": "Включить значок системного трея",
+      "tray.title": "Трей",
+      "tray.show": "Показать значок в трее",
+      "tray.onclose": "Свернуть в трей при закрытии",
+      "launch.title": "Запуск",
+      "launch.onboot": "Автозапуск при включении",
+      "launch.totray": "Свернуть в трей при запуске",
       "websearch": {
         "get_api_key": "Получить ключ API",
         "search_with_time": "Поиск, содержащий дату",
