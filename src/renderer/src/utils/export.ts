@@ -10,8 +10,19 @@ export const messageToMarkdown = (message: Message) => {
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
   const titleSection = `### ${roleText}`
   const contentSection = message.content
+  const tavilyCitations = message?.metadata?.tavily?.results
+    ?.map((result, index) => {
+      return `[^${index + 1}]: [${result.title}](${result.url})`
+    })
+    .join('\n')
+  const PerplexityCitations = message?.metadata?.citations
+    ?.map((citation, index) => {
+      return `[^${index + 1}]: ${citation}`
+    })
+    .join('\n')
 
-  return [titleSection, '', contentSection].join('\n')
+  const citations = [tavilyCitations, PerplexityCitations].join('\n')
+  return [titleSection, '', contentSection, '', citations].join('\n')
 }
 
 export const messagesToMarkdown = (messages: Message[]) => {
@@ -22,11 +33,32 @@ export const topicToMarkdown = async (topic: Topic) => {
   const topicName = `# ${topic.name}`
   const topicMessages = await db.topics.get(topic.id)
 
-  if (topicMessages) {
-    return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages)
+  if (!topicMessages) {
+    return ''
+  }
+  let markdown = topicName + '\n\n' + messagesToMarkdown(topicMessages.messages)
+
+  // 判断markdown中是否存在相同的脚注引用
+  let haveSameReferences = false
+  const references: string[] = []
+  for (const line of markdown.split('\n')) {
+    if (line.startsWith('[^')) {
+      const number = line.match(/\[\^(\d+)\]/)?.[1]
+      if (number) {
+        if (references.includes(number)) {
+          haveSameReferences = true
+          break
+        }
+        references.push(number)
+      }
+    }
   }
 
-  return ''
+  if (haveSameReferences) {
+    // 如果markdown中存在相同的脚注引用，则把markdown中的[^number]替换为(number)，避免脚注引用错误，详情见#2712
+    markdown = markdown.replace(/\[\^(\d+)\]/g, '($1)')
+  }
+  return markdown
 }
 
 export const exportTopicAsMarkdown = async (topic: Topic) => {

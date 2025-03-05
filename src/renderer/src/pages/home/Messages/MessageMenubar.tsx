@@ -269,7 +269,9 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'yuque',
             onClick: async () => {
               const title = getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
+              let markdown = messageToMarkdown(message)
+              // 语雀不支持脚注，所以把[^number]替换为(number)
+              markdown = markdown.replace(/\[\^(\d+)\]/g, '($1)')
               exportMarkdownToYuque(title, markdown)
             }
           }
