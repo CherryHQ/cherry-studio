@@ -1,16 +1,16 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setDefaultProvider as _setDefaultProvider, updateWebSearchProvider } from '@renderer/store/websearch'
+import {
+  setDefaultProvider as _setDefaultProvider,
+  updateWebSearchProvider,
+  updateWebSearchProviders
+} from '@renderer/store/websearch'
 import { WebSearchProvider } from '@renderer/types'
 
 export const useDefaultWebSearchProvider = () => {
   const defaultProvider = useAppSelector((state) => state.websearch.defaultProvider)
-  const providers = useWebSearchProviders()
-  const provider = providers.find((provider) => provider.id === defaultProvider)
+  const { providers } = useWebSearchProviders()
+  const provider = defaultProvider ? providers.find((provider) => provider.id === defaultProvider) : undefined
   const dispatch = useAppDispatch()
-
-  if (!provider) {
-    throw new Error(`Web search provider with id ${defaultProvider} not found`)
-  }
 
   const setDefaultProvider = (provider: WebSearchProvider) => {
     dispatch(_setDefaultProvider(provider.id))
@@ -25,14 +25,18 @@ export const useDefaultWebSearchProvider = () => {
 
 export const useWebSearchProviders = () => {
   const providers = useAppSelector((state) => state.websearch.providers)
-  return providers
+  const dispatch = useAppDispatch()
+
+  return {
+    providers,
+    updateWebSearchProviders: (providers: WebSearchProvider[]) => dispatch(updateWebSearchProviders(providers))
+  }
 }
 
 export const useWebSearchProvider = (id: string) => {
   const providers = useAppSelector((state) => state.websearch.providers)
   const provider = providers.find((provider) => provider.id === id)
   const dispatch = useAppDispatch()
-
   if (!provider) {
     throw new Error(`Web search provider with id ${id} not found`)
   }

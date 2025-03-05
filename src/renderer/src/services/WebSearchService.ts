@@ -1,45 +1,117 @@
 import store from '@renderer/store'
-import { WebSearchProvider } from '@renderer/types'
-import { tavily } from '@tavily/core'
-import dayjs from 'dayjs'
+import { setDefaultProvider, WebSearchState } from '@renderer/store/websearch'
+import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import WebSearchEngineProvider from '@renderer/webSearchProvider/WebSearchEngineProvider'
 
+/**
+ * 提供网络搜索相关功能的服务类
+ */
 class WebSearchService {
-  public isWebSearchEnabled(): boolean {
-    const defaultProvider = store.getState().websearch.defaultProvider
-    const providers = store.getState().websearch.providers
-    const provider = providers.find((provider) => provider.id === defaultProvider)
-    return provider?.apiKey ? true : false
+  /**
+   * 获取当前存储的网络搜索状态
+   * @private
+   * @returns 网络搜索状态
+   */
+  private getWebSearchState(): WebSearchState {
+    return store.getState().websearch
   }
 
+  /**
+   * 检查网络搜索功能是否启用
+   * @public
+   * @returns 如果默认搜索提供商已启用则返回true，否则返回false
+   */
+  public isWebSearchEnabled(): boolean {
+    const websearch = this.getWebSearchState()
+    const provider = websearch.providers.find((provider) => provider.id === websearch.defaultProvider)
+    return provider?.enabled ?? false
+  }
+
+  /**
+   * 获取当前默认的网络搜索提供商
+   * @public
+   * @returns 网络搜索提供商
+   * @throws 如果找不到默认提供商则抛出错误
+   */
   public getWebSearchProvider(): WebSearchProvider {
-    const defaultProvider = store.getState().websearch.defaultProvider
-    const providers = store.getState().websearch.providers
-    const provider = providers.find((provider) => provider.id === defaultProvider)
+    const websearch = this.getWebSearchState()
+    let provider = websearch.providers.find((provider) => provider.id === websearch.defaultProvider)
 
     if (!provider) {
-      throw new Error(`Web search provider with id ${defaultProvider} not found`)
+      provider = websearch.providers.find((p) => p.enabled) || websearch.providers[0]
+      if (provider) {
+        // 可选：自动更新默认提供商
+        store.dispatch(setDefaultProvider(provider.id))
+      } else {
+        throw new Error(`No web search providers available`)
+      }
     }
 
     return provider
   }
 
-  public async search(query: string) {
-    const searchWithTime = store.getState().websearch.searchWithTime
-    const maxResults = store.getState().websearch.maxResults
-    const excludeDomains = store.getState().websearch.excludeDomains
-    let formatted_query = query
-    if (searchWithTime) {
-      formatted_query = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
-    }
-    const provider = this.getWebSearchProvider()
-    const tvly = tavily({ apiKey: provider.apiKey })
-    const result = await tvly.search(formatted_query, {
-      maxResults: maxResults,
-      excludeDomains: excludeDomains
-    })
+  /**
+   * 使用指定的提供商执行网络搜索
+   * @public
+   * @param provider 搜索提供商
+   * @param query 搜索查询
+   * @returns 搜索响应
+   */
+  public async search(provider: WebSearchProvider, query: string): Promise<WebSearchResponse> {
+    const websearch = this.getWebSearchState()
+    const webSearchEngine = new WebSearchEngineProvider(provider)
 
-    return result
+    const formattedQuery = query
+    // if (websearch.searchWithTime) {
+    //   formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
+    // }
+
+    try {
+      return await webSearchEngine.search(formattedQuery, websearch)
+    } catch (error) {
+      console.error('Search failed:', error)
+      return {
+        results: []
+      }
+    }
+  }
+  /**
+   * 检查搜索提供商是否正常工作
+   * @public
+   * @param provider 要检查的搜索提供商
+   * @returns 包含验证结果和错误信息的对象
+   */
+  public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: Error }> {
+    if (!provider) {
+      return {
+        valid: false,
+        error: new Error('No search provider specified')
+      }
+    }
+
+    try {
+      const response = await this.search(provider, 'csdn')
+
+      if (!response || !Array.isArray(response.results)) {
+        return {
+          valid: false,
+          error: new Error('Invalid response format from search provider')
+        }
+      }
+
+      return {
+        valid: response.results.length > 0,
+        ...(response.results.length === 0 && {
+          error: new Error('Search provider returned no results')
+        })
+      }
+    } catch (error) {
+      console.error('Provider check failed:', error)
+      return {
+        valid: false,
+        error: error instanceof Error ? error : new Error('Unknown error occurred')
+      }
+    }
   }
 }
-
 export default new WebSearchService()
