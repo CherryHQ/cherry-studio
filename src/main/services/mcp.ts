@@ -198,9 +198,7 @@ export default class MCPService extends EventEmitter {
       let transport: any = null
 
       if (baseUrl) {
-        transport = new this.sseTransport({
-          url: baseUrl
-        })
+        transport = new this.sseTransport(new URL(baseUrl))
       } else if (command) {
         let cmd: string = command
         if (command === 'npx') {
