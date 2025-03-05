@@ -3,6 +3,7 @@ import { app } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
+import { configManager } from './services/ConfigManager'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
@@ -22,6 +23,12 @@ if (!app.requestSingleInstanceLock()) {
 
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
+
+    // Mac: Hide dock icon before window creation when launch to tray is set
+    const isLaunchToTray = configManager.getLaunchToTray()
+    if (isLaunchToTray) {
+      app.dock?.hide()
+    }
 
     const mainWindow = windowService.createMainWindow()
     new TrayService()

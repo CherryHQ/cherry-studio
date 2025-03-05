@@ -30,6 +30,14 @@ export class ConfigManager {
     this.store.set('theme', theme)
   }
 
+  getLaunchToTray(): boolean {
+    return !!this.store.get('launchToTray', false)
+  }
+
+  setLaunchToTray(value: boolean) {
+    this.store.set('launchToTray', value)
+  }
+
   getTray(): boolean {
     return !!this.store.get('tray', true)
   }
@@ -37,6 +45,14 @@ export class ConfigManager {
   setTray(value: boolean) {
     this.store.set('tray', value)
     this.notifySubscribers('tray', value)
+  }
+
+  getTrayOnClose(): boolean {
+    return !!this.store.get('trayOnClose', true)
+  }
+
+  setTrayOnClose(value: boolean) {
+    this.store.set('trayOnClose', value)
   }
 
   getZoomFactor(): number {
