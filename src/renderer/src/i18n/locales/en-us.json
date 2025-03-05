@@ -864,6 +864,32 @@
         "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "Number of search results",
         "search_result_default": "Default"
+      },
+      "mcp": {
+        "title": "MCP Servers",
+        "config_description": "Configure Model Context Protocol servers",
+        "description": "Description",
+        "addServer": "Add Server",
+        "editServer": "Edit Server",
+        "name": "Name",
+        "command": "Command",
+        "args": "Arguments",
+        "argsTooltip": "Each argument on a new line",
+        "env": "Environment Variables",
+        "envTooltip": "Format: KEY=value, one per line",
+        "active": "Active",
+        "actions": "Actions",
+        "noServers": "No servers configured",
+        "nameRequired": "Please enter a server name",
+        "commandRequired": "Please enter a command",
+        "confirmDelete": "Delete Server",
+        "confirmDeleteMessage": "Are you sure you want to delete the server?",
+        "addSuccess": "Server added successfully",
+        "updateSuccess": "Server updated successfully",
+        "deleteSuccess": "Server deleted successfully",
+        "duplicateName": "A server with this name already exists",
+        "serverSingular": "server",
+        "serverPlural": "servers"
       }
     },
     "translate": {
