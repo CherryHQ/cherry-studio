@@ -14,7 +14,7 @@ import WebSearchProviderSetting from './WebSearchProviderSetting'
 
 const WebSearchSettings: FC = () => {
   const { providers } = useWebSearchProviders()
-  const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
+  const { provider: defaultProvider, setDefaultProvider, updateDefaultProvider } = useDefaultWebSearchProvider()
 
   const { t } = useTranslation()
   const [selectedProvider, setSelectedProvider] = useState<WebSearchProvider | undefined>(defaultProvider)
@@ -59,6 +59,7 @@ const WebSearchSettings: FC = () => {
           key: 'search-check-error'
         })
       }
+      updateDefaultProvider({ ...selectedProvider, enabled: true })
     } catch (err) {
       console.error('Check search error:', err)
       setApiValid(false)
