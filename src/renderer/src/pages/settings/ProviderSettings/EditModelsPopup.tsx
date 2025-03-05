@@ -30,6 +30,11 @@ interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
+// Check if the model exists in the provider's model list
+const isModelInProvider = (provider: Provider, modelId: string): boolean => {
+  return provider.models.some((m) => m.id === modelId)
+}
+
 const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const [open, setOpen] = useState(true)
   const { provider, models, addModel, removeModel } = useProvider(_provider.id)
@@ -156,14 +161,38 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             <Radio.Button value="embedding">{t('models.embedding')}</Radio.Button>
           </Radio.Group>
         </Center>
-        <Search placeholder={t('settings.provider.search_placeholder')} allowClear onSearch={setSearchText} />
+        <Search
+          placeholder={t('settings.provider.search_placeholder')}
+          allowClear
+          onChange={(e) => setSearchText(e.target.value)}
+          onSearch={setSearchText}
+        />
       </SearchContainer>
       <ListContainer>
         {Object.keys(modelGroups).map((group) => (
           <div key={group}>
-            <ListHeader key={group}>{group}</ListHeader>
+            <ListHeader key={group}>
+              {group}
+              <div>
+                <Button
+                  type="text"
+                  icon={<PlusOutlined />}
+                  title={t(`settings.models.manage.add_whole_group`)}
+                  onClick={() => {
+                    modelGroups[group].filter((model) => !isModelInProvider(provider, model.id)).forEach(onAddModel)
+                  }}
+                />
+                <Button
+                  type="text"
+                  icon={<MinusOutlined />}
+                  title={t(`settings.models.manage.remove_whole_group`)}
+                  onClick={() => {
+                    modelGroups[group].filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+                  }}
+                />
+              </div>
+            </ListHeader>
             {modelGroups[group].map((model) => {
-              const hasModel = provider.models.find((m) => m.id === model.id)
               return (
                 <ListItem key={model.id}>
                   <ListItemHeader>
@@ -186,7 +215,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                       )}
                     </ListItemName>
                   </ListItemHeader>
-                  {hasModel ? (
+                  {isModelInProvider(provider, model.id) ? (
                     <Button type="default" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
                   ) : (
                     <Button type="primary" onClick={() => onAddModel(model)} icon={<PlusOutlined />} />
