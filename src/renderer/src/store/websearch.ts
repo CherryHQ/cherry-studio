@@ -9,12 +9,19 @@ export interface WebSearchState {
 }
 
 const initialState: WebSearchState = {
-  defaultProvider: 'tavily',
+  defaultProvider: '',
   providers: [
     {
       id: 'tavily',
       name: 'Tavily',
+      enabled: false,
       apiKey: ''
+    },
+    {
+      id: 'searxng',
+      name: 'Searxng',
+      enabled: false,
+      apiHost: ''
     }
   ],
   searchWithTime: true,
@@ -32,6 +39,10 @@ const websearchSlice = createSlice({
     setWebSearchProviders: (state, action: PayloadAction<WebSearchProvider[]>) => {
       state.providers = action.payload
     },
+    updateWebSearchProviders: (state, action: PayloadAction<WebSearchProvider[]>) => {
+      state.providers = action.payload
+    },
+
     updateWebSearchProvider: (state, action: PayloadAction<WebSearchProvider>) => {
       const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
       if (index !== -1) {
@@ -53,6 +64,7 @@ const websearchSlice = createSlice({
 export const {
   setWebSearchProviders,
   updateWebSearchProvider,
+  updateWebSearchProviders,
   setDefaultProvider,
   setSearchWithTime,
   setExcludeDomains,

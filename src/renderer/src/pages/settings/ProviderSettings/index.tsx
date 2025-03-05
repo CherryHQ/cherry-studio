@@ -268,5 +268,4 @@ const AddButtonWrapper = styled.div`
   align-items: center;
   padding: 10px 8px;
 `
-
 export default ProvidersList

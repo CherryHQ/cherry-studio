@@ -86,13 +86,13 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 ### Install
 
 ```bash
-$ yarn
+yarn
 ```
 
 ### Development
 
 ```bash
-$ yarn dev
+yarn dev
 ```
 
 ### Build
@@ -134,6 +134,8 @@ Thank you for your support and contributions!
 ## Related Projects
 
 - [one-api](https://github.com/songquanpeng/one-api):LLM API management and distribution system, supporting mainstream models like OpenAI, Azure, and Anthropic. Features unified API interface, suitable for key management and secondary distribution.
+
+- [ublacklist](https://github.com/iorate/ublacklist):Blocks specific sites from appearing in Google search results
 
 # 🚀 Contributors
 
