@@ -51,6 +51,9 @@ const GeneralSettings: FC = () => {
 
   const updateLaunchToTray = (isLaunchToTray: boolean) => {
     setLaunch(undefined, isLaunchToTray)
+    if (isLaunchToTray && !tray) {
+      updateTray(true)
+    }
   }
 
   const dispatch = useAppDispatch()
@@ -155,7 +158,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
-          <Switch checked={launchToTray} onChange={(checked) => updateLaunchToTray(checked)} disabled={!tray} />
+          <Switch checked={launchToTray} onChange={(checked) => updateLaunchToTray(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

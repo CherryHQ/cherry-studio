@@ -114,9 +114,20 @@ const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutForm
 export function registerShortcuts(window: BrowserWindow) {
   window.once('ready-to-show', () => {
     window.webContents.setZoomFactor(configManager.getZoomFactor())
+
+    if (configManager.getLaunchToTray()) {
+      registerOnlyUniversalShortcuts()
+    }
   })
 
-  const register = () => {
+  //only for clearer code
+  const registerOnlyUniversalShortcuts = () => {
+    register(true)
+  }
+
+  //onlyUniversalShortcuts is used to register shortcuts that are not window specific, like show_app & mini_window
+  //onlyUniversalShortcuts is needed when we launch to tray
+  const register = (onlyUniversalShortcuts: boolean = false) => {
     if (window.isDestroyed()) return
 
     const shortcuts = configManager.getShortcuts()
@@ -125,6 +136,11 @@ export function registerShortcuts(window: BrowserWindow) {
     shortcuts.forEach((shortcut) => {
       try {
         if (shortcut.shortcut.length === 0) {
+          return
+        }
+
+        // only register universal shortcuts when needed
+        if (onlyUniversalShortcuts && !['show_app', 'mini_window'].includes(shortcut.key)) {
           return
         }
 
