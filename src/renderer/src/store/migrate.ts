@@ -1180,18 +1180,45 @@ const migrateConfig = {
     return state
   },
   '74': (state: RootState) => {
-    state.llm.providers.push({
-      id: 'xirang',
-      name: 'Xirang',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://wishub-x1.ctyun.cn',
-      models: SYSTEM_MODELS.xirang,
-      isSystem: true,
-      enabled: false
-    })
-    return state
-  },
+    return {
+      ...state,
+      llm: {
+        ...state.llm,
+        providers: [
+          ...state.llm.providers,
+          {
+            id: 'copilot',
+            name: 'Github Copilot',
+            type: 'openai',
+            apiKey: '',
+            apiHost: 'https://api.githubcopilot.com/',
+            models: SYSTEM_MODELS.copilot,
+            isSystem: true,
+            enabled: false
+          },
+          {
+            id: 'xirang',
+            name: 'Xirang',
+            type: 'openai',
+            apiKey: '',
+            apiHost: 'https://wishub-x1.ctyun.cn',
+            models: SYSTEM_MODELS.xirang,
+            isSystem: true,
+            enabled: false
+          },
+          {
+            id: 'xirang',
+            name: 'Xirang',
+            type: 'openai',
+            apiKey: '',
+            apiHost: 'https://wishub-x1.ctyun.cn',
+            models: SYSTEM_MODELS.xirang,
+            isSystem: true,
+            enabled: false
+          }
+        ]
+      }
+    },
   '75': (state: RootState) => {
     if (state.minapps) {
       const you = DEFAULT_MIN_APPS.find((app) => app.id === 'you')

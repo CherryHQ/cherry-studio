@@ -46,7 +46,10 @@ export default class OpenAIProvider extends BaseProvider {
       dangerouslyAllowBrowser: true,
       apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
-      defaultHeaders: this.defaultHeaders()
+      defaultHeaders: {
+        ...this.defaultHeaders(),
+        ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {})
+      }
     })
   }
 
@@ -284,6 +287,7 @@ export default class OpenAIProvider extends BaseProvider {
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
+    await this.checkIsCopilot()
 
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
@@ -386,6 +390,8 @@ export default class OpenAIProvider extends BaseProvider {
 
     const stream = isSupportedStreamOutput()
 
+    await this.checkIsCopilot()
+
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -434,6 +440,8 @@ export default class OpenAIProvider extends BaseProvider {
       content: userMessageContent
     }
 
+    await this.checkIsCopilot()
+
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -452,6 +460,8 @@ export default class OpenAIProvider extends BaseProvider {
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
     const model = getDefaultModel()
+
+    await this.checkIsCopilot()
 
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -472,6 +482,8 @@ export default class OpenAIProvider extends BaseProvider {
       return []
     }
 
+    await this.checkIsCopilot()
+
     const response: any = await this.sdk.request({
       method: 'post',
       path: '/advice_questions',
@@ -491,7 +503,6 @@ export default class OpenAIProvider extends BaseProvider {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
-
     const body = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
@@ -499,6 +510,7 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     try {
+      await this.checkIsCopilot()
       const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
 
       return {
@@ -515,6 +527,8 @@ export default class OpenAIProvider extends BaseProvider {
 
   public async models(): Promise<OpenAI.Models.Model[]> {
     try {
+      await this.checkIsCopilot()
+
       const response = await this.sdk.models.list()
 
       if (this.provider.id === 'github') {
@@ -561,6 +575,8 @@ export default class OpenAIProvider extends BaseProvider {
     signal,
     promptEnhancement
   }: GenerateImageParams): Promise<string[]> {
+    await this.checkIsCopilot()
+
     const response = (await this.sdk.request({
       method: 'post',
       path: '/images/generations',
@@ -582,10 +598,20 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   public async getEmbeddingDimensions(model: Model): Promise<number> {
+    await this.checkIsCopilot()
+
     const data = await this.sdk.embeddings.create({
       model: model.id,
       input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
     })
     return data.data[0].embedding.length
+  }
+
+  public async checkIsCopilot() {
+    if (this.provider.id !== 'copilot') return
+
+    // copilot每次请求前需要重新获取token，因为token中附带时间戳
+    const { token } = await window.api.copilot.getToken()
+    this.sdk.apiKey = token
   }
 }

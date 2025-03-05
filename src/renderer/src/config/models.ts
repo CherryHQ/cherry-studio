@@ -987,6 +987,14 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'OpenAI'
     }
   ],
+  copilot: [
+    {
+      id: 'gpt-4o-mini',
+      provider: 'copilot',
+      name: 'OpenAI GPT-4o-mini',
+      group: 'OpenAI'
+    }
+  ],
   yi: [
     { id: 'yi-lightning', name: 'Yi Lightning', provider: 'yi', group: 'yi-lightning', owned_by: '01.ai' },
     // yi-medium, yi-large, yi-vision 已被 yi-lightning 替代 (详见 https://archive.ph/0Idg3)
@@ -1841,6 +1849,9 @@ export function isEmbeddingModel(model: Model): boolean {
 
 export function isVisionModel(model: Model): boolean {
   if (!model) {
+    return false
+  }
+  if (model.provider === 'copilot') {
     return false
   }
 
