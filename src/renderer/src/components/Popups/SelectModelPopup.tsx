@@ -76,8 +76,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
       return sortBy(nonEmbeddingModels, ['group', 'name']).filter((m) => {
         const fullName = provider.isSystem
-          ? `${m.name}${m.provider}${t('provider.' + provider.id)}`
-          : `${m.name}${m.provider}`
+          ? `${m.name} ${provider.name} ${t('provider.' + provider.id)}`
+          : `${m.name} ${provider.name}`
 
         const lowerFullName = fullName.toLowerCase()
         return keywords.every((keyword) => lowerFullName.includes(keyword))
