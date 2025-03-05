@@ -1,11 +1,10 @@
 import {
   ClearOutlined,
-  ColumnHeightOutlined,
   FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
   GlobalOutlined,
-  HolderOutlined,
+  LockOutlined,
   PauseCircleOutlined,
   PicCenterOutlined,
   QuestionCircleOutlined
@@ -89,10 +88,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
   const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
-  const [isDragging, setIsDragging] = useState(false)
-  const [textareaHeight, setTextareaHeight] = useState<number>()
-  const startDragY = useRef<number>(0)
-  const startHeight = useRef<number>(0)
   const currentMessageId = useRef<string>()
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
@@ -130,6 +125,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     await modelGenerating()
 
     if (inputEmpty) {
+      return
+    }
+
+    // 如果话题被锁定，则不允许发送消息
+    if (assistant.topics && assistant.topics.length > 0 && assistant.topics[0].locked) {
+      window.modal.warning({
+        title: t('chat.topics.locked_warning') || '话题已锁定',
+        content: t('chat.topics.locked_warning_content') || '该话题已被锁定，无法发送新消息'
+      })
       return
     }
 
@@ -184,7 +188,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = event.keyCode == 13
+    const isEnterPressed = event.key === 'Enter'
+
+    // 如果话题被锁定，则阻止发送操作
+    if (assistant.topics && assistant.topics.length > 0 && assistant.topics[0].locked) {
+      return
+    }
 
     if (event.key === '@') {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
@@ -311,10 +320,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const resizeTextArea = () => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
-      // 如果已经手动设置了高度,则不自动调整
-      if (textareaHeight) {
-        return
-      }
       textArea.style.height = 'auto'
       textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
     }
@@ -329,7 +334,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       if (isExpended) {
         textArea.style.height = '70vh'
       } else {
-        resetHeight()
+        resizeTextArea()
       }
     }
 
@@ -437,50 +442,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setText(translatedText)
     setTimeout(() => resizeTextArea(), 0)
   }
-
-  const handleDragStart = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-    startDragY.current = e.clientY
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      startHeight.current = textArea.offsetHeight
-    }
-  }
-
-  const handleDrag = useCallback(
-    (e: MouseEvent) => {
-      if (!isDragging) return
-
-      const delta = startDragY.current - e.clientY // 改变计算方向
-      const viewportHeight = window.innerHeight
-      const maxHeightInPixels = viewportHeight * 0.7
-
-      const newHeight = Math.min(maxHeightInPixels, Math.max(startHeight.current + delta, 30))
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.style.height = `${newHeight}px`
-        setExpend(newHeight == maxHeightInPixels)
-        setTextareaHeight(newHeight)
-      }
-    },
-    [isDragging]
-  )
-
-  const handleDragEnd = useCallback(() => {
-    setIsDragging(false)
-  }, [])
-
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleDrag)
-      document.addEventListener('mouseup', handleDragEnd)
-    }
-    return () => {
-      document.removeEventListener('mousemove', handleDrag)
-      document.removeEventListener('mouseup', handleDragEnd)
-    }
-  }, [isDragging, handleDrag, handleDragEnd])
 
   useShortcut('new_topic', () => {
     if (!generating) {
@@ -606,21 +567,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
   }, [assistant, model, updateAssistant])
 
-  const resetHeight = () => {
-    if (expended) {
-      setExpend(false)
-    }
-    setTextareaHeight(undefined)
-    requestAnimationFrame(() => {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.style.height = 'auto'
-        const contentHeight = textArea.scrollHeight
-        textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
-      }
-    })
-  }
-
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
@@ -628,6 +574,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus')}
           ref={containerRef}>
+          {assistant.topics && assistant.topics.length > 0 && assistant.topics[0].locked && (
+            <LockWarningBar>
+              <LockOutlined style={{ marginRight: '8px' }} />
+              {t('chat.topics.locked_input_tip') || '该话题已锁定，处于只读状态'}
+            </LockWarningBar>
+          )}
           <AttachmentPreview files={files} setFiles={setFiles} />
           <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
           <Textarea
@@ -641,10 +593,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             spellCheck={false}
             rows={textareaRows}
             ref={textareaRef}
-            style={{
-              fontSize,
-              height: textareaHeight ? `${textareaHeight}px` : undefined
-            }}
+            style={{ fontSize }}
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
               setInputFocus(true)
@@ -656,13 +605,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             }}
             onBlur={() => setInputFocus(false)}
             onInput={onInput}
-            disabled={searching}
+            disabled={(assistant.topics && assistant.topics.length > 0 && assistant.topics[0].locked) || searching}
             onPaste={(e) => onPaste(e.nativeEvent)}
             onClick={() => searching && dispatch(setSearching(false))}
           />
-          <DragHandle onMouseDown={handleDragStart}>
-            <HolderOutlined />
-          </DragHandle>
           <Toolbar>
             <ToolbarMenu>
               <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
@@ -714,13 +660,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
                 </ToolbarButton>
               </Tooltip>
-              {textareaHeight && (
-                <Tooltip placement="top" title={t('chat.input.auto_resize')} arrow>
-                  <ToolbarButton type="text" onClick={resetHeight}>
-                    <ColumnHeightOutlined />
-                  </ToolbarButton>
-                </Tooltip>
-              )}
               <TokenCount
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
@@ -738,7 +677,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   </ToolbarButton>
                 </Tooltip>
               )}
-              {!generating && <SendMessageButton sendMessage={sendMessage} disabled={generating || inputEmpty} />}
+              {!generating && (
+                <SendMessageButton
+                  sendMessage={sendMessage}
+                  disabled={(assistant.topics && assistant.topics.length > 0 && assistant.topics[0].locked) || generating || inputEmpty}
+                />
+              )}
             </ToolbarMenu>
           </Toolbar>
         </InputBarContainer>
@@ -746,32 +690,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     </Container>
   )
 }
-
-// Add these styled components at the bottom
-const DragHandle = styled.div`
-  position: absolute;
-  top: -3px;
-  left: 0;
-  right: 0;
-  height: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: row-resize;
-  color: var(--color-icon);
-  opacity: 0;
-  transition: opacity 0.2s;
-  z-index: 1;
-
-  &:hover {
-    opacity: 1;
-  }
-
-  .anticon {
-    transform: rotate(90deg);
-    font-size: 14px;
-  }
-`
 
 const Container = styled.div`
   display: flex;
@@ -785,13 +703,12 @@ const InputBarContainer = styled.div`
   margin: 14px 20px;
   margin-top: 12px;
   border-radius: 15px;
-  padding-top: 6px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
 `
 
 const TextareaStyle: CSSProperties = {
   paddingLeft: 0,
-  padding: '4px 15px 8px' // 减小顶部padding
+  padding: '10px 15px 8px'
 }
 
 const Textarea = styled(TextArea)`
@@ -864,6 +781,18 @@ const ToolbarButton = styled(Button)`
       background-color: var(--color-primary);
     }
   }
+`
+
+const LockWarningBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-size: 13px;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid var(--color-warning-border);
 `
 
 export default Inputbar

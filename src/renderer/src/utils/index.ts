@@ -151,6 +151,50 @@ export async function isDev() {
   return !isProd
 }
 
+// 根据提示词生成匹配的 emoji (只返回单个emoji)
+export async function generateEmojiFromPrompt(prompt: string): Promise<string> {
+  // 常用关键词与单个emoji的映射
+  const keywordEmojiMap: Record<string, string[]> = {
+    助手: ['🤖', '🧠', '💡', '🔍', '📚'],
+    翻译: ['🌐', '🔄', '📝', '🈴', '🗣'],
+    编程: ['💻', '🔧', '⌨️', '🖥', '📱'],
+    写作: ['✍️', '📝', '📄', '📰', '📑'],
+    数据: ['📊', '📈', '📉', '🧮', '💾'],
+    分析: ['📊', '🔍', '🧐', '🔬', '📈'],
+    教育: ['🎓', '📚', '🏫', '👨‍🏫', '📖'],
+    医疗: ['🏥', '⚕️', '💊', '🩺', '🧪'],
+    艺术: ['🎨', '🖼️', '🎭', '🎬', '🎻'],
+    音乐: ['🎵', '🎼', '🎧', '🎷', '🎸'],
+    游戏: ['🎮', '🎲', '🎯', '🎪', '🎭'],
+    运动: ['⚽', '🏀', '🏈', '⚾', '🎾'],
+    旅游: ['✈️', '🌍', '🗺️', '🧳', '🏖️'],
+    美食: ['🍲', '🍳', '🍽️', '👨‍🍳', '🍷'],
+    商业: ['💼', '📊', '💰', '📈', '🏢'],
+    法律: ['⚖️', '📜', '👨‍⚖️', '📋', '🔍'],
+    心理: ['🧠', '💭', '😊', '🔄', '💆'],
+    历史: ['📜', '⏳', '🏛️', '🗿', '🔍'],
+    科学: ['🔬', '🧪', '🔭', '⚗️', '🧬'],
+    设计: ['🎨', '✏️', '📐', '📱', '💻'],
+    时尚: ['👗', '👠', '👜', '💄', '👚'],
+    摄影: ['📷', '📸', '🎞️', '📹', '🖼️'],
+    电影: ['🎬', '🎥', '🍿', '🎭', '🎞️'],
+    语言: ['🗣️', '💬', '🌐', '📚', '🔤'],
+    宠物: ['🐱', '🐶', '🐰', '🐦', '🐠']
+  }
+
+  // 先检查是否有直接匹配的关键词
+  for (const [keyword, emojis] of Object.entries(keywordEmojiMap)) {
+    if (prompt.includes(keyword)) {
+      // 随机选择一个匹配的emoji
+      return emojis[Math.floor(Math.random() * emojis.length)]
+    }
+  }
+
+  // 如果没有直接匹配，使用一些通用的emoji
+  const defaultEmojis = ['🤖', '💡', '✨', '🔍', '📚', '💻', '🌟', '🧩', '🧠', '📝']
+  return defaultEmojis[Math.floor(Math.random() * defaultEmojis.length)]
+}
+
 export function getErrorMessage(error: any) {
   if (!error) {
     return ''

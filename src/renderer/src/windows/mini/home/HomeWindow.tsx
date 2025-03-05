@@ -207,7 +207,7 @@ const HomeWindow: FC = () => {
               text={text}
               model={model}
               referenceText={referenceText}
-              placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
+              placeholder={t('miniwindow.input.placeholder.empty', { model: model?.name || 'AI' })}
               handleKeyDown={handleKeyDown}
               handleChange={handleChange}
               ref={inputBarRef}
@@ -246,7 +246,7 @@ const HomeWindow: FC = () => {
         placeholder={
           referenceText && route === 'home'
             ? t('miniwindow.input.placeholder.title')
-            : t('miniwindow.input.placeholder.empty', { model: model.name })
+            : t('miniwindow.input.placeholder.empty', { model: model?.name || 'AI' })
         }
         handleKeyDown={handleKeyDown}
         handleChange={handleChange}

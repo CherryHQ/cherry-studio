@@ -5,6 +5,7 @@ import {
   ForkOutlined,
   LikeFilled,
   LikeOutlined,
+  LockOutlined,
   MenuOutlined,
   QuestionCircleOutlined,
   SaveOutlined,
@@ -19,7 +20,7 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import { Message, Model } from '@renderer/types'
+import { Message, Model, Topic } from '@renderer/types'
 import {
   captureScrollableDivAsBlob,
   captureScrollableDivAsDataURL,
@@ -52,6 +53,7 @@ interface Props {
   onEditMessage?: (message: Message) => void
   onDeleteMessage?: (message: Message) => Promise<void>
   onGetMessages?: () => Message[]
+  topic?: Topic
 }
 
 const MessageMenubar: FC<Props> = (props) => {
@@ -66,7 +68,8 @@ const MessageMenubar: FC<Props> = (props) => {
     messageContainerRef,
     onEditMessage,
     onDeleteMessage,
-    onGetMessages
+    onGetMessages,
+    topic
   } = props
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
@@ -310,6 +313,8 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, onEditMessage]
   )
 
+  const isTopicLocked = topic?.locked === true
+
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
       {message.role === 'user' && (
@@ -321,7 +326,7 @@ const MessageMenubar: FC<Props> = (props) => {
       )}
       {message.role === 'user' && (
         <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onEdit}>
+          <ActionButton className="message-action-button" onClick={onEdit} disabled={isTopicLocked}>
             <EditOutlined />
           </ActionButton>
         </Tooltip>
@@ -340,7 +345,7 @@ const MessageMenubar: FC<Props> = (props) => {
           icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
           onConfirm={onRegenerate}>
           <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
-            <ActionButton className="message-action-button">
+            <ActionButton className="message-action-button" disabled={isTopicLocked}>
               <SyncOutlined />
             </ActionButton>
           </Tooltip>
@@ -348,7 +353,7 @@ const MessageMenubar: FC<Props> = (props) => {
       )}
       {isAssistantMessage && (
         <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onMentionModel}>
+          <ActionButton className="message-action-button" onClick={onMentionModel} disabled={isTopicLocked}>
             <i className="iconfont icon-at" style={{ fontSize: 16 }}></i>
           </ActionButton>
         </Tooltip>
@@ -388,7 +393,7 @@ const MessageMenubar: FC<Props> = (props) => {
         </Tooltip>
       )}
       <Popconfirm
-        disabled={isGrouped}
+        disabled={isGrouped || isTopicLocked}
         title={t('message.message.delete.content')}
         okButtonProps={{ danger: true }}
         icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
@@ -397,7 +402,7 @@ const MessageMenubar: FC<Props> = (props) => {
           <ActionButton
             className="message-action-button"
             onClick={
-              isGrouped
+              isGrouped || isTopicLocked
                 ? (e) => {
                     e.stopPropagation()
                     onDeleteMessage?.(message)
@@ -418,6 +423,13 @@ const MessageMenubar: FC<Props> = (props) => {
             <MenuOutlined />
           </ActionButton>
         </Dropdown>
+      )}
+      {isTopicLocked && (
+        <Tooltip title={t('chat.topics.locked_edit_warning') || '话题已锁定，无法编辑内容'}>
+          <Button size="small" type="text" className="lock-icon">
+            <LockOutlined />
+          </Button>
+        </Tooltip>
       )}
     </MenusBar>
   )

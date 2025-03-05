@@ -39,6 +39,24 @@
       "delete.content": "删除助手会删除所有该助手下的话题和文件，确定要继续吗？",
       "delete.title": "删除助手",
       "edit.title": "编辑助手",
+      "ungrouped": "未分组",
+      "group": {
+        "add": "创建分组",
+        "edit": "编辑分组",
+        "delete": {
+          "title": "删除分组",
+          "content": "确定要删除此分组吗？该分组中的所有助手将被移至未分组。"
+        },
+        "name": "分组名称",
+        "name.required": "请输入分组名称",
+        "name.placeholder": "请输入分组名称",
+        "description": "分组描述",
+        "description.placeholder": "请输入分组描述（可选）"
+      },
+      "move_to_group": "移动到分组",
+      "move_to_no_group": "移出分组",
+      "moved_to_group": "已移动到分组：{group}",
+      "moved_to_no_group": "已移出分组",
       "save.success": "保存成功",
       "save.title": "保存到智能体",
       "search": "搜索助手",
@@ -53,7 +71,8 @@
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "关",
       "settings.reasoning_effort.tip": "仅支持 OpenAI o-series 和 Anthropic 推理模型",
-      "title": "助手"
+      "title": "助手",
+      "ungrouped": "未分组"
     },
     "auth": {
       "error": "自动获取密钥失败，请手动获取",
@@ -148,14 +167,21 @@
       "topics.export.word": "导出为 Word",
       "topics.export.yuque": "导出到语雀",
       "topics.list": "话题列表",
+      "topics.lock": "锁定话题",
+      "topics.locked_warning": "话题已锁定",
+      "topics.locked_warning_content": "该话题已被锁定，无法发送新消息",
+      "topics.locked_edit_warning": "话题已锁定，无法编辑内容",
+      "topics.locked_input_tip": "该话题已锁定，处于只读状态",
       "topics.move_to": "移动到",
       "topics.pinned": "固定话题",
       "topics.prompt": "话题提示词",
       "topics.prompt.edit.title": "编辑话题提示词",
       "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词",
       "topics.title": "话题",
+      "topics.unlock": "解除锁定",
       "topics.unpinned": "取消固定",
-      "translate": "翻译"
+      "translate": "翻译",
+      "topics.duplicate_to": "复制到"
     },
     "common": {
       "add": "添加",
@@ -167,6 +193,7 @@
       "chat": "聊天",
       "clear": "清除",
       "close": "关闭",
+      "confirm": "OK",
       "copy": "复制",
       "cut": "剪切",
       "default": "默认",
@@ -858,6 +885,28 @@
         },
         "title": "网络搜索"
       }
+    },
+    "topics": {
+      "add": "添加话题",
+      "group": {
+        "add": "添加分组",
+        "edit": "编辑分组",
+        "name": "分组名称",
+        "name.required": "请输入分组名称",
+        "name.placeholder": "输入分组名称",
+        "description": "分组描述",
+        "description.placeholder": "输入分组描述（可选）"
+      },
+      "lock": "锁定话题",
+      "locked_warning": "话题已锁定",
+      "locked_warning_content": "该话题已被锁定，无法发送新消息",
+      "locked_edit_warning": "话题已锁定，无法编辑内容",
+      "locked_input_tip": "该话题已锁定，处于只读状态",
+      "move_to_group": "移动到分组",
+      "no_group": "无分组",
+      "new": "新话题",
+      "unlock": "解除锁定",
+      "ungrouped": "未分组"
     },
     "translate": {
       "any.language": "任意语言",

@@ -1,9 +1,12 @@
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
 import { BaseLoader } from '@llm-tools/embedjs-interfaces'
 import { cleanString } from '@llm-tools/embedjs-utils'
+import AdmZip from 'adm-zip'
 import Logger from 'electron-log'
-import EPub from 'epub'
 import * as fs from 'fs'
+import * as path from 'path'
+import * as util from 'util'
+import * as xml2js from 'xml2js'
 
 /**
  * epub 加载器的配置选项
@@ -77,68 +80,144 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
   }
 
   /**
-   * 等待 epub 文件初始化完成
-   * epub 库使用事件机制，需要等待 'end' 事件触发后才能访问文件内容
-   * @param epub epub 实例
-   * @returns 元数据和章节信息
+   * 解析XML数据为JavaScript对象
+   * @param xmlData XML数据字符串
+   * @returns 解析后的JavaScript对象
    */
-  private waitForEpubInit(epub: any): Promise<{ metadata: EpubMetadata; chapters: EpubChapter[] }> {
-    return new Promise((resolve, reject) => {
-      epub.on('end', () => {
-        // 提取元数据
-        const metadata: EpubMetadata = {
-          creator: epub.metadata.creator,
-          creatorFileAs: epub.metadata.creatorFileAs,
-          title: epub.metadata.title,
-          language: epub.metadata.language,
-          subject: epub.metadata.subject,
-          date: epub.metadata.date,
-          description: epub.metadata.description
-        }
-
-        // 提取章节信息
-        const chapters: EpubChapter[] = epub.flow.map((chapter: any, index: number) => ({
-          id: chapter.id,
-          title: chapter.title || `Chapter ${index + 1}`,
-          order: index + 1
-        }))
-
-        resolve({ metadata, chapters })
-      })
-
-      epub.on('error', (error: Error) => {
-        reject(error)
-      })
-
-      epub.parse()
-    })
+  private async parseXml(xmlData: string): Promise<any> {
+    const parser = new xml2js.Parser({ explicitArray: false });
+    const parseString = util.promisify(parser.parseString.bind(parser));
+    return await parseString(xmlData);
   }
 
   /**
-   * 获取章节内容
-   * @param epub epub 实例
-   * @param chapterId 章节 ID
-   * @returns 章节文本内容
+   * 从EPUB文件中提取容器信息，找到content.opf文件的路径
+   * @param zip AdmZip实例
+   * @returns content.opf文件的路径
    */
-  private getChapter(epub: any, chapterId: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      epub.getChapter(chapterId, (error: Error | null, text: string) => {
-        if (error) {
-          reject(error)
-        } else {
-          resolve(text)
-        }
-      })
-    })
+  private async getContentOpfPath(zip: AdmZip): Promise<string> {
+    const containerEntry = zip.getEntry('META-INF/container.xml');
+    if (!containerEntry) {
+      throw new Error('Container.xml not found in EPUB');
+    }
+
+    const containerXml = containerEntry.getData().toString('utf8');
+    const containerData = await this.parseXml(containerXml);
+    const rootfile = containerData.container.rootfiles.rootfile;
+    
+    if (Array.isArray(rootfile)) {
+      return rootfile[0].$['full-path'];
+    } else {
+      return rootfile.$['full-path'];
+    }
+  }
+
+  /**
+   * 从content.opf文件中提取元数据和章节信息
+   * @param zip AdmZip实例
+   * @param contentOpfPath content.opf文件的路径
+   * @returns 元数据和章节信息
+   */
+  private async extractMetadataAndChapters(zip: AdmZip, contentOpfPath: string): Promise<{ metadata: EpubMetadata; chapters: EpubChapter[] }> {
+    const contentEntry = zip.getEntry(contentOpfPath);
+    if (!contentEntry) {
+      throw new Error(`Content file not found: ${contentOpfPath}`);
+    }
+
+    const contentXml = contentEntry.getData().toString('utf8');
+    const contentData = await this.parseXml(contentXml);
+    
+    // 提取元数据
+    const metadataObj = contentData.package.metadata;
+    const metadata: EpubMetadata = {
+      creator: this.extractValue(metadataObj, 'dc:creator'),
+      title: this.extractValue(metadataObj, 'dc:title'),
+      language: this.extractValue(metadataObj, 'dc:language'),
+      subject: this.extractValue(metadataObj, 'dc:subject'),
+      date: this.extractValue(metadataObj, 'dc:date'),
+      description: this.extractValue(metadataObj, 'dc:description')
+    };
+
+    // 提取目录结构
+    const spine = contentData.package.spine;
+    const manifest = contentData.package.manifest;
+    
+    if (!spine || !spine.itemref || !manifest || !manifest.item) {
+      throw new Error('EPUB spine or manifest missing');
+    }
+
+    // 将manifest项目转换为id-href映射
+    const items: Record<string, string> = {};
+    const manifestItems = Array.isArray(manifest.item) ? manifest.item : [manifest.item];
+    
+    for (const item of manifestItems) {
+      items[item.$.id] = item.$.href;
+    }
+
+    // 提取章节信息
+    const itemrefs = Array.isArray(spine.itemref) ? spine.itemref : [spine.itemref];
+    const chapters: EpubChapter[] = [];
+    
+    const basePath = path.dirname(contentOpfPath);
+    
+    for (let i = 0; i < itemrefs.length; i++) {
+      const itemId = itemrefs[i].$.idref;
+      const href = items[itemId];
+      
+      if (href) {
+        const chapterPath = path.join(basePath, href).replace(/\\/g, '/');
+        chapters.push({
+          id: chapterPath,
+          title: `Chapter ${i + 1}`,
+          order: i + 1
+        });
+      }
+    }
+
+    return { metadata, chapters };
+  }
+
+  /**
+   * 从元数据对象中提取指定字段的值
+   * @param metadata 元数据对象
+   * @param field 字段名
+   * @returns 字段值
+   */
+  private extractValue(metadata: any, field: string): string | undefined {
+    if (!metadata) return undefined;
+    
+    const value = metadata[field];
+    if (!value) return undefined;
+    
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value[0]?._  || value[0];
+    return value._ || value;
+  }
+
+  /**
+   * 提取章节内容
+   * @param zip AdmZip实例
+   * @param chapterId 章节ID（文件路径）
+   * @returns 章节内容
+   */
+  private getChapterContent(zip: AdmZip, chapterId: string): string {
+    const entry = zip.getEntry(chapterId);
+    if (!entry) {
+      Logger.warn(`[EpubLoader] Chapter not found: ${chapterId}`);
+      return '';
+    }
+    
+    return entry.getData().toString('utf8');
   }
 
   /**
    * 从 epub 文件中提取文本内容
    * 1. 检查文件是否存在
-   * 2. 初始化 epub 并获取元数据
-   * 3. 遍历所有章节并提取文本
-   * 4. 清理 HTML 标签
-   * 5. 合并所有章节文本
+   * 2. 使用AdmZip打开EPUB文件
+   * 3. 提取元数据和章节信息
+   * 4. 遍历所有章节并提取文本
+   * 5. 清理 HTML 标签
+   * 6. 合并所有章节文本
    */
   private async extractTextFromEpub() {
     try {
@@ -147,46 +226,50 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
         throw new Error(`File not found: ${this.filePath}`)
       }
 
-      const epub = new EPub(this.filePath)
-
-      // 等待 epub 初始化完成并获取元数据
-      const { metadata, chapters } = await this.waitForEpubInit(epub)
-      this.metadata = metadata
-
-      if (!epub.flow || epub.flow.length === 0) {
-        throw new Error('No content found in epub file')
+      // 使用AdmZip打开EPUB文件
+      const zip = new AdmZip(this.filePath);
+      
+      // 获取content.opf文件路径
+      const contentOpfPath = await this.getContentOpfPath(zip);
+      
+      // 提取元数据和章节信息
+      const { metadata, chapters } = await this.extractMetadataAndChapters(zip, contentOpfPath);
+      this.metadata = metadata;
+      
+      if (chapters.length === 0) {
+        throw new Error('No content found in epub file');
       }
 
-      const chapterTexts: string[] = []
+      const chapterTexts: string[] = [];
 
       // 遍历所有章节
       for (const chapter of chapters) {
         try {
-          const content = await this.getChapter(epub, chapter.id)
+          const content = this.getChapterContent(zip, chapter.id);
 
           if (!content) {
-            continue
+            continue;
           }
 
           // 移除 HTML 标签并清理文本
           const text = content
             .replace(/<[^>]*>/g, ' ') // 移除所有 HTML 标签
             .replace(/\s+/g, ' ') // 将多个空白字符替换为单个空格
-            .trim() // 移除首尾空白
+            .trim(); // 移除首尾空白
 
           if (text) {
-            chapterTexts.push(text)
+            chapterTexts.push(text);
           }
         } catch (error) {
-          Logger.error(`[EpubLoader] Error processing chapter ${chapter.id}:`, error)
+          Logger.error(`[EpubLoader] Error processing chapter ${chapter.id}:`, error);
         }
       }
 
       // 使用双换行符连接所有章节文本
-      this.extractedText = chapterTexts.join('\n\n')
+      this.extractedText = chapterTexts.join('\n\n');
     } catch (error) {
-      Logger.error('[EpubLoader] Error in extractTextFromEpub:', error)
-      throw error
+      Logger.error('[EpubLoader] Error in extractTextFromEpub:', error);
+      throw error;
     }
   }
 

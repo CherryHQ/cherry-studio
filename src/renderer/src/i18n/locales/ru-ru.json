@@ -39,6 +39,24 @@
       "delete.content": "Удаление ассистента удалит все топики и файлы под ассистентом. Вы уверены, что хотите удалить его?",
       "delete.title": "Удалить ассистента",
       "edit.title": "Редактировать ассистента",
+      "ungrouped": "Без группы",
+      "group": {
+        "add": "Создать группу",
+        "edit": "Редактировать группу",
+        "delete": {
+          "title": "Удалить группу",
+          "content": "Вы уверены, что хотите удалить эту группу? Все ассистенты в этой группе будут перемещены в категорию без группы."
+        },
+        "name": "Название группы",
+        "name.required": "Пожалуйста, введите название группы",
+        "name.placeholder": "Пожалуйста, введите название группы",
+        "description": "Описание группы",
+        "description.placeholder": "Пожалуйста, введите описание группы (необязательно)"
+      },
+      "move_to_group": "Переместить в группу",
+      "move_to_no_group": "Удалить из группы",
+      "moved_to_group": "Перемещено в группу: {group}",
+      "moved_to_no_group": "Удалено из группы",
       "save.success": "Успешно сохранено",
       "save.title": "Сохранить в агента",
       "search": "Поиск ассистентов...",
@@ -52,7 +70,7 @@
       "settings.reasoning_effort.low": "Короткая",
       "settings.reasoning_effort.medium": "Средняя",
       "settings.reasoning_effort.off": "Выключено",
-      "settings.reasoning_effort.tip": "Поддерживается только моделями с рассуждением OpenAI o-series и Anthropic",
+      "settings.reasoning_effort.tip": "Эта настройка поддерживается только моделями с рассуждением",
       "title": "Ассистенты"
     },
     "auth": {
@@ -110,7 +128,6 @@
       "message.new.context": "Новый контекст",
       "message.regenerate.model": "Переключить модель",
       "message.useful": "Полезно",
-      "message.quote": "Цитата",
       "resend": "Переотправить",
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",
@@ -148,25 +165,32 @@
       "topics.export.word": "Экспорт как Word",
       "topics.export.yuque": "Экспорт в Yuque",
       "topics.list": "Список топиков",
+      "topics.lock": "Заблокировать тему",
+      "topics.locked_warning": "Тема заблокирована",
+      "topics.locked_warning_content": "Эта тема заблокирована и не может получать новые сообщения",
+      "topics.locked_edit_warning": "Тема заблокирована, содержимое нельзя редактировать",
+      "topics.locked_input_tip": "Эта тема заблокирована и находится в режиме только для чтения",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
       "topics.prompt": "Тематические подсказки",
       "topics.prompt.edit.title": "Редактировать подсказки темы",
       "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
       "topics.title": "Топики",
+      "topics.unlock": "Разблокировать тему",
       "topics.unpinned": "Открепленные темы",
       "translate": "Перевести"
     },
     "common": {
       "add": "Добавить",
       "and": "и",
-      "assistant": "Ассистент",
+      "assistant": "Помощник",
       "avatar": "Аватар",
       "back": "Назад",
       "cancel": "Отмена",
       "chat": "Чат",
       "clear": "Очистить",
       "close": "Закрыть",
+      "confirm": "OK",
       "copy": "Копировать",
       "cut": "Вырезать",
       "default": "По умолчанию",
@@ -397,10 +421,10 @@
       "message.delete.content": "Вы уверены, что хотите удалить это сообщение?",
       "message.delete.title": "Удалить сообщение",
       "message.multi_model_style": "Стиль ответов от нескольких моделей",
-      "message.multi_model_style.fold": "Вкладки",
-      "message.multi_model_style.grid": "Карточки",
-      "message.multi_model_style.horizontal": "Горизонтальное расположение",
-      "message.multi_model_style.vertical": "Вертикальное расположение",
+      "message.multi_model_style.fold": "Свернуть",
+      "message.multi_model_style.grid": "клетчатый вид",
+      "message.multi_model_style.horizontal": "Горизонтальный",
+      "message.multi_model_style.vertical": "Вертикальный",
       "message.style": "Стиль сообщения",
       "message.style.bubble": "Пузырь",
       "message.style.plain": "Простой",
@@ -565,8 +589,7 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
-      "xirang": "State Cloud Xirang",
-      "tencent-cloud-ti": "Tencent Cloud TI"
+      "xirang": "State Cloud Xirang"
     },
     "settings": {
       "about": "О программе и обратная связь",
@@ -598,10 +621,6 @@
       "data": {
         "app_data": "Данные приложения",
         "app_logs": "Логи приложения",
-        "app_knowledge": "База знаний",
-        "app_knowledge.remove_all": "Удалить файлы",
-        "app_knowledge.remove_all_confirm": "Удаление файлов базы знаний не удалит саму базу знаний, что позволит уменьшить занимаемый объем памяти, продолжить?",
-        "app_knowledge.remove_all_success": "Файлы удалены успешно",
         "clear_cache": {
           "button": "Очистка кэша",
           "confirm": "Очистка кэша удалит данные приложения. Это действие необратимо, продолжить?",
@@ -707,9 +726,6 @@
       "general.title": "Общие настройки",
       "general.user_name": "Имя пользователя",
       "general.user_name.placeholder": "Введите ваше имя",
-      "general.image_upload": "Загрузка изображений",
-      "general.emoji_picker": "Выбор эмодзи",
-      "general.avatar.reset": "Сброс аватара",
       "general.view_webdav_settings": "Просмотр настроек WebDAV",
       "input.auto_translate_with_space": "Быстрый перевод с помощью 3-х пробелов",
       "input.target_language": "Целевой язык",
@@ -892,10 +908,6 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
-    },
-    "code_block": {
-      "enable_wrap": "Перенос строки",
-      "disable_wrap": "Отменить перенос строки"
     },
     "backup": {
       "title": "Резервное копирование данных",

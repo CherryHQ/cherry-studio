@@ -20,7 +20,20 @@ const HomePage: FC = () => {
   const location = useLocation()
   const state = location.state
 
-  const [activeAssistant, setActiveAssistant] = useState(state?.assistant || _activeAssistant || assistants[0])
+  // 添加安全检查，确保总是有一个可用的assistant
+  const defaultAssistant = state?.assistant || _activeAssistant || assistants[0]
+  const [activeAssistant, setActiveAssistant] = useState(defaultAssistant)
+
+  // 如果没有assistant可用，但已经加载了assistants数据，则显示错误
+  useEffect(() => {
+    if (!activeAssistant && assistants.length > 0) {
+      console.error('没有可用的assistant，使用第一个可用的assistant')
+      setActiveAssistant(assistants[0])
+    } else if (!activeAssistant && assistants.length === 0) {
+      console.error('没有可用的assistant，且assistants数组为空')
+    }
+  }, [activeAssistant, assistants])
+
   const { activeTopic, setActiveTopic } = useActiveTopic(activeAssistant, state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
 
@@ -33,7 +46,7 @@ const HomePage: FC = () => {
   useEffect(() => {
     state?.assistant && setActiveAssistant(state?.assistant)
     state?.topic && setActiveTopic(state?.topic)
-  }, [state])
+  }, [state, setActiveTopic])
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics

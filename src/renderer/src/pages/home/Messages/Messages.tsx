@@ -105,8 +105,15 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
 
   const autoRenameTopic = useCallback(async () => {
     const _topic = getTopic(assistant, topic.id)
+    if (!_topic) return
 
-    // If the topic auto naming is not enabled, use the first message content as the topic name
+    // 检查消息是否存在
+    if (messages.length === 0) {
+      console.log('No messages available for topic naming')
+      return
+    }
+
+    // 如果没有启用自动命名，就使用第一条消息内容作为话题名
     if (!enableTopicNaming) {
       const topicName = messages[0].content.substring(0, 50)
       const data = { ..._topic, name: topicName } as Topic
@@ -115,30 +122,53 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       return
     }
 
-    // Auto rename the topic
-    if (_topic && _topic.name === t('chat.default.topic.name') && messages.length >= 2) {
-      const summaryText = await fetchMessagesSummary({ messages, assistant })
-      if (summaryText) {
-        const data = { ..._topic, name: summaryText }
-        setActiveTopic(data)
-        updateTopic(data)
+    // 自动重命名话题 - 不再检查是否是默认名称，只要有足够的消息就可以重命名
+    // 至少需要两条消息才能获得更好的摘要
+    if (messages.length >= 1) {
+      try {
+        const summaryText = await fetchMessagesSummary({ messages, assistant })
+        if (summaryText) {
+          const data = { ..._topic, name: summaryText }
+          setActiveTopic(data)
+          updateTopic(data)
+        }
+      } catch (error) {
+        console.error('Failed to auto rename topic:', error)
       }
     }
   }, [assistant, enableTopicNaming, messages, setActiveTopic, topic.id, updateTopic])
 
   const onDeleteMessage = useCallback(
     async (message: Message) => {
+      // 检查话题是否被锁定
+      if (topic.locked) {
+        window.modal.warning({
+          title: t('chat.topics.locked_warning') || '话题已锁定',
+          content: t('chat.topics.locked_edit_warning') || '话题已锁定，无法编辑内容'
+        })
+        return
+      }
+
       const _messages = messages.filter((m) => m.id !== message.id)
       setMessages(_messages)
       setDisplayMessages(_messages)
       await db.topics.update(topic.id, { messages: _messages })
       await deleteMessageFiles(message)
     },
-    [messages, topic.id]
+    [messages, topic.id, topic.locked, t]
   )
 
   const onDeleteGroupMessages = useCallback(
     async (askId: string) => {
+      // 检查话题是否被锁定
+      if (topic.locked) {
+        window.modal.warning({
+          title: t('chat.topics.locked_warning') || '话题已锁定',
+          content: t('chat.topics.locked_edit_warning') || '话题已锁定，无法编辑内容'
+        })
+        return
+      }
+
       const _messages = messages.filter((m) => m.askId !== askId && m.id !== askId)
       setMessages(_messages)
       setDisplayMessages(_messages)
@@ -147,7 +177,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
         await deleteMessageFiles(message)
       }
     },
-    [messages, topic.id]
+    [messages, topic.id, topic.locked, t]
   )
 
   const onGetMessages = useCallback(() => {
@@ -163,10 +193,29 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       }),
       EventEmitter.on(EVENT_NAMES.AI_AUTO_RENAME, autoRenameTopic),
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, (data: Topic) => {
+        // 检查当前话题是否被锁定
+        if (topic.locked && (!data || data.id === topic.id)) {
+          window.modal.warning({
+            title: t('chat.topics.locked_warning') || '话题已锁定',
+            content: t('chat.topics.locked_edit_warning') || '话题已锁定，无法编辑内容'
+          })
+          return
+        }
+
         const defaultTopic = getDefaultTopic(assistant.id)
 
         // Clear messages of other topics
         if (data && data.id !== topic.id) {
+          // 检查目标话题是否被锁定
+          const targetTopic = getTopic(assistant, data.id)
+          if (targetTopic?.locked) {
+            window.modal.warning({
+              title: t('chat.topics.locked_warning') || '话题已锁定',
+              content: t('chat.topics.locked_edit_warning') || '话题已锁定，无法编辑内容'
+            })
+            return
+          }
+
           TopicManager.clearTopicMessages(data.id)
           updateTopic({ ...data, name: defaultTopic.name, messages: [] })
           return

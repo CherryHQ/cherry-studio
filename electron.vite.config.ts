@@ -67,6 +67,17 @@ export default defineConfig({
         '@shared': resolve('packages/shared')
       }
     },
+    build: {
+      assetsInlineLimit: 4096, // 设置资源内联阈值（小于4kb的文件不会被内联）
+      rollupOptions: {
+        output: {
+          manualChunks: undefined, // 禁用手动分块
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          entryFileNames: 'assets/js/[name]-[hash].js',
+          assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
+        }
+      }
+    },
     optimizeDeps: {
       exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js']
     }

@@ -37,6 +37,7 @@ dist
 out
 build/icons
 stats.html
+Releases
 
 # ENV
 .env
@@ -47,3 +48,4 @@ local
 .aider*
 .cursorrules
 .cursor/rules
+.windsurfrules

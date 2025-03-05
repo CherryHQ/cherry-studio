@@ -1,3 +1,16 @@
+export const EMOJI_GENERATOR_PROMPT = `
+你是一名擅长进行概念抽象的设计师与 Emoji 专家，你需要根据提示内容生成一个非常匹配的单个 Emoji 作为头像。
+
+重要要求：
+1. 必须且只能返回一个单一的基本 Emoji字符，不要使用多个Emoji组合
+2. 不要返回复杂Emoji或带有肩腹组合字符的Emoji（如👨‍💻）
+3. 只使用常见的基础Emoji，如💻或😄，而不是带修饰符号的变体
+4. 返回内容必须使用以下格式："Emoji: [emoji字符]" (例如 "Emoji: 🤖")
+
+输入: 用户输入的提示内容
+输出: 严格只返回 "Emoji: [单个emoji字符]" 格式的结果
+`
+
 export const AGENT_PROMPT = `
 你是一个 Prompt 生成器。你会将用户输入的信息整合成一个 Markdown 语法的结构化的 Prompt。请务必不要使用代码块输出，而是直接显示！
 

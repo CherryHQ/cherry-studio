@@ -287,3 +287,78 @@ export async function fetchModels(provider: Provider) {
     return []
   }
 }
+
+// 根据提示词获取推荐的 emoji
+export async function fetchEmojiSuggestion(prompt: string): Promise<string> {
+  if (!prompt || prompt.trim() === '') {
+    // 如果没有提示词，返回一些默认的 emoji
+    const defaultEmojis = ['🤖', '💡', '✨', '🧠', '📚'];
+    return defaultEmojis[Math.floor(Math.random() * defaultEmojis.length)];
+  }
+  
+  // 尝试使用 AI 生成 emoji
+  try {
+    // 从 store 中获取所有提供商
+    const providers = store.getState().llm.providers;
+    
+    // 获取第一个可用的 AI 提供商
+    const provider = providers.find(p => hasApiKey(p));
+    
+    if (provider) {
+      const { EMOJI_GENERATOR_PROMPT } = await import('@renderer/config/prompts');
+      const AI = new AiProvider(provider);
+      
+      // 使用 AI 生成 emoji
+      const systemPrompt = EMOJI_GENERATOR_PROMPT + "\n\n输入: " + prompt;
+      const completion = await AI.generateText({
+        prompt: systemPrompt,
+        content: ""
+      });
+      
+      // 从返回结果中提取 emoji
+      // 首先尝试查找格式为 "Emoji: X" 的模式
+      const emojiFormatMatch = completion.match(/Emoji[\s:]+([\p{Emoji}\p{Emoji_Presentation}]+)/u);
+      if (emojiFormatMatch && emojiFormatMatch[1]) {
+        return emojiFormatMatch[1];
+      }
+      
+      // 尝试查找第一个出现的 emoji
+      const match = completion.match(/[\p{Emoji}\p{Emoji_Presentation}]/u);
+      if (match && match[0]) {
+        return match[0];
+      }
+      
+      // 尝试匹配常见的 emoji 符号名称
+      const emojiNameMap = {
+        ':robot:': '🤖',
+        ':bulb:': '💡',
+        ':sparkles:': '✨',
+        ':brain:': '🧠',
+        ':books:': '📚',
+        ':computer:': '💻',
+        ':star2:': '🌟',
+        ':jigsaw:': '🧩'
+      };
+      
+      for (const [name, emoji] of Object.entries(emojiNameMap)) {
+        if (completion.includes(name)) {
+          return emoji;
+        }
+      }
+    }
+    
+    // 如果 AI 生成失败，回退到使用工具函数
+    const { generateEmojiFromPrompt } = await import('@renderer/utils');
+    return await generateEmojiFromPrompt(prompt);
+  } catch (error) {
+    console.error('Error generating emoji from prompt:', error);
+    // 尝试回退到默认函数
+    try {
+      const { generateEmojiFromPrompt } = await import('@renderer/utils');
+      return await generateEmojiFromPrompt(prompt);
+    } catch {
+      // 出错时返回一个默认 emoji
+      return '🤖';
+    }
+  }
+}

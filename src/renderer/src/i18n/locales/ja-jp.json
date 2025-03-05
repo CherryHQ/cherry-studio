@@ -39,6 +39,24 @@
       "delete.content": "アシスタントを削除すると、そのアシスタントのすべてのトピックとファイルが削除されます。削除しますか？",
       "delete.title": "アシスタントを削除",
       "edit.title": "アシスタントを編集",
+      "ungrouped": "グループなし",
+      "group": {
+        "add": "グループを作成",
+        "edit": "グループを編集",
+        "delete": {
+          "title": "グループを削除",
+          "content": "このグループを削除してもよろしいですか？このグループ内のすべてのアシスタントは未グループ化されます。"
+        },
+        "name": "グループ名",
+        "name.required": "グループ名を入力してください",
+        "name.placeholder": "グループ名を入力してください",
+        "description": "グループの説明",
+        "description.placeholder": "グループの説明を入力してください（任意）"
+      },
+      "move_to_group": "グループに移動",
+      "move_to_no_group": "グループから削除",
+      "moved_to_group": "グループに移動しました：{group}",
+      "moved_to_no_group": "グループから削除しました",
       "save.success": "保存に成功しました",
       "save.title": "エージェントに保存",
       "search": "アシスタントを検索...",
@@ -52,7 +70,7 @@
       "settings.reasoning_effort.low": "短い",
       "settings.reasoning_effort.medium": "中程度",
       "settings.reasoning_effort.off": "オフ",
-      "settings.reasoning_effort.tip": "OpenAIのoシリーズとAnthropicの推論モデルのみサポートしています",
+      "settings.reasoning_effort.tip": "この設定は推論モデルのみサポートしています",
       "title": "アシスタント"
     },
     "auth": {
@@ -110,7 +128,6 @@
       "message.new.context": "新しいコンテキスト",
       "message.regenerate.model": "モデルを切り替え",
       "message.useful": "役立つ",
-      "message.quote": "引用",
       "resend": "再送信",
       "save": "保存",
       "settings.code_collapsible": "コードブロック折り畳み",
@@ -148,12 +165,18 @@
       "topics.export.word": "Wordとしてエクスポート",
       "topics.export.yuque": "語雀にエクスポート",
       "topics.list": "トピックリスト",
+      "topics.lock": "トピックをロック",
+      "topics.locked_warning": "トピックがロックされています",
+      "topics.locked_warning_content": "このトピックはロックされており、新しいメッセージを送信できません",
+      "topics.locked_edit_warning": "トピックはロックされており、内容を編集できません",
+      "topics.locked_input_tip": "このトピックはロックされており、読み取り専用モードです",
       "topics.move_to": "移動先",
       "topics.pinned": "トピックを固定",
       "topics.prompt": "トピック提示語",
       "topics.prompt.edit.title": "トピック提示語を編集する",
       "topics.prompt.tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供",
       "topics.title": "トピック",
+      "topics.unlock": "ロック解除",
       "topics.unpinned": "固定解除",
       "translate": "翻訳"
     },
@@ -167,6 +190,7 @@
       "chat": "チャット",
       "clear": "クリア",
       "close": "閉じる",
+      "confirm": "OK",
       "copy": "コピー",
       "cut": "切り取り",
       "default": "デフォルト",
@@ -397,10 +421,10 @@
       "message.delete.content": "このメッセージを削除してもよろしいですか？",
       "message.delete.title": "メッセージを削除",
       "message.multi_model_style": "複数モデル回答スタイル",
-      "message.multi_model_style.fold": "タブ表示",
-      "message.multi_model_style.grid": "カード表示",
-      "message.multi_model_style.horizontal": "横並び",
-      "message.multi_model_style.vertical": "縦積み",
+      "message.multi_model_style.fold": "折りたたむ",
+      "message.multi_model_style.grid": "グリッド",
+      "message.multi_model_style.horizontal": "水平",
+      "message.multi_model_style.vertical": "垂直",
       "message.style": "メッセージスタイル",
       "message.style.bubble": "バブル",
       "message.style.plain": "プレーン",
@@ -565,8 +589,7 @@
       "yi": "零一万物",
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
-      "xirang": "天翼クラウド 息壤",
-      "tencent-cloud-ti": "Tencent Cloud TI"
+      "xirang": "天翼クラウド 息壤"
     },
     "settings": {
       "about": "について",
@@ -598,10 +621,6 @@
       "data": {
         "app_data": "アプリデータ",
         "app_logs": "アプリログ",
-        "app_knowledge": "ナレッジベースファイル",
-        "app_knowledge.remove_all": "ファイルを削除",
-        "app_knowledge.remove_all_confirm": "ナレッジベースファイルを削除してもナレッジベース自体は削除されません。これにより、ストレージ容量を節約できます。続行しますか？",
-        "app_knowledge.remove_all_success": "ファイル削除成功",
         "clear_cache": {
           "button": "キャッシュをクリア",
           "confirm": "キャッシュをクリアすると、アプリのキャッシュデータ（ミニアプリデータを含む）が削除されます。この操作は元に戻せません。続行しますか？",
@@ -707,9 +726,6 @@
       "general.title": "一般設定",
       "general.user_name": "ユーザー名",
       "general.user_name.placeholder": "ユーザー名を入力",
-      "general.image_upload": "画像アップロード",
-      "general.emoji_picker": "絵文字ピッカー",
-      "general.avatar.reset": "アバターをリセット",
       "general.view_webdav_settings": "WebDAV設定を表示",
       "input.auto_translate_with_space": "スペースを3回押して翻訳",
       "input.target_language": "目標言語",
@@ -790,9 +806,13 @@
         "search": "プロバイダーを検索..."
       },
       "proxy": {
+        "addTitle": "プロキシを追加",
+        "enabled": "プロキシを有効にする",
+        "host": "ホスト",
         "mode": {
-          "custom": "カスタムプロキシ",
-          "none": "プロキシを使用しない",
+          "direct": "直接接続",
+          "manual": "手動",
+          "pac": "PAC",
           "system": "システムプロキシ",
           "title": "プロキシモード"
         },
@@ -892,6 +912,22 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "topics": {
+      "add": "トピックを追加",
+      "group": {
+        "add": "グループを作成",
+        "edit": "グループを編集",
+        "name": "グループ名",
+        "name.required": "グループ名を入力してください",
+        "name.placeholder": "グループ名を入力",
+        "description": "グループの説明",
+        "description.placeholder": "グループの説明を入力（任意）"
+      },
+      "move_to_group": "グループに移動",
+      "no_group": "グループなし",
+      "new": "新しいトピック",
+      "ungrouped": "グループなし"
     },
     "code_block": {
       "enable_wrap": "改行",

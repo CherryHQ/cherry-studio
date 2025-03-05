@@ -1,5 +1,6 @@
 import 'katex/dist/katex.min.css'
 import 'katex/dist/contrib/copy-tex'
+import 'katex/dist/contrib/mhchem'
 
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -15,8 +16,6 @@ import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
-
-import 'katex/dist/contrib/mhchem'
 
 import CodeBlock from './CodeBlock'
 import ImagePreview from './ImagePreview'

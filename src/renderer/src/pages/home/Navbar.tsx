@@ -1,4 +1,4 @@
-import { FormOutlined, SearchOutlined } from '@ant-design/icons'
+import { SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
@@ -60,15 +60,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
           <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac ? 16 : 0 }}>
             <i className="iconfont icon-hide-sidebar" />
           </NavbarIcon>
-          <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
-            <FormOutlined />
-          </NavbarIcon>
+          {/* 删除添加新话题按钮 */}
         </NavbarLeft>
       )}
       <NavbarRight
         style={{ justifyContent: 'space-between', paddingRight: isWindows ? 140 : 12, flex: 1 }}
         className="home-navbar-right">
-        <HStack alignItems="center">
+        <HStack $alignItems="center">
           {!showAssistants && (
             <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
               <i className="iconfont icon-show-sidebar" />
@@ -82,7 +80,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
           </TitleText>
           <SelectModelButton assistant={assistant} />
         </HStack>
-        <HStack alignItems="center" gap={8}>
+        <HStack $alignItems="center" $gap={8}>
           <NarrowIcon onClick={() => SearchPopup.show()}>
             <SearchOutlined />
           </NarrowIcon>

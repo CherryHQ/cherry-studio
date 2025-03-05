@@ -39,6 +39,24 @@
       "delete.content": "删除助手会删除所有该助手下的话题和文件，确定要繼續吗？",
       "delete.title": "删除助手",
       "edit.title": "編輯助手",
+      "ungrouped": "未分組",
+      "group": {
+        "add": "創建分組",
+        "edit": "編輯分組",
+        "delete": {
+          "title": "刪除分組",
+          "content": "確定要刪除此分組嗎？該分組中的所有助手將被移至未分組。"
+        },
+        "name": "分組名稱",
+        "name.required": "請輸入分組名稱",
+        "name.placeholder": "請輸入分組名稱",
+        "description": "分組描述",
+        "description.placeholder": "請輸入分組描述（選填）"
+      },
+      "move_to_group": "移至分組",
+      "move_to_no_group": "從分組中移除",
+      "moved_to_group": "已移至分組：{group}",
+      "moved_to_no_group": "已從分組中移除",
       "save.success": "儲存成功",
       "save.title": "儲存到智能體",
       "search": "搜尋助手...",
@@ -148,12 +166,18 @@
       "topics.export.word": "導出為 Word",
       "topics.export.yuque": "匯出到語雀",
       "topics.list": "話題列表",
+      "topics.lock": "鎖定話題",
+      "topics.locked_warning": "話題已鎖定",
+      "topics.locked_warning_content": "該話題已被鎖定，無法發送新訊息",
+      "topics.locked_edit_warning": "話題已鎖定，無法編輯內容",
+      "topics.locked_input_tip": "該話題已鎖定，處於只讀狀態",
       "topics.move_to": "移動到",
       "topics.pinned": "固定話題",
       "topics.prompt": "話題提示詞",
       "topics.prompt.edit.title": "編輯話題提示詞",
       "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
       "topics.title": "話題",
+      "topics.unlock": "解除鎖定",
       "topics.unpinned": "取消固定",
       "translate": "翻譯"
     },
@@ -167,6 +191,7 @@
       "chat": "聊天",
       "clear": "清除",
       "close": "關閉",
+      "confirm": "OK",
       "copy": "複製",
       "cut": "剪下",
       "default": "預設",
@@ -858,6 +883,22 @@
         "search_result_default": "預設"
       },
       "display.assistant.title": "助手設定"
+    },
+    "topics": {
+      "add": "添加話題",
+      "group": {
+        "add": "添加分組",
+        "edit": "編輯分組",
+        "name": "分組名稱",
+        "name.required": "請輸入分組名稱",
+        "name.placeholder": "輸入分組名稱",
+        "description": "分組描述",
+        "description.placeholder": "輸入分組描述（可選）"
+      },
+      "move_to_group": "移動到分組",
+      "no_group": "無分組",
+      "new": "新話題",
+      "ungrouped": "未分組"
     },
     "translate": {
       "any.language": "任意語言",

@@ -48,6 +48,7 @@ export interface SettingsState {
   codeStyle: CodeStyleVarious
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
+  // 是否显示助手图标
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -338,6 +339,7 @@ export const {
   toggleShowTopics,
   setSendMessageShortcut,
   setLanguage,
+  setShowAssistantIcon,
   setTargetLanguage,
   setProxyMode,
   setProxyUrl,
@@ -351,7 +353,6 @@ export const {
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
-  setShowAssistantIcon,
   setPasteLongTextAsFile,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,

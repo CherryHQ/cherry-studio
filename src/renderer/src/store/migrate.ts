@@ -1215,6 +1215,18 @@ const migrateConfig = {
       enabled: false
     })
     return state
+  },
+  '77': (state: RootState) => {
+    // 修复从老版本升级时，assistants.groups 和 topicGroups 为 undefined 的问题
+    if (state.assistants) {
+      if (!state.assistants.groups) {
+        state.assistants.groups = []
+      }
+      if (!state.assistants.topicGroups) {
+        state.assistants.topicGroups = []
+      }
+    }
+    return state
   }
 }
 
