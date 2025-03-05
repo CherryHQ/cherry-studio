@@ -10,7 +10,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
-import { filterContextMessages } from '@renderer/services/MessagesService'
+import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import { takeRight } from 'lodash'
@@ -213,18 +213,6 @@ export default class OpenAIProvider extends BaseProvider {
     return model.id.startsWith('o1')
   }
 
-  private isForceUserMessageStart(model: Model) {
-    if (model.id === 'deepseek-reasoner') {
-      return true
-    }
-
-    if (model.provider === 'xirang') {
-      return true
-    }
-
-    return false
-  }
-
   async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -241,14 +229,8 @@ export default class OpenAIProvider extends BaseProvider {
 
     const userMessages: ChatCompletionMessageParam[] = []
 
-    const _messages = filterContextMessages(takeRight(messages, contextCount + 1))
+    const _messages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
     onFilterMessages(_messages)
-
-    if (this.isForceUserMessageStart(model)) {
-      if (_messages[0]?.role !== 'user') {
-        userMessages.push({ role: 'user', content: '' })
-      }
-    }
 
     for (const message of _messages) {
       userMessages.push(await this.getMessageParam(message, model))
