@@ -234,7 +234,8 @@ export default class OpenAIProvider extends BaseProvider {
         description: tool.description,
         parameters: {
           type: 'object',
-          properties: tool.inputSchema.properties
+          properties: tool.inputSchema.properties,
+          required: tool.inputSchema.required
         }
       }
     }))
