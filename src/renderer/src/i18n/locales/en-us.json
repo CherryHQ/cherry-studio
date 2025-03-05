@@ -481,6 +481,11 @@
       "websearch": "WebSearch",
       "edit": "Edit Model"
     },
+    "navbar": {
+      "expand": "Expand Dialog",
+      "show_sidebar": "Show Sidebar",
+      "hide_sidebar": "Hide Sidebar"
+    },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
       "keep_alive_time.placeholder": "Minutes",
