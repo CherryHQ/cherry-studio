@@ -582,6 +582,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   }
 
   const onEnableWebSearch = () => {
+    console.log(assistant)
     if (!isWebSearchModel(model)) {
       if (!WebSearchService.isWebSearchEnabled()) {
         window.modal.confirm({

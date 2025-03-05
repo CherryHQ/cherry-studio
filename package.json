@@ -48,6 +48,9 @@
     "check": "node scripts/check-i18n.js"
   },
   "dependencies": {
+    "@agentic/exa": "^7.3.3",
+    "@agentic/searxng": "^7.3.3",
+    "@agentic/tavily": "^7.3.3",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",

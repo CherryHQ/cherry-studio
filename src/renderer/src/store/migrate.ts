@@ -1215,6 +1215,15 @@ const migrateConfig = {
       enabled: false
     })
     return state
+  },
+  '77': (state: RootState) => {
+    state.websearch.providers.push({
+      id: 'exa',
+      name: 'Exa',
+      enabled: false,
+      apiKey: ''
+    })
+    return state
   }
 }
 

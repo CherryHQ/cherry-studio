@@ -12,6 +12,62 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@agentic/core@npm:7.3.3":
+  version: 7.3.3
+  resolution: "@agentic/core@npm:7.3.3"
+  dependencies:
+    dedent: "npm:^1.5.3"
+    delay: "npm:^6.0.0"
+    jsonrepair: "npm:^3.9.0"
+    ky: "npm:^1.7.5"
+    openai-zod-to-json-schema: "npm:^1.0.3"
+    p-map: "npm:^7.0.2"
+    p-throttle: "npm:^6.2.0"
+    type-fest: "npm:^4.35.0"
+    zod-validation-error: "npm:^3.4.0"
+  peerDependencies:
+    zod: ^3.24.2
+  checksum: 10c0/5f9736cdfa72da5093a8889b168cce38107be1df60cade62df82236b96fdf6970a5fcdf1f12a17630190f75f5b431fff2e70ca3cb33bb1e550ad5488e03699e7
+  languageName: node
+  linkType: hard
+
+"@agentic/exa@npm:^7.3.3":
+  version: 7.3.3
+  resolution: "@agentic/exa@npm:7.3.3"
+  dependencies:
+    "@agentic/core": "npm:7.3.3"
+    ky: "npm:^1.7.5"
+  peerDependencies:
+    zod: ^3.24.2
+  checksum: 10c0/0293d9f7cda2b17669c853f0834a189988ab8bd8d219f0916d894786143ac732a5c2a669ba112b5edf45b8574473c25a0bf5537c23d666df3132624fca16741e
+  languageName: node
+  linkType: hard
+
+"@agentic/searxng@npm:^7.3.3":
+  version: 7.3.3
+  resolution: "@agentic/searxng@npm:7.3.3"
+  dependencies:
+    "@agentic/core": "npm:7.3.3"
+    ky: "npm:^1.7.5"
+  peerDependencies:
+    zod: ^3.24.2
+  checksum: 10c0/474e53f232c6ad46315db9a9f2381f8d51623ba6f1eb514c92f328762a350565ff4bfa75d5cb5fb1454ce0d426bf033565167b708b21e8d3488ea1454461f713
+  languageName: node
+  linkType: hard
+
+"@agentic/tavily@npm:^7.3.3":
+  version: 7.3.3
+  resolution: "@agentic/tavily@npm:7.3.3"
+  dependencies:
+    "@agentic/core": "npm:7.3.3"
+    ky: "npm:^1.7.5"
+    p-throttle: "npm:^6.2.0"
+  peerDependencies:
+    zod: ^3.24.2
+  checksum: 10c0/604e9a1a15cd8a6b70754dcc919c843988376d7ed65f83ba24d8add7c8febfae782184cf804611d5baacc5249d50ac8e19fa85390d8a40086c52c352a9bbb87d
+  languageName: node
+  linkType: hard
+
 "@ampproject/remapping@npm:^2.2.0":
   version: 2.3.0
   resolution: "@ampproject/remapping@npm:2.3.0"
@@ -3050,6 +3106,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "CherryStudio@workspace:."
   dependencies:
+    "@agentic/exa": "npm:^7.3.3"
+    "@agentic/searxng": "npm:^7.3.3"
+    "@agentic/tavily": "npm:^7.3.3"
     "@anthropic-ai/sdk": "npm:^0.38.0"
     "@electron-toolkit/eslint-config-prettier": "npm:^2.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^1.0.1"
