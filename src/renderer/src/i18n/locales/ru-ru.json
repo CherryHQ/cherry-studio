@@ -600,7 +600,8 @@
         "app_data": "Данные приложения",
         "app_logs": "Логи приложения",
         "app_knowledge": "База знаний",
-        "app_knowledge.remove_all": "Удалить файлы",
+        "app_knowledge.button.delete": "Удалить файл",
+        "app_knowledge.remove_all": "Удалить файлы базы знаний",
         "app_knowledge.remove_all_confirm": "Удаление файлов базы знаний не удалит саму базу знаний, что позволит уменьшить занимаемый объем памяти, продолжить?",
         "app_knowledge.remove_all_success": "Файлы удалены успешно",
         "clear_cache": {

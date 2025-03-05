@@ -600,8 +600,9 @@
         "app_data": "アプリデータ",
         "app_logs": "アプリログ",
         "app_knowledge": "ナレッジベースファイル",
-        "app_knowledge.remove_all": "ファイルを削除",
-        "app_knowledge.remove_all_confirm": "ナレッジベースファイルを削除してもナレッジベース自体は削除されません。これにより、ストレージ容量を節約できます。続行しますか？",
+        "app_knowledge.button.delete": "ファイルを削除",
+        "app_knowledge.remove_all": "ナレッジベースファイルを削除",
+        "app_knowledge.remove_all_confirm": "ナレッジベースファイルを削除すると、ナレッジベース自体は削除されません。これにより、ストレージ容量を節約できます。続行しますか？",
         "app_knowledge.remove_all_success": "ファイル削除成功",
         "clear_cache": {
           "button": "キャッシュをクリア",

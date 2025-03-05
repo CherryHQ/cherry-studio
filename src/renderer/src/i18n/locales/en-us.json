@@ -600,8 +600,9 @@
         "app_data": "App Data",
         "app_logs": "App Logs",
         "app_knowledge": "Knowledge Base Files",
-        "app_knowledge.remove_all": "Remove Files",
-        "app_knowledge.remove_all_confirm": "Removing knowledge base files will not delete the knowledge base itself, which will reduce the storage space occupied. Continue?",
+        "app_knowledge.button.delete": "Delete File",
+        "app_knowledge.remove_all": "Remove Knowledge Base Files",
+        "app_knowledge.remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
         "app_knowledge.remove_all_success": "Files removed successfully",
         "clear_cache": {
           "button": "Clear Cache",
@@ -907,7 +908,7 @@
       "title": "Data Backup",
       "confirm": "Are you sure you want to backup data?",
       "confirm.button": "Select Backup Location",
-      "content": "Backup operation will cover all application data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+      "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
       "progress": {
         "title": "Backup Progress",
         "preparing": "Preparing backup...",
