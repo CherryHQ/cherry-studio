@@ -169,6 +169,7 @@ export interface FileType {
   created_at: Date
   count: number
   tokens?: number
+  externalSource?: string
 }
 
 export enum FileTypes {
@@ -177,6 +178,7 @@ export enum FileTypes {
   AUDIO = 'audio',
   TEXT = 'text',
   DOCUMENT = 'document',
+  EXTERNAL = 'external',
   OTHER = 'other'
 }
 
@@ -219,7 +221,7 @@ export interface Shortcut {
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory'
+export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'external'
 
 export type KnowledgeItem = {
   id: string
@@ -237,20 +239,35 @@ export type KnowledgeItem = {
   retryCount?: number
 }
 
+export interface ExternalImportConfig {
+  type: 'notion' | 'obsidian' | string
+  enabled: boolean
+  // Notion specific config
+  notionConfig?: {
+    apiKey: string
+    databaseId: string
+  }
+  // Add other external service configs as needed
+  // obsidianConfig?: {...}
+}
+
 export interface KnowledgeBase {
   id: string
   name: string
   model: Model
-  dimensions: number
+  type?: string
+  dimensions?: number
   description?: string
   items: KnowledgeItem[]
   created_at: number
   updated_at: number
-  version: number
-  documentCount?: number
+  version?: string
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  documentCount?: number
+  // Add external imports configuration
+  externalImports?: ExternalImportConfig | null
 }
 
 export type KnowledgeBaseParams = {

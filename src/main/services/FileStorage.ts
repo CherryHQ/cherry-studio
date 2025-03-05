@@ -23,9 +23,13 @@ import { v4 as uuidv4 } from 'uuid'
 class FileStorage {
   private storageDir = path.join(app.getPath('userData'), 'Data', 'Files')
   private tempDir = path.join(app.getPath('temp'), 'CherryStudio')
+  private externalImportDir = path.join(app.getPath('userData'), 'Data', 'ExternalImports')
 
   constructor() {
     this.initStorageDir()
+    if (!fs.existsSync(this.externalImportDir)) {
+      fs.mkdirSync(this.externalImportDir, { recursive: true })
+    }
   }
 
   private initStorageDir = (): void => {
@@ -237,6 +241,14 @@ class FileStorage {
       fs.mkdirSync(this.tempDir, { recursive: true })
     }
     const tempFilePath = path.join(this.tempDir, `temp_file_${uuidv4()}_${fileName}`)
+    return tempFilePath
+  }
+
+  public createOrginFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
+    if (!fs.existsSync(this.tempDir)) {
+      fs.mkdirSync(this.tempDir, { recursive: true })
+    }
+    const tempFilePath = path.join(this.tempDir, `${fileName}`)
     return tempFilePath
   }
 
@@ -464,6 +476,75 @@ class FileStorage {
       logger.info('[FileStorage] File copied successfully:', { from: sourcePath, to: destPath })
     } catch (error) {
       logger.error('[FileStorage] Copy file failed:', error)
+      throw error
+    }
+  }
+
+  public uploadExternalImportFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    fileContent: string,
+    fileInfo: any
+  ): Promise<FileType> => {
+    try {
+      // 验证内容
+      if (!fileContent || typeof fileContent !== 'string' || fileContent.length === 0) {
+        throw new Error(`Invalid content: ${typeof fileContent}, length: ${fileContent?.length || 0}`)
+      }
+
+      // 生成文件名
+      const sourceType = fileInfo.sourceType || 'unknown'
+      const fileName = fileInfo.id || `import_${Date.now()}`
+      const extname = fileInfo.ext || '.md'
+
+      // 创建源目录
+      const sourceDir = path.join(this.externalImportDir, sourceType)
+      fs.mkdirSync(sourceDir, { recursive: true })
+
+      // 设置文件路径并写入内容
+      const dest = path.join(sourceDir, fileName + extname)
+      fs.writeFileSync(dest, fileContent)
+
+      // 返回文件元数据
+      return {
+        id: fileName,
+        name: fileName,
+        path: dest,
+        origin_name: fileInfo.origin_name || `${fileName}${extname}`,
+        size: fileContent.length,
+        ext: extname,
+        type: fileInfo.type || getFileType(extname),
+        count: 1,
+        created_at: new Date(),
+        externalSource: sourceType
+      }
+    } catch (error) {
+      console.error('[FileStorage] Error in uploadExternalImportFile:', error)
+      throw error
+    }
+  }
+
+  public importFromExternalSource = async (
+    _: Electron.IpcMainInvokeEvent,
+    params: { content: string; fileName: string; sourceType: string; fileExt: string }
+  ): Promise<string> => {
+    try {
+      const { content, fileName, sourceType, fileExt } = params
+      // Validation
+      if (!content || typeof content !== 'string' || content.length === 0) {
+        throw new Error(`Invalid content: ${typeof content}, length: ${content?.length || 0}`)
+      }
+
+      // 创建源类型目录
+      const sourceDir = path.join(this.externalImportDir, sourceType)
+      fs.mkdirSync(sourceDir, { recursive: true })
+
+      // 设置文件路径并写入内容
+      const dest = path.join(sourceDir, fileName + fileExt)
+      fs.writeFileSync(dest, content)
+
+      return dest
+    } catch (error) {
+      console.error('[FileStorage] Error in importFromExternalSource:', error)
       throw error
     }
   }
