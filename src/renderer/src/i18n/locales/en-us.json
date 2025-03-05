@@ -68,7 +68,8 @@
       "collapse": "Collapse",
       "manage": "Manage",
       "select_model": "Select Model",
-      "show.all": "Show All"
+      "show.all": "Show All",
+      "update_available": "Update Available"
     },
     "chat": {
       "add.assistant.title": "Add Assistant",

@@ -15,6 +15,7 @@ declare global {
     api: {
       getAppInfo: () => Promise<AppInfo>
       checkForUpdate: () => Promise<{ currentVersion: string; updateInfo: UpdateInfo | null }>
+      showUpdateDialog: () => Promise<void>
       openWebsite: (url: string) => void
       setProxy: (proxy: string | undefined) => void
       setLanguage: (theme: LanguageVarious) => void

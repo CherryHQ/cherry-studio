@@ -68,7 +68,8 @@
       "collapse": "折りたたむ",
       "manage": "管理",
       "select_model": "モデルを選択",
-      "show.all": "すべて表示"
+      "show.all": "すべて表示",
+      "update_available": "更新可能"
     },
     "chat": {
       "add.assistant.title": "アシスタントを追加",

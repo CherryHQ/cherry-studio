@@ -18,6 +18,7 @@ import { FC } from 'react'
 import styled from 'styled-components'
 
 import SelectModelButton from './components/SelectModelButton'
+import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
   activeAssistant: Assistant
@@ -83,6 +84,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
           <SelectModelButton assistant={assistant} />
         </HStack>
         <HStack alignItems="center" gap={8}>
+          <UpdateAppButton />
           <NarrowIcon onClick={() => SearchPopup.show()}>
             <SearchOutlined />
           </NarrowIcon>

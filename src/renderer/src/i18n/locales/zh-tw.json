@@ -68,7 +68,8 @@
       "collapse": "收起",
       "manage": "管理",
       "select_model": "選擇模型",
-      "show.all": "顯示全部"
+      "show.all": "顯示全部",
+      "update_available": "有可用更新"
     },
     "chat": {
       "add.assistant.title": "添加助手",

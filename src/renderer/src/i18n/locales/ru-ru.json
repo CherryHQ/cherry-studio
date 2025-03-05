@@ -68,7 +68,8 @@
       "collapse": "Свернуть",
       "manage": "Редактировать",
       "select_model": "Выбрать модель",
-      "show.all": "Показать все"
+      "show.all": "Показать все",
+      "update_available": "Доступно обновление"
     },
     "chat": {
       "add.assistant.title": "Добавить ассистента",
