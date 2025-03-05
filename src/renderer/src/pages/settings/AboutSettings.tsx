@@ -36,6 +36,11 @@ const AboutSettings: FC = () => {
         return
       }
 
+      if (update.downloaded) {
+        window.api.showUpdateDialog()
+        return
+      }
+
       dispatch(setUpdateState({ checking: true }))
 
       try {

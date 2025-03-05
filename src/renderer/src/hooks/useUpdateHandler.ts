@@ -1,6 +1,6 @@
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
-import type { ProgressInfo, UpdateInfo } from 'electron-updater'
+import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -46,8 +46,14 @@ export default function useUpdateHandler() {
           })
         )
       }),
-      ipcRenderer.on('update-downloaded', () => {
-        dispatch(setUpdateState({ downloading: false }))
+      ipcRenderer.on('update-downloaded', (_, releaseInfo: UpdateInfo) => {
+        dispatch(
+          setUpdateState({
+            downloading: false,
+            info: releaseInfo,
+            downloaded: true
+          })
+        )
       }),
       ipcRenderer.on('update-error', (_, error) => {
         dispatch(
