@@ -234,7 +234,7 @@ export default class OpenAIProvider extends BaseProvider {
         description: tool.description,
         parameters: {
           type: 'object',
-          properties: tool.inputSchema
+          properties: tool.inputSchema.properties
         }
       }
     }))
@@ -373,7 +373,6 @@ export default class OpenAIProvider extends BaseProvider {
 
         // Extract citations from the raw response if available
         const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
-
         if (delta?.tool_calls) {
           const chunkToolCalls: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall[] = delta.tool_calls
           if (chunk.choices[0].finish_reason !== 'tool_calls') {
