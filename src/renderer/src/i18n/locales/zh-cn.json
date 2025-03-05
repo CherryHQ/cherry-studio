@@ -481,6 +481,11 @@
       "websearch": "联网",
       "edit": "编辑模型"
     },
+    "navbar": {
+      "expand": "伸缩对话框",
+      "show_sidebar": "显示侧边栏",
+      "hide_sidebar": "隐藏侧边栏"
+    },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
       "keep_alive_time.placeholder": "分钟",
