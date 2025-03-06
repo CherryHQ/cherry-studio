@@ -247,7 +247,6 @@ export default class OpenAIProvider extends BaseProvider {
     if (!mcpTools) return undefined
     const tool = mcpTools.find((tool) => tool.id === llmTool.function.name)
     if (!tool) {
-      console.log('Invalid tool name', llmTool.function.name)
       return undefined
     }
     tool.inputSchema = JSON.parse(llmTool.function.arguments)
@@ -327,7 +326,6 @@ export default class OpenAIProvider extends BaseProvider {
     const { signal } = abortController
 
     const tools = mcpTools && mcpTools.length > 0 ? this.mcpToolsToOpenAITools(mcpTools) : undefined
-    console.log('tools', tools)
 
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
       Boolean
@@ -401,10 +399,8 @@ export default class OpenAIProvider extends BaseProvider {
 
           for (const toolCall of toolCalls) {
             const mcpTool = this.openAIToolsToMcpTool(mcpTools, toolCall)
-            console.log('mcpTool', JSON.stringify(mcpTool, null, 2))
 
             if (!mcpTool) {
-              console.log('Invalid tool', toolCall)
               continue
             }
 
@@ -413,9 +409,6 @@ export default class OpenAIProvider extends BaseProvider {
               name: mcpTool.name,
               args: mcpTool.inputSchema
             })
-
-            console.log(`Tool ${mcpTool.serverName} - ${mcpTool.name} Call Response:`)
-            console.log(toolCallResponse)
 
             reqMessages.push({
               role: 'tool',
