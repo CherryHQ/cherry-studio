@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",

@@ -230,30 +230,27 @@ export default class OpenAIProvider extends BaseProvider {
     return mcpTools.map((tool) => ({
       type: 'function',
       function: {
-        name: `mcp.${tool.serverName}.${tool.name}`,
+        name: tool.id,
         description: tool.description,
         parameters: {
           type: 'object',
-          properties: tool.inputSchema
+          properties: tool.inputSchema.properties
         }
       }
     }))
   }
 
-  private openAIToolsToMcpTool(tool: ChatCompletionMessageToolCall): MCPTool | undefined {
-    const parts = tool.function.name.split('.')
-    if (parts[0] !== 'mcp') {
-      console.log('Invalid tool name', tool.function.name)
+  private openAIToolsToMcpTool(
+    mcpTools: MCPTool[] | undefined,
+    llmTool: ChatCompletionMessageToolCall
+  ): MCPTool | undefined {
+    if (!mcpTools) return undefined
+    const tool = mcpTools.find((tool) => tool.id === llmTool.function.name)
+    if (!tool) {
       return undefined
     }
-    const serverName = parts[1]
-    const name = parts[2]
-
-    return {
-      serverName: serverName,
-      name: name,
-      inputSchema: JSON.parse(tool.function.arguments)
-    } as MCPTool
+    tool.inputSchema = JSON.parse(llmTool.function.arguments)
+    return tool
   }
 
   async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams): Promise<void> {
@@ -328,7 +325,7 @@ export default class OpenAIProvider extends BaseProvider {
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
 
-    const tools = mcpTools ? this.mcpToolsToOpenAITools(mcpTools) : undefined
+    const tools = mcpTools && mcpTools.length > 0 ? this.mcpToolsToOpenAITools(mcpTools) : undefined
 
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
       Boolean
@@ -401,11 +398,9 @@ export default class OpenAIProvider extends BaseProvider {
           } as ChatCompletionAssistantMessageParam)
 
           for (const toolCall of toolCalls) {
-            const mcpTool = this.openAIToolsToMcpTool(toolCall)
-            console.log('mcpTool', JSON.stringify(mcpTool, null, 2))
+            const mcpTool = this.openAIToolsToMcpTool(mcpTools, toolCall)
 
             if (!mcpTool) {
-              console.log('Invalid tool', toolCall)
               continue
             }
 
@@ -414,9 +409,6 @@ export default class OpenAIProvider extends BaseProvider {
               name: mcpTool.name,
               args: mcpTool.inputSchema
             })
-
-            console.log(`Tool ${mcpTool.serverName} - ${mcpTool.name} Call Response:`)
-            console.log(toolCallResponse)
 
             reqMessages.push({
               role: 'tool',

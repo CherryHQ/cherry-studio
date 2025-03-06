@@ -80,9 +80,4 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    数据备份和恢复支持进度显示
-    支持快捷引用模型回复内容
-    输入框可以手动调整大小
-    知识库文件支持一键删除
-    服务商列表支持查询（拖拽可排序）
-    增加代码块换行功能
+    修复公式渲染问题
