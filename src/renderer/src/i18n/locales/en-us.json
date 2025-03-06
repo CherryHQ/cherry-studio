@@ -867,6 +867,8 @@
         "addServer": "Add Server",
         "editServer": "Edit Server",
         "name": "Name",
+        "type": "Type",
+        "url": "URL",
         "command": "Command",
         "args": "Arguments",
         "argsTooltip": "Each argument on a new line",

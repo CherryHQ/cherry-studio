@@ -3,7 +3,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addMCPServer, deleteMCPServer, setMCPServerActive, updateMCPServer } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
-import { Button, Card, Form, Input, message, Modal, Radio, Space, Switch, Table, Tooltip, Typography } from 'antd'
+import { Button, Card, Form, Input, message, Modal, Radio, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -189,42 +189,49 @@ const MCPSettings: FC = () => {
       title: t('settings.mcp.name'),
       dataIndex: 'name',
       key: 'name',
-      width: '15%',
+      width: '10%',
       render: (text: string, record: MCPServer) => <Text strong={record.isActive}>{text}</Text>
     },
     {
       title: t('settings.mcp.type'),
       key: 'type',
-      width: '10%',
-      render: (_: any, record: MCPServer) => <Text>{record.baseUrl ? 'SSE' : 'STDIO'}</Text>
-    },
-    {
-      title: t('settings.mcp.endpoint'),
-      key: 'endpoint',
-      width: '30%',
-      render: (_: any, record: MCPServer) => (
-        <Text ellipsis={{ tooltip: true }}>
-          {record.baseUrl ? record.baseUrl : record.command ? `${record.command} ${record.args?.join(' ') || ''}` : ''}
-        </Text>
-      )
+      width: '5%',
+      render: (_: any, record: MCPServer) => <Tag color="cyan">{record.baseUrl ? 'SSE' : 'STDIO'}</Tag>
     },
     {
       title: t('settings.mcp.description'),
       dataIndex: 'description',
       key: 'description',
-      width: '20%',
-      render: (text: string) =>
-        text || (
-          <Text type="secondary" italic>
-            {t('common.description')}
-          </Text>
+      width: '50%',
+      render: (text: string) => {
+        if (!text) {
+          return (
+            <Text type="secondary" italic>
+              {t('common.description')}
+            </Text>
+          )
+        }
+
+        return (
+          <Paragraph
+            ellipsis={{
+              rows: 1,
+              expandable: 'collapsible',
+              symbol: 'more',
+              onExpand: () => {}, // Empty callback required for proper functionality
+              tooltip: true
+            }}
+            style={{ marginBottom: 0 }}>
+            {text}
+          </Paragraph>
         )
+      }
     },
     {
       title: t('settings.mcp.active'),
       dataIndex: 'isActive',
       key: 'isActive',
-      width: '10%',
+      width: '5%',
       render: (isActive: boolean, record: MCPServer) => (
         <Switch checked={isActive} onChange={(checked) => handleToggleActive(record.name, checked)} />
       )
@@ -232,7 +239,7 @@ const MCPSettings: FC = () => {
     {
       title: t('settings.mcp.actions'),
       key: 'actions',
-      width: '15%',
+      width: '10%',
       render: (_: any, record: MCPServer) => (
         <Space>
           <Tooltip title={t('common.edit')}>
@@ -311,7 +318,7 @@ const MCPSettings: FC = () => {
 
             <Form.Item
               name="serverType"
-              label={t('settings.mcp.serverType')}
+              label={t('settings.mcp.type')}
               rules={[{ required: true }]}
               initialValue="stdio">
               <Radio.Group
@@ -339,11 +346,11 @@ const MCPSettings: FC = () => {
                   name="command"
                   label={t('settings.mcp.command')}
                   rules={[{ required: serverType === 'stdio', message: t('settings.mcp.commandRequired') }]}>
-                  <Input placeholder="python script.py" />
+                  <Input placeholder="uvx or npx" />
                 </Form.Item>
 
                 <Form.Item name="args" label={t('settings.mcp.args')} tooltip={t('settings.mcp.argsTooltip')}>
-                  <TextArea rows={3} placeholder="--param1\n--param2 value" style={{ fontFamily: 'monospace' }} />
+                  <TextArea rows={3} placeholder="arg1\narg2" style={{ fontFamily: 'monospace' }} />
                 </Form.Item>
 
                 <Form.Item name="env" label={t('settings.mcp.env')} tooltip={t('settings.mcp.envTooltip')}>
