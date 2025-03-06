@@ -66,7 +66,7 @@ class WebSearchService {
     let provider = providers.find((provider) => provider.id === defaultProvider)
 
     if (!provider) {
-      provider = providers.find((p) => p.enabled) || providers[0]
+      provider = providers[0]
       if (provider) {
         // 可选：自动更新默认提供商
         store.dispatch(setDefaultProvider(provider.id))
