@@ -1,6 +1,7 @@
 import {
   Content,
   FileDataPart,
+  FunctionDeclaration,
   GoogleGenerativeAI,
   HarmBlockThreshold,
   HarmCategory,
@@ -8,7 +9,9 @@ import {
   Part,
   RequestOptions,
   SafetySetting,
-  TextPart
+  SchemaType,
+  TextPart,
+  Tool
 } from '@google/generative-ai'
 import { isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -16,7 +19,7 @@ import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileType, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, FileType, FileTypes, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import axios from 'axios'
 import { isEmpty, takeRight } from 'lodash'
@@ -141,7 +144,29 @@ export default class GeminiProvider extends BaseProvider {
     ]
   }
 
-  public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
+  private mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): Tool[] {
+    if (!mcpTools) {
+      return []
+    }
+    const functions: FunctionDeclaration[] = []
+    for (const tool of mcpTools) {
+      const functionDeclaration: FunctionDeclaration = {
+        name: tool.id,
+        description: tool.description,
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: tool.inputSchema.properties
+        }
+      }
+      functions.push(functionDeclaration)
+    }
+    const tool: Tool = {
+      functionDeclarations: functions
+    }
+    return [tool]
+  }
+
+  public async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
@@ -157,12 +182,19 @@ export default class GeminiProvider extends BaseProvider {
       history.push(await this.getMessageContents(message))
     }
 
+    const tools = this.mcpToolsToGeminiTools(mcpTools)
+    if (assistant.enableWebSearch && isWebSearchModel(model)) {
+      tools.push({
+        // @ts-ignore googleSearch is not a valid tool for Gemini
+        googleSearch: {}
+      })
+    }
+
     const geminiModel = this.sdk.getGenerativeModel(
       {
         model: model.id,
         systemInstruction: assistant.prompt,
-        // @ts-ignore googleSearch is not a valid tool for Gemini
-        tools: assistant.enableWebSearch && isWebSearchModel(model) ? [{ googleSearch: {} }] : undefined,
+        tools: tools.length > 0 ? tools : undefined,
         safetySettings: this.getSafetySettings(model.id),
         generationConfig: {
           maxOutputTokens: maxTokens,
