@@ -239,7 +239,7 @@ export default class GeminiProvider extends BaseProvider {
               fcRespParts.push({
                 functionResponse: {
                   name: mcpTool.id,
-                  response: toolCallResponse.content
+                  response: toolCallResponse
                 }
               })
             }
