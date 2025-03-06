@@ -479,7 +479,8 @@
       },
       "vision": "视觉",
       "websearch": "联网",
-      "edit": "编辑模型"
+      "edit": "编辑模型", 
+      "no_matches": "无可用模型"
     },
     "navbar": {
       "expand": "伸缩对话框",

@@ -459,6 +459,7 @@
       "embedding_model": "Embedding Model",
       "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
       "free": "Free",
+      "no_matches": "No models available",
       "parameter_name": "Parameter Name",
       "parameter_type": {
         "boolean": "Boolean",
