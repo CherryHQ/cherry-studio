@@ -402,6 +402,8 @@
       "message.multi_model_style.grid": "卡片布局",
       "message.multi_model_style.horizontal": "横向排列",
       "message.multi_model_style.vertical": "纵向堆叠",
+      "message.multi_model_style.fold.compact": "模型紧凑排列",
+      "message.multi_model_style.fold.expanded": "模型展开排列",
       "message.style": "消息样式",
       "message.style.bubble": "气泡",
       "message.style.plain": "简洁",

@@ -402,6 +402,8 @@
       "message.multi_model_style.grid": "卡片配置",
       "message.multi_model_style.horizontal": "橫向排列",
       "message.multi_model_style.vertical": "縱向堆疊",
+      "message.multi_model_style.fold.compact": "模型緊湊排列",
+      "message.multi_model_style.fold.expanded": "模型展開排列",
       "message.style": "訊息樣式",
       "message.style.bubble": "氣泡",
       "message.style.plain": "簡潔",
@@ -479,7 +481,7 @@
       },
       "vision": "視覺",
       "websearch": "網路搜尋",
-      "edit": "編輯模型", 
+      "edit": "編輯模型",
       "no_matches": "無可用模型"
     },
     "navbar": {

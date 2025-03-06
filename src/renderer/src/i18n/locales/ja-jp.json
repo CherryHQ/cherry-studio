@@ -402,6 +402,8 @@
       "message.multi_model_style.grid": "カード表示",
       "message.multi_model_style.horizontal": "横並び",
       "message.multi_model_style.vertical": "縦積み",
+      "message.multi_model_style.fold.compact": "モデル緊湊配置",
+      "message.multi_model_style.fold.expanded": "モデル展開配置",
       "message.style": "メッセージスタイル",
       "message.style.bubble": "バブル",
       "message.style.plain": "プレーン",

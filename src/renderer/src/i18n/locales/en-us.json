@@ -402,6 +402,8 @@
       "message.multi_model_style.grid": "Grid layout",
       "message.multi_model_style.horizontal": "Side by side",
       "message.multi_model_style.vertical": "Stacked view",
+      "message.multi_model_style.fold.compact": "Model compact layout",
+      "message.multi_model_style.fold.expanded": "Model expanded layout",
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
