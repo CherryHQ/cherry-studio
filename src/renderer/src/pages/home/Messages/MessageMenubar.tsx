@@ -295,7 +295,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
     const _message: Message = resetAssistantMessage(message, selectedModel)
 
-    if (message.askId && message.model) {
+    if (message.askId && message.model && isGrouped) {
       return EventEmitter.emit(EVENT_NAMES.APPEND_MESSAGE, { ..._message, id: uuid() })
     }
 

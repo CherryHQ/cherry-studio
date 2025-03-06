@@ -95,9 +95,31 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
   const onAppendMessage = useCallback(
     (message: Message) => {
       setMessages((prev) => {
-        const messages = prev.concat([message])
-        db.topics.put({ id: topic.id, messages })
-        return messages
+        // Find the index of the last message with the same askId
+        let sameAskIdLastIndex = -1
+
+        if (message.askId) {
+          // Iterate from the end to find the last message with the same askId
+          for (let i = prev.length - 1; i >= 0; i--) {
+            if (prev[i].askId === message.askId) {
+              sameAskIdLastIndex = i
+              break
+            }
+          }
+        }
+
+        // If a message with the same askId is found
+        if (sameAskIdLastIndex !== -1) {
+          // Create a new array with the message inserted after the last message with the same askId
+          const newMessages = [...prev.slice(0, sameAskIdLastIndex + 1), message, ...prev.slice(sameAskIdLastIndex + 1)]
+          db.topics.put({ id: topic.id, messages: newMessages })
+          return newMessages
+        } else {
+          // If no message with the same askId is found, append to the end as before
+          const messages = prev.concat([message])
+          db.topics.put({ id: topic.id, messages })
+          return messages
+        }
       })
     },
     [topic.id]
