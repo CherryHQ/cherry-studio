@@ -1,9 +1,7 @@
 import {
   Content,
   FileDataPart,
-  FunctionCall,
   FunctionCallPart,
-  FunctionDeclaration,
   FunctionResponsePart,
   GenerateContentStreamResult,
   GoogleGenerativeAI,
@@ -13,9 +11,7 @@ import {
   Part,
   RequestOptions,
   SafetySetting,
-  SchemaType,
-  TextPart,
-  Tool
+  TextPart
 } from '@google/generative-ai'
 import { isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -23,7 +19,7 @@ import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileType, FileTypes, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, FileType, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import axios from 'axios'
 import { isEmpty, takeRight } from 'lodash'
@@ -31,18 +27,7 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
-const geminiSupportedAttributes = [
-  'type',
-  'nullable',
-  'required',
-  // 'format',
-  'description',
-  'properties',
-  'items',
-  'enum',
-  'anyOf'
-]
+import { callMCPTool, geminiFunctionCallToMcpTool, mcpToolsToGeminiTools } from './mcpToolUtils'
 
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI
@@ -161,53 +146,6 @@ export default class GeminiProvider extends BaseProvider {
     ]
   }
 
-  private mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): Tool[] {
-    if (!mcpTools) {
-      return []
-    }
-    const functions: FunctionDeclaration[] = []
-
-    const getSubMap = (obj: Record<string, any>, keys: string[]) => {
-      return Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)))
-    }
-
-    for (const tool of mcpTools) {
-      const filteredProperties = tool.inputSchema.properties
-      for (const [key, val] of Object.entries(filteredProperties)) {
-        filteredProperties[key] = getSubMap(val, geminiSupportedAttributes)
-      }
-
-      const functionDeclaration: FunctionDeclaration = {
-        name: tool.id,
-        description: tool.description,
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: filteredProperties
-        }
-      }
-      functions.push(functionDeclaration)
-    }
-    const tool: Tool = {
-      functionDeclarations: functions
-    }
-    return [tool]
-  }
-
-  private geminiFunctionCallToMcpTool(
-    mcpTools: MCPTool[] | undefined,
-    fcall: FunctionCall | undefined
-  ): MCPTool | undefined {
-    if (!fcall) return undefined
-    if (!mcpTools) return undefined
-    const tool = mcpTools.find((tool) => tool.id === fcall.name)
-    if (!tool) {
-      return undefined
-    }
-    // @ts-ignore schema is not a valid property
-    tool.inputSchema = fcall.args
-    return tool
-  }
-
   public async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -224,7 +162,7 @@ export default class GeminiProvider extends BaseProvider {
       history.push(await this.getMessageContents(message))
     }
 
-    const tools = this.mcpToolsToGeminiTools(mcpTools)
+    const tools = mcpToolsToGeminiTools(mcpTools)
     if (assistant.enableWebSearch && isWebSearchModel(model)) {
       tools.push({
         // @ts-ignore googleSearch is not a valid tool for Gemini
@@ -295,17 +233,13 @@ export default class GeminiProvider extends BaseProvider {
           for (const call of functionCalls) {
             console.log('Function call:', call)
             fcallParts.push({ functionCall: call } as FunctionCallPart)
-            const tool = this.geminiFunctionCallToMcpTool(mcpTools, call)
-            if (tool) {
-              const toolCallResponse = await window.api.mcp.callTool({
-                client: tool.serverName,
-                name: tool.name,
-                args: tool.inputSchema
-              })
+            const mcpTool = geminiFunctionCallToMcpTool(mcpTools, call)
+            if (mcpTool) {
+              const toolCallResponse = await callMCPTool(mcpTool)
               fcRespParts.push({
                 functionResponse: {
-                  name: tool.id,
-                  response: toolCallResponse
+                  name: mcpTool.id,
+                  response: toolCallResponse.content
                 }
               })
             }

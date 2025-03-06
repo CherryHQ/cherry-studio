@@ -2,9 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import {
   MessageCreateParamsNonStreaming,
   MessageParam,
-  Tool,
   ToolResultBlockParam,
-  ToolUnion,
   ToolUseBlock
 } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
@@ -14,13 +12,14 @@ import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import { first, flatten, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import { anthropicToolUseToMcpTool, callMCPTool, mcpToolsToAnthropicTools } from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -125,33 +124,6 @@ export default class AnthropicProvider extends BaseProvider {
     }
   }
 
-  private mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> {
-    return mcpTools.map((tool) => {
-      const t: Tool = {
-        name: tool.id,
-        description: tool.description,
-        // @ts-ignore no check
-        input_schema: tool.inputSchema
-        // input_schema: {
-        //   type: 'object',
-        //   properties: tool.inputSchema.properties
-        // } as Tool.InputSchema
-      }
-      return t
-    })
-  }
-
-  private anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolUse: ToolUseBlock): MCPTool | undefined {
-    if (!mcpTools) return undefined
-    const tool = mcpTools.find((tool) => tool.id === toolUse.name)
-    if (!tool) {
-      return undefined
-    }
-    // @ts-ignore ignore type as it it unknow
-    tool.inputSchema = toolUse.input
-    return tool
-  }
-
   public async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -167,7 +139,7 @@ export default class AnthropicProvider extends BaseProvider {
     }
 
     const userMessages = flatten(userMessagesParams)
-    const tools = mcpTools ? this.mcpToolsToAnthropicTools(mcpTools) : undefined
+    const tools = mcpTools ? mcpToolsToAnthropicTools(mcpTools) : undefined
 
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
@@ -282,13 +254,9 @@ export default class AnthropicProvider extends BaseProvider {
             if (toolCalls.length > 0) {
               const toolCallResults: ToolResultBlockParam[] = []
               for (const toolCall of toolCalls) {
-                const mcpTool = this.anthropicToolUseToMcpTool(mcpTools, toolCall)
+                const mcpTool = anthropicToolUseToMcpTool(mcpTools, toolCall)
                 if (mcpTool) {
-                  const resp = await window.api.mcp.callTool({
-                    client: mcpTool.serverName,
-                    name: mcpTool.name,
-                    args: mcpTool.inputSchema
-                  })
+                  const resp = await callMCPTool(mcpTool)
                   toolCallResults.push({
                     type: 'tool_result',
                     tool_use_id: toolCall.id,

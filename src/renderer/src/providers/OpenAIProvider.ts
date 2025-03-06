@@ -11,16 +11,7 @@ import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
-import {
-  Assistant,
-  FileTypes,
-  GenerateImageParams,
-  MCPTool,
-  Message,
-  Model,
-  Provider,
-  Suggestion
-} from '@renderer/types'
+import { Assistant, FileTypes, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -30,12 +21,12 @@ import {
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
-  ChatCompletionTool,
   ChatCompletionToolMessageParam
 } from 'openai/resources'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import { callMCPTool, mcpToolsToOpenAITools, openAIToolsToMcpTool } from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -226,34 +217,6 @@ export default class OpenAIProvider extends BaseProvider {
     return model.id.startsWith('o1')
   }
 
-  private mcpToolsToOpenAITools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
-    return mcpTools.map((tool) => ({
-      type: 'function',
-      function: {
-        name: tool.id,
-        description: tool.description,
-        parameters: {
-          type: 'object',
-          properties: tool.inputSchema.properties,
-          required: tool.inputSchema.required
-        }
-      }
-    }))
-  }
-
-  private openAIToolsToMcpTool(
-    mcpTools: MCPTool[] | undefined,
-    llmTool: ChatCompletionMessageToolCall
-  ): MCPTool | undefined {
-    if (!mcpTools) return undefined
-    const tool = mcpTools.find((tool) => tool.id === llmTool.function.name)
-    if (!tool) {
-      return undefined
-    }
-    tool.inputSchema = JSON.parse(llmTool.function.arguments)
-    return tool
-  }
-
   async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -326,7 +289,7 @@ export default class OpenAIProvider extends BaseProvider {
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
 
-    const tools = mcpTools && mcpTools.length > 0 ? this.mcpToolsToOpenAITools(mcpTools) : undefined
+    const tools = mcpTools && mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : undefined
 
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
       Boolean
@@ -399,21 +362,16 @@ export default class OpenAIProvider extends BaseProvider {
           } as ChatCompletionAssistantMessageParam)
 
           for (const toolCall of toolCalls) {
-            const mcpTool = this.openAIToolsToMcpTool(mcpTools, toolCall)
-
+            const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall)
             if (!mcpTool) {
               continue
             }
 
-            const toolCallResponse = await window.api.mcp.callTool({
-              client: mcpTool.serverName,
-              name: mcpTool.name,
-              args: mcpTool.inputSchema
-            })
-
+            const toolCallResponse = await callMCPTool(mcpTool)
+            console.log(toolCallResponse)
             reqMessages.push({
               role: 'tool',
-              content: JSON.stringify(toolCallResponse, null, 2),
+              content: toolCallResponse.content,
               tool_call_id: toolCall.id
             } as ChatCompletionToolMessageParam)
           }
