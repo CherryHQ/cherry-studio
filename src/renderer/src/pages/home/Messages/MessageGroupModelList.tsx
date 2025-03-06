@@ -26,14 +26,14 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
         <Tooltip
           title={
             displayMode === 'compact'
-              ? t('message.message.multi_model_style.fold.compact')
-              : t('message.message.multi_model_style.fold.expanded')
+              ? t('message.message.multi_model_style.fold.expand')
+              : t('message.message.multi_model_style.fold.compress')
           }
           placement="top">
           {displayMode === 'compact' ? (
-            <ShrinkOutlined onClick={() => setDisplayMode('expanded')} />
+            <ArrowsAltOutlined onClick={() => setDisplayMode('expanded')} />
           ) : (
-            <ArrowsAltOutlined onClick={() => setDisplayMode('compact')} />
+            <ShrinkOutlined onClick={() => setDisplayMode('compact')} />
           )}
         </Tooltip>
       </DisplayModeToggle>
