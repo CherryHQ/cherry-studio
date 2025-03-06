@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -66,6 +66,7 @@
     "@llm-tools/embedjs-loader-web": "^0.1.28",
     "@llm-tools/embedjs-loader-xml": "^0.1.28",
     "@llm-tools/embedjs-openai": "^0.1.28",
+    "@modelcontextprotocol/sdk": "^1.6.1",
     "@notionhq/client": "^2.2.15",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "adm-zip": "^0.5.16",

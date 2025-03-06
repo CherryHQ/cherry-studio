@@ -1,5 +1,5 @@
 import { electronAPI } from '@electron-toolkit/preload'
-import { FileType, KnowledgeBaseParams, KnowledgeItem, Shortcut, WebDavConfig } from '@types'
+import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
 
 // Custom APIs for renderer
@@ -105,6 +105,17 @@ const api = {
     encrypt: (text: string, secretKey: string, iv: string) => ipcRenderer.invoke('aes:encrypt', text, secretKey, iv),
     decrypt: (encryptedData: string, iv: string, secretKey: string) =>
       ipcRenderer.invoke('aes:decrypt', encryptedData, iv, secretKey)
+  },
+  mcp: {
+    listServers: () => ipcRenderer.invoke('mcp:list-servers'),
+    addServer: (server: MCPServer) => ipcRenderer.invoke('mcp:add-server', server),
+    updateServer: (server: MCPServer) => ipcRenderer.invoke('mcp:update-server', server),
+    deleteServer: (serverName: string) => ipcRenderer.invoke('mcp:delete-server', serverName),
+    setServerActive: (name: string, isActive: boolean) =>
+      ipcRenderer.invoke('mcp:set-server-active', { name, isActive }),
+    listTools: (serverName?: string) => ipcRenderer.invoke('mcp:list-tools', serverName),
+    callTool: (params: { client: string; name: string; args: any }) => ipcRenderer.invoke('mcp:call-tool', params),
+    cleanup: () => ipcRenderer.invoke('mcp:cleanup')
   },
   shell: {
     openExternal: shell.openExternal

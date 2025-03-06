@@ -481,6 +481,11 @@
       "websearch": "WebSearch",
       "edit": "Edit Model"
     },
+    "navbar": {
+      "expand": "Expand Dialog",
+      "show_sidebar": "Show Sidebar",
+      "hide_sidebar": "Hide Sidebar"
+    },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
       "keep_alive_time.placeholder": "Minutes",
@@ -864,6 +869,34 @@
         "search_provider_placeholder": "Choose a search service provider.",
         "no_provider_selected": "Please select a search service provider before checking.",
         "check_failed": "Verification failed"
+      },
+      "mcp": {
+        "title": "MCP Servers",
+        "config_description": "Configure Model Context Protocol servers",
+        "description": "Description",
+        "addServer": "Add Server",
+        "editServer": "Edit Server",
+        "name": "Name",
+        "type": "Type",
+        "url": "URL",
+        "command": "Command",
+        "args": "Arguments",
+        "argsTooltip": "Each argument on a new line",
+        "env": "Environment Variables",
+        "envTooltip": "Format: KEY=value, one per line",
+        "active": "Active",
+        "actions": "Actions",
+        "noServers": "No servers configured",
+        "nameRequired": "Please enter a server name",
+        "commandRequired": "Please enter a command",
+        "confirmDelete": "Delete Server",
+        "confirmDeleteMessage": "Are you sure you want to delete the server?",
+        "addSuccess": "Server added successfully",
+        "updateSuccess": "Server updated successfully",
+        "deleteSuccess": "Server deleted successfully",
+        "duplicateName": "A server with this name already exists",
+        "serverSingular": "server",
+        "serverPlural": "servers"
       }
     },
     "translate": {

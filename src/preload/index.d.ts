@@ -1,9 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from '@google/generative-ai/server'
 import { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
-import { FileType } from '@renderer/types'
-import { WebDavConfig } from '@renderer/types'
-import { AppInfo, KnowledgeBaseParams, KnowledgeItem, LanguageVarious } from '@renderer/types'
+import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
 import type { LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
 import type { UpdateInfo } from 'electron-updater'
@@ -122,6 +120,19 @@ declare global {
       }
       shell: {
         openExternal: (url: string, options?: OpenExternalOptions) => Promise<void>
+      }
+      mcp: {
+        // servers
+        listServers: () => Promise<MCPServer[]>
+        addServer: (server: MCPServer) => Promise<void>
+        updateServer: (server: MCPServer) => Promise<void>
+        deleteServer: (serverName: string) => Promise<void>
+        setServerActive: (name: string, isActive: boolean) => Promise<void>
+        // tools
+        listTools: () => Promise<MCPTool>
+        callTool: ({ client, name, args }: { client: string; name: string; args: any }) => Promise<any>
+        // status
+        cleanup: () => Promise<void>
       }
     }
   }
