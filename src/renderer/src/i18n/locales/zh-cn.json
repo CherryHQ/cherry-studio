@@ -104,7 +104,7 @@
       "input.web_search": "开启网络搜索",
       "input.web_search.button.ok": "去设置",
       "input.web_search.enable": "开启网络搜索",
-      "input.web_search.enable_content": "需要先在设置中开启网络搜索",
+      "input.web_search.enable_content": "需要先在设置中检查网络搜索连通性",
       "input.auto_resize": "自动调整高度",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
@@ -855,6 +855,8 @@
       "launch.onboot": "开机自动启动",
       "launch.totray": "启动时最小化到托盘",
       "websearch": {
+        "check": "检查",
+        "check_failed": "验证失败",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
@@ -862,6 +864,9 @@
         "search_max_result": "搜索结果个数",
         "search_result_default": "默认",
         "search_with_time": "搜索包含日期",
+        "search_provider": "搜索服务商",
+        "search_provider_placeholder": "选择一个搜索服务商",
+        "no_provider_selected": "请选择搜索服务商后再检查",
         "tavily": {
           "api_key": "Tavily API 密钥",
           "api_key.placeholder": "请输入 Tavily API 密钥",
@@ -935,7 +940,9 @@
     },
     "code_block": {
       "enable_wrap": "换行",
-      "disable_wrap": "取消换行"
+      "disable_wrap": "取消换行",
+      "expand": "展开",
+      "collapse": "收起"
     },
     "backup": {
       "title": "数据备份",

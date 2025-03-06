@@ -474,4 +474,12 @@ export function getTitleFromString(str: string, length: number = 80) {
   return title
 }
 
+export function hasObjectKey(obj: any, key: string) {
+  if (typeof obj !== 'object' || obj === null) {
+    return false
+  }
+
+  return Object.keys(obj).includes(key)
+}
+
 export { classNames }

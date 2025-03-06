@@ -104,7 +104,7 @@
       "input.web_search": "ウェブ検索を有効にする",
       "input.web_search.button.ok": "設定に移動",
       "input.web_search.enable": "ウェブ検索を有効にする",
-      "input.web_search.enable_content": "ウェブ検索を有効にするには、設定でウェブ検索を有効にする必要があります",
+      "input.web_search.enable_content": "ウェブ検索の接続性を先に設定で確認する必要があります",
       "input.auto_resize": "高さを自動調整",
       "message.new.branch": "新しいブランチ",
       "message.new.branch.created": "新しいブランチが作成されました",
@@ -868,7 +868,12 @@
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
         "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "検索結果の数",
-        "search_result_default": "デフォルト"
+        "search_result_default": "デフォルト",
+        "check": "チェック",
+        "search_provider": "検索サービスプロバイダー",
+        "search_provider_placeholder": "検索サービスプロバイダーを選択する",
+        "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
+        "check_failed": "検証に失敗しました"
       },
       "mcp": {
         "title": "MCP サーバー",
@@ -935,7 +940,9 @@
     },
     "code_block": {
       "enable_wrap": "改行",
-      "disable_wrap": "改行解除"
+      "disable_wrap": "改行解除",
+      "expand": "展開する",
+      "collapse": "折りたたむ"
     },
     "backup": {
       "title": "データバックアップ",

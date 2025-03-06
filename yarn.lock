@@ -12,6 +12,50 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@agentic/core@npm:7.3.3":
+  version: 7.3.3
+  resolution: "@agentic/core@npm:7.3.3"
+  dependencies:
+    dedent: "npm:^1.5.3"
+    delay: "npm:^6.0.0"
+    jsonrepair: "npm:^3.9.0"
+    ky: "npm:^1.7.5"
+    openai-zod-to-json-schema: "npm:^1.0.3"
+    p-map: "npm:^7.0.2"
+    p-throttle: "npm:^6.2.0"
+    type-fest: "npm:^4.35.0"
+    zod-validation-error: "npm:^3.4.0"
+  peerDependencies:
+    zod: ^3.24.2
+  checksum: 10c0/5f9736cdfa72da5093a8889b168cce38107be1df60cade62df82236b96fdf6970a5fcdf1f12a17630190f75f5b431fff2e70ca3cb33bb1e550ad5488e03699e7
+  languageName: node
+  linkType: hard
+
+"@agentic/searxng@npm:^7.3.3":
+  version: 7.3.3
+  resolution: "@agentic/searxng@npm:7.3.3"
+  dependencies:
+    "@agentic/core": "npm:7.3.3"
+    ky: "npm:^1.7.5"
+  peerDependencies:
+    zod: ^3.24.2
+  checksum: 10c0/474e53f232c6ad46315db9a9f2381f8d51623ba6f1eb514c92f328762a350565ff4bfa75d5cb5fb1454ce0d426bf033565167b708b21e8d3488ea1454461f713
+  languageName: node
+  linkType: hard
+
+"@agentic/tavily@npm:^7.3.3":
+  version: 7.3.3
+  resolution: "@agentic/tavily@npm:7.3.3"
+  dependencies:
+    "@agentic/core": "npm:7.3.3"
+    ky: "npm:^1.7.5"
+    p-throttle: "npm:^6.2.0"
+  peerDependencies:
+    zod: ^3.24.2
+  checksum: 10c0/604e9a1a15cd8a6b70754dcc919c843988376d7ed65f83ba24d8add7c8febfae782184cf804611d5baacc5249d50ac8e19fa85390d8a40086c52c352a9bbb87d
+  languageName: node
+  linkType: hard
+
 "@ampproject/remapping@npm:^2.2.0":
   version: 2.3.0
   resolution: "@ampproject/remapping@npm:2.3.0"
@@ -3050,6 +3094,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "CherryStudio@workspace:."
   dependencies:
+    "@agentic/searxng": "npm:^7.3.3"
+    "@agentic/tavily": "npm:^7.3.3"
     "@anthropic-ai/sdk": "npm:^0.38.0"
     "@electron-toolkit/eslint-config-prettier": "npm:^2.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^1.0.1"
@@ -4997,6 +5043,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"dedent@npm:^1.5.3":
+  version: 1.5.3
+  resolution: "dedent@npm:1.5.3"
+  peerDependencies:
+    babel-plugin-macros: ^3.1.0
+  peerDependenciesMeta:
+    babel-plugin-macros:
+      optional: true
+  checksum: 10c0/d94bde6e6f780be4da4fd760288fcf755ec368872f4ac5218197200d86430aeb8d90a003a840bff1c20221188e3f23adced0119cb811c6873c70d0ac66d12832
+  languageName: node
+  linkType: hard
+
 "deep-extend@npm:^0.6.0":
   version: 0.6.0
   resolution: "deep-extend@npm:0.6.0"
@@ -5067,6 +5125,13 @@ __metadata:
     rimraf: "npm:^3.0.2"
     slash: "npm:^3.0.0"
   checksum: 10c0/8a095c5ccade42c867a60252914ae485ec90da243d735d1f63ec1e64c1cfbc2b8810ad69a29ab6326d159d4fddaa2f5bad067808c42072351ec458efff86708f
+  languageName: node
+  linkType: hard
+
+"delay@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "delay@npm:6.0.0"
+  checksum: 10c0/5175e887512d65b2bfe9e1168b5ce7a488de99c1d0af52cb4f799bb13dd7cb0bbbba8a4f5c500a5b03fb42bec8621d6ab59244bd8dfbe9a2bf7b173f25621a10
   languageName: node
   linkType: hard
 
@@ -8575,6 +8640,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"jsonrepair@npm:^3.9.0":
+  version: 3.12.0
+  resolution: "jsonrepair@npm:3.12.0"
+  bin:
+    jsonrepair: bin/cli.js
+  checksum: 10c0/f61bea017e9675c888dc8087bec6f868595ab0103a211827f9fc6a327abd9c70fa4d3241ee2846b06e229a628d51e5a5448c516d7be3040862863a2f2c3f78cd
+  languageName: node
+  linkType: hard
+
 "jsprim@npm:^1.2.2":
   version: 1.4.2
   resolution: "jsprim@npm:1.4.2"
@@ -8647,6 +8721,13 @@ __metadata:
     graceful-fs:
       optional: true
   checksum: 10c0/da994768b02b3843cc994c99bad3cf1c8c67716beb4dd2834133c919e9e9ee788669fbe27d88ab0ad9a3991349c28280afccbde01c2318229b662dd7a05e4728
+  languageName: node
+  linkType: hard
+
+"ky@npm:^1.7.5":
+  version: 1.7.5
+  resolution: "ky@npm:1.7.5"
+  checksum: 10c0/9f9c70a4916592f728c90e38ecbe2ed468eb7161b7525a4561a861e457edd5cb706751e2aba615d350380231d021f535147f9ed3ca07271af836465ecc725761
   languageName: node
   linkType: hard
 
@@ -10677,6 +10758,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"openai-zod-to-json-schema@npm:^1.0.3":
+  version: 1.0.3
+  resolution: "openai-zod-to-json-schema@npm:1.0.3"
+  peerDependencies:
+    zod: ^3.23.8
+  checksum: 10c0/1fd4afb01a3e82955ba4f7bed4e8f12ad0b67d33329484ddf36025cada117faa65486a89286cce1b4b5890078f9de14cc9ccc9f00be140e6dd68b77988239e64
+  languageName: node
+  linkType: hard
+
 "openai@npm:4.77.3":
   version: 4.77.3
   resolution: "openai@npm:4.77.3"
@@ -10883,6 +10973,13 @@ __metadata:
     "@types/retry": "npm:0.12.0"
     retry: "npm:^0.13.1"
   checksum: 10c0/d58512f120f1590cfedb4c2e0c42cb3fa66f3cea8a4646632fcb834c56055bb7a6f138aa57b20cc236fb207c9d694e362e0b5c2b14d9b062f67e8925580c73b0
+  languageName: node
+  linkType: hard
+
+"p-throttle@npm:^6.2.0":
+  version: 6.2.0
+  resolution: "p-throttle@npm:6.2.0"
+  checksum: 10c0/3be65f66eb21137be78b8d18a5240117312b942e3aa788f838ac4be785ab3c40b64ee34b2c393cd948ec7845c0a00241f446395b98ff4754e718fe54fdee0b00
   languageName: node
   linkType: hard
 
@@ -14316,6 +14413,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"type-fest@npm:^4.35.0":
+  version: 4.37.0
+  resolution: "type-fest@npm:4.37.0"
+  checksum: 10c0/5bad189f66fbe3431e5d36befa08cab6010e56be68b7467530b7ef94c3cf81ef775a8ac3047c8bbda4dd3159929285870357498d7bc1df062714f9c5c3a84926
+  languageName: node
+  linkType: hard
+
 "type-is@npm:^2.0.0":
   version: 2.0.0
   resolution: "type-is@npm:2.0.0"
@@ -15380,6 +15484,15 @@ __metadata:
   peerDependencies:
     zod: ^3.24.1
   checksum: 10c0/5d626fa7a51539236962b1348a7b7e7111bd1722f23ad06dead2f76599e6bd918e4067ffba0695e0acac5a60f217b4953d2ad62ad403a482d034d94f025f3a4c
+  languageName: node
+  linkType: hard
+
+"zod-validation-error@npm:^3.4.0":
+  version: 3.4.0
+  resolution: "zod-validation-error@npm:3.4.0"
+  peerDependencies:
+    zod: ^3.18.0
+  checksum: 10c0/aaadb0e65c834aacb12fa088663d52d9f4224b5fe6958f09b039f4ab74145fda381c8a7d470bfddf7ddd9bbb5fdfbb52739cd66958ce6d388c256a44094d1fba
   languageName: node
   linkType: hard
 

@@ -1217,9 +1217,24 @@ const migrateConfig = {
     return state
   },
   '77': (state: RootState) => {
+    if (state.websearch) {
+      if (!state.websearch.providers.find((p) => p.id === 'searxng')) {
+        state.websearch.providers.push({
+          id: 'searxng',
+          name: 'Searxng',
+          apiHost: ''
+        })
+      }
+      state.websearch.providers.forEach((p) => {
+        // @ts-ignore eslint-disable-next-line
+        delete p.enabled
+      })
+    }
     return {
       ...state,
-      settings: {
+      //make sure that version 77 has not been released, 
+      //otherwise settings should migrate in next vertion
+      settings: { 
         ...state.settings,
         launchOnBoot: false,
         launchToTray: false,

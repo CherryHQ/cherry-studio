@@ -29,13 +29,13 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
 
   // Process content to make citation numbers clickable
   const processedContent = useMemo(() => {
-    if (!(message.metadata?.citations || message.metadata?.tavily)) {
+    if (!(message.metadata?.citations || message.metadata?.webSearch)) {
       return message.content
     }
 
     let content = message.content
 
-    const searchResultsCitations = message?.metadata?.tavily?.results?.map((result) => result.url) || []
+    const searchResultsCitations = message?.metadata?.webSearch?.results?.map((result) => result.url) || []
 
     const citations = message?.metadata?.citations || searchResultsCitations
 
@@ -127,13 +127,13 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           ))}
         </CitationsContainer>
       )}
-      {message?.metadata?.tavily && message.status === 'success' && (
+      {message?.metadata?.webSearch && message.status === 'success' && (
         <CitationsContainer className="footnotes">
           <CitationsTitle>
             {t('message.citations')}
             <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
           </CitationsTitle>
-          {message.metadata.tavily.results.map((result, index) => (
+          {message.metadata.webSearch.results.map((result, index) => (
             <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
               <Favicon hostname={new URL(result.url).hostname} alt={result.title} />

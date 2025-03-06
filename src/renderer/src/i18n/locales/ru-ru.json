@@ -104,7 +104,7 @@
       "input.web_search": "Включить веб-поиск",
       "input.web_search.button.ok": "Перейти в Настройки",
       "input.web_search.enable": "Включить веб-поиск",
-      "input.web_search.enable_content": "Необходимо включить веб-поиск в Настройки",
+      "input.web_search.enable_content": "Необходимо предварительно проверить подключение к веб-поиску в настройках",
       "input.auto_resize": "Автоматическая высота",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
@@ -868,7 +868,12 @@
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
         "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "Количество результатов поиска",
-        "search_result_default": "По умолчанию"
+        "search_result_default": "По умолчанию",
+        "check": "проверка",
+        "search_provider": "поиск сервисного провайдера",
+        "search_provider_placeholder": "Выберите поставщика поисковых услуг",
+        "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
+        "check_failed": "Проверка не прошла"
       },
       "mcp": {
         "title": "Серверы MCP",
@@ -935,7 +940,9 @@
     },
     "code_block": {
       "enable_wrap": "Перенос строки",
-      "disable_wrap": "Отменить перенос строки"
+      "disable_wrap": "Отменить перенос строки",
+      "expand": "Развернуть",
+      "collapse": "Свернуть"
     },
     "backup": {
       "title": "Резервное копирование данных",
@@ -967,3 +974,4 @@
     }
   }
 }
+

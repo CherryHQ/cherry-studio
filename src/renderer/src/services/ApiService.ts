@@ -33,6 +33,7 @@ export async function fetchChatCompletion({
   window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, false)
 
   const provider = getAssistantProvider(assistant)
+  const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
 
   store.dispatch(setGenerating(true))
@@ -67,11 +68,14 @@ export async function fetchChatCompletion({
             })
           }
           onResponse({ ...message, status: 'searching' })
-          const webSearch = await WebSearchService.search(lastMessage.content)
+          console.log('webSearchProvider', webSearchProvider)
+          const webSearch = await WebSearchService.search(webSearchProvider, lastMessage.content)
+          console.log('webSearch', webSearch)
           message.metadata = {
             ...message.metadata,
-            tavily: webSearch
+            webSearch: webSearch
           }
+          console.log('message', message)
           window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
         }
       }

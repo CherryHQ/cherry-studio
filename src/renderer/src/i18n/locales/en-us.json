@@ -104,7 +104,7 @@
       "input.web_search": "Enable web search",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
-      "input.web_search.enable_content": "Enable web search in Settings",
+      "input.web_search.enable_content": "Need to check web search connectivity in settings first",
       "input.auto_resize": "Auto resize height",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
@@ -868,7 +868,12 @@
         "blacklist_description": "Results from the following websites will not appear in search results",
         "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "Number of search results",
-        "search_result_default": "Default"
+        "search_result_default": "Default",
+        "check": "Check",
+        "search_provider": "Search service provider",
+        "search_provider_placeholder": "Choose a search service provider.",
+        "no_provider_selected": "Please select a search service provider before checking.",
+        "check_failed": "Verification failed"
       },
       "mcp": {
         "title": "MCP Servers",
@@ -935,7 +940,9 @@
     },
     "code_block": {
       "enable_wrap": "Wrap",
-      "disable_wrap": "Unwrap"
+      "disable_wrap": "Unwrap",
+      "expand": "Expand",
+      "collapse": "Collapse"
     },
     "backup": {
       "title": "Data Backup",
