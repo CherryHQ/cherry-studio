@@ -111,7 +111,7 @@ const FilesPage: FC = () => {
           {file.origin_name}
         </FileNameText>
       ),
-      size: formatFileSize(file),
+      size: formatFileSize(file.size),
       size_bytes: file.size,
       count: file.count,
       created_at: dayjs(file.created_at).format('MM-DD HH:mm'),

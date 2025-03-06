@@ -1729,16 +1729,16 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   xirang: [],
-  'tencent-cloud': [
+  'tencent-cloud-ti': [
     {
       id: 'deepseek-r1',
-      provider: 'tencent-cloud',
+      provider: 'tencent-cloud-ti',
       name: 'DeepSeek R1',
       group: 'DeepSeek'
     },
     {
       id: 'deepseek-v3',
-      provider: 'tencent-cloud',
+      provider: 'tencent-cloud-ti',
       name: 'DeepSeek V3',
       group: 'DeepSeek'
     }

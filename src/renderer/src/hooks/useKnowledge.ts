@@ -19,8 +19,7 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import { FileType, KnowledgeBase, ProcessingStatus } from '@renderer/types'
-import { KnowledgeItem } from '@renderer/types'
+import { FileType, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'

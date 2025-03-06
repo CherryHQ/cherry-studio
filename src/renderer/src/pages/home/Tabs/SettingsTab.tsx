@@ -19,6 +19,7 @@ import {
   setCodeCollapsible,
   setCodeShowLineNumbers,
   setCodeStyle,
+  setCodeWrappable,
   setFontSize,
   setMathEngine,
   setMessageFont,
@@ -69,6 +70,7 @@ const SettingsTab: FC<Props> = (props) => {
     renderInputMessageAsMarkdown,
     codeShowLineNumbers,
     codeCollapsible,
+    codeWrappable,
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
@@ -169,7 +171,7 @@ const SettingsTab: FC<Props> = (props) => {
           <Col span={24}>
             <Slider
               min={0}
-              max={20}
+              max={10}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={typeof contextCount === 'number' ? contextCount : 0}
@@ -244,30 +246,20 @@ const SettingsTab: FC<Props> = (props) => {
             <Row align="middle" gutter={10}>
               <Col span={24}>
                 <SegmentedContainer>
-                  <Segmented<'low' | 'medium' | 'high' | undefined>
-                    value={reasoningEffort}
+                  <Segmented
+                    value={reasoningEffort || 'off'}
                     onChange={(value) => {
-                      setReasoningEffort(value)
-                      onReasoningEffortChange(value)
+                      const typedValue = value === 'off' ? undefined : (value as 'low' | 'medium' | 'high')
+                      setReasoningEffort(typedValue)
+                      onReasoningEffortChange(typedValue)
                     }}
                     options={[
-                      {
-                        value: 'low',
-                        label: t('assistants.settings.reasoning_effort.low')
-                      },
-                      {
-                        value: 'medium',
-                        label: t('assistants.settings.reasoning_effort.medium')
-                      },
-                      {
-                        value: 'high',
-                        label: t('assistants.settings.reasoning_effort.high')
-                      },
-                      {
-                        value: undefined,
-                        label: t('assistants.settings.reasoning_effort.off')
-                      }
+                      { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
+                      { value: 'medium', label: t('assistants.settings.reasoning_effort.medium') },
+                      { value: 'high', label: t('assistants.settings.reasoning_effort.high') },
+                      { value: 'off', label: t('assistants.settings.reasoning_effort.off') }
                     ]}
+                    name="group"
                     block
                   />
                 </SegmentedContainer>
@@ -313,6 +305,11 @@ const SettingsTab: FC<Props> = (props) => {
             checked={codeCollapsible}
             onChange={(checked) => dispatch(setCodeCollapsible(checked))}
           />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
+          <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>

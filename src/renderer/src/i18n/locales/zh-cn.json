@@ -68,7 +68,8 @@
       "collapse": "收起",
       "manage": "管理",
       "select_model": "选择模型",
-      "show.all": "显示全部"
+      "show.all": "显示全部",
+      "update_available": "有可用更新"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -104,6 +105,7 @@
       "input.web_search.button.ok": "去设置",
       "input.web_search.enable": "开启网络搜索",
       "input.web_search.enable_content": "需要先在设置中开启网络搜索",
+      "input.auto_resize": "自动调整高度",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -113,6 +115,7 @@
       "resend": "重新发送",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",
+      "settings.code_wrappable": "代码块可换行",
       "settings.context_count": "上下文数",
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
@@ -385,6 +388,7 @@
       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
       "error.yuque.no_config": "未配置语雀 Token 或 知识库 URL",
+      "error.dimension_too_large": "内容尺寸过大",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
       "ignore.knowledge.base": "联网模式开启，忽略知识库",
@@ -477,6 +481,11 @@
       "websearch": "联网",
       "edit": "编辑模型"
     },
+    "navbar": {
+      "expand": "伸缩对话框",
+      "show_sidebar": "显示侧边栏",
+      "hide_sidebar": "隐藏侧边栏"
+    },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
       "keep_alive_time.placeholder": "分钟",
@@ -563,7 +572,7 @@
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
       "xirang": "天翼云息壤",
-      "tencent-cloud": "腾讯云TI"
+      "tencent-cloud-ti": "腾讯云TI"
     },
     "settings": {
       "about": "关于我们",
@@ -595,6 +604,11 @@
       "data": {
         "app_data": "应用数据",
         "app_logs": "应用日志",
+        "app_knowledge": "知识库文件",
+        "app_knowledge.button.delete": "删除文件",
+        "app_knowledge.remove_all": "删除知识库文件",
+        "app_knowledge.remove_all_confirm": "删除知识库文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
+        "app_knowledge.remove_all_success": "文件删除成功",
         "clear_cache": {
           "button": "清除缓存",
           "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
@@ -670,6 +684,7 @@
       },
       "display.custom.css": "自定义 CSS",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
+      "display.custom.css.cherrycss": "从 cherrycss.com 获取",
       "display.minApp.disabled": "隐藏的小程序",
       "display.minApp.empty": "把要隐藏的小程序从左侧拖拽到这里",
       "display.minApp.title": "小程序显示设置",
@@ -701,6 +716,7 @@
       "general.user_name.placeholder": "请输入用户名",
       "general.image_upload": "图片上传",
       "general.emoji_picker": "表情选择器",
+      "general.avatar.reset": "重置头像",
       "general.view_webdav_settings": "查看 WebDAV 设置",
       "input.auto_translate_with_space": "快速敲击3次空格翻译",
       "input.target_language": "目标语言",
@@ -777,7 +793,8 @@
         "remove_duplicate_keys": "移除重复密钥",
         "remove_invalid_keys": "删除无效密钥",
         "search_placeholder": "搜索模型 ID 或名称",
-        "title": "模型服务"
+        "title": "模型服务",
+        "search": "搜索模型平台..."
       },
       "proxy": {
         "mode": {
@@ -849,6 +866,34 @@
           "title": "Tavily"
         },
         "title": "网络搜索"
+      },
+      "mcp": {
+        "title": "MCP 服务器",
+        "config_description": "配置模型上下文协议服务器",
+        "description": "描述",
+        "addServer": "添加服务器",
+        "editServer": "编辑服务器",
+        "name": "名称",
+        "type": "类型",
+        "url": "URL",
+        "command": "命令",
+        "args": "参数",
+        "argsTooltip": "每个参数占一行",
+        "env": "环境变量",
+        "envTooltip": "格式：KEY=value，每行一个",
+        "active": "启用",
+        "actions": "操作",
+        "noServers": "未配置服务器",
+        "nameRequired": "请输入服务器名称",
+        "commandRequired": "请输入命令",
+        "confirmDelete": "删除服务器",
+        "confirmDeleteMessage": "您确定要删除该服务器吗？",
+        "addSuccess": "服务器添加成功",
+        "updateSuccess": "服务器更新成功",
+        "deleteSuccess": "服务器删除成功",
+        "duplicateName": "已存在同名服务器",
+        "serverSingular": "服务器",
+        "serverPlural": "服务器"
       }
     },
     "translate": {
@@ -884,6 +929,40 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "code_block": {
+      "enable_wrap": "换行",
+      "disable_wrap": "取消换行",
+      "expand": "展开",
+      "collapse": "收起"
+    },
+    "backup": {
+      "title": "数据备份",
+      "confirm": "确定要备份数据吗？",
+      "confirm.button": "选择备份位置",
+      "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+      "progress": {
+        "title": "备份进度",
+        "preparing": "准备备份...",
+        "writing_data": "写入数据...",
+        "copying_files": "复制文件... {{progress}}%",
+        "compressing": "压缩文件...",
+        "completed": "备份完成"
+      }
+    },
+    "restore": {
+      "title": "数据恢复",
+      "confirm": "确定要恢复数据吗？",
+      "confirm.button": "选择备份文件",
+      "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待。",
+      "progress": {
+        "title": "恢复进度",
+        "preparing": "准备恢复...",
+        "extracting": "解压备份...",
+        "reading_data": "读取数据...",
+        "copying_files": "复制文件... {{progress}}%",
+        "completed": "恢复完成"
+      }
     }
   }
 }

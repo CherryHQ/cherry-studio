@@ -33,7 +33,7 @@ import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
-import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud.png'
+import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
@@ -121,7 +121,7 @@ export function getProviderLogo(providerId: string) {
       return InfiniProviderLogo
     case 'o3':
       return O3ProviderLogo
-    case 'tencent-cloud':
+    case 'tencent-cloud-ti':
       return TencentCloudProviderLogo
     default:
       return undefined
@@ -562,7 +562,7 @@ export const PROVIDER_CONFIG = {
       models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
     }
   },
-  'tentent-cloud': {
+  'tencent-cloud-ti': {
     api: {
       url: 'https://api.lkeap.cloud.tencent.com'
     },

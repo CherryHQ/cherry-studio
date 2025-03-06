@@ -68,7 +68,8 @@
       "collapse": "Collapse",
       "manage": "Manage",
       "select_model": "Select Model",
-      "show.all": "Show All"
+      "show.all": "Show All",
+      "update_available": "Update Available"
     },
     "chat": {
       "add.assistant.title": "Add Assistant",
@@ -104,6 +105,7 @@
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Enable web search in Settings",
+      "input.auto_resize": "Auto resize height",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
       "message.new.context": "New Context",
@@ -113,6 +115,7 @@
       "resend": "Resend",
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
+      "settings.code_wrappable": "Code block wrappable",
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
@@ -385,6 +388,7 @@
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
       "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
+      "error.dimension_too_large": "Content size is too large",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
       "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
@@ -477,6 +481,11 @@
       "websearch": "WebSearch",
       "edit": "Edit Model"
     },
+    "navbar": {
+      "expand": "Expand Dialog",
+      "show_sidebar": "Show Sidebar",
+      "hide_sidebar": "Hide Sidebar"
+    },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
       "keep_alive_time.placeholder": "Minutes",
@@ -563,7 +572,7 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "xirang": "State Cloud Xirang",
-      "tencent-cloud": "Tencent Cloud TI"
+      "tencent-cloud-ti": "Tencent Cloud TI"
     },
     "settings": {
       "about": "About & Feedback",
@@ -595,6 +604,11 @@
       "data": {
         "app_data": "App Data",
         "app_logs": "App Logs",
+        "app_knowledge": "Knowledge Base Files",
+        "app_knowledge.button.delete": "Delete File",
+        "app_knowledge.remove_all": "Remove Knowledge Base Files",
+        "app_knowledge.remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
+        "app_knowledge.remove_all_success": "Files removed successfully",
         "clear_cache": {
           "button": "Clear Cache",
           "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
@@ -670,6 +684,7 @@
       },
       "display.custom.css": "Custom CSS",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
+      "display.custom.css.cherrycss": "Get from cherrycss.com",
       "display.minApp.disabled": "Hidden MinApp",
       "display.minApp.empty": "Drag minApp from the left to hide them here",
       "display.minApp.title": "MinApp  Settings",
@@ -701,6 +716,7 @@
       "general.user_name.placeholder": "Enter your name",
       "general.image_upload": "Image Upload",
       "general.emoji_picker": "Emoji Picker",
+      "general.avatar.reset": "Reset Avatar",
       "general.view_webdav_settings": "View WebDAV settings",
       "input.auto_translate_with_space": "Quickly translate with 3 spaces",
       "input.target_language": "Target language",
@@ -777,7 +793,8 @@
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "search": "Search Providers..."
       },
       "proxy": {
         "mode": {
@@ -849,6 +866,34 @@
         "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "Number of search results",
         "search_result_default": "Default"
+      },
+      "mcp": {
+        "title": "MCP Servers",
+        "config_description": "Configure Model Context Protocol servers",
+        "description": "Description",
+        "addServer": "Add Server",
+        "editServer": "Edit Server",
+        "name": "Name",
+        "type": "Type",
+        "url": "URL",
+        "command": "Command",
+        "args": "Arguments",
+        "argsTooltip": "Each argument on a new line",
+        "env": "Environment Variables",
+        "envTooltip": "Format: KEY=value, one per line",
+        "active": "Active",
+        "actions": "Actions",
+        "noServers": "No servers configured",
+        "nameRequired": "Please enter a server name",
+        "commandRequired": "Please enter a command",
+        "confirmDelete": "Delete Server",
+        "confirmDeleteMessage": "Are you sure you want to delete the server?",
+        "addSuccess": "Server added successfully",
+        "updateSuccess": "Server updated successfully",
+        "deleteSuccess": "Server deleted successfully",
+        "duplicateName": "A server with this name already exists",
+        "serverSingular": "server",
+        "serverPlural": "servers"
       }
     },
     "translate": {
@@ -884,6 +929,40 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "code_block": {
+      "enable_wrap": "Wrap",
+      "disable_wrap": "Unwrap",
+      "expand": "Expand",
+      "collapse": "Collapse"
+    },
+    "backup": {
+      "title": "Data Backup",
+      "confirm": "Are you sure you want to backup data?",
+      "confirm.button": "Select Backup Location",
+      "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+      "progress": {
+        "title": "Backup Progress",
+        "preparing": "Preparing backup...",
+        "writing_data": "Writing data...",
+        "copying_files": "Copying files... {{progress}}%",
+        "compressing": "Compressing files...",
+        "completed": "Backup completed"
+      }
+    },
+    "restore": {
+      "title": "Data Restore",
+      "confirm": "Are you sure you want to restore data?",
+      "confirm.button": "Select Backup File",
+      "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+      "progress": {
+        "title": "Restore Progress",
+        "preparing": "Preparing restore...",
+        "extracting": "Extracting backup...",
+        "reading_data": "Reading data...",
+        "copying_files": "Copying files... {{progress}}%",
+        "completed": "Restore completed"
+      }
     }
   }
 }
