@@ -930,7 +930,9 @@
     },
     "code_block": {
       "enable_wrap": "Wrap",
-      "disable_wrap": "Unwrap"
+      "disable_wrap": "Unwrap",
+      "expand": "Expand",
+      "collapse": "Collapse"
     },
     "backup": {
       "title": "Data Backup",

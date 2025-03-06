@@ -930,7 +930,9 @@
     },
     "code_block": {
       "enable_wrap": "改行",
-      "disable_wrap": "改行解除"
+      "disable_wrap": "改行解除",
+      "expand": "展開する",
+      "collapse": "折りたたむ"
     },
     "backup": {
       "title": "データバックアップ",

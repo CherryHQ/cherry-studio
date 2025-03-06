@@ -930,7 +930,9 @@
     },
     "code_block": {
       "enable_wrap": "換行",
-      "disable_wrap": "取消換行"
+      "disable_wrap": "取消換行",
+      "expand": "展開",
+      "collapse": "收起"
     },
     "backup": {
       "title": "資料備份",
