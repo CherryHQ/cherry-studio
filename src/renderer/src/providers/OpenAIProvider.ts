@@ -247,7 +247,7 @@ export default class OpenAIProvider extends BaseProvider {
       return undefined
     }
     const serverName = parts[1]
-    const name = parts[2]
+    const name = parts.slice(2).join('_') // termprarily fixes when mcp name includes `_`
 
     return {
       serverName: serverName,
