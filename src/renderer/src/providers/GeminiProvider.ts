@@ -1,7 +1,11 @@
 import {
   Content,
   FileDataPart,
+  FunctionCall,
+  FunctionCallPart,
   FunctionDeclaration,
+  FunctionResponsePart,
+  GenerateContentStreamResult,
   GoogleGenerativeAI,
   HarmBlockThreshold,
   HarmCategory,
@@ -27,6 +31,19 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+
+const geminiSupportedAttributes = [
+  'type',
+  'nullable',
+  'required',
+  // 'format',
+  'description',
+  'properties',
+  'items',
+  'enum',
+  'anyOf'
+]
+
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI
   private requestOptions: RequestOptions
@@ -149,13 +166,23 @@ export default class GeminiProvider extends BaseProvider {
       return []
     }
     const functions: FunctionDeclaration[] = []
+
+    const getSubMap = (obj: Record<string, any>, keys: string[]) => {
+      return Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)))
+    }
+
     for (const tool of mcpTools) {
+      const filteredProperties = tool.inputSchema.properties
+      for (const [key, val] of Object.entries(filteredProperties)) {
+        filteredProperties[key] = getSubMap(val, geminiSupportedAttributes)
+      }
+
       const functionDeclaration: FunctionDeclaration = {
         name: tool.id,
         description: tool.description,
         parameters: {
           type: SchemaType.OBJECT,
-          properties: tool.inputSchema.properties
+          properties: filteredProperties
         }
       }
       functions.push(functionDeclaration)
@@ -164,6 +191,21 @@ export default class GeminiProvider extends BaseProvider {
       functionDeclarations: functions
     }
     return [tool]
+  }
+
+  private geminiFunctionCallToMcpTool(
+    mcpTools: MCPTool[] | undefined,
+    fcall: FunctionCall | undefined
+  ): MCPTool | undefined {
+    if (!fcall) return undefined
+    if (!mcpTools) return undefined
+    const tool = mcpTools.find((tool) => tool.id === fcall.name)
+    if (!tool) {
+      return undefined
+    }
+    // @ts-ignore schema is not a valid property
+    tool.inputSchema = fcall.args
+    return tool
   }
 
   public async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams) {
@@ -238,27 +280,66 @@ export default class GeminiProvider extends BaseProvider {
     const userMessagesStream = await chat.sendMessageStream(messageContents.parts, { signal }).finally(cleanup)
     let time_first_token_millsec = 0
 
-    for await (const chunk of userMessagesStream.stream) {
-      if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
-      if (time_first_token_millsec == 0) {
-        time_first_token_millsec = new Date().getTime() - start_time_millsec
+    const processStream = async (stream: GenerateContentStreamResult) => {
+      for await (const chunk of stream.stream) {
+        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
+        if (time_first_token_millsec == 0) {
+          time_first_token_millsec = new Date().getTime() - start_time_millsec
+        }
+        const time_completion_millsec = new Date().getTime() - start_time_millsec
+
+        const functionCalls = chunk.functionCalls()
+        if (functionCalls) {
+          const fcallParts: FunctionCallPart[] = []
+          const fcRespParts: FunctionResponsePart[] = []
+          for (const call of functionCalls) {
+            console.log('Function call:', call)
+            fcallParts.push({ functionCall: call } as FunctionCallPart)
+            const tool = this.geminiFunctionCallToMcpTool(mcpTools, call)
+            if (tool) {
+              const toolCallResponse = await window.api.mcp.callTool({
+                client: tool.serverName,
+                name: tool.name,
+                args: tool.inputSchema
+              })
+              fcRespParts.push({
+                functionResponse: {
+                  name: tool.id,
+                  response: toolCallResponse
+                }
+              })
+            }
+          }
+          if (fcRespParts) {
+            history.push(messageContents)
+            history.push({
+              role: 'model',
+              parts: fcallParts
+            })
+            const newChat = geminiModel.startChat({ history })
+            const newStream = await newChat.sendMessageStream(fcRespParts, { signal }).finally(cleanup)
+            await processStream(newStream)
+          }
+        }
+
+        onChunk({
+          text: chunk.text(),
+          usage: {
+            prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
+            completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
+            total_tokens: chunk.usageMetadata?.totalTokenCount || 0
+          },
+          metrics: {
+            completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
+            time_completion_millsec,
+            time_first_token_millsec
+          },
+          search: chunk.candidates?.[0]?.groundingMetadata
+        })
       }
-      const time_completion_millsec = new Date().getTime() - start_time_millsec
-      onChunk({
-        text: chunk.text(),
-        usage: {
-          prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
-          completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
-          total_tokens: chunk.usageMetadata?.totalTokenCount || 0
-        },
-        metrics: {
-          completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
-          time_completion_millsec,
-          time_first_token_millsec
-        },
-        search: chunk.candidates?.[0]?.groundingMetadata
-      })
     }
+
+    await processStream(userMessagesStream)
   }
 
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
