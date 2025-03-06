@@ -14,7 +14,7 @@ import styled, { createGlobalStyle } from 'styled-components'
 
 interface Props {
   mentionModels: Model[]
-  onMentionModel: (model: Model) => void
+  onMentionModel: (model: Model, fromKeyboard?: boolean) => void
   ToolbarButton: any
 }
 
@@ -30,6 +30,8 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
   const itemRefs = useRef<Array<HTMLDivElement | null>>([])
   // Add a new state to track if menu was dismissed
   const [menuDismissed, setMenuDismissed] = useState(false)
+  // Add a state to track if the model selector was triggered by keyboard
+  const [fromKeyboard, setFromKeyboard] = useState(false)
 
   const setItemRef = (index: number, el: HTMLDivElement | null) => {
     itemRefs.current[index] = el
@@ -49,7 +51,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
     if (mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))) {
       return
     }
-    onSelect(model)
+    onSelect(model, fromKeyboard)
     setIsOpen(false)
   }
 
@@ -190,6 +192,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
       setSelectedIndex(0)
       setSearchText('')
       setMenuDismissed(false) // Reset dismissed flag when manually showing selector
+      setFromKeyboard(true) // Set fromKeyboard to true when triggered by keyboard
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -307,7 +310,12 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
         dropdownRender={() => menu}
         trigger={['click']}
         open={isOpen}
-        onOpenChange={setIsOpen}
+        onOpenChange={(open) => {
+          setIsOpen(open)
+          if (open) {
+            setFromKeyboard(false) // Set fromKeyboard to false when opened by button click
+          }
+        }}
         overlayClassName="mention-models-dropdown">
         <Tooltip placement="top" title={t('agents.edit.model.select.title')} arrow>
           <ToolbarButton type="text" ref={dropdownRef}>
