@@ -375,9 +375,11 @@ export default class OpenAIProvider extends BaseProvider {
         // Extract citations from the raw response if available
         const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
 
+        const finishReason = chunk.choices[0]?.finish_reason
+
         if (delta?.tool_calls) {
           const chunkToolCalls: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall[] = delta.tool_calls
-          if (chunk.choices[0].finish_reason !== 'tool_calls') {
+          if (finishReason !== 'tool_calls') {
             if (toolCalls.length === 0) {
               for (const toolCall of chunkToolCalls) {
                 toolCalls.push(toolCall as ChatCompletionMessageToolCall)
@@ -391,7 +393,7 @@ export default class OpenAIProvider extends BaseProvider {
           }
         }
 
-        if (chunk.choices[0].finish_reason === 'tool_calls') {
+        if (finishReason === 'tool_calls') {
           console.log('start invoke tools', toolCalls)
           reqMessages.push({
             role: 'assistant',
@@ -401,6 +403,7 @@ export default class OpenAIProvider extends BaseProvider {
           for (const toolCall of toolCalls) {
             const mcpTool = this.openAIToolsToMcpTool(toolCall)
             console.log('mcpTool', JSON.stringify(mcpTool, null, 2))
+
             if (!mcpTool) {
               console.log('Invalid tool', toolCall)
               continue
@@ -411,6 +414,7 @@ export default class OpenAIProvider extends BaseProvider {
               name: mcpTool.name,
               args: mcpTool.inputSchema
             })
+
             console.log(`Tool ${mcpTool.serverName} - ${mcpTool.name} Call Response:`)
             console.log(toolCallResponse)
 
@@ -448,7 +452,6 @@ export default class OpenAIProvider extends BaseProvider {
 
         onChunk({
           text: delta?.content || '',
-          // @ts-ignore key is not typed
           reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
           usage: chunk.usage,
           metrics: {
