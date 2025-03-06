@@ -859,7 +859,35 @@
         "search_max_result": "搜索結果個數",
         "search_result_default": "預設"
       },
-      "display.assistant.title": "助手設定"
+      "display.assistant.title": "助手設定",
+      "mcp": {
+        "title": "MCP 伺服器",
+        "config_description": "配置模型上下文協議伺服器",
+        "description": "描述",
+        "addServer": "新增伺服器",
+        "editServer": "編輯伺服器",
+        "name": "名稱",
+        "type": "類型",
+        "url": "URL",
+        "command": "指令",
+        "args": "參數",
+        "argsTooltip": "每個參數佔一行",
+        "env": "環境變數",
+        "envTooltip": "格式：KEY=value，每行一個",
+        "active": "啟用",
+        "actions": "操作",
+        "noServers": "未配置伺服器",
+        "nameRequired": "請輸入伺服器名稱",
+        "commandRequired": "請輸入指令",
+        "confirmDelete": "刪除伺服器",
+        "confirmDeleteMessage": "您確定要刪除該伺服器嗎？",
+        "addSuccess": "伺服器新增成功",
+        "updateSuccess": "伺服器更新成功",
+        "deleteSuccess": "伺服器刪除成功",
+        "duplicateName": "已存在同名伺服器",
+        "serverSingular": "伺服器",
+        "serverPlural": "伺服器"
+      }
     },
     "translate": {
       "any.language": "任意語言",

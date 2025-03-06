@@ -859,6 +859,34 @@
           "title": "Tavily"
         },
         "title": "网络搜索"
+      },
+      "mcp": {
+        "title": "MCP 服务器",
+        "config_description": "配置模型上下文协议服务器",
+        "description": "描述",
+        "addServer": "添加服务器",
+        "editServer": "编辑服务器",
+        "name": "名称",
+        "type": "类型",
+        "url": "URL",
+        "command": "命令",
+        "args": "参数",
+        "argsTooltip": "每个参数占一行",
+        "env": "环境变量",
+        "envTooltip": "格式：KEY=value，每行一个",
+        "active": "启用",
+        "actions": "操作",
+        "noServers": "未配置服务器",
+        "nameRequired": "请输入服务器名称",
+        "commandRequired": "请输入命令",
+        "confirmDelete": "删除服务器",
+        "confirmDeleteMessage": "您确定要删除该服务器吗？",
+        "addSuccess": "服务器添加成功",
+        "updateSuccess": "服务器更新成功",
+        "deleteSuccess": "服务器删除成功",
+        "duplicateName": "已存在同名服务器",
+        "serverSingular": "服务器",
+        "serverPlural": "服务器"
       }
     },
     "translate": {

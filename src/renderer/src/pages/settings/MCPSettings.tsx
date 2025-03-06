@@ -333,7 +333,7 @@ const MCPSettings: FC = () => {
             {serverType === 'sse' && (
               <Form.Item
                 name="baseUrl"
-                label={t('settings.mcp.baseUrl')}
+                label={t('settings.mcp.url')}
                 rules={[{ required: serverType === 'sse', message: t('settings.mcp.baseUrlRequired') }]}
                 tooltip={t('settings.mcp.baseUrlTooltip')}>
                 <Input placeholder="http://localhost:3000/sse" />
