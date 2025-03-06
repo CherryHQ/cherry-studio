@@ -234,7 +234,8 @@ export default class OpenAIProvider extends BaseProvider {
         description: tool.description,
         parameters: {
           type: 'object',
-          properties: tool.inputSchema.properties
+          properties: tool.inputSchema.properties,
+          required: tool.inputSchema.required
         }
       }
     }))
@@ -520,10 +521,33 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     let text = ''
+    let isThinking = false
+    const isReasoning = isReasoningModel(model)
 
     for await (const chunk of response) {
-      text += chunk.choices[0]?.delta?.content || ''
-      onResponse?.(text)
+      const deltaContent = chunk.choices[0]?.delta?.content || ''
+
+      if (!deltaContent.trim()) {
+        continue
+      }
+
+      if (isReasoning) {
+        if (deltaContent.includes('<think>')) {
+          isThinking = true
+        }
+
+        if (!isThinking) {
+          text += deltaContent
+          onResponse?.(text)
+        }
+
+        if (deltaContent.includes('</think>')) {
+          isThinking = false
+        }
+      } else {
+        text += deltaContent
+        onResponse?.(text)
+      }
     }
 
     return text
