@@ -299,6 +299,7 @@ export type WebSearchResponse = {
   query?: string
   results: WebSearchResult[]
 }
+
 export type WebSearchResult = {
   title: string
   content: string

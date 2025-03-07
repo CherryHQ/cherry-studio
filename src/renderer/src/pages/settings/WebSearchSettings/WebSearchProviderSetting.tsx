@@ -1,10 +1,10 @@
 import { CheckOutlined, ExportOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
-import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Flex, Input } from 'antd'
+import { Avatar, Button, Divider, Flex, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,7 +68,6 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           key: 'search-check-error'
         })
       }
-      updateProvider({ ...provider, enabled: true })
     } catch (err) {
       console.error('Check search error:', err)
       setApiValid(false)
@@ -92,6 +91,8 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     <>
       <SettingTitle>
         <Flex align="center" gap={8}>
+          <ProviderLogo shape="square" src={getWebSearchProviderLogo(provider.id)} size={16} />
+
           <ProviderName> {provider.name}</ProviderName>
           {officialWebsite && webSearchProviderConfig?.websites && (
             <Link target="_blank" href={webSearchProviderConfig.websites.official}>
@@ -150,6 +151,9 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
+`
+const ProviderLogo = styled(Avatar)`
+  border: 0.5px solid var(--color-border);
 `
 
 export default WebSearchProviderSetting

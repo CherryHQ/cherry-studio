@@ -31,6 +31,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@agentic/exa@npm:^7.3.3":
+  version: 7.3.3
+  resolution: "@agentic/exa@npm:7.3.3"
+  dependencies:
+    "@agentic/core": "npm:7.3.3"
+    ky: "npm:^1.7.5"
+  peerDependencies:
+    zod: ^3.24.2
+  checksum: 10c0/0293d9f7cda2b17669c853f0834a189988ab8bd8d219f0916d894786143ac732a5c2a669ba112b5edf45b8574473c25a0bf5537c23d666df3132624fca16741e
+  languageName: node
+  linkType: hard
+
 "@agentic/searxng@npm:^7.3.3":
   version: 7.3.3
   resolution: "@agentic/searxng@npm:7.3.3"
@@ -3094,6 +3106,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "CherryStudio@workspace:."
   dependencies:
+    "@agentic/exa": "npm:^7.3.3"
     "@agentic/searxng": "npm:^7.3.3"
     "@agentic/tavily": "npm:^7.3.3"
     "@anthropic-ai/sdk": "npm:^0.38.0"

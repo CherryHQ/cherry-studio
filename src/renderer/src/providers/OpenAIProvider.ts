@@ -415,6 +415,7 @@ export default class OpenAIProvider extends BaseProvider {
         })
       }
     }
+
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(

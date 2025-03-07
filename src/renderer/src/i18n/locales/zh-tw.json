@@ -479,7 +479,8 @@
       },
       "vision": "視覺",
       "websearch": "網路搜尋",
-      "edit": "編輯模型"
+      "edit": "編輯模型", 
+      "no_matches": "無可用模型"
     },
     "navbar": {
       "expand": "伸縮對話框",
@@ -750,6 +751,8 @@
       "models.add.model_id.tooltip": "例如 gpt-3.5-turbo",
       "models.add.model_name": "模型名稱",
       "models.add.model_name.placeholder": "可選，例如 GPT-4",
+      "models.manage.add_whole_group": "添加整個分組",
+      "models.manage.remove_whole_group": "移除整個分組",
       "models.default_assistant_model": "預設助手模型",
       "models.default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "models.empty": "找不到模型",

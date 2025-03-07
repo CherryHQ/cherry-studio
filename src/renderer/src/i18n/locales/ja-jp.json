@@ -479,7 +479,8 @@
       },
       "vision": "画像",
       "websearch": "ウェブ検索",
-      "edit": "モデルを編集"
+      "edit": "モデルを編集", 
+      "no_matches": "利用可能なモデルがありません"
     },
     "navbar": {
       "expand": "ダイアログを展開",
@@ -751,6 +752,8 @@
       "models.add.model_id.tooltip": "例：gpt-3.5-turbo",
       "models.add.model_name": "モデル名",
       "models.add.model_name.placeholder": "例：GPT-3.5",
+      "models.manage.add_whole_group": "グループ全体を追加",
+      "models.manage.remove_whole_group": "グループ全体を削除",
       "models.default_assistant_model": "デフォルトアシスタントモデル",
       "models.default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "models.empty": "モデルが見つかりません",

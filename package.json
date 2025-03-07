@@ -49,6 +49,7 @@
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@agentic/exa": "^7.3.3",
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@electron-toolkit/preload": "^3.0.0",

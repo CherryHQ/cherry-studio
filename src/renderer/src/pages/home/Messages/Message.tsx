@@ -286,6 +286,8 @@ const MessageContainer = styled.div`
   position: relative;
   transition: background-color 0.3s ease;
   padding: 0 20px;
+  transform: translateZ(0);
+  will-change: transform;
   &.message-highlight {
     background-color: var(--color-primary-mute);
   }

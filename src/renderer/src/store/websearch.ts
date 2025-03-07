@@ -20,6 +20,18 @@ const initialState: WebSearchState = {
       id: 'searxng',
       name: 'Searxng',
       apiHost: ''
+    },
+    {
+      id: 'exa',
+      name: 'Exa',
+      enabled: false,
+      apiKey: ''
+    },
+    {
+      id: 'searxng',
+      name: 'Searxng',
+      enabled: false,
+      apiHost: ''
     }
   ],
   searchWithTime: true,
