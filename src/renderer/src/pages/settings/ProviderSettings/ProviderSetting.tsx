@@ -42,6 +42,7 @@ import {
 import AddModelPopup from './AddModelPopup'
 import ApiCheckPopup from './ApiCheckPopup'
 import EditModelsPopup from './EditModelsPopup'
+import GithubCopilotSettings from './GithubCopilotSettings'
 import GraphRAGSettings from './GraphRAGSettings'
 import LMStudioSettings from './LMStudioSettings'
 import ModelEditContent from './ModelEditContent'
@@ -72,7 +73,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     acc[key] = value
     return acc
   }, {})
-
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
@@ -205,9 +205,12 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   useEffect(() => {
+    if (provider.id === 'copilot') {
+      return
+    }
     setApiKey(provider.apiKey)
     setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost])
+  }, [provider.apiKey, provider.apiHost, provider.id, apiKey])
 
   // Save apiKey to provider when unmount
   useEffect(() => {
@@ -246,6 +249,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           spellCheck={false}
           type="password"
           autoFocus={provider.enabled && apiKey === ''}
+          disabled={provider.id === 'copilot'}
         />
         {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
         <Button
@@ -309,6 +313,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
         <GraphRAGSettings provider={provider} />
       )}
+      {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>{t('common.models')}</SettingSubtitle>
       {Object.keys(sortedModelGroups).map((group) => (
         <Card

@@ -134,6 +134,12 @@ declare global {
         // status
         cleanup: () => Promise<void>
       }
+      copilot: {
+        getAuthMessage: () => Promise<{ device_code: string; user_code: string; verification_uri: string }>
+        getCopilotToken: (device_code: string) => Promise<{ access_token: string }>
+        saveCopilotToken: (access_token: string) => Promise<void>
+        getToken: () => Promise<{ token: string }>
+      }
     }
   }
 }

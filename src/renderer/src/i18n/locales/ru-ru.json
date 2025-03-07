@@ -572,6 +572,7 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot",
       "xirang": "State Cloud Xirang",
       "tencent-cloud-ti": "Tencent Cloud TI"
     },
@@ -797,6 +798,21 @@
         "remove_invalid_keys": "Удалить недействительные ключи",
         "search_placeholder": "Поиск по ID или имени модели",
         "title": "Провайдеры моделей",
+        "copilot": {
+          "tooltip": "В Cherry Studio для использования Github Copilot необходимо сначала войти в Github.",
+          "description": "Ваша учетная запись Github должна подписаться на Copilot.",
+          "login": "Войти в Github",
+          "connect": "Подключить Github",
+          "logout": "Выйти из Github",
+          "auth_success_title": "Аутентификация успешна",
+          "code_generated_title": "Получить код устройства",
+          "code_generated_desc": "Пожалуйста, скопируйте код устройства в приведенную ниже ссылку браузера.",
+          "code_failed": "Получение кода устройства не удалось, пожалуйста, попробуйте еще раз.",
+          "auth_success": "Github Copilot认证成功",
+          "auth_failed": "Github Copilot认证失败",
+          "logout_success": "Успешно вышел",
+          "logout_failed": "Не удалось выйти, пожалуйста, повторите попытку."
+        },
         "search": "Поиск поставщиков..."
       },
       "proxy": {

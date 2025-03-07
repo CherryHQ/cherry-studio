@@ -169,6 +169,7 @@
       "clear": "清除",
       "close": "关闭",
       "copy": "复制",
+      "copied": "已复制",
       "cut": "剪切",
       "default": "默认",
       "delete": "删除",
@@ -572,6 +573,7 @@
       "yi": "零一万物",
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
+      "copilot": "GitHub Copilot",
       "xirang": "天翼云息壤",
       "tencent-cloud-ti": "腾讯云TI"
     },
@@ -797,6 +799,21 @@
         "remove_invalid_keys": "删除无效密钥",
         "search_placeholder": "搜索模型 ID 或名称",
         "title": "模型服务",
+        "copilot": {
+          "tooltip": "在Cherry Studio中使用Github Copilot需要先登录Github",
+          "description": "您的Github账号需要订阅Copilot",
+          "login": "登录Github",
+          "connect": "连接Github",
+          "logout": "退出Github",
+          "auth_success_title": "认证成功",
+          "code_generated_title": "获取Device Code",
+          "code_generated_desc": "请将device code复制到下面的浏览器链接中",
+          "code_failed": "获取Device Code失败，请重试",
+          "auth_success": "Github Copilot认证成功",
+          "auth_failed": "Github Copilot认证失败",
+          "logout_success": "已成功退出",
+          "logout_failed": "退出失败，请重试"
+        },
         "search": "搜索模型平台..."
       },
       "proxy": {

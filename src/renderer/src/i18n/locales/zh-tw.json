@@ -196,7 +196,8 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "copied": "已複製"
     },
     "docs": {
       "title": "幫助文件"
@@ -479,7 +480,7 @@
       },
       "vision": "視覺",
       "websearch": "網路搜尋",
-      "edit": "編輯模型", 
+      "edit": "編輯模型",
       "no_matches": "無可用模型"
     },
     "navbar": {

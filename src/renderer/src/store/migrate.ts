@@ -1180,16 +1180,18 @@ const migrateConfig = {
     return state
   },
   '74': (state: RootState) => {
-    state.llm.providers.push({
-      id: 'xirang',
-      name: 'Xirang',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://wishub-x1.ctyun.cn',
-      models: SYSTEM_MODELS.xirang,
-      isSystem: true,
-      enabled: false
-    })
+    if (!state.llm.providers.find((provider) => provider.id === 'xirang')) {
+      state.llm.providers.push({
+        id: 'xirang',
+        name: 'Xirang',
+        type: 'openai',
+        apiKey: '',
+        apiHost: 'https://wishub-x1.ctyun.cn',
+        models: SYSTEM_MODELS.xirang,
+        isSystem: true,
+        enabled: false
+      })
+    }
     return state
   },
   '75': (state: RootState) => {
@@ -1237,7 +1239,19 @@ const migrateConfig = {
         delete p.enabled
       })
     }
-
+    return state
+  },
+  '78': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'copilot',
+      name: 'Github Copilot',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.githubcopilot.com/',
+      models: SYSTEM_MODELS.copilot,
+      isSystem: true,
+      enabled: false
+    })
     return state
   }
 }
