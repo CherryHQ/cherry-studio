@@ -4,7 +4,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { getTopic, TopicManager } from '@renderer/hooks/useTopic'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { useTopicActions } from '@renderer/hooks/useTopicActions'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
@@ -44,7 +44,8 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef(messages)
   const { updateTopic, addTopic } = useAssistant(assistant.id)
-  const { showTopics, topicPosition, showAssistants, enableTopicNaming } = useSettings()
+  const { showTopics, topicPosition, showAssistants } = useSettings()
+  const { renameTopic } = useTopicActions()
 
   const groupedMessages = getGroupedMessages(displayMessages)
 
@@ -104,27 +105,8 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
   )
 
   const autoRenameTopic = useCallback(async () => {
-    const _topic = getTopic(assistant, topic.id)
-
-    // If the topic auto naming is not enabled, use the first message content as the topic name
-    if (!enableTopicNaming) {
-      const topicName = messages[0].content.substring(0, 50)
-      const data = { ..._topic, name: topicName } as Topic
-      setActiveTopic(data)
-      updateTopic(data)
-      return
-    }
-
-    // Auto rename the topic
-    if (_topic && _topic.name === t('chat.default.topic.name') && messages.length >= 2) {
-      const summaryText = await fetchMessagesSummary({ messages, assistant })
-      if (summaryText) {
-        const data = { ..._topic, name: summaryText }
-        setActiveTopic(data)
-        updateTopic(data)
-      }
-    }
-  }, [assistant, enableTopicNaming, messages, setActiveTopic, topic.id, updateTopic])
+    renameTopic(assistant, topic, messages, setActiveTopic, updateTopic)
+  }, [assistant, renameTopic, messages, setActiveTopic, topic, updateTopic])
 
   const onDeleteMessage = useCallback(
     async (message: Message) => {
