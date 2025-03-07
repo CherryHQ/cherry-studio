@@ -347,8 +347,11 @@ const StyledMenu = styled(Menu)`
     position: sticky;
     top: 0;
     z-index: 1;
+    margin: 0 -5px;
     padding: 5px 10px;
+    padding-left: 18px;
     font-size: 12px;
+    font-weight: 500;
 
     /* Scroll-driven animation for sticky header */
     animation: background-change linear both;
@@ -359,7 +362,7 @@ const StyledMenu = styled(Menu)`
   /* Simple animation that changes background color when sticky */
   @keyframes background-change {
     to {
-      background-color: var(--color-background);
+      background-color: var(--color-background-soft);
     }
   }
 

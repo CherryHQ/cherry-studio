@@ -389,6 +389,7 @@ const DropdownMenuStyle = createGlobalStyle`
       overflow-y: auto;
       overflow-x: hidden;
       padding: 4px 12px;
+      padding-top: 0;
       position: relative;
       background: rgba(var(--color-base-rgb), 0.65) !important;
       backdrop-filter: blur(35px) saturate(150%) !important;
@@ -460,7 +461,8 @@ const DropdownMenuStyle = createGlobalStyle`
         font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 0.03em;
-        opacity: 0.7;
+        margin: 0 -11px;
+        padding-left: 24px;
 
         /* Scroll-driven animation for sticky header */
         animation: background-change linear both;
@@ -471,8 +473,8 @@ const DropdownMenuStyle = createGlobalStyle`
       /* Simple animation that changes background color when sticky */
       @keyframes background-change {
         to {
-          background-color: var(--color-background);
-          opacity: 1;
+          background-color: var(--color-background-soft);
+          border-top: 0.5px solid var(--color-scrollbar-thumb);
         }
       }
     }
