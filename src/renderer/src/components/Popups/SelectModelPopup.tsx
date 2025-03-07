@@ -363,6 +363,7 @@ const StyledMenu = styled(Menu)`
   @keyframes background-change {
     to {
       background-color: var(--color-background-soft);
+      opacity: 0.95;
     }
   }
 

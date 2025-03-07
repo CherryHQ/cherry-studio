@@ -473,6 +473,7 @@ const DropdownMenuStyle = createGlobalStyle`
       /* Simple animation that changes background color when sticky */
       @keyframes background-change {
         to {
+          opacity: 0.95;
           background-color: var(--color-background-soft);
           border-top: 0.5px solid var(--color-scrollbar-thumb);
         }
