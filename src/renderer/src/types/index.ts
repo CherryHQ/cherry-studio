@@ -67,6 +67,7 @@ export type Message = {
   askId?: string
   useful?: boolean
   error?: Record<string, any>
+  enabledMCPs?: MCPServer[]
   metadata?: {
     // Gemini
     groundingMetadata?: any

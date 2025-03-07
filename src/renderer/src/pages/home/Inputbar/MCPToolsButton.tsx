@@ -1,7 +1,7 @@
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { Dropdown, Switch, Tooltip } from 'antd'
-import { FC, useRef, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createGlobalStyle } from 'styled-components'
 
@@ -14,6 +14,7 @@ interface Props {
 const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) => {
   const { mcpServers } = useMCPServers()
   const [isOpen, setIsOpen] = useState(false)
+  const [enableAll, setEnableAll] = useState(true)
   const dropdownRef = useRef<any>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -25,17 +26,20 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
 
   // Check if all active servers are enabled
   const activeServers = mcpServers.filter((s) => s.isActive)
-  const allServersEnabled = activeServers.length > 0 && activeServers.every((server) => enabledMCPs.includes(server))
 
-  // Function to toggle all active servers
-  const toggleAllServers = (checked: boolean) => {
-    activeServers.forEach((server) => {
-      const isCurrentlyEnabled = enabledMCPs.includes(server)
-      if (checked !== isCurrentlyEnabled) {
-        onEnableMCP(server)
-      }
-    })
-  }
+  // Enable all active servers by default
+  useEffect(() => {
+    if (activeServers.length > 0) {
+      activeServers.forEach((server) => {
+        if (enableAll && !enabledMCPs.includes(server)) {
+          onEnableMCP(server)
+        }
+        if (!enableAll && enabledMCPs.includes(server)) {
+          onEnableMCP(server)
+        }
+      })
+    }
+  }, [enableAll])
 
   const menu = (
     <div ref={menuRef} className="ant-dropdown-menu">
@@ -44,7 +48,7 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
           <h4>{t('settings.mcp.title')}</h4>
           <div className="enable-all-container">
             {/* <span className="enable-all-label">{t('mcp.enable_all')}</span> */}
-            <Switch size="small" checked={allServersEnabled} onChange={toggleAllServers} />
+            <Switch size="small" checked={enableAll} onChange={setEnableAll} />
           </div>
         </div>
       </div>

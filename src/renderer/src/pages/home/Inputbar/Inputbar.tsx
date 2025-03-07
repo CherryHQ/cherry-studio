@@ -159,6 +159,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     if (mentionModels.length > 0) {
       message.mentions = mentionModels
     }
+
+    if (enabledMCPs.length > 0) {
+      message.enabledMCPs = enabledMCPs
+    }
+
     currentMessageId.current = message.id
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
 
