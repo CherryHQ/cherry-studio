@@ -47,7 +47,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       footer={null}
       centered>
       <Divider style={{ margin: '10px 0' }} />
-      <HStack style={{ gap: 10, marginBottom: 20, marginTop: 20 }} alignItems="center">
+      <HStack style={{ gap: 10, marginBottom: 20, marginTop: 20 }} $alignItems="center">
         <div>{t('settings.models.enable_topic_naming')}</div>
         <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
       </HStack>

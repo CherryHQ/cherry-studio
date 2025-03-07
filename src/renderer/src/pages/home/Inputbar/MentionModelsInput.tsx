@@ -19,7 +19,7 @@ const MentionModelsInput: FC<{
   }
 
   return (
-    <Container gap="4px 0" wrap>
+    <Container $ga$p="4px 0" wrap>
       {selectedModels.map((model) => (
         <Tag
           bordered={false}

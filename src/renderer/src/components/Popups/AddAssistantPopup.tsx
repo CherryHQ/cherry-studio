@@ -122,8 +122,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             onClick={() => onCreateAssistant(agent)}
             className={agent.id === 'default' ? 'default' : ''}>
             <HStack
-              alignItems="center"
-              gap={5}
+              $alignItems="center"
+              $ga$p={5}
               style={{ overflow: 'hidden', maxWidth: '100%' }}
               className="text-nowrap">
               {agent.emoji} {agent.name}

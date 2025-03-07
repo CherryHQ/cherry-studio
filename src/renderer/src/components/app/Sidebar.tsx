@@ -192,7 +192,7 @@ const PinnedApps: FC = () => {
             <StyledLink>
               <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
                 <Icon onClick={() => MinApp.start(app)} className={isActive ? 'active' : ''}>
-                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} />
+                  <MinAppIcon size={20} ap$p={app} style={{ borderRadius: 6 }} />
                 </Icon>
               </Dropdown>
             </StyledLink>

@@ -277,7 +277,7 @@ const ShortcutSettings: FC = () => {
 
         return (
           <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <HStack alignItems="center" style={{ position: 'relative' }}>
+            <HStack $alignItems="center" style={{ position: 'relative' }}>
               {isEditing ? (
                 <ShortcutInput
                   ref={(el) => el && (inputRefs.current[record.key] = el)}
@@ -351,7 +351,7 @@ const ShortcutSettings: FC = () => {
           showHeader={false}
         />
         <SettingDivider style={{ marginBottom: 0 }} />
-        <HStack justifyContent="flex-end" padding="16px 0">
+        <HStack $justifyContent="flex-end" padding="16px 0">
           <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
         </HStack>
       </SettingGroup>

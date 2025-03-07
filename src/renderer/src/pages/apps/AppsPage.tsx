@@ -53,7 +53,7 @@ const AppsPage: FC = () => {
       <ContentContainer id="content-container">
         <AppsContainer style={{ height: containerHeight }}>
           {filteredApps.map((app) => (
-            <App key={app.id} app={app} />
+            <App key={app.id} ap$p={app} />
           ))}
           {isEmpty(filteredApps) && (
             <Center style={{ flex: 1 }}>

@@ -13,7 +13,16 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
     if (ref.current) {
       ref.current.addEventListener('emoji-click', (event: any) => {
         event.stopPropagation()
-        onEmojiClick(event.detail.emoji.unicode)
+        // 确保只使用单个emoji字符
+        const emojiUnicode = event.detail.emoji.unicode
+        if (emojiUnicode) {
+          // 提取第一个emoji字符
+          const firstEmoji = [...emojiUnicode][0]
+          console.log('选择的原始emoji:', emojiUnicode, '提取后:', firstEmoji)
+          onEmojiClick(firstEmoji)
+        } else {
+          onEmojiClick(emojiUnicode)
+        }
       })
     }
   }, [onEmojiClick])

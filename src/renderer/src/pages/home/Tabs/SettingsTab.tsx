@@ -157,7 +157,7 @@ const SettingsTab: FC<Props> = (props) => {
               onChange={setTemperature}
               onChangeComplete={onTemperatureChange}
               value={typeof temperature === 'number' ? temperature : 0}
-              step={0.1}
+              ste$p={0.1}
             />
           </Col>
         </Row>
@@ -175,7 +175,7 @@ const SettingsTab: FC<Props> = (props) => {
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={typeof contextCount === 'number' ? contextCount : 0}
-              step={1}
+              ste$p={1}
             />
           </Col>
         </Row>
@@ -192,7 +192,7 @@ const SettingsTab: FC<Props> = (props) => {
         </SettingRow>
         <SettingDivider />
         <Row align="middle" justify="space-between" style={{ marginBottom: 10 }}>
-          <HStack alignItems="center">
+          <HStack $alignItems="center">
             <Label>{t('chat.settings.max_tokens')}</Label>
             <Tooltip title={t('chat.settings.max_tokens.tip')}>
               <QuestionIcon />
@@ -224,7 +224,7 @@ const SettingsTab: FC<Props> = (props) => {
                 disabled={!enableMaxTokens}
                 min={0}
                 max={10000000}
-                step={100}
+                ste$p={100}
                 value={typeof maxTokens === 'number' ? maxTokens : 0}
                 changeOnBlur
                 onChange={(value) => value && setMaxTokens(value)}
@@ -390,7 +390,7 @@ const SettingsTab: FC<Props> = (props) => {
               onChangeComplete={(value) => dispatch(setFontSize(value))}
               min={12}
               max={22}
-              step={1}
+              ste$p={1}
               marks={{
                 12: <span style={{ fontSize: '12px' }}>A</span>,
                 14: <span style={{ fontSize: '14px' }}>{t('common.default')}</span>,
@@ -429,7 +429,7 @@ const SettingsTab: FC<Props> = (props) => {
                 size="small"
                 min={500}
                 max={10000}
-                step={100}
+                ste$p={100}
                 value={pasteLongTextThreshold}
                 onChange={(value) => dispatch(setPasteLongTextThreshold(value ?? 500))}
                 style={{ width: 80 }}

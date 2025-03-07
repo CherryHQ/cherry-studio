@@ -44,7 +44,7 @@ const MinAppsPopover: FC<Props> = ({ children }) => {
     <PopoverContent maxHeight={maxHeight}>
       <AppsContainer>
         {minapps.map((app) => (
-          <App key={app.id} app={app} onClick={handleClose} size={50} />
+          <App key={app.id} ap$p={app} onClick={handleClose} size={50} />
         ))}
         {isEmpty(minapps) && (
           <Center>

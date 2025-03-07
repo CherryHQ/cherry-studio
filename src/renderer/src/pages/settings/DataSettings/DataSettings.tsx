@@ -120,7 +120,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <HStack $$alignItems="center" $$ga$p="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={notionDatabaseID || ''}
@@ -134,7 +134,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <HStack $$alignItems="center" $$ga$p="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={notionPageNameKey || ''}
@@ -148,7 +148,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <HStack $$alignItems="center" $$ga$p="5px" style={{ width: 315 }}>
           <Input
             type="password"
             value={notionApiKey || ''}
@@ -261,7 +261,7 @@ const YuqueSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <HStack $$alignItems="center" $$ga$p="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={yuqueUrl || ''}
@@ -282,7 +282,7 @@ const YuqueSettings: FC = () => {
             />
           </Tooltip>
         </SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <HStack $$alignItems="center" $$ga$p="5px" style={{ width: 315 }}>
           <Input
             type="password"
             value={yuqueToken || ''}
@@ -360,7 +360,7 @@ const DataSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <HStack gap="5px" justifyContent="space-between">
+          <HStack $$ga$p="5px" $justifyContent="space-between">
             <Button onClick={BackupPopup.show} icon={<SaveOutlined />}>
               {t('settings.general.backup.button')}
             </Button>
@@ -372,7 +372,7 @@ const DataSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-          <HStack gap="5px">
+          <HStack $$ga$p="5px">
             <Button onClick={reset} danger>
               {t('settings.general.reset.button')}
             </Button>
@@ -389,7 +389,7 @@ const DataSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.app_data')}</SettingRowTitle>
-          <HStack alignItems="center" gap="5px">
+          <HStack $$alignItems="center" $$ga$p="5px">
             <Typography.Text style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</Typography.Text>
             <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} />
           </HStack>
@@ -397,7 +397,7 @@ const DataSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.app_logs')}</SettingRowTitle>
-          <HStack alignItems="center" gap="5px">
+          <HStack $$alignItems="center" $$ga$p="5px">
             <Typography.Text style={{ color: 'var(--color-text-3)' }}>{appInfo?.logsPath}</Typography.Text>
             <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} />
           </HStack>
@@ -405,7 +405,7 @@ const DataSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.app_knowledge')}</SettingRowTitle>
-          <HStack alignItems="center" gap="5px">
+          <HStack $$alignItems="center" $$ga$p="5px">
             <Button onClick={handleRemoveAllFiles} danger>
               {t('settings.data.app_knowledge.button.delete')}
             </Button>
@@ -414,7 +414,7 @@ const DataSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.clear_cache.title')}</SettingRowTitle>
-          <HStack gap="5px">
+          <HStack $$ga$p="5px">
             <Button onClick={handleClearCache} danger>
               {t('settings.data.clear_cache.button')}
             </Button>

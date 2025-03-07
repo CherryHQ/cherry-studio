@@ -101,7 +101,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           )}
           <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
         </div>
-        <HStack gap={12} alignItems="center">
+        <HStack $ga$p={12} $alignItems="center">
           {showDownloadButton && <DownloadButton language={language} data={children} />}
           {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           <CopyButton text={children} />

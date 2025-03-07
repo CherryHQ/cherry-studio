@@ -19,7 +19,7 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import { Message, Model } from '@renderer/types'
+import { Message, Model, Topic } from '@renderer/types'
 import {
   captureScrollableDivAsBlob,
   captureScrollableDivAsDataURL,
@@ -52,6 +52,7 @@ interface Props {
   onEditMessage?: (message: Message) => void
   onDeleteMessage?: (message: Message) => Promise<void>
   onGetMessages?: () => Message[]
+  topic?: Topic
 }
 
 const MessageMenubar: FC<Props> = (props) => {

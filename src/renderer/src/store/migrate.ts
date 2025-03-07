@@ -156,7 +156,7 @@ const migrateConfig = {
       ...state,
       llm: {
         ...state.llm,
-        providers: state.llm.providers.map((provider) => {
+        providers: (state.llm.providers as any[]).map((provider) => {
           if (provider.id === 'zhipu' && provider.models[0] && provider.models[0].id === 'llama3-70b-8192') {
             provider.models = SYSTEM_MODELS.zhipu
           }
@@ -308,7 +308,7 @@ const migrateConfig = {
       ...state,
       settings: {
         ...state.settings,
-        fontSize: 14
+        $fontSize: 14
       }
     }
   },
@@ -555,7 +555,7 @@ const migrateConfig = {
       ...state,
       llm: {
         ...state.llm,
-        providers: state.llm.providers.map((provider) => {
+        providers: (state.llm.providers as any[]).map((provider) => {
           if (provider.id === 'azure-openai') {
             provider.models = provider.models.map((model) => ({ ...model, provider: 'azure-openai' }))
           }
@@ -683,7 +683,7 @@ const migrateConfig = {
     return state
   },
   '41': (state: RootState) => {
-    state.llm.providers.forEach((provider) => {
+    ;(state.llm.providers as any[])?.forEach((provider) => {
       if (provider.id === 'gemini') {
         provider.type = 'gemini'
       } else if (provider.id === 'anthropic') {
@@ -723,7 +723,7 @@ const migrateConfig = {
     return state
   },
   '47': (state: RootState) => {
-    state.llm.providers.forEach((provider) => {
+    ;(state.llm.providers as any[])?.forEach((provider) => {
       provider.models.forEach((model) => {
         model.group = getDefaultGroupName(model.id)
       })
@@ -769,7 +769,7 @@ const migrateConfig = {
     return state
   },
   '50': (state: RootState) => {
-    state.llm.providers.push({
+    ;(state.llm.providers as any[]).push({
       id: 'jina',
       name: 'Jina',
       type: 'openai',
@@ -811,7 +811,7 @@ const migrateConfig = {
     return state
   },
   '56': (state: RootState) => {
-    state.llm.providers.push({
+    ;(state.llm.providers as any[]).push({
       id: 'qwenlm',
       name: 'QwenLM',
       type: 'qwenlm',
@@ -835,8 +835,7 @@ const migrateConfig = {
     }
 
     removeMiniAppIconsFromState(state)
-
-    state.llm.providers.forEach((provider) => {
+    ;(state.llm.providers as any[])?.forEach((provider) => {
       if (provider.id === 'qwenlm') {
         provider.type = 'qwenlm'
       }
@@ -883,7 +882,7 @@ const migrateConfig = {
     return state
   },
   '61': (state: RootState) => {
-    state.llm.providers.forEach((provider) => {
+    ;(state.llm.providers as any[])?.forEach((provider) => {
       if (provider.id === 'qwenlm') {
         provider.type = 'qwenlm'
       }
@@ -891,7 +890,7 @@ const migrateConfig = {
     return state
   },
   '62': (state: RootState) => {
-    state.llm.providers.forEach((provider) => {
+    ;(state.llm.providers as any[])?.forEach((provider) => {
       if (provider.id === 'azure-openai') {
         provider.type = 'azure-openai'
       }
@@ -909,8 +908,9 @@ const migrateConfig = {
     return state
   },
   '64': (state: RootState) => {
-    state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'qwenlm')
-    state.llm.providers.push({
+    const filteredProviders = (state.llm.providers as any[])?.filter((provider) => provider.id !== 'qwenlm') || []
+
+    filteredProviders.push({
       id: 'baidu-cloud',
       name: 'Baidu Cloud',
       type: 'openai',
@@ -920,6 +920,8 @@ const migrateConfig = {
       isSystem: true,
       enabled: false
     })
+
+    state.llm.providers = filteredProviders
     return state
   },
   '65': (state: RootState) => {
@@ -927,7 +929,7 @@ const migrateConfig = {
     return state
   },
   '66': (state: RootState) => {
-    state.llm.providers.push(
+    ;(state.llm.providers as any[]).push(
       {
         id: 'gitee-ai',
         name: 'gitee ai',
@@ -950,7 +952,9 @@ const migrateConfig = {
       }
     )
 
-    state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'graphrag-kylin-mountain')
+    state.llm.providers = (state.llm.providers as any[])?.filter(
+      (provider) => provider.id !== 'graphrag-kylin-mountain'
+    )
 
     if (state.minapps) {
       const aistudio = DEFAULT_MIN_APPS.find((app) => app.id === 'aistudio')
@@ -969,7 +973,7 @@ const migrateConfig = {
       }
     }
 
-    state.llm.providers.push(
+    ;(state.llm.providers as any[]).push(
       {
         id: 'modelscope',
         name: 'ModelScope',
@@ -1036,8 +1040,8 @@ const migrateConfig = {
       }
     }
 
-    if (!state.llm.providers.find((provider) => provider.id === 'modelscope')) {
-      state.llm.providers.push({
+    if (!(state.llm.providers as any[]).find((provider) => provider.id === 'modelscope')) {
+      ;(state.llm.providers as any[]).push({
         id: 'modelscope',
         name: 'ModelScope',
         type: 'openai',
@@ -1049,8 +1053,8 @@ const migrateConfig = {
       })
     }
 
-    if (!state.llm.providers.find((provider) => provider.id === 'lmstudio')) {
-      state.llm.providers.push({
+    if (!(state.llm.providers as any[]).find((provider) => provider.id === 'lmstudio')) {
+      ;(state.llm.providers as any[]).push({
         id: 'lmstudio',
         name: 'LM Studio',
         type: 'openai',
@@ -1076,7 +1080,7 @@ const migrateConfig = {
     return state
   },
   '70': (state: RootState) => {
-    state.llm.providers.forEach((provider) => {
+    ;(state.llm.providers as any[])?.forEach((provider) => {
       if (provider.id === 'dmxapi') {
         provider.apiHost = 'https://www.dmxapi.cn'
       }
@@ -1111,12 +1115,12 @@ const migrateConfig = {
     }
 
     // remove duplicate lmstudio providers
-    const emptyLmStudioProviderIndex = state.llm.providers.findLastIndex(
+    const emptyLmStudioProviderIndex = (state.llm.providers as any[]).findLastIndex(
       (provider) => provider.id === 'lmstudio' && provider.models.length === 0
     )
 
     if (emptyLmStudioProviderIndex !== -1) {
-      state.llm.providers.splice(emptyLmStudioProviderIndex, 1)
+      ;(state.llm.providers as any[]).splice(emptyLmStudioProviderIndex, 1)
     }
 
     return state
@@ -1128,8 +1132,8 @@ const migrateConfig = {
       state.websearch.excludeDomains = []
     }
 
-    if (!state.llm.providers.find((provider) => provider.id === 'lmstudio')) {
-      state.llm.providers.push({
+    if (!(state.llm.providers as any[]).find((provider) => provider.id === 'lmstudio')) {
+      ;(state.llm.providers as any[]).push({
         id: 'lmstudio',
         name: 'LM Studio',
         type: 'openai',
@@ -1141,7 +1145,7 @@ const migrateConfig = {
       })
     }
 
-    state.llm.providers.splice(1, 0, {
+    ;(state.llm.providers as any[]).splice(1, 0, {
       id: 'o3',
       name: 'O3',
       apiKey: '',
@@ -1180,7 +1184,7 @@ const migrateConfig = {
     return state
   },
   '74': (state: RootState) => {
-    state.llm.providers.push({
+    ;(state.llm.providers as any[]).push({
       id: 'xirang',
       name: 'Xirang',
       type: 'openai',
@@ -1204,7 +1208,7 @@ const migrateConfig = {
     return state
   },
   '76': (state: RootState) => {
-    state.llm.providers.push({
+    ;(state.llm.providers as any[]).push({
       id: 'tencent-cloud-ti',
       name: 'Tencent Cloud TI',
       type: 'openai',
@@ -1218,8 +1222,8 @@ const migrateConfig = {
   },
   '77': (state: RootState) => {
     if (state.websearch) {
-      if (!state.websearch.providers.find((p) => p.id === 'searxng')) {
-        state.websearch.providers.push(
+      if (!(state.websearch.providers as any[]).find((p) => p.id === 'searxng')) {
+        ;(state.websearch.providers as any[]).push(
           {
             id: 'searxng',
             name: 'Searxng',
@@ -1232,12 +1236,36 @@ const migrateConfig = {
           }
         )
       }
-      state.websearch.providers.forEach((p) => {
+      ;(state.websearch.providers as any[])?.forEach((p) => {
         // @ts-ignore eslint-disable-next-line
         delete p.enabled
       })
     }
 
+    return state
+  },
+  '78': (state: RootState) => {
+    // 修复从老版本升级时，assistants.groups 和 topicGroups 为 undefined 的问题
+    if (state.assistants) {
+      if (!state.assistants.groups) {
+        state.assistants.groups = []
+      }
+      if (!state.assistants.topicGroups) {
+        state.assistants.topicGroups = []
+      }
+    }
+    return state
+  },
+  '79': (state: RootState) => {
+    // 初始化助手分组和话题分组设置
+    if (state.settings) {
+      if (state.settings.enableAssistantGroup === undefined) {
+        state.settings.enableAssistantGroup = false
+      }
+      if (state.settings.enableTopicsGroup === undefined) {
+        state.settings.enableTopicsGroup = false
+      }
+    }
     return state
   }
 }

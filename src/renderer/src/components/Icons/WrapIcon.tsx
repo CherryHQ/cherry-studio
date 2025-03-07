@@ -7,7 +7,7 @@ const WrapIcon = (props: React.SVGProps<SVGSVGElement>) => (
     height="1em"
     fill="none"
     stroke="currentColor"
-    strokeLinecap="round"
+    strokeLineca$p="round"
     strokeLinejoin="round"
     strokeWidth={2}
     className="wrap_svg__lucide wrap_svg__lucide-wrap-text wrap_svg__size-4"

@@ -220,7 +220,7 @@ const TranslatePage: FC = () => {
                     ]
                   }}>
                   <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-                    <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
+                    <Flex justify="space-between" vertical $ga$p={4} style={{ width: '100%' }}>
                       <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
                       <HistoryListItemTitle>{item.targetText}</HistoryListItemTitle>
                       <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
@@ -238,12 +238,12 @@ const TranslatePage: FC = () => {
 
         <InputContainer>
           <OperationBar>
-            <Flex align="center" gap={20}>
+            <Flex align="center" $ga$p={20}>
               <Select
                 showSearch
                 value="any"
                 style={{ width: 180 }}
-                optionFilterProp="label"
+                optionFilterPro$p="label"
                 disabled
                 options={[{ label: t('translate.any.language'), value: 'any' }]}
               />
@@ -290,7 +290,7 @@ const TranslatePage: FC = () => {
               showSearch
               value={targetLanguage}
               style={{ width: 180 }}
-              optionFilterProp="label"
+              optionFilterPro$p="label"
               options={translateLanguageOptions()}
               onChange={(value) => {
                 setTargetLanguage(value)

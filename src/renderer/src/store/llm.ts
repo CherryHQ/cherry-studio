@@ -22,7 +22,7 @@ export interface LlmState {
 }
 
 const initialState: LlmState = {
-  defaultModel: SYSTEM_MODELS.silicon[1],
+  defaultModel: SYSTEM_MODELS.silicon[0],
   topicNamingModel: SYSTEM_MODELS.silicon[2],
   translateModel: SYSTEM_MODELS.silicon[3],
   providers: [
@@ -508,14 +508,20 @@ const settingsSlice = createSlice({
       )
     },
     setDefaultModel: (state, action: PayloadAction<{ model: Model }>) => {
+      console.debug('[llm/setDefaultModel] before:', state.defaultModel)
       state.defaultModel = action.payload.model
+      console.debug('[llm/setDefaultModel] after:', state.defaultModel)
       window.electron.ipcRenderer.send('miniwindow-reload')
     },
     setTopicNamingModel: (state, action: PayloadAction<{ model: Model }>) => {
+      console.debug('[llm/setTopicNamingModel] before:', state.topicNamingModel)
       state.topicNamingModel = action.payload.model
+      console.debug('[llm/setTopicNamingModel] after:', state.topicNamingModel)
     },
     setTranslateModel: (state, action: PayloadAction<{ model: Model }>) => {
+      console.debug('[llm/setTranslateModel] before:', state.translateModel)
       state.translateModel = action.payload.model
+      console.debug('[llm/setTranslateModel] after:', state.translateModel)
     },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.ollama.keepAliveTime = action.payload

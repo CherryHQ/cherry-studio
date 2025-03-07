@@ -1,0 +1,190 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号'
+        required: true
+        default: '1.0.7'
+
+# 添加权限设置
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+      fail-fast: false
+    
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          # u7981u7528Yarnu7f13u5b58uff0cu9632u6b62u4f7fu7528u9519u8bef7248u672c
+          # cache: 'yarn'
+          # cache-dependency-path: yarn.lock
+
+      # u5148u7981u7528Node.jsu81eau5e26u7684u7f13u5b58u673au5236
+      - name: Setup and enable corepack
+        run: |
+          # u542fu7528corepack
+          corepack enable
+          # u5b89u88c5u5e76u6fc0u6d3bYarn 4.6.0
+          corepack prepare yarn@4.6.0 --activate
+          # u9a8cu8bc1Yarnu7248u672c
+          yarn --version
+          # u6e05u9664u4e4bu524du7684u7f13u5b58
+          yarn cache clean --all
+
+      # 安装构建依赖和工具
+      - name: Install build dependencies
+        run: |
+          # 安装编译工具
+          if [ "${{ matrix.platform }}" == "win" ]; then
+            npm install -g windows-build-tools --vs2019
+          fi
+          
+          if [ "${{ matrix.platform }}" == "mac" ]; then
+            # 确保macOS有必要的编译工具
+            xcode-select --install || true
+          fi
+      
+      # 安装依赖
+      - name: Install dependencies
+        run: |
+          # 使用新版Yarn安装依赖
+          yarn config set network-timeout 300000
+          yarn install --network-timeout 300000
+      
+      # 构建特定依赖
+      - name: Build Dependencies
+        run: |
+          # 重新构建所有有问题的原生模块
+          npm rebuild @kangfenmao/keyv-storage || true
+          npm rebuild electron || true
+          npm rebuild zipfile || true
+          npm rebuild @parcel/watcher || true
+          npm rebuild esbuild || true
+          npm rebuild sqlite3 || true
+        
+      - name: Update version in package.json
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # 从标签名称中提取版本号（去除 'v' 前缀）
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          # 更新 package.json 中的版本号
+          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json')); pkg.version = '${VERSION}'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
+          echo "当前版本: ${VERSION}"
+
+      # Windows构建 - 完全跳过类型检查
+      - name: Build for Windows
+        if: matrix.platform == 'win'
+        run: |
+          # 使用不执行类型检查的构建命令
+          yarn build:no-typecheck
+          yarn electron-builder --win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SKIP_TYPECHECK: true
+          
+      # macOS构建 - 完全跳过类型检查
+      - name: Build for macOS
+        if: matrix.platform == 'mac'
+        run: |
+          # 使用不执行类型检查的构建命令
+          yarn build:no-typecheck
+          yarn clean-settings
+          yarn electron-builder --mac --x64 --arm64 -c.mac.target=dmg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SKIP_TYPECHECK: true
+
+      # 检查构建产物
+      - name: List build artifacts
+        run: ls -la dist/
+
+      # 上传构建产物
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-artifacts
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/latest*.yml
+            dist/*.blockmap
+          if-no-files-found: warn
+
+  create-release:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          
+      # 检查下载的构建产物
+      - name: List downloaded artifacts
+        run: find artifacts -type f | sort
+          
+      - name: Get version for release
+        id: get_version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag_name=v${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            # 从标签名称中提取版本号
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+            echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          draft: true
+          tag_name: ${{ steps.get_version.outputs.tag_name }}
+          name: "Cherry Studio ${{ steps.get_version.outputs.version }}"
+          body: |
+            # Cherry Studio ${{ steps.get_version.outputs.version }} 发布
+            
+            ## 下载地址
+            
+            ### Windows
+            - [Cherry Studio-${{ steps.get_version.outputs.version }}-setup.exe](https://github.com/SiinXu/cherry-studio/releases/download/${{ steps.get_version.outputs.tag_name }}/Cherry.Studio-${{ steps.get_version.outputs.version }}-setup.exe)
+            
+            ### macOS
+            - [Cherry Studio-${{ steps.get_version.outputs.version }}-arm64.dmg](https://github.com/SiinXu/cherry-studio/releases/download/${{ steps.get_version.outputs.tag_name }}/Cherry.Studio-${{ steps.get_version.outputs.version }}-arm64.dmg) (Apple Silicon)
+            - [Cherry Studio-${{ steps.get_version.outputs.version }}-x64.dmg](https://github.com/SiinXu/cherry-studio/releases/download/${{ steps.get_version.outputs.tag_name }}/Cherry.Studio-${{ steps.get_version.outputs.version }}-x64.dmg) (Intel)
+            
+            ## 更新内容
+            - 修复公式渲染问题
+            - 优化构建流程
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

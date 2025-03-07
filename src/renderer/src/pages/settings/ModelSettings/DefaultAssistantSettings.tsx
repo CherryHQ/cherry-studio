@@ -98,7 +98,7 @@ const AssistantSettings: FC = () => {
   return (
     <SettingContainer style={{ height: 'auto', background: 'transparent', padding: 0 }} theme={theme}>
       <SettingSubtitle style={{ marginTop: 0 }}>{t('common.name')}</SettingSubtitle>
-      <HStack gap={8} alignItems="center" style={{ margin: '10px 0' }}>
+      <HStack $ga$p={8} $alignItems="center" style={{ margin: '10px 0' }}>
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
           <EmojiButtonWrapper>
             <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
@@ -164,14 +164,14 @@ const AssistantSettings: FC = () => {
             onChangeComplete={onTemperatureChange}
             value={typeof temperature === 'number' ? temperature : 0}
             marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
-            step={0.01}
+            ste$p={0.01}
           />
         </Col>
         <Col span={3}>
           <InputNumber
             min={0}
             max={2}
-            step={0.01}
+            ste$p={0.01}
             value={temperature}
             onChange={onTemperatureChange}
             style={{ width: '100%' }}
@@ -193,11 +193,11 @@ const AssistantSettings: FC = () => {
             onChangeComplete={onTopPChange}
             value={typeof topP === 'number' ? topP : 1}
             marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
-            step={0.01}
+            ste$p={0.01}
           />
         </Col>
         <Col span={3}>
-          <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
+          <InputNumber min={0} max={1} ste$p={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
         </Col>
       </Row>
       <Row align="middle">
@@ -215,14 +215,14 @@ const AssistantSettings: FC = () => {
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
-            step={1}
+            ste$p={1}
           />
         </Col>
         <Col span={3}>
           <InputNumber
             min={0}
             max={20}
-            step={1}
+            ste$p={1}
             value={contextCount}
             onChange={onContextCountChange}
             style={{ width: '100%' }}
@@ -230,7 +230,7 @@ const AssistantSettings: FC = () => {
         </Col>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }}>
-        <HStack alignItems="center">
+        <HStack $alignItems="center">
           <Label>{t('chat.settings.max_tokens')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />
@@ -263,7 +263,7 @@ const AssistantSettings: FC = () => {
               disabled={!enableMaxTokens}
               min={0}
               max={10000000}
-              step={100}
+              ste$p={100}
               value={maxTokens}
               changeOnBlur
               onChange={onMaxTokensChange}

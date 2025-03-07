@@ -24,12 +24,12 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
   const PopoverContent = () => {
     return (
       <VStack w="150px" background="100%">
-        <HStack justifyContent="space-between" w="100%">
+        <HStack $justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>{contextCount}</Text>
         </HStack>
         <Divider style={{ margin: '5px 0' }} />
-        <HStack justifyContent="space-between" w="100%">
+        <HStack $justifyContent="space-between" w="100%">
           <Text>{t('chat.input.estimated_tokens.tip')}</Text>
           <Text>{estimateTokenCount}</Text>
         </HStack>

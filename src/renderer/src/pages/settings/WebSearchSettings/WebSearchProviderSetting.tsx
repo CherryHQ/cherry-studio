@@ -90,7 +90,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   return (
     <>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex align="center" $ga$p={8}>
           <ProviderLogo shape="square" src={getWebSearchProviderLogo(provider.id)} size={16} />
 
           <ProviderName> {provider.name}</ProviderName>
@@ -105,7 +105,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {hasObjectKey(provider, 'apiKey') && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-          <Flex gap={8}>
+          <Flex $ga$p={8}>
             <Input.Password
               value={apiKey}
               placeholder={t('settings.provider.api_key')}

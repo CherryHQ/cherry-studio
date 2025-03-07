@@ -1,12 +1,12 @@
 import 'emoji-picker-element'
 
-import { CheckOutlined, LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { fetchGenerate } from '@renderer/services/ApiService'
+import { fetchEmojiSuggestion, fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppSelector } from '@renderer/store'
 import { Agent, KnowledgeBase } from '@renderer/types'
@@ -36,6 +36,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
+  const [emojiLoading, setEmojiLoading] = useState(false)
   const knowledgeState = useAppSelector((state) => state.knowledge)
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const knowledgeOptions: SelectProps['options'] = []
@@ -47,8 +48,33 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     })
   })
 
+  // 自动生成 emoji 的函数
+  const generateEmoji = async (promptText: string) => {
+    if (!promptText) return
+    setEmojiLoading(true)
+    try {
+      const generatedEmoji = await fetchEmojiSuggestion(promptText)
+      // 确保只使用第一个emoji字符
+      if (generatedEmoji) {
+        const firstCodePoint = [...generatedEmoji][0] // 正确处理emoji字符
+        setEmoji(firstCodePoint)
+      }
+    } catch (error) {
+      console.error('Error generating emoji:', error)
+    } finally {
+      setEmojiLoading(false)
+    }
+  }
+
   const onFinish = (values: FieldType) => {
-    const _emoji = emoji || getLeadingEmoji(values.name)
+    // 确保只使用单个emoji
+    let _emoji = emoji
+    if (!_emoji) {
+      const extractedEmoji = getLeadingEmoji(values.name)
+      if (extractedEmoji) {
+        _emoji = [...extractedEmoji][0] // 只取第一个emoji字符
+      }
+    }
 
     if (values.name.trim() === '' || values.prompt.trim() === '') {
       return
@@ -134,12 +160,35 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         style={{ marginTop: 25 }}
         onFinish={onFinish}>
         <Form.Item name="name" label="Emoji">
-          <Popover content={<EmojiPicker onEmojiClick={setEmoji} />} arrow>
-            <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
-          </Popover>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Popover content={<EmojiPicker onEmojiClick={setEmoji} />} arrow>
+              <Button>{emoji ? <span style={{ fontSize: 20 }}>{emoji}</span> : t('common.select')}</Button>
+            </Popover>
+            <Button
+              icon={emojiLoading ? <LoadingOutlined /> : <ReloadOutlined />}
+              onClick={() => {
+                const promptValue = formRef.current?.getFieldValue('prompt')
+                const nameValue = formRef.current?.getFieldValue('name')
+                generateEmoji(promptValue || nameValue)
+              }}
+              disabled={emojiLoading}
+              title="刷新生成 Emoji"
+            />
+          </div>
         </Form.Item>
         <Form.Item name="name" label={t('agents.add.name')} rules={[{ required: true }]}>
-          <Input placeholder={t('agents.add.name.placeholder')} spellCheck={false} allowClear />
+          <Input
+            placeholder={t('agents.add.name.placeholder')}
+            spellCheck={false}
+            allowClear
+            onChange={(e) => {
+              // 当名称超过 5 个字符并且没有设置 emoji 时自动生成
+              const value = e.target.value
+              if (value && value.length >= 5 && !emoji) {
+                generateEmoji(value)
+              }
+            }}
+          />
         </Form.Item>
         <div style={{ position: 'relative' }}>
           <Form.Item
@@ -147,13 +196,25 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             label={t('agents.add.prompt')}
             rules={[{ required: true }]}
             style={{ position: 'relative' }}>
-            <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
+            <TextArea
+              placeholder={t('agents.add.prompt.placeholder')}
+              spellCheck={false}
+              rows={10}
+              onChange={(e) => {
+                // 当提示词输入超过 20 个字符并且没有设置 emoji 时自动生成
+                const value = e.target.value
+                if (value && value.length >= 20 && !emoji) {
+                  generateEmoji(value)
+                }
+              }}
+            />
           </Form.Item>
           <Button
             icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
             onClick={handleButtonClick}
             style={{ position: 'absolute', top: 8, right: 8 }}
             disabled={loading}
+            title="根据提示词生成内容"
           />
         </div>
         {showKnowledgeIcon && (

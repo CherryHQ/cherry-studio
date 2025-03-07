@@ -83,7 +83,7 @@ const Translate: FC<Props> = ({ text }) => {
           showSearch
           value="any"
           style={{ width: 200 }}
-          optionFilterProp="label"
+          optionFilterPro$p="label"
           disabled
           options={[{ label: t('translate.any.language'), value: 'any' }]}
         />
@@ -92,7 +92,7 @@ const Translate: FC<Props> = ({ text }) => {
           showSearch
           value={targetLanguage}
           style={{ width: 200 }}
-          optionFilterProp="label"
+          optionFilterPro$p="label"
           options={TranslateLanguageOptions}
           onChange={async (value) => {
             await db.settings.put({ id: 'translate:target:language', value })

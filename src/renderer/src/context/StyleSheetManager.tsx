@@ -9,7 +9,7 @@ interface StyleSheetManagerProps {
 const StyleSheetManager = ({ children }: StyleSheetManagerProps): JSX.Element => {
   return (
     <StyledComponentsStyleSheetManager
-      shouldForwardProp={(prop, element) => {
+      shouldForwardPro$p={(prop, element) => {
         // 对于 HTML 元素，使用 isPropValid 检查
         if (typeof element === 'string') {
           return isPropValid(prop)

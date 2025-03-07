@@ -18,9 +18,23 @@ interface Props {
 }
 
 const Chat: FC<Props> = (props) => {
-  const { assistant } = useAssistant(props.assistant.id)
+  // 确保assistant存在并且有id属性
+  const assistantId = props.assistant?.id
+  const { assistant } = useAssistant(assistantId || '')
   const { topicPosition, messageStyle } = useSettings()
   const { showTopics } = useShowTopics()
+
+  // 如果没有有效的assistant，则不渲染任何内容
+  if (!assistantId) {
+    console.error('Chat组件接收到无效的assistant对象', props.assistant)
+    return null
+  }
+
+  // 确保activeTopic存在
+  if (!props.activeTopic) {
+    console.error('Chat组件接收到无效的activeTopic对象', props.activeTopic)
+    return null
+  }
 
   return (
     <Container id="chat" className={messageStyle}>

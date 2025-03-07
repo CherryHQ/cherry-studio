@@ -33,21 +33,21 @@ const Scrollbar: FC<Props> = forwardRef<HTMLDivElement, Props>((props, ref) => {
   }, [])
 
   return (
-    <Container {...props} isScrolling={isScrolling} onScroll={handleScroll} ref={ref}>
+    <Container {...props} $isScrolling={isScrolling} onScroll={handleScroll} ref={ref}>
       {props.children}
     </Container>
   )
 })
 
-const Container = styled.div<{ isScrolling: boolean; right?: boolean }>`
+const Container = styled.div<{ $isScrolling: boolean; right?: boolean }>`
   overflow-y: auto;
   &::-webkit-scrollbar-thumb {
     transition: background 2s ease;
     background: ${(props) =>
-      props.isScrolling ? `var(--color-scrollbar-thumb${props.right ? '-right' : ''})` : 'transparent'};
+      props.$isScrolling ? `var(--color-scrollbar-thumb${props.right ? '-right' : ''})` : 'transparent'};
     &:hover {
       background: ${(props) =>
-        props.isScrolling ? `var(--color-scrollbar-thumb${props.right ? '-right' : ''}-hover)` : 'transparent'};
+        props.$isScrolling ? `var(--color-scrollbar-thumb${props.right ? '-right' : ''}-hover)` : 'transparent'};
     }
   }
 `

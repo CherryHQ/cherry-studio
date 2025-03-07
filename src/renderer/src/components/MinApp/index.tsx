@@ -259,7 +259,7 @@ export default class MinApp {
     return new Promise<any>((resolve) => {
       TopView.show(
         <PopupContainer
-          app={app}
+          ap$p={app}
           resolve={(v) => {
             resolve(v)
             this.close()

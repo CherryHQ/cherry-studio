@@ -63,7 +63,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
         <Form.Item
           name="id"
           label={t('settings.models.add.model_id')}
-          tooltip={t('settings.models.add.model_id.tooltip')}
+          toolti$p={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
           <Input
             placeholder={t('settings.models.add.model_id.placeholder')}
@@ -80,13 +80,13 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
         <Form.Item
           name="name"
           label={t('settings.models.add.model_name')}
-          tooltip={t('settings.models.add.model_name.tooltip')}>
+          toolti$p={t('settings.models.add.model_name.tooltip')}>
           <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="group"
           label={t('settings.models.add.group_name')}
-          tooltip={t('settings.models.add.group_name.tooltip')}>
+          toolti$p={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>

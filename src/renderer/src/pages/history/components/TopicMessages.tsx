@@ -56,7 +56,7 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
         ))}
         {isEmpty && <Empty />}
         {!isEmpty && (
-          <HStack justifyContent="center">
+          <HStack $justifyContent="center">
             <Button onClick={() => onContinueChat(topic)} icon={<MessageOutlined />}>
               {t('history.continue_chat')}
             </Button>

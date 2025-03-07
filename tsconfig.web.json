@@ -1,5 +1,6 @@
 {
-  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
+  // 临时注释掉扩展，因为当前找不到文件
+  // "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
   "include": [
     "src/renderer/src/**/*",
     "src/preload/*.d.ts",
@@ -10,6 +11,12 @@
     "composite": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "lib": ["DOM", "ESNext"],
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
     "paths": {
       "@renderer/*": ["src/renderer/src/*"],
       "@shared/*": ["packages/shared/*"]

@@ -18,6 +18,7 @@ import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AboutSettings from './AboutSettings'
+// 高级设置已移除，功能已移到显示设置中
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
@@ -92,6 +93,7 @@ const SettingsPage: FC = () => {
               {t('settings.quickAssistant.title')}
             </MenuItem>
           </MenuItemLink>
+          {/* 高级设置已移除，功能已移到显示设置中 */}
           <MenuItemLink to="/settings/data">
             <MenuItem className={isRoute('/settings/data')}>
               <SaveOutlined />
@@ -115,7 +117,8 @@ const SettingsPage: FC = () => {
             <Route path="display" element={<DisplaySettings />} />
             <Route path="data/*" element={<DataSettings />} />
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
-            <Route path="shortcut" element={<ShortcutSettings />} />
+            {/* 高级设置已移除，功能已移到显示设置中 */}
+            <Route path="shortcut/*" element={<ShortcutSettings />} />
             <Route path="about" element={<AboutSettings />} />
           </Routes>
         </SettingContent>

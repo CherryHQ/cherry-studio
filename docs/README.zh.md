@@ -151,6 +151,18 @@ $ yarn build:linux
 
 <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 
+# 🔄 使用 GitHub Actions 自动构建
+
+项目支持使用 GitHub Actions 自动构建 Windows 和 macOS 版本的应用程序。
+
+1. 进入 GitHub 仓库的 Actions 标签页
+2. 选择 "Build and Release" 工作流
+3. 点击 "Run workflow" 按钮
+4. 输入版本号（默认为 1.0.7）
+5. 点击 "Run workflow" 开始构建
+
+构建完成后，将在 GitHub Releases 中创建一个草稿版本，包含 Windows 和 macOS 的安装包。
+
 # ☕ 赞助
 
 [微信赞赏码](sponsor.md)

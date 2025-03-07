@@ -36,9 +36,26 @@ export default class MCPService extends EventEmitter {
     this.initPromise = (async () => {
       try {
         log.info('[MCP] Starting initialization')
-        this.Client = await this.importClient()
-        this.stoioTransport = await this.importStdioClientTransport()
-        this.sseTransport = await this.importSSEClientTransport()
+
+        // 使用重试机制加载客户端
+        let retries = 0
+        const maxRetries = 3
+
+        while (retries < maxRetries) {
+          try {
+            this.Client = await this.importClient()
+            this.stoioTransport = await this.importStdioClientTransport()
+            this.sseTransport = await this.importSSEClientTransport()
+            break // 如果加载成功，跳出循环
+          } catch (loadErr) {
+            retries++
+            if (retries >= maxRetries) {
+              throw loadErr // 重试耗尽，抛出错误
+            }
+            log.warn(`[MCP] Import retry ${retries}/${maxRetries} after error:`, loadErr)
+            await new Promise((resolve) => setTimeout(resolve, 500 * retries)) // 等待后重试
+          }
+        }
 
         // Mark as initialized before loading servers to prevent recursive initialization
         this.initialized = true
@@ -59,6 +76,7 @@ export default class MCPService extends EventEmitter {
 
   private async importClient() {
     try {
+      // 使用原始导入路径，已知可用
       const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
       return Client
     } catch (err) {
@@ -69,6 +87,7 @@ export default class MCPService extends EventEmitter {
 
   private async importStdioClientTransport() {
     try {
+      // 使用原始导入路径，已知可用
       const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
       return StdioClientTransport
     } catch (err) {
@@ -79,6 +98,7 @@ export default class MCPService extends EventEmitter {
 
   private async importSSEClientTransport() {
     try {
+      // 使用原始导入路径，已知可用
       const { SSEClientTransport } = await import('@modelcontextprotocol/sdk/client/sse.js')
       return SSEClientTransport
     } catch (err) {

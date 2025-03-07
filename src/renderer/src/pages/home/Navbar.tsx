@@ -75,7 +75,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
       <NavbarRight
         style={{ justifyContent: 'space-between', paddingRight: isWindows ? 140 : 12, flex: 1 }}
         className="home-navbar-right">
-        <HStack alignItems="center">
+        <HStack $$alignItems="center">
           {!showAssistants && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
               <NavbarIcon
@@ -93,7 +93,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
           </TitleText>
           <SelectModelButton assistant={assistant} />
         </HStack>
-        <HStack alignItems="center" gap={8}>
+        <HStack $$alignItems="center" $$ga$p={8}>
           <UpdateAppButton />
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>

@@ -46,7 +46,7 @@ const NavbarLeftContainer = styled.div`
   padding: 0 10px;
   display: flex;
   flex-direction: row;
-  align-items: center;
+  $alignItems: center;
   font-weight: bold;
   color: var(--color-text-1);
 `
@@ -54,7 +54,7 @@ const NavbarLeftContainer = styled.div`
 const NavbarCenterContainer = styled.div`
   flex: 1;
   display: flex;
-  align-items: center;
+  $alignItems: center;
   padding: 0 ${isMac ? '20px' : 0};
   font-weight: bold;
   color: var(--color-text-1);
@@ -63,6 +63,6 @@ const NavbarCenterContainer = styled.div`
 const NavbarRightContainer = styled.div`
   min-width: var(--topic-list-width);
   display: flex;
-  align-items: center;
+  $alignItems: center;
   padding: 0 12px;
 `

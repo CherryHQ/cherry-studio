@@ -95,7 +95,7 @@ const WebDavSettings: FC = () => {
     }
 
     return (
-      <HStack gap="5px" alignItems="center">
+      <HStack $ga$p="5px" $alignItems="center">
         {webdavSync.syncing && <SyncOutlined spin />}
         {webdavSync.lastSyncTime && (
           <span style={{ color: 'var(--text-secondary)' }}>
@@ -162,7 +162,7 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-        <HStack gap="5px" justifyContent="space-between">
+        <HStack $ga$p="5px" $justifyContent="space-between">
           <Button onClick={onBackup} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>

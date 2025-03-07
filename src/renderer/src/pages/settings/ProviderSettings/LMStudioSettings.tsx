@@ -20,7 +20,7 @@ const LMStudioSettings: FC = () => {
         onChange={(e) => setKeepAliveMinutes(Number(e))}
         onBlur={() => setKeepAliveTime(keepAliveMinutes)}
         suffix={t('lmstudio.keep_alive_time.placeholder')}
-        step={5}
+        ste$p={5}
       />
       <SettingHelpTextRow>
         <SettingHelpText>{t('lmstudio.keep_alive_time.description')}</SettingHelpText>

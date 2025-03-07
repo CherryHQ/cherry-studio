@@ -105,8 +105,15 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
 
   const autoRenameTopic = useCallback(async () => {
     const _topic = getTopic(assistant, topic.id)
+    if (!_topic) return
 
-    // If the topic auto naming is not enabled, use the first message content as the topic name
+    // 检查消息是否存在
+    if (messages.length === 0) {
+      console.log('No messages available for topic naming')
+      return
+    }
+
+    // 如果没有启用自动命名，就使用第一条消息内容作为话题名
     if (!enableTopicNaming) {
       const topicName = messages[0].content.substring(0, 50)
       const data = { ..._topic, name: topicName } as Topic
@@ -115,13 +122,18 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       return
     }
 
-    // Auto rename the topic
-    if (_topic && _topic.name === t('chat.default.topic.name') && messages.length >= 2) {
-      const summaryText = await fetchMessagesSummary({ messages, assistant })
-      if (summaryText) {
-        const data = { ..._topic, name: summaryText }
-        setActiveTopic(data)
-        updateTopic(data)
+    // 自动重命名话题 - 不再检查是否是默认名称，只要有足够的消息就可以重命名
+    // 至少需要两条消息才能获得更好的摘要
+    if (messages.length >= 1) {
+      try {
+        const summaryText = await fetchMessagesSummary({ messages, assistant })
+        if (summaryText) {
+          const data = { ..._topic, name: summaryText }
+          setActiveTopic(data)
+          updateTopic(data)
+        }
+      } catch (error) {
+        console.error('Failed to auto rename topic:', error)
       }
     }
   }, [assistant, enableTopicNaming, messages, setActiveTopic, topic.id, updateTopic])

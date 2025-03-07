@@ -1,11 +1,13 @@
 import 'emoji-picker-element'
 
-import { CloseCircleFilled } from '@ant-design/icons'
+import { CloseCircleFilled, LoadingOutlined, ReloadOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HStack } from '@renderer/components/Layout'
+import { fetchEmojiSuggestion } from '@renderer/services/ApiService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
-import { Button, Input, Popover } from 'antd'
+import { ensureValidAssistant } from '@renderer/utils/safeAssistantUtils'
+import { Button, Input, Popover, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,31 +16,54 @@ import styled from 'styled-components'
 interface Props {
   assistant: Assistant
   updateAssistant: (assistant: Assistant) => void
-  updateAssistantSettings: (settings: AssistantSettings) => void
+  updateAssistantSettings: (settings: Partial<AssistantSettings>) => void
   onOk: () => void
 }
 
 const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, onOk }) => {
-  const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
-  const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
-  const [prompt, setPrompt] = useState(assistant.prompt)
+  const safeAssistant = ensureValidAssistant(assistant)
+  const [emoji, setEmoji] = useState(getLeadingEmoji(safeAssistant.name) || safeAssistant.emoji || '')
+  const [name, setName] = useState(safeAssistant.name.replace(getLeadingEmoji(safeAssistant.name) || '', '').trim())
+  const [prompt, setPrompt] = useState(safeAssistant.prompt)
+  const [emojiLoading, setEmojiLoading] = useState(false)
   const { t } = useTranslation()
 
   const onUpdate = () => {
-    const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
+    const _assistant = { ...safeAssistant, name: name.trim(), emoji, prompt }
     updateAssistant(_assistant)
   }
 
   const handleEmojiSelect = (selectedEmoji: string) => {
     setEmoji(selectedEmoji)
-    const _assistant = { ...assistant, name: name.trim(), emoji: selectedEmoji, prompt }
+    const _assistant = { ...safeAssistant, name: name.trim(), emoji: selectedEmoji, prompt }
     updateAssistant(_assistant)
   }
 
   const handleEmojiDelete = () => {
     setEmoji('')
-    const _assistant = { ...assistant, name: name.trim(), prompt, emoji: '' }
+    const _assistant = { ...safeAssistant, name: name.trim(), prompt, emoji: '' }
     updateAssistant(_assistant)
+  }
+
+  // 自动生成emoji的函数
+  const generateEmoji = async (promptText: string) => {
+    if (!promptText) return
+    setEmojiLoading(true)
+    try {
+      const generatedEmoji = await fetchEmojiSuggestion(promptText)
+      // 确保只使用第一个emoji字符
+      if (generatedEmoji) {
+        const firstCodePoint = [...generatedEmoji][0] // 正确处理emoji字符
+        setEmoji(firstCodePoint)
+        // 更新智能体
+        const _assistant = { ...safeAssistant, name: name.trim(), emoji: firstCodePoint, prompt }
+        updateAssistant(_assistant)
+      }
+    } catch (error) {
+      console.error('Error generating emoji:', error)
+    } finally {
+      setEmojiLoading(false)
+    }
   }
 
   return (
@@ -46,7 +71,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
       <Box mb={8} style={{ fontWeight: 'bold' }}>
         {t('common.name')}
       </Box>
-      <HStack gap={8} alignItems="center">
+      <HStack $ga$p={8} $alignItems="center">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
           <EmojiButtonWrapper>
             <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
@@ -70,6 +95,17 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
             )}
           </EmojiButtonWrapper>
         </Popover>
+        <Tooltip title="根据智能体名称生成emoji">
+          <Button
+            icon={emojiLoading ? <LoadingOutlined /> : <ReloadOutlined />}
+            onClick={() => {
+              // 优先使用提示词，如果没有则使用名称
+              generateEmoji(prompt || name)
+            }}
+            disabled={emojiLoading}
+            style={{ height: '32px' }}
+          />
+        </Tooltip>
         <Input
           placeholder={t('common.assistant') + t('common.name')}
           value={name}
@@ -90,7 +126,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
         spellCheck={false}
         style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 150px)' }}
       />
-      <HStack width="100%" justifyContent="flex-end" mt="10px">
+      <HStack width="100%" $justifyContent="flex-end" mt="10px">
         <Button type="primary" onClick={onOk}>
           {t('common.close')}
         </Button>

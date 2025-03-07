@@ -35,7 +35,11 @@ const DisplaySettings: FC = () => {
     customCss,
     sidebarIcons,
     showAssistantIcon,
-    setShowAssistantIcon
+    setShowAssistantIcon,
+    enableAssistantGroup,
+    setEnableAssistantGroup,
+    enableTopicsGroup,
+    setEnableTopicsGroup
   } = useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
   const { theme: themeMode } = useTheme()
@@ -159,6 +163,19 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
           <Switch checked={showTopicTime} onChange={(checked) => dispatch(setShowTopicTime(checked))} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.group.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.advanced.assistantGroup')}</SettingRowTitle>
+          <Switch checked={enableAssistantGroup} onChange={(checked) => setEnableAssistantGroup(checked)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.advanced.topicsGroup')}</SettingRowTitle>
+          <Switch checked={enableTopicsGroup} onChange={(checked) => setEnableTopicsGroup(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

@@ -30,12 +30,22 @@ files:
 asarUnpack:
   - resources/**
   - '**/*.{node,dll,metal,exp,lib}'
+
+# 保留用户数据
+asar: true
+removePackageScripts: true
+removePackageKeywords: true
 win:
   executableName: Cherry Studio
-  artifactName: ${productName}-${version}-portable.${ext}
-  target:
-    - target: nsis
-    - target: portable
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  target: ["nsis", "portable"]
+
+portable:
+  # 保留 Windows 便携版用户数据
+  splashImage: false
+  requestExecutionLevel: user
+  unpackDirName: data
+
 nsis:
   artifactName: ${productName}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -44,6 +54,9 @@ nsis:
   allowToChangeInstallationDirectory: true
   oneClick: false
   include: build/nsis-installer.nsh
+  # 保留 Windows 安装版用户数据
+  deleteAppDataOnUninstall: false
+  perMachine: false
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
@@ -80,4 +93,8 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    修复公式渲染问题
+    # Cherry Studio 更新
+    
+    ## 更新内容
+    - 修复公式渲染问题
+    - 优化构建流程

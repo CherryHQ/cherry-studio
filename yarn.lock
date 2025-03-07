@@ -2941,6 +2941,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/xml2js@npm:^0.4.14":
+  version: 0.4.14
+  resolution: "@types/xml2js@npm:0.4.14"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/06776e7f7aec55a698795e60425417caa7d7db3ff680a7b4ccaae1567c5fec28ff49b9975e9a0d74ff4acb8f4a43730501bbe64f9f761d784c6476ba4db12e13
+  languageName: node
+  linkType: hard
+
 "@types/yauzl@npm:^2.9.1":
   version: 2.10.3
   resolution: "@types/yauzl@npm:2.10.3"
@@ -3101,123 +3110,6 @@ __metadata:
   checksum: 10c0/c7647c442502720182b0d65b17d45d2d95317c1c8c497626fe524bda79b4fb768a9aa4fae2da919f308e7abcff7d67c058b102a9d641097e9a57f0b80187851f
   languageName: node
   linkType: hard
-
-"CherryStudio@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "CherryStudio@workspace:."
-  dependencies:
-    "@agentic/exa": "npm:^7.3.3"
-    "@agentic/searxng": "npm:^7.3.3"
-    "@agentic/tavily": "npm:^7.3.3"
-    "@anthropic-ai/sdk": "npm:^0.38.0"
-    "@electron-toolkit/eslint-config-prettier": "npm:^2.0.0"
-    "@electron-toolkit/eslint-config-ts": "npm:^1.0.1"
-    "@electron-toolkit/preload": "npm:^3.0.0"
-    "@electron-toolkit/tsconfig": "npm:^1.0.1"
-    "@electron-toolkit/utils": "npm:^3.0.0"
-    "@electron/notarize": "npm:^2.5.0"
-    "@emotion/is-prop-valid": "npm:^1.3.1"
-    "@google/generative-ai": "npm:^0.21.0"
-    "@hello-pangea/dnd": "npm:^16.6.0"
-    "@kangfenmao/keyv-storage": "npm:^0.1.0"
-    "@llm-tools/embedjs": "patch:@llm-tools/embedjs@npm%3A0.1.28#~/.yarn/patches/@llm-tools-embedjs-npm-0.1.28-8e4393fa2d.patch"
-    "@llm-tools/embedjs-libsql": "npm:^0.1.28"
-    "@llm-tools/embedjs-loader-csv": "npm:^0.1.28"
-    "@llm-tools/embedjs-loader-image": "npm:^0.1.28"
-    "@llm-tools/embedjs-loader-markdown": "patch:@llm-tools/embedjs-loader-markdown@npm%3A0.1.28#~/.yarn/patches/@llm-tools-embedjs-loader-markdown-npm-0.1.28-81647ffac6.patch"
-    "@llm-tools/embedjs-loader-msoffice": "npm:^0.1.28"
-    "@llm-tools/embedjs-loader-pdf": "npm:^0.1.28"
-    "@llm-tools/embedjs-loader-sitemap": "npm:^0.1.28"
-    "@llm-tools/embedjs-loader-web": "npm:^0.1.28"
-    "@llm-tools/embedjs-loader-xml": "npm:^0.1.28"
-    "@llm-tools/embedjs-openai": "npm:^0.1.28"
-    "@modelcontextprotocol/sdk": "npm:^1.6.1"
-    "@notionhq/client": "npm:^2.2.15"
-    "@reduxjs/toolkit": "npm:^2.2.5"
-    "@tavily/core": "patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch"
-    "@types/adm-zip": "npm:^0"
-    "@types/fs-extra": "npm:^11"
-    "@types/lodash": "npm:^4.17.5"
-    "@types/markdown-it": "npm:^14"
-    "@types/md5": "npm:^2.3.5"
-    "@types/node": "npm:^18.19.9"
-    "@types/pako": "npm:^1.0.2"
-    "@types/react": "npm:^18.2.48"
-    "@types/react-dom": "npm:^18.2.18"
-    "@types/react-infinite-scroll-component": "npm:^5.0.0"
-    "@types/tinycolor2": "npm:^1"
-    "@vitejs/plugin-react": "npm:^4.2.1"
-    adm-zip: "npm:^0.5.16"
-    antd: "npm:^5.22.5"
-    apache-arrow: "npm:^18.1.0"
-    applescript: "npm:^1.0.0"
-    axios: "npm:^1.7.3"
-    babel-plugin-styled-components: "npm:^2.1.4"
-    browser-image-compression: "npm:^2.0.2"
-    dayjs: "npm:^1.11.11"
-    dexie: "npm:^4.0.8"
-    dexie-react-hooks: "npm:^1.1.7"
-    docx: "npm:^9.0.2"
-    dotenv-cli: "npm:^7.4.2"
-    electron: "npm:31.7.6"
-    electron-builder: "npm:^24.13.3"
-    electron-devtools-installer: "npm:^3.2.0"
-    electron-icon-builder: "npm:^2.0.1"
-    electron-log: "npm:^5.1.5"
-    electron-store: "npm:^8.2.0"
-    electron-updater: "npm:^6.3.9"
-    electron-vite: "npm:^2.3.0"
-    electron-window-state: "npm:^5.0.3"
-    emittery: "npm:^1.0.3"
-    emoji-picker-element: "npm:^1.22.1"
-    epub: "npm:^1.3.0"
-    eslint: "npm:^8.56.0"
-    eslint-plugin-react: "npm:^7.34.3"
-    eslint-plugin-react-hooks: "npm:^4.6.2"
-    eslint-plugin-simple-import-sort: "npm:^12.1.1"
-    eslint-plugin-unused-imports: "npm:^4.0.0"
-    fs-extra: "npm:^11.2.0"
-    html-to-image: "npm:^1.11.13"
-    i18next: "npm:^23.11.5"
-    lodash: "npm:^4.17.21"
-    markdown-it: "npm:^14.1.0"
-    mime: "npm:^4.0.4"
-    officeparser: "npm:^4.1.1"
-    openai: "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
-    prettier: "npm:^3.2.4"
-    react: "npm:^18.2.0"
-    react-dom: "npm:^18.2.0"
-    react-hotkeys-hook: "npm:^4.6.1"
-    react-i18next: "npm:^14.1.2"
-    react-infinite-scroll-component: "npm:^6.1.0"
-    react-markdown: "npm:^9.0.1"
-    react-redux: "npm:^9.1.2"
-    react-router: "npm:6"
-    react-router-dom: "npm:6"
-    react-spinners: "npm:^0.14.1"
-    redux: "npm:^5.0.1"
-    redux-persist: "npm:^6.0.0"
-    rehype-katex: "npm:^7.0.1"
-    rehype-mathjax: "npm:^7.0.0"
-    rehype-raw: "npm:^7.0.0"
-    remark-gfm: "npm:^4.0.0"
-    remark-math: "npm:^6.0.0"
-    rollup-plugin-visualizer: "npm:^5.12.0"
-    sass: "npm:^1.77.2"
-    shiki: "npm:^1.22.2"
-    string-width: "npm:^7.2.0"
-    styled-components: "npm:^6.1.11"
-    tinycolor2: "npm:^1.6.0"
-    tokenx: "npm:^0.4.1"
-    typescript: "npm:^5.6.2"
-    uuid: "npm:^10.0.0"
-    vite: "npm:^5.0.12"
-    webdav: "npm:4.11.4"
-  peerDependencies:
-    react: ^17.0.0 || ^18.0.0
-    react-dom: ^17.0.0 || ^18.0.0
-  languageName: unknown
-  linkType: soft
 
 "abbrev@npm:1":
   version: 1.1.1
@@ -4414,6 +4306,126 @@ __metadata:
   checksum: 10c0/a45ec39363a16799d0f9365c8dd0c78e711415113c6f14787a22462ef451f5013efae8a28f1c058f81fc01f2a6a16955f7a5fd0cd56247ce94a45349c89877d8
   languageName: node
   linkType: hard
+
+"cherry-studio@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "cherry-studio@workspace:."
+  dependencies:
+    "@agentic/exa": "npm:^7.3.3"
+    "@agentic/searxng": "npm:^7.3.3"
+    "@agentic/tavily": "npm:^7.3.3"
+    "@anthropic-ai/sdk": "npm:^0.38.0"
+    "@electron-toolkit/eslint-config-prettier": "npm:^2.0.0"
+    "@electron-toolkit/eslint-config-ts": "npm:^1.0.1"
+    "@electron-toolkit/preload": "npm:^3.0.0"
+    "@electron-toolkit/tsconfig": "npm:^1.0.1"
+    "@electron-toolkit/utils": "npm:^3.0.0"
+    "@electron/notarize": "npm:^2.5.0"
+    "@emotion/is-prop-valid": "npm:^1.3.1"
+    "@google/generative-ai": "npm:^0.21.0"
+    "@hello-pangea/dnd": "npm:^16.6.0"
+    "@kangfenmao/keyv-storage": "npm:^0.1.0"
+    "@llm-tools/embedjs": "patch:@llm-tools/embedjs@npm%3A0.1.28#~/.yarn/patches/@llm-tools-embedjs-npm-0.1.28-8e4393fa2d.patch"
+    "@llm-tools/embedjs-libsql": "npm:^0.1.28"
+    "@llm-tools/embedjs-loader-csv": "npm:^0.1.28"
+    "@llm-tools/embedjs-loader-image": "npm:^0.1.28"
+    "@llm-tools/embedjs-loader-markdown": "patch:@llm-tools/embedjs-loader-markdown@npm%3A0.1.28#~/.yarn/patches/@llm-tools-embedjs-loader-markdown-npm-0.1.28-81647ffac6.patch"
+    "@llm-tools/embedjs-loader-msoffice": "npm:^0.1.28"
+    "@llm-tools/embedjs-loader-pdf": "npm:^0.1.28"
+    "@llm-tools/embedjs-loader-sitemap": "npm:^0.1.28"
+    "@llm-tools/embedjs-loader-web": "npm:^0.1.28"
+    "@llm-tools/embedjs-loader-xml": "npm:^0.1.28"
+    "@llm-tools/embedjs-openai": "npm:^0.1.28"
+    "@modelcontextprotocol/sdk": "npm:^1.6.1"
+    "@notionhq/client": "npm:^2.2.15"
+    "@reduxjs/toolkit": "npm:^2.2.5"
+    "@tavily/core": "patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch"
+    "@types/adm-zip": "npm:^0"
+    "@types/fs-extra": "npm:^11"
+    "@types/lodash": "npm:^4.17.5"
+    "@types/markdown-it": "npm:^14"
+    "@types/md5": "npm:^2.3.5"
+    "@types/node": "npm:^18.19.9"
+    "@types/pako": "npm:^1.0.2"
+    "@types/react": "npm:^18.2.48"
+    "@types/react-dom": "npm:^18.2.18"
+    "@types/react-infinite-scroll-component": "npm:^5.0.0"
+    "@types/tinycolor2": "npm:^1"
+    "@types/xml2js": "npm:^0.4.14"
+    "@vitejs/plugin-react": "npm:^4.2.1"
+    adm-zip: "npm:^0.5.16"
+    antd: "npm:^5.22.5"
+    apache-arrow: "npm:^18.1.0"
+    applescript: "npm:^1.0.0"
+    axios: "npm:^1.7.3"
+    babel-plugin-styled-components: "npm:^2.1.4"
+    browser-image-compression: "npm:^2.0.2"
+    dayjs: "npm:^1.11.11"
+    dexie: "npm:^4.0.8"
+    dexie-react-hooks: "npm:^1.1.7"
+    docx: "npm:^9.0.2"
+    dotenv-cli: "npm:^7.4.2"
+    electron: "npm:31.7.6"
+    electron-builder: "npm:^24.13.3"
+    electron-devtools-installer: "npm:^3.2.0"
+    electron-icon-builder: "npm:^2.0.1"
+    electron-log: "npm:^5.1.5"
+    electron-store: "npm:^8.2.0"
+    electron-updater: "npm:^6.3.9"
+    electron-vite: "npm:^2.3.0"
+    electron-window-state: "npm:^5.0.3"
+    emittery: "npm:^1.0.3"
+    emoji-picker-element: "npm:^1.22.1"
+    epub: "npm:^1.3.0"
+    eslint: "npm:^8.56.0"
+    eslint-plugin-react: "npm:^7.34.3"
+    eslint-plugin-react-hooks: "npm:^4.6.2"
+    eslint-plugin-simple-import-sort: "npm:^12.1.1"
+    eslint-plugin-unused-imports: "npm:^4.0.0"
+    fs-extra: "npm:^11.2.0"
+    html-to-image: "npm:^1.11.13"
+    i18next: "npm:^23.11.5"
+    lodash: "npm:^4.17.21"
+    markdown-it: "npm:^14.1.0"
+    mime: "npm:^4.0.4"
+    officeparser: "npm:^4.1.1"
+    openai: "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
+    prettier: "npm:^3.2.4"
+    react: "npm:^18.2.0"
+    react-dom: "npm:^18.2.0"
+    react-hotkeys-hook: "npm:^4.6.1"
+    react-i18next: "npm:^14.1.2"
+    react-infinite-scroll-component: "npm:^6.1.0"
+    react-markdown: "npm:^9.0.1"
+    react-redux: "npm:^9.1.2"
+    react-router: "npm:6"
+    react-router-dom: "npm:6"
+    react-spinners: "npm:^0.14.1"
+    redux: "npm:^5.0.1"
+    redux-persist: "npm:^6.0.0"
+    rehype-katex: "npm:^7.0.1"
+    rehype-mathjax: "npm:^7.0.0"
+    rehype-raw: "npm:^7.0.0"
+    remark-gfm: "npm:^4.0.0"
+    remark-math: "npm:^6.0.0"
+    rollup-plugin-visualizer: "npm:^5.12.0"
+    sass: "npm:^1.77.2"
+    shiki: "npm:^1.22.2"
+    string-width: "npm:^7.2.0"
+    styled-components: "npm:^6.1.15"
+    tinycolor2: "npm:^1.6.0"
+    tokenx: "npm:^0.4.1"
+    typescript: "npm:^5.6.2"
+    uuid: "npm:^10.0.0"
+    vite: "npm:^5.0.12"
+    webdav: "npm:4.11.4"
+    xml2js: "npm:^0.6.2"
+    zod: "npm:^3.24.2"
+  peerDependencies:
+    react: ^17.0.0 || ^18.0.0
+    react-dom: ^17.0.0 || ^18.0.0
+  languageName: unknown
+  linkType: soft
 
 "chokidar@npm:^4.0.0":
   version: 4.0.3
@@ -13970,7 +13982,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"styled-components@npm:^6.1.11":
+"styled-components@npm:^6.1.15":
   version: 6.1.15
   resolution: "styled-components@npm:6.1.15"
   dependencies:
@@ -15287,7 +15299,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"xml2js@npm:0.6.2":
+"xml2js@npm:0.6.2, xml2js@npm:^0.6.2":
   version: 0.6.2
   resolution: "xml2js@npm:0.6.2"
   dependencies:
@@ -15509,7 +15521,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^3.22.4, zod@npm:^3.23.8":
+"zod@npm:^3.22.4, zod@npm:^3.23.8, zod@npm:^3.24.2":
   version: 3.24.2
   resolution: "zod@npm:3.24.2"
   checksum: 10c0/c638c7220150847f13ad90635b3e7d0321b36cce36f3fc6050ed960689594c949c326dfe2c6fa87c14b126ee5d370ccdebd6efb304f41ef5557a4aaca2824565

@@ -34,7 +34,7 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
           onClick={() => locateToMessage(navigate, message)}
           icon={<ArrowRightOutlined />}
         />
-        <HStack mt="10px" justifyContent="center">
+        <HStack mt="10px" $justifyContent="center">
           <Button onClick={() => locateToMessage(navigate, message)} icon={<ArrowRightOutlined />}>
             {t('history.locate.message')}
           </Button>

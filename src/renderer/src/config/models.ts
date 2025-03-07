@@ -1449,12 +1449,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Phi'
     },
     {
-      id: 'microsoft/phi-3-medium-128k-instruct:free',
-      provider: 'openrouter',
-      name: 'Phi-3 Medium 128K Instruct',
-      group: 'Phi'
-    },
-    {
       id: 'meta-llama/llama-3-8b-instruct:free',
       provider: 'openrouter',
       name: 'Meta: Llama 3 8B Instruct',

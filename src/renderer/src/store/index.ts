@@ -30,16 +30,22 @@ const rootReducer = combineReducers({
   mcp
 })
 
-const persistedReducer = persistReducer(
-  {
-    key: 'cherry-studio',
-    storage,
-    version: 77,
-    blacklist: ['runtime'],
-    migrate
-  },
-  rootReducer
-)
+const persistConfig = {
+  key: 'cherry-studio',
+  storage,
+  version: 78,
+  blacklist: ['runtime'],
+  migrate,
+  debug: true,
+  serialize: true,
+  writeFailHandler: (err) => {
+    console.error('[redux-persist] Error writing state:', err)
+  }
+}
+
+console.debug('[store] Initializing persist config:', persistConfig)
+
+const persistedReducer = persistReducer(persistConfig, rootReducer)
 
 const store = configureStore({
   // @ts-ignore store type is unknown

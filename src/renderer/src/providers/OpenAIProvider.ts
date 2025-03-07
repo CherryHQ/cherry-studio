@@ -4,7 +4,8 @@ import {
   isOpenAIoSeries,
   isReasoningModel,
   isSupportedModel,
-  isVisionModel
+  isVisionModel,
+  NOT_SUPPORTED_REGEX
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -22,6 +23,7 @@ import {
   Suggestion
 } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
+import { safeMap } from '@renderer/utils/safeArrayUtils'
 import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
@@ -42,8 +44,6 @@ import {
   openAIToolsToMcpTool,
   upsertMCPToolResponse
 } from './mcpToolUtils'
-
-type ReasoningEffort = 'high' | 'medium' | 'low'
 
 export default class OpenAIProvider extends BaseProvider {
   private sdk: OpenAI
@@ -198,26 +198,27 @@ export default class OpenAIProvider extends BaseProvider {
         }
       }
 
+      const effort_ratio =
+        assistant?.settings?.reasoning_effort === 'high'
+          ? 0.8
+          : assistant?.settings?.reasoning_effort === 'medium'
+            ? 0.5
+            : assistant?.settings?.reasoning_effort === 'low'
+              ? 0.2
+              : undefined
+
       if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
-        const effortRatios: Record<ReasoningEffort, number> = {
-          high: 0.8,
-          medium: 0.5,
-          low: 0.2
+        if (!effort_ratio) {
+          return {
+            type: 'disabled'
+          }
         }
-
-        const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
-        const effortRatio = effortRatios[effort]
-
-        if (!effortRatio) {
-          return {}
-        }
-
-        const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
-        const budgetTokens = Math.trunc(Math.max(Math.min(maxTokens * effortRatio, 32000), 1024))
-
         return {
           thinking: {
-            budget_tokens: budgetTokens
+            budget_tokens: Math.max(
+              Math.min((assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS) * effort_ratio, 32000),
+              1024
+            )
           }
         }
       }
@@ -658,26 +659,34 @@ export default class OpenAIProvider extends BaseProvider {
 
       if (this.provider.id === 'github') {
         // @ts-ignore key is not typed
-        return response.body
-          .map((model) => ({
-            id: model.name,
-            description: model.summary,
-            object: 'model',
-            owned_by: model.publisher
-          }))
-          .filter(isSupportedModel)
+        const githubModels = safeMap(response.body, (model: any) => ({
+          id: model.name,
+          description: model.summary,
+          object: 'model' as const, // 使用const断言确保类型为"model"
+          owned_by: model.publisher,
+          created: Date.now(), // 添加required created属性
+          provider: 'github', // 添加Model所需的provider属性
+          name: model.name, // 添加Model所需的name属性
+          group: 'github' // 添加Model所需的group属性
+        }))
+        // 转换为Model类型
+        return githubModels.filter((model) => !NOT_SUPPORTED_REGEX.test(model.id)) as unknown as OpenAI.Models.Model[]
       }
 
       if (this.provider.id === 'together') {
         // @ts-ignore key is not typed
-        return response?.body
-          .map((model: any) => ({
-            id: model.id,
-            description: model.display_name,
-            object: 'model',
-            owned_by: model.organization
-          }))
-          .filter(isSupportedModel)
+        const togetherModels = safeMap(response?.body, (model: any) => ({
+          id: model.id,
+          description: model.display_name,
+          object: 'model' as const, // 使用const断言确保类型为"model"
+          owned_by: model.organization,
+          created: Date.now(), // 添加required created属性
+          provider: 'together', // 添加Model所需的provider属性
+          name: model.display_name || model.id, // 添加Model所需的name属性
+          group: 'together' // 添加Model所需的group属性
+        }))
+        // 转换为Model类型
+        return togetherModels.filter((model) => !NOT_SUPPORTED_REGEX.test(model.id)) as unknown as OpenAI.Models.Model[]
       }
 
       const models = response?.data || []

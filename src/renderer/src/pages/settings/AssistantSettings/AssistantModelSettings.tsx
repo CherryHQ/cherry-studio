@@ -6,6 +6,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/cons
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
+import { ensureValidAssistant, getAssistantSettings } from '@renderer/utils/safeAssistantUtils'
 import { Button, Col, Divider, Input, InputNumber, Radio, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
@@ -19,16 +20,19 @@ interface Props {
 }
 
 const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateAssistantSettings }) => {
-  const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
-  const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
-  const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
-  const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
-  const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
-  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
-  const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
-  const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
+  const safeAssistant = ensureValidAssistant(assistant)
+  const settings = getAssistantSettings(safeAssistant)
+
+  const [temperature, setTemperature] = useState(settings.temperature ?? DEFAULT_TEMPERATURE)
+  const [contextCount, setContextCount] = useState(settings.contextCount ?? DEFAULT_CONTEXTCOUNT)
+  const [enableMaxTokens, setEnableMaxTokens] = useState(settings.enableMaxTokens ?? false)
+  const [maxTokens, setMaxTokens] = useState(settings.maxTokens ?? 0)
+  const [reasoningEffort, setReasoningEffort] = useState(settings.reasoning_effort)
+  const [streamOutput, setStreamOutput] = useState(settings.streamOutput ?? true)
+  const [defaultModel, setDefaultModel] = useState(safeAssistant.defaultModel)
+  const [topP, setTopP] = useState(settings.topP ?? 1)
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
-    assistant?.settings?.customParameters ?? []
+    settings.customParameters ?? []
   )
 
   const customParametersRef = useRef(customParameters)
@@ -107,7 +111,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             style={{ width: '100%' }}
             value={param.value as number}
             onChange={(value) => onUpdateCustomParameter(index, 'value', value || 0)}
-            step={0.01}
+            ste$p={0.01}
           />
         )
       case 'boolean':
@@ -169,11 +173,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   }
 
   const onSelectModel = async () => {
-    const selectedModel = await SelectModelPopup.show({ model: assistant?.model })
+    const selectedModel = await SelectModelPopup.show({ model: safeAssistant.model })
     if (selectedModel) {
       setDefaultModel(selectedModel)
       updateAssistant({
-        ...assistant,
+        ...safeAssistant,
         model: selectedModel,
         defaultModel: selectedModel
       })
@@ -182,14 +186,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
-  }, [])
+  }, [updateAssistantSettings])
 
   return (
     <Container>
       <Row align="middle" style={{ marginBottom: 10 }}>
         <Label style={{ marginBottom: 10 }}>{t('assistants.settings.default_model')}</Label>
         <Col span={24}>
-          <HStack alignItems="center" gap={5}>
+          <HStack $alignItems="center" $ga$p={5}>
             <Button
               icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusOutlined />}
               onClick={onSelectModel}>
@@ -201,7 +205,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
                 type="text"
                 onClick={() => {
                   setDefaultModel(undefined)
-                  updateAssistant({ ...assistant, defaultModel: undefined })
+                  updateAssistant({ ...safeAssistant, defaultModel: undefined })
                 }}
                 danger
               />
@@ -225,14 +229,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChangeComplete={onTemperatureChange}
             value={typeof temperature === 'number' ? temperature : 0}
             marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
-            step={0.01}
+            ste$p={0.01}
           />
         </Col>
         <Col span={4}>
           <InputNumber
             min={0}
             max={2}
-            step={0.01}
+            ste$p={0.01}
             value={temperature}
             changeOnBlur
             onChange={(value) => {
@@ -260,14 +264,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChangeComplete={onTopPChange}
             value={typeof topP === 'number' ? topP : 1}
             marks={{ 0: '0', 1: '1' }}
-            step={0.01}
+            ste$p={0.01}
           />
         </Col>
         <Col span={4}>
           <InputNumber
             min={0}
             max={1}
-            step={0.01}
+            ste$p={0.01}
             value={topP}
             changeOnBlur
             onChange={(value) => {
@@ -297,14 +301,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
             marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
-            step={1}
+            ste$p={1}
           />
         </Col>
         <Col span={4}>
           <InputNumber
             min={0}
             max={20}
-            step={1}
+            ste$p={1}
             value={contextCount}
             changeOnBlur
             onChange={(value) => {
@@ -319,7 +323,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </Row>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
-        <HStack alignItems="center">
+        <HStack $alignItems="center">
           <Label>{t('chat.settings.max_tokens')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />
@@ -351,7 +355,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               disabled={!enableMaxTokens}
               min={0}
               max={10000000}
-              step={100}
+              ste$p={100}
               value={maxTokens}
               changeOnBlur
               onChange={(value) => {
@@ -431,7 +435,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </Row>
       ))}
       <Divider style={{ margin: '15px 0' }} />
-      <HStack justifyContent="flex-end">
+      <HStack $justifyContent="flex-end">
         <Button onClick={onReset} style={{ width: 80 }} danger type="primary">
           {t('chat.settings.reset')}
         </Button>

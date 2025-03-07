@@ -6,7 +6,8 @@ import { isEmbeddingModel } from '@renderer/config/models'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase } from '@renderer/types'
+import { KnowledgeBase, Model, Provider } from '@renderer/types'
+import { safeFilter } from '@renderer/utils/safeArrayUtils'
 import { Alert, Form, Input, InputNumber, Modal, Select, Slider } from 'antd'
 import { sortBy } from 'lodash'
 import { useEffect, useState } from 'react'
@@ -45,17 +46,17 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
     return null
   }
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
+  const selectOptions = safeFilter(providers as Provider[], (p) => safeFilter(p.models, () => true).length > 0)
     .map((p) => ({
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
+      options: sortBy(
+        safeFilter(p.models, (model) => isEmbeddingModel(model as Model)),
+        'name'
+      ).map((m) => ({
+        label: m.name,
+        value: getModelUniqId(m as Model)
+      }))
     }))
     .filter((group) => group.options.length > 0)
 
@@ -111,7 +112,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           name="model"
           label={t('models.embedding_model')}
           initialValue={getModelUniqId(base.model)}
-          tooltip={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
+          toolti$p={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
           rules={[{ required: true, message: t('message.error.enter.model') }]}>
           <Select style={{ width: '100%' }} options={selectOptions} placeholder={t('settings.models.empty')} disabled />
         </Form.Item>
@@ -119,12 +120,12 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         <Form.Item
           name="documentCount"
           label={t('knowledge.document_count')}
-          tooltip={{ title: t('knowledge.document_count_help') }}>
+          toolti$p={{ title: t('knowledge.document_count_help') }}>
           <Slider
             style={{ width: '100%' }}
             min={1}
             max={30}
-            step={1}
+            ste$p={1}
             marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30' }}
           />
         </Form.Item>
@@ -132,7 +133,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         <Form.Item
           name="chunkSize"
           label={t('knowledge.chunk_size')}
-          tooltip={{ title: t('knowledge.chunk_size_tooltip') }}
+          toolti$p={{ title: t('knowledge.chunk_size_tooltip') }}
           initialValue={base.chunkSize}
           rules={[
             {
@@ -157,7 +158,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           name="chunkOverlap"
           label={t('knowledge.chunk_overlap')}
           initialValue={base.chunkOverlap}
-          tooltip={{ title: t('knowledge.chunk_overlap_tooltip') }}
+          toolti$p={{ title: t('knowledge.chunk_overlap_tooltip') }}
           rules={[
             ({ getFieldValue }) => ({
               validator(_, value) {
@@ -179,7 +180,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         <Form.Item
           name="threshold"
           label={t('knowledge.threshold')}
-          tooltip={{ title: t('knowledge.threshold_tooltip') }}
+          toolti$p={{ title: t('knowledge.threshold_tooltip') }}
           initialValue={base.threshold}
           rules={[
             {
@@ -191,7 +192,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
               }
             }
           ]}>
-          <InputNumber placeholder={t('knowledge.threshold_placeholder')} step={0.1} style={{ width: '100%' }} />
+          <InputNumber placeholder={t('knowledge.threshold_placeholder')} ste$p={0.1} style={{ width: '100%' }} />
         </Form.Item>
       </Form>
       <Alert message={t('knowledge.chunk_size_change_warning')} type="warning" showIcon icon={<WarningOutlined />} />

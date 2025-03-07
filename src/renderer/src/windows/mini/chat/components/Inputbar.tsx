@@ -279,7 +279,7 @@ const Inputbar: FC = () => {
   }
 
   return (
-    <Container onDragOver={handleDragOver} onDrop={handleDrop}>
+    <Container onDragOver={handleDragOver} onDro$p={handleDrop}>
       <AttachmentPreview files={files} setFiles={setFiles} />
       <InputBarContainer id="inputbar" className={inputFocus ? 'focus' : ''} ref={containerRef}>
         <Textarea
