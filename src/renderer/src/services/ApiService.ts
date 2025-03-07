@@ -83,7 +83,7 @@ export async function fetchChatCompletion({
       messages: filterUsefulMessages(messages),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({ text, reasoning_content, usage, metrics, search, citations }) => {
+      onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse }) => {
         message.content = message.content + text || ''
         message.usage = usage
         message.metrics = metrics
@@ -94,6 +94,10 @@ export async function fetchChatCompletion({
 
         if (search) {
           message.metadata = { ...message.metadata, groundingMetadata: search }
+        }
+
+        if (mcpToolResponse) {
+          message.metadata = { ...message.metadata, mcpTools: mcpToolResponse }
         }
 
         // Handle citations from Perplexity API

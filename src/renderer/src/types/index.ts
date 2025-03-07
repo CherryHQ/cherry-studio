@@ -74,6 +74,8 @@ export type Message = {
     citations?: string[]
     // Web search
     webSearch?: WebSearchResponse
+    // MCP Tools
+    mcpTools?: MCPToolResponse[]
   }
 }
 
@@ -353,4 +355,10 @@ export interface MCPTool {
 
 export interface MCPConfig {
   servers: MCPServer[]
+}
+
+export interface MCPToolResponse {
+  tool: MCPTool
+  status: string
+  response?: any
 }

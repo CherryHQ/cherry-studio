@@ -12,14 +12,14 @@ import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import { first, flatten, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-import { anthropicToolUseToMcpTool, callMCPTool, mcpToolsToAnthropicTools } from './mcpToolUtils'
+import { anthropicToolUseToMcpTool, callMCPTool, mcpToolsToAnthropicTools, upsertMCPToolResponse } from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -193,7 +193,7 @@ export default class AnthropicProvider extends BaseProvider {
 
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
-
+    const toolResponses: MCPToolResponse[] = []
     const processStream = async (body: MessageCreateParamsNonStreaming) => {
       new Promise<void>((resolve, reject) => {
         const toolCalls: ToolUseBlock[] = []
@@ -256,12 +256,30 @@ export default class AnthropicProvider extends BaseProvider {
               for (const toolCall of toolCalls) {
                 const mcpTool = anthropicToolUseToMcpTool(mcpTools, toolCall)
                 if (mcpTool) {
+                  upsertMCPToolResponse(
+                    toolResponses,
+                    {
+                      tool: mcpTool,
+                      status: 'invoking'
+                    },
+                    onChunk
+                  )
+
                   const resp = await callMCPTool(mcpTool)
                   toolCallResults.push({
                     type: 'tool_result',
                     tool_use_id: toolCall.id,
                     content: resp.content
                   })
+                  upsertMCPToolResponse(
+                    toolResponses,
+                    {
+                      tool: mcpTool,
+                      status: 'done',
+                      response: resp
+                    },
+                    onChunk
+                  )
                 }
               }
 
@@ -297,7 +315,8 @@ export default class AnthropicProvider extends BaseProvider {
                 time_completion_millsec,
                 time_first_token_millsec,
                 time_thinking_millsec
-              }
+              },
+              mcpToolResponse: toolResponses
             })
             resolve()
           })

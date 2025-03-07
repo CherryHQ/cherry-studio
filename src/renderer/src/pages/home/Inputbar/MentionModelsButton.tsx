@@ -397,7 +397,7 @@ const DropdownMenuStyle = createGlobalStyle`
       box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.15),
                   0 4px 16px rgba(0, 0, 0, 0.15),
                   0 2px 8px rgba(0, 0, 0, 0.12),
-                  inset 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+                  inset 0 0 0 0.5px rgba(255, 255, 255, var(--inner-glow-opacity, 0.1));
       transform-origin: top;
       will-change: transform, opacity;
       transition: all 0.15s cubic-bezier(0.4, 0.0, 0.2, 1);
@@ -420,23 +420,21 @@ const DropdownMenuStyle = createGlobalStyle`
         border: 4px solid transparent;
         background-clip: padding-box;
         border-radius: 7px;
-        background-color: transparent;
+        background-color: var(--color-scrollbar-thumb);
         min-height: 50px;
         transition: all 0.2s;
       }
 
       &:hover::-webkit-scrollbar-thumb {
-        background-color: rgba(0, 0, 0, 0.2);
+        background-color: var(--color-scrollbar-thumb);
       }
 
       &::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(0, 0, 0, 0.3);
-        border: 4px solid transparent;
+        background-color: var(--color-scrollbar-thumb-hover);
       }
 
       &::-webkit-scrollbar-thumb:active {
-        background-color: rgba(0, 0, 0, 0.4);
-        border: 3px solid transparent;
+        background-color: var(--color-scrollbar-thumb-hover);
       }
 
       &::-webkit-scrollbar-track {
@@ -444,11 +442,6 @@ const DropdownMenuStyle = createGlobalStyle`
         border-radius: 7px;
       }
     }
-
-    // // Apply margin to the last group
-    // .ant-dropdown-menu-item-group:last-child {
-    //   margin-bottom: 40px;
-    // }
 
     .ant-dropdown-menu-item-group {
       margin-bottom: 4px;
