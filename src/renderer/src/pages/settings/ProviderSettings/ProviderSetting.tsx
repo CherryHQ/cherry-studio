@@ -1,25 +1,15 @@
-import {
-  CheckOutlined,
-  EditOutlined,
-  ExportOutlined,
-  HeartOutlined,
-  LoadingOutlined,
-  PlusOutlined
-} from '@ant-design/icons'
+import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
 import { checkApi } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
-import { useAppDispatch } from '@renderer/store'
-import { setModel } from '@renderer/store/assistants'
-import { Model, Provider } from '@renderer/types'
+import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch } from 'antd'
@@ -37,13 +27,10 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
-import AddModelPopup from './AddModelPopup'
 import ApiCheckPopup from './ApiCheckPopup'
-import EditModelsPopup from './EditModelsPopup'
 import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
-import ModelEditContent from './ModelEditContent'
 import ModelList, { ModelStatus } from './ModelList'
 import OllamSettings from './OllamaSettings'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
@@ -59,24 +46,17 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
-  const { updateProvider, models, removeModel } = useProvider(provider.id)
-  const { assistants } = useAssistants()
+  const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-
-  const { defaultModel, setDefaultModel } = useDefaultModel()
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
   const officialWebsite = providerConfig?.websites?.official
   const apiKeyWebsite = providerConfig?.websites?.apiKey
-  const docsWebsite = providerConfig?.websites?.docs
-  const modelsWebsite = providerConfig?.websites?.models
   const configedApiHost = providerConfig?.api?.url
 
-  const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
 
@@ -95,8 +75,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
-  const onManageModel = () => EditModelsPopup.show({ provider })
-  const onAddModel = () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
 
   const onHealthCheck = async () => {
     if (isEmpty(models)) {
@@ -261,34 +239,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     return formatApiHost(apiHost) + 'chat/completions'
   }
 
-  const onUpdateModel = (updatedModel: Model) => {
-    const updatedModels = models.map((m) => {
-      if (m.id === updatedModel.id) {
-        return updatedModel
-      }
-      return m
-    })
-
-    updateProvider({ ...provider, models: updatedModels })
-
-    // Update assistants using this model
-    assistants.forEach((assistant) => {
-      if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
-        dispatch(
-          setModel({
-            assistantId: assistant.id,
-            model: updatedModel
-          })
-        )
-      }
-    })
-
-    // Update default model if needed
-    if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
-      setDefaultModel(updatedModel)
-    }
-  }
-
   const formatApiKeys = (value: string) => {
     return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
   }
@@ -306,10 +256,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       }
     }
   }, [apiKey, provider, updateProvider])
-
-  const handleEditModel = (model: Model) => {
-    setEditingModel(model)
-  }
 
   return (
     <SettingContainer theme={theme}>
@@ -418,44 +364,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           </Space>
         </Flex>
       </SettingSubtitle>
-      <ModelList
-        provider={provider}
-        models={models}
-        onRemoveModel={removeModel}
-        onEditModel={handleEditModel}
-        modelStatuses={modelStatuses}
-      />
-      {docsWebsite && (
-        <SettingHelpTextRow>
-          <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
-          <SettingHelpLink target="_blank" href={docsWebsite}>
-            {t(`provider.${provider.id}`) + ' '}
-            {t('common.docs')}
-          </SettingHelpLink>
-          <SettingHelpText>{t('common.and')}</SettingHelpText>
-          <SettingHelpLink target="_blank" href={modelsWebsite}>
-            {t('common.models')}
-          </SettingHelpLink>
-          <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
-        </SettingHelpTextRow>
-      )}
-      <Flex gap={10} style={{ marginTop: '10px' }}>
-        <Button type="primary" onClick={onManageModel} icon={<EditOutlined />}>
-          {t('button.manage')}
-        </Button>
-        <Button type="default" onClick={onAddModel} icon={<PlusOutlined />}>
-          {t('button.add')}
-        </Button>
-      </Flex>
-      {models.map((model) => (
-        <ModelEditContent
-          model={model}
-          onUpdateModel={onUpdateModel}
-          open={editingModel?.id === model.id}
-          onClose={() => setEditingModel(null)}
-          key={model.id}
-        />
-      ))}
+      <ModelList provider={provider} modelStatuses={modelStatuses} />
     </SettingContainer>
   )
 }

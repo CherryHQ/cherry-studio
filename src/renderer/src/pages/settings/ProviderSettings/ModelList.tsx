@@ -1,21 +1,33 @@
 import {
   CheckCircleFilled,
   CloseCircleFilled,
+  EditOutlined,
   ExclamationCircleFilled,
   LoadingOutlined,
   MinusCircleOutlined,
+  PlusOutlined,
   SettingOutlined
 } from '@ant-design/icons'
 import ModelTags from '@renderer/components/ModelTags'
 import { getModelLogo } from '@renderer/config/models'
+import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
+import { useAppDispatch } from '@renderer/store'
+import { setModel } from '@renderer/store/assistants'
 import { Model, Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { Avatar, Card, Space, Tooltip, Typography } from 'antd'
+import { Avatar, Button, Card, Flex, Space, Tooltip, Typography } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
-import React, { useCallback } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow } from '..'
+import AddModelPopup from './AddModelPopup'
+import EditModelsPopup from './EditModelsPopup'
+import ModelEditContent from './ModelEditContent'
 
 const STATUS_COLORS = {
   success: '#52c41a',
@@ -25,9 +37,6 @@ const STATUS_COLORS = {
 
 interface ModelListProps {
   provider: Provider
-  models: Model[]
-  onRemoveModel: (model: Model) => void
-  onEditModel: (model: Model) => void
   modelStatuses?: ModelStatus[]
 }
 
@@ -156,14 +165,59 @@ function useModelStatusRendering() {
   return { renderStatusIndicator, renderLatencyText }
 }
 
-const ModelList: React.FC<ModelListProps> = ({ provider, models, onRemoveModel, onEditModel, modelStatuses = [] }) => {
-  const { renderStatusIndicator, renderLatencyText } = useModelStatusRendering()
+const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuses = [] }) => {
   const { t } = useTranslation()
+  const { provider } = useProvider(_provider.id)
+  const { updateProvider, models, removeModel } = useProvider(_provider.id)
+  const { assistants } = useAssistants()
+  const dispatch = useAppDispatch()
+  const { defaultModel, setDefaultModel } = useDefaultModel()
+
+  const { renderStatusIndicator, renderLatencyText } = useModelStatusRendering()
+  const providerConfig = PROVIDER_CONFIG[provider.id]
+  const docsWebsite = providerConfig?.websites?.docs
+  const modelsWebsite = providerConfig?.websites?.models
+
+  const [editingModel, setEditingModel] = useState<Model | null>(null)
   const modelGroups = groupBy(models, 'group')
   const sortedModelGroups = sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
     acc[key] = value
     return acc
   }, {})
+
+  const onManageModel = () => EditModelsPopup.show({ provider })
+  const onAddModel = () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
+  const onEditModel = (model: Model) => {
+    setEditingModel(model)
+  }
+
+  const onUpdateModel = (updatedModel: Model) => {
+    const updatedModels = models.map((m) => {
+      if (m.id === updatedModel.id) {
+        return updatedModel
+      }
+      return m
+    })
+
+    updateProvider({ ...provider, models: updatedModels })
+
+    // Update assistants using this model
+    assistants.forEach((assistant) => {
+      if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
+        dispatch(
+          setModel({
+            assistantId: assistant.id,
+            model: updatedModel
+          })
+        )
+      }
+    })
+
+    // Update default model if needed
+    if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
+      setDefaultModel(updatedModel)
+    }
+  }
 
   return (
     <>
@@ -178,7 +232,7 @@ const ModelList: React.FC<ModelListProps> = ({ provider, models, onRemoveModel, 
                 onClick={() =>
                   modelGroups[group]
                     .filter((model) => provider.models.some((m) => m.id === model.id))
-                    .forEach((model) => onRemoveModel(model))
+                    .forEach((model) => removeModel(model))
                 }
               />
             </Tooltip>
@@ -208,7 +262,7 @@ const ModelList: React.FC<ModelListProps> = ({ provider, models, onRemoveModel, 
                 <Space>
                   {renderStatusIndicator(modelStatus)}
                   <RemoveIcon
-                    onClick={() => !isChecking && onRemoveModel(model)}
+                    onClick={() => !isChecking && removeModel(model)}
                     style={{ cursor: isChecking ? 'not-allowed' : 'pointer', opacity: isChecking ? 0.5 : 1 }}
                   />
                 </Space>
@@ -216,6 +270,37 @@ const ModelList: React.FC<ModelListProps> = ({ provider, models, onRemoveModel, 
             )
           })}
         </Card>
+      ))}
+      {docsWebsite && (
+        <SettingHelpTextRow>
+          <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
+          <SettingHelpLink target="_blank" href={docsWebsite}>
+            {t(`provider.${provider.id}`) + ' '}
+            {t('common.docs')}
+          </SettingHelpLink>
+          <SettingHelpText>{t('common.and')}</SettingHelpText>
+          <SettingHelpLink target="_blank" href={modelsWebsite}>
+            {t('common.models')}
+          </SettingHelpLink>
+          <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
+        </SettingHelpTextRow>
+      )}
+      <Flex gap={10} style={{ marginTop: '10px' }}>
+        <Button type="primary" onClick={onManageModel} icon={<EditOutlined />}>
+          {t('button.manage')}
+        </Button>
+        <Button type="default" onClick={onAddModel} icon={<PlusOutlined />}>
+          {t('button.add')}
+        </Button>
+      </Flex>
+      {models.map((model) => (
+        <ModelEditContent
+          model={model}
+          onUpdateModel={onUpdateModel}
+          open={editingModel?.id === model.id}
+          onClose={() => setEditingModel(null)}
+          key={model.id}
+        />
       ))}
     </>
   )
