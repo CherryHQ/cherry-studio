@@ -26,7 +26,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setGenerating, setSearching } from '@renderer/store/runtime'
-import { Assistant, FileType, KnowledgeBase, Message, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, MCPServer, Message, Model, Topic } from '@renderer/types'
 import { classNames, delay, getFileExtension, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
@@ -45,6 +45,7 @@ import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
+import MCPToolsButton from './MCPToolsButton'
 import MentionModelsButton from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
@@ -88,6 +89,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
+  const [enabledMCPs, setEnabledMCPs] = useState<MCPServer[]>([])
   const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
@@ -587,6 +589,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setMentionModels(mentionModels.filter((m) => m.id !== model.id))
   }
 
+  const toggelEnableMCP = (mcp: MCPServer) => {
+    setEnabledMCPs((prev) => {
+      const exists = prev.some((item) => item.name === mcp.name)
+      if (exists) {
+        return prev.filter((item) => item.name !== mcp.name)
+      } else {
+        return [...prev, mcp]
+      }
+    })
+  }
+
   const onEnableWebSearch = () => {
     console.log(assistant)
     if (!isWebSearchModel(model)) {
@@ -682,6 +695,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
                 ToolbarButton={ToolbarButton}
               />
+              <MCPToolsButton enabledMCPs={enabledMCPs} onEnableMCP={toggelEnableMCP} ToolbarButton={ToolbarButton} />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
                 <ToolbarButton type="text" onClick={onEnableWebSearch}>
                   <GlobalOutlined
