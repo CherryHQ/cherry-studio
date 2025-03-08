@@ -19,6 +19,7 @@ import { EVENT_NAMES, EventEmitter } from './EventService'
 import { filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
+
 export async function fetchChatCompletion({
   message,
   messages,
@@ -239,7 +240,11 @@ export async function fetchSuggestions({
   }
 }
 
-export async function checkApi(provider: Provider, model: Model) {
+// Helper function to validate provider's basic settings such as API key, host, and model list
+export function checkApiProvider(provider: Provider): {
+  valid: boolean
+  error: Error | null
+} {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
@@ -257,7 +262,7 @@ export async function checkApi(provider: Provider, model: Model) {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.api.host')
+      error: new Error(i18n.t('message.error.enter.api.host'))
     }
   }
 
@@ -265,7 +270,22 @@ export async function checkApi(provider: Provider, model: Model) {
     window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.model')
+      error: new Error(i18n.t('message.error.enter.model'))
+    }
+  }
+
+  return {
+    valid: true,
+    error: null
+  }
+}
+
+export async function checkApi(provider: Provider, model: Model) {
+  const validation = checkApiProvider(provider)
+  if (!validation.valid) {
+    return {
+      valid: validation.valid,
+      error: validation.error
     }
   }
 
