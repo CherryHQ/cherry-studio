@@ -52,8 +52,11 @@ export function openAIToolsToMcpTool(
   if (!tool) {
     return undefined
   }
-  tool.inputSchema = JSON.parse(llmTool.function.arguments)
-  return tool
+  // 创建工具对象的副本，而不是直接修改原对象
+  return {
+    ...tool,
+    inputSchema: JSON.parse(llmTool.function.arguments)
+  }
 }
 
 export async function callMCPTool(tool: MCPTool): Promise<any> {
@@ -82,9 +85,12 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
   if (!tool) {
     return undefined
   }
-  // @ts-ignore ignore type as it it unknow
-  tool.inputSchema = toolUse.input
-  return tool
+  // 创建工具对象的副本，而不是直接修改原对象
+  return {
+    ...tool,
+    // @ts-ignore ignore type as it it unknow
+    inputSchema: toolUse.input
+  }
 }
 
 export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiToool[] {
@@ -120,9 +126,12 @@ export function geminiFunctionCallToMcpTool(
   if (!tool) {
     return undefined
   }
-  // @ts-ignore schema is not a valid property
-  tool.inputSchema = fcall.args
-  return tool
+  // 创建工具对象的副本，而不是直接修改原对象
+  return {
+    ...tool,
+    // @ts-ignore schema is not a valid property
+    inputSchema: fcall.args
+  }
 }
 
 export function upsertMCPToolResponse(
