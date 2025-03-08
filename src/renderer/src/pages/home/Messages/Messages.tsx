@@ -50,6 +50,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
+  const messagesRef = useRef<Message[]>([])
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
   useEffect(() => {
     const reversedMessages = [...messages].reverse()
     const newDisplayMessages = reversedMessages.slice(0, displayCount)
@@ -85,15 +91,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     setTimeout(() => containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'auto' }), 50)
   }, [])
 
-  // const onAppendMessageMemo = useCallback(
-  //   async (message: Message) => {
-  //     const newMessages = [...messages, message]
-  //     await dispatch(updateMessages(topic, newMessages))
-  //   },
-  //   [topic, dispatch, messages]
-  // )
-
-  const autoRenameTopicMemo = useCallback(async () => {
+  const autoRenameTopic = useCallback(async () => {
+    const messages = messagesRef.current
     const _topic = getTopic(assistant, topic.id)
 
     if (!enableTopicNaming) {
@@ -114,18 +113,16 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         updateTopic(data)
       }
     }
-  }, [assistant, enableTopicNaming, messages, setActiveTopic, topic.id, updateTopic, t])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assistant, topic.id, enableTopicNaming, t, setActiveTopic])
 
   useEffect(() => {
+    const messages = messagesRef.current
+
     const unsubscribes = [
-      // EventEmitter.on(EVENT_NAMES.APPEND_MESSAGE, onAppendMessageMemo),
-      // EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, () => {
-      //   setTimeout(() => EventEmitter.emit(EVENT_NAMES.AI_AUTO_RENAME), 100)
-      // }),
       EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, () => {
         scrollToBottom()
       }),
-      EventEmitter.on(EVENT_NAMES.AI_AUTO_RENAME, autoRenameTopicMemo),
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
         const defaultTopic = getDefaultTopic(assistant.id)
 
@@ -172,12 +169,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       })
     ]
 
-    return () => {
-      for (const unsub of unsubscribes) {
-        unsub()
-      }
-    }
-  }, [assistant, autoRenameTopicMemo, dispatch, messages, handleDeleteMessage, scrollToBottom, topic, updateTopic])
+    return () => unsubscribes.forEach((unsub) => unsub())
+  }, [assistant, dispatch, handleDeleteMessage, scrollToBottom, topic, updateTopic])
+
+  useEffect(() => {
+    const unsubscribes = [EventEmitter.on(EVENT_NAMES.AI_AUTO_RENAME, autoRenameTopic)]
+    return () => unsubscribes.forEach((unsub) => unsub())
+  }, [autoRenameTopic])
 
   useEffect(() => {
     runAsyncFunction(async () => {

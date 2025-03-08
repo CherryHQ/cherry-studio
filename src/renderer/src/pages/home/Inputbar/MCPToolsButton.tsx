@@ -1,3 +1,4 @@
+import { ToolOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { Dropdown, Switch, Tooltip } from 'antd'
@@ -39,7 +40,7 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
         }
       })
     }
-  }, [enableAll])
+  }, [activeServers, enableAll, enabledMCPs, onEnableMCP])
 
   const menu = (
     <div ref={menuRef} className="ant-dropdown-menu">
@@ -84,9 +85,9 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
       open={isOpen}
       onOpenChange={setIsOpen}
       overlayClassName="mention-models-dropdown">
-      <Tooltip placement="top" title="MCP Servers" arrow>
+      <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
         <ToolbarButton type="text" ref={dropdownRef}>
-          <i className="iconfont icon-mcp" style={{ fontSize: 18 }}></i>
+          <ToolOutlined style={{ color: enabledMCPs.length > 0 ? '#d97757' : 'var(--color-icon)' }} />
         </ToolbarButton>
       </Tooltip>
     </Dropdown>
