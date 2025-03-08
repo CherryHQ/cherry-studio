@@ -479,7 +479,7 @@
       },
       "vision": "画像",
       "websearch": "ウェブ検索",
-      "edit": "モデルを編集", 
+      "edit": "モデルを編集",
       "no_matches": "利用可能なモデルがありません"
     },
     "navbar": {
@@ -864,14 +864,23 @@
         "title": "ウェブ検索",
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
-        "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "検索結果の数",
         "search_result_default": "デフォルト",
         "check": "チェック",
         "search_provider": "検索サービスプロバイダー",
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
         "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
-        "check_failed": "検証に失敗しました"
+        "check_failed": "検証に失敗しました",
+        "blacklist_tooltip": "マッチパターン: *://*.example.com/*\n正規表現: /example\\.(net|org)/",
+        "subscribe": "購読",
+        "subscribe_tooltip": "ブラックリストに登録する",
+        "subscribe_update": "今すぐ更新",
+        "subscribe_add": "サブスクリプションを追加",
+        "subscribe_url": "フィードのURL",
+        "subscribe_name": "代替名",
+        "subscribe_name.placeholder": "ダウンロードしたフィードに名前がない場合に使用される代替名",
+        "subscribe_add_success": "フィードの追加が成功しました！",
+        "subscribe_delete": "フィードの削除"
       },
       "mcp": {
         "title": "MCP サーバー",

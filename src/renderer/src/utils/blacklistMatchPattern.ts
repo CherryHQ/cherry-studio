@@ -1,3 +1,6 @@
+import { WebSearchState } from '@renderer/store/websearch'
+import { WebSearchResponse } from '@renderer/types'
+
 /*
  * MIT License
  *
@@ -169,4 +172,104 @@ function testPath(pathPattern: string, path: string): boolean {
     pos = partPos + part.length
   }
   return path.slice(pos).endsWith(rest[rest.length - 1])
+}
+
+// 添加新的解析函数
+export async function parseSubscribeContent(url: string): Promise<string[]> {
+  try {
+    // 获取订阅源内容
+    const response = await fetch(url)
+    console.log('response', response)
+    if (!response.ok) {
+      throw new Error('Failed to fetch subscribe content')
+    }
+
+    const content = await response.text()
+
+    // 按行分割内容
+    const lines = content.split('\n')
+
+    // 过滤出有效的匹配模式
+    const patterns = lines
+      .filter((line) => line.trim() !== '' && !line.startsWith('#'))
+      .map((line) => line.trim())
+      .filter((pattern) => parseMatchPattern(pattern) !== null)
+
+    return patterns
+  } catch (error) {
+    console.error('Error parsing subscribe content:', error)
+    throw error
+  }
+}
+export async function filterResultWithBlacklist(
+  response: WebSearchResponse,
+  websearch: WebSearchState
+): Promise<WebSearchResponse> {
+  // 如果没有结果或没有黑名单规则，直接返回原结果
+  if (!response.results || response.results.length === 0) {
+    return response
+  }
+
+  // 创建匹配模式映射实例
+  const patternMap = new MatchPatternMap<string>()
+
+  // 合并所有黑名单规则
+  const blacklistPatterns: string[] = [
+    ...websearch.excludeDomains,
+    ...websearch.subscribeSources.reduce<string[]>((acc, source) => {
+      return acc.concat(source.blacklist || [])
+    }, [])
+  ]
+
+  // 正则表达式规则集合
+  const regexPatterns: RegExp[] = []
+
+  // 分类处理黑名单规则
+  blacklistPatterns.forEach((pattern) => {
+    if (pattern.startsWith('/') && pattern.endsWith('/')) {
+      // 处理正则表达式格式
+      try {
+        const regexPattern = pattern.slice(1, -1)
+        regexPatterns.push(new RegExp(regexPattern, 'i'))
+      } catch (error) {
+        console.error('Invalid regex pattern:', pattern, error)
+      }
+    } else {
+      // 处理匹配模式格式
+      try {
+        patternMap.set(pattern, pattern)
+      } catch (error) {
+        console.error('Invalid match pattern:', pattern, error)
+      }
+    }
+  })
+
+  // 过滤搜索结果
+  const filteredResults = response.results.filter((result) => {
+    try {
+      const url = new URL(result.url)
+
+      // 检查URL是否匹配任何正则表达式规则
+      const matchesRegex = regexPatterns.some((regex) => regex.test(url.hostname))
+      if (matchesRegex) {
+        return false
+      }
+
+      // 检查URL是否匹配任何匹配模式规则
+      const matchesPattern = patternMap.get(result.url).length > 0
+      if (matchesPattern) {
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error processing URL:', result.url, error)
+      return true // 如果URL解析失败，保留该结果
+    }
+  })
+
+  return {
+    ...response,
+    results: filteredResults
+  }
 }

@@ -1,4 +1,5 @@
 import { TavilyClient } from '@agentic/tavily'
+import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
@@ -14,7 +15,7 @@ export default class TavilyProvider extends BaseWebSearchProvider {
     this.tvly = new TavilyClient({ apiKey: provider.apiKey })
   }
 
-  public async search(query: string, maxResults: number, excludeDomains: string[]): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
@@ -22,10 +23,8 @@ export default class TavilyProvider extends BaseWebSearchProvider {
 
       const result = await this.tvly.search({
         query,
-        max_results: Math.max(1, maxResults),
-        exclude_domains: excludeDomains || []
+        max_results: Math.max(1, websearch.maxResults)
       })
-
       return {
         query: result.query,
         results: result.results.map((result) => ({

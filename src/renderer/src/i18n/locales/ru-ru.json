@@ -479,7 +479,7 @@
       },
       "vision": "Визуальные",
       "websearch": "Веб-поисковые",
-      "edit": "Редактировать модель", 
+      "edit": "Редактировать модель",
       "no_matches": "Нет доступных моделей"
     },
     "navbar": {
@@ -864,14 +864,23 @@
         "title": "Поиск в Интернете",
         "blacklist": "Черный список",
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
-        "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "Количество результатов поиска",
         "search_result_default": "По умолчанию",
         "check": "проверка",
         "search_provider": "поиск сервисного провайдера",
         "search_provider_placeholder": "Выберите поставщика поисковых услуг",
         "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
-        "check_failed": "Проверка не прошла"
+        "check_failed": "Проверка не прошла",
+        "blacklist_tooltip": "Соответствующий шаблон: *://*.example.com/*\nРегулярное выражение: /example\\.(net|org)/",
+        "subscribe": "Подписка",
+        "subscribe_tooltip": "Подписаться на черный список",
+        "subscribe_update": "Обновить сейчас",
+        "subscribe_add": "Добавить подписку",
+        "subscribe_url": "Адрес источника подписки",
+        "subscribe_name": "альтернативное имя",
+        "subscribe_name.placeholder": "替代名称, используемый, когда загружаемый подписочный источник не имеет названия",
+        "subscribe_add_success": "Подписка добавлена успешно!",
+        "subscribe_delete": "Удалить источник подписки"
       },
       "mcp": {
         "title": "Серверы MCP",
@@ -972,4 +981,3 @@
     }
   }
 }
-

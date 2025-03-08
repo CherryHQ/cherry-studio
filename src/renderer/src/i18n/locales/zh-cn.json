@@ -479,7 +479,7 @@
       },
       "vision": "视觉",
       "websearch": "联网",
-      "edit": "编辑模型", 
+      "edit": "编辑模型",
       "no_matches": "无可用模型"
     },
     "navbar": {
@@ -857,7 +857,7 @@
         "check_failed": "验证失败",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
-        "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
         "get_api_key": "点击这里获取密钥",
         "search_max_result": "搜索结果个数",
         "search_result_default": "默认",
@@ -865,6 +865,15 @@
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
         "no_provider_selected": "请选择搜索服务商后再检查",
+        "subscribe": "订阅",
+        "subscribe_tooltip": "订阅黑名单列表",
+        "subscribe_update": "立即更新",
+        "subscribe_add": "添加订阅",
+        "subscribe_url": "订阅源地址",
+        "subscribe_name": "替代名字",
+        "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
+        "subscribe_add_success": "订阅源添加成功!",
+        "subscribe_delete": "删除订阅源",
         "tavily": {
           "api_key": "Tavily API 密钥",
           "api_key.placeholder": "请输入 Tavily API 密钥",
