@@ -15,6 +15,9 @@ export class WindowService {
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
   private wasFullScreen: boolean = false
+  //hacky-fix: store the focused status of mainWindow before miniWindow shows
+  //to restore the focus status when miniWindow hides
+  private wasMainWindowFocused: boolean = false
   private selectionMenuWindow: BrowserWindow | null = null
   private lastSelectedText: string = ''
   private contextMenu: Menu | null = null
@@ -67,6 +70,12 @@ export class WindowService {
     })
 
     this.setupMainWindow(this.mainWindow, mainWindowState)
+
+    //preload miniWindow to resolve series of issues about miniWindow in Mac
+    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+    if (enableQuickAssistant && !this.miniWindow) {
+      this.miniWindow = this.createMiniWindow(true)
+    }
 
     return this.mainWindow
   }
@@ -136,6 +145,9 @@ export class WindowService {
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
+      //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
+      app.dock?.show()
+
       mainWindow.show()
     })
 
@@ -288,7 +300,7 @@ export class WindowService {
         this.mainWindow.restore()
       }
       //[macOS] Known Issue
-      // setVisibleOnAllWorkspaces true/false will not bring window to current desktop in Mac (works fine with Windows)
+      // setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
       // AppleScript may be a solution, but it's not worth
       this.mainWindow.setVisibleOnAllWorkspaces(true)
       this.mainWindow.show()
@@ -317,7 +329,7 @@ export class WindowService {
     this.showMainWindow()
   }
 
-  public createMiniWindow(): BrowserWindow {
+  public createMiniWindow(isPreload: boolean = false): BrowserWindow {
     this.miniWindow = new BrowserWindow({
       width: 500,
       height: 520,
@@ -331,6 +343,7 @@ export class WindowService {
       alwaysOnTop: true,
       resizable: false,
       useContentSize: true,
+      ...(isMac ? { type: 'panel' } : {}),
       skipTaskbar: true,
       minimizable: false,
       maximizable: false,
@@ -344,19 +357,22 @@ export class WindowService {
     })
 
     //miniWindow should show in current desktop
-    //don't use visibleOnFullScreen: true, it's useless and will cause problems
-    //
-    //[macOS] Known Issue
-    // if miniWindow first-time shows after mainWindow closed to tray, dock icon will show
-    // the behavior is unexpected in Mac due to the known issue https://github.com/electron/electron/issues/37832
-    this.miniWindow?.setVisibleOnAllWorkspaces(true)
+    this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    //make miniWindow always on top of fullscreen apps with level set
+    this.miniWindow.setAlwaysOnTop(true, 'screen-saver', 1)
 
     this.miniWindow.on('ready-to-show', () => {
+      if (isPreload) {
+        return
+      }
+
+      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
+      this.miniWindow?.center()
       this.miniWindow?.show()
     })
 
     this.miniWindow.on('blur', () => {
-      this.miniWindow?.hide()
+      this.hideMiniWindow()
     })
 
     this.miniWindow.on('closed', () => {
@@ -398,10 +414,11 @@ export class WindowService {
     }
 
     if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
+
       if (this.miniWindow.isMinimized()) {
         this.miniWindow.restore()
       }
-      this.miniWindow.center()
       this.miniWindow.show()
       return
     }
@@ -410,6 +427,19 @@ export class WindowService {
   }
 
   public hideMiniWindow() {
+    //hacky-fix:[mac/win] previous window(not self-app) should be focused again after miniWindow hide
+    if (isWin) {
+      this.miniWindow?.minimize()
+      this.miniWindow?.hide()
+      return
+    } else if (isMac) {
+      this.miniWindow?.hide()
+      if (!this.wasMainWindowFocused) {
+        app.hide()
+      }
+      return
+    }
+
     this.miniWindow?.hide()
   }
 
@@ -419,7 +449,7 @@ export class WindowService {
 
   public toggleMiniWindow() {
     if (this.miniWindow && !this.miniWindow.isDestroyed() && this.miniWindow.isVisible()) {
-      this.miniWindow.hide()
+      this.hideMiniWindow()
       return
     }
 
