@@ -416,6 +416,16 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.xirang,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'tencent-cloud-ti',
+      name: 'Tencent Cloud TI',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.lkeap.cloud.tencent.com',
+      models: SYSTEM_MODELS['tencent-cloud-ti'],
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {

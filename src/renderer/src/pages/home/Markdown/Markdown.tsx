@@ -1,21 +1,21 @@
 import 'katex/dist/katex.min.css'
 import 'katex/dist/contrib/copy-tex'
+import 'katex/dist/contrib/mhchem'
 
+import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Message } from '@renderer/types'
+import type { Message } from '@renderer/types'
 import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
 import { isEmpty } from 'lodash'
-import { FC, useMemo } from 'react'
+import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown, { Components } from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 // @ts-ignore next-line
 import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
-
-import 'katex/dist/contrib/mhchem'
 
 import CodeBlock from './CodeBlock'
 import ImagePreview from './ImagePreview'
@@ -32,7 +32,7 @@ const Markdown: FC<Props> = ({ message }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
 
-  const rehypeMath = mathEngine === 'KaTeX' ? rehypeKatex : rehypeMathjax
+  const rehypeMath = useMemo(() => (mathEngine === 'KaTeX' ? rehypeKatex : rehypeMathjax), [mathEngine])
 
   const messageContent = useMemo(() => {
     const empty = isEmpty(message.content)
@@ -46,22 +46,30 @@ const Markdown: FC<Props> = ({ message }) => {
     return hasElements ? [rehypeRaw, rehypeMath] : [rehypeMath]
   }, [messageContent, rehypeMath])
 
+  const components = useCallback(() => {
+    const baseComponents = {
+      a: Link,
+      code: CodeBlock,
+      img: ImagePreview
+    } as Partial<Components>
+
+    if (messageContent.includes('<style>')) {
+      baseComponents.style = MarkdownShadowDOMRenderer as any
+    }
+
+    return baseComponents
+  }, [messageContent])
+
   if (message.role === 'user' && !renderInputMessageAsMarkdown) {
     return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
   }
 
   return (
     <ReactMarkdown
-      className="markdown"
       rehypePlugins={rehypePlugins}
       remarkPlugins={[remarkMath, remarkGfm]}
-      components={
-        {
-          a: Link,
-          code: CodeBlock,
-          img: ImagePreview
-        } as Partial<Components>
-      }
+      className="markdown"
+      components={components()}
       remarkRehypeOptions={{
         footnoteLabel: t('common.footnotes'),
         footnoteLabelTagName: 'h4',

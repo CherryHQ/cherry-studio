@@ -24,7 +24,7 @@ import { setModel } from '@renderer/store/assistants'
 import { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Avatar, Button, Card, Divider, Flex, Input, Space, Switch } from 'antd'
+import { Avatar, Button, Card, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { FC, useEffect, useState } from 'react'
@@ -315,6 +315,17 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           key={group}
           type="inner"
           title={group}
+          extra={
+            <Tooltip title={t('settings.models.manage.remove_whole_group')}>
+              <HoveredRemoveIcon
+                onClick={() =>
+                  modelGroups[group]
+                    .filter((model) => provider.models.some((m) => m.id === model.id))
+                    .forEach((model) => removeModel(model))
+                }
+              />
+            </Tooltip>
+          }
           style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}
           size="small">
           {sortedModelGroups[group].map((model) => (
@@ -396,6 +407,14 @@ const RemoveIcon = styled(MinusCircleOutlined)`
   color: var(--color-error);
   cursor: pointer;
   transition: all 0.2s ease-in-out;
+`
+
+const HoveredRemoveIcon = styled(RemoveIcon)`
+  opacity: 0;
+  margin-top: 2px;
+  &:hover {
+    opacity: 1;
+  }
 `
 
 const SettingIcon = styled(SettingOutlined)`
