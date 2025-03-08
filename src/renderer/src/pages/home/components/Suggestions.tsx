@@ -1,13 +1,11 @@
 import { fetchSuggestions } from '@renderer/services/ApiService'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useAppDispatch } from '@renderer/store'
+import { sendMessage } from '@renderer/store/messages'
 import { Assistant, Message, Suggestion } from '@renderer/types'
-import { uuid } from '@renderer/utils'
-import dayjs from 'dayjs'
 import { last } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { FC, memo, useEffect, useState } from 'react'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
-
 interface Props {
   assistant: Assistant
   messages: Message[]
@@ -16,40 +14,46 @@ interface Props {
 const suggestionsMap = new Map<string, Suggestion[]>()
 
 const Suggestions: FC<Props> = ({ assistant, messages }) => {
+  const dispatch = useAppDispatch()
+
   const [suggestions, setSuggestions] = useState<Suggestion[]>(
     suggestionsMap.get(messages[messages.length - 1]?.id) || []
   )
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
 
-  const onClick = (s: Suggestion) => {
-    const message: Message = {
-      id: uuid(),
-      role: 'user',
-      content: s.content,
-      assistantId: assistant.id,
-      topicId: assistant.topics[0].id || uuid(),
-      createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-      type: 'text',
-      status: 'success'
-    }
+  const handleSuggestionClick = async (content: string) => {
+    await dispatch(sendMessage(content, assistant, assistant.topics[0]))
+  }
 
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
+  const suggestionsHandle = async () => {
+    if (loadingSuggestions) return
+    try {
+      setLoadingSuggestions(true)
+      const _suggestions = await fetchSuggestions({
+        assistant,
+        messages
+      })
+      if (_suggestions.length) {
+        setSuggestions(_suggestions)
+        suggestionsMap.set(messages[messages.length - 1].id, _suggestions)
+      }
+    } finally {
+      setLoadingSuggestions(false)
+    }
   }
 
   useEffect(() => {
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, async (msg: Message) => {
-        setLoadingSuggestions(true)
-        const _suggestions = await fetchSuggestions({ assistant, messages: [...messages, msg] })
-        if (_suggestions.length) {
-          setSuggestions(_suggestions)
-          suggestionsMap.set(msg.id, _suggestions)
-        }
-        setLoadingSuggestions(false)
-      })
-    ]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [assistant, messages])
+    suggestionsHandle()
+    // const unsubscribes = [
+    // EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, async (msg: Message) => {
+
+    // ]
+    // return () => {
+    //   for (const unsub of unsubscribes) {
+    //     unsub()
+    //   }
+    // }
+  }, []) // Remove messages dependency
 
   useEffect(() => {
     setSuggestions(suggestionsMap.get(messages[messages.length - 1]?.id) || [])
@@ -58,7 +62,6 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
   if (last(messages)?.status !== 'success') {
     return null
   }
-
   if (loadingSuggestions) {
     return (
       <Container>
@@ -75,7 +78,7 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
     <Container>
       <SuggestionsContainer>
         {suggestions.map((s, i) => (
-          <SuggestionItem key={i} onClick={() => onClick(s)}>
+          <SuggestionItem key={i} onClick={() => handleSuggestionClick(s.content)}>
             {s.content} →
           </SuggestionItem>
         ))}
@@ -117,4 +120,4 @@ const SuggestionItem = styled.div`
   }
 `
 
-export default Suggestions
+export default memo(Suggestions)

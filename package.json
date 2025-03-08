@@ -81,6 +81,7 @@
     "fs-extra": "^11.2.0",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
+    "p-queue": "^8.1.0",
     "tokenx": "^0.4.1",
     "webdav": "4.11.4"
   },

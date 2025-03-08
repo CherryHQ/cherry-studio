@@ -11,7 +11,16 @@ import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
+import {
+  Assistant,
+  FileTypes,
+  GenerateImageParams,
+  MCPToolResponse,
+  Message,
+  Model,
+  Provider,
+  Suggestion
+} from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -26,7 +35,13 @@ import {
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-import { callMCPTool, mcpToolsToOpenAITools, openAIToolsToMcpTool } from './mcpToolUtils'
+import {
+  callMCPTool,
+  filterMCPTools,
+  mcpToolsToOpenAITools,
+  openAIToolsToMcpTool,
+  upsertMCPToolResponse
+} from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -289,11 +304,14 @@ export default class OpenAIProvider extends BaseProvider {
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
 
+    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
     const tools = mcpTools && mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : undefined
 
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
       Boolean
     ) as ChatCompletionMessageParam[]
+
+    const toolResponses: MCPToolResponse[] = []
 
     const processStream = async (stream: any) => {
       if (!isSupportStreamOutput()) {
@@ -367,6 +385,14 @@ export default class OpenAIProvider extends BaseProvider {
               continue
             }
 
+            upsertMCPToolResponse(
+              toolResponses,
+              {
+                tool: mcpTool,
+                status: 'invoking'
+              },
+              onChunk
+            )
             const toolCallResponse = await callMCPTool(mcpTool)
             console.log(toolCallResponse)
             reqMessages.push({
@@ -374,6 +400,15 @@ export default class OpenAIProvider extends BaseProvider {
               content: toolCallResponse.content,
               tool_call_id: toolCall.id
             } as ChatCompletionToolMessageParam)
+            upsertMCPToolResponse(
+              toolResponses,
+              {
+                tool: mcpTool,
+                status: 'done',
+                response: toolCallResponse
+              },
+              onChunk
+            )
           }
 
           const newStream = await this.sdk.chat.completions
@@ -411,7 +446,8 @@ export default class OpenAIProvider extends BaseProvider {
             time_first_token_millsec,
             time_thinking_millsec
           },
-          citations
+          citations,
+          mcpToolResponse: toolResponses
         })
       }
     }

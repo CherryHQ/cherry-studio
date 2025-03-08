@@ -1,10 +1,16 @@
+import { Tooltip } from 'antd'
 import React, { FC } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const ReasoningIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>> = (props) => {
+  const { t } = useTranslation()
+
   return (
     <Container>
-      <Icon className="iconfont icon-thinking" {...(props as any)} />
+      <Tooltip title={t('models.reasoning')} placement="top">
+        <Icon className="iconfont icon-thinking" {...(props as any)} />
+      </Tooltip>
     </Container>
   )
 }
