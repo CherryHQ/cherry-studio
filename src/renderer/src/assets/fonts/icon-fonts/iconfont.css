@@ -19,6 +19,10 @@
   content: '\e623';
 }
 
+.icon-mcp:before {
+  content: '\e78e';
+}
+
 .icon-icon-adaptive-width:before {
   content: '\e87a';
 }

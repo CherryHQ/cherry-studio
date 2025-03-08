@@ -18,7 +18,12 @@ export default class AppUpdater {
 
     // 检测下载错误
     autoUpdater.on('error', (error) => {
-      logger.error('更新异常', error)
+      // 简单记录错误信息和时间戳
+      logger.error('更新异常', {
+        message: error.message,
+        stack: error.stack,
+        time: new Date().toISOString()
+      })
       mainWindow.webContents.send('update-error', error)
     })
 

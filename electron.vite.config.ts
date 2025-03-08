@@ -21,7 +21,8 @@ export default defineConfig({
           '@llm-tools/embedjs-loader-pdf',
           '@llm-tools/embedjs-loader-sitemap',
           '@llm-tools/embedjs-libsql',
-          '@llm-tools/embedjs-loader-image'
+          '@llm-tools/embedjs-loader-image',
+          'p-queue'
         ]
       }),
       ...visualizerPlugin('main')

@@ -129,6 +129,7 @@ export async function fetchChatCompletion({
       }
     }
   } catch (error: any) {
+    console.log('error', error)
     message.status = 'error'
     message.error = formatMessageError(error)
   }
@@ -216,7 +217,6 @@ export async function fetchSuggestions({
   assistant: Assistant
 }): Promise<Suggestion[]> {
   const model = assistant.model
-
   if (!model) {
     return []
   }

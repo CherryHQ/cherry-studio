@@ -276,6 +276,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     setKeyboardSelectedId('')
   }, [searchText])
 
+  const selectedKeys = keyboardSelectedId ? [keyboardSelectedId] : model ? [getModelUniqId(model)] : []
+
   return (
     <Modal
       centered
@@ -322,7 +324,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
         <Container>
           {filteredItems.length > 0 ? (
-            <StyledMenu items={filteredItems} selectedKeys={[keyboardSelectedId]} mode="inline" inlineIndent={6} />
+            <StyledMenu items={filteredItems} selectedKeys={selectedKeys} mode="inline" inlineIndent={6} />
           ) : (
             <EmptyState>
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
