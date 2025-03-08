@@ -1,5 +1,5 @@
 import { is } from '@electron-toolkit/utils'
-import { isLinux, isWin } from '@main/constant'
+import { isLinux, isMac, isWin } from '@main/constant'
 import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
@@ -29,6 +29,7 @@ export class WindowService {
   public createMainWindow(): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.show()
+      this.mainWindow.focus()
       return this.mainWindow
     }
 
@@ -38,8 +39,6 @@ export class WindowService {
     })
 
     const theme = configManager.getTheme()
-    const isMac = process.platform === 'darwin'
-    const isLinux = process.platform === 'linux'
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
@@ -57,7 +56,7 @@ export class WindowService {
       titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
       trafficLightPosition: { x: 8, y: 12 },
-      ...(process.platform === 'linux' ? { icon } : {}),
+      ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -264,6 +263,8 @@ export class WindowService {
       }
       event.preventDefault()
       mainWindow.hide()
+      //for mac users, should hide dock icon if close to tray
+      app.dock?.hide()
     })
 
     mainWindow.on('closed', () => {
@@ -286,44 +287,41 @@ export class WindowService {
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore()
       }
+      //[macOS] Known Issue
+      // setVisibleOnAllWorkspaces true/false will not bring window to current desktop in Mac (works fine with Windows)
+      // AppleScript may be a solution, but it's not worth
+      this.mainWindow.setVisibleOnAllWorkspaces(true)
       this.mainWindow.show()
       this.mainWindow.focus()
+      this.mainWindow.setVisibleOnAllWorkspaces(false)
     } else {
       this.mainWindow = this.createMainWindow()
-      this.mainWindow.focus()
     }
   }
 
-  public showMiniWindow() {
-    const enableQuickAssistant = configManager.getEnableQuickAssistant()
-
-    if (!enableQuickAssistant) {
+  public toggleMainWindow() {
+    // should not toggle main window when in full screen
+    if (this.wasFullScreen) {
       return
     }
 
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.hide()
-    }
-    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
-      this.selectionMenuWindow.hide()
-    }
-
-    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
-      if (this.miniWindow.isMinimized()) {
-        this.miniWindow.restore()
+    if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
+      if (this.mainWindow.isFocused()) {
+        this.mainWindow.hide()
+      } else {
+        this.mainWindow.focus()
       }
-      this.miniWindow.show()
-      this.miniWindow.center()
-      this.miniWindow.focus()
       return
     }
 
-    const isMac = process.platform === 'darwin'
+    this.showMainWindow()
+  }
 
+  public createMiniWindow(): BrowserWindow {
     this.miniWindow = new BrowserWindow({
       width: 500,
       height: 520,
-      show: true,
+      show: false,
       autoHideMenuBar: true,
       transparent: isMac,
       vibrancy: 'under-window',
@@ -333,12 +331,28 @@ export class WindowService {
       alwaysOnTop: true,
       resizable: false,
       useContentSize: true,
+      skipTaskbar: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         webSecurity: false,
         webviewTag: true
       }
+    })
+
+    //miniWindow should show in current desktop
+    //don't use visibleOnFullScreen: true, it's useless and will cause problems
+    //
+    //[macOS] Known Issue
+    // if miniWindow first-time shows after mainWindow closed to tray, dock icon will show
+    // the behavior is unexpected in Mac due to the known issue https://github.com/electron/electron/issues/37832
+    this.miniWindow?.setVisibleOnAllWorkspaces(true)
+
+    this.miniWindow.on('ready-to-show', () => {
+      this.miniWindow?.show()
     })
 
     this.miniWindow.on('blur', () => {
@@ -368,6 +382,31 @@ export class WindowService {
         hash: '#/mini'
       })
     }
+
+    return this.miniWindow
+  }
+
+  public showMiniWindow() {
+    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+
+    if (!enableQuickAssistant) {
+      return
+    }
+
+    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
+      this.selectionMenuWindow.hide()
+    }
+
+    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      if (this.miniWindow.isMinimized()) {
+        this.miniWindow.restore()
+      }
+      this.miniWindow.center()
+      this.miniWindow.show()
+      return
+    }
+
+    this.miniWindow = this.createMiniWindow()
   }
 
   public hideMiniWindow() {
@@ -379,11 +418,12 @@ export class WindowService {
   }
 
   public toggleMiniWindow() {
-    if (this.miniWindow) {
-      this.miniWindow.isVisible() ? this.miniWindow.hide() : this.miniWindow.show()
-    } else {
-      this.showMiniWindow()
+    if (this.miniWindow && !this.miniWindow.isDestroyed() && this.miniWindow.isVisible()) {
+      this.miniWindow.hide()
+      return
     }
+
+    this.showMiniWindow()
   }
 
   public showSelectionMenu(bounds: { x: number; y: number }) {
@@ -394,7 +434,6 @@ export class WindowService {
     }
 
     const theme = configManager.getTheme()
-    const isMac = process.platform === 'darwin'
 
     this.selectionMenuWindow = new BrowserWindow({
       width: 280,
