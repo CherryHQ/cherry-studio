@@ -35,7 +35,13 @@ import {
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-import { callMCPTool, mcpToolsToOpenAITools, openAIToolsToMcpTool, upsertMCPToolResponse } from './mcpToolUtils'
+import {
+  callMCPTool,
+  filterMCPTools,
+  mcpToolsToOpenAITools,
+  openAIToolsToMcpTool,
+  upsertMCPToolResponse
+} from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -298,6 +304,7 @@ export default class OpenAIProvider extends BaseProvider {
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
 
+    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
     const tools = mcpTools && mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : undefined
 
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(

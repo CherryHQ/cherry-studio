@@ -27,7 +27,13 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-import { callMCPTool, geminiFunctionCallToMcpTool, mcpToolsToGeminiTools, upsertMCPToolResponse } from './mcpToolUtils'
+import {
+  callMCPTool,
+  filterMCPTools,
+  geminiFunctionCallToMcpTool,
+  mcpToolsToGeminiTools,
+  upsertMCPToolResponse
+} from './mcpToolUtils'
 
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI
@@ -161,7 +167,7 @@ export default class GeminiProvider extends BaseProvider {
     for (const message of userMessages) {
       history.push(await this.getMessageContents(message))
     }
-
+    mcpTools = filterMCPTools(mcpTools, userLastMessage?.enabledMCPs)
     const tools = mcpToolsToGeminiTools(mcpTools)
     const toolResponses: MCPToolResponse[] = []
     if (assistant.enableWebSearch && isWebSearchModel(model)) {

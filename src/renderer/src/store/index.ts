@@ -8,6 +8,7 @@ import assistants from './assistants'
 import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
+import messagesReducer from './messages'
 import migrate from './migrate'
 import minapps from './minapps'
 import paintings from './paintings'
@@ -27,6 +28,7 @@ const rootReducer = combineReducers({
   knowledge,
   minapps,
   websearch,
+  messages: messagesReducer,
   mcp
 })
 
@@ -35,7 +37,7 @@ const persistedReducer = persistReducer(
     key: 'cherry-studio',
     storage,
     version: 77,
-    blacklist: ['runtime'],
+    blacklist: ['runtime', 'messages'],
     migrate
   },
   rootReducer
