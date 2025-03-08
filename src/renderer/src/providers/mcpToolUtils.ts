@@ -131,15 +131,35 @@ export function upsertMCPToolResponse(
   onChunk: ({ mcpToolResponse }: ChunkCallbackData) => void
 ) {
   try {
-    for (const ret of results) {
-      if (ret.tool.id == resp.tool.id) {
-        ret.response = resp.response
-        ret.status = resp.status
-        return
+    // 创建一个新数组，不修改原数组
+    const newResults: MCPToolResponse[] = []
+    let found = false
+
+    // 复制原数组中的元素到新数组，如果找到匹配的工具ID则更新
+    for (const item of results) {
+      if (item.tool.id === resp.tool.id) {
+        // 找到匹配的工具，添加更新后的对象
+        newResults.push({ ...item, response: resp.response, status: resp.status })
+        found = true
+      } else {
+        // 否则添加原对象的副本
+        newResults.push({ ...item })
       }
     }
-    results.push(resp)
-  } finally {
+
+    // 如果没有找到匹配的工具ID，添加新的响应
+    if (!found) {
+      newResults.push({ ...resp })
+    }
+
+    // 调用回调函数，传递新数组
+    onChunk({
+      text: '',
+      mcpToolResponse: newResults
+    })
+  } catch (error) {
+    console.error('Error in upsertMCPToolResponse:', error)
+    // 出错时仍然调用回调，但使用原数组
     onChunk({
       text: '',
       mcpToolResponse: results
@@ -151,11 +171,13 @@ export function filterMCPTools(
   mcpTools: MCPTool[] | undefined,
   enabledServers: MCPServer[] | undefined
 ): MCPTool[] | undefined {
+  console.log('filterMCPTools', mcpTools, enabledServers)
   if (mcpTools) {
     if (enabledServers) {
       mcpTools = mcpTools.filter((t) => enabledServers.some((m) => m.name === t.serverName))
     } else {
-      mcpTools = []
+      // TODO enabledServers 存在bug，传入一直为undefined
+      // mcpTools = []
     }
   }
   return mcpTools
