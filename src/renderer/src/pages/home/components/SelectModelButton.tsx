@@ -39,7 +39,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
         <ModelName>
           {model ? model.name : t('button.select_model')} {providerName ? '| ' + providerName : ''}
         </ModelName>
-        <ModelTags model={model} showFree={false} showReasoning={false} />
+        <ModelTags model={model} showFree={false} showReasoning={false} showToolsCalling={false} />
       </ButtonContent>
     </DropdownButton>
   )

@@ -156,11 +156,12 @@ const ExpandButton: React.FC<{
   onClick: () => void
   showButton: boolean
 }> = ({ isExpanded, onClick, showButton }) => {
+  const { t } = useTranslation()
   if (!showButton) return null
 
   return (
     <ExpandButtonWrapper onClick={onClick}>
-      <div className="button-text">{isExpanded ? '收起' : '展开'}</div>
+      <div className="button-text">{isExpanded ? t('code_block.collapse') : t('code_block.expand')}</div>
     </ExpandButtonWrapper>
   )
 }
@@ -317,6 +318,9 @@ const ExpandButtonWrapper = styled.div`
     z-index: 1;
     transition: color 0.2s;
     font-size: 12px;
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue',
+      sans-serif;
   }
 
   &:hover .button-text {

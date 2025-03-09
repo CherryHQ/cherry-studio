@@ -71,7 +71,13 @@ const PromptPopupContainer: React.FC<Props> = ({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         allowClear
-        onPressEnter={onOk}
+        onKeyDown={(e) => {
+          const isEnterPressed = e.keyCode === 13
+          if (isEnterPressed && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault()
+            onOk()
+          }
+        }}
         rows={1}
         {...inputProps}
       />

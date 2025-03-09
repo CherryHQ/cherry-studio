@@ -4,6 +4,7 @@ import { TopView } from '@renderer/components/TopView'
 import { checkApi } from '@renderer/services/ApiService'
 import { Model } from '@renderer/types'
 import { Provider } from '@renderer/types'
+import { maskApiKey } from '@renderer/utils/api'
 import { Button, List, Modal, Space, Spin, Typography } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -103,9 +104,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, reso
           renderItem={(status) => (
             <List.Item>
               <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                <Typography.Text copyable={{ text: status.key }}>
-                  {status.key.slice(0, 8)}...{status.key.slice(-8)}
-                </Typography.Text>
+                <Typography.Text copyable={{ text: status.key }}>{maskApiKey(status.key)}</Typography.Text>
                 <Space>
                   {status.checking && (
                     <Space>

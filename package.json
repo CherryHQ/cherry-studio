@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -45,9 +45,13 @@
     "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true yarn build",
     "analyze:main": "VISUALIZER_MAIN=true yarn build",
-    "check": "node scripts/check-i18n.js"
+    "check": "node scripts/check-i18n.js",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@agentic/exa": "^7.3.3",
+    "@agentic/searxng": "^7.3.3",
+    "@agentic/tavily": "^7.3.3",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
@@ -63,6 +67,7 @@
     "@llm-tools/embedjs-loader-web": "^0.1.28",
     "@llm-tools/embedjs-loader-xml": "^0.1.28",
     "@llm-tools/embedjs-openai": "^0.1.28",
+    "@modelcontextprotocol/sdk": "^1.6.1",
     "@notionhq/client": "^2.2.15",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "adm-zip": "^0.5.16",
@@ -76,6 +81,7 @@
     "fs-extra": "^11.2.0",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
+    "p-queue": "^8.1.0",
     "tokenx": "^0.4.1",
     "webdav": "4.11.4"
   },
