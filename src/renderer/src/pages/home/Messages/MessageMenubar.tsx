@@ -48,7 +48,7 @@ interface Props {
   message: Message
   assistant: Assistant
   topic: Topic
-  model: Model
+  model?: Model
   index?: number
   isGrouped?: boolean
   isLastMessage: boolean
@@ -180,12 +180,12 @@ const MessageMenubar: FC<Props> = (props) => {
         })
 
         // 翻译完成后，提交流消息
-        dispatch(commitStreamMessage({ topicId: topic.id }))
+        dispatch(commitStreamMessage({ topicId: topic.id, messageId: message.id }))
       } catch (error) {
         console.error('Translation failed:', error)
         window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
         dispatch(updateMessage({ topicId: topic.id, messageId: message.id, updates: { translatedContent: undefined } }))
-        dispatch(clearStreamMessage({ topicId: topic.id }))
+        dispatch(clearStreamMessage({ topicId: topic.id, messageId: message.id }))
       } finally {
         setIsTranslating(false)
       }

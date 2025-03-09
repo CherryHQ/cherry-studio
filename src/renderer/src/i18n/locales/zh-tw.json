@@ -479,8 +479,9 @@
       },
       "vision": "視覺",
       "websearch": "網路搜尋",
-      "edit": "編輯模型", 
-      "no_matches": "無可用模型"
+      "edit": "編輯模型",
+      "no_matches": "無可用模型",
+      "tool_calling": "工具調用"
     },
     "navbar": {
       "expand": "伸縮對話框",
