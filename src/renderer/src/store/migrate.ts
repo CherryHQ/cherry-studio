@@ -1237,8 +1237,17 @@ const migrateConfig = {
         delete p.enabled
       })
     }
-
-    return state
+    return {
+      ...state,
+      //make sure that version 77 has not been released before this PR accepted, 
+      //otherwise settings should migrate in next vertion
+      settings: { 
+        ...state.settings,
+        launchOnBoot: false,
+        launchToTray: false,
+        trayOnClose: true
+      }
+    }
   }
 }
 

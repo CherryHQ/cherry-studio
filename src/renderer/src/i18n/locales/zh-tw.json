@@ -869,7 +869,12 @@
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
       "assistant.show.icon": "顯示模型圖示",
-      "tray.title": "啟用系統工具列圖示",
+      "tray.title": "系统匣",
+      "tray.show": "顯示系统匣圖示",
+      "tray.onclose": "關閉時最小化到系统匣",
+      "launch.title": "啟動",
+      "launch.onboot": "開機自動啟動",
+      "launch.totray": "啟動時最小化到系统匣",
       "websearch": {
         "get_api_key": "點選這裡取得金鑰",
         "search_with_time": "搜尋包含日期",
