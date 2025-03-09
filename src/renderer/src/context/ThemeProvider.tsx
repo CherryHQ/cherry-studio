@@ -2,6 +2,8 @@ import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
 import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
+import store from '@renderer/store'
+import { setCustomCss } from '@renderer/store/settings'
 
 interface ThemeContextType {
   theme: ThemeMode
@@ -10,7 +12,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: ThemeMode.light,
-  toggleTheme: () => {}
+  toggleTheme: () => { }
 })
 
 interface ThemeProviderProps extends PropsWithChildren {
@@ -45,6 +47,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
 
   useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
+  }, [])
+
+  useEffect(() => {
+    // Set up the CSS update listener
+    window.api.cssEditor.set((css: string) => {
+      store.dispatch(setCustomCss(css))
+    })
   }, [])
 
   return <ThemeContext.Provider value={{ theme: _theme, toggleTheme }}>{children}</ThemeContext.Provider>

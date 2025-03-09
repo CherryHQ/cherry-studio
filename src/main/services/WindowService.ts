@@ -19,6 +19,7 @@ export class WindowService {
   private selectionMenuWindow: BrowserWindow | null = null
   private lastSelectedText: string = ''
   private contextMenu: Menu | null = null
+  private cssEditorWindow: BrowserWindow | null = null
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -454,6 +455,55 @@ export class WindowService {
 
   public setLastSelectedText(text: string) {
     this.lastSelectedText = text
+  }
+
+  public createCssEditorWindow() {
+    if (this.cssEditorWindow && !this.cssEditorWindow.isDestroyed()) {
+      this.cssEditorWindow.focus()
+      return
+    }
+
+    const theme = configManager.getTheme()
+    const isMac = process.platform === 'darwin'
+
+    this.cssEditorWindow = new BrowserWindow({
+      width: 400,
+      height: 300,
+      minWidth: 400,
+      minHeight: 300,
+      title: 'Custom CSS',
+      autoHideMenuBar: true,
+      frame: false,
+      titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+      titleBarOverlay: false,
+      transparent: false,
+      backgroundColor: theme === 'dark' ? '#181818' : '#FFFFFF',
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        webSecurity: false
+      }
+    })
+
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      this.cssEditorWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/css-editor')
+    } else {
+      this.cssEditorWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+        hash: '#/css-editor'
+      })
+    }
+
+    this.cssEditorWindow.on('closed', () => {
+      this.cssEditorWindow = null
+    })
+  }
+
+  public closeCssEditorWindow() {
+    this.cssEditorWindow?.close()
+  }
+
+  public getCssEditorWindow(): BrowserWindow | null {
+    return this.cssEditorWindow
   }
 }
 
