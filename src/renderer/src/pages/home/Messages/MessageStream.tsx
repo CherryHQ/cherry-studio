@@ -14,8 +14,6 @@ interface MessageStreamProps {
   isGrouped?: boolean
   style?: React.CSSProperties
   onSetMessages?: React.Dispatch<React.SetStateAction<Message[]>>
-  onDeleteMessage?: (message: Message) => Promise<void>
-  onGetMessages?: () => Message[]
 }
 
 const MessageStreamContainer = styled.div`
@@ -32,9 +30,7 @@ const MessageStream: React.FC<MessageStreamProps> = ({
   hidePresetMessages,
   isGrouped,
   style,
-  onDeleteMessage,
-  onSetMessages,
-  onGetMessages
+  onSetMessages
 }) => {
   // 获取流式消息
   const streamMessage = useAppSelector((state) => selectStreamMessage(state, _message.topicId, _message.id))
@@ -69,8 +65,6 @@ const MessageStream: React.FC<MessageStreamProps> = ({
         style={style}
         isStreaming={isStreaming}
         onSetMessages={onSetMessages}
-        onDeleteMessage={onDeleteMessage}
-        onGetMessages={onGetMessages}
       />
     </MessageStreamContainer>
   )

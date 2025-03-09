@@ -5,11 +5,11 @@ import { TopicManager } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getAssistantMessage, getUserMessage, resetAssistantMessage } from '@renderer/services/MessagesService'
+import { estimateMessageUsage } from '@renderer/services/TokenService'
 import type { AppDispatch, RootState } from '@renderer/store'
 import type { Assistant, FileType, MCPServer, Message, Model, Topic } from '@renderer/types'
 import { clearTopicQueue, getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
 import { throttle } from 'lodash'
-
 const convertToDBFormat = (messages: Message[]): Message[] => {
   return [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 }
@@ -233,7 +233,6 @@ export const sendMessage =
       } else {
         // 创建新的用户消息
         userMessage = getUserMessage({ assistant, topic, type: 'text', content })
-
         if (options?.files) {
           userMessage.files = options.files
         }
@@ -245,6 +244,7 @@ export const sendMessage =
         if (options?.mentionModels) {
           userMessage.mentions = options.mentionModels
         }
+        userMessage.usage = await estimateMessageUsage(userMessage)
 
         if (options?.enabledMCPs) {
           userMessage.enabledMCPs = options.enabledMCPs
@@ -394,7 +394,7 @@ export const resendMessage =
         // 查找此用户消息对应的助手消息
         const assistantMessage = topicMessages.find((m) => m.role === 'assistant' && m.askId === message.id)
 
-        dispatch(
+        return dispatch(
           sendMessage(message.content, assistant, topic, {
             resendUserMessage: message,
             resendAssistantMessage: assistantMessage
@@ -407,8 +407,7 @@ export const resendMessage =
 
       if (!userMessage) {
         console.error('Cannot find original user message to resend')
-        dispatch(setError('Cannot find original user message to resend'))
-        return
+        return dispatch(setError('Cannot find original user message to resend'))
       }
 
       if (isMentionModel) {
