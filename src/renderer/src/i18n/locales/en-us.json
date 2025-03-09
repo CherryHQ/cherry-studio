@@ -940,7 +940,9 @@
       "output.placeholder": "Translation",
       "processing": "Translation in progress...",
       "title": "Translation",
-      "tooltip.newline": "Newline"
+      "tooltip.newline": "Newline",
+      "scroll_sync.enable": "Enable synced scroll",
+      "scroll_sync.disable": "Disable synced scroll"
     },
     "tray": {
       "quit": "Quit",

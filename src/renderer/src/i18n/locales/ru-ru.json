@@ -940,7 +940,9 @@
       "output.placeholder": "Перевод",
       "processing": "Перевод в процессе...",
       "title": "Перевод",
-      "tooltip.newline": "Перевести"
+      "tooltip.newline": "Перевести",
+      "scroll_sync.enable": "Включить синхронизацию прокрутки",
+      "scroll_sync.disable": "Отключить синхронизацию прокрутки"
     },
     "tray": {
       "quit": "Выйти",

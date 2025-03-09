@@ -940,7 +940,9 @@
       "output.placeholder": "翻译",
       "processing": "翻译中...",
       "title": "翻译",
-      "tooltip.newline": "换行"
+      "tooltip.newline": "换行",
+      "scroll_sync.enable": "开启滚动同步",
+      "scroll_sync.disable": "关闭滚动同步"
     },
     "tray": {
       "quit": "退出",
