@@ -100,7 +100,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           count: 1,
           origin_name: file.name,
           type: file.type as FileTypes,
-          created_at: new Date()
+          created_at: new Date().toISOString()
         }))
         .filter(({ ext }) => fileTypes.includes(ext))
       console.debug('[KnowledgeContent] Uploading files:', _files, files)

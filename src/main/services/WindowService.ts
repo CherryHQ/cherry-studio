@@ -1,9 +1,10 @@
 import { is } from '@electron-toolkit/utils'
 import { isLinux, isWin } from '@main/constant'
+import { getFilesDir } from '@main/utils/file'
 import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
-import path, { join } from 'path'
+import { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
@@ -196,7 +197,7 @@ export class WindowService {
 
       if (url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
-        const storageDir = path.join(app.getPath('userData'), 'Data', 'Files')
+        const storageDir = getFilesDir()
         const filePath = storageDir + '/' + fileName
         shell.openPath(filePath).catch((err) => Logger.error('Failed to open file:', err))
       } else {

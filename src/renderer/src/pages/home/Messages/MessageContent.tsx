@@ -17,6 +17,7 @@ import MessageAttachments from './MessageAttachments'
 import MessageError from './MessageError'
 import MessageSearchResults from './MessageSearchResults'
 import MessageThought from './MessageThought'
+import MessageTools from './MessageTools'
 
 interface Props {
   message: Message
@@ -100,6 +101,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
         {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
       </Flex>
       <MessageThought message={message} />
+      <MessageTools message={message} />
       <Markdown message={{ ...message, content: processedContent }} />
       {message.translatedContent && (
         <Fragment>

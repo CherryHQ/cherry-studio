@@ -1,5 +1,4 @@
 import fs from 'node:fs'
-import path from 'node:path'
 
 import { MCPServer, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, ProxyConfig, session, shell } from 'electron'
@@ -20,6 +19,7 @@ import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
+import { getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -34,7 +34,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     version: app.getVersion(),
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
-    filesPath: path.join(app.getPath('userData'), 'Data', 'Files'),
+    filesPath: getFilesDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
     logsPath: log.transports.file.getFile().path

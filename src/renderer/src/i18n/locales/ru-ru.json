@@ -86,7 +86,7 @@
       "input.clear.content": "Хотите очистить все сообщения текущего топика?",
       "input.clear.title": "Очистить все сообщения?",
       "input.collapse": "Свернуть",
-      "input.context_count.tip": "Количество контекстов",
+      "input.context_count.tip": "Контекст / Макс. контекст",
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
       "input.file_not_supported": "Модель не поддерживает этот тип файла",
@@ -480,7 +480,8 @@
       "vision": "Визуальные",
       "websearch": "Веб-поисковые",
       "edit": "Редактировать модель",
-      "no_matches": "Нет доступных моделей"
+      "no_matches": "Нет доступных моделей",
+      "tool_calling": "Инструмент вызова"
     },
     "navbar": {
       "expand": "Развернуть диалоговое окно",
@@ -766,6 +767,22 @@
       "models.translate_model_description": "Модель, используемая для сервиса перевода",
       "models.translate_model_prompt_message": "Введите модель перевода",
       "models.translate_model_prompt_title": "Модель перевода",
+      "models.check.button_caption": "Проверка состояния",
+      "models.check.title": "Проверка состояния моделей",
+      "models.check.passed": "Прошло",
+      "models.check.failed": "Не прошло",
+      "models.check.single": "Один",
+      "models.check.all": "Все",
+      "models.check.disabled": "Отключено",
+      "models.check.enabled": "Включено",
+      "models.check.start": "Начать",
+      "models.check.enable_concurrent": "Параллельная проверка",
+      "models.check.use_all_keys": "Использовать все ключи",
+      "models.check.all_models_passed": "Все модели прошли проверку",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} модели прошли все ключи, {{count_failed}} модели не прошли все ключи, {{count_partial}} модели не прошли некоторые ключи",
+      "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
+      "models.check.select_api_key": "Выберите API ключ для использования:",
+      "models.check.keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
       "moresetting": "Дополнительные настройки",
       "moresetting.warn": "Предупреждение о риске",
       "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",
@@ -923,7 +940,9 @@
       "output.placeholder": "Перевод",
       "processing": "Перевод в процессе...",
       "title": "Перевод",
-      "tooltip.newline": "Перевести"
+      "tooltip.newline": "Перевести",
+      "scroll_sync.enable": "Включить синхронизацию прокрутки",
+      "scroll_sync.disable": "Отключить синхронизацию прокрутки"
     },
     "tray": {
       "quit": "Выйти",
@@ -972,4 +991,3 @@
     }
   }
 }
-

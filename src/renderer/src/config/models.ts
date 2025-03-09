@@ -134,6 +134,7 @@ import OpenAI from 'openai'
 
 import { getWebSearchTools } from './tools'
 
+// Vision models
 const visionAllowedModels = [
   'llava',
   'moondream',
@@ -159,18 +160,32 @@ const visionAllowedModels = [
 ]
 
 const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+']
-
 export const VISION_REGEX = new RegExp(
   `\\b(?!(?:${visionExcludedModels.join('|')})\\b)(${visionAllowedModels.join('|')})\\b`,
   'i'
 )
 
+// Text to image models
 export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus/i
+
+// Reasoning models
 export const REASONING_REGEX =
   /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*)$/i
 
+// Embedding models
 export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings)/i
 export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
+
+// Tool calling models
+export const TOOL_CALLING_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4.5', 'claude']
+export const TOOL_CALLING_REGEX = new RegExp(`\\b(?:${TOOL_CALLING_MODELS.join('|')})\\b`, 'i')
+export function isToolCallingModel(model: Model): boolean {
+  if (['gemini', 'deepseek', 'anthropic'].includes(model.provider)) {
+    return true
+  }
+
+  return TOOL_CALLING_REGEX.test(model.id)
+}
 
 export function getModelLogo(modelId: string) {
   const isLight = true
@@ -990,10 +1005,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   yi: [
     { id: 'yi-lightning', name: 'Yi Lightning', provider: 'yi', group: 'yi-lightning', owned_by: '01.ai' },
-    // yi-medium, yi-large, yi-vision 已被 yi-lightning 替代 (详见 https://archive.ph/0Idg3)
-    // { id: 'yi-medium', name: 'yi-medium', provider: 'yi', group: 'yi-medium', owned_by: '01.ai' },
-    // { id: 'yi-large', name: 'yi-large', provider: 'yi', group: 'yi-large', owned_by: '01.ai' },
-    // { id: 'yi-vision', name: 'yi-vision', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
     { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
   ],
   zhipu: [

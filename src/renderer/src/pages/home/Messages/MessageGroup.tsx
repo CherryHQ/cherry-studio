@@ -1,27 +1,28 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
-import { Message, Topic } from '@renderer/types'
+import type { Message, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Popover } from 'antd'
-import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
-import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
+import MessageStream from './MessageStream'
 
 interface Props {
   messages: (Message & { index: number })[]
-  topic?: Topic
+  topic: Topic
   hidePresetMessages?: boolean
-  onGetMessages?: () => Message[]
-  onSetMessages?: Dispatch<SetStateAction<Message[]>>
-  onDeleteMessage?: (message: Message) => Promise<void>
-  onDeleteGroupMessages?: (askId: string) => Promise<void>
+  onGetMessages: () => Message[]
+  onSetMessages: Dispatch<SetStateAction<Message[]>>
+  onDeleteMessage: (message: Message) => Promise<void>
+  onDeleteGroupMessages: (askId: string) => Promise<void>
 }
 
-const MessageGroup: FC<Props> = ({
+const MessageGroup = ({
   messages,
   topic,
   hidePresetMessages,
@@ -29,7 +30,7 @@ const MessageGroup: FC<Props> = ({
   onSetMessages,
   onGetMessages,
   onDeleteGroupMessages
-}) => {
+}: Props) => {
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { t } = useTranslation()
 
@@ -43,7 +44,10 @@ const MessageGroup: FC<Props> = ({
   const isHorizontal = multiModelMessageStyle === 'horizontal'
   const isGrid = multiModelMessageStyle === 'grid'
 
-  const onDelete = useCallback(async () => {
+  const handleDeleteGroup = useCallback(async () => {
+    const askId = messages[0]?.askId
+    if (!askId) return
+
     window.modal.confirm({
       title: t('message.group.delete.title'),
       content: t('message.group.delete.content'),
@@ -52,16 +56,79 @@ const MessageGroup: FC<Props> = ({
         danger: true
       },
       okText: t('common.delete'),
-      onOk: () => {
-        const askId = messages[0].askId
-        askId && onDeleteGroupMessages?.(askId)
-      }
+      onOk: () => onDeleteGroupMessages(askId)
     })
   }, [messages, onDeleteGroupMessages, t])
 
   useEffect(() => {
     setSelectedIndex(messageLength - 1)
   }, [messageLength])
+
+  const renderMessage = useCallback(
+    (message: Message & { index: number }, index: number) => {
+      const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
+      const messageProps = {
+        isGrouped,
+        message,
+        topic,
+        index: message.index,
+        hidePresetMessages,
+        style: {
+          paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15
+        },
+        onSetMessages,
+        onDeleteMessage,
+        onGetMessages
+      }
+
+      const messageWrapper = (
+        <MessageWrapper
+          $layout={multiModelMessageStyle}
+          $selected={index === selectedIndex}
+          $isGrouped={isGrouped}
+          key={message.id}
+          className={message.role === 'assistant' && isHorizontal && isGrouped ? 'group-message-wrapper' : ''}>
+          <MessageStream {...messageProps} />
+        </MessageWrapper>
+      )
+
+      if (isGridGroupMessage) {
+        return (
+          <Popover
+            key={message.id}
+            content={
+              <MessageWrapper
+                $layout={multiModelMessageStyle}
+                $selected={index === selectedIndex}
+                $isGrouped={isGrouped}
+                $isInPopover={true}>
+                <MessageStream {...messageProps} />
+              </MessageWrapper>
+            }
+            trigger={gridPopoverTrigger}
+            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}
+            getPopupContainer={(triggerNode) => triggerNode.parentNode as HTMLElement}>
+            {messageWrapper}
+          </Popover>
+        )
+      }
+
+      return messageWrapper
+    },
+    [
+      isGrid,
+      isGrouped,
+      isHorizontal,
+      multiModelMessageStyle,
+      selectedIndex,
+      topic,
+      hidePresetMessages,
+      onSetMessages,
+      onDeleteMessage,
+      onGetMessages,
+      gridPopoverTrigger
+    ]
+  )
 
   return (
     <GroupContainer
@@ -73,86 +140,7 @@ const MessageGroup: FC<Props> = ({
         $layout={multiModelMessageStyle}
         $gridColumns={gridColumns}
         className={classNames([isGrouped && 'group-grid-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
-        {messages.map((message, index) => {
-          const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
-          if (isGridGroupMessage) {
-            return (
-              <Popover
-                content={
-                  <MessageWrapper
-                    $layout={multiModelMessageStyle}
-                    $selected={index === selectedIndex}
-                    $isGrouped={isGrouped}
-                    $isInPopover={true}
-                    key={message.id}>
-                    <MessageItem
-                      isGrouped={isGrouped}
-                      message={message}
-                      topic={topic}
-                      index={message.index}
-                      hidePresetMessages={hidePresetMessages}
-                      style={{
-                        paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15
-                      }}
-                      onSetMessages={onSetMessages}
-                      onDeleteMessage={onDeleteMessage}
-                      onGetMessages={onGetMessages}
-                    />
-                  </MessageWrapper>
-                }
-                trigger={gridPopoverTrigger}
-                styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}
-                getPopupContainer={(triggerNode) => triggerNode.parentNode as HTMLElement}
-                key={message.id}>
-                <MessageWrapper
-                  $layout={multiModelMessageStyle}
-                  $selected={index === selectedIndex}
-                  $isGrouped={isGrouped}
-                  key={message.id}>
-                  <MessageItem
-                    isGrouped={isGrouped}
-                    message={message}
-                    topic={topic}
-                    index={message.index}
-                    hidePresetMessages={hidePresetMessages}
-                    style={
-                      gridPopoverTrigger === 'hover' && isGrouped
-                        ? {
-                            paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15,
-                            overflow: isGrouped ? 'hidden' : 'auto',
-                            maxHeight: isGrouped ? '280px' : 'unset'
-                          }
-                        : undefined
-                    }
-                    onSetMessages={onSetMessages}
-                    onDeleteMessage={onDeleteMessage}
-                    onGetMessages={onGetMessages}
-                  />
-                </MessageWrapper>
-              </Popover>
-            )
-          }
-          return (
-            <MessageWrapper
-              $layout={multiModelMessageStyle}
-              $selected={index === selectedIndex}
-              $isGrouped={isGrouped}
-              key={message.id}
-              className={message.role === 'assistant' && isHorizontal && isGrouped ? 'group-message-wrapper' : ''}>
-              <MessageItem
-                isGrouped={isGrouped}
-                message={message}
-                topic={topic}
-                index={message.index}
-                hidePresetMessages={hidePresetMessages}
-                style={{ paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15 }}
-                onSetMessages={onSetMessages}
-                onDeleteMessage={onDeleteMessage}
-                onGetMessages={onGetMessages}
-              />
-            </MessageWrapper>
-          )
-        })}
+        {messages.map((message, index) => renderMessage(message, index))}
       </GridContainer>
       {isGrouped && (
         <MessageGroupMenuBar
@@ -161,7 +149,7 @@ const MessageGroup: FC<Props> = ({
           messages={messages}
           selectedIndex={selectedIndex}
           setSelectedIndex={setSelectedIndex}
-          onDelete={onDelete}
+          onDelete={handleDeleteGroup}
         />
       )}
     </GroupContainer>
