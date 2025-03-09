@@ -27,6 +27,7 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import { isToolsEmpty } from './geminiToolUtils'
 import {
   callMCPTool,
   filterMCPTools,
@@ -181,7 +182,6 @@ export default class GeminiProvider extends BaseProvider {
       {
         model: model.id,
         systemInstruction: assistant.prompt,
-        tools: tools.length > 0 ? tools : undefined,
         safetySettings: this.getSafetySettings(model.id),
         generationConfig: {
           maxOutputTokens: maxTokens,
@@ -192,6 +192,9 @@ export default class GeminiProvider extends BaseProvider {
       },
       this.requestOptions
     )
+    if (!isToolsEmpty(geminiModel.tools)) {
+      geminiModel.tools = tools
+    }
 
     const chat = geminiModel.startChat({ history })
     const messageContents = await this.getMessageContents(userLastMessage!)
