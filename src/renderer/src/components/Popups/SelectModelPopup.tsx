@@ -130,19 +130,29 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
   if (pinnedModels.length > 0 && searchText.length === 0) {
     const pinnedItems = providers
-      .flatMap((p) => p.models || [])
-      .filter((m) => pinnedModels.includes(getModelUniqId(m)))
+      .flatMap((p) =>
+        p.models
+          .filter((m) => pinnedModels.includes(getModelUniqId(m)))
+          .map((m) => ({
+            key: getModelUniqId(m),
+            model: m,
+            provider: p
+          }))
+      )
       .map((m) => ({
-        key: getModelUniqId(m) + '_pinned',
+        key: getModelUniqId(m.model) + '_pinned',
         label: (
           <ModelItem>
             <ModelNameRow>
-              <span>{m?.name}</span> <ModelTags model={m} />
+              <span>
+                {m.model?.name} | {m.provider.isSystem ? t(`provider.${m.provider.id}`) : m.provider.name}
+              </span>{' '}
+              <ModelTags model={m.model} />
             </ModelNameRow>
             <PinIcon
               onClick={(e) => {
                 e.stopPropagation()
-                togglePin(getModelUniqId(m))
+                togglePin(getModelUniqId(m.model))
               }}
               isPinned={true}>
               <PushpinOutlined />
@@ -150,12 +160,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           </ModelItem>
         ),
         icon: (
-          <Avatar src={getModelLogo(m?.id || '')} size={24}>
-            {first(m?.name)}
+          <Avatar src={getModelLogo(m.model?.id || '')} size={24}>
+            {first(m.model?.name)}
           </Avatar>
         ),
         onClick: () => {
-          resolve(m)
+          resolve(m.model)
           setOpen(false)
         }
       }))
