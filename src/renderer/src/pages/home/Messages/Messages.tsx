@@ -1,3 +1,4 @@
+import ChatNavigation from '@renderer/components/ChatNavigation'
 import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -298,6 +299,72 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
     }
   })
 
+  // 导航到上一条消息
+  const navigateToNextMessage = () => {
+    const messagesContainer = document.getElementById('messages')
+    if (!messagesContainer) return
+
+    // 获取所有用户消息并反转顺序（因为消息是倒序显示的）
+    const userMessages = Array.from(document.querySelectorAll('.message.message-user')).reverse()
+    if (!userMessages.length) return
+
+    const containerTop = messagesContainer.getBoundingClientRect().top + 2 // 添加小偏移以确保正确检测
+
+    // 找到当前可见的第一条消息
+    const currentMessage = userMessages.find((el) => {
+      const rect = el.getBoundingClientRect()
+      return rect.bottom > containerTop
+    })
+
+    // 获取上一条消息
+    const currentIndex = currentMessage ? userMessages.indexOf(currentMessage) : 0
+    const prevMessage = userMessages[currentIndex + 1]
+
+    // 如果没有上一条消息，直接返回
+    if (!prevMessage) return
+
+    // 计算滚动位置并平滑滚动
+    const messageTop = prevMessage.getBoundingClientRect().top
+    const scrollTop = messagesContainer.scrollTop + (messageTop - containerTop)
+    messagesContainer.scrollTo({
+      top: scrollTop,
+      behavior: 'smooth'
+    })
+  }
+
+  // 导航到下一条消息
+  const navigateToPrevMessage = () => {
+    const messagesContainer = document.getElementById('messages')
+    if (!messagesContainer) return
+
+    // 获取所有用户消息并反转顺序（因为消息是倒序显示的）
+    const userMessages = Array.from(document.querySelectorAll('.message.message-user')).reverse()
+    if (!userMessages.length) return
+
+    const containerTop = messagesContainer.getBoundingClientRect().top + 2 // 添加小偏移以确保正确检测
+
+    // 找到当前可见的第一条消息
+    const currentMessage = userMessages.find((el) => {
+      const rect = el.getBoundingClientRect()
+      return rect.bottom > containerTop
+    })
+
+    // 获取下一条消息
+    const currentIndex = currentMessage ? userMessages.indexOf(currentMessage) : userMessages.length
+    const nextMessage = userMessages[currentIndex - 1]
+
+    // 如果没有下一条消息，直接返回
+    if (!nextMessage) return
+
+    // 计算滚动位置并平滑滚动
+    const messageTop = nextMessage.getBoundingClientRect().top
+    const scrollTop = messagesContainer.scrollTop + (messageTop - containerTop)
+    messagesContainer.scrollTo({
+      top: scrollTop,
+      behavior: 'smooth'
+    })
+  }
+
   return (
     <Container
       id="messages"
@@ -334,6 +401,7 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
         </InfiniteScroll>
         <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
       </NarrowLayout>
+      <ChatNavigation onPrevMessage={navigateToPrevMessage} onNextMessage={navigateToNextMessage} />
     </Container>
   )
 }

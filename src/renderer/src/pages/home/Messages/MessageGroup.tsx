@@ -19,6 +19,7 @@ interface Props {
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
   onDeleteMessage?: (message: Message) => Promise<void>
   onDeleteGroupMessages?: (askId: string) => Promise<void>
+  setMessageRef?: (index: number) => (el: HTMLDivElement | null) => void
 }
 
 const MessageGroup: FC<Props> = ({
@@ -28,7 +29,8 @@ const MessageGroup: FC<Props> = ({
   onDeleteMessage,
   onSetMessages,
   onGetMessages,
-  onDeleteGroupMessages
+  onDeleteGroupMessages,
+  setMessageRef
 }) => {
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { t } = useTranslation()
@@ -97,6 +99,7 @@ const MessageGroup: FC<Props> = ({
                       onSetMessages={onSetMessages}
                       onDeleteMessage={onDeleteMessage}
                       onGetMessages={onGetMessages}
+                      ref={setMessageRef?.(message.index)}
                     />
                   </MessageWrapper>
                 }
@@ -127,6 +130,7 @@ const MessageGroup: FC<Props> = ({
                     onSetMessages={onSetMessages}
                     onDeleteMessage={onDeleteMessage}
                     onGetMessages={onGetMessages}
+                    ref={setMessageRef?.(message.index)}
                   />
                 </MessageWrapper>
               </Popover>
@@ -149,6 +153,7 @@ const MessageGroup: FC<Props> = ({
                 onSetMessages={onSetMessages}
                 onDeleteMessage={onDeleteMessage}
                 onGetMessages={onGetMessages}
+                ref={setMessageRef?.(message.index)}
               />
             </MessageWrapper>
           )
