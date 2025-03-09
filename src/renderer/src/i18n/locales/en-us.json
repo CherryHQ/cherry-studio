@@ -480,7 +480,8 @@
       },
       "vision": "Vision",
       "websearch": "WebSearch",
-      "edit": "Edit Model"
+      "edit": "Edit Model",
+      "tool_calling": "Tool Calling"
     },
     "navbar": {
       "expand": "Expand Dialog",

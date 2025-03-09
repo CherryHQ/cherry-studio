@@ -80,6 +80,7 @@ export async function fetchChatCompletion({
     }
 
     const allMCPTools = await window.api.mcp.listTools()
+
     await AI.completions({
       messages: filterUsefulMessages(messages),
       assistant,
