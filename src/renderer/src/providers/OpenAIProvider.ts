@@ -326,8 +326,7 @@ export default class OpenAIProvider extends BaseProvider {
           }
         })
       }
-
-      const toolCalls: ChatCompletionMessageToolCall[] = []
+      const final_tool_calls = {} as Record<number, ChatCompletionMessageToolCall>
 
       for await (const chunk of stream) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
@@ -357,15 +356,21 @@ export default class OpenAIProvider extends BaseProvider {
         const finishReason = chunk.choices[0]?.finish_reason
 
         if (delta?.tool_calls) {
-          const chunkToolCalls: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall[] = delta.tool_calls
+          const chunkToolCalls = delta.tool_calls
           if (finishReason !== 'tool_calls') {
-            if (toolCalls.length === 0) {
-              for (const toolCall of chunkToolCalls) {
-                toolCalls.push(toolCall as ChatCompletionMessageToolCall)
-              }
-            } else {
-              for (let i = 0; i < chunkToolCalls.length; i++) {
-                toolCalls[i].function.arguments += chunkToolCalls[i].function?.arguments || ''
+            for (const t of chunkToolCalls) {
+              const { index, id, function: fn, type } = t
+              if (!(index in final_tool_calls)) {
+                final_tool_calls[index] = {
+                  id,
+                  function: {
+                    name: fn?.name,
+                    arguments: fn?.arguments || ''
+                  },
+                  type
+                } as ChatCompletionMessageToolCall
+              } else if (fn?.arguments) {
+                final_tool_calls[index].function.arguments += fn.arguments
               }
             }
             continue
@@ -373,6 +378,7 @@ export default class OpenAIProvider extends BaseProvider {
         }
 
         if (finishReason === 'tool_calls') {
+          const toolCalls = Object.values(final_tool_calls)
           console.log('start invoke tools', toolCalls)
           reqMessages.push({
             role: 'assistant',
