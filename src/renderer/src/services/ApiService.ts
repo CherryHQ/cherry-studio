@@ -5,7 +5,7 @@ import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { addAbortController } from '@renderer/utils/abortController'
 import { formatMessageError } from '@renderer/utils/error'
-import { findLast, isEmpty } from 'lodash'
+import { cloneDeep, findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
 import {
@@ -36,6 +36,7 @@ export async function fetchChatCompletion({
   window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, false)
 
   const provider = getAssistantProvider(assistant)
+  const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
 
   store.dispatch(setGenerating(true))
@@ -89,12 +90,12 @@ export async function fetchChatCompletion({
             onResponse({ ...message, status: 'searching' })
 
             // 等待搜索完成
-            const webSearch = await WebSearchService.search(query)
+            const webSearch = await WebSearchService.search(webSearchProvider, query)
 
             // 处理搜索结果
             message.metadata = {
               ...message.metadata,
-              tavily: webSearch
+              webSearch: webSearch
             }
             window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
           } catch (error) {
@@ -104,11 +105,13 @@ export async function fetchChatCompletion({
       }
     }
 
+    const allMCPTools = await window.api.mcp.listTools()
+
     await AI.completions({
       messages: filterUsefulMessages(messages),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({ text, reasoning_content, usage, metrics, search, citations }) => {
+      onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse }) => {
         message.content = message.content + text || ''
         message.usage = usage
         message.metrics = metrics
@@ -121,6 +124,10 @@ export async function fetchChatCompletion({
           message.metadata = { ...message.metadata, groundingMetadata: search }
         }
 
+        if (mcpToolResponse) {
+          message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
+        }
+
         // Handle citations from Perplexity API
         if (isFirstChunk && citations) {
           message.metadata = {
@@ -131,7 +138,8 @@ export async function fetchChatCompletion({
         }
 
         onResponse({ ...message, status: 'pending' })
-      }
+      },
+      mcpTools: allMCPTools
     })
 
     message.status = 'success'
@@ -149,6 +157,7 @@ export async function fetchChatCompletion({
       }
     }
   } catch (error: any) {
+    console.log('error', error)
     message.status = 'error'
     message.error = formatMessageError(error)
   }
@@ -176,13 +185,13 @@ export async function fetchTranslate({ message, assistant, onResponse }: FetchTr
   const model = getTranslateModel()
 
   if (!model) {
-    return ''
+    throw new Error(i18n.t('error.provider_disabled'))
   }
 
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
-    return ''
+    throw new Error(i18n.t('error.no_api_key'))
   }
 
   const AI = new AiProvider(provider)
@@ -253,7 +262,6 @@ export async function fetchSuggestions({
   assistant: Assistant
 }): Promise<Suggestion[]> {
   const model = assistant.model
-
   if (!model) {
     return []
   }
@@ -276,7 +284,11 @@ export async function fetchSuggestions({
   }
 }
 
-export async function checkApi(provider: Provider, model: Model) {
+// Helper function to validate provider's basic settings such as API key, host, and model list
+export function checkApiProvider(provider: Provider): {
+  valid: boolean
+  error: Error | null
+} {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
@@ -294,7 +306,7 @@ export async function checkApi(provider: Provider, model: Model) {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.api.host')
+      error: new Error(i18n.t('message.error.enter.api.host'))
     }
   }
 
@@ -302,7 +314,22 @@ export async function checkApi(provider: Provider, model: Model) {
     window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.model')
+      error: new Error(i18n.t('message.error.enter.model'))
+    }
+  }
+
+  return {
+    valid: true,
+    error: null
+  }
+}
+
+export async function checkApi(provider: Provider, model: Model) {
+  const validation = checkApiProvider(provider)
+  if (!validation.valid) {
+    return {
+      valid: validation.valid,
+      error: validation.error
     }
   }
 

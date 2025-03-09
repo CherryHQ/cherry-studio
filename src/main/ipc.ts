@@ -1,7 +1,6 @@
 import fs from 'node:fs'
-import path from 'node:path'
 
-import { Shortcut, ThemeMode } from '@types'
+import { MCPServer, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, ProxyConfig, session, shell } from 'electron'
 import log from 'electron-log'
 
@@ -14,26 +13,28 @@ import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
+import MCPService from './services/mcp'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
-import { decrypt } from './utils/aes'
-import { encrypt } from './utils/aes'
+import { decrypt, encrypt } from './utils/aes'
+import { getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
+const mcpService = new MCPService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
-  const { autoUpdater } = new AppUpdater(mainWindow)
+  const appUpdater = new AppUpdater(mainWindow)
 
   ipcMain.handle('app:info', () => ({
     version: app.getVersion(),
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
-    filesPath: path.join(app.getPath('userData'), 'Data', 'Files'),
+    filesPath: getFilesDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
     logsPath: log.transports.file.getFile().path
@@ -47,6 +48,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle('app:reload', () => mainWindow.reload())
   ipcMain.handle('open:website', (_, url: string) => shell.openExternal(url))
+
+  // Update
+  ipcMain.handle('app:show-update-dialog', () => appUpdater.showUpdateDialog(mainWindow))
 
   // language
   ipcMain.handle('app:set-language', (_, language) => {
@@ -99,9 +103,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // check for update
   ipcMain.handle('app:check-for-update', async () => {
-    const update = await autoUpdater.checkForUpdates()
+    const update = await appUpdater.autoUpdater.checkForUpdates()
     return {
-      currentVersion: autoUpdater.currentVersion,
+      currentVersion: appUpdater.autoUpdater.currentVersion,
       updateInfo: update?.updateInfo
     }
   })
@@ -207,4 +211,44 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('aes:decrypt', (_, encryptedData: string, iv: string, secretKey: string) =>
     decrypt(encryptedData, iv, secretKey)
   )
+
+  // Register MCP handlers
+  ipcMain.handle('mcp:list-servers', async () => {
+    return mcpService.listAvailableServices()
+  })
+
+  ipcMain.handle('mcp:add-server', async (_, server: MCPServer) => {
+    return mcpService.addServer(server)
+  })
+
+  ipcMain.handle('mcp:update-server', async (_, server: MCPServer) => {
+    return mcpService.updateServer(server)
+  })
+
+  ipcMain.handle('mcp:delete-server', async (_, serverName: string) => {
+    return mcpService.deleteServer(serverName)
+  })
+
+  ipcMain.handle('mcp:set-server-active', async (_, { name, isActive }) => {
+    return mcpService.setServerActive({ name, isActive })
+  })
+
+  // According to preload, this should take no parameters, but our implementation accepts
+  // an optional serverName for better flexibility
+  ipcMain.handle('mcp:list-tools', async (_, serverName?: string) => {
+    return mcpService.listTools(serverName)
+  })
+
+  ipcMain.handle('mcp:call-tool', async (_, params: { client: string; name: string; args: any }) => {
+    return mcpService.callTool(params)
+  })
+
+  ipcMain.handle('mcp:cleanup', async () => {
+    return mcpService.cleanup()
+  })
+
+  // Clean up MCP services when app quits
+  app.on('before-quit', async () => {
+    await mcpService.cleanup()
+  })
 }

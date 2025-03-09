@@ -42,6 +42,7 @@ export interface SettingsState {
   renderInputMessageAsMarkdown: boolean
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
+  codeWrappable: boolean
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
@@ -108,6 +109,7 @@ const initialState: SettingsState = {
   renderInputMessageAsMarkdown: false,
   codeShowLineNumbers: false,
   codeCollapsible: false,
+  codeWrappable: false,
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',
@@ -245,6 +247,9 @@ const settingsSlice = createSlice({
     setCodeCollapsible: (state, action: PayloadAction<boolean>) => {
       state.codeCollapsible = action.payload
     },
+    setCodeWrappable: (state, action: PayloadAction<boolean>) => {
+      state.codeWrappable = action.payload
+    },
     setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
       state.mathEngine = action.payload
     },
@@ -364,6 +369,7 @@ export const {
   setWebdavSyncInterval,
   setCodeShowLineNumbers,
   setCodeCollapsible,
+  setCodeWrappable,
   setMathEngine,
   setGridColumns,
   setGridPopoverTrigger,

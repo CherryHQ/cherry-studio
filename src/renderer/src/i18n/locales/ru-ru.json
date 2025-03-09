@@ -68,7 +68,8 @@
       "collapse": "Свернуть",
       "manage": "Редактировать",
       "select_model": "Выбрать модель",
-      "show.all": "Показать все"
+      "show.all": "Показать все",
+      "update_available": "Доступно обновление"
     },
     "chat": {
       "add.assistant.title": "Добавить ассистента",
@@ -85,7 +86,7 @@
       "input.clear.content": "Хотите очистить все сообщения текущего топика?",
       "input.clear.title": "Очистить все сообщения?",
       "input.collapse": "Свернуть",
-      "input.context_count.tip": "Количество контекстов",
+      "input.context_count.tip": "Контекст / Макс. контекст",
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
       "input.file_not_supported": "Модель не поддерживает этот тип файла",
@@ -103,7 +104,8 @@
       "input.web_search": "Включить веб-поиск",
       "input.web_search.button.ok": "Перейти в Настройки",
       "input.web_search.enable": "Включить веб-поиск",
-      "input.web_search.enable_content": "Необходимо включить веб-поиск в Настройки",
+      "input.web_search.enable_content": "Необходимо предварительно проверить подключение к веб-поиску в настройках",
+      "input.auto_resize": "Автоматическая высота",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",
@@ -113,6 +115,7 @@
       "resend": "Переотправить",
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",
+      "settings.code_wrappable": "Блок кода можно переносить",
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
@@ -385,6 +388,7 @@
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+      "error.dimension_too_large": "Размер содержимого слишком велик",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
@@ -398,6 +402,8 @@
       "message.multi_model_style.grid": "Карточки",
       "message.multi_model_style.horizontal": "Горизонтальное расположение",
       "message.multi_model_style.vertical": "Вертикальное расположение",
+      "message.multi_model_style.fold.compress": "Переключить на компактный макет",
+      "message.multi_model_style.fold.expand": "Переключить на расширенный макет",
       "message.style": "Стиль сообщения",
       "message.style.bubble": "Пузырь",
       "message.style.plain": "Простой",
@@ -475,7 +481,14 @@
       },
       "vision": "Визуальные",
       "websearch": "Веб-поисковые",
-      "edit": "Редактировать модель"
+      "edit": "Редактировать модель",
+      "no_matches": "Нет доступных моделей",
+      "tool_calling": "Инструмент вызова"
+    },
+    "navbar": {
+      "expand": "Развернуть диалоговое окно",
+      "show_sidebar": "Показать боковую панель",
+      "hide_sidebar": "Скрыть боковую панель"
     },
     "ollama": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -595,6 +608,11 @@
       "data": {
         "app_data": "Данные приложения",
         "app_logs": "Логи приложения",
+        "app_knowledge": "База знаний",
+        "app_knowledge.button.delete": "Удалить файл",
+        "app_knowledge.remove_all": "Удалить файлы базы знаний",
+        "app_knowledge.remove_all_confirm": "Удаление файлов базы знаний не удалит саму базу знаний, что позволит уменьшить занимаемый объем памяти, продолжить?",
+        "app_knowledge.remove_all_success": "Файлы удалены успешно",
         "clear_cache": {
           "button": "Очистка кэша",
           "confirm": "Очистка кэша удалит данные приложения. Это действие необратимо, продолжить?",
@@ -670,6 +688,7 @@
       },
       "display.custom.css": "Пользовательский CSS",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
+      "display.custom.css.cherrycss": "Получить из cherrycss.com",
       "display.minApp.disabled": "скрытый апплет",
       "display.minApp.empty": "Перетащите апплет, который хотите скрыть, слева сюда",
       "display.minApp.title": "Настройки отображения мини программы",
@@ -736,6 +755,8 @@
       "models.add.model_id.tooltip": "Пример: gpt-3.5-turbo",
       "models.add.model_name": "Имя модели",
       "models.add.model_name.placeholder": "Необязательно, например, GPT-4",
+      "models.manage.add_whole_group": "Добавить всю группу",
+      "models.manage.remove_whole_group": "Удалить всю группу",
       "models.default_assistant_model": "Модель ассистента по умолчанию",
       "models.default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
       "models.empty": "Модели не найдены",
@@ -748,6 +769,22 @@
       "models.translate_model_description": "Модель, используемая для сервиса перевода",
       "models.translate_model_prompt_message": "Введите модель перевода",
       "models.translate_model_prompt_title": "Модель перевода",
+      "models.check.button_caption": "Проверка состояния",
+      "models.check.title": "Проверка состояния моделей",
+      "models.check.passed": "Прошло",
+      "models.check.failed": "Не прошло",
+      "models.check.single": "Один",
+      "models.check.all": "Все",
+      "models.check.disabled": "Отключено",
+      "models.check.enabled": "Включено",
+      "models.check.start": "Начать",
+      "models.check.enable_concurrent": "Параллельная проверка",
+      "models.check.use_all_keys": "Использовать все ключи",
+      "models.check.all_models_passed": "Все модели прошли проверку",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} модели прошли все ключи, {{count_failed}} модели не прошли все ключи, {{count_partial}} модели не прошли некоторые ключи",
+      "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
+      "models.check.select_api_key": "Выберите API ключ для использования:",
+      "models.check.keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
       "models.search_summary_model": "Модель сводки поиска",
       "models.search_summary_model_description": "Модель, используемая для сервиса сводки поиска",
       "models.search_summary_model_prompt_message": "Пожалуйста, введите запрос для модели сводки поиска",
@@ -782,7 +819,8 @@
         "remove_duplicate_keys": "Удалить дубликаты ключей",
         "remove_invalid_keys": "Удалить недействительные ключи",
         "search_placeholder": "Поиск по ID или имени модели",
-        "title": "Провайдеры моделей"
+        "title": "Провайдеры моделей",
+        "search": "Поиск поставщиков..."
       },
       "proxy": {
         "mode": {
@@ -851,7 +889,40 @@
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
         "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "search_max_result": "Количество результатов поиска",
-        "search_result_default": "По умолчанию"
+        "search_result_default": "По умолчанию",
+        "check": "проверка",
+        "search_provider": "поиск сервисного провайдера",
+        "search_provider_placeholder": "Выберите поставщика поисковых услуг",
+        "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
+        "check_failed": "Проверка не прошла"
+      },
+      "mcp": {
+        "title": "Серверы MCP",
+        "config_description": "Настройка серверов протокола контекста модели",
+        "description": "Описание",
+        "addServer": "Добавить сервер",
+        "editServer": "Редактировать сервер",
+        "name": "Имя",
+        "type": "Тип",
+        "url": "URL",
+        "command": "Команда",
+        "args": "Аргументы",
+        "argsTooltip": "Каждый аргумент с новой строки",
+        "env": "Переменные окружения",
+        "envTooltip": "Формат: KEY=value, по одной на строку",
+        "active": "Активен",
+        "actions": "Действия",
+        "noServers": "Серверы не настроены",
+        "nameRequired": "Пожалуйста, введите имя сервера",
+        "commandRequired": "Пожалуйста, введите команду",
+        "confirmDelete": "Удалить сервер",
+        "confirmDeleteMessage": "Вы уверены, что хотите удалить этот сервер?",
+        "addSuccess": "Сервер успешно добавлен",
+        "updateSuccess": "Сервер успешно обновлен",
+        "deleteSuccess": "Сервер успешно удален",
+        "duplicateName": "Сервер с таким именем уже существует",
+        "serverSingular": "сервер",
+        "serverPlural": "серверы"
       }
     },
     "translate": {
@@ -875,7 +946,9 @@
       "output.placeholder": "Перевод",
       "processing": "Перевод в процессе...",
       "title": "Перевод",
-      "tooltip.newline": "Перевести"
+      "tooltip.newline": "Перевести",
+      "scroll_sync.enable": "Включить синхронизацию прокрутки",
+      "scroll_sync.disable": "Отключить синхронизацию прокрутки"
     },
     "tray": {
       "quit": "Выйти",
@@ -887,6 +960,40 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "code_block": {
+      "enable_wrap": "Перенос строки",
+      "disable_wrap": "Отменить перенос строки",
+      "expand": "Развернуть",
+      "collapse": "Свернуть"
+    },
+    "backup": {
+      "title": "Резервное копирование данных",
+      "confirm": "Вы уверены, что хотите создать резервную копию?",
+      "confirm.button": "Выбрать папку для резервной копии",
+      "content": "Резервная копия будет содержать все данные приложения, включая чаты, настройки и базу знаний. Это может занять некоторое время.",
+      "progress": {
+        "title": "Прогресс резервного копирования",
+        "preparing": "Подготовка резервной копии...",
+        "writing_data": "Запись данных...",
+        "copying_files": "Копирование файлов... {{progress}}%",
+        "compressing": "Сжатие файлов...",
+        "completed": "Резервная копия создана"
+      }
+    },
+    "restore": {
+      "title": "Восстановление данных",
+      "confirm": "Вы уверены, что хотите восстановить данные?",
+      "confirm.button": "Выбрать файл резервной копии",
+      "content": "Операция восстановления перезапишет все текущие данные приложения данными из резервной копии. Это может занять некоторое время.",
+      "progress": {
+        "title": "Прогресс восстановления",
+        "preparing": "Подготовка к восстановлению...",
+        "extracting": "Распаковка резервной копии...",
+        "reading_data": "Чтение данных...",
+        "copying_files": "Копирование файлов... {{progress}}%",
+        "completed": "Восстановление завершено"
+      }
     }
   }
 }

@@ -15,19 +15,38 @@ import {
   getTopNamingModel
 } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
-import { filterContextMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
+import {
+  Assistant,
+  FileTypes,
+  GenerateImageParams,
+  MCPToolResponse,
+  Message,
+  Model,
+  Provider,
+  Suggestion
+} from '@renderer/types'
 import { removeSpecialCharacters } from '@renderer/utils'
 import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
+  ChatCompletionAssistantMessageParam,
   ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
-  ChatCompletionMessageParam
+  ChatCompletionMessageParam,
+  ChatCompletionMessageToolCall,
+  ChatCompletionToolMessageParam
 } from 'openai/resources'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import {
+  callMCPTool,
+  filterMCPTools,
+  mcpToolsToOpenAITools,
+  openAIToolsToMcpTool,
+  upsertMCPToolResponse
+} from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -218,7 +237,7 @@ export default class OpenAIProvider extends BaseProvider {
     return model.id.startsWith('o1')
   }
 
-  async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
+  async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
@@ -234,14 +253,8 @@ export default class OpenAIProvider extends BaseProvider {
 
     const userMessages: ChatCompletionMessageParam[] = []
 
-    const _messages = filterContextMessages(takeRight(messages, contextCount + 1))
+    const _messages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
     onFilterMessages(_messages)
-
-    if (model.id === 'deepseek-reasoner') {
-      if (_messages[0]?.role !== 'user') {
-        userMessages.push({ role: 'user', content: '' })
-      }
-    }
 
     for (const message of _messages) {
       userMessages.push(await this.getMessageParam(message, model))
@@ -296,17 +309,155 @@ export default class OpenAIProvider extends BaseProvider {
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
 
+    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
+    const tools = mcpTools && mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : undefined
+
+    const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
+      Boolean
+    ) as ChatCompletionMessageParam[]
+
+    const toolResponses: MCPToolResponse[] = []
+
+    const processStream = async (stream: any) => {
+      if (!isSupportStreamOutput()) {
+        const time_completion_millsec = new Date().getTime() - start_time_millsec
+        return onChunk({
+          text: stream.choices[0].message?.content || '',
+          usage: stream.usage,
+          metrics: {
+            completion_tokens: stream.usage?.completion_tokens,
+            time_completion_millsec,
+            time_first_token_millsec: 0
+          }
+        })
+      }
+
+      const toolCalls: ChatCompletionMessageToolCall[] = []
+
+      for await (const chunk of stream) {
+        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+          break
+        }
+
+        const delta = chunk.choices[0]?.delta
+
+        if (delta?.reasoning_content || delta?.reasoning) {
+          hasReasoningContent = true
+        }
+
+        if (time_first_token_millsec == 0) {
+          time_first_token_millsec = new Date().getTime() - start_time_millsec
+        }
+
+        if (time_first_content_millsec == 0 && isReasoningJustDone(delta)) {
+          time_first_content_millsec = new Date().getTime()
+        }
+
+        const time_completion_millsec = new Date().getTime() - start_time_millsec
+        const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
+
+        // Extract citations from the raw response if available
+        const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
+
+        const finishReason = chunk.choices[0]?.finish_reason
+
+        if (delta?.tool_calls) {
+          const chunkToolCalls: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall[] = delta.tool_calls
+          if (finishReason !== 'tool_calls') {
+            if (toolCalls.length === 0) {
+              for (const toolCall of chunkToolCalls) {
+                toolCalls.push(toolCall as ChatCompletionMessageToolCall)
+              }
+            } else {
+              for (let i = 0; i < chunkToolCalls.length; i++) {
+                toolCalls[i].function.arguments += chunkToolCalls[i].function?.arguments || ''
+              }
+            }
+            continue
+          }
+        }
+
+        if (finishReason === 'tool_calls') {
+          console.log('start invoke tools', toolCalls)
+          reqMessages.push({
+            role: 'assistant',
+            tool_calls: toolCalls
+          } as ChatCompletionAssistantMessageParam)
+
+          for (const toolCall of toolCalls) {
+            const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall)
+            if (!mcpTool) {
+              continue
+            }
+
+            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking' }, onChunk)
+
+            const toolCallResponse = await callMCPTool(mcpTool)
+
+            console.log('[OpenAIProvider] toolCallResponse', toolCallResponse)
+
+            reqMessages.push({
+              role: 'tool',
+              content: toolCallResponse.content,
+              tool_call_id: toolCall.id
+            } as ChatCompletionToolMessageParam)
+
+            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'done', response: toolCallResponse }, onChunk)
+          }
+
+          const newStream = await this.sdk.chat.completions
+            // @ts-ignore key is not typed
+            .create(
+              {
+                model: model.id,
+                messages: reqMessages,
+                temperature: this.getTemperature(assistant, model),
+                top_p: this.getTopP(assistant, model),
+                max_tokens: maxTokens,
+                keep_alive: this.keepAliveTime,
+                stream: isSupportStreamOutput(),
+                tools: tools,
+                ...getOpenAIWebSearchParams(assistant, model),
+                ...this.getReasoningEffort(assistant, model),
+                ...this.getProviderSpecificParameters(assistant, model),
+                ...this.getCustomParameters(assistant)
+              },
+              {
+                signal
+              }
+            )
+            .finally(cleanup)
+          await processStream(newStream)
+        }
+
+        onChunk({
+          text: delta?.content || '',
+          reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
+          usage: chunk.usage,
+          metrics: {
+            completion_tokens: chunk.usage?.completion_tokens,
+            time_completion_millsec,
+            time_first_token_millsec,
+            time_thinking_millsec
+          },
+          citations,
+          mcpToolResponse: toolResponses
+        })
+      }
+    }
+
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
         {
           model: model.id,
-          messages: [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[],
+          messages: reqMessages,
           temperature: this.getTemperature(assistant, model),
           top_p: this.getTopP(assistant, model),
           max_tokens: maxTokens,
           keep_alive: this.keepAliveTime,
           stream: isSupportStreamOutput(),
+          tools: tools,
           ...getOpenAIWebSearchParams(assistant, model),
           ...this.getReasoningEffort(assistant, model),
           ...this.getProviderSpecificParameters(assistant, model),
@@ -318,59 +469,7 @@ export default class OpenAIProvider extends BaseProvider {
       )
       .finally(cleanup)
 
-    if (!isSupportStreamOutput()) {
-      const time_completion_millsec = new Date().getTime() - start_time_millsec
-      return onChunk({
-        text: stream.choices[0].message?.content || '',
-        usage: stream.usage,
-        metrics: {
-          completion_tokens: stream.usage?.completion_tokens,
-          time_completion_millsec,
-          time_first_token_millsec: 0
-        }
-      })
-    }
-
-    // @ts-expect-error `stream` is not typed
-    for await (const chunk of stream) {
-      if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-        break
-      }
-
-      const delta = chunk.choices[0]?.delta
-
-      if (delta?.reasoning_content || delta?.reasoning) {
-        hasReasoningContent = true
-      }
-
-      if (time_first_token_millsec == 0) {
-        time_first_token_millsec = new Date().getTime() - start_time_millsec
-      }
-
-      if (time_first_content_millsec == 0 && isReasoningJustDone(delta)) {
-        time_first_content_millsec = new Date().getTime()
-      }
-
-      const time_completion_millsec = new Date().getTime() - start_time_millsec
-      const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
-
-      // Extract citations from the raw response if available
-      const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
-
-      onChunk({
-        text: delta?.content || '',
-        // @ts-ignore key is not typed
-        reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
-        usage: chunk.usage,
-        metrics: {
-          completion_tokens: chunk.usage?.completion_tokens,
-          time_completion_millsec,
-          time_first_token_millsec,
-          time_thinking_millsec
-        },
-        citations
-      })
-    }
+    await processStream(stream)
   }
 
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
@@ -411,10 +510,33 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     let text = ''
+    let isThinking = false
+    const isReasoning = isReasoningModel(model)
 
     for await (const chunk of response) {
-      text += chunk.choices[0]?.delta?.content || ''
-      onResponse?.(text)
+      const deltaContent = chunk.choices[0]?.delta?.content || ''
+
+      if (!deltaContent.trim()) {
+        continue
+      }
+
+      if (isReasoning) {
+        if (deltaContent.includes('<think>')) {
+          isThinking = true
+        }
+
+        if (!isThinking) {
+          text += deltaContent
+          onResponse?.(text)
+        }
+
+        if (deltaContent.includes('</think>')) {
+          isThinking = false
+        }
+      } else {
+        text += deltaContent
+        onResponse?.(text)
+      }
     }
 
     return text
