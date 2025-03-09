@@ -385,30 +385,19 @@ export default class OpenAIProvider extends BaseProvider {
               continue
             }
 
-            upsertMCPToolResponse(
-              toolResponses,
-              {
-                tool: mcpTool,
-                status: 'invoking'
-              },
-              onChunk
-            )
+            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking' }, onChunk)
+
             const toolCallResponse = await callMCPTool(mcpTool)
-            console.log(toolCallResponse)
+
+            console.log('[OpenAIProvider] toolCallResponse', toolCallResponse)
+
             reqMessages.push({
               role: 'tool',
               content: toolCallResponse.content,
               tool_call_id: toolCall.id
             } as ChatCompletionToolMessageParam)
-            upsertMCPToolResponse(
-              toolResponses,
-              {
-                tool: mcpTool,
-                status: 'done',
-                response: toolCallResponse
-              },
-              onChunk
-            )
+
+            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'done', response: toolCallResponse }, onChunk)
           }
 
           const newStream = await this.sdk.chat.completions

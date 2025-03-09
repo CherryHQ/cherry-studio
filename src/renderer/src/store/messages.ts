@@ -245,6 +245,10 @@ export const sendMessage =
         if (options?.mentionModels) {
           userMessage.mentions = options.mentionModels
         }
+
+        if (options?.enabledMCPs) {
+          userMessage.enabledMCPs = options.enabledMCPs
+        }
       }
 
       // 如果不是重发，才添加新的用户消息

@@ -2,6 +2,7 @@ import { CheckOutlined, ExpandOutlined, LoadingOutlined } from '@ant-design/icon
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MCPToolResponse, Message } from '@renderer/types'
 import { Collapse, message as antdMessage, Modal, Tooltip } from 'antd'
+import { isEmpty } from 'lodash'
 import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -24,7 +25,7 @@ const MessageTools: FC<Props> = ({ message }) => {
 
   const toolResponses = message.metadata?.mcpTools || []
 
-  if (!toolResponses.length && !message.reasoning_content) {
+  if (isEmpty(toolResponses)) {
     return null
   }
 

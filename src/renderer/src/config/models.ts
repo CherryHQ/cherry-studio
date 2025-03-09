@@ -1740,7 +1740,21 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Jina'
     }
   ],
-  xirang: [],
+  //加前缀是为了展示图标
+  xirang: [
+    {
+      id: 'xirang-4bd107bff85941239e27b1509eccfe98',
+      provider: 'xirang',
+      name: 'DeepSeek-R1',
+      group: 'xirang'
+    },
+    {
+      id: 'xirang-9dc913a037774fc0b248376905c85da5',
+      provider: 'xirang',
+      name: 'DeepSeek-V3',
+      group: 'xirang'
+    }
+  ],
   'tencent-cloud-ti': [
     {
       id: 'deepseek-r1',

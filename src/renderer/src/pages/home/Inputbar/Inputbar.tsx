@@ -158,7 +158,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     } catch (error) {
       console.error('Failed to send message:', error)
     }
-  }, [inputEmpty, text, assistant, files, selectedKnowledgeBases, mentionModels, dispatch])
+  }, [inputEmpty, files, dispatch, text, assistant, selectedKnowledgeBases, mentionModels, enabledMCPs])
 
   const translate = async () => {
     if (isTranslating) {
