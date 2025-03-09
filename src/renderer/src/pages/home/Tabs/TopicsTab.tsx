@@ -25,6 +25,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
   exportMarkdownToNotion,
+  exportMarkdownToObsidian,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
   topicToMarkdown
@@ -251,6 +252,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
                 exportMarkdownToYuque(topic.name, markdown)
+              }
+            },
+            {
+              label: t('chat.topics.export.obsidian'),
+              key: 'obsidian',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToObsidian(topic.name, markdown)
               }
             }
           ]
