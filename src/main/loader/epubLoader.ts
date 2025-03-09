@@ -1,7 +1,7 @@
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
 import { BaseLoader } from '@llm-tools/embedjs-interfaces'
 import { cleanString } from '@llm-tools/embedjs-utils'
-import { app } from 'electron'
+import { getTempDir } from '@main/utils/file'
 import Logger from 'electron-log'
 import EPub from 'epub'
 import * as fs from 'fs'
@@ -160,7 +160,7 @@ export class EpubLoader extends BaseLoader<Record<string, string | number | bool
       }
 
       // 使用临时文件而不是内存数组
-      const tempFilePath = path.join(app.getPath('temp'), `epub-${Date.now()}.txt`)
+      const tempFilePath = path.join(getTempDir(), `epub-${Date.now()}.txt`)
       const writeStream = fs.createWriteStream(tempFilePath)
 
       // 遍历所有章节
