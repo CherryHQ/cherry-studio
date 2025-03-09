@@ -103,14 +103,24 @@ const TranslatePage: FC = () => {
 
     setLoading(true)
     let translatedText = ''
-    await fetchTranslate({
-      message,
-      assistant,
-      onResponse: (text) => {
-        translatedText = text
-        setResult(text)
-      }
-    })
+    try {
+      await fetchTranslate({
+        message,
+        assistant,
+        onResponse: (text) => {
+          translatedText = text
+          setResult(text)
+        }
+      })
+    } catch (error) {
+      console.error('Translation error:', error)
+      window.message.error({
+        content: String(error),
+        key: 'translate-message'
+      })
+      setLoading(false)
+      return
+    }
 
     await saveTranslateHistory(text, translatedText, 'any', targetLanguage)
     setLoading(false)
