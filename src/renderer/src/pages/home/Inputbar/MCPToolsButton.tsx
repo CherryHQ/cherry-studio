@@ -15,7 +15,7 @@ interface Props {
 const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) => {
   const { mcpServers } = useMCPServers()
   const [isOpen, setIsOpen] = useState(false)
-  const [enableAll, setEnableAll] = useState(true)
+  const [enableAll, setEnableAll] = useState(false)
   const dropdownRef = useRef<any>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()

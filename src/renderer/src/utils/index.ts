@@ -273,7 +273,7 @@ export function getFileDirectory(filePath: string) {
 
 export function getFileExtension(filePath: string) {
   const parts = filePath.split('.')
-  const extension = parts.slice(-1)[0]
+  const extension = parts.slice(-1)[0].toLowerCase()
   return '.' + extension
 }
 

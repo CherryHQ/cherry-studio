@@ -484,7 +484,8 @@
       "vision": "画像",
       "websearch": "ウェブ検索",
       "edit": "モデルを編集",
-      "no_matches": "利用可能なモデルがありません"
+      "no_matches": "利用可能なモデルがありません",
+      "tool_calling": "ツールコール"
     },
     "navbar": {
       "expand": "ダイアログを展開",
