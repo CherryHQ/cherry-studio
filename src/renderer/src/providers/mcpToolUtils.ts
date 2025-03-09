@@ -56,12 +56,48 @@ export function openAIToolsToMcpTool(
   return tool
 }
 
+// Ensures tool response content is always a string
+function serializeToolResponse(response: any): string {
+  if (typeof response === 'string') {
+    return response
+  }
+
+  if (Array.isArray(response)) {
+    return response
+      .map((item) => {
+        if (typeof item === 'object' && item.text) {
+          return item.text
+        }
+        return JSON.stringify(item)
+      })
+      .join('\n')
+  }
+
+  if (typeof response === 'object') {
+    if (response.text) {
+      return response.text
+    }
+    if (response.content) {
+      return response.content
+    }
+    return JSON.stringify(response)
+  }
+
+  return String(response)
+}
+
 export async function callMCPTool(tool: MCPTool): Promise<any> {
-  return await window.api.mcp.callTool({
+  const response = await window.api.mcp.callTool({
     client: tool.serverName,
     name: tool.name,
     args: tool.inputSchema
   })
+
+  if (response && typeof response === 'object') {
+    response.content = serializeToolResponse(response.content)
+  }
+
+  return response
 }
 
 export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> {
@@ -130,21 +166,23 @@ export function upsertMCPToolResponse(
   resp: MCPToolResponse,
   onChunk: ({ mcpToolResponse }: ChunkCallbackData) => void
 ) {
-  try {
-    for (const ret of results) {
-      if (ret.tool.id == resp.tool.id) {
-        ret.response = resp.response
-        ret.status = resp.status
-        return
-      }
-    }
-    results.push(resp)
-  } finally {
-    onChunk({
-      text: '',
-      mcpToolResponse: results
-    })
+  if (resp.response?.content) {
+    resp.response.content = serializeToolResponse(resp.response.content)
   }
+
+  for (const ret of results) {
+    if (ret.tool.id == resp.tool.id) {
+      ret.response = resp.response
+      ret.status = resp.status
+      return
+    }
+  }
+  results.push(resp)
+
+  onChunk({
+    text: '',
+    mcpToolResponse: results
+  })
 }
 
 export function filterMCPTools(

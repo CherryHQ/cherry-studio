@@ -360,6 +360,9 @@ export interface MCPConfig {
 
 export interface MCPToolResponse {
   tool: MCPTool
-  status: string
-  response?: any
+  status: 'invoking' | 'done' | 'error'
+  response?: {
+    content: string
+    [key: string]: any
+  }
 }
