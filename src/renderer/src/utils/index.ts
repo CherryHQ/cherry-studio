@@ -184,6 +184,13 @@ export function removeSpecialCharactersForTopicName(str: string) {
   return str.replace(/[\r\n]+/g, ' ').trim()
 }
 
+export function removeSpecialCharactersForFileName(str: string) {
+  return str
+    .replace(/[<>:"/\\|?*.]/g, '_')
+    .replace(/[\r\n]+/g, ' ')
+    .trim()
+}
+
 export function generateColorFromChar(char: string) {
   // 使用字符的Unicode值作为随机种子
   const seed = char.charCodeAt(0)
