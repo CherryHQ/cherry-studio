@@ -1,6 +1,7 @@
 import { useAppSelector } from '@renderer/store'
 import { selectStreamMessage } from '@renderer/store/messages'
 import { Assistant, Message, Topic } from '@renderer/types'
+import { memo } from 'react'
 import styled from 'styled-components'
 
 import MessageItem from './Message'
@@ -14,8 +15,6 @@ interface MessageStreamProps {
   isGrouped?: boolean
   style?: React.CSSProperties
   onSetMessages?: React.Dispatch<React.SetStateAction<Message[]>>
-  onDeleteMessage?: (message: Message) => Promise<void>
-  onGetMessages?: () => Message[]
 }
 
 const MessageStreamContainer = styled.div`
@@ -32,9 +31,7 @@ const MessageStream: React.FC<MessageStreamProps> = ({
   hidePresetMessages,
   isGrouped,
   style,
-  onDeleteMessage,
-  onSetMessages,
-  onGetMessages
+  onSetMessages
 }) => {
   // 获取流式消息
   const streamMessage = useAppSelector((state) => selectStreamMessage(state, _message.topicId, _message.id))
@@ -55,8 +52,7 @@ const MessageStream: React.FC<MessageStreamProps> = ({
   // 在hooks调用后进行条件判断
   const isStreaming = !!(streamMessage && streamMessage.id === _message.id)
   const message = isStreaming ? streamMessage : regularMessage
-  // console.log('streamMessage', streamMessage)
-  // console.log('regularMessage', regularMessage)
+  console.log('isStreaming', isStreaming)
   return (
     <MessageStreamContainer>
       <MessageItem
@@ -69,11 +65,9 @@ const MessageStream: React.FC<MessageStreamProps> = ({
         style={style}
         isStreaming={isStreaming}
         onSetMessages={onSetMessages}
-        onDeleteMessage={onDeleteMessage}
-        onGetMessages={onGetMessages}
       />
     </MessageStreamContainer>
   )
 }
 
-export default MessageStream
+export default memo(MessageStream)

@@ -36,3 +36,18 @@ export async function upgradeToV5(tx: Transaction): Promise<void> {
     }
   }
 }
+
+export async function upgradeToV6(tx: Transaction): Promise<void> {
+  const topics = await tx.table('topics').toArray()
+
+  // 为每个 topic 添加时间戳,兼容老数据,默认按照最新的时间戳来
+  const now = new Date().toISOString()
+  for (const topic of topics) {
+    if (!topic.createdAt && !topic.updatedAt) {
+      await tx.table('topics').update(topic.id, {
+        createdAt: now,
+        updatedAt: now
+      })
+    }
+  }
+}

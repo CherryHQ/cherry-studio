@@ -22,6 +22,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
+import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
   exportMarkdownToNotion,
@@ -35,7 +36,6 @@ import { findIndex } from 'lodash'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { removeSpecialCharactersForFileName } from '@renderer/utils'
 
 interface Props {
   assistant: Assistant
@@ -117,7 +117,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   const onSwitchTopic = useCallback(
     async (topic: Topic) => {
-      await modelGenerating()
+      // await modelGenerating()
       setActiveTopic(topic)
     },
     [setActiveTopic]

@@ -1,6 +1,7 @@
 import db from '@renderer/databases'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
+import { prepareTopicMessages } from '@renderer/store/messages'
 import { Assistant, Topic } from '@renderer/types'
 import { find } from 'lodash'
 import { useEffect, useState } from 'react'
@@ -14,6 +15,12 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
   const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
 
   _activeTopic = activeTopic
+
+  useEffect(() => {
+    if (activeTopic) {
+      store.dispatch(prepareTopicMessages(activeTopic))
+    }
+  }, [activeTopic])
 
   useEffect(() => {
     // activeTopic not in assistant.topics
@@ -42,8 +49,16 @@ export async function getTopicById(topicId: string) {
 }
 
 // Convert class to object with functions since class only has static methods
-// 只有静态方法,没必要用class
+// 只有静态方法,没必要用class，可以export {}
 export const TopicManager = {
+  async getTopicLimit(limit: number) {
+    return await db.topics
+      .orderBy('updatedAt') // 按 updatedAt 排序（默认升序）
+      .reverse() // 逆序（变成降序）
+      .limit(limit) // 取前 10 条
+      .toArray()
+  },
+
   async getTopic(id: string) {
     return await db.topics.get(id)
   },

@@ -3,7 +3,6 @@ import { isLocalAi } from '@renderer/config/env'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
-import { initializeMessagesState } from '@renderer/store/messages'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -25,11 +24,6 @@ export function useAppInit() {
   useUpdateHandler()
 
   useFullScreenNotice()
-
-  // Initialize messages state
-  useEffect(() => {
-    dispatch(initializeMessagesState())
-  }, [dispatch])
 
   useEffect(() => {
     avatar?.value && dispatch(setAvatar(avatar.value))

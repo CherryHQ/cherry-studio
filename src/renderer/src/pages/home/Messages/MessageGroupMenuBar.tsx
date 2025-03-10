@@ -6,8 +6,9 @@ import {
   NumberOutlined
 } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
-import { Message } from '@renderer/types'
+import { Message, Topic } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import { FC, memo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +23,7 @@ interface Props {
   messages: Message[]
   selectedIndex: number
   setSelectedIndex: (index: number) => void
-  onDelete: () => void
+  topic: Topic
 }
 
 const MessageGroupMenuBar: FC<Props> = ({
@@ -31,9 +32,26 @@ const MessageGroupMenuBar: FC<Props> = ({
   messages,
   selectedIndex,
   setSelectedIndex,
-  onDelete
+  topic
 }) => {
   const { t } = useTranslation()
+  const { deleteGroupMessages } = useMessageOperations(topic)
+
+  const handleDeleteGroup = async () => {
+    const askId = messages[0]?.askId
+    if (!askId) return
+
+    window.modal.confirm({
+      title: t('message.group.delete.title'),
+      content: t('message.group.delete.content'),
+      centered: true,
+      okButtonProps: {
+        danger: true
+      },
+      okText: t('common.delete'),
+      onOk: () => deleteGroupMessages(askId)
+    })
+  }
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
       <HStack style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
@@ -71,7 +89,7 @@ const MessageGroupMenuBar: FC<Props> = ({
         type="text"
         size="small"
         icon={<DeleteOutlined style={{ color: 'var(--color-error)' }} />}
-        onClick={onDelete}
+        onClick={handleDeleteGroup}
       />
     </GroupMenuBar>
   )

@@ -136,8 +136,11 @@ export async function addAssistantMessagesToTopic({ assistant, topic }: { assist
     message.usage = await estimateMessageUsage(message)
     messages.push(message)
   }
-
-  db.topics.put({ id: topic.id, messages }, topic.id)
+  if (await db.topics.get(topic.id)) {
+    await db.topics.update(topic.id, { messages })
+  } else {
+    await db.topics.add({ id: topic.id, messages })
+  }
 
   return messages
 }
