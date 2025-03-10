@@ -3,12 +3,14 @@ import { FileType } from '@types'
 import fs from 'fs'
 
 import { CacheService } from './CacheService'
+import { proxyManager } from './ProxyManager'
 
 export class GeminiService {
   private static readonly FILE_LIST_CACHE_KEY = 'gemini_file_list'
   private static readonly CACHE_DURATION = 3000
 
   static async uploadFile(_: Electron.IpcMainInvokeEvent, file: FileType, apiKey: string) {
+    proxyManager.setGlobalProxy()
     const fileManager = new GoogleAIFileManager(apiKey)
     const uploadResult = await fileManager.uploadFile(file.path, {
       mimeType: 'application/pdf',
@@ -29,6 +31,7 @@ export class GeminiService {
     file: FileType,
     apiKey: string
   ): Promise<FileMetadataResponse | undefined> {
+    proxyManager.setGlobalProxy()
     const fileManager = new GoogleAIFileManager(apiKey)
 
     const cachedResponse = CacheService.get<any>(GeminiService.FILE_LIST_CACHE_KEY)
@@ -52,11 +55,13 @@ export class GeminiService {
   }
 
   static async listFiles(_: Electron.IpcMainInvokeEvent, apiKey: string) {
+    proxyManager.setGlobalProxy()
     const fileManager = new GoogleAIFileManager(apiKey)
     return await fileManager.listFiles()
   }
 
   static async deleteFile(_: Electron.IpcMainInvokeEvent, apiKey: string, fileId: string) {
+    proxyManager.setGlobalProxy()
     const fileManager = new GoogleAIFileManager(apiKey)
     await fileManager.deleteFile(fileId)
   }
