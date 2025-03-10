@@ -121,6 +121,12 @@ export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning'
 
+export type ModelPricing = {
+  input_per_million_tokens: number
+  output_per_million_tokens: number
+  currencySymbol?: string
+}
+
 export type Model = {
   id: string
   provider: string
@@ -129,6 +135,7 @@ export type Model = {
   owned_by?: string
   description?: string
   type?: ModelType[]
+  pricing?: ModelPricing
 }
 
 export type Suggestion = {
