@@ -13,7 +13,7 @@ import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@rende
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { removeSpecialCharacters } from '@renderer/utils'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { first, flatten, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
@@ -409,7 +409,7 @@ export default class AnthropicProvider extends BaseProvider {
 
     const content = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    return removeSpecialCharacters(content)
+    return removeSpecialCharactersForTopicName(content)
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

@@ -180,6 +180,10 @@ export function removeSpecialCharacters(str: string) {
   return str.replace(/[\n"]/g, '').replace(/[\p{M}\p{N}\p{P}\p{S}]/gu, '')
 }
 
+export function removeSpecialCharactersForTopicName(str: string) {
+  return str.replace(/[\r\n]+/g, ' ').trim()
+}
+
 export function generateColorFromChar(char: string) {
   // 使用字符的Unicode值作为随机种子
   const seed = char.charCodeAt(0)
