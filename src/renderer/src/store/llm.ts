@@ -39,16 +39,6 @@ const initialState: LlmState = {
       enabled: true
     },
     {
-      id: 'o3',
-      name: 'O3',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://api.o3.fan',
-      models: SYSTEM_MODELS.o3,
-      isSystem: true,
-      enabled: false
-    },
-    {
       id: 'aihubmix',
       name: 'AiHubMix',
       type: 'openai',
@@ -59,12 +49,12 @@ const initialState: LlmState = {
       enabled: false
     },
     {
-      id: 'deepseek',
-      name: 'deepseek',
+      id: 'o3',
+      name: 'O3',
       type: 'openai',
       apiKey: '',
-      apiHost: 'https://api.deepseek.com',
-      models: SYSTEM_MODELS.deepseek,
+      apiHost: 'https://api.o3.fan',
+      models: SYSTEM_MODELS.o3,
       isSystem: true,
       enabled: false
     },
@@ -79,12 +69,22 @@ const initialState: LlmState = {
       enabled: false
     },
     {
-      id: 'baidu-cloud',
-      name: 'Baidu Cloud',
+      id: 'openrouter',
+      name: 'OpenRouter',
       type: 'openai',
       apiKey: '',
-      apiHost: 'https://qianfan.baidubce.com/v2/',
-      models: SYSTEM_MODELS['baidu-cloud'],
+      apiHost: 'https://openrouter.ai/api/v1/',
+      models: SYSTEM_MODELS.openrouter,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'deepseek',
+      name: 'deepseek',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.deepseek.com',
+      models: SYSTEM_MODELS.deepseek,
       isSystem: true,
       enabled: false
     },
@@ -105,6 +105,36 @@ const initialState: LlmState = {
       apiKey: '',
       apiHost: 'http://localhost:1234',
       models: SYSTEM_MODELS.lmstudio,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'ppio',
+      name: 'PPIO',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.ppinfra.com/v3/openai',
+      models: SYSTEM_MODELS.ppio,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'infini',
+      name: 'Infini',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://cloud.infini-ai.com/maas',
+      models: SYSTEM_MODELS.infini,
+      isSystem: true,
+      enabled: false
+    },
+    {
+      id: 'baidu-cloud',
+      name: 'Baidu Cloud',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://qianfan.baidubce.com/v2/',
+      models: SYSTEM_MODELS['baidu-cloud'],
       isSystem: true,
       enabled: false
     },
@@ -250,16 +280,6 @@ const initialState: LlmState = {
       enabled: false
     },
     {
-      id: 'openrouter',
-      name: 'OpenRouter',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://openrouter.ai/api/v1/',
-      models: SYSTEM_MODELS.openrouter,
-      isSystem: true,
-      enabled: false
-    },
-    {
       id: 'groq',
       name: 'Groq',
       type: 'openai',
@@ -370,32 +390,12 @@ const initialState: LlmState = {
       enabled: false
     },
     {
-      id: 'ppio',
-      name: 'PPIO',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://api.ppinfra.com/v3/openai',
-      models: SYSTEM_MODELS.ppio,
-      isSystem: true,
-      enabled: false
-    },
-    {
       id: 'perplexity',
       name: 'Perplexity',
       type: 'openai',
       apiKey: '',
       apiHost: 'https://api.perplexity.ai/',
       models: SYSTEM_MODELS.perplexity,
-      isSystem: true,
-      enabled: false
-    },
-    {
-      id: 'infini',
-      name: 'Infini',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://cloud.infini-ai.com/maas',
-      models: SYSTEM_MODELS.infini,
       isSystem: true,
       enabled: false
     },
@@ -468,6 +468,17 @@ const getIntegratedInitialState = () => {
       }
     }
   } as LlmState
+}
+
+export const moveProvider = (providers: Provider[], id: string, position: number) => {
+  const index = providers.findIndex((p) => p.id === id)
+  if (index === -1) return providers
+
+  const provider = providers[index]
+  const newProviders = [...providers]
+  newProviders.splice(index, 1)
+  newProviders.splice(position - 1, 0, provider)
+  return newProviders
 }
 
 const settingsSlice = createSlice({
