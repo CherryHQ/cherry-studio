@@ -402,6 +402,8 @@
       "message.multi_model_style.grid": "Карточки",
       "message.multi_model_style.horizontal": "Горизонтальное расположение",
       "message.multi_model_style.vertical": "Вертикальное расположение",
+      "message.multi_model_style.fold.compress": "Переключить на компактный макет",
+      "message.multi_model_style.fold.expand": "Переключить на расширенный макет",
       "message.style": "Стиль сообщения",
       "message.style.bubble": "Пузырь",
       "message.style.plain": "Простой",
@@ -945,7 +947,9 @@
       "output.placeholder": "Перевод",
       "processing": "Перевод в процессе...",
       "title": "Перевод",
-      "tooltip.newline": "Перевести"
+      "tooltip.newline": "Перевести",
+      "scroll_sync.enable": "Включить синхронизацию прокрутки",
+      "scroll_sync.disable": "Отключить синхронизацию прокрутки"
     },
     "tray": {
       "quit": "Выйти",

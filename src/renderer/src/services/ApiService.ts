@@ -159,13 +159,13 @@ export async function fetchTranslate({ message, assistant, onResponse }: FetchTr
   const model = getTranslateModel()
 
   if (!model) {
-    return ''
+    throw new Error(i18n.t('error.provider_disabled'))
   }
 
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
-    return ''
+    throw new Error(i18n.t('error.no_api_key'))
   }
 
   const AI = new AiProvider(provider)

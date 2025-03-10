@@ -18,15 +18,19 @@ import {
   updateMessages
 } from '@renderer/store/messages'
 import type { Assistant, Message, Topic } from '@renderer/types'
-import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, runAsyncFunction } from '@renderer/utils'
-import { last } from 'lodash'
+import {
+  captureScrollableDivAsBlob,
+  captureScrollableDivAsDataURL,
+  removeSpecialCharactersForFileName,
+  runAsyncFunction
+} from '@renderer/utils'
+import { isEmpty, last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
-import Suggestions from '../components/Suggestions'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
@@ -92,8 +96,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   }, [])
 
   const autoRenameTopic = useCallback(async () => {
-    const messages = messagesRef.current
+    let messages = [...messagesRef.current]
     const _topic = getTopic(assistant, topic.id)
+
+    if (isEmpty(messages)) {
+      return
+    }
+
+    messages = messages.filter((m) => m.status === 'success')
 
     if (!enableTopicNaming) {
       const topicName = messages[0]?.content.substring(0, 50)
@@ -149,7 +159,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
         const imageData = await captureScrollableDivAsDataURL(containerRef)
         if (imageData) {
-          window.api.file.saveImage(topic.name, imageData)
+          window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {
@@ -217,7 +227,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       ref={containerRef}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-        <Suggestions assistant={assistant} messages={messages} />
         <InfiniteScroll
           dataLength={displayMessages.length}
           next={loadMoreMessages}

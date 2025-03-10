@@ -5,17 +5,15 @@ import {
   FolderOutlined,
   NumberOutlined
 } from '@ant-design/icons'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
-import { Message, Model } from '@renderer/types'
-import { Button, Segmented as AntdSegmented, Tooltip } from 'antd'
+import { Message } from '@renderer/types'
+import { Button, Tooltip } from 'antd'
 import { FC, memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
 
 interface Props {
@@ -61,25 +59,11 @@ const MessageGroupMenuBar: FC<Props> = ({
           ))}
         </LayoutContainer>
         {multiModelMessageStyle === 'fold' && (
-          <ModelsContainer>
-            <Segmented
-              value={selectedIndex.toString()}
-              onChange={(value) => {
-                setSelectedIndex(Number(value))
-                EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messages[Number(value)].id, false)
-              }}
-              options={messages.map((message, index) => ({
-                label: (
-                  <SegmentedLabel>
-                    <ModelAvatar model={message.model as Model} size={20} />
-                    <ModelName>{message.model?.name}</ModelName>
-                  </SegmentedLabel>
-                ),
-                value: index.toString()
-              }))}
-              size="small"
-            />
-          </ModelsContainer>
+          <MessageGroupModelList
+            messages={messages}
+            selectedIndex={selectedIndex}
+            setSelectedIndex={setSelectedIndex}
+          />
         )}
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
       </HStack>
@@ -111,63 +95,19 @@ const GroupMenuBar = styled.div<{ $layout: MultiModelMessageStyle }>`
 
 const LayoutContainer = styled.div`
   display: flex;
-  gap: 10px;
+  gap: 4px;
   flex-direction: row;
 `
 
 const LayoutOption = styled.div<{ $active: boolean }>`
   cursor: pointer;
-  padding: 2px 10px;
+  padding: 2px 6px;
   border-radius: 4px;
   background-color: ${({ $active }) => ($active ? 'var(--color-background-soft)' : 'transparent')};
 
   &:hover {
     background-color: ${({ $active }) => ($active ? 'var(--color-background-soft)' : 'var(--color-hover)')};
   }
-`
-
-const ModelsContainer = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
-
-const Segmented = styled(AntdSegmented)`
-  &.ant-segmented {
-    background: transparent !important;
-  }
-  .ant-segmented-item {
-    background-color: transparent !important;
-    transition: none !important;
-    border-radius: var(--list-item-border-radius) !important;
-    box-shadow: none !important;
-    &:hover {
-      background: transparent !important;
-    }
-  }
-  .ant-segmented-thumb,
-  .ant-segmented-item-selected {
-    background-color: transparent !important;
-    border: 0.5px solid var(--color-border);
-    transition: none !important;
-    border-radius: var(--list-item-border-radius) !important;
-    box-shadow: none !important;
-  }
-`
-
-const SegmentedLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 0;
-`
-
-const ModelName = styled.span`
-  font-weight: 500;
-  font-size: 12px;
 `
 
 export default memo(MessageGroupMenuBar)

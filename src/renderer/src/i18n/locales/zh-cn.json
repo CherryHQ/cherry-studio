@@ -402,6 +402,8 @@
       "message.multi_model_style.grid": "卡片布局",
       "message.multi_model_style.horizontal": "横向排列",
       "message.multi_model_style.vertical": "纵向堆叠",
+      "message.multi_model_style.fold.compress": "切换到紧凑排列",
+      "message.multi_model_style.fold.expand": "切换到展开排列",
       "message.style": "消息样式",
       "message.style.bubble": "气泡",
       "message.style.plain": "简洁",
@@ -945,7 +947,9 @@
       "output.placeholder": "翻译",
       "processing": "翻译中...",
       "title": "翻译",
-      "tooltip.newline": "换行"
+      "tooltip.newline": "换行",
+      "scroll_sync.enable": "开启滚动同步",
+      "scroll_sync.disable": "关闭滚动同步"
     },
     "tray": {
       "quit": "退出",

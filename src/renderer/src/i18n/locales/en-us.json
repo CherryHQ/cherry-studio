@@ -402,6 +402,8 @@
       "message.multi_model_style.grid": "Grid layout",
       "message.multi_model_style.horizontal": "Side by side",
       "message.multi_model_style.vertical": "Stacked view",
+      "message.multi_model_style.fold.compress": "Switch to compact layout",
+      "message.multi_model_style.fold.expand": "Switch to expanded layout",
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
@@ -945,7 +947,9 @@
       "output.placeholder": "Translation",
       "processing": "Translation in progress...",
       "title": "Translation",
-      "tooltip.newline": "Newline"
+      "tooltip.newline": "Newline",
+      "scroll_sync.enable": "Enable synced scroll",
+      "scroll_sync.disable": "Disable synced scroll"
     },
     "tray": {
       "quit": "Quit",
