@@ -35,6 +35,7 @@ import { findIndex } from 'lodash'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { removeSpecialCharactersForFileName } from '@renderer/utils'
 
 interface Props {
   assistant: Assistant
@@ -234,7 +235,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               key: 'word',
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
-                window.api.export.toWord(markdown, topic.name)
+                window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
               }
             },
             {

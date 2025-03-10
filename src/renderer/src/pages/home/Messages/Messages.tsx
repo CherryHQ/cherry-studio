@@ -18,7 +18,12 @@ import {
   updateMessages
 } from '@renderer/store/messages'
 import type { Assistant, Message, Topic } from '@renderer/types'
-import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, runAsyncFunction } from '@renderer/utils'
+import {
+  captureScrollableDivAsBlob,
+  captureScrollableDivAsDataURL,
+  removeSpecialCharactersForFileName,
+  runAsyncFunction
+} from '@renderer/utils'
 import { isEmpty, last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -154,7 +159,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
         const imageData = await captureScrollableDivAsDataURL(containerRef)
         if (imageData) {
-          window.api.file.saveImage(topic.name, imageData)
+          window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {

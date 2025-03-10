@@ -21,7 +21,7 @@ import {
   Provider,
   Suggestion
 } from '@renderer/types'
-import { removeSpecialCharacters } from '@renderer/utils'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
@@ -575,7 +575,7 @@ export default class OpenAIProvider extends BaseProvider {
     let content = response.choices[0].message?.content || ''
     content = content.replace(/^<think>(.*?)<\/think>/s, '')
 
-    return removeSpecialCharacters(content.substring(0, 50))
+    return removeSpecialCharactersForTopicName(content.substring(0, 50))
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

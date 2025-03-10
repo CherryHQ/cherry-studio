@@ -177,7 +177,18 @@ export function removeQuotes(str) {
 
 export function removeSpecialCharacters(str: string) {
   // First remove newlines and quotes, then remove other special characters
-  return str.replace(/[\n"]/g, '').replace(/[\p{M}\p{N}\p{P}\p{S}]/gu, '')
+  return str.replace(/[\n"]/g, '').replace(/[\p{M}\p{P}]/gu, '')
+}
+
+export function removeSpecialCharactersForTopicName(str: string) {
+  return str.replace(/[\r\n]+/g, ' ').trim()
+}
+
+export function removeSpecialCharactersForFileName(str: string) {
+  return str
+    .replace(/[<>:"/\\|?*.]/g, '_')
+    .replace(/[\r\n]+/g, ' ')
+    .trim()
 }
 
 export function generateColorFromChar(char: string) {

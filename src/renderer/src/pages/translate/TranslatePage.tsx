@@ -40,7 +40,7 @@ const TranslatePage: FC = () => {
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
-  const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(true)
+  const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
