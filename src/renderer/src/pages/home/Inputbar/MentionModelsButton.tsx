@@ -8,13 +8,13 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { Avatar, Dropdown, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
-import { FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled, { createGlobalStyle } from 'styled-components'
+import styled from 'styled-components'
 
 interface Props {
   mentionModels: Model[]
-  onMentionModel: (model: Model) => void
+  onMentionModel: (model: Model, fromKeyboard?: boolean) => void
   ToolbarButton: any
 }
 
@@ -30,28 +30,36 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
   const itemRefs = useRef<Array<HTMLDivElement | null>>([])
   // Add a new state to track if menu was dismissed
   const [menuDismissed, setMenuDismissed] = useState(false)
+  // Add a state to track if the model selector was triggered by keyboard
+  const [fromKeyboard, setFromKeyboard] = useState(false)
 
   const setItemRef = (index: number, el: HTMLDivElement | null) => {
     itemRefs.current[index] = el
   }
 
-  const togglePin = async (modelId: string) => {
-    const newPinnedModels = pinnedModels.includes(modelId)
-      ? pinnedModels.filter((id) => id !== modelId)
-      : [...pinnedModels, modelId]
+  const togglePin = useCallback(
+    async (modelId: string) => {
+      const newPinnedModels = pinnedModels.includes(modelId)
+        ? pinnedModels.filter((id) => id !== modelId)
+        : [...pinnedModels, modelId]
 
-    await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
-    setPinnedModels(newPinnedModels)
-  }
+      await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
+      setPinnedModels(newPinnedModels)
+    },
+    [pinnedModels]
+  )
 
-  const handleModelSelect = (model: Model) => {
-    // Check if model is already selected
-    if (mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))) {
-      return
-    }
-    onSelect(model)
-    setIsOpen(false)
-  }
+  const handleModelSelect = useCallback(
+    (model: Model) => {
+      // Check if model is already selected
+      if (mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))) {
+        return
+      }
+      onSelect(model, fromKeyboard)
+      setIsOpen(false)
+    },
+    [fromKeyboard, mentionModels, onSelect]
+  )
 
   const modelMenuItems = useMemo(() => {
     const items = providers
@@ -159,7 +167,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
 
     // Remove empty groups
     return items.filter((group) => group.children.length > 0)
-  }, [providers, pinnedModels, t, onSelect, mentionModels, searchText])
+  }, [providers, pinnedModels, t, searchText, togglePin, handleModelSelect])
 
   // Get flattened list of all model items
   const flatModelItems = useMemo(() => {
@@ -190,6 +198,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
       setSelectedIndex(0)
       setSearchText('')
       setMenuDismissed(false) // Reset dismissed flag when manually showing selector
+      setFromKeyboard(true) // Set fromKeyboard to true when triggered by keyboard
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -263,6 +272,44 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
     }
   }, [isOpen, selectedIndex, flatModelItems, mentionModels, menuDismissed])
 
+  useEffect(() => {
+    const updateScrollbarClass = () => {
+      requestAnimationFrame(() => {
+        if (menuRef.current) {
+          const hasScrollbar = menuRef.current.scrollHeight > menuRef.current.clientHeight
+          menuRef.current.classList.toggle('has-scrollbar', hasScrollbar)
+          menuRef.current.classList.toggle('no-scrollbar', !hasScrollbar)
+        }
+      })
+    }
+
+    // Update on initial render and whenever content changes
+    const observer = new MutationObserver(updateScrollbarClass)
+    const resizeObserver = new ResizeObserver(updateScrollbarClass)
+
+    if (menuRef.current) {
+      // Observe content changes
+      observer.observe(menuRef.current, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true
+      })
+
+      // Observe size changes
+      resizeObserver.observe(menuRef.current)
+
+      // Initial check after a short delay to ensure DOM is ready
+      setTimeout(updateScrollbarClass, 0)
+    }
+
+    // Cleanup
+    return () => {
+      observer.disconnect()
+      resizeObserver.disconnect()
+    }
+  }, [isOpen, searchText, flatModelItems.length]) // Add dependencies that affect content
+
   const menu = (
     <div ref={menuRef} className="ant-dropdown-menu">
       {flatModelItems.length > 0 ? (
@@ -301,101 +348,30 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
   )
 
   return (
-    <>
-      <DropdownMenuStyle />
-      <Dropdown
-        dropdownRender={() => menu}
-        trigger={['click']}
-        open={isOpen}
-        onOpenChange={setIsOpen}
-        overlayClassName="mention-models-dropdown">
-        <Tooltip placement="top" title={t('agents.edit.model.select.title')} arrow>
-          <ToolbarButton type="text" ref={dropdownRef}>
-            <i className="iconfont icon-at" style={{ fontSize: 18 }}></i>
-          </ToolbarButton>
-        </Tooltip>
-      </Dropdown>
-    </>
+    <Dropdown
+      overlayStyle={{ marginBottom: 20 }}
+      dropdownRender={() => menu}
+      trigger={['click']}
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open)
+        open && setFromKeyboard(false) // Set fromKeyboard to false when opened by button click
+      }}
+      overlayClassName="mention-models-dropdown">
+      <Tooltip placement="top" title={t('agents.edit.model.select.title')} arrow>
+        <ToolbarButton type="text" ref={dropdownRef}>
+          <i className="iconfont icon-at" style={{ fontSize: 18 }}></i>
+        </ToolbarButton>
+      </Tooltip>
+    </Dropdown>
   )
 }
-
-const DropdownMenuStyle = createGlobalStyle`
-  .mention-models-dropdown {
-    .ant-dropdown-menu {
-      max-height: 400px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding: 4px 0;
-      margin-bottom: 40px;
-      position: relative;
-
-      &::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-      }
-
-      &::-webkit-scrollbar-thumb {
-        border-radius: 10px;
-        background: var(--color-scrollbar-thumb);
-
-        &:hover {
-          background: var(--color-scrollbar-thumb-hover);
-        }
-      }
-
-      &::-webkit-scrollbar-track {
-        background: transparent;
-      }
-
-      .no-results {
-        padding: 8px 12px;
-        color: var(--color-text-3);
-        cursor: default;
-        font-size: 14px;
-        
-        &:hover {
-          background: none;
-        }
-      }
-    }
-
-    .ant-dropdown-menu-item-group {
-      .ant-dropdown-menu-item-group-title {
-        padding: 5px 12px;
-        color: var(--color-text-3);
-        font-size: 12px;
-      }
-    }
-
-    .ant-dropdown-menu-item {
-      padding: 5px 12px;
-      cursor: pointer;
-      transition: all 0.3s;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-
-      &:hover {
-        background: var(--color-hover);
-      }
-
-      &.ant-dropdown-menu-item-selected {
-        background-color: var(--color-primary-bg);
-        color: var(--color-primary);
-      }
-
-      .ant-dropdown-menu-item-icon {
-        margin-right: 0;
-      }
-    }
-  }
-`
 
 const ModelItem = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 14px;
+  font-size: 13px;
   width: 100%;
   min-width: 200px;
   gap: 16px;
@@ -417,15 +393,15 @@ const ModelNameRow = styled.div`
 const PinIcon = styled.span.attrs({ className: 'pin-icon' })<{ $isPinned: boolean }>`
   margin-left: auto;
   padding: 0 8px;
-  opacity: ${(props) => (props.$isPinned ? 1 : 'inherit')};
-  transition: opacity 0.2s;
+  opacity: ${(props) => (props.$isPinned ? 0.9 : 0)};
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   right: 0;
   color: ${(props) => (props.$isPinned ? 'var(--color-primary)' : 'inherit')};
   transform: ${(props) => (props.$isPinned ? 'rotate(-45deg)' : 'none')};
-  opacity: 0;
+  font-size: 13px;
 
   &:hover {
-    opacity: 1 !important;
+    opacity: ${(props) => (props.$isPinned ? 1 : 0.7)} !important;
     color: ${(props) => (props.$isPinned ? 'var(--color-primary)' : 'inherit')};
   }
 `

@@ -66,22 +66,21 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   // 根据输入的文本筛选模型
   const getFilteredModels = useCallback(
     (provider) => {
-      const nonEmbeddingModels = provider.models.filter((m) => !isEmbeddingModel(m))
+      let models = provider.models.filter((m) => !isEmbeddingModel(m))
 
-      if (!searchText.trim()) {
-        return sortBy(nonEmbeddingModels, ['group', 'name'])
+      if (searchText.trim()) {
+        const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+        models = models.filter((m) => {
+          const fullName = provider.isSystem
+            ? `${m.name} ${provider.name} ${t('provider.' + provider.id)}`
+            : `${m.name} ${provider.name}`
+
+          const lowerFullName = fullName.toLowerCase()
+          return keywords.every((keyword) => lowerFullName.includes(keyword))
+        })
       }
 
-      const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-
-      return sortBy(nonEmbeddingModels, ['group', 'name']).filter((m) => {
-        const fullName = provider.isSystem
-          ? `${m.name}${m.provider}${t('provider.' + provider.id)}`
-          : `${m.name}${m.provider}`
-
-        const lowerFullName = fullName.toLowerCase()
-        return keywords.every((keyword) => lowerFullName.includes(keyword))
-      })
+      return sortBy(models, ['group', 'name'])
     },
     [searchText, t]
   )
@@ -276,6 +275,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     setKeyboardSelectedId('')
   }, [searchText])
 
+  const selectedKeys = keyboardSelectedId ? [keyboardSelectedId] : model ? [getModelUniqId(model)] : []
+
   return (
     <Modal
       centered
@@ -322,7 +323,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
         <Container>
           {filteredItems.length > 0 ? (
-            <StyledMenu items={filteredItems} selectedKeys={[keyboardSelectedId]} mode="inline" inlineIndent={6} />
+            <StyledMenu items={filteredItems} selectedKeys={selectedKeys} mode="inline" inlineIndent={6} />
           ) : (
             <EmptyState>
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -345,8 +346,27 @@ const StyledMenu = styled(Menu)`
   max-height: calc(60vh - 50px);
 
   .ant-menu-item-group-title {
-    padding: 5px 10px 0;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 -5px;
+    padding: 5px 10px;
+    padding-left: 18px;
     font-size: 12px;
+    font-weight: 500;
+
+    /* Scroll-driven animation for sticky header */
+    animation: background-change linear both;
+    animation-timeline: scroll();
+    animation-range: entry 0% entry 1%;
+  }
+
+  /* Simple animation that changes background color when sticky */
+  @keyframes background-change {
+    to {
+      background-color: var(--color-background-soft);
+      opacity: 0.95;
+    }
   }
 
   .ant-menu-item {

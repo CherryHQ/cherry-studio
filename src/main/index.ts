@@ -1,4 +1,5 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
@@ -6,7 +7,6 @@ import { registerIpc } from './ipc'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
-import { updateUserDataPath } from './utils/upgrade'
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -18,8 +18,6 @@ if (!app.requestSingleInstanceLock()) {
   // Some APIs can only be used after this event occurs.
 
   app.whenReady().then(async () => {
-    await updateUserDataPath()
-
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
@@ -38,6 +36,8 @@ if (!app.requestSingleInstanceLock()) {
     registerShortcuts(mainWindow)
 
     registerIpc(mainWindow, app)
+
+    replaceDevtoolsFont(mainWindow)
 
     if (process.env.NODE_ENV === 'development') {
       installExtension(REDUX_DEVTOOLS)

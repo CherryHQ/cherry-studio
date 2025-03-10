@@ -1,11 +1,11 @@
 {
   "name": "CherryStudio",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
-  "author": "kangfenmao@qq.com",
-  "homepage": "https://github.com/kangfenmao/cherry-studio",
+  "author": "support@cherry-ai.com",
+  "homepage": "https://github.com/CherryHQ/cherry-studio",
   "workspaces": {
     "packages": [
       "local",
@@ -45,9 +45,13 @@
     "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true yarn build",
     "analyze:main": "VISUALIZER_MAIN=true yarn build",
-    "check": "node scripts/check-i18n.js"
+    "check": "node scripts/check-i18n.js",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@agentic/exa": "^7.3.3",
+    "@agentic/searxng": "^7.3.3",
+    "@agentic/tavily": "^7.3.3",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
@@ -77,6 +81,7 @@
     "fs-extra": "^11.2.0",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
+    "p-queue": "^8.1.0",
     "tokenx": "^0.4.1",
     "webdav": "4.11.4"
   },

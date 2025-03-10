@@ -36,6 +36,13 @@ import {
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import {
+  callMCPTool,
+  filterMCPTools,
+  mcpToolsToOpenAITools,
+  openAIToolsToMcpTool,
+  upsertMCPToolResponse
+} from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -528,10 +535,33 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     let text = ''
+    let isThinking = false
+    const isReasoning = isReasoningModel(model)
 
     for await (const chunk of response) {
-      text += chunk.choices[0]?.delta?.content || ''
-      onResponse?.(text)
+      const deltaContent = chunk.choices[0]?.delta?.content || ''
+
+      if (!deltaContent.trim()) {
+        continue
+      }
+
+      if (isReasoning) {
+        if (deltaContent.includes('<think>')) {
+          isThinking = true
+        }
+
+        if (!isThinking) {
+          text += deltaContent
+          onResponse?.(text)
+        }
+
+        if (deltaContent.includes('</think>')) {
+          isThinking = false
+        }
+      } else {
+        text += deltaContent
+        onResponse?.(text)
+      }
     }
 
     return text
@@ -575,7 +605,7 @@ export default class OpenAIProvider extends BaseProvider {
     let content = response.choices[0].message?.content || ''
     content = content.replace(/^<think>(.*?)<\/think>/s, '')
 
-    return removeSpecialCharacters(content.substring(0, 50))
+    return removeSpecialCharactersForTopicName(content.substring(0, 50))
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

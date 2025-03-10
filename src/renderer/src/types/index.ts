@@ -1,4 +1,3 @@
-import type { TavilySearchResponse } from '@tavily/core'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
@@ -68,13 +67,16 @@ export type Message = {
   askId?: string
   useful?: boolean
   error?: Record<string, any>
+  enabledMCPs?: MCPServer[]
   metadata?: {
     // Gemini
     groundingMetadata?: any
     // Perplexity
     citations?: string[]
     // Web search
-    tavily?: TavilySearchResponse
+    webSearch?: WebSearchResponse
+    // MCP Tools
+    mcpTools?: MCPToolResponse[]
   }
 }
 
@@ -166,7 +168,7 @@ export interface FileType {
   size: number
   ext: string
   type: FileTypes
-  created_at: Date
+  created_at: string
   count: number
   tokens?: number
 }
@@ -291,7 +293,20 @@ export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 
 export type WebSearchProvider = {
   id: string
   name: string
-  apiKey: string
+  apiKey?: string
+  apiHost?: string
+  engines?: string[]
+}
+
+export type WebSearchResponse = {
+  query?: string
+  results: WebSearchResult[]
+}
+
+export type WebSearchResult = {
+  title: string
+  content: string
+  url: string
 }
 
 export type KnowledgeReference = {

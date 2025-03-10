@@ -1,6 +1,9 @@
 import {
   Content,
   FileDataPart,
+  FunctionCallPart,
+  FunctionResponsePart,
+  GenerateContentStreamResult,
   GoogleGenerativeAI,
   HarmBlockThreshold,
   HarmCategory,
@@ -16,14 +19,23 @@ import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileType, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { removeSpecialCharacters } from '@renderer/utils'
+import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import axios from 'axios'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import { filterInvalidTools } from './geminiToolUtils'
+import {
+  callMCPTool,
+  filterMCPTools,
+  geminiFunctionCallToMcpTool,
+  mcpToolsToGeminiTools,
+  upsertMCPToolResponse
+} from './mcpToolUtils'
+
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI
   private requestOptions: RequestOptions
@@ -141,7 +153,7 @@ export default class GeminiProvider extends BaseProvider {
     ]
   }
 
-  public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
+  public async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
@@ -156,13 +168,20 @@ export default class GeminiProvider extends BaseProvider {
     for (const message of userMessages) {
       history.push(await this.getMessageContents(message))
     }
+    mcpTools = filterMCPTools(mcpTools, userLastMessage?.enabledMCPs)
+    const tools = mcpToolsToGeminiTools(mcpTools)
+    const toolResponses: MCPToolResponse[] = []
+    if (assistant.enableWebSearch && isWebSearchModel(model)) {
+      tools.push({
+        // @ts-ignore googleSearch is not a valid tool for Gemini
+        googleSearch: {}
+      })
+    }
 
     const geminiModel = this.sdk.getGenerativeModel(
       {
         model: model.id,
         systemInstruction: assistant.prompt,
-        // @ts-ignore googleSearch is not a valid tool for Gemini
-        tools: assistant.enableWebSearch && isWebSearchModel(model) ? [{ googleSearch: {} }] : undefined,
         safetySettings: this.getSafetySettings(model.id),
         generationConfig: {
           maxOutputTokens: maxTokens,
@@ -173,6 +192,10 @@ export default class GeminiProvider extends BaseProvider {
       },
       this.requestOptions
     )
+    const filteredTools = filterInvalidTools(geminiModel.tools)
+    if (!isEmpty(filteredTools)) {
+      geminiModel.tools = filteredTools
+    }
 
     const chat = geminiModel.startChat({ history })
     const messageContents = await this.getMessageContents(userLastMessage!)
@@ -206,27 +229,80 @@ export default class GeminiProvider extends BaseProvider {
     const userMessagesStream = await chat.sendMessageStream(messageContents.parts, { signal }).finally(cleanup)
     let time_first_token_millsec = 0
 
-    for await (const chunk of userMessagesStream.stream) {
-      if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
-      if (time_first_token_millsec == 0) {
-        time_first_token_millsec = new Date().getTime() - start_time_millsec
+    const processStream = async (stream: GenerateContentStreamResult) => {
+      for await (const chunk of stream.stream) {
+        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
+        if (time_first_token_millsec == 0) {
+          time_first_token_millsec = new Date().getTime() - start_time_millsec
+        }
+        const time_completion_millsec = new Date().getTime() - start_time_millsec
+
+        const functionCalls = chunk.functionCalls()
+        if (functionCalls) {
+          const fcallParts: FunctionCallPart[] = []
+          const fcRespParts: FunctionResponsePart[] = []
+          for (const call of functionCalls) {
+            console.log('Function call:', call)
+            fcallParts.push({ functionCall: call } as FunctionCallPart)
+            const mcpTool = geminiFunctionCallToMcpTool(mcpTools, call)
+            if (mcpTool) {
+              upsertMCPToolResponse(
+                toolResponses,
+                {
+                  tool: mcpTool,
+                  status: 'invoking'
+                },
+                onChunk
+              )
+              const toolCallResponse = await callMCPTool(mcpTool)
+              fcRespParts.push({
+                functionResponse: {
+                  name: mcpTool.id,
+                  response: toolCallResponse
+                }
+              })
+              upsertMCPToolResponse(
+                toolResponses,
+                {
+                  tool: mcpTool,
+                  status: 'done',
+                  response: toolCallResponse
+                },
+                onChunk
+              )
+            }
+          }
+          if (fcRespParts) {
+            history.push(messageContents)
+            history.push({
+              role: 'model',
+              parts: fcallParts
+            })
+            const newChat = geminiModel.startChat({ history })
+            const newStream = await newChat.sendMessageStream(fcRespParts, { signal }).finally(cleanup)
+            await processStream(newStream)
+          }
+        }
+
+        onChunk({
+          text: chunk.text(),
+          usage: {
+            prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
+            completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
+            total_tokens: chunk.usageMetadata?.totalTokenCount || 0
+          },
+          metrics: {
+            completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
+            time_completion_millsec,
+            time_first_token_millsec
+          },
+          search: chunk.candidates?.[0]?.groundingMetadata,
+          mcpToolResponse: toolResponses
+        })
       }
-      const time_completion_millsec = new Date().getTime() - start_time_millsec
-      onChunk({
-        text: chunk.text(),
-        usage: {
-          prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
-          completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
-          total_tokens: chunk.usageMetadata?.totalTokenCount || 0
-        },
-        metrics: {
-          completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
-          time_completion_millsec,
-          time_first_token_millsec
-        },
-        search: chunk.candidates?.[0]?.groundingMetadata
-      })
     }
+
+    await processStream(userMessagesStream)
   }
 
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
@@ -303,7 +379,7 @@ export default class GeminiProvider extends BaseProvider {
 
     const { response } = await chat.sendMessage(userMessage.content)
 
-    return removeSpecialCharacters(response.text())
+    return removeSpecialCharactersForTopicName(response.text())
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

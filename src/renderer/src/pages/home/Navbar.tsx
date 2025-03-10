@@ -14,6 +14,8 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
+import { Tooltip } from 'antd'
+import { t } from 'i18next'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -58,12 +60,16 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
     <Navbar className="home-navbar">
       {showAssistants && (
         <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
-          <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac ? 16 : 0 }}>
-            <i className="iconfont icon-hide-sidebar" />
-          </NavbarIcon>
-          <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
-            <FormOutlined />
-          </NavbarIcon>
+          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+            <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac ? 16 : 0 }}>
+              <i className="iconfont icon-hide-sidebar" />
+            </NavbarIcon>
+          </Tooltip>
+          <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
+            <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+              <FormOutlined />
+            </NavbarIcon>
+          </Tooltip>
         </NavbarLeft>
       )}
       <NavbarRight
@@ -71,9 +77,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
         className="home-navbar-right">
         <HStack alignItems="center">
           {!showAssistants && (
-            <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
-              <i className="iconfont icon-show-sidebar" />
-            </NavbarIcon>
+            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+              <NavbarIcon
+                onClick={() => toggleShowAssistants()}
+                style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
+                <i className="iconfont icon-show-sidebar" />
+              </NavbarIcon>
+            </Tooltip>
           )}
           <TitleText
             style={{ marginRight: 10, cursor: 'pointer' }}
@@ -85,17 +95,23 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />
-          <NarrowIcon onClick={() => SearchPopup.show()}>
-            <SearchOutlined />
-          </NarrowIcon>
-          <NarrowIcon onClick={handleNarrowModeToggle}>
-            <i className="iconfont icon-icon-adaptive-width"></i>
-          </NarrowIcon>
+          <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+            <NarrowIcon onClick={() => SearchPopup.show()}>
+              <SearchOutlined />
+            </NarrowIcon>
+          </Tooltip>
+          <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
+            <NarrowIcon onClick={handleNarrowModeToggle}>
+              <i className="iconfont icon-icon-adaptive-width"></i>
+            </NarrowIcon>
+          </Tooltip>
           {sidebarIcons.visible.includes('minapp') && (
             <MinAppsPopover>
-              <NarrowIcon>
-                <i className="iconfont icon-appstore" />
-              </NarrowIcon>
+              <Tooltip title={t('minapp.title')} mouseEnterDelay={0.8}>
+                <NarrowIcon>
+                  <i className="iconfont icon-appstore" />
+                </NarrowIcon>
+              </Tooltip>
             </MinAppsPopover>
           )}
           {topicPosition === 'right' && (

@@ -3,17 +3,29 @@ import path from 'node:path'
 
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
 import { FileType, FileTypes } from '@types'
+import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
+
+// 创建文件类型映射表，提高查找效率
+const fileTypeMap = new Map<string, FileTypes>()
+
+// 初始化映射表
+function initFileTypeMap() {
+  imageExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.IMAGE))
+  videoExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.VIDEO))
+  audioExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.AUDIO))
+  textExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.TEXT))
+  documentExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.DOCUMENT))
+}
+
+// 初始化映射表
+initFileTypeMap()
 
 export function getFileType(ext: string): FileTypes {
   ext = ext.toLowerCase()
-  if (imageExts.includes(ext)) return FileTypes.IMAGE
-  if (videoExts.includes(ext)) return FileTypes.VIDEO
-  if (audioExts.includes(ext)) return FileTypes.AUDIO
-  if (textExts.includes(ext)) return FileTypes.TEXT
-  if (documentExts.includes(ext)) return FileTypes.DOCUMENT
-  return FileTypes.OTHER
+  return fileTypeMap.get(ext) || FileTypes.OTHER
 }
+
 export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): FileType[] {
   const files = fs.readdirSync(dirPath)
 
@@ -45,7 +57,7 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): Fil
         count: 1,
         origin_name: name,
         type: fileType,
-        created_at: new Date()
+        created_at: new Date().toISOString()
       }
 
       arrayOfFiles.push(fileItem)
@@ -53,4 +65,12 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): Fil
   })
 
   return arrayOfFiles
+}
+
+export function getTempDir() {
+  return path.join(app.getPath('temp'), 'CherryStudio')
+}
+
+export function getFilesDir() {
+  return path.join(app.getPath('userData'), 'Data', 'Files')
 }

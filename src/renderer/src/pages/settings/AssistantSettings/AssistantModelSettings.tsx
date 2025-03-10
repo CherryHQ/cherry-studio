@@ -184,6 +184,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
   }, [])
 
+  const formatSliderTooltip = (value?: number) => {
+    if (value === undefined) return ''
+    return value === 20 ? '∞' : value.toString()
+  }
+
   return (
     <Container>
       <Row align="middle" style={{ marginBottom: 10 }}>
@@ -298,6 +303,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             value={typeof contextCount === 'number' ? contextCount : 0}
             marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
             step={1}
+            tooltip={{ formatter: formatSliderTooltip }}
           />
         </Col>
         <Col span={4}>

@@ -86,7 +86,7 @@
       "input.clear.content": "Do you want to clear all messages of the current topic?",
       "input.clear.title": "Clear all messages?",
       "input.collapse": "Collapse",
-      "input.context_count.tip": "Context Count",
+      "input.context_count.tip": "Context / Max Context",
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
       "input.file_not_supported": "Model does not support this file type",
@@ -104,7 +104,7 @@
       "input.web_search": "Enable web search",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
-      "input.web_search.enable_content": "Enable web search in Settings",
+      "input.web_search.enable_content": "Need to check web search connectivity in settings first",
       "input.auto_resize": "Auto resize height",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
@@ -402,6 +402,8 @@
       "message.multi_model_style.grid": "Grid layout",
       "message.multi_model_style.horizontal": "Side by side",
       "message.multi_model_style.vertical": "Stacked view",
+      "message.multi_model_style.fold.compress": "Switch to compact layout",
+      "message.multi_model_style.fold.expand": "Switch to expanded layout",
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
@@ -459,6 +461,7 @@
       "embedding_model": "Embedding Model",
       "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
       "free": "Free",
+      "no_matches": "No models available",
       "parameter_name": "Parameter Name",
       "parameter_type": {
         "boolean": "Boolean",
@@ -479,7 +482,13 @@
       },
       "vision": "Vision",
       "websearch": "WebSearch",
-      "edit": "Edit Model"
+      "edit": "Edit Model",
+      "tool_calling": "Tool Calling"
+    },
+    "navbar": {
+      "expand": "Expand Dialog",
+      "show_sidebar": "Show Sidebar",
+      "hide_sidebar": "Hide Sidebar"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -746,6 +755,8 @@
       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
       "models.add.model_name": "Model Name",
       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
+      "models.manage.add_whole_group": "Add the whole group",
+      "models.manage.remove_whole_group": "Remove the whole group",
       "models.default_assistant_model": "Default Assistant Model",
       "models.default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "models.empty": "No models found",
@@ -758,6 +769,22 @@
       "models.translate_model_description": "Model used for translation service",
       "models.translate_model_prompt_message": "Please enter the translate model prompt",
       "models.translate_model_prompt_title": "Translate Model Prompt",
+      "models.check.button_caption": "Health check",
+      "models.check.title": "Model health check",
+      "models.check.passed": "Passed",
+      "models.check.failed": "Failed",
+      "models.check.single": "Single",
+      "models.check.all": "All",
+      "models.check.disabled": "Disabled",
+      "models.check.enabled": "Enabled",
+      "models.check.start": "Start",
+      "models.check.enable_concurrent": "Concurrent",
+      "models.check.use_all_keys": "Key(s)",
+      "models.check.all_models_passed": "All models check passed",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} models passed all keys, {{count_failed}} models failed all keys, {{count_partial}} models failed some keys",
+      "models.check.no_api_keys": "No API keys found, please add API keys first.",
+      "models.check.select_api_key": "Select the API key to use:",
+      "models.check.keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
       "moresetting": "More Settings",
       "moresetting.warn": "Risk Warning",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
@@ -908,7 +935,9 @@
       "output.placeholder": "Translation",
       "processing": "Translation in progress...",
       "title": "Translation",
-      "tooltip.newline": "Newline"
+      "tooltip.newline": "Newline",
+      "scroll_sync.enable": "Enable synced scroll",
+      "scroll_sync.disable": "Disable synced scroll"
     },
     "tray": {
       "quit": "Quit",
@@ -923,7 +952,9 @@
     },
     "code_block": {
       "enable_wrap": "Wrap",
-      "disable_wrap": "Unwrap"
+      "disable_wrap": "Unwrap",
+      "expand": "Expand",
+      "collapse": "Collapse"
     },
     "backup": {
       "title": "Data Backup",

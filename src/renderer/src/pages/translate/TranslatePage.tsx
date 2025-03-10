@@ -4,6 +4,7 @@ import {
   HistoryOutlined,
   SendOutlined,
   SettingOutlined,
+  SyncOutlined,
   WarningOutlined
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
@@ -39,8 +40,11 @@ const TranslatePage: FC = () => {
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
+  const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
+  const outputTextRef = useRef<HTMLDivElement>(null)
+  const isProgrammaticScroll = useRef(false)
 
   const translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
 
@@ -103,14 +107,24 @@ const TranslatePage: FC = () => {
 
     setLoading(true)
     let translatedText = ''
-    await fetchTranslate({
-      message,
-      assistant,
-      onResponse: (text) => {
-        translatedText = text
-        setResult(text)
-      }
-    })
+    try {
+      await fetchTranslate({
+        message,
+        assistant,
+        onResponse: (text) => {
+          translatedText = text
+          setResult(text)
+        }
+      })
+    } catch (error) {
+      console.error('Translation error:', error)
+      window.message.error({
+        content: String(error),
+        key: 'translate-message'
+      })
+      setLoading(false)
+      return
+    }
 
     await saveTranslateHistory(text, translatedText, 'any', targetLanguage)
     setLoading(false)
@@ -170,6 +184,50 @@ const TranslatePage: FC = () => {
         </Button>
       </Link>
     )
+  }
+
+  // Handle input area scroll event
+  const handleInputScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (!isScrollSyncEnabled || !outputTextRef.current || isProgrammaticScroll.current) return
+
+    isProgrammaticScroll.current = true
+
+    const inputEl = e.currentTarget
+    const outputEl = outputTextRef.current
+
+    // Calculate scroll position by ratio
+    const inputScrollRatio = inputEl.scrollTop / (inputEl.scrollHeight - inputEl.clientHeight || 1)
+    const outputScrollPosition = inputScrollRatio * (outputEl.scrollHeight - outputEl.clientHeight || 1)
+
+    outputEl.scrollTop = outputScrollPosition
+
+    requestAnimationFrame(() => {
+      isProgrammaticScroll.current = false
+    })
+  }
+
+  // Handle output area scroll event
+  const handleOutputScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const inputEl = textAreaRef.current?.resizableTextArea?.textArea
+    if (!isScrollSyncEnabled || !inputEl || isProgrammaticScroll.current) return
+
+    isProgrammaticScroll.current = true
+
+    const outputEl = e.currentTarget
+
+    // Calculate scroll position by ratio
+    const outputScrollRatio = outputEl.scrollTop / (outputEl.scrollHeight - outputEl.clientHeight || 1)
+    const inputScrollPosition = outputScrollRatio * (inputEl.scrollHeight - inputEl.clientHeight || 1)
+
+    inputEl.scrollTop = inputScrollPosition
+
+    requestAnimationFrame(() => {
+      isProgrammaticScroll.current = false
+    })
+  }
+
+  const toggleScrollSync = () => {
+    setIsScrollSyncEnabled(!isScrollSyncEnabled)
   }
 
   return (
@@ -248,6 +306,16 @@ const TranslatePage: FC = () => {
                 options={[{ label: t('translate.any.language'), value: 'any' }]}
               />
               <SettingButton />
+              <Tooltip
+                mouseEnterDelay={0.5}
+                title={isScrollSyncEnabled ? t('translate.scroll_sync.disable') : t('translate.scroll_sync.enable')}>
+                <SyncOutlined
+                  style={{
+                    color: isScrollSyncEnabled ? 'var(--color-primary)' : 'var(--color-text-2)'
+                  }}
+                  onClick={toggleScrollSync}
+                />
+              </Tooltip>
             </Flex>
 
             <Tooltip
@@ -278,6 +346,7 @@ const TranslatePage: FC = () => {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
+            onScroll={handleInputScroll}
             disabled={loading}
             spellCheck={false}
             allowClear
@@ -312,7 +381,9 @@ const TranslatePage: FC = () => {
             />
           </OperationBar>
 
-          <OutputText>{result || t('translate.output.placeholder')}</OutputText>
+          <OutputText ref={outputTextRef} onScroll={handleOutputScroll}>
+            {result || t('translate.output.placeholder')}
+          </OutputText>
         </OutputContainer>
       </ContentContainer>
     </Container>

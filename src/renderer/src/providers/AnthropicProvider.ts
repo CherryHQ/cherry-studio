@@ -1,5 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
+import {
+  MessageCreateParamsNonStreaming,
+  MessageParam,
+  ToolResultBlockParam,
+  ToolUseBlock
+} from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { isReasoningModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -7,13 +12,20 @@ import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { removeSpecialCharacters } from '@renderer/utils'
+import { Assistant, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { first, flatten, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import {
+  anthropicToolUseToMcpTool,
+  callMCPTool,
+  filterMCPTools,
+  mcpToolsToAnthropicTools,
+  upsertMCPToolResponse
+} from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -118,7 +130,7 @@ export default class AnthropicProvider extends BaseProvider {
     }
   }
 
-  public async completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams) {
+  public async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
@@ -133,10 +145,14 @@ export default class AnthropicProvider extends BaseProvider {
     }
 
     const userMessages = flatten(userMessagesParams)
+    const lastUserMessage = _messages.findLast((m) => m.role === 'user')
+    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
+    const tools = mcpTools ? mcpToolsToAnthropicTools(mcpTools) : undefined
 
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
+      tools: tools,
       max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
       temperature: this.getTemperature(assistant, model),
       top_p: this.getTopP(assistant, model),
@@ -181,79 +197,140 @@ export default class AnthropicProvider extends BaseProvider {
       })
     }
 
-    const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
+    const toolResponses: MCPToolResponse[] = []
+    const processStream = async (body: MessageCreateParamsNonStreaming) => {
+      new Promise<void>((resolve, reject) => {
+        const toolCalls: ToolUseBlock[] = []
+        let hasThinkingContent = false
+        const stream = this.sdk.messages
+          .stream({ ...body, stream: true }, { signal })
+          .on('text', (text) => {
+            if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+              stream.controller.abort()
+              return resolve()
+            }
+            if (time_first_token_millsec == 0) {
+              time_first_token_millsec = new Date().getTime() - start_time_millsec
+            }
 
-    return new Promise<void>((resolve, reject) => {
-      let hasThinkingContent = false
-      const stream = this.sdk.messages
-        .stream({ ...body, stream: true }, { signal })
-        .on('text', (text) => {
-          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-            stream.controller.abort()
-            return resolve()
-          }
-          if (time_first_token_millsec == 0) {
-            time_first_token_millsec = new Date().getTime() - start_time_millsec
-          }
+            if (hasThinkingContent && time_first_content_millsec === 0) {
+              time_first_content_millsec = new Date().getTime()
+            }
 
-          if (hasThinkingContent && time_first_content_millsec === 0) {
-            time_first_content_millsec = new Date().getTime()
-          }
+            const time_thinking_millsec = time_first_content_millsec
+              ? time_first_content_millsec - start_time_millsec
+              : 0
 
-          const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
+            const time_completion_millsec = new Date().getTime() - start_time_millsec
+            onChunk({
+              text,
+              metrics: {
+                completion_tokens: undefined,
+                time_completion_millsec,
+                time_first_token_millsec,
+                time_thinking_millsec
+              }
+            })
+          })
+          .on('thinking', (thinking) => {
+            hasThinkingContent = true
+            if (time_first_token_millsec == 0) {
+              time_first_token_millsec = new Date().getTime() - start_time_millsec
+            }
 
-          const time_completion_millsec = new Date().getTime() - start_time_millsec
-          onChunk({
-            text,
-            metrics: {
-              completion_tokens: undefined,
-              time_completion_millsec,
-              time_first_token_millsec,
-              time_thinking_millsec
+            const time_completion_millsec = new Date().getTime() - start_time_millsec
+            onChunk({
+              reasoning_content: thinking,
+              text: '',
+              metrics: {
+                completion_tokens: undefined,
+                time_completion_millsec,
+                time_first_token_millsec
+              }
+            })
+          })
+          .on('contentBlock', (content) => {
+            if (content.type == 'tool_use') {
+              toolCalls.push(content)
             }
           })
-        })
-        .on('thinking', (thinking) => {
-          hasThinkingContent = true
-          if (time_first_token_millsec == 0) {
-            time_first_token_millsec = new Date().getTime() - start_time_millsec
-          }
+          .on('finalMessage', async (message) => {
+            if (toolCalls.length > 0) {
+              const toolCallResults: ToolResultBlockParam[] = []
+              for (const toolCall of toolCalls) {
+                const mcpTool = anthropicToolUseToMcpTool(mcpTools, toolCall)
+                if (mcpTool) {
+                  upsertMCPToolResponse(
+                    toolResponses,
+                    {
+                      tool: mcpTool,
+                      status: 'invoking'
+                    },
+                    onChunk
+                  )
 
-          const time_completion_millsec = new Date().getTime() - start_time_millsec
-          onChunk({
-            reasoning_content: thinking,
-            text: '',
-            metrics: {
-              completion_tokens: undefined,
-              time_completion_millsec,
-              time_first_token_millsec
+                  const resp = await callMCPTool(mcpTool)
+                  toolCallResults.push({
+                    type: 'tool_result',
+                    tool_use_id: toolCall.id,
+                    content: resp.content
+                  })
+                  upsertMCPToolResponse(
+                    toolResponses,
+                    {
+                      tool: mcpTool,
+                      status: 'done',
+                      response: resp
+                    },
+                    onChunk
+                  )
+                }
+              }
+
+              if (toolCallResults.length > 0) {
+                userMessages.push({
+                  role: message.role,
+                  content: message.content
+                })
+                userMessages.push({
+                  role: 'user',
+                  content: toolCallResults
+                })
+
+                const newBody = body
+                body.messages = userMessages
+                await processStream(newBody)
+              }
             }
+
+            const time_completion_millsec = new Date().getTime() - start_time_millsec
+            const time_thinking_millsec = time_first_content_millsec
+              ? time_first_content_millsec - start_time_millsec
+              : 0
+            onChunk({
+              text: '',
+              usage: {
+                prompt_tokens: message.usage.input_tokens,
+                completion_tokens: message.usage.output_tokens,
+                total_tokens: sum(Object.values(message.usage))
+              },
+              metrics: {
+                completion_tokens: message.usage.output_tokens,
+                time_completion_millsec,
+                time_first_token_millsec,
+                time_thinking_millsec
+              },
+              mcpToolResponse: toolResponses
+            })
+            resolve()
           })
-        })
-        .on('finalMessage', (message) => {
-          const time_completion_millsec = new Date().getTime() - start_time_millsec
-          const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
-          onChunk({
-            text: '',
-            usage: {
-              prompt_tokens: message.usage.input_tokens,
-              completion_tokens: message.usage.output_tokens,
-              total_tokens: sum(Object.values(message.usage))
-            },
-            metrics: {
-              completion_tokens: message.usage.output_tokens,
-              time_completion_millsec,
-              time_first_token_millsec,
-              time_thinking_millsec
-            }
-          })
-          resolve()
-        })
-        .on('error', (error) => reject(error))
-    }).finally(cleanup)
+          .on('error', (error) => reject(error))
+      }).finally(cleanup)
+    }
+
+    await processStream(body)
   }
 
   public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
@@ -332,7 +409,7 @@ export default class AnthropicProvider extends BaseProvider {
 
     const content = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    return removeSpecialCharacters(content)
+    return removeSpecialCharactersForTopicName(content)
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
