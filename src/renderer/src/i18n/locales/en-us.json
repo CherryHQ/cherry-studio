@@ -919,9 +919,11 @@
         "show_app": "Show App",
         "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",
+        "toggle_model_selection": "Toggle Model Selection",
         "toggle_new_context": "Clear Context",
         "toggle_show_assistants": "Toggle Assistants",
         "toggle_show_topics": "Toggle Topics",
+        "toggle_web_search": "Toggle Web Search",
         "zoom_in": "Zoom In",
         "zoom_out": "Zoom Out",
         "zoom_reset": "Reset Zoom"
