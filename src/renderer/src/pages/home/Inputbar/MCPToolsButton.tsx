@@ -28,19 +28,19 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
   // Check if all active servers are enabled
   const activeServers = mcpServers.filter((s) => s.isActive)
 
-  // Enable all active servers by default
+  // This effect only runs when enableAll changes, not on every render
   useEffect(() => {
     if (activeServers.length > 0) {
       activeServers.forEach((server) => {
-        if (enableAll && !enabledMCPs.includes(server)) {
-          onEnableMCP(server)
-        }
-        if (!enableAll && enabledMCPs.includes(server)) {
-          onEnableMCP(server)
+        const isServerEnabled = enabledMCPs.includes(server)
+        if (enableAll && !isServerEnabled) {
+          onEnableMCP(server) // Enable server if enableAll is true and server is disabled
+        } else if (!enableAll && isServerEnabled) {
+          onEnableMCP(server) // Disable server if enableAll is false and server is enabled
         }
       })
     }
-  }, [activeServers, enableAll, enabledMCPs, onEnableMCP])
+  }, [enableAll]) // Only depend on enableAll, not on enabledMCPs
 
   const menu = (
     <div ref={menuRef} className="ant-dropdown-menu">
