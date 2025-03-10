@@ -148,6 +148,7 @@ const visionAllowedModels = [
   'qwen-vl',
   'qwen2-vl',
   'qwen2.5-vl',
+  'qvq',
   'internvl2',
   'grok-vision-beta',
   'pixtral',

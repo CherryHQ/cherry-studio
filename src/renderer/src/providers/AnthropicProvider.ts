@@ -5,6 +5,12 @@ import {
   ToolResultBlockParam,
   ToolUseBlock
 } from '@anthropic-ai/sdk/resources'
+import {
+  MessageCreateParamsNonStreaming,
+  MessageParam,
+  ToolResultBlockParam,
+  ToolUseBlock
+} from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { isReasoningModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -13,12 +19,27 @@ import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@rende
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { removeSpecialCharacters } from '@renderer/utils'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { first, flatten, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import {
+  anthropicToolUseToMcpTool,
+  callMCPTool,
+  filterMCPTools,
+  mcpToolsToAnthropicTools,
+  upsertMCPToolResponse
+} from './mcpToolUtils'
+
+type ReasoningEffort = 'high' | 'medium' | 'low'
+
+interface ReasoningConfig {
+  type: 'enabled' | 'disabled'
+  budget_tokens?: number
+}
+
 import {
   anthropicToolUseToMcpTool,
   callMCPTool,
@@ -409,7 +430,7 @@ export default class AnthropicProvider extends BaseProvider {
 
     const content = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    return removeSpecialCharacters(content)
+    return removeSpecialCharactersForTopicName(content)
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

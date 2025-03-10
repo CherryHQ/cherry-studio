@@ -5,6 +5,7 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import { Message, Topic } from '@renderer/types'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/index'
 
 export const messageToMarkdown = (message: Message) => {
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
@@ -30,7 +31,7 @@ export const topicToMarkdown = async (topic: Topic) => {
 }
 
 export const exportTopicAsMarkdown = async (topic: Topic) => {
-  const fileName = topic.name + '.md'
+  const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
   const markdown = await topicToMarkdown(topic)
   window.api.file.save(fileName, markdown)
 }

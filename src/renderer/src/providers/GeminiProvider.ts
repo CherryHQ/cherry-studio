@@ -4,6 +4,9 @@ import {
   FunctionCallPart,
   FunctionResponsePart,
   GenerateContentStreamResult,
+  FunctionCallPart,
+  FunctionResponsePart,
+  GenerateContentStreamResult,
   GoogleGenerativeAI,
   HarmBlockThreshold,
   HarmCategory,
@@ -20,13 +23,15 @@ import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@rende
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { removeSpecialCharacters } from '@renderer/utils'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import axios from 'axios'
+import { isEmpty, takeRight } from 'lodash'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import { filterInvalidTools } from './geminiToolUtils'
 import {
   callMCPTool,
   filterMCPTools,
@@ -176,12 +181,20 @@ export default class GeminiProvider extends BaseProvider {
         googleSearch: {}
       })
     }
+    mcpTools = filterMCPTools(mcpTools, userLastMessage?.enabledMCPs)
+    const tools = mcpToolsToGeminiTools(mcpTools)
+    const toolResponses: MCPToolResponse[] = []
+    if (assistant.enableWebSearch && isWebSearchModel(model)) {
+      tools.push({
+        // @ts-ignore googleSearch is not a valid tool for Gemini
+        googleSearch: {}
+      })
+    }
 
     const geminiModel = this.sdk.getGenerativeModel(
       {
         model: model.id,
         systemInstruction: assistant.prompt,
-        tools: tools.length > 0 ? tools : undefined,
         safetySettings: this.getSafetySettings(model.id),
         generationConfig: {
           maxOutputTokens: maxTokens,
@@ -192,6 +205,10 @@ export default class GeminiProvider extends BaseProvider {
       },
       this.requestOptions
     )
+    const filteredTools = filterInvalidTools(geminiModel.tools)
+    if (!isEmpty(filteredTools)) {
+      geminiModel.tools = filteredTools
+    }
 
     const chat = geminiModel.startChat({ history })
     const messageContents = await this.getMessageContents(userLastMessage!)
@@ -375,7 +392,7 @@ export default class GeminiProvider extends BaseProvider {
 
     const { response } = await chat.sendMessage(userMessage.content)
 
-    return removeSpecialCharacters(response.text())
+    return removeSpecialCharactersForTopicName(response.text())
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
