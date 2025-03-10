@@ -1,4 +1,10 @@
-import { FileSearchOutlined, FolderOpenOutlined, InfoCircleOutlined, SaveOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  FileSearchOutlined,
+  FolderOpenOutlined,
+  InfoCircleOutlined,
+  SaveOutlined
+} from '@ant-design/icons'
 import { Client } from '@notionhq/client'
 import { HStack } from '@renderer/components/Layout'
 import MinApp from '@renderer/components/MinApp'
@@ -9,6 +15,7 @@ import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { reset } from '@renderer/services/BackupService'
 import { RootState, useAppDispatch } from '@renderer/store'
 import {
+  setmarkdownExportPath,
   setNotionApiKey,
   setNotionAutoSplit,
   setNotionDatabaseID,
@@ -37,6 +44,56 @@ import {
   SettingTitle
 } from '..'
 import WebDavSettings from './WebDavSettings'
+
+// 新增的 MarkdownExportSettings 组件
+const MarkdownExportSettings: FC = () => {
+  const { t } = useTranslation()
+  const { theme } = useTheme()
+  const dispatch = useAppDispatch()
+
+  const markdownExportPath = useSelector((state: RootState) => state.settings.markdownExportPath)
+
+  const handleSelectFolder = async () => {
+    const path = await window.api.file.selectFolder()
+    if (path) {
+      dispatch(setmarkdownExportPath(path))
+    }
+  }
+
+  const handleClearPath = () => {
+    dispatch(setmarkdownExportPath(null))
+  }
+
+  return (
+    <SettingGroup theme={theme}>
+      <SettingTitle>{t('settings.data.markdown_export.title')}</SettingTitle>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
+        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+          <Input
+            type="text"
+            value={markdownExportPath || ''}
+            readOnly
+            style={{ width: 250 }}
+            placeholder={t('settings.data.markdown_export.path_placeholder')}
+            suffix={
+              markdownExportPath ? (
+                <DeleteOutlined onClick={handleClearPath} style={{ color: 'var(--color-error)', cursor: 'pointer' }} />
+              ) : null
+            }
+          />
+          <Button onClick={handleSelectFolder} icon={<FolderOpenOutlined />}>
+            {t('settings.data.markdown_export.select')}
+          </Button>
+        </HStack>
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.markdown_export.help')}</SettingHelpText>
+      </SettingRow>
+    </SettingGroup>
+  )
+}
 
 // 新增的 NotionSettings 组件
 const NotionSettings: FC = () => {
@@ -382,6 +439,7 @@ const DataSettings: FC = () => {
       <SettingGroup theme={theme}>
         <WebDavSettings />
       </SettingGroup>
+      <MarkdownExportSettings />
       <NotionSettings />
       <YuqueSettings />
       <SettingGroup theme={theme}>

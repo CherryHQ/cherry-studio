@@ -6,6 +6,7 @@ import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import { Message, Topic } from '@renderer/types'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/index'
+import dayjs from 'dayjs'
 
 export const messageToMarkdown = (message: Message) => {
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
@@ -31,15 +32,51 @@ export const topicToMarkdown = async (topic: Topic) => {
 }
 
 export const exportTopicAsMarkdown = async (topic: Topic) => {
-  const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
-  const markdown = await topicToMarkdown(topic)
-  window.api.file.save(fileName, markdown)
+  const { markdownExportPath } = store.getState().settings
+  if (!markdownExportPath) {
+    try {
+      const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
+      const markdown = await topicToMarkdown(topic)
+      await window.api.file.save(fileName, markdown)
+      window.message.success({ content: i18n.t('message.success.markdown.export.specified'), key: 'markdown-success' })
+    } catch (error: any) {
+      window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown-error' })
+    }
+  } else {
+    try {
+      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
+      const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
+      const markdown = await topicToMarkdown(topic)
+      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
+    } catch (error: any) {
+      window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown error' })
+    }
+  }
 }
 
 export const exportMessageAsMarkdown = async (message: Message) => {
-  const fileName = getMessageTitle(message) + '.md'
-  const markdown = messageToMarkdown(message)
-  window.api.file.save(fileName, markdown)
+  const { markdownExportPath } = store.getState().settings
+  if (!markdownExportPath) {
+    try {
+      const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + '.md'
+      const markdown = messageToMarkdown(message)
+      await window.api.file.save(fileName, markdown)
+      window.message.success({ content: i18n.t('message.success.markdown.export.specified'), key: 'markdown-success' })
+    } catch (error: any) {
+      window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown error' })
+    }
+  } else {
+    try {
+      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
+      const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + ` ${timestamp}.md`
+      const markdown = messageToMarkdown(message)
+      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
+    } catch (error: any) {
+      window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown-error' })
+    }
+  }
 }
 
 // 修改 splitNotionBlocks 函数
