@@ -156,7 +156,13 @@
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "translate": "Translate",
+      "navigation": {
+        "prev": "Previous Message",
+        "next": "Next Message",
+        "first": "Already at the first message",
+        "last": "Already at the last message"
+      }
     },
     "common": {
       "add": "Add",
