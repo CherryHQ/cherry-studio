@@ -4,7 +4,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { getTopic } from '@renderer/hooks/useTopic'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { useTopicActions } from '@renderer/hooks/useTopicActions'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
@@ -19,7 +19,7 @@ import {
 } from '@renderer/store/messages'
 import type { Assistant, Message, Topic } from '@renderer/types'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, runAsyncFunction } from '@renderer/utils'
-import { isEmpty, last } from 'lodash'
+import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
@@ -38,8 +38,9 @@ interface MessagesProps {
 
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
   const { t } = useTranslation()
-  const { showTopics, topicPosition, showAssistants, enableTopicNaming } = useSettings()
+  const { showTopics, topicPosition, showAssistants } = useSettings()
   const { updateTopic } = useAssistant(assistant.id)
+  const { renameTopic } = useTopicActions()
   const messages = useAppSelector((state) => selectTopicMessages(state, topic.id))
   const loading = useAppSelector(selectLoading)
   const displayCount = useAppSelector(selectDisplayCount)
@@ -91,35 +92,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   }, [])
 
   const autoRenameTopic = useCallback(async () => {
-    let messages = [...messagesRef.current]
-    const _topic = getTopic(assistant, topic.id)
-
-    if (isEmpty(messages)) {
-      return
-    }
-
-    messages = messages.filter((m) => m.status === 'success')
-
-    if (!enableTopicNaming) {
-      const topicName = messages[0]?.content.substring(0, 50)
-      if (topicName) {
-        const data = { ..._topic, name: topicName } as Topic
-        setActiveTopic(data)
-        updateTopic(data)
-      }
-      return
-    }
-
-    if (_topic && _topic.name === t('chat.default.topic.name') && messages.length >= 2) {
-      const summaryText = await fetchMessagesSummary({ messages, assistant })
-      if (summaryText) {
-        const data = { ..._topic, name: summaryText }
-        setActiveTopic(data)
-        updateTopic(data)
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, topic.id, enableTopicNaming, t, setActiveTopic])
+    const successful_messages = messages.filter((m) => m.status === 'success')
+    renameTopic(assistant, topic, successful_messages, setActiveTopic, updateTopic)
+  }, [assistant, renameTopic, messages, setActiveTopic, topic, updateTopic])
 
   useEffect(() => {
     const messages = messagesRef.current
