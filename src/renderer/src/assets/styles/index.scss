@@ -26,6 +26,7 @@
   --color-background-soft: var(--color-black-soft);
   --color-background-mute: var(--color-black-mute);
   --color-background-opacity: rgba(34, 34, 34, 0.7);
+  --inner-glow-opacity: 0.3; // For the glassmorphism effect in the dropdown menu
 
   --color-primary: #00b96b;
   --color-primary-soft: #00b96b99;
@@ -90,6 +91,7 @@ body[theme-mode='light'] {
   --color-background-soft: var(--color-white-soft);
   --color-background-mute: var(--color-white-mute);
   --color-background-opacity: rgba(235, 235, 235, 0.7);
+  --inner-glow-opacity: 0.1;
 
   --color-primary: #00b96b;
   --color-primary-soft: #00b96b99;

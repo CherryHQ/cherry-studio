@@ -270,7 +270,7 @@ export default class MCPService extends EventEmitter {
         const { tools } = await this.clients[serverName].listTools()
         return tools.map((tool: any) => {
           tool.serverName = serverName
-          tool.id = uuidv4()
+          tool.id = 'f' + uuidv4().replace(/-/g, '')
           return tool
         })
       } else {
@@ -282,7 +282,7 @@ export default class MCPService extends EventEmitter {
             allTools = allTools.concat(
               tools.map((tool: MCPTool) => {
                 tool.serverName = clientName
-                tool.id = uuidv4()
+                tool.id = 'f' + uuidv4().replace(/-/g, '')
                 return tool
               })
             )
