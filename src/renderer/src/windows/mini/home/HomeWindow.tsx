@@ -165,6 +165,7 @@ const HomeWindow: FC = () => {
   const clearClipboard = () => {
     setClipboardText('')
     setSelectedText('')
+    focusInput()
   }
 
   // If the input is focused, the `Esc` callback will not be triggered here.

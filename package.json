@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.0.2",
+  "version": "1.0.6",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -45,9 +45,13 @@
     "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true yarn build",
     "analyze:main": "VISUALIZER_MAIN=true yarn build",
-    "check": "node scripts/check-i18n.js"
+    "check": "node scripts/check-i18n.js",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@agentic/exa": "^7.3.3",
+    "@agentic/searxng": "^7.3.3",
+    "@agentic/tavily": "^7.3.3",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
@@ -63,6 +67,7 @@
     "@llm-tools/embedjs-loader-web": "^0.1.28",
     "@llm-tools/embedjs-loader-xml": "^0.1.28",
     "@llm-tools/embedjs-openai": "^0.1.28",
+    "@modelcontextprotocol/sdk": "^1.6.1",
     "@notionhq/client": "^2.2.15",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "adm-zip": "^0.5.16",
@@ -75,9 +80,9 @@
     "epub": "^1.3.0",
     "fetch-socks": "^1.3.2",
     "fs-extra": "^11.2.0",
-    "html2canvas": "^1.4.1",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
+    "p-queue": "^8.1.0",
     "tokenx": "^0.4.1",
     "undici": "^7.4.0",
     "webdav": "4.11.4"
@@ -125,6 +130,7 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.0.0",
+    "html-to-image": "^1.11.13",
     "i18next": "^23.11.5",
     "lodash": "^4.17.21",
     "mime": "^4.0.4",

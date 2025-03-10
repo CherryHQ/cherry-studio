@@ -1,12 +1,14 @@
-import { CheckCircleFilled, CloseCircleFilled, LoadingOutlined } from '@ant-design/icons'
+import { CheckCircleFilled, CloseCircleFilled, LoadingOutlined, MinusCircleOutlined } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { checkApi } from '@renderer/services/ApiService'
 import { Model } from '@renderer/types'
 import { Provider } from '@renderer/types'
+import { maskApiKey } from '@renderer/utils/api'
 import { Button, List, Modal, Space, Spin, Typography } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 interface ShowParams {
   title: string
@@ -33,6 +35,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, reso
   })
   const { t } = useTranslation()
   const [isChecking, setIsChecking] = useState(false)
+  const [isCheckingSingle, setIsCheckingSingle] = useState(false)
 
   const checkAllKeys = async () => {
     setIsChecking(true)
@@ -53,8 +56,35 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, reso
     }
   }
 
+  const checkSingleKey = async (keyIndex: number) => {
+    if (isChecking || keyStatuses[keyIndex].checking) {
+      return
+    }
+
+    setIsCheckingSingle(true)
+    setKeyStatuses((prev) => prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: true } : status)))
+
+    try {
+      const { valid } = await checkApi({ ...provider, apiKey: keyStatuses[keyIndex].key }, model)
+
+      setKeyStatuses((prev) =>
+        prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false, isValid: valid } : status))
+      )
+    } catch (error) {
+      setKeyStatuses((prev) =>
+        prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false, isValid: false } : status))
+      )
+    } finally {
+      setIsCheckingSingle(false)
+    }
+  }
+
   const removeInvalidKeys = () => {
     setKeyStatuses((prev) => prev.filter((status) => status.isValid !== false))
+  }
+
+  const removeKey = (keyIndex: number) => {
+    setKeyStatuses((prev) => prev.filter((_, idx) => idx !== keyIndex))
   }
 
   const onOk = () => {
@@ -83,12 +113,12 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, reso
       footer={
         <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
           <Space>
-            <Button key="remove" danger onClick={removeInvalidKeys}>
+            <Button key="remove" danger onClick={removeInvalidKeys} disabled={isChecking || isCheckingSingle}>
               {t('settings.provider.remove_invalid_keys')}
             </Button>
           </Space>
           <Space>
-            <Button key="check" type="primary" ghost onClick={checkAllKeys} disabled={isChecking}>
+            <Button key="check" type="primary" ghost onClick={checkAllKeys} disabled={isChecking || isCheckingSingle}>
               {t('settings.provider.check_all_keys')}
             </Button>
             <Button key="save" type="primary" onClick={onOk}>
@@ -100,23 +130,31 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, reso
       <Scrollbar style={{ maxHeight: '70vh', overflowX: 'hidden' }}>
         <List
           dataSource={keyStatuses}
-          renderItem={(status) => (
+          renderItem={(status, index) => (
             <List.Item>
               <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                <Typography.Text copyable={{ text: status.key }}>
-                  {status.key.slice(0, 8)}...{status.key.slice(-8)}
-                </Typography.Text>
+                <Typography.Text copyable={{ text: status.key }}>{maskApiKey(status.key)}</Typography.Text>
                 <Space>
                   {status.checking && (
                     <Space>
                       <Spin indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />} />
                     </Space>
                   )}
-                  {status.isValid === true && <CheckCircleFilled style={{ color: '#52c41a' }} />}
-                  {status.isValid === false && <CloseCircleFilled style={{ color: '#ff4d4f' }} />}
+                  {status.isValid === true && !status.checking && <CheckCircleFilled style={{ color: '#52c41a' }} />}
+                  {status.isValid === false && !status.checking && <CloseCircleFilled style={{ color: '#ff4d4f' }} />}
                   {status.isValid === undefined && !status.checking && (
                     <span>{t('settings.provider.not_checked')}</span>
                   )}
+                  <Button size="small" onClick={() => checkSingleKey(index)} disabled={isChecking || isCheckingSingle}>
+                    {t('settings.provider.check')}
+                  </Button>
+                  <RemoveIcon
+                    onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
+                    style={{
+                      cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                      opacity: isChecking || isCheckingSingle ? 0.5 : 1
+                    }}
+                  />
                 </Space>
               </Space>
             </List.Item>
@@ -147,3 +185,13 @@ export default class ApiCheckPopup {
     })
   }
 }
+
+const RemoveIcon = styled(MinusCircleOutlined)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--color-error);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+`

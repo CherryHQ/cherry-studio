@@ -118,6 +118,7 @@ const EmojiAvatar = styled.div`
   font-size: 18px;
   cursor: pointer;
   border: 0.5px solid var(--color-border);
+  font-size: 20px;
 `
 
 const Container = styled.div`

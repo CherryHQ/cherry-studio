@@ -1202,6 +1202,43 @@ const migrateConfig = {
       zhihu && state.minapps.enabled.push(zhihu)
     }
     return state
+  },
+  '76': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'tencent-cloud-ti',
+      name: 'Tencent Cloud TI',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.lkeap.cloud.tencent.com',
+      models: SYSTEM_MODELS['tencent-cloud-ti'],
+      isSystem: true,
+      enabled: false
+    })
+    return state
+  },
+  '77': (state: RootState) => {
+    if (state.websearch) {
+      if (!state.websearch.providers.find((p) => p.id === 'searxng')) {
+        state.websearch.providers.push(
+          {
+            id: 'searxng',
+            name: 'Searxng',
+            apiHost: ''
+          },
+          {
+            id: 'exa',
+            name: 'Exa',
+            apiKey: ''
+          }
+        )
+      }
+      state.websearch.providers.forEach((p) => {
+        // @ts-ignore eslint-disable-next-line
+        delete p.enabled
+      })
+    }
+
+    return state
   }
 }
 
