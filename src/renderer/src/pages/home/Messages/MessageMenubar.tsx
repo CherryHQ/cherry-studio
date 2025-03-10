@@ -33,6 +33,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, removeTrailingDoubleSpaces } from '@renderer/utils'
 import {
   exportMarkdownToNotion,
+  exportMarkdownToObsidian,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
   messageToMarkdown
@@ -259,6 +260,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const title = getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToYuque(title, markdown)
+            }
+          },
+          {
+            label: t('chat.topics.export.obsidian'),
+            key: 'obsidian',
+            onClick: async () => {
+              const title = getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMarkdownToObsidian(title, markdown)
             }
           }
         ]
