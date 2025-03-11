@@ -27,7 +27,6 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-import { filterInvalidTools } from './geminiToolUtils'
 import {
   callMCPTool,
   filterMCPTools,
@@ -183,6 +182,7 @@ export default class GeminiProvider extends BaseProvider {
         model: model.id,
         systemInstruction: assistant.prompt,
         safetySettings: this.getSafetySettings(model.id),
+        tools: tools,
         generationConfig: {
           maxOutputTokens: maxTokens,
           temperature: assistant?.settings?.temperature,
@@ -192,10 +192,6 @@ export default class GeminiProvider extends BaseProvider {
       },
       this.requestOptions
     )
-    const filteredTools = filterInvalidTools(geminiModel.tools)
-    if (!isEmpty(filteredTools)) {
-      geminiModel.tools = filteredTools
-    }
 
     const chat = geminiModel.startChat({ history })
     const messageContents = await this.getMessageContents(userLastMessage!)
