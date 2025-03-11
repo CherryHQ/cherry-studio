@@ -40,6 +40,7 @@ const KnowledgeBaseSelector: FC<Props> = ({ selectedBases, onSelect }) => {
           }
           onChange={(ids) => {
             const newSelected = knowledgeState.bases.filter((base) => ids.includes(base.id))
+            console.info('newSelected', newSelected)
             onSelect(newSelected)
           }}
           style={{ width: '200px' }}
