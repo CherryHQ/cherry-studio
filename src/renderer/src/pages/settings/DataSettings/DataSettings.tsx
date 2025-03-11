@@ -14,6 +14,9 @@ import {
   setNotionDatabaseID,
   setNotionPageNameKey,
   setNotionSplitSize,
+  setobsidianPathName,
+  setobsidianSilentMode,
+  setobsidianVaultName,
   setYuqueRepoId,
   setYuqueToken,
   setYuqueUrl
@@ -192,6 +195,65 @@ const NotionSettings: FC = () => {
           </SettingRow>
         </>
       )}
+    </SettingGroup>
+  )
+}
+
+const ObsidianSettings: FC = () => {
+  const { t } = useTranslation()
+  const { theme } = useTheme()
+  const dispatch = useAppDispatch()
+
+  const obsidianVaultName = useSelector((state: RootState) => state.settings.obsidianVaultName)
+  const obsidianPathName = useSelector((state: RootState) => state.settings.obsidianPathName)
+  const obsidianSilentMode = useSelector((state: RootState) => state.settings.obsidianSilentMode)
+
+  const handleObsidianVaultNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setobsidianVaultName(e.target.value))
+  }
+
+  const handleObsidianPathNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(setobsidianPathName(e.target.value))
+  }
+
+  const handleObsidianSilentModeChange = (checked: boolean) => {
+    dispatch(setobsidianSilentMode(checked))
+  }
+
+  return (
+    <SettingGroup theme={theme}>
+      <SettingTitle>{t('settings.data.obsidian.title')}</SettingTitle>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.obsidian.vault_name')}</SettingRowTitle>
+        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+          <Input
+            type="text"
+            value={obsidianVaultName || ''}
+            onChange={handleObsidianVaultNameChange}
+            style={{ width: 315 }}
+            placeholder={t('settings.data.obsidian.vault_name_placeholder')}
+          />
+        </HStack>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.obsidian.path_name')}</SettingRowTitle>
+        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+          <Input
+            type="text"
+            value={obsidianPathName || ''}
+            onChange={handleObsidianPathNameChange}
+            style={{ width: 315 }}
+            placeholder={t('settings.data.obsidian.path_name_placeholder')}
+          />
+        </HStack>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.obsidian.silent_mode')}</SettingRowTitle>
+        <Switch checked={obsidianSilentMode} onChange={handleObsidianSilentModeChange} />
+      </SettingRow>
     </SettingGroup>
   )
 }
@@ -384,6 +446,7 @@ const DataSettings: FC = () => {
       </SettingGroup>
       <NotionSettings />
       <YuqueSettings />
+      <ObsidianSettings />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />

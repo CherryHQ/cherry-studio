@@ -6,6 +6,7 @@ import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import { Message, Topic } from '@renderer/types'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/index'
+import dayjs from 'dayjs'
 
 export const messageToMarkdown = (message: Message) => {
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
@@ -287,5 +288,50 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
     return null
   } finally {
     setExportState({ isExporting: false })
+  }
+}
+
+export const exportMarkdownToObsidian = async (title: string, content: string) => {
+  const { isExporting } = store.getState().runtime.export
+
+  if (isExporting) {
+    window.message.warning({ content: i18n.t('message.warn.obsidian.exporting'), key: 'obsidian-exporting' })
+    return
+  }
+
+  setExportState({ isExporting: true })
+
+  const { obsidianVaultName, obsidianPathName, obsidianSilentMode } = store.getState().settings
+
+  if (!obsidianVaultName || !obsidianPathName) {
+    window.message.error({ content: i18n.t('message.error.obsidian.no_config'), key: 'obsidian-no-config' })
+    return
+  }
+
+  try {
+    const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
+    const fileName = `${title} ${timestamp}.md`
+    const fullPath = `${obsidianPathName}/${fileName}`
+    const encodedVaultName = encodeURIComponent(obsidianVaultName)
+    const encodedFullPath = encodeURIComponent(fullPath)
+    // obsidian://new?vault={VaultName}&file={Path}/{Name}&clipboard
+    // if obsidianSilentMode is on, add `&silent` to the url
+    let url = `obsidian://new?vault=${encodedVaultName}&file=${encodedFullPath}&clipboard`
+    if (obsidianSilentMode) {
+      url += '&silent'
+    }
+    // 将 content 复制到剪贴板
+    navigator.clipboard.writeText(content)
+    // 打开 Obsidian
+    await window.api.shell.openExternal(url)
+    window.message.success({ content: i18n.t('message.success.obsidian.export'), key: 'obsidian-success' })
+    return
+  } catch (error: any) {
+    window.message.error({ content: i18n.t('message.error.obsidian.export'), key: 'obsidian-error' })
+    return null
+  } finally {
+    setExportState({
+      isExporting: false
+    })
   }
 }
