@@ -68,7 +68,8 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           key: 'search-check-error'
         })
       }
-      updateProvider({ ...provider, enabled: true })
+      // 编译会出错，所以删除了多余的参数
+      updateProvider({ ...provider })
     } catch (err) {
       console.error('Check search error:', err)
       setApiValid(false)

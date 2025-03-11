@@ -1,7 +1,8 @@
 import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
 
 export default abstract class BaseWebSearchProvider {
-  private provider: WebSearchProvider
+  // 将 private 修改为 protected
+  protected provider: WebSearchProvider
   constructor(provider: WebSearchProvider) {
     this.provider = provider
   }
