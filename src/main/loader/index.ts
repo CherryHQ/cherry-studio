@@ -9,10 +9,11 @@ import Logger from 'electron-log'
 
 import { DraftsExportLoader } from './draftsExportLoader'
 import { EpubLoader } from './epubLoader'
+import { MarkdownLoader } from './markdownLoader'
 import { OdLoader, OdType } from './odLoader'
 
 // embedjs内置loader类型
-const commonExts = ['.pdf', '.csv', '.docx', '.pptx', '.xlsx', '.md']
+const commonExts = ['.pdf', '.csv', '.docx', '.pptx', '.xlsx']
 
 export async function addOdLoader(
   ragApplication: RAGApplication,
@@ -142,6 +143,22 @@ export async function addFileLoader(
     }
   }
 
+  if (['.md'].includes(file.ext)) {
+    const loaderReturn = await ragApplication.addLoader(
+      new MarkdownLoader({
+        filePathOrUrl: file.path,
+        chunkSize: base.chunkSize,
+        chunkOverlap: base.chunkOverlap
+      }) as any,
+      forceReload
+    )
+    return {
+      entriesAdded: loaderReturn.entriesAdded,
+      uniqueId: loaderReturn.uniqueId,
+      uniqueIds: [loaderReturn.uniqueId],
+      loaderType: loaderReturn.loaderType
+    }
+  }
   // 文本类型
   const loaderReturn = await ragApplication.addLoader(
     new TextLoader({ text: fileContent, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }) as any,
