@@ -371,14 +371,12 @@ export const sendMessage =
             // 节流
             const throttledDispatch = throttle(handleResponseMessageUpdate, 100, { trailing: true }) // 100ms的节流时间应足够平衡用户体验和性能
 
+            const messageIndex = messages.findIndex((m) => m.id === assistantMessage.id)
             await fetchChatCompletion({
               message: { ...assistantMessage },
               messages: messages
                 .filter((m) => !m.status?.includes('ing'))
-                .slice(
-                  0,
-                  messages.findIndex((m) => m.id === assistantMessage.id)
-                ),
+                .slice(0, messageIndex !== -1 ? messageIndex : undefined),
               assistant: assistantWithModel,
               onResponse: async (msg) => {
                 // 允许在回调外维护一个最新的消息状态，每次都更新这个对象，但只通过节流函数分发到Redux
