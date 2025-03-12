@@ -22,6 +22,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
+import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
   exportMarkdownToNotion,
@@ -66,7 +67,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   }, [])
 
   const onClearMessages = useCallback((topic: Topic) => {
-    window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
+    // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
     store.dispatch(setGenerating(false))
     EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
   }, [])
@@ -116,7 +117,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   const onSwitchTopic = useCallback(
     async (topic: Topic) => {
-      await modelGenerating()
+      // await modelGenerating()
       setActiveTopic(topic)
     },
     [setActiveTopic]
@@ -234,7 +235,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               key: 'word',
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
-                window.api.export.toWord(markdown, topic.name)
+                window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
               }
             },
             {

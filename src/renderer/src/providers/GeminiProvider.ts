@@ -20,20 +20,20 @@ import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@rende
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
 import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { removeSpecialCharacters } from '@renderer/utils'
-import axios from 'axios'
-import { isEmpty, takeRight } from 'lodash'
-import OpenAI from 'openai'
-
-import { CompletionsParams } from '.'
-import BaseProvider from './BaseProvider'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   callMCPTool,
   filterMCPTools,
   geminiFunctionCallToMcpTool,
   mcpToolsToGeminiTools,
   upsertMCPToolResponse
-} from './mcpToolUtils'
+} from '@renderer/utils/mcp-tools'
+import axios from 'axios'
+import { isEmpty, takeRight } from 'lodash'
+import OpenAI from 'openai'
+
+import { CompletionsParams } from '.'
+import BaseProvider from './BaseProvider'
 
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI
@@ -181,8 +181,8 @@ export default class GeminiProvider extends BaseProvider {
       {
         model: model.id,
         systemInstruction: assistant.prompt,
-        tools: tools.length > 0 ? tools : undefined,
         safetySettings: this.getSafetySettings(model.id),
+        tools: tools,
         generationConfig: {
           maxOutputTokens: maxTokens,
           temperature: assistant?.settings?.temperature,
@@ -197,9 +197,10 @@ export default class GeminiProvider extends BaseProvider {
     const messageContents = await this.getMessageContents(userLastMessage!)
 
     const start_time_millsec = new Date().getTime()
-
+    const { abortController, cleanup } = this.createAbortController(userLastMessage?.id)
+    const { signal } = abortController
     if (!streamOutput) {
-      const { response } = await chat.sendMessage(messageContents.parts)
+      const { response } = await chat.sendMessage(messageContents.parts, { signal })
       const time_completion_millsec = new Date().getTime() - start_time_millsec
       onChunk({
         text: response.candidates?.[0].content.parts[0].text,
@@ -218,13 +219,8 @@ export default class GeminiProvider extends BaseProvider {
       return
     }
 
-    const lastUserMessage = userMessages.findLast((m) => m.role === 'user')
-    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
-    const { signal } = abortController
-
-    const userMessagesStream = await chat.sendMessageStream(messageContents.parts, { signal }).finally(cleanup)
+    const userMessagesStream = await chat.sendMessageStream(messageContents.parts, { signal })
     let time_first_token_millsec = 0
-
     const processStream = async (stream: GenerateContentStreamResult) => {
       for await (const chunk of stream.stream) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
@@ -275,8 +271,8 @@ export default class GeminiProvider extends BaseProvider {
               parts: fcallParts
             })
             const newChat = geminiModel.startChat({ history })
-            const newStream = await newChat.sendMessageStream(fcRespParts, { signal }).finally(cleanup)
-            await processStream(newStream)
+            const newStream = await newChat.sendMessageStream(fcRespParts, { signal })
+            await processStream(newStream).finally(cleanup)
           }
         }
 
@@ -297,8 +293,7 @@ export default class GeminiProvider extends BaseProvider {
         })
       }
     }
-
-    await processStream(userMessagesStream)
+    await processStream(userMessagesStream).finally(cleanup)
   }
 
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
@@ -375,7 +370,7 @@ export default class GeminiProvider extends BaseProvider {
 
     const { response } = await chat.sendMessage(userMessage.content)
 
-    return removeSpecialCharacters(response.text())
+    return removeSpecialCharactersForTopicName(response.text())
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

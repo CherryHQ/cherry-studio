@@ -1,6 +1,6 @@
 @font-face {
   font-family: 'iconfont'; /* Project id 4753420 */
-  src: url('iconfont.woff2?t=1738750230250') format('woff2');
+  src: url('iconfont.woff2?t=1741743579060') format('woff2');
 }
 
 .iconfont {
@@ -11,6 +11,10 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.icon-notion:before {
+  content: '\e690';
+}
+
 .icon-thinking:before {
   content: '\e65b';
 }
@@ -19,20 +23,12 @@
   content: '\e623';
 }
 
-.icon-mcp:before {
-  content: '\e78e';
-}
-
 .icon-icon-adaptive-width:before {
   content: '\e87a';
 }
 
 .icon-at1:before {
   content: '\e630';
-}
-
-.icon-a-darkmode:before {
-  content: '\e6cd';
 }
 
 .icon-ai-model:before {

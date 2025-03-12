@@ -160,13 +160,20 @@ export default abstract class BaseProvider {
       addAbortController(messageId, () => abortController.abort())
     }
 
+    const cleanup = () => {
+      if (messageId) {
+        removeAbortController(messageId)
+      }
+    }
+
+    abortController.signal.addEventListener('abort', () => {
+      // 兼容
+      cleanup()
+    })
+
     return {
       abortController,
-      cleanup: () => {
-        if (messageId) {
-          removeAbortController(messageId)
-        }
-      }
+      cleanup
     }
   }
 }
