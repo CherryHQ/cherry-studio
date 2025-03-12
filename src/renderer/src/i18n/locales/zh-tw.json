@@ -786,6 +786,7 @@
         "active": "啟用",
         "addServer": "新增伺服器",
         "addSuccess": "伺服器新增成功",
+        "addError": "添加伺服器失敗",
         "args": "參數",
         "argsTooltip": "每個參數佔一行",
         "command": "指令",
@@ -793,6 +794,7 @@
         "config_description": "設定模型上下文協議伺服器",
         "confirmDelete": "刪除伺服器",
         "confirmDeleteMessage": "您確定要刪除該伺服器嗎？",
+        "deleteError": "刪除伺服器失敗",
         "deleteSuccess": "伺服器刪除成功",
         "description": "描述",
         "duplicateName": "已存在相同名稱的伺服器",
@@ -807,6 +809,7 @@
         "title": "MCP 伺服器",
         "type": "類型",
         "updateSuccess": "伺服器更新成功",
+        "updateError": "更新伺服器失敗",
         "url": "URL",
         "toggleError": "切換失敗"
       },

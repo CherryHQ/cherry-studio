@@ -193,15 +193,14 @@ export default class MCPService extends EventEmitter {
       throw new Error(`Server with name ${server.name} already exists`)
     }
 
-    // Add to servers list
-    const updatedServers = [...this.servers, server]
-    this.servers = updatedServers
-    this.notifyReduxServersChanged(updatedServers)
-
     // Activate if needed
     if (server.isActive) {
-      await this.activate(server).catch(this.logError(`Failed to activate server ${server.name}`))
+      await this.activate(server)
     }
+
+    // Add to servers list
+    this.servers = [...this.servers, server]
+    this.notifyReduxServersChanged(this.servers)
   }
 
   /**
@@ -260,16 +259,16 @@ export default class MCPService extends EventEmitter {
       throw new Error(`Server ${name} not found`)
     }
 
-    // Update server status
-    server.isActive = isActive
-    this.notifyReduxServersChanged([...this.servers])
-
     // Activate or deactivate as needed
     if (isActive) {
       await this.activate(server)
     } else {
       await this.deactivate(name)
     }
+
+    // Update server status
+    server.isActive = isActive
+    this.notifyReduxServersChanged([...this.servers])
   }
 
   /**
@@ -336,6 +335,7 @@ export default class MCPService extends EventEmitter {
       this.emit('server-started', { name })
     } catch (error) {
       log.error(`[MCP] Error activating server ${name}:`, error)
+      server.isActive = false
       throw error
     }
   }

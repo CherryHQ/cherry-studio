@@ -160,9 +160,9 @@ const MCPSettings: FC = () => {
     })
   }
 
-  const handleToggleActive = (name: string, isActive: boolean) => {
+  const handleToggleActive = async (name: string, isActive: boolean) => {
     try {
-      window.api.mcp.setServerActive(name, isActive)
+      await window.api.mcp.setServerActive(name, isActive)
     } catch (error: any) {
       window.message.error(`${t('settings.mcp.toggleError')}: ${error.message}`)
     }
