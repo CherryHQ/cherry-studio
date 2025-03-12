@@ -6,6 +6,7 @@ import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
+import { clone } from 'lodash'
 import React, { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
@@ -26,7 +27,7 @@ interface Props {
 
 const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const { t } = useTranslation()
-  const message = withMessageThought(_message)
+  const message = withMessageThought(clone(_message))
 
   // Process content to make citation numbers clickable
   const processedContent = useMemo(() => {

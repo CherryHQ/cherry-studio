@@ -3,7 +3,7 @@ import { FunctionCall, FunctionDeclaration, SchemaType, Tool as geminiToool } fr
 import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
 
-import { ChunkCallbackData } from '.'
+import { ChunkCallbackData } from '../providers'
 
 const supportedAttributes = [
   'type',
@@ -52,11 +52,8 @@ export function openAIToolsToMcpTool(
   if (!tool) {
     return undefined
   }
-  // 创建工具对象的副本，而不是直接修改原对象
-  return {
-    ...tool,
-    inputSchema: JSON.parse(llmTool.function.arguments)
-  }
+  tool.inputSchema = JSON.parse(llmTool.function.arguments)
+  return tool
 }
 
 export async function callMCPTool(tool: MCPTool): Promise<any> {
@@ -85,16 +82,14 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
   if (!tool) {
     return undefined
   }
-  // 创建工具对象的副本，而不是直接修改原对象
-  return {
-    ...tool,
-    // @ts-ignore ignore type as it it unknow
-    inputSchema: toolUse.input
-  }
+  // @ts-ignore ignore type as it it unknow
+  tool.inputSchema = toolUse.input
+  return tool
 }
 
 export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiToool[] {
-  if (!mcpTools) {
+  if (!mcpTools || mcpTools.length === 0) {
+    // No tools available
     return []
   }
   const functions: FunctionDeclaration[] = []
@@ -126,12 +121,9 @@ export function geminiFunctionCallToMcpTool(
   if (!tool) {
     return undefined
   }
-  // 创建工具对象的副本，而不是直接修改原对象
-  return {
-    ...tool,
-    // @ts-ignore schema is not a valid property
-    inputSchema: fcall.args
-  }
+  // @ts-ignore schema is not a valid property
+  tool.inputSchema = fcall.args
+  return tool
 }
 
 export function upsertMCPToolResponse(
@@ -140,37 +132,17 @@ export function upsertMCPToolResponse(
   onChunk: ({ mcpToolResponse }: ChunkCallbackData) => void
 ) {
   try {
-    // 创建一个新数组，不修改原数组
-    const newResults: MCPToolResponse[] = []
-    let found = false
-
-    // 复制原数组中的元素到新数组，如果找到匹配的工具ID则更新
-    for (const item of results) {
-      if (item.tool.id === resp.tool.id) {
-        // 找到匹配的工具，添加更新后的对象
-        newResults.push({ ...item, response: resp.response, status: resp.status })
-        found = true
-      } else {
-        // 否则添加原对象的副本
-        newResults.push({ ...item })
+    for (const ret of results) {
+      if (ret.tool.id == resp.tool.id) {
+        ret.response = resp.response
+        ret.status = resp.status
+        return
       }
     }
-
-    // 如果没有找到匹配的工具ID，添加新的响应
-    if (!found) {
-      newResults.push({ ...resp })
-    }
-
-    // 调用回调函数，传递新数组
+    results.push(resp)
+  } finally {
     onChunk({
-      text: '',
-      mcpToolResponse: newResults
-    })
-  } catch (error) {
-    console.error('Error in upsertMCPToolResponse:', error)
-    // 出错时仍然调用回调，但使用原数组
-    onChunk({
-      text: '',
+      text: '\n',
       mcpToolResponse: results
     })
   }
@@ -180,13 +152,11 @@ export function filterMCPTools(
   mcpTools: MCPTool[] | undefined,
   enabledServers: MCPServer[] | undefined
 ): MCPTool[] | undefined {
-  console.log('filterMCPTools', mcpTools, enabledServers)
   if (mcpTools) {
     if (enabledServers) {
       mcpTools = mcpTools.filter((t) => enabledServers.some((m) => m.name === t.serverName))
     } else {
-      // TODO enabledServers 存在bug，传入一直为undefined
-      // mcpTools = []
+      mcpTools = []
     }
   }
   return mcpTools

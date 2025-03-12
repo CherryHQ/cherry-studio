@@ -11,21 +11,25 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
-import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
+import {
+  filterContextMessages,
+  filterEmptyMessages,
+  filterUserRoleStartMessages
+} from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { removeSpecialCharacters } from '@renderer/utils'
-import { first, flatten, sum, takeRight } from 'lodash'
-import OpenAI from 'openai'
-
-import { CompletionsParams } from '.'
-import BaseProvider from './BaseProvider'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   anthropicToolUseToMcpTool,
   callMCPTool,
   filterMCPTools,
   mcpToolsToAnthropicTools,
   upsertMCPToolResponse
-} from './mcpToolUtils'
+} from '@renderer/utils/mcp-tools'
+import { first, flatten, isEmpty, sum, takeRight } from 'lodash'
+import OpenAI from 'openai'
+
+import { CompletionsParams } from '.'
+import BaseProvider from './BaseProvider'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -136,7 +140,10 @@ export default class AnthropicProvider extends BaseProvider {
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
     const userMessagesParams: MessageParam[] = []
-    const _messages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
+
+    const _messages = filterUserRoleStartMessages(
+      filterContextMessages(filterEmptyMessages(takeRight(messages, contextCount + 2)))
+    )
 
     onFilterMessages(_messages)
 
@@ -152,7 +159,7 @@ export default class AnthropicProvider extends BaseProvider {
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
-      tools: tools,
+      tools: isEmpty(tools) ? undefined : tools,
       max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
       temperature: this.getTemperature(assistant, model),
       top_p: this.getTopP(assistant, model),
@@ -200,8 +207,9 @@ export default class AnthropicProvider extends BaseProvider {
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
     const toolResponses: MCPToolResponse[] = []
-    const processStream = async (body: MessageCreateParamsNonStreaming) => {
-      new Promise<void>((resolve, reject) => {
+
+    const processStream = (body: MessageCreateParamsNonStreaming) => {
+      return new Promise<void>((resolve, reject) => {
         const toolCalls: ToolUseBlock[] = []
         let hasThinkingContent = false
         const stream = this.sdk.messages
@@ -211,6 +219,7 @@ export default class AnthropicProvider extends BaseProvider {
               stream.controller.abort()
               return resolve()
             }
+
             if (time_first_token_millsec == 0) {
               time_first_token_millsec = new Date().getTime() - start_time_millsec
             }
@@ -224,6 +233,7 @@ export default class AnthropicProvider extends BaseProvider {
               : 0
 
             const time_completion_millsec = new Date().getTime() - start_time_millsec
+
             onChunk({
               text,
               metrics: {
@@ -236,11 +246,13 @@ export default class AnthropicProvider extends BaseProvider {
           })
           .on('thinking', (thinking) => {
             hasThinkingContent = true
+
             if (time_first_token_millsec == 0) {
               time_first_token_millsec = new Date().getTime() - start_time_millsec
             }
 
             const time_completion_millsec = new Date().getTime() - start_time_millsec
+
             onChunk({
               reasoning_content: thinking,
               text: '',
@@ -262,30 +274,10 @@ export default class AnthropicProvider extends BaseProvider {
               for (const toolCall of toolCalls) {
                 const mcpTool = anthropicToolUseToMcpTool(mcpTools, toolCall)
                 if (mcpTool) {
-                  upsertMCPToolResponse(
-                    toolResponses,
-                    {
-                      tool: mcpTool,
-                      status: 'invoking'
-                    },
-                    onChunk
-                  )
-
+                  upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking' }, onChunk)
                   const resp = await callMCPTool(mcpTool)
-                  toolCallResults.push({
-                    type: 'tool_result',
-                    tool_use_id: toolCall.id,
-                    content: resp.content
-                  })
-                  upsertMCPToolResponse(
-                    toolResponses,
-                    {
-                      tool: mcpTool,
-                      status: 'done',
-                      response: resp
-                    },
-                    onChunk
-                  )
+                  toolCallResults.push({ type: 'tool_result', tool_use_id: toolCall.id, content: resp.content })
+                  upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'done', response: resp }, onChunk)
                 }
               }
 
@@ -294,6 +286,7 @@ export default class AnthropicProvider extends BaseProvider {
                   role: message.role,
                   content: message.content
                 })
+
                 userMessages.push({
                   role: 'user',
                   content: toolCallResults
@@ -301,6 +294,7 @@ export default class AnthropicProvider extends BaseProvider {
 
                 const newBody = body
                 body.messages = userMessages
+
                 await processStream(newBody)
               }
             }
@@ -309,6 +303,7 @@ export default class AnthropicProvider extends BaseProvider {
             const time_thinking_millsec = time_first_content_millsec
               ? time_first_content_millsec - start_time_millsec
               : 0
+
             onChunk({
               text: '',
               usage: {
@@ -324,13 +319,19 @@ export default class AnthropicProvider extends BaseProvider {
               },
               mcpToolResponse: toolResponses
             })
+
             resolve()
           })
           .on('error', (error) => reject(error))
-      }).finally(cleanup)
+      })
     }
 
     await processStream(body)
+      .catch((error) => {
+        // 不加这个错误抛不出来
+        throw error
+      })
+      .finally(cleanup)
   }
 
   public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
@@ -409,7 +410,7 @@ export default class AnthropicProvider extends BaseProvider {
 
     const content = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    return removeSpecialCharacters(content)
+    return removeSpecialCharactersForTopicName(content)
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
