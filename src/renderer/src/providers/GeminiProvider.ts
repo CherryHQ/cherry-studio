@@ -325,7 +325,7 @@ export default class GeminiProvider extends BaseProvider {
     const geminiModel = this.sdk.getGenerativeModel(
       {
         model: model.id,
-        systemInstruction: assistant.prompt,
+        ...(isGemmaModel(model) ? {} : { systemInstruction: assistant.prompt }),
         generationConfig: {
           maxOutputTokens: maxTokens,
           temperature: assistant?.settings?.temperature
@@ -334,12 +334,17 @@ export default class GeminiProvider extends BaseProvider {
       this.requestOptions
     )
 
+    const content =
+      isGemmaModel(model) && assistant.prompt
+        ? `<start_of_turn>user\n${assistant.prompt}<end_of_turn>\n<start_of_turn>user\n${message.content}<end_of_turn>`
+        : message.content
+
     if (!onResponse) {
-      const { response } = await geminiModel.generateContent(message.content)
+      const { response } = await geminiModel.generateContent(content)
       return response.text()
     }
 
-    const response = await geminiModel.generateContentStream(message.content)
+    const response = await geminiModel.generateContentStream(content)
 
     let text = ''
 
@@ -379,7 +384,7 @@ export default class GeminiProvider extends BaseProvider {
     const geminiModel = this.sdk.getGenerativeModel(
       {
         model: model.id,
-        systemInstruction: systemMessage.content,
+        ...(isGemmaModel(model) ? {} : { systemInstruction: systemMessage.content }),
         generationConfig: {
           temperature: assistant?.settings?.temperature
         }
@@ -388,8 +393,11 @@ export default class GeminiProvider extends BaseProvider {
     )
 
     const chat = await geminiModel.startChat()
+    const content = isGemmaModel(model)
+      ? `<start_of_turn>user\n${systemMessage.content}<end_of_turn>\n<start_of_turn>user\n${userMessage.content}<end_of_turn>`
+      : userMessage.content
 
-    const { response } = await chat.sendMessage(userMessage.content)
+    const { response } = await chat.sendMessage(content)
 
     return removeSpecialCharactersForTopicName(response.text())
   }
@@ -398,10 +406,20 @@ export default class GeminiProvider extends BaseProvider {
     const model = getDefaultModel()
     const systemMessage = { role: 'system', content: prompt }
 
-    const geminiModel = this.sdk.getGenerativeModel({ model: model.id }, this.requestOptions)
+    const geminiModel = this.sdk.getGenerativeModel(
+      {
+        model: model.id,
+        ...(isGemmaModel(model) ? {} : { systemInstruction: systemMessage.content })
+      },
+      this.requestOptions
+    )
 
-    const chat = await geminiModel.startChat({ systemInstruction: systemMessage.content })
-    const { response } = await chat.sendMessage(content)
+    const chat = await geminiModel.startChat()
+    const messageContent = isGemmaModel(model)
+      ? `<start_of_turn>user\n${prompt}<end_of_turn>\n<start_of_turn>user\n${content}<end_of_turn>`
+      : content
+
+    const { response } = await chat.sendMessage(messageContent)
 
     return response.text()
   }
