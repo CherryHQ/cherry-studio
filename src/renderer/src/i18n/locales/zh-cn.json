@@ -222,7 +222,8 @@
       "select": "选择",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户"
+      "you": "用户",
+      "more": "更多"
     },
     "docs": {
       "title": "帮助文档"
@@ -411,6 +412,8 @@
       "error.invalid.enter.model": "请选择一个模型",
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
+      "error.markdown.export.preconf": "导出Markdown文件到预先设定的路径失败",
+      "error.markdown.export.specified": "导出Markdown文件失败",
       "error.notion.export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
@@ -441,14 +444,16 @@
       "restore.success": "恢复成功",
       "save.success.title": "保存成功",
       "searching": "正在联网搜索...",
-      "success.notion.export": "成功导出到Notion",
+      "success.markdown.export.preconf": "成功导出 Markdown 文件到预先设定的路径",
+      "success.markdown.export.specified": "成功导出 Markdown 文件",
+      "success.notion.export": "成功导出到 Notion",
       "success.yuque.export": "成功导出到语雀",
       "switch.disabled": "请等待当前回复完成后操作",
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
-      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!"
+      "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
@@ -500,13 +505,14 @@
       "reasoning": "推理",
       "search": "搜索模型...",
       "stream_output": "流式输出",
-      "tool_calling": "工具调用",
+      "function_calling": "函数调用",
       "type": {
         "embedding": "嵌入",
         "reasoning": "推理",
         "select": "选择模型类型",
         "text": "文本",
-        "vision": "图像"
+        "vision": "图像",
+        "function_calling": "函数调用"
       },
       "vision": "视觉",
       "websearch": "联网"
@@ -666,6 +672,11 @@
         "hour_interval_other": "{{count}} 小时",
         "minute_interval_one": "{{count}} 分钟",
         "minute_interval_other": "{{count}} 分钟",
+        "markdown_export.title": "Markdown 导出",
+        "markdown_export.path": "默认导出路径",
+        "markdown_export.path_placeholder": "导出路径",
+        "markdown_export.select": "选择",
+        "markdown_export.help": "若填入，则每次导出时将自动保存到该路径；否则，将弹出保存对话框",
         "notion.api_key": "Notion 密钥",
         "notion.api_key_placeholder": "请输入Notion 密钥",
         "notion.auto_split": "导出对话时自动分页",
@@ -796,7 +807,8 @@
         "title": "MCP 服务器",
         "type": "类型",
         "updateSuccess": "服务器更新成功",
-        "url": "URL"
+        "url": "URL",
+        "toggleError": "切换失败"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",

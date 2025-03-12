@@ -178,14 +178,18 @@ export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|
 export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
 
 // Tool calling models
-export const TOOL_CALLING_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4.5', 'claude']
-export const TOOL_CALLING_REGEX = new RegExp(`\\b(?:${TOOL_CALLING_MODELS.join('|')})\\b`, 'i')
-export function isToolCallingModel(model: Model): boolean {
+export const FUNCTION_CALLING_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4.5', 'claude', 'qwen']
+export const FUNCTION_CALLING_REGEX = new RegExp(`\\b(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`, 'i')
+export function isFunctionCallingModel(model: Model): boolean {
+  if (model.type?.includes('function_calling')) {
+    return true
+  }
+
   if (['gemini', 'deepseek', 'anthropic'].includes(model.provider)) {
     return true
   }
 
-  return TOOL_CALLING_REGEX.test(model.id)
+  return FUNCTION_CALLING_REGEX.test(model.id)
 }
 
 export function getModelLogo(modelId: string) {
@@ -1741,21 +1745,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Jina'
     }
   ],
-  //加前缀是为了展示图标
-  xirang: [
-    {
-      id: 'xirang-4bd107bff85941239e27b1509eccfe98',
-      provider: 'xirang',
-      name: 'DeepSeek-R1',
-      group: 'xirang'
-    },
-    {
-      id: 'xirang-9dc913a037774fc0b248376905c85da5',
-      provider: 'xirang',
-      name: 'DeepSeek-V3',
-      group: 'xirang'
-    }
-  ],
+  xirang: [],
   'tencent-cloud-ti': [
     {
       id: 'deepseek-r1',

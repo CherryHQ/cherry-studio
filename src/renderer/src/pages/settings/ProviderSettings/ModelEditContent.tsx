@@ -1,5 +1,5 @@
 import { DownOutlined, UpOutlined } from '@ant-design/icons'
-import { isEmbeddingModel, isReasoningModel, isVisionModel } from '@renderer/config/models'
+import { isEmbeddingModel, isFunctionCallingModel, isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { Model, ModelType } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, Modal } from 'antd'
@@ -112,14 +112,15 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
               const defaultTypes = [
                 ...(isVisionModel(model) ? ['vision'] : []),
                 ...(isEmbeddingModel(model) ? ['embedding'] : []),
-                ...(isReasoningModel(model) ? ['reasoning'] : [])
+                ...(isReasoningModel(model) ? ['reasoning'] : []),
+                ...(isFunctionCallingModel(model) ? ['tools'] : [])
               ] as ModelType[]
 
               // 合并现有选择和默认类型
               const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
 
               const showTypeConfirmModal = (type: string) => {
-                Modal.confirm({
+                window.modal.confirm({
                   title: t('settings.moresetting.warn'),
                   content: t('settings.moresetting.check.warn'),
                   okText: t('settings.moresetting.check.confirm'),
@@ -161,6 +162,11 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
                       label: t('models.type.reasoning'),
                       value: 'reasoning',
                       disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
+                    },
+                    {
+                      label: t('models.type.function_calling'),
+                      value: 'function_calling',
+                      disabled: isFunctionCallingModel(model) && !selectedTypes.includes('function_calling')
                     }
                   ]}
                 />

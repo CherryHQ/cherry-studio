@@ -78,11 +78,13 @@
     "electron-updater": "^6.3.9",
     "electron-window-state": "^5.0.3",
     "epub": "^1.3.0",
+    "fetch-socks": "^1.3.2",
     "fs-extra": "^11.2.0",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
     "p-queue": "^8.1.0",
     "tokenx": "^0.4.1",
+    "undici": "^7.4.0",
     "webdav": "4.11.4"
   },
   "devDependencies": {

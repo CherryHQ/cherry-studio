@@ -75,6 +75,7 @@ export interface SettingsState {
   notionDatabaseID: string | null
   notionApiKey: string | null
   notionPageNameKey: string | null
+  markdownExportPath: string | null
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
@@ -142,6 +143,7 @@ const initialState: SettingsState = {
   notionDatabaseID: '',
   notionApiKey: '',
   notionPageNameKey: 'Name',
+  markdownExportPath: null,
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
   notionSplitSize: 90,
@@ -325,6 +327,9 @@ const settingsSlice = createSlice({
     setNotionPageNameKey: (state, action: PayloadAction<string>) => {
       state.notionPageNameKey = action.payload
     },
+    setmarkdownExportPath: (state, action: PayloadAction<string | null>) => {
+      state.markdownExportPath = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
@@ -402,6 +407,7 @@ export const {
   setNotionDatabaseID,
   setNotionApiKey,
   setNotionPageNameKey,
+  setmarkdownExportPath,
   setThoughtAutoCollapse,
   setNotionAutoSplit,
   setNotionSplitSize,

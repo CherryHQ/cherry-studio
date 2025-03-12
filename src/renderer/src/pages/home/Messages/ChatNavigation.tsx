@@ -1,6 +1,6 @@
 import { DownOutlined, UpOutlined } from '@ant-design/icons'
-import { Button, message, Tooltip } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import { Button, Tooltip } from 'antd'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -13,7 +13,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [hideTimer, setHideTimer] = useState<NodeJS.Timeout | null>(null)
 
-  const resetHideTimer = () => {
+  const resetHideTimer = useCallback(() => {
     if (hideTimer) {
       clearTimeout(hideTimer)
     }
@@ -22,7 +22,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       setIsVisible(false)
     }, 1000)
     setHideTimer(timer)
-  }
+  }, [hideTimer])
 
   const findUserMessages = () => {
     const container = document.getElementById(containerId)
@@ -34,6 +34,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
   const findAssistantMessages = () => {
     const container = document.getElementById(containerId)
+
     if (!container) return []
 
     const assistantMessages = Array.from(container.getElementsByClassName('message-assistant'))
@@ -44,10 +45,21 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     element.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  const scrollToTop = () => {
+    const container = document.getElementById(containerId)
+    container && container.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const scrollToBottom = () => {
+    const container = document.getElementById(containerId)
+    container && container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+  }
+
   const getCurrentVisibleIndex = (direction: 'up' | 'down') => {
     const userMessages = findUserMessages()
     const assistantMessages = findAssistantMessages()
     const container = document.getElementById(containerId)
+
     if (!container) return -1
 
     const containerRect = container.getBoundingClientRect()
@@ -90,22 +102,24 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     resetHideTimer()
     const userMessages = findUserMessages()
     const assistantMessages = findAssistantMessages()
+
     if (userMessages.length === 0 && assistantMessages.length === 0) {
-      message.info({ content: t('chat.navigation.last'), key: 'navigation-last' })
-      return
+      // window.message.info({ content: t('chat.navigation.last'), key: 'navigation-info' })
+      return scrollToBottom()
     }
 
     const visibleIndex = getCurrentVisibleIndex('down')
+
     if (visibleIndex === -1) {
-      message.info({ content: t('chat.navigation.last'), key: 'navigation-last' })
-      return
+      // window.message.info({ content: t('chat.navigation.last'), key: 'navigation-info' })
+      return scrollToBottom()
     }
 
     const targetIndex = visibleIndex - 1
 
     if (targetIndex < 0) {
-      message.info({ content: t('chat.navigation.last'), key: 'navigation-last' })
-      return
+      // window.message.info({ content: t('chat.navigation.last'), key: 'navigation-info' })
+      return scrollToBottom()
     }
 
     scrollToMessage(userMessages[targetIndex])
@@ -116,21 +130,22 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     const userMessages = findUserMessages()
     const assistantMessages = findAssistantMessages()
     if (userMessages.length === 0 && assistantMessages.length === 0) {
-      message.info({ content: t('chat.navigation.first'), key: 'navigation-first' })
-      return
+      // window.message.info({ content: t('chat.navigation.first'), key: 'navigation-info' })
+      return scrollToTop()
     }
 
     const visibleIndex = getCurrentVisibleIndex('up')
+
     if (visibleIndex === -1) {
-      message.info({ content: t('chat.navigation.first'), key: 'navigation-first' })
-      return
+      // window.message.info({ content: t('chat.navigation.first'), key: 'navigation-info' })
+      return scrollToTop()
     }
 
     const targetIndex = visibleIndex + 1
 
     if (targetIndex >= userMessages.length) {
-      message.info({ content: t('chat.navigation.first'), key: 'navigation-first' })
-      return
+      // window.message.info({ content: t('chat.navigation.first'), key: 'navigation-info' })
+      return scrollToTop()
     }
 
     scrollToMessage(userMessages[targetIndex])

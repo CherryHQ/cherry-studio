@@ -10,7 +10,11 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
-import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
+import {
+  filterContextMessages,
+  filterEmptyMessages,
+  filterUserRoleStartMessages
+} from '@renderer/services/MessagesService'
 import {
   Assistant,
   FileTypes,
@@ -22,6 +26,13 @@ import {
   Suggestion
 } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
+import {
+  callMCPTool,
+  filterMCPTools,
+  mcpToolsToOpenAITools,
+  openAIToolsToMcpTool,
+  upsertMCPToolResponse
+} from '@renderer/utils/mcp-tools'
 import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
@@ -35,13 +46,6 @@ import {
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-import {
-  callMCPTool,
-  filterMCPTools,
-  mcpToolsToOpenAITools,
-  openAIToolsToMcpTool,
-  upsertMCPToolResponse
-} from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -162,7 +166,7 @@ export default class OpenAIProvider extends BaseProvider {
       }
     }
 
-    if (this.isOpenAIo1(model)) {
+    if (this.isOpenAIReasoning(model)) {
       return {
         max_tokens: undefined,
         max_completion_tokens: maxTokens
@@ -228,8 +232,8 @@ export default class OpenAIProvider extends BaseProvider {
     return {}
   }
 
-  private isOpenAIo1(model: Model) {
-    return model.id.startsWith('o1')
+  private isOpenAIReasoning(model: Model) {
+    return model.id.startsWith('o1') || model.id.startsWith('o3')
   }
 
   async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams): Promise<void> {
@@ -248,17 +252,20 @@ export default class OpenAIProvider extends BaseProvider {
 
     const userMessages: ChatCompletionMessageParam[] = []
 
-    const _messages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
+    const _messages = filterUserRoleStartMessages(
+      filterContextMessages(filterEmptyMessages(takeRight(messages, contextCount + 1)))
+    )
+
     onFilterMessages(_messages)
 
     for (const message of _messages) {
       userMessages.push(await this.getMessageParam(message, model))
     }
 
-    const isOpenAIo1 = this.isOpenAIo1(model)
+    const isOpenAIReasoning = this.isOpenAIReasoning(model)
 
     const isSupportStreamOutput = () => {
-      if (isOpenAIo1) {
+      if (isOpenAIReasoning) {
         return false
       }
       return streamOutput
@@ -421,7 +428,6 @@ export default class OpenAIProvider extends BaseProvider {
                 signal
               }
             )
-            .finally(cleanup)
           await processStream(newStream)
         }
 
@@ -462,9 +468,8 @@ export default class OpenAIProvider extends BaseProvider {
           signal
         }
       )
-      .finally(cleanup)
 
-    await processStream(stream)
+    await processStream(stream).finally(cleanup)
   }
 
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
@@ -477,13 +482,13 @@ export default class OpenAIProvider extends BaseProvider {
         ]
       : [{ role: 'user', content: assistant.prompt }]
 
-    const isOpenAIo1 = this.isOpenAIo1(model)
+    const isOpenAIReasoning = this.isOpenAIReasoning(model)
 
     const isSupportedStreamOutput = () => {
       if (!onResponse) {
         return false
       }
-      if (isOpenAIo1) {
+      if (isOpenAIReasoning) {
         return false
       }
       return true
