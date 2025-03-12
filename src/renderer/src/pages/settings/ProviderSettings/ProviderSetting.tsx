@@ -250,7 +250,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
     setApiKey(provider.apiKey)
     setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost, provider.id, apiKey])
+  }, [provider.apiKey, provider.apiHost, provider.id])
 
   // Save apiKey to provider when unmount
   useEffect(() => {
