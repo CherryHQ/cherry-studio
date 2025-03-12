@@ -192,7 +192,7 @@ const initialState: LlmState = {
       name: 'Github Copilot',
       type: 'openai',
       apiKey: '',
-      apiHost: 'https://api.githubcopilot.com/',
+      apiHost: 'https://api.individual.githubcopilot.com/',
       models: SYSTEM_MODELS.copilot,
       isSystem: true,
       enabled: false,
