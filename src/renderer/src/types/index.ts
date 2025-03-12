@@ -78,6 +78,7 @@ export type Message = {
     // MCP Tools
     mcpTools?: MCPToolResponse[]
   }
+  historyList?: Message[]
 }
 
 export type Metrics = {

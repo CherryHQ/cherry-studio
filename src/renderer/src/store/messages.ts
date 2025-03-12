@@ -104,7 +104,8 @@ const messagesSlice = createSlice({
         state.streamMessagesByTopic[topicId] = {}
       }
       if (message) {
-        state.streamMessagesByTopic[topicId][message.id] = message
+        const messageWithHistoryList = { ...message, historyList: message?.historyList?.concat(message) ?? [message] }
+        state.streamMessagesByTopic[topicId][message.id] = messageWithHistoryList
       }
     },
     commitStreamMessage: (state, action: PayloadAction<{ topicId: string; messageId: string }>) => {
