@@ -21,8 +21,7 @@ export default defineConfig({
           '@llm-tools/embedjs-loader-pdf',
           '@llm-tools/embedjs-loader-sitemap',
           '@llm-tools/embedjs-libsql',
-          '@llm-tools/embedjs-loader-image',
-          'p-queue'
+          '@llm-tools/embedjs-loader-image'
         ]
       }),
       ...visualizerPlugin('main')
@@ -66,6 +65,18 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('packages/shared')
+      }
+    },
+    build: {
+      assetsInlineLimit: 4096, // 设置资源内联阈值（小于4kb的文件不会被内联）
+      rollupOptions: {
+        external: ['@agentic/exa'], // 将@agentic/exa标记为外部依赖，解决构建问题
+        output: {
+          manualChunks: undefined, // 禁用手动分块
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          entryFileNames: 'assets/js/[name]-[hash].js',
+          assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
+        }
       }
     },
     optimizeDeps: {

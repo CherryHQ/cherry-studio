@@ -2,13 +2,20 @@ import {
   ClearOutlined,
   CloseOutlined,
   DeleteOutlined,
+  DownOutlined,
   EditOutlined,
-  FolderOutlined,
+  FolderAddOutlined,
+  FolderOpenOutlined,
+  HolderOutlined,
+  PlusOutlined,
   PushpinOutlined,
   QuestionCircleOutlined,
+  RetweetOutlined,
+  RightOutlined,
   UploadOutlined
 } from '@ant-design/icons'
-import DragableList from '@renderer/components/DragableList'
+import type { DropResult } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -16,12 +23,11 @@ import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { TopicManager } from '@renderer/hooks/useTopic'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { useTopicGroups } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import { Assistant, Topic } from '@renderer/types'
+import { Assistant, Topic, TopicGroup } from '@renderer/types'
 import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
@@ -30,48 +36,180 @@ import {
   exportTopicAsMarkdown,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { Dropdown, MenuProps, Tooltip } from 'antd'
+import { safeFilter, safeMap } from '@renderer/utils/safeArrayUtils'
+import { Dropdown, Form, Input, MenuProps, Modal, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
+import { v4 as uuid } from 'uuid'
 interface Props {
   assistant: Assistant
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
 }
-
 const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic }) => {
   const { assistants } = useAssistants()
-  const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
+  const { assistant, removeTopic, updateTopic, addTopic, duplicateTopic } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, topicPosition } = useSettings()
-
+  const { showTopicTime, topicPosition, enableTopicsGroup } = useSettings()
+  const { topicGroups, addGroup, updateGroup, removeGroup, updateTopicGroup, updateGroupsOrder } = useTopicGroups(
+    _assistant.id
+  )
+  const [form] = Form.useForm()
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
-
+  // 分组管理状态
+  const [groupModalVisible, setGroupModalVisible] = useState(false)
+  const [currentGroup, setCurrentGroup] = useState<TopicGroup | null>(null)
+  // 从localStorage获取已保存的话题分组展开状态，如果没有则默认全部展开
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    try {
+      const savedState = localStorage.getItem('topicGroups_expandedState')
+      if (savedState) {
+        const parsedState = JSON.parse(savedState)
+        return new Set(parsedState)
+      }
+    } catch (e) {
+      console.error('Error loading topic group expanded state:', e)
+    }
+    return new Set(safeMap(topicGroups, (g) => g.id)) // 默认展开所有分组
+  })
+  const [dragging, setDragging] = useState(false)
+  const dropTargetRef = useRef<string | null>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>()
-
+  // 根据配置决定是否使用分组
+  // 当分组功能关闭时，所有话题都视为未分组
+  const ungroupedTopics = enableTopicsGroup ? safeFilter(assistant.topics, (topic) => !topic.groupId) : assistant.topics
+  // 分组话题
+  const getGroupTopics = (groupId: string) => {
+    return safeFilter(assistant.topics, (topic) => topic.groupId === groupId)
+  }
+  // 创建新话题
+  const handleCreateTopic = () => {
+    const newTopic: Topic = {
+      id: uuid(),
+      name: t('topics.new'),
+      assistantId: assistant.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: []
+    }
+    addTopic(newTopic)
+    setActiveTopic(newTopic)
+  }
+  // 分组管理函数
+  const handleCreateGroup = () => {
+    setCurrentGroup(null)
+    form.resetFields()
+    setGroupModalVisible(true)
+  }
+  const handleEditGroup = (group: TopicGroup, e: React.MouseEvent) => {
+    e.stopPropagation() // 阻止事件冒泡到toggle
+    setCurrentGroup(group)
+    form.setFieldsValue({
+      name: group.name,
+      description: group.description
+    })
+    setGroupModalVisible(true)
+  }
+  const handleDeleteGroup = (groupId: string) => {
+    window.modal.confirm({
+      title: t('topics.group.delete.title') || '删除分组',
+      content: t('topics.group.delete.content') || '确定要删除此分组吗？话题将被移动到未分组区域。',
+      okButtonProps: { danger: true },
+      centered: true,
+      onOk: () => {
+        removeGroup(groupId)
+      }
+    })
+  }
+  const handleGroupFormSubmit = async () => {
+    try {
+      const values = await form.validateFields()
+      if (currentGroup) {
+        // 编辑现有分组
+        updateGroup({
+          ...currentGroup,
+          name: values.name,
+          description: values.description
+        })
+      } else {
+        // 创建新分组
+        const newGroup = addGroup(values.name, values.description)
+        if (newGroup) {
+          // 展开新创建的分组
+          setExpandedGroups(new Set([...expandedGroups, newGroup.id]))
+        }
+      }
+      setGroupModalVisible(false)
+    } catch (error) {
+      console.error('分组表单验证错误:', error)
+    }
+  }
+  // 切换分组的展开/折叠状态
+  const toggleGroupExpanded = (groupId: string, e: React.MouseEvent) => {
+    e.stopPropagation() // 阻止事件冒泡
+    let newExpandedGroups: Set<string>
+    if (expandedGroups.has(groupId)) {
+      const newSet = new Set(expandedGroups)
+      newSet.delete(groupId)
+      newExpandedGroups = newSet
+    } else {
+      newExpandedGroups = new Set([...expandedGroups, groupId])
+    }
+    // 设置新状态
+    setExpandedGroups(newExpandedGroups)
+    // 保存到localStorage
+    try {
+      localStorage.setItem('topicGroups_expandedState', JSON.stringify(Array.from(newExpandedGroups)))
+    } catch (e) {
+      console.error('Error saving topic group expanded state:', e)
+    }
+  }
+  // 处理将话题拖入分组
+  const handleTopicDragStart = (e: React.DragEvent, topicId: string) => {
+    setDragging(true)
+    e.dataTransfer.setData('topicId', topicId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const handleTopicDragEnd = () => {
+    setDragging(false)
+    dropTargetRef.current = null
+  }
+  const handleTopicDragOver = (e: React.DragEvent, groupId: string | null) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'move'
+    dropTargetRef.current = groupId !== null ? groupId : null
+  }
+  const handleTopicDragLeave = () => {
+    dropTargetRef.current = null
+  }
+  const handleTopicDrop = (e: React.DragEvent, groupId: string | null) => {
+    e.preventDefault()
+    const topicId = e.dataTransfer.getData('topicId')
+    if (topicId && assistant.id) {
+      // 使用正确的函数处理话题拖拽
+      updateTopicGroup(assistant.id, topicId, groupId || undefined)
+    }
+    setDragging(false)
+    dropTargetRef.current = null
+  }
   const handleDeleteClick = useCallback((topicId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-
     if (deleteTimerRef.current) {
       clearTimeout(deleteTimerRef.current)
     }
-
     setDeletingTopicId(topicId)
-
     deleteTimerRef.current = setTimeout(() => setDeletingTopicId(null), 2000)
   }, [])
-
   const onClearMessages = useCallback((topic: Topic) => {
     // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
     store.dispatch(setGenerating(false))
     EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
   }, [])
-
   const handleConfirmDelete = useCallback(
     async (topic: Topic, e: React.MouseEvent) => {
       e.stopPropagation()
@@ -86,7 +224,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     },
     [assistant.topics, onClearMessages, removeTopic, setActiveTopic]
   )
-
   const onPinTopic = useCallback(
     (topic: Topic) => {
       const updatedTopic = { ...topic, pinned: !topic.pinned }
@@ -94,6 +231,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     },
     [updateTopic]
   )
+
+  useEffect(() => {}, [])
 
   const onDeleteTopic = useCallback(
     async (topic: Topic) => {
@@ -104,17 +243,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     },
     [assistant.topics, removeTopic, setActiveTopic]
   )
-
-  const onMoveTopic = useCallback(
+  const onDuplicateTopic = useCallback(
     async (topic: Topic, toAssistant: Assistant) => {
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? 0 : index + 1])
-      moveTopic(topic, toAssistant)
+      duplicateTopic(topic, toAssistant)
     },
-    [assistant.topics, moveTopic, setActiveTopic]
+    [duplicateTopic]
   )
-
   const onSwitchTopic = useCallback(
     async (topic: Topic) => {
       // await modelGenerating()
@@ -122,36 +257,157 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     },
     [setActiveTopic]
   )
+  // 主要渲染函数
+  const renderTopicItem = (topic: Topic) => {
+    const isActive = topic.id === activeTopic?.id
+    const topicName = topic.name.replace('`', '')
+    const topicPrompt = topic.prompt
+    const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
+    return (
+      <div
+        key={topic.id}
+        draggable="true"
+        onDragStart={(e) => handleTopicDragStart(e, topic.id)}
+        onDragEnd={handleTopicDragEnd}
+        className="topic-item-wrapper">
+        <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']}>
+          <TopicListItem
+            className={isActive ? 'active' : ''}
+            onClick={() => onSwitchTopic(topic)}
+            style={{ borderRadius }}>
+            <TopicName className="name" title={topicName}>
+              {topicName}
+            </TopicName>
+            {topicPrompt && (
+              <TopicPromptText className="prompt" title={fullTopicPrompt}>
+                {fullTopicPrompt}
+              </TopicPromptText>
+            )}
+            {showTopicTime && <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>}
+            <MenuButton className="pin">{topic.pinned && <PushpinOutlined />} </MenuButton>
+            {isActive && !topic.pinned && (
+              <Tooltip
+                placement="bottom"
+                mouseEnterDelay={0.7}
+                title={
+                  <div>
+                    <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                      {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                    </div>
+                  </div>
+                }>
+                <MenuButton
+                  className="menu"
+                  onClick={(e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                      handleConfirmDelete(topic, e)
+                    } else if (deletingTopicId === topic.id) {
+                      handleConfirmDelete(topic, e)
+                    } else {
+                      handleDeleteClick(topic.id, e)
+                    }
+                  }}>
+                  {deletingTopicId === topic.id ? (
+                    <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+                  ) : (
+                    <CloseOutlined />
+                  )}
+                </MenuButton>
+              </Tooltip>
+            )}
+          </TopicListItem>
+        </Dropdown>
+      </div>
+    )
+  }
+  // 处理分组拖拽结束事件
+  const handleGroupDragEnd = (result: DropResult) => {
+    // 如果没有目标位置或源位置和目标位置相同，则不做任何操作
+    if (!result.destination || result.destination.index === result.source.index) {
+      return
+    }
 
+    // 重新排序分组
+    const reorderedGroups = droppableReorder<TopicGroup>(
+      [...topicGroups],
+      result.source.index,
+      result.destination.index
+    )
+
+    // 更新Redux存储中的分组顺序
+    updateGroupsOrder(reorderedGroups)
+  }
+
+  // 渲染分组
+  const renderGroup = (group: TopicGroup, index: number) => {
+    const groupTopics = getGroupTopics(group.id)
+    const isExpanded = expandedGroups.has(group.id)
+    return (
+      <Draggable key={group.id} draggableId={group.id} index={index}>
+        {(provided, snapshot) => (
+          <GroupContainer
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            data-groupid={group.id}
+            onDragOver={(e) => handleTopicDragOver(e, group.id)}
+            onDragLeave={handleTopicDragLeave}
+            onDrop={(e) => handleTopicDrop(e, group.id)}
+            className={`${dropTargetRef.current === group.id ? 'drag-over' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
+            style={provided.draggableProps.style}>
+            <GroupHeader onClick={(e) => toggleGroupExpanded(group.id, e)} className="group-header-style">
+              <GroupTitle>
+                <GroupIcon>{isExpanded ? <DownOutlined /> : <RightOutlined />}</GroupIcon>
+                <div>{group.name}</div>
+                <GroupCount>{groupTopics.length}</GroupCount>
+              </GroupTitle>
+              <GroupActions className="group-actions">
+                <span {...provided.dragHandleProps} className="drag-handle" onClick={(e) => e.stopPropagation()}>
+                  <HolderOutlined />
+                </span>
+                <EditOutlined onClick={(e) => handleEditGroup(group, e)} />
+                <DeleteOutlined
+                  className="delete-icon"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDeleteGroup(group.id)
+                  }}
+                />
+              </GroupActions>
+            </GroupHeader>
+            <GroupContent className={isExpanded ? 'expanded' : 'collapsed'}>
+              {safeMap(groupTopics, renderTopicItem)}
+            </GroupContent>
+          </GroupContainer>
+        )}
+      </Draggable>
+    )
+  }
   const getTopicMenuItems = useCallback(
     (topic: Topic) => {
       const menus: MenuProps['items'] = [
         {
-          label: t('chat.topics.auto_rename'),
-          key: 'auto-rename',
-          icon: <i className="iconfont icon-business-smart-assistant" style={{ fontSize: '14px' }} />,
-          async onClick() {
-            const messages = await TopicManager.getTopicMessages(topic.id)
-            if (messages.length >= 2) {
-              const summaryText = await fetchMessagesSummary({ messages, assistant })
-              if (summaryText) {
-                updateTopic({ ...topic, name: summaryText })
-              }
-            }
-          }
-        },
-        {
           label: t('chat.topics.edit.title'),
-          key: 'rename',
+          key: 'edit',
           icon: <EditOutlined />,
           async onClick() {
             const name = await PromptPopup.show({
               title: t('chat.topics.edit.title'),
               message: '',
-              defaultValue: topic?.name || ''
+              defaultValue: topic.name
             })
-            if (name && topic?.name !== name) {
-              updateTopic({ ...topic, name })
+            name && updateTopic({ ...topic, name: name.trim() })
+          }
+        },
+        {
+          label: t('chat.topics.auto_rename'),
+          key: 'auto-rename',
+          icon: <i className="iconfont icon-business-smart-assistant" style={{ fontSize: '14px' }} />,
+          onClick: () => {
+            // 仅当第一条消息是用户消息时才能自动命名
+            const firstMsg = topic.messages[0]
+            if (firstMsg && firstMsg.role === 'user') {
+              // 直接触发自动重命名事件
+              EventEmitter.emit(EVENT_NAMES.AI_AUTO_RENAME)
             }
           }
         },
@@ -229,7 +485,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               key: 'markdown',
               onClick: () => exportTopicAsMarkdown(topic)
             },
-
             {
               label: t('chat.topics.export.word'),
               key: 'word',
@@ -255,24 +510,52 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               }
             }
           ]
-        }
+        },
+        // 只在启用话题分组功能时显示移动到分组选项
+        ...(enableTopicsGroup
+          ? [
+              {
+                label: t('topics.move_to_group'),
+                key: 'move-to-group',
+                icon: <FolderOpenOutlined />,
+                children: [
+                  {
+                    label: t('topics.no_group'),
+                    key: 'no-group',
+                    onClick: () => {
+                      if (assistant.id) {
+                        updateTopicGroup(assistant.id, topic.id, undefined)
+                      }
+                    }
+                  },
+                  ...safeMap(topicGroups, (group) => ({
+                    label: group.name,
+                    key: group.id,
+                    onClick: () => {
+                      if (assistant.id) {
+                        updateTopicGroup(assistant.id, topic.id, group.id)
+                      }
+                    }
+                  }))
+                ]
+              }
+            ]
+          : [])
       ]
-
       if (assistants.length > 1 && assistant.topics.length > 1) {
         menus.push({
-          label: t('chat.topics.move_to'),
-          key: 'move',
-          icon: <FolderOutlined />,
+          label: t('chat.topics.duplicate_to'),
+          key: 'duplicate',
+          icon: <RetweetOutlined />,
           children: assistants
             .filter((a) => a.id !== assistant.id)
             .map((a) => ({
               label: a.name,
               key: a.id,
-              onClick: () => onMoveTopic(topic, a)
+              onClick: () => onDuplicateTopic(topic, a)
             }))
         })
       }
-
       if (assistant.topics.length > 1 && !topic.pinned) {
         menus.push({ type: 'divider' })
         menus.push({
@@ -283,85 +566,257 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           onClick: () => onDeleteTopic(topic)
         })
       }
-
       return menus
     },
-    [assistant, assistants, onClearMessages, onDeleteTopic, onPinTopic, onMoveTopic, t, updateTopic]
+    [
+      assistant,
+      assistants,
+      onClearMessages,
+      onDeleteTopic,
+      onPinTopic,
+      onDuplicateTopic,
+      t,
+      updateTopic,
+      topicGroups,
+      updateTopicGroup,
+      enableTopicsGroup
+    ]
   )
-
   return (
     <Container right={topicPosition === 'right'} className="topics-tab">
-      <DragableList list={assistant.topics} onUpdate={updateTopics}>
-        {(topic) => {
-          const isActive = topic.id === activeTopic?.id
-          const topicName = topic.name.replace('`', '')
-          const topicPrompt = topic.prompt
-          const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
-          return (
-            <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
-              <TopicListItem
-                className={isActive ? 'active' : ''}
-                onClick={() => onSwitchTopic(topic)}
-                style={{ borderRadius }}>
-                <TopicName className="name" title={topicName}>
-                  {topicName}
-                </TopicName>
-                {topicPrompt && (
-                  <TopicPromptText className="prompt" title={fullTopicPrompt}>
-                    {fullTopicPrompt}
-                  </TopicPromptText>
+      {enableTopicsGroup ? (
+        // 启用分组时的显示方式
+        <>
+          {/* 未分组的话题 */}
+          <UngroupedSection
+            onDragOver={(e) => handleTopicDragOver(e, null)}
+            onDragLeave={handleTopicDragLeave}
+            onDrop={(e) => handleTopicDrop(e, null)}
+            className={dropTargetRef.current === null ? 'drag-over' : ''}
+            $enableGroup={enableTopicsGroup}>
+            <p className="section-title">{t('topics.ungrouped')}</p>
+            {ungroupedTopics.map(renderTopicItem)}
+          </UngroupedSection>
+          {/* 分割线 */}
+          {ungroupedTopics.length > 0 && topicGroups.length > 0 && <SectionDivider />}
+          {/* 分组区域 */}
+          <GroupsContainer>
+            <DragDropContext onDragEnd={handleGroupDragEnd}>
+              <Droppable droppableId="topic-groups-droppable">
+                {(provided) => (
+                  <div ref={provided.innerRef} {...provided.droppableProps} className="topic-groups-container">
+                    {safeMap(topicGroups, renderGroup)}
+                    {provided.placeholder}
+                  </div>
                 )}
-                {showTopicTime && (
-                  <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
-                )}
-                <MenuButton className="pin">{topic.pinned && <PushpinOutlined />}</MenuButton>
-                {isActive && !topic.pinned && (
-                  <Tooltip
-                    placement="bottom"
-                    mouseEnterDelay={0.7}
-                    title={
-                      <div>
-                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                        </div>
-                      </div>
-                    }>
-                    <MenuButton
-                      className="menu"
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          handleConfirmDelete(topic, e)
-                        } else if (deletingTopicId === topic.id) {
-                          handleConfirmDelete(topic, e)
-                        } else {
-                          handleDeleteClick(topic.id, e)
-                        }
-                      }}>
-                      {deletingTopicId === topic.id ? (
-                        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
-                      ) : (
-                        <CloseOutlined />
-                      )}
-                    </MenuButton>
-                  </Tooltip>
-                )}
-              </TopicListItem>
-            </Dropdown>
-          )
-        }}
-      </DragableList>
-      <div style={{ minHeight: '10px' }}></div>
+              </Droppable>
+            </DragDropContext>
+          </GroupsContainer>
+        </>
+      ) : (
+        // 未启用分组时的原始显示方式
+        <UngroupedSection $enableGroup={enableTopicsGroup}>
+          {assistant.topics.map((topic) => renderTopicItem(topic))}
+        </UngroupedSection>
+      )}
+      {/* 添加按钮 */}
+      <ActionButtons>
+        {!dragging && (
+          <>
+            {enableTopicsGroup ? (
+              <>
+                <CreateButton type="button" onClick={handleCreateTopic}>
+                  <PlusOutlined />
+                  {t('topics.add')}
+                </CreateButton>
+                <GroupCreateButton type="button" className="add-group-btn" onClick={handleCreateGroup}>
+                  <FolderAddOutlined />
+                  {t('topics.group.add')}
+                </GroupCreateButton>
+              </>
+            ) : (
+              <TopicAddItem onClick={handleCreateTopic} style={{ width: '100%' }}>
+                <TopicAddName>
+                  <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
+                  {t('topics.add')}
+                </TopicAddName>
+              </TopicAddItem>
+            )}
+          </>
+        )}
+      </ActionButtons>
+      {/* 创建/编辑分组模态框 - 仅当分组功能开启时显示 */}
+      {enableTopicsGroup && (
+        <Modal
+          title={currentGroup ? t('topics.group.edit') : t('topics.group.add')}
+          open={groupModalVisible}
+          onOk={handleGroupFormSubmit}
+          onCancel={() => setGroupModalVisible(false)}
+          destroyOnClose>
+          <Form form={form} layout="vertical">
+            <Form.Item
+              name="name"
+              label={t('topics.group.name')}
+              rules={[
+                {
+                  required: true,
+                  message: t('topics.group.name.required')
+                }
+              ]}>
+              <Input placeholder={t('topics.group.name.placeholder')} />
+            </Form.Item>
+            <Form.Item name="description" label={t('topics.group.description')}>
+              <Input.TextArea placeholder={t('topics.group.description.placeholder')} rows={3} />
+            </Form.Item>
+          </Form>
+        </Modal>
+      )}
     </Container>
   )
 }
-
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   padding-top: 11px;
   user-select: none;
+  height: 100%;
+  .topic-item-wrapper[draggable='true'] {
+    cursor: grab;
+    &:active {
+      cursor: grabbing;
+    }
+  }
+  /* 解决拖拽时的白边问题 */
+  [draggable] {
+    -webkit-user-drag: element;
+    user-select: none;
+  }
 `
+const UngroupedSection = styled.div<{ $enableGroup?: boolean }>`
+  padding: 8px;
+  border-radius: 8px;
+  min-height: 60px;
+  overflow-y: auto;
+  max-height: ${(props) => (props.$enableGroup ? '300px' : 'none')};
+  .section-title {
+    font-size: 13px;
+    color: var(--color-text-3);
+    margin: 5px 8px;
+    padding-left: 8px;
+  }
+  &.drag-over {
+    background-color: var(--color-bg-3);
+  }
+  .topic-item-wrapper[draggable='true'] {
+    cursor: grab;
+    &:active {
+      cursor: grabbing;
+    }
+  }
+`
+const SectionDivider = styled.div`
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 8px 0;
+`
+const GroupsContainer = styled.div`
+  flex: 1;
+  overflow-y: auto;
 
+  .topic-groups-container {
+    display: flex;
+    flex-direction: column;
+  }
+`
+const GroupContainer = styled.div`
+  margin-bottom: 4px;
+  position: relative;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+
+  &.drag-over {
+    background-color: var(--color-bg-3);
+    border-radius: 6px;
+    outline: 2px solid var(--color-primary);
+  }
+
+  &.dragging {
+    opacity: 0.8;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+  }
+`
+const GroupHeader = styled.div`
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  border-radius: 6px;
+  &:hover {
+    background-color: var(--color-bg-2);
+    .group-actions {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+`
+const GroupTitle = styled.div`
+  display: flex;
+  align-items: center;
+  flex-grow: 1;
+  font-weight: 500;
+  font-size: 13px;
+`
+const GroupIcon = styled.span`
+  margin-right: 8px;
+  font-size: 12px;
+`
+const GroupCount = styled.span`
+  margin-left: 8px;
+  color: var(--color-text-3);
+  font-size: 12px;
+  font-weight: normal;
+`
+const GroupActions = styled.div`
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s;
+  display: flex;
+  gap: 8px;
+
+  .drag-handle {
+    cursor: grab;
+    display: flex;
+    align-items: center;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  .anticon {
+    cursor: pointer;
+    color: var(--color-text-3);
+    &:hover {
+      color: var(--color-text-1);
+    }
+  }
+  .delete-icon:hover {
+    color: var(--color-error);
+  }
+`
+const GroupContent = styled.div`
+  padding-left: 20px;
+  overflow: hidden;
+  &.expanded {
+    display: block;
+  }
+  &.collapsed {
+    display: none;
+  }
+`
 const TopicListItem = styled.div`
   padding: 7px 12px;
   margin-left: 10px;
@@ -399,15 +854,14 @@ const TopicListItem = styled.div`
     }
   }
 `
-
 const TopicName = styled.div`
+  font-size: 13px;
+  color: var(--color-text-1);
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 13px;
 `
-
 const TopicPromptText = styled.div`
   color: var(--color-text-2);
   font-size: 12px;
@@ -419,12 +873,10 @@ const TopicPromptText = styled.div`
     margin-top: 10px;
   }
 `
-
 const TopicTime = styled.div`
   color: var(--color-text-3);
   font-size: 11px;
 `
-
 const MenuButton = styled.div`
   display: flex;
   flex-direction: row;
@@ -444,5 +896,72 @@ const QuestionIcon = styled(QuestionCircleOutlined)`
   cursor: pointer;
   color: var(--color-text-3);
 `
-
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  button {
+    flex: 1;
+  }
+`
+const CreateButton = styled.button`
+  height: 34px;
+  border-radius: 6px;
+  border: none;
+  background-color: var(--color-primary);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.3s;
+  &:hover {
+    background-color: #05d47b;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    color: #fff;
+  }
+`
+const GroupCreateButton = styled(CreateButton)`
+  background-color: var(--color-neutral-5);
+  color: var(--color-text-1);
+  &:hover {
+    background-color: var(--color-neutral-6);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    color: var(--color-primary);
+  }
+`
+/* 非分组模式下的话题添加按钮样式 */
+const TopicAddItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 7px 12px;
+  position: relative;
+  margin: 0 10px;
+  padding-right: 35px;
+  font-family: Ubuntu;
+  border-radius: var(--list-item-border-radius);
+  border: 0.5px solid transparent;
+  cursor: pointer;
+  &:hover {
+    background-color: var(--color-background-soft);
+  }
+  &.active {
+    background-color: var(--color-background-soft);
+    border: 0.5px solid var(--color-border);
+  }
+`
+const TopicAddName = styled.div`
+  color: var(--color-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+`
 export default Topics

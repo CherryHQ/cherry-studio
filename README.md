@@ -89,6 +89,18 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 yarn
 ```
 
+# 🔄 Using GitHub Actions for Automated Builds
+
+This project supports automated building of Windows and macOS versions using GitHub Actions.
+
+1. Go to the Actions tab in the GitHub repository
+2. Select the "Build and Release" workflow
+3. Click the "Run workflow" button
+4. Enter the version number (default is 1.0.7)
+5. Click "Run workflow" to start the build
+
+After the build is complete, a draft release will be created in GitHub Releases containing installation packages for Windows and macOS.
+
 ### Development
 
 ```bash

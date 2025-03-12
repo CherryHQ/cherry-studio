@@ -71,7 +71,7 @@ const Inputbar: FC = () => {
       role: 'user',
       content: text,
       assistantId: assistant.id,
-      topicId: assistant.topics[0].id || uuid(),
+      topicId: (assistant.topics && assistant.topics.length > 0 && assistant.topics[0].id) || uuid(),
       createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
       type: 'text',
       status: 'success'
@@ -192,7 +192,9 @@ const Inputbar: FC = () => {
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      for (const file of event.clipboardData?.files || []) {
+      const files = event.clipboardData?.files || []
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
         event.preventDefault()
 
         if (file.path === '') {

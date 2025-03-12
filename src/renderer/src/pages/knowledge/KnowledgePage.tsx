@@ -104,7 +104,7 @@ const KnowledgePage: FC = () => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
         <NavbarRight>
-          <HStack alignItems="center">
+          <HStack $alignItems="center">
             <NarrowIcon onClick={() => selectedBase && KnowledgeSearchPopup.show({ base: selectedBase })}>
               <SearchOutlined />
             </NarrowIcon>

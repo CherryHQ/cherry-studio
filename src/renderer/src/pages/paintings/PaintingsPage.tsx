@@ -322,7 +322,7 @@ const PaintingsPage: FC = () => {
             style={{ display: 'flex' }}>
             {IMAGE_SIZES.map((size) => (
               <RadioButton value={size.value} key={size.value}>
-                <VStack alignItems="center">
+                <VStack $alignItems="center">
                   <ImageSizeImage src={size.icon} theme={theme} />
                   <span>{size.label}</span>
                 </VStack>
@@ -386,14 +386,14 @@ const PaintingsPage: FC = () => {
             <Slider
               min={1}
               max={20}
-              step={0.1}
+              ste$p={0.1}
               value={painting.guidanceScale}
               onChange={(v) => updatePaintingState({ guidanceScale: v })}
             />
             <StyledInputNumber
               min={1}
               max={20}
-              step={0.1}
+              ste$p={0.1}
               value={painting.guidanceScale}
               onChange={(v) => updatePaintingState({ guidanceScale: (v as number) || 4.5 })}
             />

@@ -100,7 +100,7 @@ const AboutSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.about.title')}
-          <HStack alignItems="center">
+          <HStack $alignItems="center">
             <Link to="https://github.com/kangfenmao/cherry-studio">
               <GithubOutlined style={{ marginRight: 4, color: 'var(--color-text)', fontSize: 20 }} />
             </Link>
@@ -116,7 +116,7 @@ const AboutSettings: FC = () => {
                   size={84}
                   percent={update.downloadProgress}
                   showInfo={false}
-                  strokeLinecap="butt"
+                  strokeLineca$p="butt"
                   strokeColor="#67ad5b"
                 />
               )}

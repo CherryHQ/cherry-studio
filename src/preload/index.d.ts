@@ -3,8 +3,8 @@ import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from
 import { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
 import type { LoaderReturn } from '@shared/config/types'
-import type { OpenDialogOptions } from 'electron'
-import type { UpdateInfo } from 'electron-updater'
+import type { BrowserWindowConstructorOptions, OpenDialogOptions, SaveDialogOptions } from 'electron'
+import type { UpdateInfo } from 'builder-util-runtime'
 import { Readable } from 'stream'
 
 declare global {
@@ -20,7 +20,7 @@ declare global {
       setTray: (isActive: boolean) => void
       restartTray: () => void
       setTheme: (theme: 'light' | 'dark') => void
-      minApp: (options: { url: string; windowOptions?: Electron.BrowserWindowConstructorOptions }) => void
+      minApp: (options: { url: string; windowOptions?: BrowserWindowConstructorOptions }) => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
       zip: {
@@ -64,7 +64,7 @@ declare global {
       }
       openPath: (path: string) => Promise<void>
       shortcuts: {
-        update: (shortcuts: Shortcut[]) => Promise<void>
+        update: (shortcuts: any[]) => Promise<void>
       }
       knowledgeBase: {
         create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) => Promise<void>
@@ -73,7 +73,7 @@ declare global {
         add: ({
           base,
           item,
-          forceReload = false
+          forceReload
         }: {
           base: KnowledgeBaseParams
           item: KnowledgeItem
@@ -119,17 +119,17 @@ declare global {
         decrypt: (encryptedData: string, iv: string, secretKey: string) => Promise<string>
       }
       shell: {
-        openExternal: (url: string, options?: OpenExternalOptions) => Promise<void>
+        openExternal: (url: string, options?: any) => Promise<void>
       }
       mcp: {
         // servers
-        listServers: () => Promise<MCPServer[]>
-        addServer: (server: MCPServer) => Promise<void>
-        updateServer: (server: MCPServer) => Promise<void>
+        listServers: () => Promise<any[]>
+        addServer: (server: any) => Promise<void>
+        updateServer: (server: any) => Promise<void>
         deleteServer: (serverName: string) => Promise<void>
         setServerActive: (name: string, isActive: boolean) => Promise<void>
         // tools
-        listTools: () => Promise<MCPTool>
+        listTools: () => Promise<any>
         callTool: ({ client, name, args }: { client: string; name: string; args: any }) => Promise<any>
         // status
         cleanup: () => Promise<void>

@@ -81,26 +81,16 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
 }
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
-  const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  // 使用与 getAssistantSettings 相同的逻辑处理无限上下文
-  const maxContextCount = rawContextCount === 20 ? 100000 : rawContextCount
-
-  // 在无限模式下，设置一个合理的高上限而不是处理所有消息
-  const _messages = rawContextCount === 20 ? takeRight(messages, 1000) : takeRight(messages, maxContextCount)
-
+  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
+  const _messages = takeRight(messages, contextCount)
   const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
+  const messagesCount = _messages.length
 
-  let currentContextCount = 0
   if (clearIndex === -1) {
-    currentContextCount = _messages.length
-  } else {
-    currentContextCount = _messages.length - (clearIndex + 1)
+    return contextCount
   }
 
-  return {
-    current: currentContextCount,
-    max: rawContextCount
-  }
+  return messagesCount - (clearIndex + 1)
 }
 
 export function deleteMessageFiles(message: Message) {

@@ -45,7 +45,7 @@ const MessageGroupSettings: FC = () => {
                 onChangeComplete={(value) => dispatch(setGridColumns(value))}
                 min={2}
                 max={6}
-                step={1}
+                ste$p={1}
               />
             </Col>
           </Row>

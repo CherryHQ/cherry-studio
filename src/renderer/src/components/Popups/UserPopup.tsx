@@ -130,7 +130,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       transitionName="ant-move-down"
       centered>
       <Center mt="30px">
-        <VStack alignItems="center" gap="10px">
+        <VStack $alignItems="center" $ga$p="10px">
           <Dropdown
             menu={{ items }}
             trigger={['click']}
@@ -159,7 +159,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           </Dropdown>
         </VStack>
       </Center>
-      <HStack alignItems="center" gap="10px" p="20px">
+      <HStack $alignItems="center" $ga$p="10px" $p="20px">
         <Input
           placeholder={t('settings.general.user_name.placeholder')}
           value={userName}

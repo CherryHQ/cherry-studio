@@ -5,8 +5,9 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import AiProvider from '@renderer/providers/AiProvider'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
+import { Model, Provider } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
+import { safeFilter, safeFind, safeFlat, safeMap } from '@renderer/utils/safeArrayUtils'
 import { Form, Input, Modal, Select } from 'antd'
 import { find, sortBy } from 'lodash'
 import { nanoid } from 'nanoid'
@@ -33,23 +34,22 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { addKnowledgeBase } = useKnowledgeBases()
-  const allModels = providers
-    .map((p) => p.models)
-    .flat()
-    .filter((model) => isEmbeddingModel(model))
+  const allModels = safeFlat(safeMap(providers as Provider[], (p) => p.models)).filter((model) =>
+    isEmbeddingModel(model as Model)
+  )
   const nameInputRef = useRef<any>(null)
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
+  const selectOptions = safeFilter(providers as Provider[], (p) => safeFilter(p.models, () => true).length > 0)
     .map((p) => ({
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
+      options: sortBy(
+        safeFilter(p.models, (model) => isEmbeddingModel(model as Model)),
+        'name'
+      ).map((m) => ({
+        label: m.name,
+        value: getModelUniqId(m as Model)
+      }))
     }))
     .filter((group) => group.options.length > 0)
 
@@ -60,7 +60,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
       if (selectedModel) {
         setLoading(true)
-        const provider = providers.find((p) => p.id === selectedModel.provider)
+        const provider = safeFind(providers as Provider[], (p) => p.id === selectedModel.provider)
 
         if (!provider) {
           return
@@ -130,7 +130,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         <Form.Item
           name="model"
           label={t('models.embedding_model')}
-          tooltip={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
+          toolti$p={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
           rules={[{ required: true, message: t('message.error.enter.model') }]}>
           <Select style={{ width: '100%' }} options={selectOptions} placeholder={t('settings.models.empty')} />
         </Form.Item>

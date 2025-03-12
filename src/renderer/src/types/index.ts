@@ -96,6 +96,7 @@ export type Topic = {
   messages: Message[]
   pinned?: boolean
   prompt?: string
+  groupId?: string
 }
 
 export type User = {
@@ -180,6 +181,16 @@ export enum FileTypes {
   TEXT = 'text',
   DOCUMENT = 'document',
   OTHER = 'other'
+}
+
+export type TopicGroup = {
+  id: string
+  assistantId: string
+  name: string
+  description?: string
+  order?: number
+  createdAt: string
+  updatedAt: string
 }
 
 export enum ThemeMode {

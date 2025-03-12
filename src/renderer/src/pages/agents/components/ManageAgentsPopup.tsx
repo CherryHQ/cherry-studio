@@ -48,7 +48,7 @@ const PopupContainer: React.FC = () => {
                 <Box mr={8}>
                   {item.emoji} {item.name}
                 </Box>
-                <HStack gap="15px">
+                <HStack $ga$p="15px">
                   <MenuOutlined style={{ cursor: 'move' }} />
                 </HStack>
               </AgentItem>

@@ -68,7 +68,7 @@ const initialState: ShortcutsState = {
     },
     {
       key: 'clear_topic',
-      shortcut: [isMac ? 'Command' : 'Ctrl', 'L'],
+      shortcut: [isMac ? 'Command' : 'Ctrl', 'Delete'],
       editable: true,
       enabled: true,
       system: false

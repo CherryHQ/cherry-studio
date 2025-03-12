@@ -173,20 +173,20 @@ const MCPSettings: FC = () => {
       title: t('settings.mcp.name'),
       dataIndex: 'name',
       key: 'name',
-      width: '300px',
+      width: '10%',
       render: (text: string, record: MCPServer) => <Text strong={record.isActive}>{text}</Text>
     },
     {
       title: t('settings.mcp.type'),
       key: 'type',
-      width: '100px',
+      width: '5%',
       render: (_: any, record: MCPServer) => <Tag color="cyan">{record.baseUrl ? 'SSE' : 'STDIO'}</Tag>
     },
     {
       title: t('settings.mcp.description'),
       dataIndex: 'description',
       key: 'description',
-      width: 'auto',
+      width: '50%',
       render: (text: string) => {
         if (!text) {
           return (
@@ -215,7 +215,7 @@ const MCPSettings: FC = () => {
       title: t('settings.mcp.active'),
       dataIndex: 'isActive',
       key: 'isActive',
-      width: '100px',
+      width: '5%',
       render: (isActive: boolean, record: MCPServer) => (
         <Switch checked={isActive} onChange={(checked) => handleToggleActive(record.name, checked)} />
       )
@@ -223,7 +223,7 @@ const MCPSettings: FC = () => {
     {
       title: t('settings.mcp.actions'),
       key: 'actions',
-      width: '100px',
+      width: '10%',
       render: (_: any, record: MCPServer) => (
         <Space>
           <Tooltip title={t('common.edit')}>
@@ -267,10 +267,7 @@ const MCPSettings: FC = () => {
           </Text>
         </div>
 
-        <Card
-          bordered={false}
-          style={{ background: theme === 'dark' ? '#1f1f1f' : '#fff' }}
-          styles={{ body: { padding: 0 } }}>
+        <Card variant="borderless" style={{ background: theme === 'dark' ? '#1f1f1f' : '#fff' }}>
           <Table
             dataSource={mcpServers}
             columns={columns}
@@ -337,11 +334,11 @@ const MCPSettings: FC = () => {
                 </Form.Item>
 
                 <Form.Item name="args" label={t('settings.mcp.args')} tooltip={t('settings.mcp.argsTooltip')}>
-                  <TextArea rows={3} placeholder={`arg1\narg2`} style={{ fontFamily: 'monospace' }} />
+                  <TextArea rows={3} placeholder="arg1\narg2" style={{ fontFamily: 'monospace' }} />
                 </Form.Item>
 
                 <Form.Item name="env" label={t('settings.mcp.env')} tooltip={t('settings.mcp.envTooltip')}>
-                  <TextArea rows={3} placeholder={`KEY1=value1\nKEY2=value2`} style={{ fontFamily: 'monospace' }} />
+                  <TextArea rows={3} placeholder="KEY1=value1\nKEY2=value2" style={{ fontFamily: 'monospace' }} />
                 </Form.Item>
               </>
             )}

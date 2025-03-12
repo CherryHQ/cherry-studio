@@ -13,6 +13,4 @@ export const isLinux = platform === 'linux'
 
 export const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 
-// Messages loading configuration
-export const INITIAL_MESSAGES_COUNT = 20
 export const LOAD_MORE_COUNT = 20

@@ -4,7 +4,7 @@ import { Button, ButtonProps } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface Props extends ButtonProps {
+interface Props extends Omit<ButtonProps, 'onSuccess'> {
   provider: Provider
   onSuccess?: (key: string) => void
 }

@@ -20,7 +20,7 @@ const OllamSettings: FC = () => {
         onChange={(e) => setKeepAliveMinutes(Number(e))}
         onBlur={() => setKeepAliveTime(keepAliveMinutes)}
         suffix={t('ollama.keep_alive_time.placeholder')}
-        step={5}
+        ste$p={5}
       />
       <SettingHelpTextRow>
         <SettingHelpText>{t('ollama.keep_alive_time.description')}</SettingHelpText>

@@ -51,17 +51,16 @@ const AppsPage: FC = () => {
         </NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        {isEmpty(filteredApps) ? (
-          <Center>
-            <Empty />
-          </Center>
-        ) : (
-          <AppsContainer style={{ height: containerHeight }}>
-            {filteredApps.map((app) => (
-              <App key={app.id} app={app} />
-            ))}
-          </AppsContainer>
-        )}
+        <AppsContainer style={{ height: containerHeight }}>
+          {filteredApps.map((app) => (
+            <App key={app.id} app={app} />
+          ))}
+          {isEmpty(filteredApps) && (
+            <Center style={{ flex: 1 }}>
+              <Empty />
+            </Center>
+          )}
+        </AppsContainer>
       </ContentContainer>
     </Container>
   )

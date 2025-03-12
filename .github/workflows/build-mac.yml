@@ -1,0 +1,117 @@
+name: Build macOS App
+
+on:
+  push:
+    tags:
+      - 'v*' # 当推送版本标签时触发
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号'
+        required: true
+        default: '1.0.7'
+
+# 添加权限设置
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          # u7981u7528Yarnu7f13u5b58uff0cu9632u6b62u4f7fu7528u9519u8bef7248u672c
+          # cache: 'yarn'
+          # cache-dependency-path: yarn.lock
+
+      # u5148u7981u7528Node.jsu81eau5e26u7684u7f13u5b58u673au5236
+      - name: Setup and enable corepack
+        run: |
+          # u542fu7528corepack
+          corepack enable
+          # u5b89u88c5u5e76u6fc0u6d3bYarn 4.6.0
+          corepack prepare yarn@4.6.0 --activate
+          # u9a8cu8bc1Yarnu7248u672c
+          yarn --version
+          # u6e05u9664u4e4bu524du7684u7f13u5b58
+          yarn cache clean --all
+
+      # u5b89u88c5u4f9du8d56
+      - name: Install dependencies
+        run: |
+          # u4f7fu7528u65b0u7248Yarnu5b89u88c5u4f9du8d56
+          yarn install
+
+      - name: Update version in package.json
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # 从标签名称中提取版本号（去除 'v' 前缀）
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          # 更新 package.json 中的版本号
+          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json')); pkg.version = '${VERSION}'; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
+          echo "当前版本: ${VERSION}"
+
+      # 清理设置并构建
+      - name: Build macOS App
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 清理设置
+          node scripts/clean-settings.js
+          # 构建macOS应用（同时生成arm64和x64版本）
+          yarn build:mac
+        
+      # 检查构建产物
+      - name: List build artifacts
+        run: |
+          echo "检查dist目录内容："
+          ls -la dist/
+          echo "检查DMG文件："
+          find dist -name "*.dmg" | sort
+        
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest*.yml
+            dist/*.blockmap
+          if-no-files-found: warn
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest*.yml
+            dist/*.blockmap
+          draft: true
+          name: "Cherry Studio ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.version) || github.ref_name }}"
+          body: |
+            # Cherry Studio ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.version) || github.ref_name }} 发布
+            
+            ## macOS下载
+            - [Cherry Studio-arm64.dmg] - 适用于Apple Silicon芯片
+            - [Cherry Studio-x64.dmg] - 适用于Intel芯片
+            
+            ## 更新内容
+            - 修复公式渲染问题
+            - 优化构建流程
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

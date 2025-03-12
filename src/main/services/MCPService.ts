@@ -80,16 +80,32 @@ export default class MCPService extends EventEmitter {
 
         log.info('[MCP] Starting initialization')
 
-        // Load SDK components in parallel for better performance
-        const [Client, StdioTransport, SSETransport] = await Promise.all([
-          this.importClient(),
-          this.importStdioClientTransport(),
-          this.importSSEClientTransport()
-        ])
+        // 使用重试机制加载客户端
+        let retries = 0
+        const maxRetries = 3
 
-        this.Client = Client
-        this.stdioTransport = StdioTransport
-        this.sseTransport = SSETransport
+        while (retries < maxRetries) {
+          try {
+            // Load SDK components in parallel for better performance
+            const [Client, StdioTransport, SSETransport] = await Promise.all([
+              this.importClient(),
+              this.importStdioClientTransport(),
+              this.importSSEClientTransport()
+            ])
+
+            this.Client = Client
+            this.stdioTransport = StdioTransport
+            this.sseTransport = SSETransport
+            break // 如果加载成功，跳出循环
+          } catch (loadErr) {
+            retries++
+            if (retries >= maxRetries) {
+              throw loadErr // 重试耗尽，抛出错误
+            }
+            log.warn(`[MCP] Import retry ${retries}/${maxRetries} after error:`, loadErr)
+            await new Promise((resolve) => setTimeout(resolve, 500 * retries)) // 等待后重试
+          }
+        }
 
         // Mark as initialized before loading servers
         this.initialized = true
@@ -134,6 +150,7 @@ export default class MCPService extends EventEmitter {
    */
   private async importClient() {
     try {
+      // 使用原始导入路径，已知可用
       const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
       return Client
     } catch (err) {
@@ -147,6 +164,7 @@ export default class MCPService extends EventEmitter {
    */
   private async importStdioClientTransport() {
     try {
+      // 使用原始导入路径，已知可用
       const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
       return StdioClientTransport
     } catch (err) {
@@ -160,6 +178,7 @@ export default class MCPService extends EventEmitter {
    */
   private async importSSEClientTransport() {
     try {
+      // 使用原始导入路径，已知可用
       const { SSEClientTransport } = await import('@modelcontextprotocol/sdk/client/sse.js')
       return SSEClientTransport
     } catch (err) {
@@ -254,20 +273,55 @@ export default class MCPService extends EventEmitter {
    * Set a server's active state
    */
   public async setServerActive(params: { name: string; isActive: boolean }): Promise<void> {
-    await this.ensureInitialized()
+    try {
+      await this.ensureInitialized()
 
-    const { name, isActive } = params
-    const server = this.servers.find((s) => s.name === name)
+      const { name, isActive } = params
+      const server = this.servers.find((s) => s.name === name)
 
-    if (!server) {
-      throw new Error(`Server ${name} not found`)
-    }
+      if (!server) {
+        throw new Error(`Server ${name} not found`)
+      }
 
-    // Activate or deactivate as needed
-    if (isActive) {
-      await this.activate(server)
-    } else {
-      await this.deactivate(name)
+      // 更新服务器状态前先通知Redux，避免UI卡住
+      server.isActive = isActive
+      this.notifyReduxServersChanged([...this.servers])
+
+      // 添加重试逆辑
+      let attempts = 0
+      const maxAttempts = 3
+
+      while (attempts < maxAttempts) {
+        try {
+          // 激活或停用服务器
+          if (isActive) {
+            await this.activate(server)
+          } else {
+            await this.deactivate(name)
+          }
+          return // 成功，退出函数
+        } catch (error) {
+          attempts++
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          log.warn(
+            `[MCP] Attempt ${attempts}/${maxAttempts} failed to ${isActive ? 'activate' : 'deactivate'} server ${name}: ${errorMessage}`
+          )
+
+          if (attempts >= maxAttempts) {
+            // 重置服务器状态并重新通知
+            server.isActive = !isActive // 回滚状态
+            this.notifyReduxServersChanged([...this.servers])
+            throw error // 抛出错误给调用者
+          }
+
+          // 等待一段时间后重试
+          await new Promise((resolve) => setTimeout(resolve, 500 * attempts))
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      log.error(`[MCP] Failed to set server ${params.name} active state to ${params.isActive}:`, errorMessage)
+      throw error
     }
 
     // Update server status

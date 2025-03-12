@@ -101,7 +101,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           )}
           <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
         </div>
-        <HStack gap={12} alignItems="center">
+        <HStack $gap={12} $alignItems="center">
           {showDownloadButton && <DownloadButton language={language} data={children} />}
           {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           <CopyButton text={children} />
@@ -109,9 +109,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
       </CodeHeader>
       <CodeContent
         ref={codeContentRef}
-        isShowLineNumbers={codeShowLineNumbers}
-        isUnwrapped={isUnwrapped}
-        isCodeWrappable={codeWrappable}
+        $isShowLineNumbers={codeShowLineNumbers}
+        $isUnwrapped={isUnwrapped}
+        $isCodeWrappable={codeWrappable}
         dangerouslySetInnerHTML={{ __html: html }}
         style={{
           border: '0.5px solid var(--color-code-background)',
@@ -216,7 +216,7 @@ const DownloadButton = ({ language, data }: { language: string; data: string }) 
 
 const CodeBlockWrapper = styled.div``
 
-const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolean; isCodeWrappable: boolean }>`
+const CodeContent = styled.div<{ $isShowLineNumbers: boolean; $isUnwrapped: boolean; $isCodeWrappable: boolean }>`
   .shiki {
     padding: 1em;
 
@@ -232,7 +232,7 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
   }
 
   ${(props) =>
-    props.isShowLineNumbers &&
+    props.$isShowLineNumbers &&
     `
       code {
         counter-reset: step;
@@ -251,8 +251,8 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
     `}
 
   ${(props) =>
-    props.isCodeWrappable &&
-    !props.isUnwrapped &&
+    props.$isCodeWrappable &&
+    !props.$isUnwrapped &&
     `
       code .line * {
         word-wrap: break-word;

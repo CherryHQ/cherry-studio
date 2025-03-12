@@ -51,8 +51,21 @@ const knowledgeSlice = createSlice({
       const base = state.bases.find((b) => b.id === action.payload.baseId)
       if (base) {
         if (action.payload.item.type === 'file') {
+          // 确保自身的created_at和updated_at是时间戳
           action.payload.item.created_at = new Date(action.payload.item.created_at).getTime()
           action.payload.item.updated_at = new Date(action.payload.item.updated_at).getTime()
+
+          // 确保文件内容中的created_at和updated_at也是时间戳
+          if (action.payload.item.content && typeof action.payload.item.content === 'object') {
+            const content = action.payload.item.content as any
+            if (content.created_at) {
+              content.created_at = new Date(content.created_at).getTime()
+            }
+            if (content.updated_at) {
+              content.updated_at = new Date(content.updated_at).getTime()
+            }
+          }
+
           base.items.push(action.payload.item)
         }
         if (action.payload.item.type === 'directory') {
@@ -102,7 +115,27 @@ const knowledgeSlice = createSlice({
     addFiles(state, action: PayloadAction<{ baseId: string; items: KnowledgeItem[] }>) {
       const base = state.bases.find((b) => b.id === action.payload.baseId)
       if (base) {
-        base.items = [...base.items, ...action.payload.items]
+        // 处理所有项目中的日期，确保都是时间戳
+        const serializedItems = action.payload.items.map((item) => {
+          // 处理项目自身的日期字段
+          item.created_at = new Date(item.created_at).getTime()
+          item.updated_at = new Date(item.updated_at).getTime()
+
+          // 处理file类型项目中content的日期字段
+          if (item.type === 'file' && item.content && typeof item.content === 'object') {
+            const content = item.content as any
+            if (content.created_at) {
+              content.created_at = new Date(content.created_at).getTime()
+            }
+            if (content.updated_at) {
+              content.updated_at = new Date(content.updated_at).getTime()
+            }
+          }
+
+          return item
+        })
+
+        base.items = [...base.items, ...serializedItems]
         base.updated_at = Date.now()
       }
     },
@@ -141,6 +174,17 @@ const knowledgeSlice = createSlice({
           item.processingProgress = action.payload.progress
           item.processingError = action.payload.error
           item.retryCount = action.payload.retryCount
+
+          // 确保文件内容中的date对象也被序列化
+          if (item.type === 'file' && item.content && typeof item.content === 'object') {
+            const content = item.content as any
+            if (content.created_at && content.created_at instanceof Date) {
+              content.created_at = content.created_at.getTime()
+            }
+            if (content.updated_at && content.updated_at instanceof Date) {
+              content.updated_at = content.updated_at.getTime()
+            }
+          }
         }
       }
     },

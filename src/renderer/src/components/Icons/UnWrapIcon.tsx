@@ -5,7 +5,7 @@ const UnWrapIcon = (props: React.SVGProps<SVGSVGElement>) => (
     height="1em"
     fill="none"
     stroke="currentColor"
-    strokeLinecap="round"
+    strokeLineca$p="round"
     strokeLinejoin="round"
     strokeWidth={2}
     className="unwrap_svg__lucide unwrap_svg__lucide-text unwrap_svg__size-4"

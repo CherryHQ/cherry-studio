@@ -1,10 +1,9 @@
 import { is } from '@electron-toolkit/utils'
 import { isLinux, isWin } from '@main/constant'
-import { getFilesDir } from '@main/utils/file'
 import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
-import { join } from 'path'
+import path, { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
@@ -62,9 +61,11 @@ export class WindowService {
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
-        webSecurity: false,
+        webSecurity: app.isPackaged, // 打包时启用webSecurity，开发时禁用以方便调试
         webviewTag: true,
-        allowRunningInsecureContent: true
+        allowRunningInsecureContent: !app.isPackaged, // 只在开发环境允许不安全内容
+        contextIsolation: true, // 启用上下文隔离
+        nodeIntegration: false // 禁用节点集成
       }
     })
 
@@ -197,7 +198,7 @@ export class WindowService {
 
       if (url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
-        const storageDir = getFilesDir()
+        const storageDir = path.join(app.getPath('userData'), 'Data', 'Files')
         const filePath = storageDir + '/' + fileName
         shell.openPath(filePath).catch((err) => Logger.error('Failed to open file:', err))
       } else {
@@ -337,8 +338,11 @@ export class WindowService {
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
-        webSecurity: false,
-        webviewTag: true
+        webSecurity: app.isPackaged, // 打包时启用webSecurity
+        webviewTag: true,
+        allowRunningInsecureContent: !app.isPackaged, // 只在开发环境允许不安全内容
+        contextIsolation: true, // 启用上下文隔离
+        nodeIntegration: false // 禁用节点集成
       }
     })
 
@@ -414,7 +418,10 @@ export class WindowService {
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
-        webSecurity: false
+        webSecurity: app.isPackaged, // 打包时启用webSecurity
+        allowRunningInsecureContent: !app.isPackaged, // 只在开发环境允许不安全内容
+        contextIsolation: true, // 启用上下文隔离
+        nodeIntegration: false // 禁用节点集成
       }
     })
 

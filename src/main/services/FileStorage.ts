@@ -1,8 +1,9 @@
-import { getFilesDir, getFileType, getTempDir } from '@main/utils/file'
+import { getFileType } from '@main/utils/file'
 import { documentExts, imageExts } from '@shared/config/constant'
 import { FileType } from '@types'
 import * as crypto from 'crypto'
 import {
+  app,
   dialog,
   OpenDialogOptions,
   OpenDialogReturnValue,
@@ -20,8 +21,8 @@ import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 
 class FileStorage {
-  private storageDir = getFilesDir()
-  private tempDir = getTempDir()
+  private storageDir = path.join(app.getPath('userData'), 'Data', 'Files')
+  private tempDir = path.join(app.getPath('temp'), 'CherryStudio')
 
   constructor() {
     this.initStorageDir()
@@ -69,7 +70,7 @@ class FileStorage {
             origin_name: file,
             name: file + ext,
             path: storedFilePath,
-            created_at: storedStats.birthtime.toISOString(),
+            created_at: storedStats.birthtime,
             size: storedStats.size,
             ext,
             type: getFileType(ext),
@@ -108,7 +109,7 @@ class FileStorage {
         origin_name: path.basename(filePath),
         name: path.basename(filePath),
         path: filePath,
-        created_at: stats.birthtime.toISOString(),
+        created_at: stats.birthtime,
         size: stats.size,
         ext: ext,
         type: fileType,
@@ -173,7 +174,7 @@ class FileStorage {
       origin_name,
       name: uuid + ext,
       path: destPath,
-      created_at: stats.birthtime.toISOString(),
+      created_at: stats.birthtime,
       size: stats.size,
       ext: ext,
       type: fileType,
@@ -197,7 +198,7 @@ class FileStorage {
       origin_name: path.basename(filePath),
       name: path.basename(filePath),
       path: filePath,
-      created_at: stats.birthtime.toISOString(),
+      created_at: stats.birthtime,
       size: stats.size,
       ext: ext,
       type: fileType,
@@ -254,8 +255,7 @@ class FileStorage {
     const filePath = path.join(this.storageDir, id)
     const data = await fs.promises.readFile(filePath)
     const base64 = data.toString('base64')
-    const ext = path.extname(filePath).slice(1) == 'jpg' ? 'jpeg' : path.extname(filePath).slice(1)
-    const mime = `image/${ext}`
+    const mime = `image/${path.extname(filePath).slice(1)}`
     return {
       mime,
       base64,
@@ -416,7 +416,7 @@ class FileStorage {
         origin_name: filename,
         name: uuid + ext,
         path: destPath,
-        created_at: stats.birthtime.toISOString(),
+        created_at: stats.birthtime,
         size: stats.size,
         ext: ext,
         type: fileType,

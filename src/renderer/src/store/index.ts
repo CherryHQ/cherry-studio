@@ -8,7 +8,6 @@ import assistants from './assistants'
 import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
-import messagesReducer from './messages'
 import migrate from './migrate'
 import minapps from './minapps'
 import paintings from './paintings'
@@ -28,20 +27,25 @@ const rootReducer = combineReducers({
   knowledge,
   minapps,
   websearch,
-  messages: messagesReducer,
   mcp
 })
 
-const persistedReducer = persistReducer(
-  {
-    key: 'cherry-studio',
-    storage,
-    version: 78,
-    blacklist: ['runtime', 'messages'],
-    migrate
-  },
-  rootReducer
-)
+const persistConfig = {
+  key: 'cherry-studio',
+  storage,
+  version: 78,
+  blacklist: ['runtime'],
+  migrate,
+  debug: true,
+  serialize: true,
+  writeFailHandler: (err) => {
+    console.error('[redux-persist] Error writing state:', err)
+  }
+}
+
+console.debug('[store] Initializing persist config:', persistConfig)
+
+const persistedReducer = persistReducer(persistConfig, rootReducer)
 
 const store = configureStore({
   // @ts-ignore store type is unknown

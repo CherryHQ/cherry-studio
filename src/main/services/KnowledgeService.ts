@@ -476,12 +476,130 @@ class KnowledgeService {
     }
   }
 
+  // 添加超时设置的Promise包装函数
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+    let timeoutId: NodeJS.Timeout
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(errorMessage))
+      }, timeoutMs)
+    })
+
+    try {
+      const result = await Promise.race([promise, timeoutPromise])
+      clearTimeout(timeoutId!)
+      return result as T
+    } catch (error) {
+      clearTimeout(timeoutId!)
+      throw error
+    }
+  }
+
+  // 检查知识库是否存在且有效
+  private checkKnowledgeBaseExists(id: string): boolean {
+    const dbPath = path.join(this.storageDir, id)
+    if (!fs.existsSync(dbPath)) {
+      Logger.warn(`[KnowledgeService] 知识库目录不存在: ${dbPath}`)
+      return false
+    }
+
+    // 检查是否有关键的数据库文件
+    const dbFile = path.join(dbPath, 'data.sqlite')
+    if (!fs.existsSync(dbFile)) {
+      Logger.warn(`[KnowledgeService] 知识库数据库文件不存在: ${dbFile}`)
+      return false
+    }
+
+    try {
+      // 检查文件大小，如果文件过小可能是空数据库
+      const stats = fs.statSync(dbFile)
+      if (stats.size < 4000) {
+        // 假设一个最小有效的SQLite数据库应该至少有4KB
+        Logger.warn(`[KnowledgeService] 知识库数据库可能为空，大小: ${stats.size} 字节`)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      Logger.error(`[KnowledgeService] 检查知识库时出错: ${error}`)
+      return false
+    }
+  }
+
   public search = async (
-    _: Electron.IpcMainInvokeEvent,
+    event: Electron.IpcMainInvokeEvent,
     { search, base }: { search: string; base: KnowledgeBaseParams }
   ): Promise<ExtractChunkData[]> => {
-    const ragApplication = await this.getRagApplication(base)
-    return await ragApplication.search(search)
+    try {
+      // 设置代理以确保网络连接
+      proxyManager.setGlobalProxy()
+
+      // 先检查存储目录是否存在，避免后续操作出错
+      this.initStorageDir()
+
+      // 先检查知识库是否存在且有效
+      if (!this.checkKnowledgeBaseExists(base.id)) {
+        Logger.warn(`[KnowledgeService] 知识库不存在或为空: ${base.id}`)
+
+        if (event.sender) {
+          event.sender.send('knowledge-base:search-error', {
+            message: `搜索失败: 知识库不存在或为空`,
+            details: `Knowledge base ID: ${base.id}`
+          })
+        }
+
+        return []
+      }
+
+      Logger.info(
+        `[KnowledgeService] 正在搜索知识库 ${base.id}, 查询: "${search.substring(0, 50)}${search.length > 50 ? '...' : ''}"`
+      )
+
+      // 获取RAG应用实例，添加超时机制，延长超时时间
+      const ragApplicationPromise = this.getRagApplication(base)
+      const ragApplication = await this.withTimeout(
+        ragApplicationPromise,
+        20000, // 增加到20秒超时
+        '获取RAG应用实例超时'
+      )
+
+      // 执行搜索并返回结果，添加超时机制，延长超时时间
+      const searchPromise = ragApplication.search(search)
+      const result = await this.withTimeout(
+        searchPromise,
+        40000, // 增加到40秒超时
+        '知识库搜索超时'
+      )
+
+      Logger.info(`[KnowledgeService] 搜索完成，找到 ${result.length} 个结果`)
+      return result
+    } catch (error) {
+      // 记录详细错误日志
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack : ''
+      Logger.error(`[KnowledgeService] Search error: ${errorMessage}`)
+      if (errorStack) {
+        Logger.error(`[KnowledgeService] Error stack: ${errorStack}`)
+      }
+
+      // 通过事件发送方发送错误通知，并提供更明确的错误信息
+      if (event.sender) {
+        let userFriendlyMessage = '连接错误'
+        if (errorMessage.includes('timeout') || errorMessage.includes('超时')) {
+          userFriendlyMessage = '搜索超时，请稍后再试'
+        } else if (errorMessage.includes('network') || errorMessage.includes('网络')) {
+          userFriendlyMessage = '网络连接失败，请检查网络设置'
+        }
+
+        event.sender.send('knowledge-base:search-error', {
+          message: `搜索失败: ${userFriendlyMessage}`,
+          details: errorMessage
+        })
+      }
+
+      // 返回空结果而不是抛出错误，这样应用可以继续运行
+      return []
+    }
   }
 }
 

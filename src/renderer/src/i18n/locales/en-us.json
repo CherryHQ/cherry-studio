@@ -32,13 +32,31 @@
       "title": "Agents"
     },
     "assistants": {
-      "abbr": "Assistant",
-      "clear.content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
-      "clear.title": "Clear topics",
+      "abbr": "Assistants",
+      "clear.content": "Clearing topics will delete all topics and files under this assistant, do you want to continue?",
+      "clear.title": "Clear Topics",
       "copy.title": "Copy Assistant",
-      "delete.content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
+      "delete.content": "Deleting assistant will delete all topics and files under this assistant, do you want to continue?",
       "delete.title": "Delete Assistant",
       "edit.title": "Edit Assistant",
+      "ungrouped": "Ungrouped",
+      "group": {
+        "add": "Create Group",
+        "edit": "Edit Group",
+        "delete": {
+          "title": "Delete Group",
+          "content": "Are you sure you want to delete this group? All assistants in this group will be moved to ungrouped."
+        },
+        "name": "Group Name",
+        "name.required": "Please enter a group name",
+        "name.placeholder": "Please enter a group name",
+        "description": "Group Description",
+        "description.placeholder": "Please enter a group description (optional)"
+      },
+      "move_to_group": "Move to Group",
+      "move_to_no_group": "Remove from Group",
+      "moved_to_group": "Moved to group: {group}",
+      "moved_to_no_group": "Removed from group",
       "save.success": "Saved successfully",
       "save.title": "Save to agent",
       "search": "Search assistants...",
@@ -101,7 +119,7 @@
       "input.clear.content": "Do you want to clear all messages of the current topic?",
       "input.clear.title": "Clear all messages?",
       "input.collapse": "Collapse",
-      "input.context_count.tip": "Context / Max Context",
+      "input.context_count.tip": "Context Count",
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
       "input.file_not_supported": "Model does not support this file type",
@@ -148,28 +166,42 @@
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
       "suggestions.title": "Suggested Questions",
       "thinking": "Thinking",
-      "topics.auto_rename": "Auto Rename",
-      "topics.clear.title": "Clear Messages",
-      "topics.copy.image": "Copy as image",
-      "topics.copy.md": "Copy as markdown",
-      "topics.copy.title": "Copy",
-      "topics.delete.shortcut": "Hold {{key}} to delete directly",
-      "topics.edit.placeholder": "Enter new name",
-      "topics.edit.title": "Edit Name",
-      "topics.export.image": "Export as image",
-      "topics.export.md": "Export as markdown",
-      "topics.export.notion": "Export to Notion",
-      "topics.export.title": "Export",
-      "topics.export.word": "Export as Word",
-      "topics.export.yuque": "Export to Yuque",
-      "topics.list": "Topic List",
-      "topics.move_to": "Move to",
-      "topics.pinned": "Pinned Topics",
-      "topics.prompt": "Topic Prompts",
-      "topics.prompt.edit.title": "Edit Topic Prompts",
-      "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
-      "topics.title": "Topics",
-      "topics.unpinned": "Unpinned Topics",
+      "topics": {
+        "auto_rename": "Auto Rename",
+        "clear": {
+          "title": "Clear Messages"
+        },
+        "copy": {
+          "image": "Copy as image",
+          "md": "Copy as markdown",
+          "title": "Copy"
+        },
+        "delete": {
+          "shortcut": "Hold {{key}} to delete directly",
+          "title": "Delete Topic"
+        },
+        "duplicate_to": "Duplicate to",
+        "edit": {
+          "title": "Edit Topic"
+        },
+        "export": {
+          "image": "Export as image",
+          "md": "Export as markdown",
+          "notion": "Export to Notion",
+          "title": "Export",
+          "word": "Export as Word",
+          "yuque": "Export to Yuque"
+        },
+        "list": "Topic List",
+        "move_to": "Move to",
+        "pinned": "Pinned Topics",
+        "prompt": "Topic Prompts",
+        "prompt.edit.title": "Edit Topic Prompts",
+        "prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
+        "title": "Topics",
+
+        "unpinned": "Unpinned Topics"
+      },
       "translate": "Translate",
       "navigation": {
         "prev": "Previous Message",
@@ -194,6 +226,7 @@
       "chat": "Chat",
       "clear": "Clear",
       "close": "Close",
+      "confirm": "OK",
       "copy": "Copy",
       "cut": "Cut",
       "default": "Default",
@@ -646,8 +679,6 @@
       "about.updateNotAvailable": "You are using the latest version",
       "about.website.button": "Website",
       "about.website.title": "Official Website",
-      "advanced.auto_switch_to_topics": "Auto switch to topic",
-      "advanced.title": "Advanced Settings",
       "assistant": "Default Assistant",
       "assistant.model_params": "Model Parameters",
       "assistant.show.icon": "Show model icon",
@@ -757,6 +788,7 @@
       "display.sidebar.translate.icon": "Show Translate icon",
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
+      "display.group.title": "Group Settings",
       "display.topic.title": "Topic Settings",
       "font_size.title": "Message font size",
       "general": "General Settings",
@@ -918,6 +950,12 @@
         "title": "Quick Assistant",
         "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
       },
+      "advanced": {
+        "title": "Advanced Settings",
+        "assistantGroup": "Assistant Group",
+        "topicsGroup": "Topics Group",
+        "auto_switch_to_topics": "Auto switch to topic"
+      },
       "shortcuts": {
         "action": "Action",
         "clear_shortcut": "Clear Shortcut",
@@ -939,7 +977,8 @@
         "toggle_show_topics": "Toggle Topics",
         "zoom_in": "Zoom In",
         "zoom_out": "Zoom Out",
-        "zoom_reset": "Reset Zoom"
+        "zoom_reset": "Reset Zoom",
+        "lock_topic": "Lock/Unlock Topic"
       },
       "theme.auto": "Auto",
       "theme.dark": "Dark",
@@ -975,6 +1014,24 @@
         },
         "title": "Web Search"
       }
+    },
+    "topics": {
+      "add": "Add Topic",
+      "group": {
+        "add": "Add Group",
+        "edit": "Edit Group",
+        "name": "Group Name",
+        "name.required": "Please enter group name",
+        "name.placeholder": "Enter group name",
+        "description": "Group Description",
+        "description.placeholder": "Enter group description (optional)"
+      },
+      
+      "move_to_group": "Move to Group",
+      "no_group": "No Group",
+      "new": "New Topic",
+      
+      "ungrouped": "Ungrouped"
     },
     "translate": {
       "any.language": "Any language",

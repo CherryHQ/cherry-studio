@@ -3,8 +3,55 @@ import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebD
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
 
 // Custom APIs for renderer
+// 创建一个事件处理程序对象，用于管理和转发来自主进程的事件
+const listeners = new Map()
+
+// 用于注册渲染进程的事件监听器
+const on = (channel: string, callback: (...args: any[]) => void) => {
+  if (listeners.has(channel)) {
+    listeners.get(channel)?.push(callback)
+  } else {
+    listeners.set(channel, [callback])
+  }
+}
+
+// 用于移除渲染进程的事件监听器
+const off = (channel: string, callback: (...args: any[]) => void) => {
+  if (!listeners.has(channel)) return
+
+  const callbacks = listeners.get(channel)
+  const index = callbacks.indexOf(callback)
+  if (index !== -1) {
+    callbacks.splice(index, 1)
+  }
+
+  if (callbacks.length === 0) {
+    listeners.delete(channel)
+  }
+}
+
+// 用于处理来自主进程的事件
+const handleMainProcessEvent = (channel: string, ...args: any[]) => {
+  if (listeners.has(channel)) {
+    listeners.get(channel)?.forEach((callback) => {
+      try {
+        callback(...args)
+      } catch (error) {
+        console.error(`Error in event handler for ${channel}:`, error)
+      }
+    })
+  }
+}
+
+// 注册对knowledge-base相关事件的监听
+ipcRenderer.on('knowledge-base:search-error', (_, ...args) =>
+  handleMainProcessEvent('knowledge-base:search-error', ...args)
+)
+
 const api = {
   getAppInfo: () => ipcRenderer.invoke('app:info'),
+  on,
+  off,
   reload: () => ipcRenderer.invoke('app:reload'),
   setProxy: (proxy: string) => ipcRenderer.invoke('app:proxy', proxy),
   checkForUpdate: () => ipcRenderer.invoke('app:check-for-update'),
