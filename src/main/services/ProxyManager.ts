@@ -17,10 +17,12 @@ export class ProxyManager {
 
   constructor() {
     this.config = {
-      mode: 'system',
+      mode: 'none',
       url: ''
     }
-    this.monitorSystemProxy()
+    if (this.config.mode === 'system') {
+      this.monitorSystemProxy()
+    }
   }
 
   private async setSessionsProxy(config: _ProxyConfig): Promise<void> {
