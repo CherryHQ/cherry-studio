@@ -13,7 +13,7 @@ import {
   SafetySetting,
   TextPart
 } from '@google/generative-ai'
-import { isWebSearchModel } from '@renderer/config/models'
+import { isGemmaModel, isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -180,7 +180,7 @@ export default class GeminiProvider extends BaseProvider {
     const geminiModel = this.sdk.getGenerativeModel(
       {
         model: model.id,
-        systemInstruction: assistant.prompt,
+        ...(isGemmaModel(model) ? {} : { systemInstruction: assistant.prompt }),
         safetySettings: this.getSafetySettings(model.id),
         tools: tools,
         generationConfig: {
@@ -195,6 +195,27 @@ export default class GeminiProvider extends BaseProvider {
 
     const chat = geminiModel.startChat({ history })
     const messageContents = await this.getMessageContents(userLastMessage!)
+
+    if (isGemmaModel(model) && assistant.prompt) {
+      const isFirstMessage = history.length === 0
+      if (isFirstMessage) {
+        const systemMessage = {
+          role: 'user',
+          parts: [
+            {
+              text:
+                '<start_of_turn>user\n' +
+                assistant.prompt +
+                '<end_of_turn>\n' +
+                '<start_of_turn>user\n' +
+                messageContents.parts[0].text +
+                '<end_of_turn>'
+            }
+          ]
+        }
+        messageContents.parts = systemMessage.parts
+      }
+    }
 
     const start_time_millsec = new Date().getTime()
     const { abortController, cleanup } = this.createAbortController(userLastMessage?.id)
