@@ -6,7 +6,7 @@ import {
   TranslationOutlined
 } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
-import { AppLogo, isLocalAi, UserAvatar } from '@renderer/config/env'
+import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -103,10 +103,9 @@ const Sidebar: FC = () => {
         <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
           <StyledLink
             onClick={async () => {
-              if (minappShow) {
-                await MinApp.close()
-              }
-              await to(isLocalAi ? '/settings/assistant' : '/settings/provider')
+              minappShow && (await MinApp.close())
+              await modelGenerating()
+              await to('/settings/provider')
             }}>
             <Icon className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
               <i className="iconfont icon-setting" />
@@ -156,9 +155,8 @@ const MainMenus: FC = () => {
       <Tooltip key={icon} title={t(`${icon}.title`)} mouseEnterDelay={0.8} placement="right">
         <StyledLink
           onClick={async () => {
-            if (minappShow) {
-              await MinApp.close()
-            }
+            minappShow && (await MinApp.close())
+            await modelGenerating()
             navigate(path)
           }}>
           <Icon className={isActive}>{iconMap[icon]}</Icon>

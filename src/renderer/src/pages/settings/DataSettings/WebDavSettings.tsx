@@ -1,5 +1,6 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { backupToWebdav, restoreFromWebdav, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
@@ -17,7 +18,7 @@ import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const WebDavSettings: FC = () => {
   const {
@@ -39,6 +40,7 @@ const WebDavSettings: FC = () => {
   const [restoring, setRestoring] = useState(false)
 
   const dispatch = useAppDispatch()
+  const { theme } = useTheme()
 
   const { t } = useTranslation()
 
@@ -112,7 +114,7 @@ const WebDavSettings: FC = () => {
   }
 
   return (
-    <>
+    <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
@@ -196,7 +198,7 @@ const WebDavSettings: FC = () => {
           </SettingRow>
         </>
       )}
-    </>
+    </SettingGroup>
   )
 }
 

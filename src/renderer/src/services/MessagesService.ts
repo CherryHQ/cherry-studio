@@ -39,6 +39,19 @@ export function filterUserRoleStartMessages(messages: Message[]): Message[] {
   return messages.slice(firstUserMessageIndex)
 }
 
+export function filterEmptyMessages(messages: Message[]): Message[] {
+  return messages.filter((message) => {
+    const content = message.content as string | any[]
+    if (typeof content === 'string') {
+      return !isEmpty(content.trim())
+    }
+    if (Array.isArray(content)) {
+      return content.some((c) => !isEmpty(c.text.trim()))
+    }
+    return true
+  })
+}
+
 export function filterUsefulMessages(messages: Message[]): Message[] {
   const _messages = messages
   const groupedMessages = getGroupedMessages(messages)
