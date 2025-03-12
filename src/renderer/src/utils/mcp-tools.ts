@@ -3,7 +3,7 @@ import { FunctionCall, FunctionDeclaration, SchemaType, Tool as geminiToool } fr
 import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
 
-import { ChunkCallbackData } from '.'
+import { ChunkCallbackData } from '../providers'
 
 const supportedAttributes = [
   'type',
@@ -88,7 +88,8 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
 }
 
 export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiToool[] {
-  if (!mcpTools) {
+  if (!mcpTools || mcpTools.length === 0) {
+    // No tools available
     return []
   }
   const functions: FunctionDeclaration[] = []
@@ -141,7 +142,7 @@ export function upsertMCPToolResponse(
     results.push(resp)
   } finally {
     onChunk({
-      text: '',
+      text: '\n',
       mcpToolResponse: results
     })
   }
