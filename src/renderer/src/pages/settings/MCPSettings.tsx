@@ -1,8 +1,9 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAppSelector } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
-import { Button, Card, Form, Input, Modal, Radio, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Button, Card, Form, Input, Modal, Radio, Space, Switch, Table, Tabs, Tag, Tooltip, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,8 +32,11 @@ const MCPSettings: FC = () => {
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm<MCPFormValues>()
   const [serverType, setServerType] = useState<'sse' | 'stdio'>('stdio')
-
-  // Watch the serverType field to update the form layout dynamically
+  const [activeTab, setActiveTab] = useState('normal')
+  const [jsonConfig, setJsonConfig] = useState('')
+  const [jsonSaving, setJsonSaving] = useState(false)
+  const [jsonError, setJsonError] = useState('') // Watch the serverType field to update the form layout dynamically
+  const dispatch = useAppDispatch()
   useEffect(() => {
     const type = form.getFieldValue('serverType')
     if (type) {
@@ -169,6 +173,71 @@ const MCPSettings: FC = () => {
     }
   }
 
+  const handleTabChange = (key: string) => {
+    setActiveTab(key)
+
+    if (key === 'json') {
+      try {
+        const mcpServersObj: Record<string, any> = {}
+
+        mcpServers.forEach((server) => {
+          const { name, ...serverData } = server
+          mcpServersObj[name] = serverData
+        })
+
+        const standardFormat = {
+          mcpServers: mcpServersObj
+        }
+
+        const formattedJson = JSON.stringify(standardFormat, null, 2)
+        setJsonConfig(formattedJson)
+        setJsonError('')
+      } catch (error) {
+        console.error('Failed to format JSON:', error)
+        setJsonError(t('settings.mcp.jsonFormatError'))
+      }
+    }
+  }
+
+  const handleSaveJson = async () => {
+    setJsonSaving(true)
+    try {
+      if (!jsonConfig.trim()) {
+        dispatch(setMCPServers([]))
+        window.message.success(t('settings.mcp.jsonSaveSuccess'))
+        setJsonError('')
+        setJsonSaving(false)
+        return
+      }
+      const parsedConfig = JSON.parse(jsonConfig)
+
+      if (!parsedConfig.mcpServers || typeof parsedConfig.mcpServers !== 'object') {
+        throw new Error(t('settings.mcp.invalidMcpFormat'))
+      }
+
+      const serversArray: MCPServer[] = []
+      for (const [name, serverConfig] of Object.entries(parsedConfig.mcpServers)) {
+        const server: MCPServer = {
+          name,
+          isActive: false,
+          ...(serverConfig as any)
+        }
+        serversArray.push(server)
+      }
+
+      dispatch(setMCPServers(serversArray))
+
+      window.message.success(t('settings.mcp.jsonSaveSuccess'))
+      setJsonError('')
+    } catch (error: any) {
+      console.error('Failed to save JSON config:', error)
+      setJsonError(error.message || t('settings.mcp.jsonSaveError'))
+      window.message.error(t('settings.mcp.jsonSaveError'))
+    } finally {
+      setJsonSaving(false)
+    }
+  }
+
   const columns = [
     {
       title: t('settings.mcp.name'),
@@ -258,32 +327,73 @@ const MCPSettings: FC = () => {
           {t('settings.mcp.config_description')}
         </Paragraph>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={showAddModal}>
-            {t('settings.mcp.addServer')}
-          </Button>
-          <Text type="secondary">
-            {mcpServers.length}{' '}
-            {mcpServers.length === 1 ? t('settings.mcp.serverSingular') : t('settings.mcp.serverPlural')}
-          </Text>
-        </div>
+        <Tabs
+          activeKey={activeTab}
+          onChange={handleTabChange}
+          items={[
+            {
+              label: t('settings.mcp.normalMode'),
+              key: 'normal',
+              children: (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={showAddModal}>
+                      {t('settings.mcp.addServer')}
+                    </Button>
+                    <Text type="secondary">
+                      {mcpServers.length}{' '}
+                      {mcpServers.length === 1 ? t('settings.mcp.serverSingular') : t('settings.mcp.serverPlural')}
+                    </Text>
+                  </div>
 
-        <Card
-          bordered={false}
-          style={{ background: theme === 'dark' ? '#1f1f1f' : '#fff' }}
-          styles={{ body: { padding: 0 } }}>
-          <Table
-            dataSource={mcpServers}
-            columns={columns}
-            rowKey="name"
-            pagination={false}
-            locale={{ emptyText: t('settings.mcp.noServers') }}
-            rowClassName={(record) => (!record.isActive ? 'inactive-row' : '')}
-            onRow={(record) => ({
-              style: !record.isActive ? inactiveRowStyle : {}
-            })}
-          />
-        </Card>
+                  <Card
+                    bordered={false}
+                    style={{ background: theme === 'dark' ? '#1f1f1f' : '#fff' }}
+                    styles={{ body: { padding: 0 } }}>
+                    <Table
+                      dataSource={mcpServers}
+                      columns={columns}
+                      rowKey="name"
+                      pagination={false}
+                      locale={{ emptyText: t('settings.mcp.noServers') }}
+                      rowClassName={(record) => (!record.isActive ? 'inactive-row' : '')}
+                      onRow={(record) => ({
+                        style: !record.isActive ? inactiveRowStyle : {}
+                      })}
+                    />
+                  </Card>
+                </>
+              )
+            },
+            {
+              label: t('settings.mcp.jsonMode'),
+              key: 'json',
+              children: (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <Button type="primary" onClick={handleSaveJson} loading={jsonSaving}>
+                      {t('common.save')}
+                    </Button>
+                    <Text type="secondary">{jsonError ? <span style={{ color: 'red' }}>{jsonError}</span> : ''}</Text>
+                  </div>
+                  <Card bordered={false} style={{ background: theme === 'dark' ? '#1f1f1f' : '#fff' }}>
+                    <TextArea
+                      value={jsonConfig}
+                      onChange={(e) => setJsonConfig(e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontFamily: 'monospace',
+                        minHeight: '400px',
+                        marginBottom: '16px'
+                      }}
+                      onFocus={() => setJsonError('')}
+                    />
+                    <Text type="secondary">{t('settings.mcp.jsonModeHint')}</Text>
+                  </Card>
+                </>
+              )
+            }
+          ]}></Tabs>
 
         <Modal
           title={editingServer ? t('settings.mcp.editServer') : t('settings.mcp.addServer')}

@@ -795,7 +795,7 @@
         "confirmDelete": "删除服务器",
         "confirmDeleteMessage": "您确定要删除该服务器吗？",
         "deleteError": "删除服务器失败",
-        "deleteSuccess": "服务器删除成功",        
+        "deleteSuccess": "服务器删除成功",
         "description": "描述",
         "duplicateName": "已存在同名服务器",
         "editServer": "编辑服务器",
@@ -811,7 +811,13 @@
         "updateSuccess": "服务器更新成功",
         "updateError": "更新服务器失败",
         "url": "URL",
-        "toggleError": "切换失败"
+        "toggleError": "切换失败",
+        "jsonMode": "JSON模式",
+        "normalMode": "常规模式",
+        "jsonModeHint": "编辑MCP服务器配置的JSON表示。保存前请确保格式正确。",
+        "jsonFormatError": "JSON格式化错误",
+        "jsonSaveSuccess": "JSON配置已保存",
+        "jsonSaveError": "保存JSON配置失败"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
