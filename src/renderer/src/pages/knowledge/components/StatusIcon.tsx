@@ -9,14 +9,16 @@ interface StatusIconProps {
   sourceId: string
   base: KnowledgeBase
   getProcessingStatus: (sourceId: string) => ProcessingStatus | undefined
-  getProcessingPercent?: (sourceId: string) => number | undefined
+  getProcessingPercent?: (sourceId: string) => { percent: number; currentFile: string } | undefined
   type: string
 }
 
 const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus, getProcessingPercent, type }) => {
   const { t } = useTranslation()
   const status = getProcessingStatus(sourceId)
-  const percent = getProcessingPercent?.(sourceId)
+  const progressInfo = getProcessingPercent?.(sourceId)
+  const percent = progressInfo?.percent
+  const currentFile = progressInfo?.currentFile
   const item = base.items.find((item) => item.id === sourceId)
   const errorText = item?.processingError
 
@@ -45,7 +47,11 @@ const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus, 
 
     case 'processing': {
       return type === 'directory' ? (
-        <Progress type="circle" size={14} percent={Number(percent?.toFixed(0))} />
+        <Tooltip
+          title={currentFile ? `${t('knowledge.processing_file')}: ${currentFile}` : t('knowledge.status_processing')}
+          placement="left">
+          <Progress type="circle" size={14} percent={Number(percent?.toFixed(0))} />
+        </Tooltip>
       ) : (
         <Tooltip title={t('knowledge.status_processing')} placement="left">
           <StatusDot $status="processing" />

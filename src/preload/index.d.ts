@@ -73,11 +73,16 @@ declare global {
         add: ({
           base,
           item,
-          forceReload = false
+          forceReload = false,
+          ignorePatterns
         }: {
           base: KnowledgeBaseParams
           item: KnowledgeItem
           forceReload?: boolean
+          ignorePatterns?: {
+            patterns: string[]
+            type: 'glob' | 'regex' | 'static'
+          }
         }) => Promise<LoaderReturn>
         remove: ({
           uniqueId,

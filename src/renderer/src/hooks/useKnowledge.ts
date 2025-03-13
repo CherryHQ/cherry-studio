@@ -200,13 +200,15 @@ export const useKnowledge = (baseId: string) => {
   // 获取目录处理进度
   const getDirectoryProcessingPercent = (itemId?: string) => {
     const [percent, setPercent] = useState<number>(0)
+    const [currentFile, setCurrentFile] = useState<string>('')
 
     useEffect(() => {
       if (!itemId) {
         return
       }
 
-      const cleanup = window.electron.ipcRenderer.on(
+      // 监听旧事件
+      const cleanupPercent = window.electron.ipcRenderer.on(
         'directory-processing-percent',
         (_, { itemId: id, percent }: { itemId: string; percent: number }) => {
           if (itemId === id) {
@@ -215,12 +217,24 @@ export const useKnowledge = (baseId: string) => {
         }
       )
 
+      // 监听新事件
+      const cleanupInfo = window.electron.ipcRenderer.on(
+        'directory-processing-info',
+        (_, { itemId: id, percent, currentFile }: { itemId: string; percent: number; currentFile: string }) => {
+          if (itemId === id) {
+            setPercent(percent)
+            setCurrentFile(currentFile)
+          }
+        }
+      )
+
       return () => {
-        cleanup()
+        cleanupPercent()
+        cleanupInfo()
       }
     }, [itemId])
 
-    return percent
+    return { percent, currentFile }
   }
 
   // 清除已完成的项目
@@ -251,7 +265,7 @@ export const useKnowledge = (baseId: string) => {
   }
 
   // Add directory support
-  const addDirectory = (path: string) => {
+  const addDirectory = (path: string, ignorePatterns?: { patterns: string[]; type: 'glob' | 'regex' | 'static' }) => {
     const newDirectoryItem: KnowledgeItem = {
       id: uuidv4(),
       type: 'directory',
@@ -261,7 +275,8 @@ export const useKnowledge = (baseId: string) => {
       processingStatus: 'pending',
       processingProgress: 0,
       processingError: '',
-      retryCount: 0
+      retryCount: 0,
+      ignorePatterns
     }
     dispatch(addItem({ baseId, item: newDirectoryItem }))
     setTimeout(() => KnowledgeQueue.checkAllBases(), 0)

@@ -66,12 +66,14 @@ const api = {
     add: ({
       base,
       item,
-      forceReload = false
+      forceReload = false,
+      ignorePatterns
     }: {
       base: KnowledgeBaseParams
       item: KnowledgeItem
       forceReload?: boolean
-    }) => ipcRenderer.invoke('knowledge-base:add', { base, item, forceReload }),
+      ignorePatterns?: { patterns: string[]; type: 'glob' | 'regex' | 'static' }
+    }) => ipcRenderer.invoke('knowledge-base:add', { base, item, forceReload, ignorePatterns }),
     remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
       ipcRenderer.invoke('knowledge-base:remove', { uniqueId, uniqueIds, base }),
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) =>

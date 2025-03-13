@@ -130,6 +130,17 @@ class KnowledgeQueue {
             result = await window.api.knowledgeBase.add({ base: baseParams, item: { ...sourceItem, content } })
           }
           break
+        case 'directory':
+          if (sourceItem.ignorePatterns) {
+            result = await window.api.knowledgeBase.add({
+              base: baseParams,
+              item: sourceItem,
+              ignorePatterns: sourceItem.ignorePatterns
+            })
+          } else {
+            result = await window.api.knowledgeBase.add({ base: baseParams, item: sourceItem })
+          }
+          break
         default:
           result = await window.api.knowledgeBase.add({ base: baseParams, item: sourceItem })
           break

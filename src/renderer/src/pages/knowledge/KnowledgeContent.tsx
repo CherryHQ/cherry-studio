@@ -16,7 +16,9 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import FileManager from '@renderer/services/FileManager'
+import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
@@ -25,6 +27,8 @@ import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import DirectoryConfigPopup from './components/DirectoryConfigPopup'
+import IgnoreRulesIcon from './components/IgnoreRulesIcon'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'
@@ -67,7 +71,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     return null
   }
 
-  const getProgressingPercentForItem = (itemId: string) => getDirectoryProcessingPercent(itemId)
+  const getProgressingPercentForItem = (itemId: string) => {
+    const progressInfo = getDirectoryProcessingPercent(itemId)
+    return progressInfo
+  }
 
   const handleAddFile = () => {
     if (disabled) {
@@ -198,7 +205,20 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
     const path = await window.api.file.selectFolder()
     console.log('[KnowledgeContent] Selected directory:', path)
-    path && addDirectory(path)
+
+    if (path) {
+      // 显示目录配置弹框
+      const result = await DirectoryConfigPopup.show({
+        directoryPath: path,
+        title: t('knowledge.configure_directory')
+      })
+
+      if (result) {
+        // 用户确认了目录配置
+        console.log('[KnowledgeContent] Directory config result:', result)
+        addDirectory(path, result.ignorePatterns)
+      }
+    }
   }
 
   const handleEditRemark = async (item: KnowledgeItem) => {
@@ -223,6 +243,48 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         remark: editedRemark,
         updated_at: Date.now()
       })
+    }
+  }
+
+  // 处理目录刷新，保留忽略规则
+  const handleRefreshDirectory = async (item: KnowledgeItem) => {
+    if (disabled) {
+      return
+    }
+
+    const status = getProcessingStatus(item.id)
+    if (status === 'pending' || status === 'processing') {
+      return
+    }
+
+    // 显示目录配置弹框，预填充原有的忽略规则
+    const result = await DirectoryConfigPopup.show({
+      directoryPath: item.content as string,
+      title: t('knowledge.reconfigure_directory'),
+      ignorePatterns: item.ignorePatterns
+    })
+
+    if (result) {
+      // 用户确认了配置，将忽略规则保存到项目中并刷新
+      if (base && item.uniqueId && item.uniqueIds) {
+        await window.api.knowledgeBase.remove({
+          uniqueId: item.uniqueId,
+          uniqueIds: item.uniqueIds,
+          base: getKnowledgeBaseParams(base)
+        })
+
+        // 更新项目，保留忽略规则或使用新的忽略规则
+        updateItem({
+          ...item,
+          processingStatus: 'pending',
+          processingProgress: 0,
+          processingError: '',
+          uniqueId: undefined,
+          ignorePatterns: result.ignorePatterns
+        })
+
+        setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+      }
     }
   }
 
@@ -299,9 +361,12 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       <Tooltip title={item.content as string}>{item.content as string}</Tooltip>
                     </Ellipsis>
                   </ClickableSpan>
+                  <IgnoreRulesIcon item={item} />
                 </ItemInfo>
                 <FlexAlignCenter>
-                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                  {item.uniqueId && (
+                    <Button type="text" icon={<RefreshIcon />} onClick={() => handleRefreshDirectory(item)} />
+                  )}
                   <StatusIconWrapper>
                     <StatusIcon
                       sourceId={item.id}
