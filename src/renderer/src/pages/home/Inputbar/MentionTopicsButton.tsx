@@ -1,5 +1,6 @@
 import { CommentOutlined, EnterOutlined, SearchOutlined } from '@ant-design/icons'
 import db from '@renderer/databases'
+import { EventEmitter } from '@renderer/services/EventService'
 import { useAppSelector } from '@renderer/store'
 import { Topic } from '@renderer/types'
 import { Button, Dropdown, Input, Tooltip } from 'antd'
@@ -76,6 +77,7 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [searchText, setSearchText] = useState('')
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+  const [menuDismissed, setMenuDismissed] = useState(false) // 新增状态，追踪菜单是否被手动关闭
 
   // 从 Redux store 获取所有助手及其话题
   const assistants = useAppSelector((state) => state.assistants.assistants)
@@ -126,6 +128,10 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
     onMentionTopic(topic) // 向父组件传递选中的话题
     onOpenChange(false) // 关闭下拉菜单
     setSelectedIndex(0) // 重置选中索引
+    setMenuDismissed(false) // 重置菜单关闭状态
+
+    // 发射一个事件表示刚刚选择了主题
+    EventEmitter.emit(EVENT_NAMES.TOPIC_JUST_SELECTED)
   }
 
   /**
@@ -146,7 +152,13 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
       const selectedTopic = allVisibleTopics[selectedIndex]
       if (selectedTopic) {
         handleTopicSelect(selectedTopic)
+        // 在这里也发射事件
+        EventEmitter.emit(EVENT_NAMES.TOPIC_JUST_SELECTED)
       }
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onOpenChange(false)
+      setMenuDismissed(true)
     }
   }
 
@@ -162,6 +174,38 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
       setSelectedIndex(0)
     }
   }, [isOpen])
+
+  // 监听话题筛选事件
+  useEffect(() => {
+    const handleFilterTopics = (text: string) => {
+      setSearchText(text)
+      if (!isOpen && !menuDismissed) {
+        // 只有在菜单未被手动关闭时才自动打开
+        onOpenChange(true)
+      }
+    }
+
+    const EVENT_NAMES = {
+      FILTER_TOPICS: 'filter-topics',
+      SHOW_TOPIC_SELECTOR: 'show-topic-selector'
+    }
+
+    // 监听话题筛选事件
+    window.addEventListener(EVENT_NAMES.FILTER_TOPICS, handleFilterTopics as EventListener)
+
+    // 监听显示话题选择器事件
+    const showTopicSelector = () => {
+      setSearchText('') // 清空搜索文本
+      setMenuDismissed(false) // 重置菜单关闭状态
+      onOpenChange(true) // 打开菜单
+    }
+    window.addEventListener(EVENT_NAMES.SHOW_TOPIC_SELECTOR, showTopicSelector)
+
+    return () => {
+      window.removeEventListener(EVENT_NAMES.FILTER_TOPICS, handleFilterTopics as EventListener)
+      window.removeEventListener(EVENT_NAMES.SHOW_TOPIC_SELECTOR, showTopicSelector)
+    }
+  }, [isOpen, onOpenChange, menuDismissed])
 
   useLayoutEffect(() => {
     if (isOpen && selectedIndex > -1 && itemRefs.current[selectedIndex]) {
@@ -202,8 +246,10 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
                     onClick={() => handleTopicSelect(topic)}>
                     <TopicNameRow>
                       <TopicTitle>{topic.name || t('chat.topics.untitled')}</TopicTitle>
-                      <TopicPrompt>{topic.prompt || t('chat.topics.no_prompt')}</TopicPrompt>
-                      <EnterIcon />
+                      <TopicPrompt>{topic.prompt || t('chat.topics.no_messages')}</TopicPrompt>
+                      <Tooltip title={t('chat.topics.view_more')} placement="left">
+                        <EnterIcon />
+                      </Tooltip>
                     </TopicNameRow>
                   </TopicItem>
                 )
@@ -224,9 +270,14 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
         dropdownRender={() => menu}
         trigger={['click']}
         open={isOpen}
-        onOpenChange={onOpenChange}
+        onOpenChange={(open) => {
+          onOpenChange(open)
+          if (!open) {
+            setMenuDismissed(true)
+          }
+        }}
         overlayClassName="mention-topics-dropdown">
-        <Tooltip placement="top" title={t('选择话题')} arrow>
+        <Tooltip placement="top" title={t('chat.topics.select')} arrow>
           <ToolbarButton type="text" ref={dropdownRef}>
             <CommentOutlined />
           </ToolbarButton>
@@ -240,15 +291,15 @@ const MenuContainer = styled.div`
   max-height: 300px;
   overflow-y: auto;
   padding: 8px;
-  background-color: #ffffff;
+  background-color: var(--color-background);
   border-radius: 20px;
   width: 450px;
 `
 
 const AssistantGroup = styled.div`
   margin-bottom: 12px;
-  background-color: #ffffff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background-color: var(--color-background);
+  border-bottom: 1px solid var(--color-border);
   padding-bottom: 8px;
 
   &:last-child {
@@ -284,11 +335,11 @@ const TopicItem = styled.div`
   position: relative;
 
   &:hover {
-    background: var(--color-fill-2);
+    background: var(--color-background-mute);
   }
 
   &.selected {
-    background: var(--color-primary-bg);
+    background: var(--color-primary-mute);
     color: var(--color-primary);
   }
 `
@@ -371,7 +422,7 @@ const DropdownMenuStyle = createGlobalStyle`
       margin-bottom: 40px;
       position: relative;
       border-radius: 8px;
-      background-color: #ffffff;
+      background-color: var(--color-background);
       box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.08),
                   0 3px 6px -4px rgba(0, 0, 0, 0.12),
                   0 9px 28px 8px rgba(0, 0, 0, 0.05);
@@ -411,6 +462,11 @@ const SearchContainer = styled.div`
     &:focus-within {
       border-color: var(--color-primary);
       box-shadow: none;
+    }
+
+    input {
+      background-color: transparent;
+      color: var(--color-text);
     }
   }
 `

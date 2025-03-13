@@ -145,7 +145,12 @@
       "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
       "topics.prompt.edit.title": "Редактировать подсказки темы",
       "artifacts.button.openExternal": "Открыть во внешнем браузере",
-      "artifacts.preview.openExternal.error.content": "Внешний браузер открылся с ошибкой"
+      "artifacts.preview.openExternal.error.content": "Внешний браузер открылся с ошибкой",
+      "topics": {
+        "view_more": "Просмотреть весь топик",
+        "no_messages": "В этом топике нет сообщений",
+        "select": "Выбрать топик"
+      }
     },
     "common": {
       "add": "Добавить",

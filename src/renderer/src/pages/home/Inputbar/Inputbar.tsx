@@ -97,6 +97,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
    * false: 隐藏话题选择下拉菜单
    */
   const [isMentionTopicsOpen, setIsMentionTopicsOpen] = useState(false)
+  const [justSelectedTopic, setJustSelectedTopic] = useState(false)
 
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
@@ -189,9 +190,27 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       }
     }
 
+    if (event.key === '#') {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        const cursorPosition = textArea.selectionStart
+        const textBeforeCursor = text.substring(0, cursorPosition)
+        if (cursorPosition === 0 || textBeforeCursor.endsWith(' ')) {
+          setIsMentionTopicsOpen(true)
+          return
+        }
+      }
+    }
+
     if (event.key === 'Escape' && (isMentionPopupOpen || isMentionTopicsOpen)) {
       setIsMentionPopupOpen(false)
       setIsMentionTopicsOpen(false)
+      return
+    }
+
+    if (justSelectedTopic && isEnterPressed) {
+      setJustSelectedTopic(false)
+      event.preventDefault()
       return
     }
 
@@ -224,7 +243,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
 
     if (isEnterPressed && !event.shiftKey && sendMessageShortcut === 'Enter') {
-      if (isMentionPopupOpen) {
+      if (isMentionPopupOpen || isMentionTopicsOpen) {
         return event.preventDefault()
       }
       sendMessage()
@@ -232,7 +251,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
 
     if (sendMessageShortcut === 'Shift+Enter' && isEnterPressed && event.shiftKey) {
-      if (isMentionPopupOpen) {
+      if (isMentionPopupOpen || isMentionTopicsOpen) {
         return event.preventDefault()
       }
       sendMessage()
@@ -240,7 +259,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
 
     if (sendMessageShortcut === 'Ctrl+Enter' && isEnterPressed && event.ctrlKey) {
-      if (isMentionPopupOpen) {
+      if (isMentionPopupOpen || isMentionTopicsOpen) {
         return event.preventDefault()
       }
       sendMessage()
@@ -248,7 +267,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
 
     if (sendMessageShortcut === 'Command+Enter' && isEnterPressed && event.metaKey) {
-      if (isMentionPopupOpen) {
+      if (isMentionPopupOpen || isMentionTopicsOpen) {
         return event.preventDefault()
       }
       sendMessage()
@@ -258,6 +277,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     if (event.key === 'Backspace' && text.trim() === '' && mentionModels.length > 0) {
       setMentionModels((prev) => prev.slice(0, -1))
       return event.preventDefault()
+    }
+
+    if (event.key !== 'Enter') {
+      setJustSelectedTopic(false)
     }
   }
 
@@ -326,7 +349,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     const newText = e.target.value
     setText(newText)
 
-    // Check if @ was deleted
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
       const cursorPosition = textArea.selectionStart
@@ -335,6 +357,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
       if (lastAtIndex === -1 || textBeforeCursor.slice(lastAtIndex + 1).includes(' ')) {
         setIsMentionPopupOpen(false)
+      }
+
+      const lastHashIndex = textBeforeCursor.lastIndexOf('#')
+      if (lastHashIndex !== -1 && !textBeforeCursor.slice(lastHashIndex + 1).includes(' ')) {
+        const searchText = textBeforeCursor.slice(lastHashIndex + 1)
+        EventEmitter.emit(EVENT_NAMES.FILTER_TOPICS, searchText)
+        setIsMentionTopicsOpen(true)
+      } else if (lastHashIndex === -1 || textBeforeCursor.slice(lastHashIndex + 1).includes(' ')) {
+        setIsMentionTopicsOpen(false)
       }
     }
   }
@@ -478,6 +509,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
 
+  useEffect(() => {
+    const handleTopicJustSelected = () => {
+      setJustSelectedTopic(true)
+    }
+
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.TOPIC_JUST_SELECTED, handleTopicJustSelected)
+
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
   const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
 
   const handleKnowledgeBaseSelect = (bases?: KnowledgeBase[]) => {
@@ -586,7 +629,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 onMentionModel={onMentionModel}
                 ToolbarButton={ToolbarButton}
               />
-              {/* 
+              {/*
                 话题引用按钮组件
                 - 放置在模型引用按钮旁边，保持相关功能的视觉连续性
                 - onMentionTopic: 处理话题选择的回调函数

@@ -146,8 +146,12 @@
       "topics.prompt": "话题提示词",
       "topics.no_prompt": "暂无提示词",
       "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词",
+      "topics.prompt.edit.title": "编辑话题提示词",
       "topics.search_placeholder": "搜索话题...",
-      "topics.no_search_results": "没有找到匹配的话题"
+      "topics.no_search_results": "没有找到匹配的话题",
+      "topics.view_more": "查看完整话题",
+      "topics.no_messages": "该话题无消息",
+      "topics.select": "选择话题"
     },
     "common": {
       "add": "添加",

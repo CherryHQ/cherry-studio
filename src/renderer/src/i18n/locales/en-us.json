@@ -145,7 +145,12 @@
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
       "topics.prompt.edit.title": "Edit Topic Prompts",
       "artifacts.button.openExternal": "Open in external browser",
-      "artifacts.preview.openExternal.error.content": "Error opening the external browser."
+      "artifacts.preview.openExternal.error.content": "Error opening the external browser.",
+      "topics": {
+        "view_more": "View entire topic",
+        "no_messages": "No messages in this topic",
+        "select": "Select topic"
+      }
     },
     "common": {
       "add": "Add",

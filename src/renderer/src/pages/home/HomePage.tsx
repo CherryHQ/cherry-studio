@@ -1,6 +1,7 @@
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { Assistant } from '@renderer/types'
 import { FC, useEffect, useState } from 'react'
@@ -34,6 +35,25 @@ const HomePage: FC = () => {
     state?.assistant && setActiveAssistant(state?.assistant)
     state?.topic && setActiveTopic(state?.topic)
   }, [state])
+
+  useEffect(() => {
+    const handleNavigateToTopic = (topicId: string) => {
+      // Find the topic in all assistants
+      for (const assistant of assistants) {
+        const topic = assistant.topics.find((t) => t.id === topicId)
+        if (topic) {
+          // Set active assistant and topic
+          setActiveAssistant(assistant)
+          setActiveTopic(topic)
+          return
+        }
+      }
+    }
+
+    // Listen for topic navigation events
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.NAVIGATE_TO_TOPIC, handleNavigateToTopic)
+    return () => unsubscribe()
+  }, [assistants, setActiveAssistant, setActiveTopic])
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
