@@ -1796,7 +1796,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@modelcontextprotocol/sdk@npm:^1.6.1":
+"@modelcontextprotocol/sdk@npm:1.6.1":
   version: 1.6.1
   resolution: "@modelcontextprotocol/sdk@npm:1.6.1"
   dependencies:
@@ -1810,6 +1810,23 @@ __metadata:
     zod: "npm:^3.23.8"
     zod-to-json-schema: "npm:^3.24.1"
   checksum: 10c0/767aca8096c06aabfa9432fab6a4e7bafb671833b1bddb2797b8089e102a9d6ac0486e7a353b28df9984eff5c5291bde76cd5ad079b576ae70666cdff10c5b2a
+  languageName: node
+  linkType: hard
+
+"@modelcontextprotocol/sdk@patch:@modelcontextprotocol/sdk@npm%3A1.6.1#~/.yarn/patches/@modelcontextprotocol-sdk-npm-1.6.1-b46313efe7.patch":
+  version: 1.6.1
+  resolution: "@modelcontextprotocol/sdk@patch:@modelcontextprotocol/sdk@npm%3A1.6.1#~/.yarn/patches/@modelcontextprotocol-sdk-npm-1.6.1-b46313efe7.patch::version=1.6.1&hash=9be799"
+  dependencies:
+    content-type: "npm:^1.0.5"
+    cors: "npm:^2.8.5"
+    eventsource: "npm:^3.0.2"
+    express: "npm:^5.0.1"
+    express-rate-limit: "npm:^7.5.0"
+    pkce-challenge: "npm:^4.1.0"
+    raw-body: "npm:^3.0.0"
+    zod: "npm:^3.23.8"
+    zod-to-json-schema: "npm:^3.24.1"
+  checksum: 10c0/4121a7d958bce44499feeb8dbe1405e3e778060d93666257cdda3f22ece1837b6e6b8ee81082c13213156b853e501ce02c199b1f6a074530f976e4bd3646ef12
   languageName: node
   linkType: hard
 
@@ -3131,7 +3148,7 @@ __metadata:
     "@llm-tools/embedjs-loader-web": "npm:^0.1.28"
     "@llm-tools/embedjs-loader-xml": "npm:^0.1.28"
     "@llm-tools/embedjs-openai": "npm:^0.1.28"
-    "@modelcontextprotocol/sdk": "npm:^1.6.1"
+    "@modelcontextprotocol/sdk": "patch:@modelcontextprotocol/sdk@npm%3A1.6.1#~/.yarn/patches/@modelcontextprotocol-sdk-npm-1.6.1-b46313efe7.patch"
     "@notionhq/client": "npm:^2.2.15"
     "@reduxjs/toolkit": "npm:^2.2.5"
     "@tavily/core": "patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch"

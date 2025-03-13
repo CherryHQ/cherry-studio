@@ -291,6 +291,7 @@ const MCPSettings: FC = () => {
           onCancel={handleCancel}
           onOk={handleSubmit}
           confirmLoading={loading}
+          maskClosable={false}
           width={600}>
           <Form form={form} layout="vertical">
             <Form.Item

@@ -712,7 +712,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   disabled={files.length > 0}
                 />
               )}
-              <MCPToolsButton enabledMCPs={enabledMCPs} onEnableMCP={toggelEnableMCP} ToolbarButton={ToolbarButton} />
+              <MCPToolsButton
+                enabledMCPs={enabledMCPs}
+                toggelEnableMCP={toggelEnableMCP}
+                ToolbarButton={ToolbarButton}
+              />
               <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm

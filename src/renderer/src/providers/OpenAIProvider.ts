@@ -33,7 +33,7 @@ import {
   openAIToolsToMcpTool,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
-import { takeRight } from 'lodash'
+import { isString, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionAssistantMessageParam,
@@ -400,7 +400,9 @@ export default class OpenAIProvider extends BaseProvider {
 
             reqMessages.push({
               role: 'tool',
-              content: toolCallResponse.content,
+              content: isString(toolCallResponse.content)
+                ? toolCallResponse.content
+                : JSON.stringify(toolCallResponse.content),
               tool_call_id: toolCall.id
             } as ChatCompletionToolMessageParam)
 
