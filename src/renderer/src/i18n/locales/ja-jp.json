@@ -69,7 +69,8 @@
       "manage": "管理",
       "select_model": "モデルを選択",
       "show.all": "すべて表示",
-      "update_available": "更新可能"
+      "update_available": "更新可能",
+      "includes_user_questions": "ユーザーからの質問を含む"
     },
     "chat": {
       "add.assistant.title": "アシスタントを追加",
@@ -479,7 +480,7 @@
       },
       "vision": "画像",
       "websearch": "ウェブ検索",
-      "edit": "モデルを編集", 
+      "edit": "モデルを編集",
       "no_matches": "利用可能なモデルがありません"
     },
     "navbar": {

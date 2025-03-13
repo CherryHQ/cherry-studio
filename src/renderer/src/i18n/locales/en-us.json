@@ -69,7 +69,8 @@
       "manage": "Manage",
       "select_model": "Select Model",
       "show.all": "Show All",
-      "update_available": "Update Available"
+      "update_available": "Update Available",
+      "includes_user_questions": "包含用户提问"
     },
     "chat": {
       "add.assistant.title": "Add Assistant",

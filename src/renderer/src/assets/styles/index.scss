@@ -49,6 +49,10 @@
   --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
 
+  --color-heightlight: rgba(0, 0, 0, 1);
+  --color-background-heightlight: rgba(255, 255, 0, 0.9);
+  --color-background-heightlight-accent: rgba(255, 150, 50, 0.9);
+
   --navbar-background-mac: rgba(30, 30, 30, 0.6);
   --navbar-background: rgba(30, 30, 30);
 
@@ -112,6 +116,10 @@ body[theme-mode='light'] {
   --color-reference: #cfe1ff;
   --color-reference-text: #000000;
   --color-reference-background: #f1f7ff;
+
+  --color-heightlight: initial;
+  --color-background-heightlight: rgba(255, 255, 0, 0.5);
+  --color-background-heightlight-accent: rgba(255,150, 50, 0.5);
 
   --navbar-background-mac: rgba(255, 255, 255, 0.6);
   --navbar-background: rgba(255, 255, 255);
@@ -255,4 +263,12 @@ body,
   code {
     color: var(--color-text);
   }
+}
+
+span.highlight {
+  background-color: var(--color-background-heightlight);
+  color: var(--color-heightlight);
+}
+span.highlight.selected {
+  background-color: var(--color-background-heightlight-accent);
 }

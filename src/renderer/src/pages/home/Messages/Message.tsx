@@ -12,7 +12,7 @@ import { estimateHistoryTokens, estimateMessageUsage } from '@renderer/services/
 import { Message, Topic } from '@renderer/types'
 import { classNames, runAsyncFunction } from '@renderer/utils'
 import { Divider, Dropdown } from 'antd'
-import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -221,13 +221,20 @@ const MessageItem: FC<Props> = ({
       )}
       <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
       <MessageContentContainer
-        className="message-content-container"
+        className={
+          message.role === 'user'
+            ? 'message-content-container message-content-container-user'
+            : message.role === 'assistant'
+              ? 'message-content-container message-content-container-assistant'
+              : 'message-content-container'
+        }
         style={{ fontFamily, fontSize, background: messageBackground }}>
         <MessageErrorBoundary>
           <MessageContent message={message} model={model} />
         </MessageErrorBoundary>
         {showMenubar && (
           <MessageFooter
+            className="MessageFooter"
             style={{
               border: messageBorder,
               flexDirection: isLastMessage || isBubbleStyle ? 'row-reverse' : undefined

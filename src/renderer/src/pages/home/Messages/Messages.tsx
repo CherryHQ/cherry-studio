@@ -33,9 +33,11 @@ interface Props {
   assistant: Assistant
   topic: Topic
   setActiveTopic: (topic: Topic) => void
+  onComponentUpdate?(): void
+  onFirstUpdate?(): void
 }
 
-const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
+const Messages: FC<Props> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
   const [messages, setMessages] = useState<Message[]>([])
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(true)
@@ -261,8 +263,8 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
         tokensCount: await estimateHistoryTokens(assistant, messages),
         contextCount: getContextCount(assistant, messages)
       })
-    })
-  }, [assistant, messages])
+    }).then(() => onFirstUpdate?.())
+  }, [assistant, messages, onFirstUpdate])
 
   // 初始化显示最新的消息
   useEffect(() => {
@@ -296,6 +298,10 @@ const Messages: FC<Props> = ({ assistant, topic, setActiveTopic }) => {
       navigator.clipboard.writeText(lastMessage.content)
       window.message.success(t('message.copy.success'))
     }
+  })
+
+  useEffect(() => {
+    requestAnimationFrame(() => onComponentUpdate?.())
   })
 
   return (

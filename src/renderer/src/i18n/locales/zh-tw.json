@@ -69,7 +69,8 @@
       "manage": "管理",
       "select_model": "選擇模型",
       "show.all": "顯示全部",
-      "update_available": "有可用更新"
+      "update_available": "有可用更新",
+      "includes_user_questions": "包含使用者提問"
     },
     "chat": {
       "add.assistant.title": "新增助手",
@@ -479,7 +480,7 @@
       },
       "vision": "視覺",
       "websearch": "網路搜尋",
-      "edit": "編輯模型", 
+      "edit": "編輯模型",
       "no_matches": "無可用模型"
     },
     "navbar": {

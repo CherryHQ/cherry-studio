@@ -69,7 +69,8 @@
       "manage": "管理",
       "select_model": "选择模型",
       "show.all": "显示全部",
-      "update_available": "有可用更新"
+      "update_available": "有可用更新",
+      "includes_user_questions": "包含用户提问"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -479,7 +480,7 @@
       },
       "vision": "视觉",
       "websearch": "联网",
-      "edit": "编辑模型", 
+      "edit": "编辑模型",
       "no_matches": "无可用模型"
     },
     "navbar": {
