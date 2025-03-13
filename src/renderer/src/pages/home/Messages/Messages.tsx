@@ -1,22 +1,16 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
+import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { getTopic } from '@renderer/hooks/useTopic'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  clearTopicMessages,
-  selectDisplayCount,
-  selectLoading,
-  selectTopicMessages,
-  updateMessages
-} from '@renderer/store/messages'
+import { useAppDispatch } from '@renderer/store'
 import type { Assistant, Message, Topic } from '@renderer/types'
 import {
   captureScrollableDivAsBlob,
@@ -24,13 +18,14 @@ import {
   removeSpecialCharactersForFileName,
   runAsyncFunction
 } from '@renderer/utils'
-import { isEmpty, last } from 'lodash'
+import { flatten, last, take } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
+import ChatNavigation from './ChatNavigation'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
@@ -43,22 +38,14 @@ interface MessagesProps {
 
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
   const { t } = useTranslation()
-  const { showTopics, topicPosition, showAssistants, enableTopicNaming } = useSettings()
-  const { updateTopic } = useAssistant(assistant.id)
-  const messages = useAppSelector((state) => selectTopicMessages(state, topic.id))
-  const loading = useAppSelector(selectLoading)
-  const displayCount = useAppSelector(selectDisplayCount)
+  const { showTopics, topicPosition, showAssistants } = useSettings()
+  const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const containerRef = useRef<HTMLDivElement>(null)
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-
-  const messagesRef = useRef<Message[]>([])
-
-  useEffect(() => {
-    messagesRef.current = messages
-  }, [messages])
+  const { messages, displayCount, updateMessages, clearTopicMessages, deleteMessage } = useMessageOperations(topic)
 
   useEffect(() => {
     const reversedMessages = [...messages].reverse()
@@ -67,22 +54,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     setDisplayMessages(newDisplayMessages)
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
-
-  const handleDeleteMessage = useCallback(
-    async (message: Message) => {
-      const newMessages = messages.filter((m) => m.id !== message.id)
-      await dispatch(updateMessages(topic, newMessages))
-    },
-    [dispatch, topic, messages]
-  )
-
-  const handleDeleteGroupMessages = useCallback(
-    async (askId: string) => {
-      const newMessages = messages.filter((m) => m.askId !== askId)
-      await dispatch(updateMessages(topic, newMessages))
-    },
-    [dispatch, topic, messages]
-  )
 
   const maxWidth = useMemo(() => {
     const showRightTopics = showTopics && topicPosition === 'right'
@@ -95,40 +66,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     setTimeout(() => containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'auto' }), 50)
   }, [])
 
-  const autoRenameTopic = useCallback(async () => {
-    let messages = [...messagesRef.current]
-    const _topic = getTopic(assistant, topic.id)
-
-    if (isEmpty(messages)) {
-      return
-    }
-
-    messages = messages.filter((m) => m.status === 'success')
-
-    if (!enableTopicNaming) {
-      const topicName = messages[0]?.content.substring(0, 50)
-      if (topicName) {
-        const data = { ..._topic, name: topicName } as Topic
-        setActiveTopic(data)
-        updateTopic(data)
-      }
-      return
-    }
-
-    if (_topic && _topic.name === t('chat.default.topic.name') && messages.length >= 2) {
-      const summaryText = await fetchMessagesSummary({ messages, assistant })
-      if (summaryText) {
-        const data = { ..._topic, name: summaryText }
-        setActiveTopic(data)
-        updateTopic(data)
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, topic.id, enableTopicNaming, t, setActiveTopic])
-
   useEffect(() => {
-    const messages = messagesRef.current
-
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, () => {
         scrollToBottom()
@@ -137,12 +75,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         const defaultTopic = getDefaultTopic(assistant.id)
 
         if (data && data.id !== topic.id) {
-          await dispatch(clearTopicMessages(data.id))
+          await clearTopicMessages(data.id)
           updateTopic({ ...data, name: defaultTopic.name } as Topic)
           return
         }
 
-        await dispatch(clearTopicMessages(topic.id))
+        await clearTopicMessages()
         setDisplayMessages([])
         const _topic = getTopic(assistant, topic.id)
         if (_topic) {
@@ -164,8 +102,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {
         const lastMessage = last(messages)
+
         if (lastMessage?.type === 'clear') {
-          handleDeleteMessage(lastMessage)
+          deleteMessage(lastMessage)
           scrollToBottom()
           return
         }
@@ -174,18 +113,35 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
 
         const clearMessage = getUserMessage({ assistant, topic, type: 'clear' })
         const newMessages = [...messages, clearMessage]
-        await dispatch(updateMessages(topic, newMessages))
+        await updateMessages(newMessages)
+
         scrollToBottom()
+      }),
+      EventEmitter.on(EVENT_NAMES.NEW_BRANCH, async (index: number) => {
+        const newTopic = getDefaultTopic(assistant.id)
+        newTopic.name = topic.name
+        const branchMessages = take(messages, messages.length - index)
+
+        // 将分支的消息放入数据库
+        await db.topics.add({ id: newTopic.id, messages: branchMessages })
+        addTopic(newTopic)
+        setActiveTopic(newTopic)
+        autoRenameTopic(assistant, newTopic.id)
+
+        // 由于复制了消息，消息中附带的文件的总数变了，需要更新
+        const filesArr = branchMessages.map((m) => m.files)
+        const files = flatten(filesArr).filter(Boolean)
+
+        files.map(async (f) => {
+          const file = await db.files.get({ id: f?.id })
+          file && db.files.update(file.id, { count: file.count + 1 })
+        })
       })
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [assistant, dispatch, handleDeleteMessage, scrollToBottom, topic, updateTopic])
-
-  useEffect(() => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.AI_AUTO_RENAME, autoRenameTopic)]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [autoRenameTopic])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assistant, dispatch, scrollToBottom, topic, updateTopic])
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -235,7 +191,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           inverse={true}
           scrollableTarget="messages">
           <ScrollContainer>
-            <LoaderContainer $loading={loading || isLoadingMore}>
+            <LoaderContainer $loading={isLoadingMore}>
               <BeatLoader size={8} color="var(--color-text-2)" />
             </LoaderContainer>
             {Object.entries(getGroupedMessages(displayMessages)).map(([key, groupMessages]) => (
@@ -245,15 +201,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
                 topic={topic}
                 hidePresetMessages={assistant.settings?.hideMessages}
                 onSetMessages={setDisplayMessages}
-                onDeleteMessage={handleDeleteMessage}
-                onDeleteGroupMessages={handleDeleteGroupMessages}
-                onGetMessages={() => messages}
               />
             ))}
           </ScrollContainer>
         </InfiniteScroll>
         <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
       </NarrowLayout>
+      <ChatNavigation containerId="messages" />
     </Container>
   )
 }

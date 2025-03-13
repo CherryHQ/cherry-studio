@@ -5,11 +5,8 @@ import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { estimateMessageUsage } from '@renderer/services/TokenService'
-import { useAppDispatch } from '@renderer/store'
-import { updateMessages } from '@renderer/store/messages'
 import { Assistant, Message, Topic } from '@renderer/types'
-import { classNames, runAsyncFunction } from '@renderer/utils'
+import { classNames } from '@renderer/utils'
 import { Divider, Dropdown } from 'antd'
 import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,9 +28,7 @@ interface Props {
   style?: React.CSSProperties
   isGrouped?: boolean
   isStreaming?: boolean
-  onGetMessages?: () => Message[]
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
-  onDeleteMessage?: (message: Message) => Promise<void>
 }
 
 const MessageItem: FC<Props> = ({
@@ -44,11 +39,8 @@ const MessageItem: FC<Props> = ({
   hidePresetMessages,
   isGrouped,
   isStreaming = false,
-  style,
-  onDeleteMessage,
-  onGetMessages
+  style
 }) => {
-  const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
@@ -114,19 +106,6 @@ const MessageItem: FC<Props> = ({
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [message.id, messageHighlightHandler])
 
-  useEffect(() => {
-    if (message.role === 'user' && !message.usage && topic) {
-      runAsyncFunction(async () => {
-        const usage = await estimateMessageUsage(message)
-        if (topic) {
-          await dispatch(
-            updateMessages(topic, onGetMessages?.()?.map((m) => (m.id === message.id ? { ...m, usage } : m)) || [])
-          )
-        }
-      })
-    }
-  }, [message, topic, dispatch, onGetMessages])
-
   if (hidePresetMessages && message.isPreset) {
     return null
   }
@@ -153,14 +132,13 @@ const MessageItem: FC<Props> = ({
       onContextMenu={handleContextMenu}
       style={{ ...style, alignItems: isBubbleStyle ? (isAssistantMessage ? 'start' : 'end') : undefined }}>
       {contextMenuPosition && (
-        <ContextMenuOverlay style={{ left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}>
-          <Dropdown
-            menu={{ items: getContextMenuItems(t, selectedQuoteText, selectedText) }}
-            open={true}
-            trigger={['contextMenu']}>
-            <div />
-          </Dropdown>
-        </ContextMenuOverlay>
+        <Dropdown
+          overlayStyle={{ left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}
+          menu={{ items: getContextMenuItems(t, selectedQuoteText, selectedText) }}
+          open={true}
+          trigger={['contextMenu']}>
+          <div />
+        </Dropdown>
       )}
       <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
       <MessageContentContainer
@@ -187,8 +165,6 @@ const MessageItem: FC<Props> = ({
               isGrouped={isGrouped}
               messageContainerRef={messageContainerRef}
               setModel={setModel}
-              onDeleteMessage={onDeleteMessage}
-              onGetMessages={onGetMessages}
             />
           </MessageFooter>
         )}
@@ -272,10 +248,6 @@ const MessageFooter = styled.div`
 
 const NewContextMessage = styled.div`
   cursor: pointer;
-`
-
-const ContextMenuOverlay = styled.div`
-  position: fixed;
 `
 
 export default memo(MessageItem)
