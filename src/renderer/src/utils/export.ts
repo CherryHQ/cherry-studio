@@ -37,8 +37,13 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
       const markdown = await topicToMarkdown(topic)
-      await window.api.file.save(fileName, markdown)
-      window.message.success({ content: i18n.t('message.success.markdown.export.specified'), key: 'markdown-success' })
+      const result = await window.api.file.save(fileName, markdown)
+      if (result) {
+        window.message.success({
+          content: i18n.t('message.success.markdown.export.specified'),
+          key: 'markdown-success'
+        })
+      }
     } catch (error: any) {
       window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown-error' })
     }
@@ -50,7 +55,7 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
-      window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown error' })
+      window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown-error' })
     }
   }
 }
@@ -61,10 +66,15 @@ export const exportMessageAsMarkdown = async (message: Message) => {
     try {
       const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + '.md'
       const markdown = messageToMarkdown(message)
-      await window.api.file.save(fileName, markdown)
-      window.message.success({ content: i18n.t('message.success.markdown.export.specified'), key: 'markdown-success' })
+      const result = await window.api.file.save(fileName, markdown)
+      if (result) {
+        window.message.success({
+          content: i18n.t('message.success.markdown.export.specified'),
+          key: 'markdown-success'
+        })
+      }
     } catch (error: any) {
-      window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown error' })
+      window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown-error' })
     }
   } else {
     try {
