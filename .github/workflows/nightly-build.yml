@@ -1,0 +1,113 @@
+name: Nightly Build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 17 * * *' # 1:00 BJ Time
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+      fail-fast: false
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Install corepack
+        run: corepack enable && corepack prepare yarn@4.3.1 --activate
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+
+      - name: Cache yarn dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ steps.yarn-cache-dir-path.outputs.dir }}
+            node_modules
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Generate date tag
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          yarn build:npm linux
+          yarn build:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
+
+      - name: Build Mac
+        if: matrix.os == 'macos-latest'
+        run: |
+          yarn build:npm mac
+          yarn build:mac
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ vars.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ vars.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Windows
+        if: matrix.os == 'windows-latest'
+        run: yarn build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
+
+      - name: Replace spaces in filenames
+        run: node scripts/replace-spaces.js
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.snap
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            dist/latest*.yml
+            dist/*.blockmap
+          retention-days: 5 # 保留5天
+
+      - name: Add warning to summary
+        run: |
+          echo "## ⚠️ 警告：这是每日构建版本" >> $GITHUB_STEP_SUMMARY
+          echo "此版本为自动构建的不稳定版本，仅供测试使用。不建议在生产环境中使用。" >> $GITHUB_STEP_SUMMARY
+          echo "安装此版本前请务必备份数据，并做好数据迁移准备。" >> $GITHUB_STEP_SUMMARY
+          echo "构建日期：$(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "## ⚠️ Warning: This is a nightly build version" >> $GITHUB_STEP_SUMMARY
+          echo "This version is an unstable version built automatically and is only for testing. It is not recommended to use it in a production environment." >> $GITHUB_STEP_SUMMARY
+          echo "Please backup your data before installing this version and prepare for data migration." >> $GITHUB_STEP_SUMMARY
+          echo "Build date: $(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
