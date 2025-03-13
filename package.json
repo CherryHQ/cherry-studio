@@ -77,7 +77,7 @@
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.9",
     "electron-window-state": "^5.0.3",
-    "epub": "^1.3.0",
+    "epub": "patch:epub@npm%3A1.3.0#~/.yarn/patches/epub-npm-1.3.0-8325494ffe.patch",
     "fetch-socks": "^1.3.2",
     "fs-extra": "^11.2.0",
     "markdown-it": "^14.1.0",
@@ -85,7 +85,8 @@
     "p-queue": "^8.1.0",
     "tokenx": "^0.4.1",
     "undici": "^7.4.0",
-    "webdav": "4.11.4"
+    "webdav": "4.11.4",
+    "zipread": "^1.3.3"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.38.0",
