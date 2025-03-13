@@ -95,7 +95,7 @@ const Chat: FC<Props> = (props) => {
           onComponentUpdate={messagesComponentUpdateHandler}
           onFirstUpdate={messagesComponentFirstUpdateHandler}
         />
-        <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} />
+        <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
         <ContentSearch ref={contentSearchRef} searchTarget={mainRef} filter={contentSearchFilter}>
           <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
             <UserOutlinedItem className={filterIncludeUser ? 'active' : ''} onClick={userOutlinedItemClickHandler} />

@@ -8,9 +8,9 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { Avatar, Dropdown, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
-import { FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled, { createGlobalStyle } from 'styled-components'
+import styled from 'styled-components'
 
 interface Props {
   mentionModels: Model[]
@@ -37,23 +37,29 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
     itemRefs.current[index] = el
   }
 
-  const togglePin = async (modelId: string) => {
-    const newPinnedModels = pinnedModels.includes(modelId)
-      ? pinnedModels.filter((id) => id !== modelId)
-      : [...pinnedModels, modelId]
+  const togglePin = useCallback(
+    async (modelId: string) => {
+      const newPinnedModels = pinnedModels.includes(modelId)
+        ? pinnedModels.filter((id) => id !== modelId)
+        : [...pinnedModels, modelId]
 
-    await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
-    setPinnedModels(newPinnedModels)
-  }
+      await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
+      setPinnedModels(newPinnedModels)
+    },
+    [pinnedModels]
+  )
 
-  const handleModelSelect = (model: Model) => {
-    // Check if model is already selected
-    if (mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))) {
-      return
-    }
-    onSelect(model, fromKeyboard)
-    setIsOpen(false)
-  }
+  const handleModelSelect = useCallback(
+    (model: Model) => {
+      // Check if model is already selected
+      if (mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))) {
+        return
+      }
+      onSelect(model, fromKeyboard)
+      setIsOpen(false)
+    },
+    [fromKeyboard, mentionModels, onSelect]
+  )
 
   const modelMenuItems = useMemo(() => {
     const items = providers
@@ -161,7 +167,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
 
     // Remove empty groups
     return items.filter((group) => group.children.length > 0)
-  }, [providers, pinnedModels, t, onSelect, mentionModels, searchText])
+  }, [providers, pinnedModels, t, searchText, togglePin, handleModelSelect])
 
   // Get flattened list of all model items
   const flatModelItems = useMemo(() => {
@@ -342,173 +348,24 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
   )
 
   return (
-    <>
-      <DropdownMenuStyle />
-      <Dropdown
-        dropdownRender={() => menu}
-        trigger={['click']}
-        open={isOpen}
-        onOpenChange={(open) => {
-          setIsOpen(open)
-          if (open) {
-            setFromKeyboard(false) // Set fromKeyboard to false when opened by button click
-          }
-        }}
-        overlayClassName="mention-models-dropdown">
-        <Tooltip placement="top" title={t('agents.edit.model.select.title')} arrow>
-          <ToolbarButton type="text" ref={dropdownRef}>
-            <i className="iconfont icon-at" style={{ fontSize: 18 }}></i>
-          </ToolbarButton>
-        </Tooltip>
-      </Dropdown>
-    </>
+    <Dropdown
+      overlayStyle={{ marginBottom: 20 }}
+      dropdownRender={() => menu}
+      trigger={['click']}
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open)
+        open && setFromKeyboard(false) // Set fromKeyboard to false when opened by button click
+      }}
+      overlayClassName="mention-models-dropdown">
+      <Tooltip placement="top" title={t('agents.edit.model.select.title')} arrow>
+        <ToolbarButton type="text" ref={dropdownRef}>
+          <i className="iconfont icon-at" style={{ fontSize: 18 }}></i>
+        </ToolbarButton>
+      </Tooltip>
+    </Dropdown>
   )
 }
-
-const DropdownMenuStyle = createGlobalStyle`
-  /* Apply background to all animation states */
-  .ant-dropdown,
-  .ant-slide-up-enter .ant-dropdown-menu,
-  .ant-slide-up-appear .ant-dropdown-menu,
-  .ant-slide-up-leave .ant-dropdown-menu,
-  .ant-slide-up-enter-active .ant-dropdown-menu,
-  .ant-slide-up-appear-active .ant-dropdown-menu,
-  .ant-slide-up-leave-active .ant-dropdown-menu {
-    background: rgba(var(--color-base-rgb), 0.65) !important;
-    backdrop-filter: blur(35px) saturate(150%) !important;
-  }
-
-  .mention-models-dropdown {
-    &.ant-dropdown {
-      animation-duration: 0.15s !important;
-      margin-top: 4px;
-    }
-
-    .ant-dropdown-menu {
-      max-height: 400px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding: 4px 12px;
-      position: relative;
-      background: rgba(var(--color-base-rgb), 0.65) !important;
-      backdrop-filter: blur(35px) saturate(150%) !important;
-      border: 0.5px solid rgba(var(--color-border-rgb), 0.3);
-      border-radius: 10px;
-      box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.15),
-                  0 4px 16px rgba(0, 0, 0, 0.15),
-                  0 2px 8px rgba(0, 0, 0, 0.12),
-                  inset 0 0 0 0.5px rgba(255, 255, 255, 0.1);
-      transform-origin: top;
-      will-change: transform, opacity;
-      transition: all 0.15s cubic-bezier(0.4, 0.0, 0.2, 1);
-
-      &.no-scrollbar {
-        padding-right: 12px;
-      }
-
-      &.has-scrollbar {
-        padding-right: 2px;
-      }
-
-      // Scrollbar styles
-      &::-webkit-scrollbar {
-        width: 14px;
-        height: 6px;
-      }
-
-      &::-webkit-scrollbar-thumb {
-        border: 4px solid transparent;
-        background-clip: padding-box;
-        border-radius: 7px;
-        background-color: transparent;
-        min-height: 50px;
-        transition: all 0.2s;
-      }
-
-      &:hover::-webkit-scrollbar-thumb {
-        background-color: rgba(0, 0, 0, 0.2);
-      }
-
-      &::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(0, 0, 0, 0.3);
-        border: 4px solid transparent;
-      }
-
-      &::-webkit-scrollbar-thumb:active {
-        background-color: rgba(0, 0, 0, 0.4);
-        border: 3px solid transparent;
-      }
-
-      &::-webkit-scrollbar-track {
-        background: transparent;
-        border-radius: 7px;
-      }
-    }
-
-    // // Apply margin to the last group
-    // .ant-dropdown-menu-item-group:last-child {
-    //   margin-bottom: 40px;
-    // }
-
-    .ant-dropdown-menu-item-group {
-      margin-bottom: 4px;
-      
-      &:not(:first-child) {
-        margin-top: 4px;
-      }
-
-      .ant-dropdown-menu-item-group-title {
-        padding: 5px 12px;
-        color: var(--color-text-3);
-        font-size: 12px;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-        opacity: 0.7;
-      }
-    }
-
-    // Handle no-results case margin
-    .no-results {
-      padding: 8px 12px;
-      color: var(--color-text-3);
-      cursor: default;
-      font-size: 13px;
-      opacity: 0.8;
-      margin-bottom: 40px;
-      
-      &:hover {
-        background: none;
-      }
-    }
-
-    .ant-dropdown-menu-item {
-      padding: 5px 12px;
-      margin: 0 -12px;
-      cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      border-radius: 6px;
-      font-size: 13px;
-
-      &:hover {
-        background: rgba(var(--color-hover-rgb), 0.5);
-      }
-
-      &.ant-dropdown-menu-item-selected {
-        background-color: rgba(var(--color-primary-rgb), 0.12);
-        color: var(--color-primary);
-      }
-
-      .ant-dropdown-menu-item-icon {
-        margin-right: 0;
-        opacity: 0.9;
-      }
-    }
-  }
-`
 
 const ModelItem = styled.div`
   display: flex;

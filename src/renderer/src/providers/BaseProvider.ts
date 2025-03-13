@@ -93,6 +93,10 @@ export default abstract class BaseProvider {
   }
 
   public async getMessageContent(message: Message) {
+    if (isEmpty(message.content)) {
+      return message.content
+    }
+
     const webSearchReferences = await this.getWebSearchReferences(message)
 
     if (!isEmpty(webSearchReferences)) {
@@ -115,6 +119,9 @@ export default abstract class BaseProvider {
   }
 
   private async getWebSearchReferences(message: Message) {
+    if (isEmpty(message.content)) {
+      return []
+    }
     const webSearch: TavilySearchResponse = window.keyv.get(`web-search-${message.id}`)
 
     if (webSearch) {
@@ -160,13 +167,20 @@ export default abstract class BaseProvider {
       addAbortController(messageId, () => abortController.abort())
     }
 
+    const cleanup = () => {
+      if (messageId) {
+        removeAbortController(messageId)
+      }
+    }
+
+    abortController.signal.addEventListener('abort', () => {
+      // 兼容
+      cleanup()
+    })
+
     return {
       abortController,
-      cleanup: () => {
-        if (messageId) {
-          removeAbortController(messageId)
-        }
-      }
+      cleanup
     }
   }
 }

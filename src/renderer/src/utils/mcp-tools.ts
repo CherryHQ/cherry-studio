@@ -1,7 +1,9 @@
 import { Tool, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { FunctionCall, FunctionDeclaration, SchemaType, Tool as geminiToool } from '@google/generative-ai'
-import { MCPTool } from '@renderer/types'
+import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
+
+import { ChunkCallbackData } from '../providers'
 
 const supportedAttributes = [
   'type',
@@ -86,7 +88,8 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
 }
 
 export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiToool[] {
-  if (!mcpTools) {
+  if (!mcpTools || mcpTools.length === 0) {
+    // No tools available
     return []
   }
   const functions: FunctionDeclaration[] = []
@@ -121,4 +124,40 @@ export function geminiFunctionCallToMcpTool(
   // @ts-ignore schema is not a valid property
   tool.inputSchema = fcall.args
   return tool
+}
+
+export function upsertMCPToolResponse(
+  results: MCPToolResponse[],
+  resp: MCPToolResponse,
+  onChunk: ({ mcpToolResponse }: ChunkCallbackData) => void
+) {
+  try {
+    for (const ret of results) {
+      if (ret.tool.id == resp.tool.id) {
+        ret.response = resp.response
+        ret.status = resp.status
+        return
+      }
+    }
+    results.push(resp)
+  } finally {
+    onChunk({
+      text: '\n',
+      mcpToolResponse: results
+    })
+  }
+}
+
+export function filterMCPTools(
+  mcpTools: MCPTool[] | undefined,
+  enabledServers: MCPServer[] | undefined
+): MCPTool[] | undefined {
+  if (mcpTools) {
+    if (enabledServers) {
+      mcpTools = mcpTools.filter((t) => enabledServers.some((m) => m.name === t.serverName))
+    } else {
+      mcpTools = []
+    }
+  }
+  return mcpTools
 }

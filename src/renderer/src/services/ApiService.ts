@@ -3,9 +3,8 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { addAbortController } from '@renderer/utils/abortController'
-import { formatMessageError } from '@renderer/utils/error'
-import { findLast, isEmpty } from 'lodash'
+import { formatMessageError, isAbortError } from '@renderer/utils/error'
+import { cloneDeep, findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
 import {
@@ -19,6 +18,7 @@ import { EVENT_NAMES, EventEmitter } from './EventService'
 import { filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
+
 export async function fetchChatCompletion({
   message,
   messages,
@@ -30,24 +30,15 @@ export async function fetchChatCompletion({
   assistant: Assistant
   onResponse: (message: Message) => void
 }) {
-  window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, false)
-
   const provider = getAssistantProvider(assistant)
   const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
 
-  store.dispatch(setGenerating(true))
+  // store.dispatch(setGenerating(true))
 
-  onResponse({ ...message })
+  // onResponse({ ...message })
 
-  const pauseFn = (message: Message) => {
-    message.status = 'paused'
-    EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
-    store.dispatch(setGenerating(false))
-    onResponse({ ...message, status: 'paused' })
-  }
-
-  addAbortController(message.askId ?? message.id, pauseFn.bind(null, message))
+  // addAbortController(message.askId ?? message.id)
 
   try {
     let _messages: Message[] = []
@@ -79,11 +70,12 @@ export async function fetchChatCompletion({
     }
 
     const allMCPTools = await window.api.mcp.listTools()
+
     await AI.completions({
       messages: filterUsefulMessages(messages),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({ text, reasoning_content, usage, metrics, search, citations }) => {
+      onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse }) => {
         message.content = message.content + text || ''
         message.usage = usage
         message.metrics = metrics
@@ -94,6 +86,10 @@ export async function fetchChatCompletion({
 
         if (search) {
           message.metadata = { ...message.metadata, groundingMetadata: search }
+        }
+
+        if (mcpToolResponse) {
+          message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
         }
 
         // Handle citations from Perplexity API
@@ -120,17 +116,21 @@ export async function fetchChatCompletion({
       // Set metrics.completion_tokens
       if (message.metrics && message?.usage?.completion_tokens) {
         if (!message.metrics?.completion_tokens) {
-          message.metrics.completion_tokens = message.usage.completion_tokens
+          message = {
+            ...message,
+            metrics: {
+              ...message.metrics,
+              completion_tokens: message.usage.completion_tokens
+            }
+          }
         }
       }
     }
   } catch (error: any) {
+    if (isAbortError(error)) return
     message.status = 'error'
     message.error = formatMessageError(error)
   }
-
-  // Update message status
-  message.status = window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED) ? 'paused' : message.status
 
   // Emit chat completion event
   EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
@@ -152,13 +152,13 @@ export async function fetchTranslate({ message, assistant, onResponse }: FetchTr
   const model = getTranslateModel()
 
   if (!model) {
-    return ''
+    throw new Error(i18n.t('error.provider_disabled'))
   }
 
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
-    return ''
+    throw new Error(i18n.t('error.no_api_key'))
   }
 
   const AI = new AiProvider(provider)
@@ -212,7 +212,6 @@ export async function fetchSuggestions({
   assistant: Assistant
 }): Promise<Suggestion[]> {
   const model = assistant.model
-
   if (!model) {
     return []
   }
@@ -235,7 +234,11 @@ export async function fetchSuggestions({
   }
 }
 
-export async function checkApi(provider: Provider, model: Model) {
+// Helper function to validate provider's basic settings such as API key, host, and model list
+export function checkApiProvider(provider: Provider): {
+  valid: boolean
+  error: Error | null
+} {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
@@ -253,7 +256,7 @@ export async function checkApi(provider: Provider, model: Model) {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.api.host')
+      error: new Error(i18n.t('message.error.enter.api.host'))
     }
   }
 
@@ -261,7 +264,22 @@ export async function checkApi(provider: Provider, model: Model) {
     window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
     return {
       valid: false,
-      error: new Error('message.error.enter.model')
+      error: new Error(i18n.t('message.error.enter.model'))
+    }
+  }
+
+  return {
+    valid: true,
+    error: null
+  }
+}
+
+export async function checkApi(provider: Provider, model: Model) {
+  const validation = checkApiProvider(provider)
+  if (!validation.valid) {
+    return {
+      valid: validation.valid,
+      error: validation.error
     }
   }
 

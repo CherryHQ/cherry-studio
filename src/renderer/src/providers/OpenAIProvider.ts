@@ -10,10 +10,30 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
-import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { removeSpecialCharacters } from '@renderer/utils'
-import { takeRight } from 'lodash'
+import {
+  filterContextMessages,
+  filterEmptyMessages,
+  filterUserRoleStartMessages
+} from '@renderer/services/MessagesService'
+import {
+  Assistant,
+  FileTypes,
+  GenerateImageParams,
+  MCPToolResponse,
+  Message,
+  Model,
+  Provider,
+  Suggestion
+} from '@renderer/types'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
+import {
+  callMCPTool,
+  filterMCPTools,
+  mcpToolsToOpenAITools,
+  openAIToolsToMcpTool,
+  upsertMCPToolResponse
+} from '@renderer/utils/mcp-tools'
+import { isString, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionAssistantMessageParam,
@@ -26,7 +46,6 @@ import {
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-import { callMCPTool, mcpToolsToOpenAITools, openAIToolsToMcpTool } from './mcpToolUtils'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
@@ -147,7 +166,7 @@ export default class OpenAIProvider extends BaseProvider {
       }
     }
 
-    if (this.isOpenAIo1(model)) {
+    if (this.isOpenAIReasoning(model)) {
       return {
         max_tokens: undefined,
         max_completion_tokens: maxTokens
@@ -202,6 +221,7 @@ export default class OpenAIProvider extends BaseProvider {
 
         return {
           thinking: {
+            type: 'enabled',
             budget_tokens: budgetTokens
           }
         }
@@ -213,8 +233,8 @@ export default class OpenAIProvider extends BaseProvider {
     return {}
   }
 
-  private isOpenAIo1(model: Model) {
-    return model.id.startsWith('o1')
+  private isOpenAIReasoning(model: Model) {
+    return model.id.startsWith('o1') || model.id.startsWith('o3')
   }
 
   async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams): Promise<void> {
@@ -233,17 +253,20 @@ export default class OpenAIProvider extends BaseProvider {
 
     const userMessages: ChatCompletionMessageParam[] = []
 
-    const _messages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
+    const _messages = filterUserRoleStartMessages(
+      filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
+    )
+
     onFilterMessages(_messages)
 
     for (const message of _messages) {
       userMessages.push(await this.getMessageParam(message, model))
     }
 
-    const isOpenAIo1 = this.isOpenAIo1(model)
+    const isOpenAIReasoning = this.isOpenAIReasoning(model)
 
     const isSupportStreamOutput = () => {
-      if (isOpenAIo1) {
+      if (isOpenAIReasoning) {
         return false
       }
       return streamOutput
@@ -289,11 +312,14 @@ export default class OpenAIProvider extends BaseProvider {
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
 
+    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
     const tools = mcpTools && mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : undefined
 
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
       Boolean
     ) as ChatCompletionMessageParam[]
+
+    const toolResponses: MCPToolResponse[] = []
 
     const processStream = async (stream: any) => {
       if (!isSupportStreamOutput()) {
@@ -308,8 +334,7 @@ export default class OpenAIProvider extends BaseProvider {
           }
         })
       }
-
-      const toolCalls: ChatCompletionMessageToolCall[] = []
+      const final_tool_calls = {} as Record<number, ChatCompletionMessageToolCall>
 
       for await (const chunk of stream) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
@@ -339,15 +364,22 @@ export default class OpenAIProvider extends BaseProvider {
         const finishReason = chunk.choices[0]?.finish_reason
 
         if (delta?.tool_calls) {
-          const chunkToolCalls: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall[] = delta.tool_calls
+          const chunkToolCalls = delta.tool_calls
           if (finishReason !== 'tool_calls') {
-            if (toolCalls.length === 0) {
-              for (const toolCall of chunkToolCalls) {
-                toolCalls.push(toolCall as ChatCompletionMessageToolCall)
-              }
-            } else {
-              for (let i = 0; i < chunkToolCalls.length; i++) {
-                toolCalls[i].function.arguments += chunkToolCalls[i].function?.arguments || ''
+            for (const t of chunkToolCalls) {
+              const { index, id, function: fn, type } = t
+              const args = fn && typeof fn.arguments === 'string' ? fn.arguments : ''
+              if (!(index in final_tool_calls)) {
+                final_tool_calls[index] = {
+                  id,
+                  function: {
+                    name: fn?.name,
+                    arguments: args
+                  },
+                  type
+                } as ChatCompletionMessageToolCall
+              } else {
+                final_tool_calls[index].function.arguments += args
               }
             }
             continue
@@ -355,6 +387,7 @@ export default class OpenAIProvider extends BaseProvider {
         }
 
         if (finishReason === 'tool_calls') {
+          const toolCalls = Object.values(final_tool_calls)
           console.log('start invoke tools', toolCalls)
           reqMessages.push({
             role: 'assistant',
@@ -367,13 +400,21 @@ export default class OpenAIProvider extends BaseProvider {
               continue
             }
 
+            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking' }, onChunk)
+
             const toolCallResponse = await callMCPTool(mcpTool)
-            console.log(toolCallResponse)
+
+            console.log('[OpenAIProvider] toolCallResponse', toolCallResponse)
+
             reqMessages.push({
               role: 'tool',
-              content: toolCallResponse.content,
+              content: isString(toolCallResponse.content)
+                ? toolCallResponse.content
+                : JSON.stringify(toolCallResponse.content),
               tool_call_id: toolCall.id
             } as ChatCompletionToolMessageParam)
+
+            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'done', response: toolCallResponse }, onChunk)
           }
 
           const newStream = await this.sdk.chat.completions
@@ -397,7 +438,6 @@ export default class OpenAIProvider extends BaseProvider {
                 signal
               }
             )
-            .finally(cleanup)
           await processStream(newStream)
         }
 
@@ -411,7 +451,8 @@ export default class OpenAIProvider extends BaseProvider {
             time_first_token_millsec,
             time_thinking_millsec
           },
-          citations
+          citations,
+          mcpToolResponse: toolResponses
         })
       }
     }
@@ -437,9 +478,8 @@ export default class OpenAIProvider extends BaseProvider {
           signal
         }
       )
-      .finally(cleanup)
 
-    await processStream(stream)
+    await processStream(stream).finally(cleanup)
   }
 
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
@@ -452,13 +492,13 @@ export default class OpenAIProvider extends BaseProvider {
         ]
       : [{ role: 'user', content: assistant.prompt }]
 
-    const isOpenAIo1 = this.isOpenAIo1(model)
+    const isOpenAIReasoning = this.isOpenAIReasoning(model)
 
     const isSupportedStreamOutput = () => {
       if (!onResponse) {
         return false
       }
-      if (isOpenAIo1) {
+      if (isOpenAIReasoning) {
         return false
       }
       return true
@@ -550,7 +590,7 @@ export default class OpenAIProvider extends BaseProvider {
     let content = response.choices[0].message?.content || ''
     content = content.replace(/^<think>(.*?)<\/think>/s, '')
 
-    return removeSpecialCharacters(content.substring(0, 50))
+    return removeSpecialCharactersForTopicName(content.substring(0, 50))
   }
 
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {

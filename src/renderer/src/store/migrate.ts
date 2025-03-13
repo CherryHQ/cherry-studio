@@ -10,6 +10,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { moveProvider } from './llm'
 import { DEFAULT_SIDEBAR_ICONS } from './settings'
 
 // remove logo base64 data to reduce the size of the state
@@ -834,8 +835,6 @@ const migrateConfig = {
       })
     }
 
-    removeMiniAppIconsFromState(state)
-
     state.llm.providers.forEach((provider) => {
       if (provider.id === 'qwenlm') {
         provider.type = 'qwenlm'
@@ -875,7 +874,6 @@ const migrateConfig = {
         state.minapps.enabled.push(flowith)
       }
     }
-    removeMiniAppIconsFromState(state)
     return state
   },
   '60': (state: RootState) => {
@@ -1238,6 +1236,12 @@ const migrateConfig = {
       })
     }
 
+    return state
+  },
+  '78': (state: RootState) => {
+    state.llm.providers = moveProvider(state.llm.providers, 'ppio', 9)
+    state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
+    removeMiniAppIconsFromState(state)
     return state
   }
 }

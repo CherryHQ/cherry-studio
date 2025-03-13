@@ -21,7 +21,8 @@ export default defineConfig({
           '@llm-tools/embedjs-loader-pdf',
           '@llm-tools/embedjs-loader-sitemap',
           '@llm-tools/embedjs-libsql',
-          '@llm-tools/embedjs-loader-image'
+          '@llm-tools/embedjs-loader-image',
+          'p-queue'
         ]
       }),
       ...visualizerPlugin('main')
@@ -68,7 +69,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js']
+      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js', 'chunk-ALDIEZMG.js']
     }
   }
 })

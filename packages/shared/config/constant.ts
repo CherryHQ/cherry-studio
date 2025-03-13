@@ -22,6 +22,7 @@ export const textExts = [
   '.org', // org-mode 文件
   '.wiki', // VimWiki 文件
   '.tex', // LaTeX 文件
+  '.bib', // BibTeX 文件
   '.srt', // 字幕文件
   '.xhtml', // XHTML 文件
   '.nfo', // 信息文件（主要用于场景发布）
