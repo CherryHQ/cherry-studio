@@ -98,11 +98,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const onDeleteTopic = useCallback(
     async (topic: Topic) => {
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+      if (topic.id === activeTopic?.id) {
+        const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+      }
       removeTopic(topic)
     },
-    [assistant.topics, removeTopic, setActiveTopic]
+    [assistant.topics, removeTopic, setActiveTopic, activeTopic]
   )
 
   const onMoveTopic = useCallback(
