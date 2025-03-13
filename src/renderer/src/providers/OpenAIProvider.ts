@@ -365,23 +365,24 @@ export default class OpenAIProvider extends BaseProvider {
 
         if (delta?.tool_calls) {
           const chunkToolCalls = delta.tool_calls
-          if (finishReason !== 'tool_calls') {
-            for (const t of chunkToolCalls) {
-              const { index, id, function: fn, type } = t
-              const args = fn && typeof fn.arguments === 'string' ? fn.arguments : ''
-              if (!(index in final_tool_calls)) {
-                final_tool_calls[index] = {
-                  id,
-                  function: {
-                    name: fn?.name,
-                    arguments: args
-                  },
-                  type
-                } as ChatCompletionMessageToolCall
-              } else {
-                final_tool_calls[index].function.arguments += args
-              }
+          for (const t of chunkToolCalls) {
+            const { index, id, function: fn, type } = t
+            const args = fn && typeof fn.arguments === 'string' ? fn.arguments : ''
+            if (!(index in final_tool_calls)) {
+              final_tool_calls[index] = {
+                id,
+                function: {
+                  name: fn?.name,
+                  arguments: args
+                },
+                type
+              } as ChatCompletionMessageToolCall
+            } else {
+              final_tool_calls[index].function.arguments += args
             }
+          }
+
+          if (finishReason !== 'tool_calls') {
             continue
           }
         }
