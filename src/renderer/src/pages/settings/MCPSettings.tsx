@@ -37,6 +37,8 @@ const MCPSettings: FC = () => {
   const [jsonSaving, setJsonSaving] = useState(false)
   const [jsonError, setJsonError] = useState('') // Watch the serverType field to update the form layout dynamically
   const dispatch = useAppDispatch()
+  const ipcRenderer = window.electron.ipcRenderer
+
   useEffect(() => {
     const type = form.getFieldValue('serverType')
     if (type) {
@@ -219,13 +221,14 @@ const MCPSettings: FC = () => {
       for (const [name, serverConfig] of Object.entries(parsedConfig.mcpServers)) {
         const server: MCPServer = {
           name,
-          isActive: false,
+          isActive: true,
           ...(serverConfig as any)
         }
         serversArray.push(server)
       }
 
       dispatch(setMCPServers(serversArray))
+      ipcRenderer.send('mcp:servers-from-renderer', mcpServers)
 
       window.message.success(t('settings.mcp.jsonSaveSuccess'))
       setJsonError('')
