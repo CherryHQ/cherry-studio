@@ -221,6 +221,7 @@ export default class OpenAIProvider extends BaseProvider {
 
         return {
           thinking: {
+            type: 'enabled',
             budget_tokens: budgetTokens
           }
         }
