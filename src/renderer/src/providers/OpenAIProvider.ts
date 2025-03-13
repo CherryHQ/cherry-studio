@@ -372,6 +372,9 @@ export default class OpenAIProvider extends BaseProvider {
               }
             } else {
               for (let i = 0; i < chunkToolCalls.length; i++) {
+                if (typeof toolCalls[i].function.arguments !== 'string') {
+                  toolCalls[i].function.arguments = ''
+                }
                 toolCalls[i].function.arguments += chunkToolCalls[i].function?.arguments || ''
               }
             }
