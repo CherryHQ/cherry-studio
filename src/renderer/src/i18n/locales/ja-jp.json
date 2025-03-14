@@ -223,6 +223,8 @@
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
+      "copied": "コピーされました",
+      "confirm": "確認",
       "more": "もっと"
     },
     "docs": {
@@ -453,7 +455,8 @@
       "upgrade.success.button": "再起動",
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
-      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
+      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
+      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
@@ -608,7 +611,8 @@
       "xirang": "天翼クラウド 息壤",
       "yi": "零一万物",
       "zhinao": "360智脳",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "copilot": "GitHub Copilot"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -901,7 +905,30 @@
         "remove_invalid_keys": "無効なキーを削除",
         "search": "プロバイダーを検索...",
         "search_placeholder": "モデルIDまたは名前を検索",
-        "title": "モデルプロバイダー"
+        "title": "モデルプロバイダー",
+        "copilot": {
+          "tooltip": "Cherry StudioでGithub Copilotを使用するには、まずGithubにログインする必要があります。",
+          "description": "あなたのGithubアカウントはCopilotを購読する必要があります。",
+          "login": "GitHubにログインする",
+          "connect": "GitHubに接続する",
+          "logout": "GitHubから退出する",
+          "auth_success_title": "認証成功",
+          "code_generated_title": "デバイスコードを取得する",
+          "code_generated_desc": "デバイスコードを下記のブラウザリンクにコピーしてください。",
+          "code_failed": "デバイスコードの取得に失敗しました。再試行してください。",
+          "auth_success": "Github Copilotの認証が成功しました",
+          "auth_failed": "Github Copilotの認証に失敗しました。",
+          "logout_success": "正常にログアウトしました。",
+          "logout_failed": "ログアウトに失敗しました。もう一度お試しください。",
+          "confirm_title": "リスク警告",
+          "confirm_login": "過度使用すると、あなたのGithubアカウントが停止される可能性があるため、慎重に使用してください!!!!",
+          "rate_limit": "レート制限",
+          "custom_headers": "カスタムリクエストヘッダー",
+          "headers_description": "カスタムリクエストヘッダー（JSONフォーマット）",
+          "expand": "展開",
+          "model_setting": "モデル設定",
+          "invalid_json": "JSONフォーマットエラー"
+        }
       },
       "proxy": {
         "mode": {

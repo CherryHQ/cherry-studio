@@ -223,6 +223,8 @@
       "topics": "話題",
       "warning": "警告",
       "you": "您",
+      "copied": "已複製",
+      "confirm": "確認",
       "more": "更多"
     },
     "docs": {
@@ -453,7 +455,8 @@
       "upgrade.success.button": "重新啟動",
       "upgrade.success.content": "請重新啟動程式以完成升級",
       "upgrade.success.title": "升級成功",
-      "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！"
+      "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！",
+      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試"
     },
     "minapp": {
       "sidebar.add.title": "新增到側邊欄",
@@ -608,7 +611,8 @@
       "xirang": "天翼雲息壤",
       "yi": "零一萬物",
       "zhinao": "360 智腦",
-      "zhipu": "智譜 AI"
+      "zhipu": "智譜 AI",
+      "copilot": "GitHub Copilot"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -901,7 +905,30 @@
         "remove_invalid_keys": "刪除無效金鑰",
         "search": "搜尋模型平臺...",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "copilot": {
+          "tooltip": "在Cherry Studio中使用Github Copilot需要先登入Github",
+          "description": "您的Github帳號需要訂閱Copilot",
+          "login": "登入Github",
+          "connect": "連接Github",
+          "logout": "退出Github",
+          "auth_success_title": "認證成功",
+          "code_generated_title": "獲取設備代碼",
+          "code_generated_desc": "請將設備代碼複製到下面的瀏覽器連結中。",
+          "code_failed": "獲取Device Code失敗，請重試",
+          "auth_success": "Github Copilot 認證成功",
+          "auth_failed": "Github Copilot認證失敗",
+          "logout_success": "已成功登出",
+          "logout_failed": "退出失敗，請重試",
+          "confirm_title": "風險警告",
+          "confirm_login": "過度使用可能會導致您的Github帳號被封，請謹慎使用!!!!",
+          "rate_limit": "速率限制",
+          "custom_headers": "自訂請求標頭",
+          "headers_description": "自訂請求標頭(json格式)",
+          "expand": "展開",
+          "model_setting": "模型設定",
+          "invalid_json": "JSON格式錯誤"
+        }
       },
       "proxy": {
         "mode": {

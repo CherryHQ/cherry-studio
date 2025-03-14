@@ -194,7 +194,9 @@
       "chat": "聊天",
       "clear": "清除",
       "close": "关闭",
+      "confirm": "确认",
       "copy": "复制",
+      "copied": "已复制",
       "cut": "剪切",
       "default": "默认",
       "delete": "删除",
@@ -453,7 +455,8 @@
       "upgrade.success.button": "重启",
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
-      "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!"
+      "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!",
+      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
@@ -608,7 +611,8 @@
       "xirang": "天翼云息壤",
       "yi": "零一万物",
       "zhinao": "360智脑",
-      "zhipu": "智谱AI"
+      "zhipu": "智谱AI",
+      "copilot": "GitHub Copilot"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -901,7 +905,30 @@
         "remove_invalid_keys": "删除无效密钥",
         "search": "搜索模型平台...",
         "search_placeholder": "搜索模型 ID 或名称",
-        "title": "模型服务"
+        "title": "模型服务",
+        "copilot": {
+          "tooltip": "在Cherry Studio中使用Github Copilot需要先登录Github",
+          "description": "您的Github账号需要订阅Copilot",
+          "login": "登录Github",
+          "connect": "连接Github",
+          "logout": "退出Github",
+          "auth_success_title": "认证成功",
+          "code_generated_title": "获取Device Code",
+          "code_generated_desc": "请将device code复制到下面的浏览器链接中",
+          "code_failed": "获取Device Code失败，请重试",
+          "auth_success": "Github Copilot认证成功",
+          "auth_failed": "Github Copilot认证失败",
+          "logout_success": "已成功退出",
+          "logout_failed": "退出失败，请重试",
+          "confirm_title": "风险警告",
+          "confirm_login": "过度使用可能会导致您的Github遭到封号，请谨慎使用!!!!",
+          "rate_limit": "速率限制",
+          "custom_headers": "自定义请求头",
+          "headers_description": "自定义请求头(json格式)",
+          "expand": "展开",
+          "model_setting": "模型设置",
+          "invalid_json": "JSON格式错误"
+        }
       },
       "proxy": {
         "mode": {

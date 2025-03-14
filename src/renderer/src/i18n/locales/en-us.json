@@ -223,6 +223,8 @@
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
+      "copied": "Copied",
+      "confirm": "Confirm",
       "more": "More"
     },
     "docs": {
@@ -453,7 +455,8 @@
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!"
+      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
+      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -608,7 +611,8 @@
       "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -901,7 +905,30 @@
         "remove_invalid_keys": "Remove Invalid Keys",
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "copilot": {
+          "tooltip": "You need to log in to Github before using Github Copilot in Cherry Studio.",
+          "description": "Your GitHub account needs to subscribe to Copilot.",
+          "login": "Log in to Github",
+          "connect": "Connect to Github",
+          "logout": "Exit GitHub",
+          "auth_success_title": "Certification successful.",
+          "code_generated_title": "Obtain Device Code",
+          "code_generated_desc": "Please copy the device code into the browser link below.",
+          "code_failed": "Failed to obtain Device Code, please try again.",
+          "auth_success": "GitHub Copilot authentication successful.",
+          "auth_failed": "Github Copilot authentication failed.",
+          "logout_success": "Successfully logged out.",
+          "logout_failed": "Exit failed, please try again.",
+          "confirm_title": "Risk Warning",
+          "confirm_login": "Excessive use may lead to your Github account being banned, please use it cautiously!!!!",
+          "rate_limit": "Rate limiting",
+          "custom_headers": "Custom request header",
+          "headers_description": "Custom request headers (JSON format)",
+          "expand": "Expand",
+          "model_setting": "Model settings",
+          "invalid_json": "JSON format error"
+        }
       },
       "proxy": {
         "mode": {

@@ -188,6 +188,17 @@ const initialState: LlmState = {
       enabled: false
     },
     {
+      id: 'copilot',
+      name: 'Github Copilot',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://api.individual.githubcopilot.com/',
+      models: SYSTEM_MODELS.copilot,
+      isSystem: true,
+      enabled: false,
+      isAuthed: false
+    },
+    {
       id: 'dmxapi',
       name: 'DMXAPI',
       type: 'openai',
