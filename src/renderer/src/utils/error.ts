@@ -73,16 +73,12 @@ export const isAbortError = (error: any): boolean => {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return true
   }
-  console.log(
-    typeof error === 'object',
-    error.message === 'Request was aborted.' || error?.message?.includes('signal is aborted without reason')
-  )
+
   // 检查 OpenAI 特定的错误结构
   if (
-    (error &&
-      typeof error === 'object' &&
-      (error.message === 'Request was aborted.' || error?.message?.includes('signal is aborted without reason'))) ||
-    error.stack?.includes('OpenAI.makeRequest')
+    error &&
+    typeof error === 'object' &&
+    (error.message === 'Request was aborted.' || error?.message?.includes('signal is aborted without reason'))
   ) {
     return true
   }

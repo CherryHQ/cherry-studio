@@ -359,7 +359,8 @@ export interface MCPConfig {
 }
 
 export interface MCPToolResponse {
-  tool: MCPTool
-  status: string
+  id: string // tool call id, it should be unique
+  tool: MCPTool // tool info
+  status: string // 'invoking' | 'done'
   response?: any
 }
