@@ -33,6 +33,10 @@ const Chat: FC<Props> = (props) => {
     contentSearchRef.current?.disable()
   })
 
+  useHotkeys('f3', () => {
+    contentSearchRef.current?.enable()
+  })
+
   const contentSearchFilter = (node: Node): boolean => {
     if (node.parentNode) {
       let parentNode: HTMLElement | null = node.parentNode as HTMLElement

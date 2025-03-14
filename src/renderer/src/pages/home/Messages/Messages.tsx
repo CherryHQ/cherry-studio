@@ -19,7 +19,7 @@ import {
   runAsyncFunction
 } from '@renderer/utils'
 import { flatten, last, take } from 'lodash'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -38,8 +38,7 @@ interface MessagesProps {
   onFirstUpdate?(): void
 }
 
-const Messages: FC<Props> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
-  const [messages, setMessages] = useState<Message[]>([])
+const Messages: FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
   const { t } = useTranslation()
   const { showTopics, topicPosition, showAssistants } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
