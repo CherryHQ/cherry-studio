@@ -16,7 +16,6 @@ import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -57,6 +56,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const assistantModel = assistant?.model
   const {
     messages,
+    loading,
     editMessage,
     setStreamMessage,
     deleteMessage,
@@ -79,15 +79,15 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const onNewBranch = useCallback(async () => {
-    await modelGenerating()
+    if (loading) return
     EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
     window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
-  }, [index, t])
+  }, [index, t, loading])
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
       // messageUpdate 为了处理用户消息更改后的message
-      await modelGenerating()
+      if (loading) return
       const groupdMessages = messages.filter((m) => m.askId === message.id)
 
       // Resend all grouped messages
@@ -101,7 +101,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
       await resendMessage(messageUpdate ?? message, assistant)
     },
-    [message, assistantModel, resendMessage, assistant]
+    [message, assistantModel, resendMessage, assistant, messages, loading]
   )
 
   const onEdit = useCallback(async () => {
@@ -123,16 +123,12 @@ const MessageMenubar: FC<Props> = (props) => {
         ) : null
       }
     })
-    if (editedText && editedText !== message.content) {
+    if (editedText && editedText !== message.content && resendMessage) {
       // 同步修改store中用户消息
-      editMessage(message.id, { content: editedText })
-
-      // const updatedMessages = onGetMessages?.() || []
-      // dispatch(updateMessages(topic, updatedMessages))
+      await editMessage(message.id, { content: editedText })
+      handleResendUserMessage({ ...message, content: editedText })
     }
-
-    if (resendMessage) handleResendUserMessage({ ...message, content: editedText })
-  }, [message, editMessage, topic, handleResendUserMessage, t])
+  }, [message, editMessage, handleResendUserMessage, t])
 
   const handleTranslate = useCallback(
     async (language: string) => {
@@ -238,7 +234,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
     e?.stopPropagation?.()
-    await modelGenerating()
+    if (loading) return
     const selectedModel = isGrouped ? model : assistantModel
     const _message = resetAssistantMessage(message, selectedModel)
     editMessage(message.id, { ..._message })
@@ -247,7 +243,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onMentionModel = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    await modelGenerating()
+    if (loading) return
     const selectedModel = await SelectModelPopup.show({ model })
     if (!selectedModel) return
     resendMessage(message, { ...assistant, model: selectedModel }, true)

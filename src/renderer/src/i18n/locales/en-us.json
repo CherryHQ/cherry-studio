@@ -786,6 +786,7 @@
         "active": "Active",
         "addServer": "Add Server",
         "addSuccess": "Server added successfully",
+        "addError": "Failed to add server",
         "args": "Arguments",
         "argsTooltip": "Each argument on a new line",
         "command": "Command",
@@ -794,6 +795,7 @@
         "confirmDelete": "Delete Server",
         "confirmDeleteMessage": "Are you sure you want to delete the server?",
         "deleteSuccess": "Server deleted successfully",
+        "deleteError": "Failed to delete server",
         "description": "Description",
         "duplicateName": "A server with this name already exists",
         "editServer": "Edit Server",
@@ -807,6 +809,7 @@
         "title": "MCP Servers",
         "type": "Type",
         "updateSuccess": "Server updated successfully",
+        "updateError": "Failed to update server",
         "url": "URL",
         "toggleError": "Toggle failed"
       },
