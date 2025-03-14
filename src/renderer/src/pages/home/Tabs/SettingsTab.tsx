@@ -55,6 +55,9 @@ const SettingsTab: FC<Props> = (props) => {
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
+  const [enableInfiniteContext, setEnableInfiniteContext] = useState(
+    assistant?.settings?.enableInfiniteContext ?? false
+  )
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -132,12 +135,8 @@ const SettingsTab: FC<Props> = (props) => {
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
     setReasoningEffort(assistant?.settings?.reasoning_effort)
+    setEnableInfiniteContext(assistant?.settings?.enableInfiniteContext ?? false)
   }, [assistant])
-
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
-  }
 
   return (
     <Container className="settings-tab">
@@ -167,25 +166,48 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </Col>
         </Row>
+        <SettingDivider />
         <Row align="middle">
           <Label>{t('chat.settings.context_count')}</Label>
           <Tooltip title={t('chat.settings.context_count.tip')}>
             <QuestionIcon />
           </Tooltip>
+          <HStack alignItems="center" style={{ marginLeft: 'auto' }}>
+            <Switch
+              size="small"
+              checked={enableInfiniteContext}
+              onChange={async (checked) => {
+                if (checked) {
+                  const confirmed = await modalConfirm({
+                    title: t('chat.settings.infinite.confirm'),
+                    content: t('chat.settings.infinite.confirm_content'),
+                    okButtonProps: {
+                      danger: true
+                    }
+                  })
+                  if (!confirmed) return
+                }
+                setEnableInfiniteContext(checked)
+                onUpdateAssistantSettings({ enableInfiniteContext: checked })
+              }}
+            />
+            <span style={{ marginLeft: '5px', fontSize: '12px' }}>{t('chat.settings.infinite')}</span>
+          </HStack>
         </Row>
         <Row align="middle" gutter={10}>
           <Col span={24}>
             <Slider
               min={0}
-              max={10}
+              max={20}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={typeof contextCount === 'number' ? contextCount : 0}
               step={1}
-              tooltip={{ formatter: formatSliderTooltip }}
+              disabled={enableInfiniteContext}
             />
           </Col>
         </Row>
+        <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
           <Switch

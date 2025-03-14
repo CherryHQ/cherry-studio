@@ -27,6 +27,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
+  const [enableInfiniteContext, setEnableInfiniteContext] = useState(
+    assistant?.settings?.enableInfiniteContext ?? false
+  )
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
@@ -155,6 +158,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setStreamOutput(true)
     setTopP(1)
     setReasoningEffort(undefined)
+    setEnableInfiniteContext(false)
     setCustomParameters([])
     updateAssistantSettings({
       temperature: DEFAULT_TEMPERATURE,
@@ -164,6 +168,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       streamOutput: true,
       topP: 1,
       reasoning_effort: undefined,
+      enableInfiniteContext: false,
       customParameters: []
     })
   }
@@ -186,7 +191,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const formatSliderTooltip = (value?: number) => {
     if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
+    return value.toString()
   }
 
   return (
@@ -285,6 +290,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           />
         </Col>
       </Row>
+      <Divider style={{ margin: '10px 0' }} />
       <Row align="middle">
         <Label>
           {t('chat.settings.context_count')}{' '}
@@ -292,6 +298,27 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             <QuestionIcon />
           </Tooltip>
         </Label>
+        <HStack alignItems="center" style={{ marginLeft: 'auto' }}>
+          <Switch
+            size="small"
+            checked={enableInfiniteContext}
+            onChange={async (checked) => {
+              if (checked) {
+                const confirmed = await modalConfirm({
+                  title: t('chat.settings.infinite.confirm'),
+                  content: t('chat.settings.infinite.confirm_content'),
+                  okButtonProps: {
+                    danger: true
+                  }
+                })
+                if (!confirmed) return
+              }
+              setEnableInfiniteContext(checked)
+              updateAssistantSettings({ enableInfiniteContext: checked })
+            }}
+          />
+          <span style={{ marginLeft: '5px' }}>{t('chat.settings.infinite')}</span>
+        </HStack>
       </Row>
       <Row align="middle" gutter={20}>
         <Col span={20}>
@@ -301,9 +328,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
-            marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
+            marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: '20' }}
             step={1}
             tooltip={{ formatter: formatSliderTooltip }}
+            disabled={enableInfiniteContext}
           />
         </Col>
         <Col span={4}>
@@ -320,6 +348,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               }
             }}
             style={{ width: '100%' }}
+            disabled={enableInfiniteContext}
           />
         </Col>
       </Row>

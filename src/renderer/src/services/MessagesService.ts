@@ -82,11 +82,14 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
   const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  // 使用与 getAssistantSettings 相同的逻辑处理无限上下文
-  const maxContextCount = rawContextCount === 20 ? 100000 : rawContextCount
+  // 使用enableInfiniteContext字段判断是否启用无限上下文
+  const isInfiniteContext = assistant?.settings?.enableInfiniteContext ?? false
 
-  // 在无限模式下，设置一个合理的高上限而不是处理所有消息
-  const _messages = rawContextCount === 20 ? takeRight(messages, 1000) : takeRight(messages, maxContextCount)
+  // 在无限模式下，设置一个合理的高上限
+  const maxContextCount = isInfiniteContext ? 1000 : rawContextCount
+
+  // 根据上下文数量限制消息
+  const _messages = isInfiniteContext ? takeRight(messages, 1000) : takeRight(messages, maxContextCount)
 
   const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
 

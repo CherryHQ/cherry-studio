@@ -10,10 +10,11 @@ type Props = {
   estimateTokenCount: number
   inputTokenCount: number
   contextCount: { current: number; max: number }
+  enableInfiniteContext: boolean
   ToolbarButton: any
 } & React.HTMLAttributes<HTMLDivElement>
 
-const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCount }) => {
+const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCount, enableInfiniteContext }) => {
   const { t } = useTranslation()
   const { showInputEstimatedTokens } = useSettings()
 
@@ -22,7 +23,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
   }
 
   const formatMaxCount = (max: number) => {
-    if (max == 20) {
+    if (enableInfiniteContext) {
       return (
         <span
           style={{
@@ -43,7 +44,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
         <HStack justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
-            {contextCount.current} / {contextCount.max == 20 ? '∞' : contextCount.max}
+            {contextCount.current} / {enableInfiniteContext ? '∞' : contextCount.max}
           </Text>
         </HStack>
         <Divider style={{ margin: '5px 0' }} />
