@@ -384,6 +384,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               const selectedFile = await window.api.file.get(tempFilePath)
               selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
               break
+            } else {
+              window.message.info({
+                key: 'file_not_supported',
+                content: t('chat.input.file_not_supported')
+              })
             }
           }
 
