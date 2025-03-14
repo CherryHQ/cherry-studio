@@ -268,38 +268,40 @@ class KnowledgeService {
   }
 
   /**
-   * 应用忽略规则来过滤文件列表
+   * 应用过滤规则来过滤文件列表
    * @param allFiles 所有文件的列表
    * @param baseDir 基础目录路径
-   * @param ignorePatterns 忽略规则配置
+   * @param ignorePatterns 过滤规则配置
    * @returns 过滤后的文件列表
    */
   private applyIgnorePatterns(
     allFiles: FileType[],
     baseDir: string,
-    ignorePatterns?: { patterns: string[]; type: 'glob' | 'regex' | 'static' }
+    ignorePatterns?: { patterns: string[]; type: 'glob' | 'regex' | 'static'; direction?: 'include' | 'exclude' }
   ): FileType[] {
     if (!ignorePatterns || !ignorePatterns.patterns || ignorePatterns.patterns.length === 0) {
       return allFiles
     }
 
-    const { patterns, type } = ignorePatterns
+    const { patterns, type, direction = 'exclude' } = ignorePatterns
 
     return allFiles.filter((file) => {
       // 计算相对路径，便于匹配
       const relativePath = path.relative(baseDir, file.path)
+      let isMatch = false
 
       switch (type) {
         case 'glob':
           // 通配符匹配
-          return !patterns.some((pattern) => {
+          isMatch = patterns.some((pattern) => {
             const minimatch = require('minimatch')
             return minimatch(relativePath, pattern)
           })
+          break
 
         case 'regex':
           // 正则表达式匹配
-          return !patterns.some((pattern) => {
+          isMatch = patterns.some((pattern) => {
             try {
               const regex = new RegExp(pattern)
               return regex.test(relativePath)
@@ -308,16 +310,21 @@ class KnowledgeService {
               return false
             }
           })
+          break
 
         case 'static':
           // 静态路径匹配
-          return !patterns.some((pattern) => {
+          isMatch = patterns.some((pattern) => {
             return relativePath === pattern || relativePath.startsWith(`${pattern}${path.sep}`)
           })
+          break
 
         default:
           return true
       }
+
+      // 根据过滤方向返回结果
+      return direction === 'include' ? isMatch : !isMatch
     })
   }
 

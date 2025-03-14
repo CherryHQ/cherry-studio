@@ -240,6 +240,7 @@ export type KnowledgeItem = {
   ignorePatterns?: {
     patterns: string[]
     type: 'glob' | 'regex' | 'static'
+    direction?: 'include' | 'exclude'
   }
 }
 

@@ -10,6 +10,7 @@ interface ShowParams {
   ignorePatterns?: {
     patterns: string[]
     type: 'glob' | 'regex' | 'static'
+    direction?: 'include' | 'exclude'
   }
   readOnly?: boolean
 }
@@ -17,6 +18,7 @@ interface ShowParams {
 interface FormData {
   ignorePatterns: string
   ignoreType: 'glob' | 'regex' | 'static'
+  filterDirection: 'include' | 'exclude'
 }
 
 interface Props extends ShowParams {
@@ -26,6 +28,7 @@ interface Props extends ShowParams {
       ignorePatterns?: {
         patterns: string[]
         type: 'glob' | 'regex' | 'static'
+        direction?: 'include' | 'exclude'
       }
     } | null
   ) => void
@@ -41,11 +44,13 @@ const PopupContainer: React.FC<Props> = ({ directoryPath, title, ignorePatterns,
   const initialValues = ignorePatterns
     ? {
         ignoreType: ignorePatterns.type,
-        ignorePatterns: ignorePatterns.patterns.join('\n')
+        ignorePatterns: ignorePatterns.patterns.join('\n'),
+        filterDirection: ignorePatterns.direction || 'exclude'
       }
     : {
         ignoreType: defaultIgnoreType,
-        ignorePatterns: ''
+        ignorePatterns: '',
+        filterDirection: 'exclude'
       }
 
   form.setFieldsValue(initialValues)
@@ -65,7 +70,8 @@ const PopupContainer: React.FC<Props> = ({ directoryPath, title, ignorePatterns,
         ignorePatterns: values.ignorePatterns
           ? {
               patterns: values.ignorePatterns.split('\n').filter((p) => p.trim()),
-              type: values.ignoreType
+              type: values.ignoreType,
+              direction: values.filterDirection
             }
           : undefined
       }
@@ -108,6 +114,22 @@ const PopupContainer: React.FC<Props> = ({ directoryPath, title, ignorePatterns,
         <div style={{ marginBottom: '16px' }}>
           <strong>{t('knowledge.selected_directory')}:</strong> {directoryPath}
         </div>
+
+        <Form.Item
+          label={
+            <Space>
+              {t('knowledge.filter_direction')}
+              <Tooltip title={t('knowledge.filter_direction_tooltip')}>
+                <QuestionCircleOutlined />
+              </Tooltip>
+            </Space>
+          }
+          name="filterDirection">
+          <Radio.Group>
+            <Radio value="exclude">{t('knowledge.filter_direction_exclude')}</Radio>
+            <Radio value="include">{t('knowledge.filter_direction_include')}</Radio>
+          </Radio.Group>
+        </Form.Item>
 
         <Form.Item
           label={
@@ -170,6 +192,7 @@ export default class DirectoryConfigPopup {
       ignorePatterns?: {
         patterns: string[]
         type: 'glob' | 'regex' | 'static'
+        direction?: 'include' | 'exclude'
       }
     } | null>((resolve) => {
       TopView.show(

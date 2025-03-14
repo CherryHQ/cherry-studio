@@ -20,9 +20,10 @@ const IgnoreRulesIcon: FC<IgnoreRulesIconProps> = ({ item }) => {
 
   // 生成简略的规则预览文本
   const previewText = () => {
-    const { patterns, type } = item.ignorePatterns!
+    const { patterns, type, direction = 'exclude' } = item.ignorePatterns!
     const patternText = patterns.slice(0, 3).join(', ') + (patterns.length > 3 ? '...' : '')
-    return `${t(`knowledge.ignore_type_${type}`)}: ${patternText}`
+    const directionText = t(`knowledge.filter_direction_${direction}`)
+    return `${directionText} - ${t(`knowledge.ignore_type_${type}`)}: ${patternText}`
   }
 
   const handleClick = async () => {
