@@ -14,13 +14,13 @@ export class ProxyManager {
   private config: ProxyConfig
   private proxyAgent: HttpsProxyAgent | null = null
   private proxyUrl: string | null = null
+  private systemProxyInterval: NodeJS.Timeout | null = null
 
   constructor() {
     this.config = {
-      mode: 'system',
+      mode: 'none',
       url: ''
     }
-    this.monitorSystemProxy()
   }
 
   private async setSessionsProxy(config: _ProxyConfig): Promise<void> {
@@ -29,16 +29,28 @@ export class ProxyManager {
   }
 
   private async monitorSystemProxy(): Promise<void> {
-    setInterval(async () => {
+    // Clear any existing interval first
+    this.clearSystemProxyMonitor()
+    // Set new interval
+    this.systemProxyInterval = setInterval(async () => {
       await this.setSystemProxy()
     }, 10000)
+  }
+
+  private clearSystemProxyMonitor(): void {
+    if (this.systemProxyInterval) {
+      clearInterval(this.systemProxyInterval)
+      this.systemProxyInterval = null
+    }
   }
 
   async configureProxy(config: ProxyConfig): Promise<void> {
     try {
       this.config = config
+      this.clearSystemProxyMonitor()
       if (this.config.mode === 'system') {
         await this.setSystemProxy()
+        this.monitorSystemProxy()
       } else if (this.config.mode == 'custom') {
         await this.setCustomProxy()
       } else {

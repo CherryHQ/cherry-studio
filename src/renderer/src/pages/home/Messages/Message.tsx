@@ -132,14 +132,13 @@ const MessageItem: FC<Props> = ({
       onContextMenu={handleContextMenu}
       style={{ ...style, alignItems: isBubbleStyle ? (isAssistantMessage ? 'start' : 'end') : undefined }}>
       {contextMenuPosition && (
-        <ContextMenuOverlay style={{ left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}>
-          <Dropdown
-            menu={{ items: getContextMenuItems(t, selectedQuoteText, selectedText) }}
-            open={true}
-            trigger={['contextMenu']}>
-            <div />
-          </Dropdown>
-        </ContextMenuOverlay>
+        <Dropdown
+          overlayStyle={{ left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}
+          menu={{ items: getContextMenuItems(t, selectedQuoteText, selectedText) }}
+          open={true}
+          trigger={['contextMenu']}>
+          <div />
+        </Dropdown>
       )}
       <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
       <MessageContentContainer
@@ -249,10 +248,6 @@ const MessageFooter = styled.div`
 
 const NewContextMessage = styled.div`
   cursor: pointer;
-`
-
-const ContextMenuOverlay = styled.div`
-  position: fixed;
 `
 
 export default memo(MessageItem)
