@@ -31,7 +31,21 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton
     enabledMCPs.some((enabledServer) => enabledServer.name === server.name)
   )
 
-  const setEnableAll = () => activeServers.forEach((s) => toggelEnableMCP(s))
+  const setEnableAll = (checked: boolean) => {
+    if (checked) {
+      activeServers.forEach((s) => {
+        if (!enabledMCPs.some((enabled) => enabled.name === s.name)) {
+          toggelEnableMCP(s)
+        }
+      })
+    } else {
+      activeServers.forEach((s) => {
+        if (enabledMCPs.some((enabled) => enabled.name === s.name)) {
+          toggelEnableMCP(s)
+        }
+      })
+    }
+  }
 
   const menu = (
     <div ref={menuRef} className="ant-dropdown-menu">
