@@ -35,7 +35,10 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   const onUpdateApiHost = () => {
-    const trimmedHost = apiHost?.trim() || ''
+    let trimmedHost = apiHost?.trim() || ''
+    if (trimmedHost.endsWith('/')) {
+      trimmedHost = trimmedHost.slice(0, -1)
+    }
     if (trimmedHost !== provider.apiHost) {
       updateProvider({ ...provider, apiHost: trimmedHost })
     } else {
@@ -136,12 +139,21 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
           </SettingSubtitle>
-          <Input
-            value={apiHost}
-            placeholder={t('settings.provider.api_host')}
-            onChange={(e) => setApiHost(e.target.value)}
-            onBlur={onUpdateApiHost}
-          />
+          <Flex>
+            <Input
+              value={apiHost}
+              placeholder={t('settings.provider.api_host')}
+              onChange={(e) => setApiHost(e.target.value)}
+              onBlur={onUpdateApiHost}
+            />
+            <Button
+              ghost={apiValid}
+              type={apiValid ? 'primary' : 'default'}
+              onClick={checkSearch}
+              disabled={apiChecking}>
+              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
+            </Button>
+          </Flex>
         </>
       )}
     </>
