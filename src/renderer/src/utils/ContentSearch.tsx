@@ -19,8 +19,7 @@ interface Props {
 
 enum SearchCompletedState {
   NotSearched,
-  FirstSearched,
-  MultipleSearches
+  FirstSearched
 }
 
 enum SearchTargetIndex {
@@ -257,7 +256,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
             index = searchResultIndex
           }
         }
-        return index
+        return Math.max(index, 0)
       }
 
       const targetIndex = (() => {
@@ -274,10 +273,6 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
             }
           }
           case SearchCompletedState.FirstSearched: {
-            setSearchCompleted(SearchCompletedState.MultipleSearches)
-            return changeIndex()
-          }
-          case SearchCompletedState.MultipleSearches: {
             return changeIndex()
           }
           default: {
