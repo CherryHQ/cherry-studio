@@ -22,7 +22,10 @@ export default class ExaProvider extends BaseWebSearchProvider {
 
       const response = await this.exa.search({
         query,
-        numResults: Math.max(1, maxResults)
+        numResults: Math.max(1, maxResults),
+        contents: {
+          text: true
+        }
       })
 
       return {

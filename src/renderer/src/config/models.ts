@@ -2013,3 +2013,11 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
 
   return {}
 }
+
+export function isGemmaModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return model.id.includes('gemma-') || model.group === 'Gemma'
+}
