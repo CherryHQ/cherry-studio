@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
-import WebSearchApiCheckPopup from './WebSearchApiCheckPopup'
+import ApiCheckPopup from '../ProviderSettings/ApiCheckPopup'
 
 interface Props {
   provider: WebSearchProvider
@@ -65,10 +65,11 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
         .map((k) => k.trim())
         .filter((k) => k)
 
-      const result = await WebSearchApiCheckPopup.show({
+      const result = await ApiCheckPopup.show({
         title: t('settings.provider.check_multiple_keys'),
         provider: { ...provider, apiHost },
-        apiKeys: keys
+        apiKeys: keys,
+        type: 'websearch'
       })
 
       if (result?.validKeys) {

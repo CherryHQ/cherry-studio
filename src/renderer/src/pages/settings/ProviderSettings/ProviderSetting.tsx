@@ -198,7 +198,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         title: t('settings.provider.check_multiple_keys'),
         provider: { ...provider, apiHost },
         model,
-        apiKeys: keys
+        apiKeys: keys,
+        type: 'provider'
       })
 
       if (result?.validKeys) {
