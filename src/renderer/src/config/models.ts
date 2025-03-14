@@ -1769,7 +1769,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'DeepSeek V3',
       group: 'DeepSeek'
     }
-  ]
+  ],
+  gpustack: []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [

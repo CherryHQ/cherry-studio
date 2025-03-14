@@ -388,6 +388,12 @@
       },
       "title": "Диаграмма Mermaid"
     },
+    "gpustack": {
+      "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
+      "keep_alive_time.placeholder": "Минуты",
+      "keep_alive_time.title": "Время жизни модели",
+      "title": "GPUStack"
+    },
     "message": {
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
@@ -607,7 +613,8 @@
       "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "gpustack": "GPUStack"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",

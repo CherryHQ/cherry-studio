@@ -607,7 +607,8 @@
       "xirang": "天翼云息壤",
       "yi": "零一万物",
       "zhinao": "360智脑",
-      "zhipu": "智谱AI"
+      "zhipu": "智谱AI",
+      "gpustack": "GPUStack"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -622,6 +623,12 @@
         "title": "恢复进度"
       },
       "title": "数据恢复"
+    },
+    "gpustack": {
+      "keep_alive_time.description": "模型在内存中保持的时间（默认：5分钟）",
+      "keep_alive_time.placeholder": "分钟",
+      "keep_alive_time.title": "保持活跃时间",
+      "title": "GPUStack"
     },
     "settings": {
       "about": "关于我们",

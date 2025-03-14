@@ -28,6 +28,7 @@ import {
   SettingTitle
 } from '..'
 import ApiCheckPopup from './ApiCheckPopup'
+import GPUStackSettings from './GPUStackSettings'
 import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
@@ -345,6 +346,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'ollama' && <OllamSettings />}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
+      {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
         <GraphRAGSettings provider={provider} />
       )}

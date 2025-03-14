@@ -1245,6 +1245,19 @@ const migrateConfig = {
     state.llm.providers = moveProvider(state.llm.providers, 'ppio', 9)
     state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
     return state
+  },
+  '79': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'gpustack',
+      name: 'GPUStack',
+      type: 'openai',
+      apiKey: '',
+      apiHost: '',
+      models: SYSTEM_MODELS.gpustack,
+      isSystem: true,
+      enabled: false
+    })
+    return state
   }
 }
 

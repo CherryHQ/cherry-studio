@@ -560,6 +560,12 @@
       },
       "title": "PlantUML Diagram"
     },
+    "gpustack": {
+      "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
+      "keep_alive_time.placeholder": "Minutes",
+      "keep_alive_time.title": "Keep Alive Time",
+      "title": "GPUStack"
+    },
     "prompts": {
       "explanation": "Explain this concept to me",
       "summarize": "Summarize this text",
@@ -607,7 +613,8 @@
       "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "gpustack": "GPUStack"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
