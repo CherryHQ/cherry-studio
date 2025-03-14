@@ -967,6 +967,7 @@
         "blacklist_description": "Results from the following websites will not appear in search results",
         "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "Check",
+        "check_success": "Verification successful",
         "check_failed": "Verification failed",
         "get_api_key": "Get API Key",
         "no_provider_selected": "Please select a search service provider before checking.",

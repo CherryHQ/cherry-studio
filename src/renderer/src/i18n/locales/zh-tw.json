@@ -967,6 +967,7 @@
         "blacklist_description": "以下網站不會出現在搜尋結果中",
         "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "檢查",
+        "check_success": "驗證成功",
         "check_failed": "驗證失敗",
         "get_api_key": "點選這裡取得金鑰",
         "no_provider_selected": "請選擇搜尋服務商後再檢查",

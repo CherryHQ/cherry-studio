@@ -308,3 +308,12 @@ export async function fetchModels(provider: Provider) {
     return []
   }
 }
+
+/**
+ * Format API keys
+ * @param value Raw key string
+ * @returns Formatted key string
+ */
+export const formatApiKeys = (value: string) => {
+  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
+}

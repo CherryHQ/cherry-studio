@@ -967,6 +967,7 @@
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
         "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "チェック",
+        "check_success": "検証に成功しました",
         "check_failed": "検証に失敗しました",
         "get_api_key": "APIキーを取得",
         "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",

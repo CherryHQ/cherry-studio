@@ -967,6 +967,7 @@
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
         "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "проверка",
+        "check_success": "Проверка успешна",
         "check_failed": "Проверка не прошла",
         "get_api_key": "Получить ключ API",
         "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",

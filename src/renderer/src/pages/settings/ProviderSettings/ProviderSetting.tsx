@@ -6,7 +6,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
-import { checkApi } from '@renderer/services/ApiService'
+import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
@@ -238,10 +238,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
 
     return formatApiHost(apiHost) + 'chat/completions'
-  }
-
-  const formatApiKeys = (value: string) => {
-    return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
   }
 
   useEffect(() => {
