@@ -789,6 +789,7 @@
         "addError": "添加伺服器失敗",
         "args": "參數",
         "argsTooltip": "每個參數佔一行",
+        "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
         "commandRequired": "請輸入指令",
         "config_description": "設定模型上下文協議伺服器",

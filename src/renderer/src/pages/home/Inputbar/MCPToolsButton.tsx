@@ -2,7 +2,6 @@ import { CodeOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { Dropdown, Switch, Tooltip } from 'antd'
-import { every } from 'lodash'
 import { FC, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -28,7 +27,7 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton
   // Check if all active servers are enabled
   const activeServers = mcpServers.filter((s) => s.isActive)
 
-  const enableAll = every(activeServers, (server) =>
+  const enableAll = activeServers.some((server) =>
     enabledMCPs.some((enabledServer) => enabledServer.name === server.name)
   )
 
