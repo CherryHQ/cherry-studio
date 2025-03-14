@@ -151,7 +151,8 @@
       "topics.no_search_results": "没有找到匹配的话题",
       "topics.view_more": "查看完整话题",
       "topics.no_messages": "该话题无消息",
-      "topics.select": "选择话题"
+      "topics.select": "选择话题",
+      "topics.back_to_topic": "返回话题"
     },
     "common": {
       "add": "添加",

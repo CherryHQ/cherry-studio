@@ -1,7 +1,7 @@
 import 'katex/dist/katex.min.css'
 
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Message } from '@renderer/types'
+import { Message, Topic } from '@renderer/types'
 import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
 import { isEmpty } from 'lodash'
 import { FC, useMemo } from 'react'
@@ -17,16 +17,17 @@ import remarkMath from 'remark-math'
 import CodeBlock from './CodeBlock'
 import ImagePreview from './ImagePreview'
 import Link from './Link'
-import TopicReference from './TopicReference' // 引入主题引用组件
+import TopicReference from './TopicReference'
 
 const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
 
 interface Props {
   message: Message
+  currentTopic: Topic
 }
 
-const Markdown: FC<Props> = ({ message }) => {
+const Markdown: FC<Props> = ({ message, currentTopic }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
 
@@ -54,7 +55,7 @@ const Markdown: FC<Props> = ({ message }) => {
       let match
 
       // 复制原始内容用于处理
-      let contentCopy = messageContent
+      const contentCopy = messageContent
 
       // 查找所有匹配
       while ((match = regex.exec(contentCopy)) !== null) {
@@ -67,7 +68,14 @@ const Markdown: FC<Props> = ({ message }) => {
         const [fullMatch, topicName, topicId] = match
 
         // 添加 TopicReference 组件
-        parts.push(<TopicReference key={`topic-${topicId}-${match.index}`} topicName={topicName} topicId={topicId} />)
+        parts.push(
+          <TopicReference
+            key={`topic-${topicId}-${match.index}`}
+            topicName={topicName}
+            topicId={topicId}
+            currentTopic={currentTopic}
+          />
+        )
 
         lastIndex = match.index + fullMatch.length
       }
@@ -85,7 +93,7 @@ const Markdown: FC<Props> = ({ message }) => {
 
     // 默认情况下返回原始内容
     return messageContent
-  }, [message.role, renderInputMessageAsMarkdown, messageContent])
+  }, [message.role, renderInputMessageAsMarkdown, messageContent, currentTopic])
 
   // 用户消息且不渲染Markdown时的特殊处理
   if (message.role === 'user' && !renderInputMessageAsMarkdown) {
@@ -119,7 +127,14 @@ const Markdown: FC<Props> = ({ message }) => {
           }
 
           const [fullMatch, topicName, topicId] = match
-          parts.push(<TopicReference key={`topic-${topicId}-${match.index}`} topicName={topicName} topicId={topicId} />)
+          parts.push(
+            <TopicReference
+              key={`topic-${topicId}-${match.index}`}
+              topicName={topicName}
+              topicId={topicId}
+              currentTopic={currentTopic}
+            />
+          )
 
           lastIndex = match.index + fullMatch.length
         }

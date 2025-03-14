@@ -117,32 +117,26 @@ const MessageItem: FC<Props> = ({
 
   useEffect(() => {
     if (message.role === 'user' && !message.usage) {
-      console.log('Message without usage:调试', message)
       runAsyncFunction(async () => {
         const usage = await estimateMessageUsage(message)
         setMessage({ ...message, usage })
         const topic = await db.topics.get({ id: message.topicId })
-        console.log('Found topic:调试', topic)
         const messages = topic?.messages.map((m) => (m.id === message.id ? { ...m, usage } : m))
-        console.log('Updated messages:调试', messages)
         db.topics.update(message.topicId, { messages })
       })
     }
   }, [message])
+
   useEffect(() => {
     if (topic && onGetMessages && onSetMessages) {
       if (message.status === 'sending') {
-        console.log('开始发送消息:调试', message)
         const messages = onGetMessages()
-        console.log('获取到历史消息:调试', messages)
         const assistantWithModel = message.model ? { ...assistant, model: message.model } : assistant
-        console.log('助手模型配置:调试', assistantWithModel)
 
         if (topic.prompt) {
           assistantWithModel.prompt = assistantWithModel.prompt
             ? `${assistantWithModel.prompt}\n${topic.prompt}`
             : topic.prompt
-          console.log('添加了主题提示词:调试', assistantWithModel.prompt)
         }
 
         const filteredMessages = messages
@@ -151,18 +145,15 @@ const MessageItem: FC<Props> = ({
             0,
             messages.findIndex((m) => m.id === message.id)
           )
-        console.log('过滤后的历史消息:调试', filteredMessages)
 
         fetchChatCompletion({
           message,
           messages: filteredMessages,
           assistant: assistantWithModel,
           onResponse: (msg) => {
-            //console.log('收到响应:调试', msg)
             setMessage(msg)
             if (msg.status !== 'pending') {
               const _messages = onGetMessages().map((m) => (m.id === msg.id ? msg : m))
-              //console.log('更新消息列表:调试', _messages)
               onSetMessages(_messages)
               db.topics.update(topic.id, { messages: _messages })
             }
@@ -202,7 +193,7 @@ const MessageItem: FC<Props> = ({
         className="message-content-container"
         style={{ fontFamily, fontSize, background: messageBackground }}>
         <MessageErrorBoundary>
-          <MessageContent message={message} model={model} />
+          <MessageContent message={message} model={model} currentTopic={topic!} />
         </MessageErrorBoundary>
         {showMenubar && (
           <MessageFooter

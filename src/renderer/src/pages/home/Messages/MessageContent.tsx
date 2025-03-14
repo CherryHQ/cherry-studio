@@ -1,6 +1,6 @@
 import { InfoCircleOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Message, Model } from '@renderer/types'
+import { Message, Model, Topic } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
@@ -18,9 +18,10 @@ import MessageThought from './MessageThought'
 interface Props {
   message: Message
   model?: Model
+  currentTopic: Topic
 }
 
-const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
+const MessageContent: React.FC<Props> = ({ message: _message, model, currentTopic }) => {
   const { t } = useTranslation()
   const message = withMessageThought(_message)
 
@@ -72,7 +73,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
 
   if (message.type === '@' && model) {
     const content = `[@${model.name}](#)  ${getBriefInfo(message.content)}`
-    return <Markdown message={{ ...message, content }} />
+    return <Markdown message={{ ...message, content }} currentTopic={currentTopic} />
   }
 
   return (
@@ -81,7 +82,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
         {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
       </Flex>
       <MessageThought message={message} />
-      <Markdown message={{ ...message, content: processedContent }} />
+      <Markdown message={{ ...message, content: processedContent }} currentTopic={currentTopic} />
       {formattedCitations && (
         <CitationsContainer>
           <CitationsTitle>
@@ -103,7 +104,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           {message.translatedContent === t('translate.processing') ? (
             <BeatLoader color="var(--color-text-2)" size="10" style={{ marginBottom: 15 }} />
           ) : (
-            <Markdown message={{ ...message, content: message.translatedContent }} />
+            <Markdown message={{ ...message, content: message.translatedContent }} currentTopic={currentTopic} />
           )}
         </Fragment>
       )}

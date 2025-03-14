@@ -1,6 +1,7 @@
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Message } from '@renderer/types'
+import { isGenerating } from '@renderer/services/MessagesService'
+import { Message, Topic } from '@renderer/types'
 import { Popover } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,9 +10,10 @@ import styled from 'styled-components'
 interface TopicReferenceProps {
   topicName: string
   topicId: string
+  currentTopic: Topic
 }
 
-const TopicReference: FC<TopicReferenceProps> = ({ topicName, topicId }) => {
+const TopicReference: FC<TopicReferenceProps> = ({ topicName, topicId, currentTopic }) => {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const { t } = useTranslation()
@@ -32,8 +34,17 @@ const TopicReference: FC<TopicReferenceProps> = ({ topicName, topicId }) => {
   }
 
   // 点击主题标签时导航到对应主题
-  const handleNavigateToTopic = () => {
-    EventEmitter.emit(EVENT_NAMES.NAVIGATE_TO_TOPIC, topicId)
+  const handleNavigateToTopic = async () => {
+    try {
+      await isGenerating()
+      EventEmitter.emit(EVENT_NAMES.SHOW_BACK_BUTTON, {
+        previousTopicId: currentTopic.id,
+        previousTopicName: currentTopic.name
+      })
+      EventEmitter.emit(EVENT_NAMES.NAVIGATE_TO_TOPIC, topicId)
+    } catch (error) {
+      console.error('导航过程中发生错误:', error)
+    }
   }
 
   return (
@@ -46,15 +57,33 @@ const TopicReference: FC<TopicReferenceProps> = ({ topicName, topicId }) => {
           <EmptyText>{t('chat.topics.no_messages')}</EmptyText>
         ) : (
           <MessagesContainer>
-            {messages.map((msg, index) => (
-              <MessagePreview key={index}>
-                <MessageRole>{msg.role === 'user' ? t('common.you') : t('common.assistant')}</MessageRole>
-                <MessageContent>
-                  {msg.content.substring(0, 100)}
-                  {msg.content.length > 100 ? '...' : ''}
-                </MessageContent>
-              </MessagePreview>
-            ))}
+            {messages.reduce((acc: JSX.Element[], msg, index, array) => {
+              // 如果是用户消息，直接添加
+              if (msg.role === 'user') {
+                acc.push(
+                  <MessagePreview key={index}>
+                    <MessageRole>{t('common.you')}</MessageRole>
+                    <MessageContent>
+                      {msg.content.substring(0, 100)}
+                      {msg.content.length > 100 ? '...' : ''}
+                    </MessageContent>
+                  </MessagePreview>
+                )
+                // 如果下一条是助手消息，也添加它
+                if (array[index + 1]?.role === 'assistant') {
+                  acc.push(
+                    <MessagePreview key={index + 1}>
+                      <MessageRole>{t('common.assistant')}</MessageRole>
+                      <MessageContent>
+                        {array[index + 1].content.substring(0, 100)}
+                        {array[index + 1].content.length > 100 ? '...' : ''}
+                      </MessageContent>
+                    </MessagePreview>
+                  )
+                }
+              }
+              return acc
+            }, [])}
             <ViewMoreButton onClick={handleNavigateToTopic}>{t('chat.topics.view_more')}</ViewMoreButton>
           </MessagesContainer>
         )

@@ -6,6 +6,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
 
 import Sidebar from './components/app/Sidebar'
+import BackToTopicButton from './components/BackToTopicButton'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { SyntaxHighlighterProvider } from './context/SyntaxHighlighterProvider'
@@ -30,7 +31,7 @@ function App(): JSX.Element {
               <TopViewContainer>
                 <HashRouter>
                   <NavigationHandler />
-                  {/* 添加导航处理组件 */}
+                  <BackToTopicButton previousTopicId="" previousTopicName="" />
                   <Sidebar />
                   <Routes>
                     <Route path="/" element={<HomePage />} />

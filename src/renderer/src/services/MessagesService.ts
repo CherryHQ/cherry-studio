@@ -14,7 +14,6 @@ import { EVENT_NAMES, EventEmitter } from './EventService'
 import FileManager from './FileManager'
 
 export const filterMessages = (messages: Message[]) => {
-  console.log('Messages structure in filterMessages MessageService:调试', messages)
   return messages
     .filter((message) => !['@', 'clear'].includes(message.type!))
     .filter((message) => !isEmpty(message.content.trim()))

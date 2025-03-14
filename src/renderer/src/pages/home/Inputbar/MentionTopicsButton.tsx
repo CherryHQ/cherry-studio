@@ -1,6 +1,6 @@
 import { CommentOutlined, EnterOutlined, SearchOutlined } from '@ant-design/icons'
 import db from '@renderer/databases'
-import { EventEmitter } from '@renderer/services/EventService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppSelector } from '@renderer/store'
 import { Topic } from '@renderer/types'
 import { Button, Dropdown, Input, Tooltip } from 'antd'
@@ -180,29 +180,31 @@ const MentionTopicsButton: FC<Props> = ({ onMentionTopic, ToolbarButton, isOpen,
     const handleFilterTopics = (text: string) => {
       setSearchText(text)
       if (!isOpen && !menuDismissed) {
-        // 只有在菜单未被手动关闭时才自动打开
         onOpenChange(true)
       }
     }
 
-    const EVENT_NAMES = {
-      FILTER_TOPICS: 'filter-topics',
-      SHOW_TOPIC_SELECTOR: 'show-topic-selector'
-    }
-
-    // 监听话题筛选事件
-    window.addEventListener(EVENT_NAMES.FILTER_TOPICS, handleFilterTopics as EventListener)
-
-    // 监听显示话题选择器事件
     const showTopicSelector = () => {
-      setSearchText('') // 清空搜索文本
-      setMenuDismissed(false) // 重置菜单关闭状态
-      onOpenChange(true) // 打开菜单
+      setSearchText('')
+      setMenuDismissed(false)
+      onOpenChange(true)
     }
+
+    const EVENT_NAMES = {
+      FILTER_TOPICS: 'filter-topics' as const,
+      SHOW_TOPIC_SELECTOR: 'show-topic-selector' as const
+    }
+
+    // 使用 CustomEvent 来处理带数据的事件
+    window.addEventListener(EVENT_NAMES.FILTER_TOPICS, ((e: CustomEvent<string>) => {
+      handleFilterTopics(e.detail)
+    }) as EventListener)
     window.addEventListener(EVENT_NAMES.SHOW_TOPIC_SELECTOR, showTopicSelector)
 
     return () => {
-      window.removeEventListener(EVENT_NAMES.FILTER_TOPICS, handleFilterTopics as EventListener)
+      window.removeEventListener(EVENT_NAMES.FILTER_TOPICS, ((e: CustomEvent<string>) => {
+        handleFilterTopics(e.detail)
+      }) as EventListener)
       window.removeEventListener(EVENT_NAMES.SHOW_TOPIC_SELECTOR, showTopicSelector)
     }
   }, [isOpen, onOpenChange, menuDismissed])

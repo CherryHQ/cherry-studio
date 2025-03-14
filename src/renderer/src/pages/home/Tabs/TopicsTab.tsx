@@ -262,7 +262,10 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
               <TopicListItem
                 className={isActive ? 'active' : ''}
-                onClick={() => onSwitchTopic(topic)}
+                onClick={() => {
+                  onSwitchTopic(topic)
+                  EventEmitter.emit(EVENT_NAMES.TOPIC_JUST_SELECTED, topic.id)
+                }}
                 style={{ borderRadius }}>
                 <TopicName className="name">{topic.name.replace('`', '')}</TopicName>
                 {topic.prompt && (
