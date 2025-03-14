@@ -2,20 +2,20 @@ import { CodeOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { Dropdown, Switch, Tooltip } from 'antd'
-import { FC, useEffect, useRef, useState } from 'react'
+import { every } from 'lodash'
+import { FC, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
   enabledMCPs: MCPServer[]
-  onEnableMCP: (server: MCPServer) => void
+  toggelEnableMCP: (server: MCPServer) => void
   ToolbarButton: any
 }
 
-const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) => {
+const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton }) => {
   const { mcpServers } = useMCPServers()
   const [isOpen, setIsOpen] = useState(false)
-  const [enableAll, setEnableAll] = useState(false)
   const dropdownRef = useRef<any>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -28,19 +28,11 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
   // Check if all active servers are enabled
   const activeServers = mcpServers.filter((s) => s.isActive)
 
-  // This effect only runs when enableAll changes, not on every render
-  useEffect(() => {
-    if (activeServers.length > 0) {
-      activeServers.forEach((server) => {
-        const isServerEnabled = enabledMCPs.includes(server)
-        if (enableAll && !isServerEnabled) {
-          onEnableMCP(server) // Enable server if enableAll is true and server is disabled
-        } else if (!enableAll && isServerEnabled) {
-          onEnableMCP(server) // Disable server if enableAll is false and server is enabled
-        }
-      })
-    }
-  }, [enableAll]) // Only depend on enableAll, not on enabledMCPs
+  const enableAll = every(activeServers, (server) =>
+    enabledMCPs.some((enabledServer) => enabledServer.name === server.name)
+  )
+
+  const setEnableAll = () => activeServers.forEach((s) => toggelEnableMCP(s))
 
   const menu = (
     <div ref={menuRef} className="ant-dropdown-menu">
@@ -67,7 +59,11 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
                 )}
                 {server.baseUrl && <div className="server-url">{server.baseUrl}</div>}
               </div>
-              <Switch size="small" checked={enabledMCPs.includes(server)} onChange={() => onEnableMCP(server)} />
+              <Switch
+                size="small"
+                checked={enabledMCPs.some((s) => s.name === server.name)}
+                onChange={() => toggelEnableMCP(server)}
+              />
             </McpServerItems>
           ))
       ) : (

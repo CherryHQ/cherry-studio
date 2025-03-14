@@ -789,6 +789,7 @@
         "addError": "Failed to add server",
         "args": "Arguments",
         "argsTooltip": "Each argument on a new line",
+        "baseUrlTooltip": "Remote server base URL",
         "command": "Command",
         "commandRequired": "Please enter a command",
         "config_description": "Configure Model Context Protocol servers",

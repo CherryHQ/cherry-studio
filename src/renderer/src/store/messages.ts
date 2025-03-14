@@ -382,10 +382,12 @@ export const resendMessage =
       if (message.role === 'user') {
         // 查找此用户消息对应的助手消息
         const assistantMessage = topicMessages.find((m) => m.role === 'assistant' && m.askId === message.id)
-
         return dispatch(
           sendMessage(message, assistant, topic, {
-            resendAssistantMessage: assistantMessage
+            resendAssistantMessage: assistantMessage,
+            // 用户可能把助手消息删了,然后重新发送用户消息
+            // 如果isMentionModel为false,则只会发送add助手消息
+            isMentionModel: !assistantMessage
           })
         )
       }

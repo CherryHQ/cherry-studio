@@ -96,7 +96,8 @@ const MCPSettings: FC = () => {
         if (values.env) {
           values.env.split('\n').forEach((line) => {
             if (line.trim()) {
-              const [key, value] = line.split('=')
+              const [key, ...chunks] = line.split('=')
+              const value = chunks.join('=')
               if (key && value) {
                 env[key.trim()] = value.trim()
               }
@@ -290,6 +291,7 @@ const MCPSettings: FC = () => {
           onCancel={handleCancel}
           onOk={handleSubmit}
           confirmLoading={loading}
+          maskClosable={false}
           width={600}>
           <Form form={form} layout="vertical">
             <Form.Item
