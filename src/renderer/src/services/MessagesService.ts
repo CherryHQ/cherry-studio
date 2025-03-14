@@ -42,7 +42,7 @@ export function filterUserRoleStartMessages(messages: Message[]): Message[] {
 export function filterEmptyMessages(messages: Message[]): Message[] {
   return messages.filter((message) => {
     const content = message.content as string | any[]
-    if (typeof content === 'string') {
+    if (typeof content === 'string' && isEmpty(message.files)) {
       return !isEmpty(content.trim())
     }
     if (Array.isArray(content)) {

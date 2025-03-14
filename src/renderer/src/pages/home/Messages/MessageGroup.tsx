@@ -28,7 +28,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, onSetMessages }: Pr
   const messageLength = messages.length
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
 
-  const isGrouped = messageLength > 1
+  const isGrouped = messageLength > 1 && messages.every((m) => m.role === 'assistant')
   const isHorizontal = multiModelMessageStyle === 'horizontal'
   const isGrid = multiModelMessageStyle === 'grid'
 
