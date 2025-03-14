@@ -79,7 +79,7 @@ const highlightText = (textNode: Node, searchText: string, highlightClass: strin
   if (textNode.nodeType !== Node.TEXT_NODE) {
     return null
   }
-  const textContent = textNode.textContent!
+  const textContent = textNode.textContent!.toLowerCase()
   let index = textContent.indexOf(highlightText)
   if (index === -1) {
     return null
@@ -290,8 +290,8 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
         return null
       } else {
         const totalCount = highlightTextSet.size
-        if (targetIndex > totalCount - 1) {
-          return totalCount
+        if (targetIndex >= totalCount) {
+          return totalCount - 1
         } else {
           return targetIndex
         }

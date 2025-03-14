@@ -6,6 +6,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { ContentSearch, ContentSearchRef } from '@renderer/utils/ContentSearch'
 import { Flex, Tooltip } from 'antd'
 import { t } from 'i18next'
+import { debounce } from 'lodash'
 import React, { FC, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
@@ -74,18 +75,22 @@ const Chat: FC<Props> = (props) => {
     })
   }
 
-  const messagesComponentUpdateHandler = () => {
-    requestAnimationFrame(() => {
+  let firstUpdateCompleted = false
+  const firstUpdateOrNoFirstUpdateHandler = debounce((type: 0 | 1) => {
+    if (type === 0) {
+      contentSearchRef.current?.search()
+    } else {
       contentSearchRef.current?.silentSearch()
-    })
+    }
+  }, 10)
+  const messagesComponentUpdateHandler = () => {
+    if (firstUpdateCompleted) {
+      firstUpdateOrNoFirstUpdateHandler(1)
+    }
   }
-
   const messagesComponentFirstUpdateHandler = () => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        contentSearchRef.current?.search()
-      })
-    })
+    setTimeout(() => (firstUpdateCompleted = true), 300)
+    firstUpdateOrNoFirstUpdateHandler(0)
   }
 
   return (
