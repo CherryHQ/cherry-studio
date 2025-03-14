@@ -1,7 +1,7 @@
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Message } from '@renderer/types'
-import { Popover, Tooltip } from 'antd'
+import { Popover } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -65,9 +65,7 @@ const TopicReference: FC<TopicReferenceProps> = ({ topicName, topicId }) => {
           fetchTopicMessages()
         }
       }}>
-      <Tooltip title={`Topic ID: ${topicId}`} mouseEnterDelay={0.8}>
-        <TopicTag onClick={handleNavigateToTopic}>{topicName}</TopicTag>
-      </Tooltip>
+      <TopicTag onClick={handleNavigateToTopic}>{topicName}</TopicTag>
     </Popover>
   )
 }
