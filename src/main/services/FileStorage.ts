@@ -271,12 +271,12 @@ class FileStorage {
   }
 
   public clear = async (): Promise<void> => {
-    await fs.promises.rmdir(this.storageDir, { recursive: true })
+    await fs.promises.rm(this.storageDir, { recursive: true })
     await this.initStorageDir()
   }
 
   public clearTemp = async (): Promise<void> => {
-    await fs.promises.rmdir(this.tempDir, { recursive: true })
+    await fs.promises.rm(this.tempDir, { recursive: true })
     await fs.promises.mkdir(this.tempDir, { recursive: true })
   }
 

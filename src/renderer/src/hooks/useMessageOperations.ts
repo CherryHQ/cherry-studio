@@ -61,7 +61,7 @@ export function useMessageOperations(topic: Topic) {
           updates
         })
       )
-      db.topics.update(topic.id, {
+      await db.topics.update(topic.id, {
         messages: messages.map((m) => (m.id === messageId ? { ...m, ...updates } : m))
       })
     },

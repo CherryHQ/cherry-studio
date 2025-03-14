@@ -185,7 +185,7 @@ export function isFunctionCallingModel(model: Model): boolean {
     return true
   }
 
-  if (['gemini', 'deepseek', 'anthropic'].includes(model.provider)) {
+  if (['gemini', 'deepseek', 'anthropic'].includes(model.provider) && !EMBEDDING_REGEX.test(model.id)) {
     return true
   }
 

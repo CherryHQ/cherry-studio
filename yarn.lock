@@ -3187,7 +3187,7 @@ __metadata:
     electron-window-state: "npm:^5.0.3"
     emittery: "npm:^1.0.3"
     emoji-picker-element: "npm:^1.22.1"
-    epub: "npm:^1.3.0"
+    epub: "patch:epub@npm%3A1.3.0#~/.yarn/patches/epub-npm-1.3.0-8325494ffe.patch"
     eslint: "npm:^8.56.0"
     eslint-plugin-react: "npm:^7.34.3"
     eslint-plugin-react-hooks: "npm:^4.6.2"
@@ -3233,6 +3233,7 @@ __metadata:
     uuid: "npm:^10.0.0"
     vite: "npm:^5.0.12"
     webdav: "npm:4.11.4"
+    zipread: "npm:^1.3.3"
   peerDependencies:
     react: ^17.0.0 || ^18.0.0
     react-dom: ^17.0.0 || ^18.0.0
@@ -5733,7 +5734,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"epub@npm:^1.3.0":
+"epub@npm:1.3.0":
   version: 1.3.0
   resolution: "epub@npm:1.3.0"
   dependencies:
@@ -5744,6 +5745,20 @@ __metadata:
     zipfile:
       optional: true
   checksum: 10c0/2e8bb70354d13f17224f0fea2f999d1a5537383ed3df7388054eb28b98bd4f91057db19bf58e8bc8618f4f509051ad21fb12f36b6faa029d29bcf647ab13e074
+  languageName: node
+  linkType: hard
+
+"epub@patch:epub@npm%3A1.3.0#~/.yarn/patches/epub-npm-1.3.0-8325494ffe.patch":
+  version: 1.3.0
+  resolution: "epub@patch:epub@npm%3A1.3.0#~/.yarn/patches/epub-npm-1.3.0-8325494ffe.patch::version=1.3.0&hash=3b2b13"
+  dependencies:
+    adm-zip: "npm:^0.4.11"
+    xml2js: "npm:^0.4.23"
+    zipfile: "npm:^0.5.11"
+  dependenciesMeta:
+    zipfile:
+      optional: true
+  checksum: 10c0/02f818a65656666b512eb3477ebdac678a1427a65b32d9741c3e55372faf4a418080c537ccc342b02c3b42a2c94552e65f28c3b9617befe28ab36d2f940ca9f8
   languageName: node
   linkType: hard
 
@@ -15550,6 +15565,13 @@ __metadata:
   bin:
     unzip.js: ./bin/unzip.js
   checksum: 10c0/0813640a8f1b544b3b61f9039a8589f62f5d185c61b8ee282ee5d97115c99d0bf131cadbbe729b86dc1c147ed3196576eaac98175a64893ff4ead039521a5e7f
+  languageName: node
+  linkType: hard
+
+"zipread@npm:^1.3.3":
+  version: 1.3.3
+  resolution: "zipread@npm:1.3.3"
+  checksum: 10c0/e8be7df8ff5188ba2090459f1f54047da376f1fc9175d4531353c82a9a99c323474cb91539677759dccd642c32160b49714c2361800b3666d647a25c9ae19252
   languageName: node
   linkType: hard
 
