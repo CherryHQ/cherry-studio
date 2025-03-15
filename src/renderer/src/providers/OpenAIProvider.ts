@@ -55,12 +55,39 @@ export default class OpenAIProvider extends BaseProvider {
   constructor(provider: Provider) {
     super(provider)
 
+    const fetchOptions = {
+      async fetch(url: RequestInfo, init?: RequestInit) {
+        const response = await fetch(url, init)
+        // 只处理流式响应
+        if (!response.headers.get('content-type')?.includes('text/event-stream')) {
+          return response
+        }
+
+        // 创建一个过滤掉 [DONE] 消息的 TransformStream
+        const transform = new TransformStream({
+          transform(chunk, controller) {
+            const text = new TextDecoder().decode(chunk)
+            const filtered = text
+              .split('\n')
+              .filter((line) => !line.includes('[DONE]'))
+              .join('\n')
+            if (filtered) {
+              controller.enqueue(new TextEncoder().encode(filtered))
+            }
+          }
+        })
+
+        return new Response(response.body?.pipeThrough(transform))
+      }
+    }
+
     if (provider.id === 'azure-openai' || provider.type === 'azure-openai') {
       this.sdk = new AzureOpenAI({
         dangerouslyAllowBrowser: true,
         apiKey: this.apiKey,
         apiVersion: provider.apiVersion,
-        endpoint: provider.apiHost
+        endpoint: provider.apiHost,
+        ...fetchOptions
       })
       return
     }
@@ -69,7 +96,8 @@ export default class OpenAIProvider extends BaseProvider {
       dangerouslyAllowBrowser: true,
       apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
-      defaultHeaders: this.defaultHeaders()
+      defaultHeaders: this.defaultHeaders(),
+      ...fetchOptions
     })
   }
 
