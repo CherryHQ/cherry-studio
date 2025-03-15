@@ -5,6 +5,9 @@ import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdi
 import { MCPServer, MCPTool } from '@types'
 import log from 'electron-log'
 import { EventEmitter } from 'events'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 import { windowService } from './WindowService'
@@ -32,6 +35,7 @@ export default class MCPService extends EventEmitter {
   constructor() {
     super()
     this.createServerLoadingPromise()
+    this.init().catch(this.logError('Failed to initialize MCP service'))
   }
 
   /**
@@ -307,10 +311,35 @@ export default class MCPService extends EventEmitter {
         transport = new this.sseTransport!(new URL(baseUrl))
       } else if (command) {
         let cmd: string = command
+        const binariesDir = path.join(os.homedir(), '.cherrystudio', 'bin')
+        log.info(`[MCP] Using binaries directory: ${binariesDir}`)
         if (command === 'npx') {
-          cmd = process.platform === 'win32' ? `${command}.cmd` : command
+          cmd = path.join(binariesDir, 'bun')
+          cmd = process.platform === 'win32' ? `${cmd}.exe` : cmd
+          log.info(`[MCP] Using command: ${cmd}`)
+
+          // check if cmd exists, if not exist, install it using `node scripts/install-bun.js`
+          if (!fs.existsSync(cmd)) {
+            log.info(`[MCP] Installing ${command}...`)
+          }
+          // add -x to args if args exist
+          if (args && args.length > 0) {
+            if (!args.includes('-y')) {
+              args.unshift('-y')
+            }
+            args.unshift('x')
+          }
+        } else if (command === 'uvx') {
+          cmd = path.join(binariesDir, 'uvx')
+          cmd = process.platform === 'win32' ? `${cmd}.exe` : cmd
+          log.info(`[MCP] Using command: ${cmd}`)
+          // check if cmd exists, if not exist, install it using ``
+          if (!fs.existsSync(cmd)) {
+            log.info(`[MCP] Installing ${command}...`)
+          }
         }
 
+        log.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
         transport = new this.stdioTransport!({
           command: cmd,
           args,
