@@ -88,11 +88,14 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           const lowerFullName = fullName.toLowerCase()
           return keywords.every((keyword) => lowerFullName.includes(keyword))
         })
+      } else {
+        // 如果不是搜索状态，过滤掉已固定的模型
+        models = models.filter((m) => !pinnedModels.includes(getModelUniqId(m)))
       }
 
       return sortBy(models, ['group', 'name'])
     },
-    [searchText, t]
+    [searchText, t, pinnedModels]
   )
 
   // 递归处理菜单项，为每个项添加ref
