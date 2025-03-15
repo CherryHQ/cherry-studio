@@ -15,7 +15,7 @@ import {
   updateTopic,
   updateTopics
 } from '@renderer/store/assistants'
-import { setDefaultModel, setSearchSummaryModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
+import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 
 import { TopicManager } from './useTopic'
@@ -91,17 +91,15 @@ export function useDefaultAssistant() {
 }
 
 export function useDefaultModel() {
-  const { defaultModel, topicNamingModel, translateModel, searchSummaryModel } = useAppSelector((state) => state.llm)
+  const { defaultModel, topicNamingModel, translateModel } = useAppSelector((state) => state.llm)
   const dispatch = useAppDispatch()
 
   return {
     defaultModel,
     topicNamingModel,
     translateModel,
-    searchSummaryModel,
     setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
     setTopicNamingModel: (model: Model) => dispatch(setTopicNamingModel({ model })),
-    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model })),
-    setSearchSummaryModel: (model: Model) => dispatch(setSearchSummaryModel({ model }))
+    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model }))
   }
 }
