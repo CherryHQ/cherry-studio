@@ -824,7 +824,13 @@
         "updateSuccess": "伺服器更新成功",
         "updateError": "更新伺服器失敗",
         "url": "URL",
-        "toggleError": "切換失敗"
+        "toggleError": "切換失敗",
+        "jsonMode": "JSON模式",
+        "normalMode": "常規模式",
+        "jsonModeHint": "編輯MCP伺服器配置的JSON表示。保存前請確保格式正確。",
+        "jsonFormatError": "JSON格式錯誤",
+        "jsonSaveSuccess": "JSON配置已儲存",
+        "jsonSaveError": "保存JSON配置失敗"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
