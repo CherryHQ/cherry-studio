@@ -70,6 +70,7 @@
     "@llm-tools/embedjs-openai": "^0.1.28",
     "@modelcontextprotocol/sdk": "patch:@modelcontextprotocol/sdk@npm%3A1.6.1#~/.yarn/patches/@modelcontextprotocol-sdk-npm-1.6.1-b46313efe7.patch",
     "@notionhq/client": "^2.2.15",
+    "@tryfabric/martian": "^1.2.4",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "adm-zip": "^0.5.16",
     "apache-arrow": "^18.1.0",

@@ -422,6 +422,8 @@
       "group.delete.title": "删除分组消息",
       "ignore.knowledge.base": "联网模式开启，忽略知识库",
       "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion",
+      "loading.notion.preparing": "正在准备导出到Notion...",
+      "loading.notion.exporting_progress": "正在导出到Notion ({{current}}/{{total}})...",
       "mention.title": "切换模型回答",
       "message.code_style": "代码风格",
       "message.delete.content": "确定要删除此消息吗?",

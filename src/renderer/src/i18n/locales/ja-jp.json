@@ -420,6 +420,8 @@
       "error.yuque.no_config": "語雀Token または 知識ベースID が設定されていません",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
+      "loading.notion.preparing": "Notionへのエクスポートを準備中...",
+      "loading.notion.exporting_progress": "Notionにエクスポート中 ({{current}}/{{total}})...",
       "ignore.knowledge.base": "インターネットモードが有効になっています。ナレッジベースを無視します",
       "info.notion.block_reach_limit": "会話が長すぎます。Notionにページごとにエクスポートしています",
       "mention.title": "モデルを切り替える",

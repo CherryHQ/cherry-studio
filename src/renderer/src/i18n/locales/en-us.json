@@ -436,6 +436,8 @@
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
+      "loading.notion.preparing": "Preparing to export to Notion...",
+      "loading.notion.exporting_progress": "Exporting to Notion ({{current}}/{{total}})...",
       "regenerate.confirm": "Regenerating will replace current message",
       "reset.confirm.content": "Are you sure you want to clear all data?",
       "reset.double.confirm.content": "All data will be lost, do you want to continue?",

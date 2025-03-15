@@ -428,6 +428,8 @@
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
       "info.notion.block_reach_limit": "Диалог слишком длинный, экспортируется в Notion по страницам",
+      "loading.notion.preparing": "Подготовка к экспорту в Notion...",
+      "loading.notion.exporting_progress": "Экспорт в Notion ({{current}}/{{total}})...",
       "mention.title": "Переключить модель ответа",
       "message.code_style": "Стиль кода",
       "message.delete.content": "Вы уверены, что хотите удалить это сообщение?",

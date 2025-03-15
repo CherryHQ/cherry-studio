@@ -324,8 +324,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {isOpenAIProvider(provider) && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <SettingHelpText style={{ marginLeft: 6 }}>{hostPreview()}</SettingHelpText>
-          <SettingHelpText>{t('settings.provider.api.url.tip')}</SettingHelpText>
+          <SettingHelpText style={{ marginLeft: 6, marginRight: "1em", whiteSpace: "break-spaces", wordBreak: "break-all" }}>{hostPreview()}</SettingHelpText>
+          <SettingHelpText style={{ minWidth: "fit-content" }}>{t('settings.provider.api.url.tip')}</SettingHelpText>
         </SettingHelpTextRow>
       )}
       {isAzureOpenAI && (

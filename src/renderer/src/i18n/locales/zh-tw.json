@@ -422,6 +422,8 @@
       "group.delete.title": "刪除分組訊息",
       "ignore.knowledge.base": "網路模式開啟，忽略知識庫",
       "info.notion.block_reach_limit": "對話過長，自動分頁匯出到 Notion",
+      "loading.notion.preparing": "正在準備匯出到 Notion...",
+      "loading.notion.exporting_progress": "正在匯出到 Notion ({{current}}/{{total}})...",
       "mention.title": "切換模型回答",
       "message.code_style": "程式碼風格",
       "message.delete.content": "確定要刪除此訊息嗎？",
