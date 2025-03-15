@@ -10,6 +10,10 @@ ipcRenderer.on('mcp:servers-changed', (_event, servers) => {
   store.dispatch(setMCPServers(servers))
 })
 
+// Send initial servers state to main process
+const initialServers = store.getState().mcp.servers
+ipcRenderer.send('mcp:servers-from-renderer', initialServers)
+
 export const useMCPServers = () => {
   const mcpServers = useAppSelector((state) => state.mcp.servers)
   const dispatch = useAppDispatch()
