@@ -7,7 +7,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
 import { Avatar, Divider, Empty, Input, InputRef, Menu, MenuProps, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -34,6 +34,16 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [keyboardSelectedId, setKeyboardSelectedId] = useState<string>('')
+  const menuItemRefs = useRef<Record<string, HTMLElement | null>>({})
+
+  const setMenuItemRef = useCallback(
+    (key: string) => (el: HTMLElement | null) => {
+      if (el) {
+        menuItemRefs.current[key] = el
+      }
+    },
+    []
+  )
 
   useEffect(() => {
     const loadPinnedModels = async () => {
@@ -78,11 +88,38 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           const lowerFullName = fullName.toLowerCase()
           return keywords.every((keyword) => lowerFullName.includes(keyword))
         })
+      } else {
+        // 如果不是搜索状态，过滤掉已固定的模型
+        models = models.filter((m) => !pinnedModels.includes(getModelUniqId(m)))
       }
 
       return sortBy(models, ['group', 'name'])
     },
-    [searchText, t]
+    [searchText, t, pinnedModels]
+  )
+
+  // 递归处理菜单项，为每个项添加ref
+  const processMenuItems = useCallback(
+    (items: MenuItem[]) => {
+      // 内部定义 renderMenuItem 函数
+      const renderMenuItem = (item: any) => {
+        return {
+          ...item,
+          label: <div ref={setMenuItemRef(item.key)}>{item.label}</div>
+        }
+      }
+
+      return items.map((item) => {
+        if (item && 'children' in item && item.children) {
+          return {
+            ...item,
+            children: (item.children as MenuItem[]).map(renderMenuItem)
+          }
+        }
+        return item
+      })
+    },
+    [setMenuItemRef]
   )
 
   const filteredItems: MenuItem[] = providers
@@ -180,6 +217,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     }
   }
 
+  // 处理菜单项，添加ref
+  const processedItems = processMenuItems(filteredItems)
+
   const onCancel = () => {
     setKeyboardSelectedId('')
     setOpen(false)
@@ -198,9 +238,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   useEffect(() => {
     if (open && model) {
       setTimeout(() => {
-        const selectedElement = document.querySelector('.ant-menu-item-selected')
-        if (selectedElement && scrollContainerRef.current) {
-          selectedElement.scrollIntoView({ block: 'center', behavior: 'auto' })
+        const modelId = getModelUniqId(model)
+        if (menuItemRefs.current[modelId]) {
+          menuItemRefs.current[modelId]?.scrollIntoView({ block: 'center', behavior: 'auto' })
         }
       }, 100) // Small delay to ensure menu is rendered
     }
@@ -224,10 +264,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         getFilteredModels(p).forEach((m) => {
           const modelId = getModelUniqId(m)
           const isPinned = pinnedModels.includes(modelId)
-          // 如果是搜索状态，或者不是固定模型，才添加到列表中
+
+          // 搜索状态下，所有匹配的模型都应该可以被选中，包括固定的模型
+          // 非搜索状态下，只添加非固定模型（固定模型已在上面添加）
           if (searchText.length > 0 || !isPinned) {
             items.push({
-              key: isPinned ? modelId + '_pinned' : modelId,
+              key: modelId,
               model: m
             })
           }
@@ -237,6 +279,40 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
     return items
   }, [pinnedModels, searchText, providers, getFilteredModels])
+
+  // 添加一个useLayoutEffect来处理滚动
+  useLayoutEffect(() => {
+    if (open && keyboardSelectedId && menuItemRefs.current[keyboardSelectedId]) {
+      // 获取当前选中元素和容器
+      const selectedElement = menuItemRefs.current[keyboardSelectedId]
+      const scrollContainer = scrollContainerRef.current
+
+      if (!scrollContainer) return
+
+      const selectedRect = selectedElement.getBoundingClientRect()
+      const containerRect = scrollContainer.getBoundingClientRect()
+
+      // 计算元素相对于容器的位置
+      const currentScrollTop = scrollContainer.scrollTop
+      const elementTop = selectedRect.top - containerRect.top + currentScrollTop
+      const groupTitleHeight = 30
+
+      // 确定滚动位置
+      if (selectedRect.top < containerRect.top + groupTitleHeight) {
+        // 元素被组标题遮挡，向上滚动
+        scrollContainer.scrollTo({
+          top: elementTop - groupTitleHeight,
+          behavior: 'smooth'
+        })
+      } else if (selectedRect.bottom > containerRect.bottom) {
+        // 元素在视口下方，向下滚动
+        scrollContainer.scrollTo({
+          top: elementTop - containerRect.height + selectedRect.height,
+          behavior: 'smooth'
+        })
+      }
+    }
+  }, [open, keyboardSelectedId])
 
   // 处理键盘导航
   const handleKeyDown = useCallback(
@@ -258,9 +334,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
         const nextItem = items[nextIndex]
         setKeyboardSelectedId(nextItem.key)
-
-        const element = document.querySelector(`[data-menu-id="${nextItem.key}"]`)
-        element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
       } else if (e.key === 'Enter') {
         e.preventDefault() // 阻止回车的默认行为
         if (keyboardSelectedId) {
@@ -332,8 +405,16 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
       <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
         <Container>
-          {filteredItems.length > 0 ? (
-            <StyledMenu items={filteredItems} selectedKeys={selectedKeys} mode="inline" inlineIndent={6} />
+          {processedItems.length > 0 ? (
+            <StyledMenu
+              items={processedItems}
+              selectedKeys={selectedKeys}
+              mode="inline"
+              inlineIndent={6}
+              onSelect={({ key }) => {
+                setKeyboardSelectedId(key as string)
+              }}
+            />
           ) : (
             <EmptyState>
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
