@@ -1257,7 +1257,7 @@ const migrateConfig = {
     })
     return state
   },
-  '79': (state: RootState) => {
+  '80': (state: RootState) => {
     state.settings.searchSummaryPrompt = SEARCH_SUMMARY_PROMPT
     return state
   }
