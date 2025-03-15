@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -34,7 +34,7 @@ jobs:
         run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
 
       - name: Cache yarn dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ steps.yarn-cache-dir-path.outputs.dir }}
@@ -85,7 +85,7 @@ jobs:
         run: node scripts/replace-spaces.js
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
           path: |
@@ -99,7 +99,7 @@ jobs:
             dist/*.tar.gz
             dist/latest*.yml
             dist/*.blockmap
-          retention-days: 5 # 保留5天
+          retention-days: 3 # 保留3天
 
       - name: Add warning to summary
         run: |
