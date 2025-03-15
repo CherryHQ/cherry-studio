@@ -3,9 +3,9 @@
     <img src="https://github.com/kangfenmao/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" />
   </a>
 </h1>
-<div align="center">
-  <a href="./README.md">English</a> | <a href="./README.zh.md">中文</a> | 日本語
-</div>
+<p align="center">
+  <a href="https://github.com/kangfenmao/cherry-studio">English</a> | <a href="./README.zh.md">中文</a> | 日本語 <br>
+</p>
 <div align="center">
  <a href="https://trendshift.io/repositories/11772" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11772" alt="kangfenmao%2Fcherry-studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
@@ -13,7 +13,7 @@
 
 Cherry Studioは、複数のLLMプロバイダーをサポートするデスクトップクライアントで、Windows、Mac、Linuxで利用可能です。
 
-👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(1025067911)](https://qm.qq.com/q/RIBAO2pPKS)
+👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(472019156)](https://qm.qq.com/q/CbZiBWwCXu)
 
 ❤️ Cherry Studioをお気に入りにしましたか？小さな星をつけてください 🌟 または [スポンサー](sponsor.md) をして開発をサポートしてください！❤️
 
@@ -29,37 +29,38 @@ Cherry Studioは、複数のLLMプロバイダーをサポートするデスク�
 
 1. **多様な LLM サービス対応**：
 
-   - ☁️ 主要な LLM クラウドサービス対応：OpenAI、Gemini、Anthropic など
-   - 🔗 AI Web サービス統合：Claude、Peplexity、Poe など
-   - 💻 Ollama、LM Studio によるローカルモデル実行対応
+- ☁️ 主要な LLM クラウドサービス対応：OpenAI、Gemini、Anthropic など
+- 🔗 AI Web サービス統合：Claude、Peplexity、Poe など
+- 💻 Ollama、LM Studio によるローカルモデル実行対応
 
 2. **AI アシスタントと対話**：
 
-   - 📚 300+ の事前設定済み AI アシスタント
-   - 🤖 カスタム AI アシスタントの作成
-   - 💬 複数モデルでの同時対話機能
+- 📚 300+ の事前設定済み AI アシスタント
+- 🤖 カスタム AI アシスタントの作成
+- 💬 複数モデルでの同時対話機能
 
 3. **文書とデータ処理**：
 
-   - 📄 テキスト、画像、Office、PDF など多様な形式対応
-   - ☁️ WebDAV によるファイル管理とバックアップ
-   - 📊 Mermaid による図表作成
-   - 💻 コードハイライト機能
+- 📄 テキスト、画像、Office、PDF など多様な形式対応
+- ☁️ WebDAV によるファイル管理とバックアップ
+- 📊 Mermaid による図表作成
+- 💻 コードハイライト機能
 
 4. **実用的なツール統合**：
 
-   - 🔍 グローバル検索機能
-   - 📝 トピック管理システム
-   - 🔤 AI による翻訳機能
-   - 🎯 ドラッグ＆ドロップによる整理
-   - 🔌 ミニプログラム対応
+- 🔍 グローバル検索機能
+- 📝 トピック管理システム
+- 🔤 AI による翻訳機能
+- 🎯 ドラッグ＆ドロップによる整理
+- 🔌 ミニプログラム対応
 
 5. **優れたユーザー体験**：
-   - 🖥️ Windows、Mac、Linux のクロスプラットフォーム対応
-   - 📦 環境構築不要ですぐに使用可能
-   - 🎨 ライト/ダークテーマと透明ウィンドウ対応
-   - 📝 完全な Markdown レンダリング
-   - 🤲 簡単な共有機能
+
+- 🖥️ Windows、Mac、Linux のクロスプラットフォーム対応
+- 📦 環境構築不要ですぐに使用可能
+- 🎨 ライト/ダークテーマと透明ウィンドウ対応
+- 📝 完全な Markdown レンダリング
+- 🤲 簡単な共有機能
 
 # 📝 TODO
 
@@ -78,36 +79,7 @@ Cherry Studioは、複数のLLMプロバイダーをサポートするデスク�
 
 # 🖥️ 開発
 
-## IDEの設定
-
-[Cursor](https://www.cursor.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-
-## プロジェクトの設定
-
-### インストール
-
-```bash
-$ yarn
-```
-
-### 開発
-
-```bash
-$ yarn dev
-```
-
-### ビルド
-
-```bash
-# Windowsの場合
-$ yarn build:win
-
-# macOSの場合
-$ yarn build:mac
-
-# Linuxの場合
-$ yarn build:linux
-```
+参考[開発ドキュメント](dev.md)
 
 # 🤝 貢献
 

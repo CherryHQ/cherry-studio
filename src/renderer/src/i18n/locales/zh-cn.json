@@ -222,7 +222,8 @@
       "select": "选择",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户"
+      "you": "用户",
+      "more": "更多"
     },
     "docs": {
       "title": "帮助文档"
@@ -411,6 +412,8 @@
       "error.invalid.enter.model": "请选择一个模型",
       "error.invalid.proxy.url": "无效的代理地址",
       "error.invalid.webdav": "无效的 WebDAV 设置",
+      "error.markdown.export.preconf": "导出Markdown文件到预先设定的路径失败",
+      "error.markdown.export.specified": "导出Markdown文件失败",
       "error.notion.export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
@@ -441,14 +444,16 @@
       "restore.success": "恢复成功",
       "save.success.title": "保存成功",
       "searching": "正在联网搜索...",
-      "success.notion.export": "成功导出到Notion",
+      "success.markdown.export.preconf": "成功导出 Markdown 文件到预先设定的路径",
+      "success.markdown.export.specified": "成功导出 Markdown 文件",
+      "success.notion.export": "成功导出到 Notion",
       "success.yuque.export": "成功导出到语雀",
       "switch.disabled": "请等待当前回复完成后操作",
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
-      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!"
+      "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
@@ -500,13 +505,14 @@
       "reasoning": "推理",
       "search": "搜索模型...",
       "stream_output": "流式输出",
-      "tool_calling": "工具调用",
+      "function_calling": "函数调用",
       "type": {
         "embedding": "嵌入",
         "reasoning": "推理",
         "select": "选择模型类型",
         "text": "文本",
-        "vision": "图像"
+        "vision": "图像",
+        "function_calling": "函数调用"
       },
       "vision": "视觉",
       "websearch": "联网"
@@ -602,7 +608,8 @@
       "xirang": "天翼云息壤",
       "yi": "零一万物",
       "zhinao": "360智脑",
-      "zhipu": "智谱AI"
+      "zhipu": "智谱AI",
+      "gpustack": "GPUStack"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -617,6 +624,12 @@
         "title": "恢复进度"
       },
       "title": "数据恢复"
+    },
+    "gpustack": {
+      "keep_alive_time.description": "模型在内存中保持的时间（默认：5分钟）",
+      "keep_alive_time.placeholder": "分钟",
+      "keep_alive_time.title": "保持活跃时间",
+      "title": "GPUStack"
     },
     "settings": {
       "about": "关于我们",
@@ -666,6 +679,11 @@
         "hour_interval_other": "{{count}} 小时",
         "minute_interval_one": "{{count}} 分钟",
         "minute_interval_other": "{{count}} 分钟",
+        "markdown_export.title": "Markdown 导出",
+        "markdown_export.path": "默认导出路径",
+        "markdown_export.path_placeholder": "导出路径",
+        "markdown_export.select": "选择",
+        "markdown_export.help": "若填入，则每次导出时将自动保存到该路径；否则，将弹出保存对话框",
         "notion.api_key": "Notion 密钥",
         "notion.api_key_placeholder": "请输入Notion 密钥",
         "notion.auto_split": "导出对话时自动分页",
@@ -775,13 +793,16 @@
         "active": "启用",
         "addServer": "添加服务器",
         "addSuccess": "服务器添加成功",
+        "addError": "添加服务器失败",
         "args": "参数",
         "argsTooltip": "每个参数占一行",
+        "baseUrlTooltip": "远程 URL 地址",
         "command": "命令",
         "commandRequired": "请输入命令",
         "config_description": "配置模型上下文协议服务器",
         "confirmDelete": "删除服务器",
         "confirmDeleteMessage": "您确定要删除该服务器吗？",
+        "deleteError": "删除服务器失败",
         "deleteSuccess": "服务器删除成功",
         "description": "描述",
         "duplicateName": "已存在同名服务器",
@@ -796,7 +817,9 @@
         "title": "MCP 服务器",
         "type": "类型",
         "updateSuccess": "服务器更新成功",
-        "url": "URL"
+        "updateError": "更新服务器失败",
+        "url": "URL",
+        "toggleError": "切换失败"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
@@ -948,6 +971,7 @@
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "检查",
+        "check_success": "验证成功",
         "check_failed": "验证失败",
         "get_api_key": "点击这里获取密钥",
         "no_provider_selected": "请选择搜索服务商后再检查",

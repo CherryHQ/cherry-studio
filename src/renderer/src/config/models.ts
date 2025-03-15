@@ -157,7 +157,8 @@ const visionAllowedModels = [
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
-  'kimi-latest'
+  'kimi-latest',
+  'gemma-3(?:-[\\w-]+)'
 ]
 
 const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+']
@@ -178,14 +179,38 @@ export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|
 export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
 
 // Tool calling models
-export const TOOL_CALLING_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4.5', 'claude']
-export const TOOL_CALLING_REGEX = new RegExp(`\\b(?:${TOOL_CALLING_MODELS.join('|')})\\b`, 'i')
-export function isToolCallingModel(model: Model): boolean {
-  if (['gemini', 'deepseek', 'anthropic'].includes(model.provider)) {
+export const FUNCTION_CALLING_MODELS = [
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4',
+  'gpt-4.5',
+  'claude',
+  'qwen',
+  'glm-4(?:-[\\w-]+)?',
+  'learnlm(?:-[\\w-]+)?',
+  'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
+]
+
+const FUNCTION_CALLING_EXCLUDED_MODELS = ['aqa(?:-[\\w-]+)?', 'imagen(?:-[\\w-]+)?']
+
+export const FUNCTION_CALLING_REGEX = new RegExp(
+  `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
+  'i'
+)
+export function isFunctionCallingModel(model: Model): boolean {
+  if (model.type?.includes('function_calling')) {
     return true
   }
 
-  return TOOL_CALLING_REGEX.test(model.id)
+  if (isEmbeddingModel(model)) {
+    return false
+  }
+
+  if (['deepseek', 'anthropic'].includes(model.provider)) {
+    return true
+  }
+
+  return FUNCTION_CALLING_REGEX.test(model.id)
 }
 
 export function getModelLogo(modelId: string) {
@@ -1741,21 +1766,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Jina'
     }
   ],
-  //加前缀是为了展示图标
-  xirang: [
-    {
-      id: 'xirang-4bd107bff85941239e27b1509eccfe98',
-      provider: 'xirang',
-      name: 'DeepSeek-R1',
-      group: 'xirang'
-    },
-    {
-      id: 'xirang-9dc913a037774fc0b248376905c85da5',
-      provider: 'xirang',
-      name: 'DeepSeek-V3',
-      group: 'xirang'
-    }
-  ],
+  xirang: [],
   'tencent-cloud-ti': [
     {
       id: 'deepseek-r1',
@@ -1769,7 +1780,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'DeepSeek V3',
       group: 'DeepSeek'
     }
-  ]
+  ],
+  gpustack: []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -2001,4 +2013,12 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
   }
 
   return {}
+}
+
+export function isGemmaModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return model.id.includes('gemma-') || model.group === 'Gemma'
 }

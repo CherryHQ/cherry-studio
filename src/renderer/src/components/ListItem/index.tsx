@@ -6,16 +6,17 @@ interface ListItemProps {
   icon?: ReactNode
   title: string
   subtitle?: string
+  titleStyle?: React.CSSProperties
   onClick?: () => void
 }
 
-const ListItem = ({ active, icon, title, subtitle, onClick }: ListItemProps) => {
+const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick }: ListItemProps) => {
   return (
     <ListItemContainer className={active ? 'active' : ''} onClick={onClick}>
       <ListItemContent>
         {icon && <IconWrapper>{icon}</IconWrapper>}
         <TextContainer>
-          <TitleText>{title}</TitleText>
+          <TitleText style={titleStyle}>{title}</TitleText>
           {subtitle && <SubtitleText>{subtitle}</SubtitleText>}
         </TextContainer>
       </ListItemContent>
@@ -48,7 +49,7 @@ const ListItemContainer = styled.div`
 const ListItemContent = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   overflow: hidden;
   font-size: 13px;
 `

@@ -43,7 +43,7 @@ jobs:
           node-version: 20
 
       - name: Install corepack
-        run: corepack enable && corepack prepare yarn@4.3.1 --activate
+        run: corepack enable && corepack prepare yarn@4.6.0 --activate
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path

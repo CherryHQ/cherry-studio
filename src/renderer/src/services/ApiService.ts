@@ -3,8 +3,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
-import { addAbortController } from '@renderer/utils/abortController'
-import { formatMessageError } from '@renderer/utils/error'
+import { formatMessageError, isAbortError } from '@renderer/utils/error'
 import { cloneDeep, findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -33,24 +32,9 @@ export async function fetchChatCompletion({
   assistant: Assistant
   onResponse: (message: Message) => void
 }) {
-  window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, false)
-
   const provider = getAssistantProvider(assistant)
   const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
-
-  store.dispatch(setGenerating(true))
-
-  onResponse({ ...message })
-
-  const pauseFn = (message: Message) => {
-    message.status = 'paused'
-    EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
-    store.dispatch(setGenerating(false))
-    onResponse({ ...message, status: 'paused' })
-  }
-
-  addAbortController(message.askId ?? message.id, pauseFn.bind(null, message))
 
   try {
     let _messages: Message[] = []
@@ -106,7 +90,6 @@ export async function fetchChatCompletion({
     }
 
     const allMCPTools = await window.api.mcp.listTools()
-
     await AI.completions({
       messages: filterUsefulMessages(messages),
       assistant,
@@ -152,18 +135,24 @@ export async function fetchChatCompletion({
       // Set metrics.completion_tokens
       if (message.metrics && message?.usage?.completion_tokens) {
         if (!message.metrics?.completion_tokens) {
-          message.metrics.completion_tokens = message.usage.completion_tokens
+          message = {
+            ...message,
+            metrics: {
+              ...message.metrics,
+              completion_tokens: message.usage.completion_tokens
+            }
+          }
         }
       }
     }
   } catch (error: any) {
-    console.log('error', error)
-    message.status = 'error'
-    message.error = formatMessageError(error)
+    if (isAbortError(error)) {
+      message.status = 'paused'
+    } else {
+      message.status = 'error'
+      message.error = formatMessageError(error)
+    }
   }
-
-  // Update message status
-  message.status = window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED) ? 'paused' : message.status
 
   // Emit chat completion event
   EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
@@ -357,4 +346,13 @@ export async function fetchModels(provider: Provider) {
   } catch (error) {
     return []
   }
+}
+
+/**
+ * Format API keys
+ * @param value Raw key string
+ * @returns Formatted key string
+ */
+export const formatApiKeys = (value: string) => {
+  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
 }

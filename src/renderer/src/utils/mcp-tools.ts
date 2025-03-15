@@ -3,7 +3,7 @@ import { FunctionCall, FunctionDeclaration, SchemaType, Tool as geminiToool } fr
 import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
 
-import { ChunkCallbackData } from '.'
+import { ChunkCallbackData } from '../providers'
 
 const supportedAttributes = [
   'type',
@@ -52,16 +52,38 @@ export function openAIToolsToMcpTool(
   if (!tool) {
     return undefined
   }
-  tool.inputSchema = JSON.parse(llmTool.function.arguments)
-  return tool
+  console.log(
+    `[MCP] OpenAI Tool to MCP Tool: ${tool.serverName} ${tool.name}`,
+    tool,
+    'args',
+    llmTool.function.arguments
+  )
+  // use this to parse the arguments and avoid parsing errors
+  let args: any = {}
+  try {
+    args = JSON.parse(llmTool.function.arguments)
+  } catch (e) {
+    console.error('Error parsing arguments', e)
+  }
+
+  return {
+    id: tool.id,
+    serverName: tool.serverName,
+    name: tool.name,
+    description: tool.description,
+    inputSchema: args
+  }
 }
 
 export async function callMCPTool(tool: MCPTool): Promise<any> {
-  return await window.api.mcp.callTool({
+  console.log(`[MCP] Calling Tool: ${tool.serverName} ${tool.name}`, tool)
+  const resp = await window.api.mcp.callTool({
     client: tool.serverName,
     name: tool.name,
     args: tool.inputSchema
   })
+  console.log(`[MCP] Tool called: ${tool.serverName} ${tool.name}`, resp)
+  return resp
 }
 
 export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> {
@@ -88,7 +110,8 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
 }
 
 export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiToool[] {
-  if (!mcpTools) {
+  if (!mcpTools || mcpTools.length === 0) {
+    // No tools available
     return []
   }
   const functions: FunctionDeclaration[] = []
@@ -132,7 +155,7 @@ export function upsertMCPToolResponse(
 ) {
   try {
     for (const ret of results) {
-      if (ret.tool.id == resp.tool.id) {
+      if (ret.id === resp.id) {
         ret.response = resp.response
         ret.status = resp.status
         return
@@ -141,7 +164,7 @@ export function upsertMCPToolResponse(
     results.push(resp)
   } finally {
     onChunk({
-      text: '',
+      text: '\n',
       mcpToolResponse: results
     })
   }

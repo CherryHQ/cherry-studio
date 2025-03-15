@@ -4,9 +4,7 @@ import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Message, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Popover } from 'antd'
-import type { Dispatch, SetStateAction } from 'react'
 import { memo, useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
 import MessageGroupMenuBar from './MessageGroupMenuBar'
@@ -16,23 +14,10 @@ interface Props {
   messages: (Message & { index: number })[]
   topic: Topic
   hidePresetMessages?: boolean
-  onGetMessages: () => Message[]
-  onSetMessages: Dispatch<SetStateAction<Message[]>>
-  onDeleteMessage: (message: Message) => Promise<void>
-  onDeleteGroupMessages: (askId: string) => Promise<void>
 }
 
-const MessageGroup = ({
-  messages,
-  topic,
-  hidePresetMessages,
-  onDeleteMessage,
-  onSetMessages,
-  onGetMessages,
-  onDeleteGroupMessages
-}: Props) => {
+const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
-  const { t } = useTranslation()
 
   const [multiModelMessageStyle, setMultiModelMessageStyle] =
     useState<MultiModelMessageStyle>(multiModelMessageStyleSetting)
@@ -40,25 +25,9 @@ const MessageGroup = ({
   const messageLength = messages.length
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
 
-  const isGrouped = messageLength > 1
+  const isGrouped = messageLength > 1 && messages.every((m) => m.role === 'assistant')
   const isHorizontal = multiModelMessageStyle === 'horizontal'
   const isGrid = multiModelMessageStyle === 'grid'
-
-  const handleDeleteGroup = useCallback(async () => {
-    const askId = messages[0]?.askId
-    if (!askId) return
-
-    window.modal.confirm({
-      title: t('message.group.delete.title'),
-      content: t('message.group.delete.content'),
-      centered: true,
-      okButtonProps: {
-        danger: true
-      },
-      okText: t('common.delete'),
-      onOk: () => onDeleteGroupMessages(askId)
-    })
-  }, [messages, onDeleteGroupMessages, t])
 
   useEffect(() => {
     setSelectedIndex(messageLength - 1)
@@ -75,10 +44,7 @@ const MessageGroup = ({
         hidePresetMessages,
         style: {
           paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15
-        },
-        onSetMessages,
-        onDeleteMessage,
-        onGetMessages
+        }
       }
 
       const messageWrapper = (
@@ -123,9 +89,6 @@ const MessageGroup = ({
       selectedIndex,
       topic,
       hidePresetMessages,
-      onSetMessages,
-      onDeleteMessage,
-      onGetMessages,
       gridPopoverTrigger
     ]
   )
@@ -149,7 +112,7 @@ const MessageGroup = ({
           messages={messages}
           selectedIndex={selectedIndex}
           setSelectedIndex={setSelectedIndex}
-          onDelete={handleDeleteGroup}
+          topic={topic}
         />
       )}
     </GroupContainer>

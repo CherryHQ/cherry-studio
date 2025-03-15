@@ -1,9 +1,8 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { addMCPServer, deleteMCPServer, setMCPServerActive, updateMCPServer } from '@renderer/store/mcp'
+import { useAppSelector } from '@renderer/store'
 import { MCPServer } from '@renderer/types'
-import { Button, Card, Form, Input, message, Modal, Radio, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Button, Card, Form, Input, Modal, Radio, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +24,6 @@ const MCPSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { Paragraph, Text } = Typography
-  const dispatch = useAppDispatch()
   const mcpServers = useAppSelector((state) => state.mcp.servers)
 
   const [isModalVisible, setIsModalVisible] = useState(false)
@@ -78,110 +76,97 @@ const MCPSettings: FC = () => {
     form.resetFields()
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setLoading(true)
-    form
-      .validateFields()
-      .then((values) => {
-        const mcpServer: MCPServer = {
-          name: values.name,
-          description: values.description,
-          isActive: values.isActive
-        }
+    try {
+      const values = await form.validateFields()
+      const mcpServer: MCPServer = {
+        name: values.name,
+        description: values.description,
+        isActive: values.isActive
+      }
 
-        if (values.serverType === 'sse') {
-          mcpServer.baseUrl = values.baseUrl
-        } else {
-          mcpServer.command = values.command
-          mcpServer.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
+      if (values.serverType === 'sse') {
+        mcpServer.baseUrl = values.baseUrl
+      } else {
+        mcpServer.command = values.command
+        mcpServer.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
 
-          const env: Record<string, string> = {}
-          if (values.env) {
-            values.env.split('\n').forEach((line) => {
-              if (line.trim()) {
-                const [key, value] = line.split('=')
-                if (key && value) {
-                  env[key.trim()] = value.trim()
-                }
+        const env: Record<string, string> = {}
+        if (values.env) {
+          values.env.split('\n').forEach((line) => {
+            if (line.trim()) {
+              const [key, ...chunks] = line.split('=')
+              const value = chunks.join('=')
+              if (key && value) {
+                env[key.trim()] = value.trim()
               }
-            })
-          }
-          mcpServer.env = Object.keys(env).length > 0 ? env : undefined
+            }
+          })
+        }
+        mcpServer.env = Object.keys(env).length > 0 ? env : undefined
+      }
+
+      if (editingServer) {
+        try {
+          await window.api.mcp.updateServer(mcpServer)
+          window.message.success(t('settings.mcp.updateSuccess'))
+          setLoading(false)
+          setIsModalVisible(false)
+          form.resetFields()
+        } catch (error: any) {
+          window.message.error(`${t('settings.mcp.updateError')}: ${error.message}`)
+          setLoading(false)
+        }
+      } else {
+        // Check for duplicate name
+        if (mcpServers.some((server: MCPServer) => server.name === mcpServer.name)) {
+          window.message.error(t('settings.mcp.duplicateName'))
+          setLoading(false)
+          return
         }
 
-        if (editingServer) {
-          window.api.mcp
-            .updateServer(mcpServer)
-            .then(() => {
-              message.success(t('settings.mcp.updateSuccess'))
-              setLoading(false)
-              setIsModalVisible(false)
-              form.resetFields()
-            })
-            .catch((error) => {
-              message.error(`${t('settings.mcp.updateError')}: ${error.message}`)
-              setLoading(false)
-            })
-          dispatch(updateMCPServer(mcpServer))
-        } else {
-          // Check for duplicate name
-          if (mcpServers.some((server: MCPServer) => server.name === mcpServer.name)) {
-            message.error(t('settings.mcp.duplicateName'))
-            setLoading(false)
-            return
-          }
-
-          window.api.mcp
-            .addServer(mcpServer)
-            .then(() => {
-              message.success(t('settings.mcp.addSuccess'))
-              setLoading(false)
-              setIsModalVisible(false)
-              form.resetFields()
-            })
-            .catch((error) => {
-              message.error(`${t('settings.mcp.addError')}: ${error.message}`)
-              setLoading(false)
-            })
-          dispatch(addMCPServer(mcpServer))
+        try {
+          await window.api.mcp.addServer(mcpServer)
+          window.message.success(t('settings.mcp.addSuccess'))
+          setLoading(false)
+          setIsModalVisible(false)
+          form.resetFields()
+        } catch (error: any) {
+          window.message.error(`${t('settings.mcp.addError')}: ${error.message}`)
+          setLoading(false)
         }
-      })
-      .catch(() => {
-        setLoading(false)
-      })
+      }
+    } catch (error: any) {
+      setLoading(false)
+    }
   }
 
   const handleDelete = (serverName: string) => {
-    Modal.confirm({
+    window.modal.confirm({
       title: t('settings.mcp.confirmDelete'),
       content: t('settings.mcp.confirmDeleteMessage'),
       okText: t('common.delete'),
       okButtonProps: { danger: true },
       cancelText: t('common.cancel'),
-      onOk: () => {
-        window.api.mcp
-          .deleteServer(serverName)
-          .then(() => {
-            message.success(t('settings.mcp.deleteSuccess'))
-          })
-          .catch((error) => {
-            message.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
-          })
-        dispatch(deleteMCPServer(serverName))
+      centered: true,
+      onOk: async () => {
+        try {
+          await window.api.mcp.deleteServer(serverName)
+          window.message.success(t('settings.mcp.deleteSuccess'))
+        } catch (error: any) {
+          window.message.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+        }
       }
     })
   }
 
-  const handleToggleActive = (name: string, isActive: boolean) => {
-    window.api.mcp
-      .setServerActive(name, isActive)
-      .then(() => {
-        // Optional: Show success message or update UI
-      })
-      .catch((error) => {
-        message.error(`${t('settings.mcp.toggleError')}: ${error.message}`)
-      })
-    dispatch(setMCPServerActive({ name, isActive }))
+  const handleToggleActive = async (name: string, isActive: boolean) => {
+    try {
+      await window.api.mcp.setServerActive(name, isActive)
+    } catch (error: any) {
+      window.message.error(`${t('settings.mcp.toggleError')}: ${error.message}`)
+    }
   }
 
   const columns = [
@@ -217,7 +202,7 @@ const MCPSettings: FC = () => {
             ellipsis={{
               rows: 1,
               expandable: 'collapsible',
-              symbol: 'more',
+              symbol: t('common.more'),
               onExpand: () => {}, // Empty callback required for proper functionality
               tooltip: true
             }}
@@ -306,6 +291,7 @@ const MCPSettings: FC = () => {
           onCancel={handleCancel}
           onOk={handleSubmit}
           confirmLoading={loading}
+          maskClosable={false}
           width={600}>
           <Form form={form} layout="vertical">
             <Form.Item

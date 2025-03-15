@@ -12,6 +12,7 @@ import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.p
 import GiteeAIProviderLogo from '@renderer/assets/images/providers/gitee-ai.png'
 import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
 import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
+import GPUStackProviderLogo from '@renderer/assets/images/providers/gpustack.svg'
 import GraphRagProviderLogo from '@renderer/assets/images/providers/graph-rag.png'
 import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
@@ -123,6 +124,8 @@ export function getProviderLogo(providerId: string) {
       return O3ProviderLogo
     case 'tencent-cloud-ti':
       return TencentCloudProviderLogo
+    case 'gpustack':
+      return GPUStackProviderLogo
     default:
       return undefined
   }
@@ -571,6 +574,16 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://console.cloud.tencent.com/lkeap/api',
       docs: 'https://cloud.tencent.com/document/product/1772',
       models: 'https://console.cloud.tencent.com/tione/v2/aimarket'
+    }
+  },
+  gpustack: {
+    api: {
+      url: ''
+    },
+    websites: {
+      official: 'https://gpustack.ai/',
+      docs: 'https://docs.gpustack.ai/latest/',
+      models: 'https://docs.gpustack.ai/latest/overview/#supported-models'
     }
   }
 }

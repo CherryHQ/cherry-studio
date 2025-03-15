@@ -23,11 +23,8 @@ const Messages: FC<Props> = ({ assistant, route }) => {
   const [messages, setMessages] = useState<Message[]>([])
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const messagesRef = useRef(messages)
 
   const { t } = useTranslation()
-
-  messagesRef.current = messages
 
   const onSendMessage = useCallback(
     async (message: Message) => {
@@ -39,10 +36,6 @@ const Messages: FC<Props> = ({ assistant, route }) => {
     },
     [assistant]
   )
-
-  const onGetMessages = useCallback(() => {
-    return messagesRef.current
-  }, [])
 
   useEffect(() => {
     const unsubscribes = [EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, onSendMessage)]
@@ -60,15 +53,7 @@ const Messages: FC<Props> = ({ assistant, route }) => {
   return (
     <Container id="messages" key={assistant.id} ref={containerRef}>
       {[...messages].reverse().map((message, index) => (
-        <MessageItem
-          key={message.id}
-          message={message}
-          index={index}
-          total={messages.length}
-          onSetMessages={setMessages}
-          onGetMessages={onGetMessages}
-          route={route}
-        />
+        <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />
       ))}
     </Container>
   )

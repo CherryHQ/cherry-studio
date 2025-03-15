@@ -7,13 +7,13 @@ import {
   GlobalOutlined,
   HolderOutlined,
   PauseCircleOutlined,
-  PicCenterOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
@@ -21,15 +21,15 @@ import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
-import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
+import { getUserMessage } from '@renderer/services/MessagesService'
+import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/messages'
-import { setGenerating, setSearching } from '@renderer/store/runtime'
+import { setSearching } from '@renderer/store/runtime'
 import { Assistant, FileType, KnowledgeBase, MCPServer, Message, Model, Topic } from '@renderer/types'
 import { classNames, delay, getFileExtension } from '@renderer/utils'
-import { abortCompletion } from '@renderer/utils/abortController'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Popconfirm, Tooltip } from 'antd'
@@ -48,6 +48,7 @@ import KnowledgeBaseButton from './KnowledgeBaseButton'
 import MCPToolsButton from './MCPToolsButton'
 import MentionModelsButton from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
+import NewContextButton from './NewContextButton'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 interface Props {
@@ -59,7 +60,7 @@ interface Props {
 let _text = ''
 let _files: FileType[] = []
 
-const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
+const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
   const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
@@ -76,13 +77,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
-  const generating = useAppSelector((state) => state.runtime.generating)
+  // const generating = useAppSelector((state) => state.runtime.generating)
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
   const { isBubbleStyle } = useMessageStyle()
+  const { loading, pauseMessages } = useMessageOperations(topic)
   const dispatch = useAppDispatch()
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout>()
@@ -101,6 +103,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const navigate = useNavigate()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
+  const showMCPToolsIcon = isFunctionCallingModel(model)
 
   const [tokenCount, setTokenCount] = useState(0)
 
@@ -123,29 +126,58 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
   const newTopicShortcut = useShortcutDisplay('new_topic')
-  const newContextShortcut = useShortcutDisplay('toggle_new_context')
   const cleanTopicShortcut = useShortcutDisplay('clear_topic')
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
   _files = files
 
-  const sendMessage = useCallback(async () => {
-    await modelGenerating()
+  const resizeTextArea = useCallback(() => {
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (textArea) {
+      // 如果已经手动设置了高度,则不自动调整
+      if (textareaHeight) {
+        return
+      }
+      textArea.style.height = 'auto'
+      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
+    }
+  }, [textareaHeight])
 
-    if (inputEmpty) {
+  const sendMessage = useCallback(async () => {
+    if (inputEmpty || loading) {
       return
     }
 
     try {
       // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
+      const userMessage = getUserMessage({ assistant, topic, type: 'text', content: text })
+
+      if (uploadedFiles) {
+        userMessage.files = uploadedFiles
+      }
+
+      const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
+
+      if (knowledgeBaseIds) {
+        userMessage.knowledgeBaseIds = knowledgeBaseIds
+      }
+
+      if (mentionModels) {
+        userMessage.mentions = mentionModels
+      }
+
+      if (enabledMCPs) {
+        userMessage.enabledMCPs = enabledMCPs
+      }
+
+      userMessage.usage = await estimateMessageUsage(userMessage)
+      currentMessageId.current = userMessage.id
+
       dispatch(
-        _sendMessage(text, assistant, assistant.topics[0], {
-          files: uploadedFiles,
-          knowledgeBaseIds: selectedKnowledgeBases?.map((base) => base.id),
-          mentionModels,
-          enabledMCPs
+        _sendMessage(userMessage, assistant, topic, {
+          mentions: mentionModels
         })
       )
 
@@ -158,7 +190,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     } catch (error) {
       console.error('Failed to send message:', error)
     }
-  }, [inputEmpty, files, dispatch, text, assistant, selectedKnowledgeBases, mentionModels, enabledMCPs])
+  }, [
+    assistant,
+    dispatch,
+    enabledMCPs,
+    files,
+    inputEmpty,
+    loading,
+    mentionModels,
+    resizeTextArea,
+    selectedKnowledgeBases,
+    text,
+    topic
+  ])
 
   const translate = async () => {
     if (isTranslating) {
@@ -282,37 +326,24 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     clickAssistantToShowTopic && setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant, clickAssistantToShowTopic, setActiveTopic, setModel])
 
+  const onPause = async () => {
+    await pauseMessages()
+  }
+
   const clearTopic = async () => {
-    if (generating) {
-      onPause()
+    if (loading) {
+      await onPause()
       await delay(1)
     }
     EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES)
   }
 
-  const onPause = () => {
-    if (currentMessageId.current) {
-      abortCompletion(currentMessageId.current)
-    }
-    window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
-    store.dispatch(setGenerating(false))
-  }
-
   const onNewContext = () => {
-    if (generating) return onPause()
-    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
-  }
-
-  const resizeTextArea = () => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      // 如果已经手动设置了高度,则不自动调整
-      if (textareaHeight) {
-        return
-      }
-      textArea.style.height = 'auto'
-      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
+    if (loading) {
+      onPause()
+      return
     }
+    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }
 
   const onToggleExpended = () => {
@@ -369,6 +400,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
               const selectedFile = await window.api.file.get(tempFilePath)
               selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
               break
+            } else {
+              window.message.info({
+                key: 'file_not_supported',
+                content: t('chat.input.file_not_supported')
+              })
             }
           }
 
@@ -478,7 +514,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   }, [isDragging, handleDrag, handleDragEnd])
 
   useShortcut('new_topic', () => {
-    if (!generating) {
+    if (!loading) {
       addNewTopic()
       EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       textareaRef.current?.focus()
@@ -487,10 +523,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   useShortcut('clear_topic', () => {
     clearTopic()
-  })
-
-  useShortcut('toggle_new_context', () => {
-    onNewContext()
   })
 
   useEffect(() => {
@@ -700,7 +732,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   disabled={files.length > 0}
                 />
               )}
-              <MCPToolsButton enabledMCPs={enabledMCPs} onEnableMCP={toggelEnableMCP} ToolbarButton={ToolbarButton} />
+              {showMCPToolsIcon && (
+                <MCPToolsButton
+                  enabledMCPs={enabledMCPs}
+                  toggelEnableMCP={toggelEnableMCP}
+                  ToolbarButton={ToolbarButton}
+                />
+              )}
               <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
@@ -715,11 +753,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   </ToolbarButton>
                 </Popconfirm>
               </Tooltip>
-              <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
-                <ToolbarButton type="text" onClick={onNewContext}>
-                  <PicCenterOutlined />
-                </ToolbarButton>
-              </Tooltip>
               <Tooltip placement="top" title={expended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
                 <ToolbarButton type="text" onClick={onToggleExpended}>
                   {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
@@ -732,6 +765,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   </ToolbarButton>
                 </Tooltip>
               )}
+              <NewContextButton onNewContext={onNewContext} ToolbarButton={ToolbarButton} />
               <TokenCount
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
@@ -742,14 +776,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             </ToolbarMenu>
             <ToolbarMenu>
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
-              {generating && (
+              {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>
                     <PauseCircleOutlined style={{ color: 'var(--color-error)', fontSize: 20 }} />
                   </ToolbarButton>
                 </Tooltip>
               )}
-              {!generating && <SendMessageButton sendMessage={sendMessage} disabled={generating || inputEmpty} />}
+              {!loading && <SendMessageButton sendMessage={sendMessage} disabled={loading || inputEmpty} />}
             </ToolbarMenu>
           </Toolbar>
         </InputBarContainer>

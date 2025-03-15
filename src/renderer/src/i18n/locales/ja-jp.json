@@ -222,7 +222,8 @@
       "select": "選択",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた"
+      "you": "あなた",
+      "more": "もっと"
     },
     "docs": {
       "title": "ドキュメント"
@@ -411,6 +412,8 @@
       "error.invalid.enter.model": "モデルを選択してください",
       "error.invalid.proxy.url": "無効なプロキシURL",
       "error.invalid.webdav": "無効なWebDAV設定",
+      "error.markdown.export.preconf": "Markdown ファイルを事前設定されたパスにエクスポートできませんでした",
+      "error.markdown.export.specified": "Markdown ファイルのエクスポートに失敗しました",
       "error.notion.export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
       "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
@@ -441,6 +444,8 @@
       "restore.success": "復元に成功しました",
       "save.success.title": "保存に成功しました",
       "searching": "インターネットで検索中...",
+      "success.markdown.export.preconf": "Markdown ファイルを事前設定されたパスに正常にエクスポートしました",
+      "success.markdown.export.specified": "Markdown ファイルを正常にエクスポートしました",
       "success.notion.export": "Notionへのエクスポートに成功しました",
       "success.yuque.export": "語雀へのエクスポートに成功しました",
       "switch.disabled": "現在の応答が完了するまで切り替えを無効にします",
@@ -500,13 +505,14 @@
       "reasoning": "推論",
       "search": "モデルを検索...",
       "stream_output": "ストリーム出力",
-      "tool_calling": "ツールコール",
+      "function_calling": "関数呼び出し",
       "type": {
         "embedding": "埋め込み",
         "reasoning": "推論",
         "select": "モデルタイプを選択",
         "text": "テキスト",
-        "vision": "画像"
+        "vision": "画像",
+        "function_calling": "関数呼び出し"
       },
       "vision": "画像",
       "websearch": "ウェブ検索"
@@ -555,6 +561,12 @@
       },
       "title": "PlantUML 図表"
     },
+    "gpustack": {
+      "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
+      "keep_alive_time.placeholder": "分",
+      "keep_alive_time.title": "保持時間",
+      "title": "GPUStack"
+    },
     "prompts": {
       "explanation": "この概念を説明してください",
       "summarize": "このテキストを要約してください",
@@ -602,7 +614,8 @@
       "xirang": "天翼クラウド 息壤",
       "yi": "零一万物",
       "zhinao": "360智脳",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "gpustack": "GPUStack"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -666,6 +679,11 @@
         "hour_interval_other": "{{count}} 時間",
         "minute_interval_one": "{{count}} 分",
         "minute_interval_other": "{{count}} 分",
+        "markdown_export.title": "Markdown エクスポート",
+        "markdown_export.path": "デフォルトのエクスポートパス",
+        "markdown_export.path_placeholder": "エクスポートパス",
+        "markdown_export.select": "選択",
+        "markdown_export.help": "入力された場合、エクスポート時に自動的にこのパスに保存されます。未入力の場合、保存ダイアログが表示されます。",
         "notion.api_key": "Notion APIキー",
         "notion.api_key_placeholder": "Notion APIキーを入力してください",
         "notion.auto_split": "내보내기 시 자동 분할",
@@ -775,13 +793,16 @@
         "active": "有効",
         "addServer": "サーバーを追加",
         "addSuccess": "サーバーが正常に追加されました",
+        "addError": "サーバーの追加に失敗しました",
         "args": "引数",
         "argsTooltip": "1行に1つの引数を入力してください",
+        "baseUrlTooltip": "リモートURLアドレス",
         "command": "コマンド",
         "commandRequired": "コマンドを入力してください",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
         "confirmDelete": "サーバーを削除",
         "confirmDeleteMessage": "本当にこのサーバーを削除しますか？",
+        "deleteError": "サーバーの削除に失敗しました",
         "deleteSuccess": "サーバーが正常に削除されました",
         "description": "説明",
         "duplicateName": "同じ名前のサーバーが既に存在します",
@@ -796,7 +817,9 @@
         "title": "MCP サーバー",
         "type": "タイプ",
         "updateSuccess": "サーバーが正常に更新されました",
-        "url": "URL"
+        "updateError": "サーバーの更新に失敗しました",
+        "url": "URL",
+        "toggleError": "切り替えに失敗しました"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -948,6 +971,7 @@
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
         "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "チェック",
+        "check_success": "検証に成功しました",
         "check_failed": "検証に失敗しました",
         "get_api_key": "APIキーを取得",
         "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",

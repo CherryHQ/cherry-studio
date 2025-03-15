@@ -222,7 +222,8 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "more": "更多"
     },
     "docs": {
       "title": "說明文件"
@@ -411,6 +412,8 @@
       "error.invalid.enter.model": "請選擇一個模型",
       "error.invalid.proxy.url": "無效的代理伺服器 URL",
       "error.invalid.webdav": "無效的 WebDAV 設定",
+      "error.markdown.export.preconf": "導出 Markdown 文件到預先設定的路徑失敗",
+      "error.markdown.export.specified": "導出 Markdown 文件失敗",
       "error.notion.export": "匯出 Notion 錯誤，請檢查連接狀態並對照文件檢查設定",
       "error.notion.no_api_key": "未設定 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "匯出語雀錯誤，請檢查連接狀態並對照文件檢查設定",
@@ -441,6 +444,8 @@
       "restore.success": "恢復成功",
       "save.success.title": "儲存成功",
       "searching": "正在網路上搜尋...",
+      "success.markdown.export.preconf": "成功導出 Markdown 文件到預先設定的路徑",
+      "success.markdown.export.specified": "成功導出 Markdown 文件",
       "success.notion.export": "成功匯出到 Notion",
       "success.yuque.export": "成功匯出到語雀",
       "switch.disabled": "請等待當前回覆完成",
@@ -500,13 +505,14 @@
       "reasoning": "推理",
       "search": "搜尋模型...",
       "stream_output": "串流輸出",
-      "tool_calling": "工具調用",
+      "function_calling": "函數調用",
       "type": {
         "embedding": "嵌入",
         "reasoning": "推理",
         "select": "選擇模型類型",
         "text": "文字",
-        "vision": "影像"
+        "vision": "影像",
+        "function_calling": "函數調用"
       },
       "vision": "視覺",
       "websearch": "網路搜尋"
@@ -602,7 +608,8 @@
       "xirang": "天翼雲息壤",
       "yi": "零一萬物",
       "zhinao": "360 智腦",
-      "zhipu": "智譜 AI"
+      "zhipu": "智譜 AI",
+      "gpustack": "GPUStack"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -617,6 +624,12 @@
         "title": "復原進度"
       },
       "title": "資料復原"
+    },
+    "gpustack": {
+      "keep_alive_time.description": "模型在記憶體中保持的時間（預設為 5 分鐘）。",
+      "keep_alive_time.placeholder": "分鐘",
+      "keep_alive_time.title": "保持活躍時間",
+      "title": "GPUStack"
     },
     "settings": {
       "about": "關於與回饋",
@@ -666,6 +679,11 @@
         "hour_interval_other": "{{count}} 小時",
         "minute_interval_one": "{{count}} 分鐘",
         "minute_interval_other": "{{count}} 分鐘",
+        "markdown_export.title": "Markdown 匯出",
+        "markdown_export.path": "預設匯出路徑",
+        "markdown_export.path_placeholder": "匯出路徑",
+        "markdown_export.select": "選擇",
+        "markdown_export.help": "若填入，每次匯出時將自動儲存至該路徑；否則，將彈出儲存對話框。",
         "notion.api_key": "Notion 金鑰",
         "notion.api_key_placeholder": "請輸入 Notion 金鑰",
         "notion.auto_split": "匯出對話時自動分頁",
@@ -775,13 +793,16 @@
         "active": "啟用",
         "addServer": "新增伺服器",
         "addSuccess": "伺服器新增成功",
+        "addError": "添加伺服器失敗",
         "args": "參數",
         "argsTooltip": "每個參數佔一行",
+        "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
         "commandRequired": "請輸入指令",
         "config_description": "設定模型上下文協議伺服器",
         "confirmDelete": "刪除伺服器",
         "confirmDeleteMessage": "您確定要刪除該伺服器嗎？",
+        "deleteError": "刪除伺服器失敗",
         "deleteSuccess": "伺服器刪除成功",
         "description": "描述",
         "duplicateName": "已存在相同名稱的伺服器",
@@ -796,7 +817,9 @@
         "title": "MCP 伺服器",
         "type": "類型",
         "updateSuccess": "伺服器更新成功",
-        "url": "URL"
+        "updateError": "更新伺服器失敗",
+        "url": "URL",
+        "toggleError": "切換失敗"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -948,6 +971,7 @@
         "blacklist_description": "以下網站不會出現在搜尋結果中",
         "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "檢查",
+        "check_success": "驗證成功",
         "check_failed": "驗證失敗",
         "get_api_key": "點選這裡取得金鑰",
         "no_provider_selected": "請選擇搜尋服務商後再檢查",
