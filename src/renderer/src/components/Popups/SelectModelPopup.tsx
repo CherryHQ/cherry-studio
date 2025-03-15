@@ -283,19 +283,36 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   // 添加一个useLayoutEffect来处理滚动
   useLayoutEffect(() => {
     if (open && keyboardSelectedId && menuItemRefs.current[keyboardSelectedId]) {
-      requestAnimationFrame(() => {
-        const items = getVisibleModelItems()
-        // 检查当前选中的是否是第一个模型
-        const isFirstModel = items.length > 0 && items[0].key === keyboardSelectedId
+      // 获取当前选中元素和容器
+      const selectedElement = menuItemRefs.current[keyboardSelectedId]
+      const scrollContainer = scrollContainerRef.current
 
-        if (isFirstModel) {
-          scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-        } else {
-          menuItemRefs.current[keyboardSelectedId]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-        }
-      })
+      if (!scrollContainer) return
+
+      const selectedRect = selectedElement.getBoundingClientRect()
+      const containerRect = scrollContainer.getBoundingClientRect()
+
+      // 计算元素相对于容器的位置
+      const currentScrollTop = scrollContainer.scrollTop
+      const elementTop = selectedRect.top - containerRect.top + currentScrollTop
+      const groupTitleHeight = 30
+
+      // 确定滚动位置
+      if (selectedRect.top < containerRect.top + groupTitleHeight) {
+        // 元素被组标题遮挡，向上滚动
+        scrollContainer.scrollTo({
+          top: elementTop - groupTitleHeight,
+          behavior: 'smooth'
+        })
+      } else if (selectedRect.bottom > containerRect.bottom) {
+        // 元素在视口下方，向下滚动
+        scrollContainer.scrollTo({
+          top: elementTop - containerRect.height + selectedRect.height,
+          behavior: 'smooth'
+        })
+      }
     }
-  }, [open, keyboardSelectedId, getVisibleModelItems])
+  }, [open, keyboardSelectedId])
 
   // 处理键盘导航
   const handleKeyDown = useCallback(
