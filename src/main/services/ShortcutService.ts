@@ -128,44 +128,49 @@ export function registerShortcuts(window: BrowserWindow) {
           return
         }
 
-        const handler = getShortcutHandler(shortcut)
+        //if not enabled, exit early from the process.
+        if (!shortcut.enabled) {
+          return
+        }
 
+        const handler = getShortcutHandler(shortcut)
         if (!handler) {
           return
         }
 
-        const accelerator = formatShortcutKey(shortcut.shortcut)
+        switch (shortcut.key) {
+          case 'show_app':
+            showAppAccelerator = formatShortcutKey(shortcut.shortcut)
+            break
 
-        if (shortcut.key === 'show_app' && shortcut.enabled) {
-          showAppAccelerator = accelerator
+          case 'mini_window':
+            //available only when QuickAssistant enabled
+            if (configManager.getEnableQuickAssistant()) {
+              showMiniWindowAccelerator = formatShortcutKey(shortcut.shortcut)
+            }
+            break
+
+          //the following ZOOMs will register shortcuts seperately, so will return
+          case 'zoom_in':
+            globalShortcut.register('CommandOrControl+=', () => handler(window))
+            globalShortcut.register('CommandOrControl+numadd', () => handler(window))
+            return
+
+          case 'zoom_out':
+            globalShortcut.register('CommandOrControl+-', () => handler(window))
+            globalShortcut.register('CommandOrControl+numsub', () => handler(window))
+            return
+
+          case 'zoom_reset':
+            globalShortcut.register('CommandOrControl+0', () => handler(window))
+            return
         }
 
-        if (shortcut.key === 'mini_window' && shortcut.enabled) {
-          showMiniWindowAccelerator = accelerator
-        }
+        const accelerator = convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(
+          shortcut.shortcut
+        )
 
-        if (shortcut.key.includes('zoom')) {
-          switch (shortcut.key) {
-            case 'zoom_in':
-              globalShortcut.register('CommandOrControl+=', () => shortcut.enabled && handler(window))
-              globalShortcut.register('CommandOrControl+numadd', () => shortcut.enabled && handler(window))
-              return
-            case 'zoom_out':
-              globalShortcut.register('CommandOrControl+-', () => shortcut.enabled && handler(window))
-              globalShortcut.register('CommandOrControl+numsub', () => shortcut.enabled && handler(window))
-              return
-            case 'zoom_reset':
-              globalShortcut.register('CommandOrControl+0', () => shortcut.enabled && handler(window))
-              return
-          }
-        }
-
-        if (shortcut.enabled) {
-          const accelerator = convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(
-            shortcut.shortcut
-          )
-          globalShortcut.register(accelerator, () => handler(window))
-        }
+        globalShortcut.register(accelerator, () => handler(window))
       } catch (error) {
         Logger.error(`[ShortcutService] Failed to register shortcut ${shortcut.key}`)
       }
