@@ -264,10 +264,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         getFilteredModels(p).forEach((m) => {
           const modelId = getModelUniqId(m)
           const isPinned = pinnedModels.includes(modelId)
-          // 如果是搜索状态，或者不是固定模型，才添加到列表中
+
+          // 搜索状态下，所有匹配的模型都应该可以被选中，包括固定的模型
+          // 非搜索状态下，只添加非固定模型（固定模型已在上面添加）
           if (searchText.length > 0 || !isPinned) {
             items.push({
-              key: isPinned ? modelId + '_pinned' : modelId,
+              key: modelId,
               model: m
             })
           }
