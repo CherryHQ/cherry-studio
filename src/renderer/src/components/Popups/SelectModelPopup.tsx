@@ -284,10 +284,18 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   useLayoutEffect(() => {
     if (open && keyboardSelectedId && menuItemRefs.current[keyboardSelectedId]) {
       requestAnimationFrame(() => {
-        menuItemRefs.current[keyboardSelectedId]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        const items = getVisibleModelItems()
+        // 检查当前选中的是否是第一个模型
+        const isFirstModel = items.length > 0 && items[0].key === keyboardSelectedId
+
+        if (isFirstModel) {
+          scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+        } else {
+          menuItemRefs.current[keyboardSelectedId]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        }
       })
     }
-  }, [open, keyboardSelectedId])
+  }, [open, keyboardSelectedId, getVisibleModelItems])
 
   // 处理键盘导航
   const handleKeyDown = useCallback(
