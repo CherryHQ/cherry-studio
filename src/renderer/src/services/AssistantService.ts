@@ -86,7 +86,9 @@ export function getProviderByModelId(modelId?: string) {
 }
 
 export const getAssistantSettings = (assistant: Assistant): AssistantSettings => {
-  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
+  const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
+  const isInfiniteContext = assistant?.settings?.enableInfiniteContext ?? false
+
   const getAssistantMaxTokens = () => {
     if (assistant.settings?.enableMaxTokens) {
       const maxTokens = assistant.settings.maxTokens
@@ -99,7 +101,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   }
 
   return {
-    contextCount: contextCount === 20 ? 100000 : contextCount,
+    contextCount: isInfiniteContext ? 1000 : rawContextCount,
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
     topP: assistant?.settings?.topP ?? 1,
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
@@ -107,7 +109,8 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     streamOutput: assistant?.settings?.streamOutput ?? true,
     hideMessages: assistant?.settings?.hideMessages ?? false,
     defaultModel: assistant?.defaultModel ?? undefined,
-    customParameters: assistant?.settings?.customParameters ?? []
+    customParameters: assistant?.settings?.customParameters ?? [],
+    enableInfiniteContext: isInfiniteContext
   }
 }
 
