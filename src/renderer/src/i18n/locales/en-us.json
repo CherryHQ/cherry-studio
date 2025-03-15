@@ -824,7 +824,19 @@
         "updateSuccess": "Server updated successfully",
         "updateError": "Failed to update server",
         "url": "URL",
-        "toggleError": "Toggle failed"
+        "toggleError": "Toggle failed",
+        "npx_list": {
+          "title": "NPX Package List",
+          "desc": "Search and add npm packages as MCP servers",
+          "scope_placeholder": "Enter npm scope (e.g. @your-org)",
+          "search": "Search",
+          "package_name": "Package Name",
+          "description": "Description",
+          "usage": "Usage",
+          "npm": "NPM",
+          "version": "Version",
+          "actions": "Actions"
+        }
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",

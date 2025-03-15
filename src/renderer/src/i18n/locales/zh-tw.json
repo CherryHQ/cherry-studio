@@ -824,7 +824,19 @@
         "updateSuccess": "伺服器更新成功",
         "updateError": "更新伺服器失敗",
         "url": "URL",
-        "toggleError": "切換失敗"
+        "toggleError": "切換失敗",
+        "npx_list": {
+          "title": "NPX 包列表",
+          "desc": "搜索並添加 npm 包作為 MCP 服務",
+          "scope_placeholder": "輸入 npm 作用域 (例如 @your-org)",
+          "search": "搜索",
+          "package_name": "包名稱",
+          "description": "描述",
+          "usage": "用法",
+          "npm": "NPM",
+          "version": "版本",
+          "actions": "操作"
+        }
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",

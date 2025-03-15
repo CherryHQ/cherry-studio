@@ -824,7 +824,19 @@
         "updateSuccess": "サーバーが正常に更新されました",
         "updateError": "サーバーの更新に失敗しました",
         "url": "URL",
-        "toggleError": "切り替えに失敗しました"
+        "toggleError": "切り替えに失敗しました",
+        "npx_list": {
+          "title": "NPX パッケージリスト",
+          "desc": "npm パッケージを検索して MCP サーバーとして追加",
+          "scope_placeholder": "npm スコープを入力 (例: @your-org)",
+          "search": "検索",
+          "package_name": "パッケージ名",
+          "description": "説明",
+          "usage": "使用法",
+          "npm": "NPM",
+          "version": "バージョン",
+          "actions": "アクション"
+        }
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",

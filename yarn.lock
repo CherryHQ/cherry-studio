@@ -3235,6 +3235,7 @@ __metadata:
     lodash: "npm:^4.17.21"
     markdown-it: "npm:^14.1.0"
     mime: "npm:^4.0.4"
+    npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
     p-queue: "npm:^8.1.0"
@@ -11170,6 +11171,13 @@ __metadata:
     gauge: "npm:^4.0.3"
     set-blocking: "npm:^2.0.0"
   checksum: 10c0/0cacedfbc2f6139c746d9cd4a85f62718435ad0ca4a2d6459cd331dd33ae58206e91a0742c1558634efcde3f33f8e8e7fd3adf1bfe7978310cf00bd55cccf890
+  languageName: node
+  linkType: hard
+
+"npx-scope-finder@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "npx-scope-finder@npm:1.2.0"
+  checksum: 10c0/2e397317cfd0bc28de9255a774a4872f89586ae3cdd86a88c3f0c02e4ad834a5750b299d3c14b3c825978f807dff07c0c764e3409f2163dfcaf32ff97696e452
   languageName: node
   linkType: hard
 

@@ -824,7 +824,19 @@
         "updateSuccess": "Сервер успешно обновлен",
         "updateError": "Ошибка обновления сервера",
         "url": "URL",
-        "toggleError": "Переключение не удалось"
+        "toggleError": "Переключение не удалось",
+        "npx_list": {
+          "title": "Список пакетов NPX",
+          "desc": "Поиск и добавление npm пакетов в качестве MCP серверов",
+          "scope_placeholder": "Введите область npm (например, @your-org)",
+          "search": "Поиск",
+          "package_name": "Имя пакета",
+          "description": "Описание",
+          "usage": "Использование",
+          "npm": "NPM",
+          "version": "Версия",
+          "actions": "Действия"
+        }
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
