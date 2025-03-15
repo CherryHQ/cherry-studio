@@ -923,7 +923,8 @@
           "headers_description": "自定义请求头(json格式)",
           "expand": "展开",
           "model_setting": "模型设置",
-          "invalid_json": "JSON格式错误"
+          "invalid_json": "JSON格式错误",
+          "open_verification_first": "请先点击上方链接访问验证页面"
         }
       },
       "proxy": {

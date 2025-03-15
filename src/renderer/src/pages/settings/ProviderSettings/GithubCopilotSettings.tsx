@@ -2,7 +2,7 @@ import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@a
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
-import { Alert, Button, Input, message, Popconfirm, Slider, Space, Typography } from 'antd'
+import { Alert, Button, Input, message, Popconfirm, Slider, Space, Tooltip, Typography } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -32,6 +32,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ provider: initi
   const [loading, setLoading] = useState<boolean>(false)
   const [showHeadersForm, setShowHeadersForm] = useState<boolean>(false)
   const [headerText, setHeaderText] = useState<string>(JSON.stringify(defaultHeaders || {}, null, 2))
+  const [verificationPageOpened, setVerificationPageOpened] = useState<boolean>(false)
 
   // 初始化及同步状态
   useEffect(() => {
@@ -129,6 +130,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ provider: initi
   const handleOpenVerificationPage = useCallback(() => {
     if (verificationUri) {
       window.open(verificationUri, '_blank')
+      setVerificationPageOpened(true)
     }
   }, [verificationUri])
 
@@ -197,9 +199,11 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ provider: initi
               </Button>
             </SettingRow>
             <SettingRow>
-              <Button type="primary" loading={loading} onClick={handleGetToken}>
-                {t('settings.provider.copilot.connect')}
-              </Button>
+              <Tooltip title={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
+                <Button type="primary" loading={loading} disabled={!verificationPageOpened} onClick={handleGetToken}>
+                  {t('settings.provider.copilot.connect')}
+                </Button>
+              </Tooltip>
             </SettingRow>
           </>
         )

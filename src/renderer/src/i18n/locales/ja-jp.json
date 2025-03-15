@@ -923,7 +923,8 @@
           "headers_description": "カスタムリクエストヘッダー（JSONフォーマット）",
           "expand": "展開",
           "model_setting": "モデル設定",
-          "invalid_json": "JSONフォーマットエラー"
+          "invalid_json": "JSONフォーマットエラー",
+          "open_verification_first": "上のリンクをクリックして、確認ページにアクセスしてください。"
         }
       },
       "proxy": {

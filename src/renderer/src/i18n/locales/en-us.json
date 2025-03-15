@@ -923,7 +923,8 @@
           "headers_description": "Custom request headers (JSON format)",
           "expand": "Expand",
           "model_setting": "Model settings",
-          "invalid_json": "JSON format error"
+          "invalid_json": "JSON format error",
+          "open_verification_first": "Please click the link above to access the verification page."
         }
       },
       "proxy": {

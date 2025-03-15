@@ -923,7 +923,8 @@
           "headers_description": "自訂請求標頭(json格式)",
           "expand": "展開",
           "model_setting": "模型設定",
-          "invalid_json": "JSON格式錯誤"
+          "invalid_json": "JSON格式錯誤",
+          "open_verification_first": "請先點擊上方連結訪問驗證頁面"
         }
       },
       "proxy": {
