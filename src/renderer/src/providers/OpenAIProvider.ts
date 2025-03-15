@@ -8,12 +8,7 @@ import {
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import {
-  getAssistantSettings,
-  getDefaultModel,
-  getSearchSummaryModel,
-  getTopNamingModel
-} from '@renderer/services/AssistantService'
+import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import {
   filterContextMessages,
@@ -733,7 +728,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The summary
    */
   public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
-    const model = getSearchSummaryModel() || assistant.model || getDefaultModel()
+    const model = assistant.model || getDefaultModel()
 
     const systemMessage = {
       role: 'system',

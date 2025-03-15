@@ -1,7 +1,7 @@
 import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
-import { SEARCH_SUMMARY_PROMPT, TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant } from '@renderer/types'
@@ -1255,10 +1255,6 @@ const migrateConfig = {
       isSystem: true,
       enabled: false
     })
-    return state
-  },
-  '80': (state: RootState) => {
-    state.settings.searchSummaryPrompt = SEARCH_SUMMARY_PROMPT
     return state
   }
 }
