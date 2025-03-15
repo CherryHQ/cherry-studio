@@ -90,7 +90,8 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           yarn build:npm windows
-          yarn build:win
+          yarn build:win:x64
+          yarn build:win:arm64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
