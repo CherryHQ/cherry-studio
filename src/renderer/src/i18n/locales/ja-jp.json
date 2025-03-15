@@ -945,9 +945,11 @@
         "show_app": "アプリを表示",
         "show_settings": "設定を開く",
         "title": "ショートカット",
+        "toggle_model_selection": "モデル選択の切り替",
         "toggle_new_context": "コンテキストをクリア",
         "toggle_show_assistants": "アシスタントの表示を切り替え",
         "toggle_show_topics": "トピックの表示を切り替え",
+        "toggle_web_search": "ウェブ検索を切り替え",
         "zoom_in": "ズームイン",
         "zoom_out": "ズームアウト",
         "zoom_reset": "ズームをリセット"
