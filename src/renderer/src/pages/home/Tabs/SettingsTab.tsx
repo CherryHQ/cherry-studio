@@ -55,6 +55,7 @@ const SettingsTab: FC<Props> = (props) => {
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
+  const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const [enableInfiniteContext, setEnableInfiniteContext] = useState(
     assistant?.settings?.enableInfiniteContext ?? false
   )
@@ -108,10 +109,17 @@ const SettingsTab: FC<Props> = (props) => {
     updateAssistantSettings({ reasoning_effort: value })
   }
 
+  const onTopPChange = (value) => {
+    if (!isNaN(value as number)) {
+      onUpdateAssistantSettings({ topP: value })
+    }
+  }
+
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
     setContextCount(DEFAULT_CONTEXTCOUNT)
     setReasoningEffort(undefined)
+    setTopP(1)
     updateAssistant({
       ...assistant,
       settings: {
@@ -123,6 +131,7 @@ const SettingsTab: FC<Props> = (props) => {
         streamOutput: true,
         hideMessages: false,
         reasoning_effort: undefined,
+        topP: 1,
         customParameters: []
       }
     })
@@ -135,6 +144,7 @@ const SettingsTab: FC<Props> = (props) => {
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
     setReasoningEffort(assistant?.settings?.reasoning_effort)
+    setTopP(assistant?.settings?.topP ?? 1)
     setEnableInfiniteContext(assistant?.settings?.enableInfiniteContext ?? false)
   }, [assistant])
 
@@ -163,6 +173,25 @@ const SettingsTab: FC<Props> = (props) => {
               onChangeComplete={onTemperatureChange}
               value={typeof temperature === 'number' ? temperature : 0}
               step={0.1}
+            />
+          </Col>
+        </Row>
+        <SettingDivider />
+        <Row align="middle">
+          <Label>{t('chat.settings.top_p')}</Label>
+          <Tooltip title={t('chat.settings.top_p.tip')}>
+            <QuestionIcon />
+          </Tooltip>
+        </Row>
+        <Row align="middle" gutter={10}>
+          <Col span={24}>
+            <Slider
+              min={0}
+              max={1}
+              onChange={setTopP}
+              onChangeComplete={onTopPChange}
+              value={typeof topP === 'number' ? topP : 1}
+              step={0.01}
             />
           </Col>
         </Row>
