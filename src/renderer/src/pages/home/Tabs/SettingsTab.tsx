@@ -36,7 +36,7 @@ import {
 import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -46,7 +46,7 @@ interface Props {
 
 const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
-  const { messageStyle, codeStyle, fontSize, language } = useSettings()
+  const { messageStyle, codeStyle, fontSize, language, advancedMode: storeAdvancedMode } = useSettings()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
@@ -55,6 +55,11 @@ const SettingsTab: FC<Props> = (props) => {
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
+  const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
+  const [enableInfiniteContext, setEnableInfiniteContext] = useState(
+    assistant?.settings?.enableInfiniteContext ?? false
+  )
+  const [advancedMode, setAdvancedMode] = useState(storeAdvancedMode ?? false)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -79,9 +84,12 @@ const SettingsTab: FC<Props> = (props) => {
     thoughtAutoCollapse
   } = useSettings()
 
-  const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
-    updateAssistantSettings(settings)
-  }
+  const onUpdateAssistantSettings = useCallback(
+    (settings: Partial<AssistantSettings>) => {
+      updateAssistantSettings(settings)
+    },
+    [updateAssistantSettings]
+  )
 
   const onTemperatureChange = (value) => {
     if (!isNaN(value as number)) {
@@ -105,10 +113,17 @@ const SettingsTab: FC<Props> = (props) => {
     updateAssistantSettings({ reasoning_effort: value })
   }
 
+  const onTopPChange = (value) => {
+    if (!isNaN(value as number)) {
+      onUpdateAssistantSettings({ topP: value })
+    }
+  }
+
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
     setContextCount(DEFAULT_CONTEXTCOUNT)
     setReasoningEffort(undefined)
+    setTopP(1)
     updateAssistant({
       ...assistant,
       settings: {
@@ -120,6 +135,7 @@ const SettingsTab: FC<Props> = (props) => {
         streamOutput: true,
         hideMessages: false,
         reasoning_effort: undefined,
+        topP: 1,
         customParameters: []
       }
     })
@@ -132,12 +148,24 @@ const SettingsTab: FC<Props> = (props) => {
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
     setReasoningEffort(assistant?.settings?.reasoning_effort)
+    setTopP(assistant?.settings?.topP ?? 1)
+    setEnableInfiniteContext(assistant?.settings?.enableInfiniteContext ?? false)
   }, [assistant])
 
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
-  }
+  // 当 storeAdvancedMode 变化时，更新本地状态
+  useEffect(() => {
+    // 只有当从开启状态切换到关闭状态时，才重置上下文设置
+    if (advancedMode && !storeAdvancedMode) {
+      setEnableInfiniteContext(false)
+      setContextCount(5)
+      onUpdateAssistantSettings({
+        enableInfiniteContext: false,
+        contextCount: 5
+      })
+    }
+
+    setAdvancedMode(storeAdvancedMode)
+  }, [storeAdvancedMode, onUpdateAssistantSettings, advancedMode])
 
   return (
     <Container className="settings-tab">
@@ -167,25 +195,74 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </Col>
         </Row>
+        {advancedMode && (
+          <>
+            <SettingDivider />
+            <Row align="middle">
+              <Label>{t('chat.settings.top_p')}</Label>
+              <Tooltip title={t('chat.settings.top_p.tip')}>
+                <QuestionIcon />
+              </Tooltip>
+            </Row>
+            <Row align="middle" gutter={10}>
+              <Col span={24}>
+                <Slider
+                  min={0}
+                  max={1}
+                  onChange={setTopP}
+                  onChangeComplete={onTopPChange}
+                  value={typeof topP === 'number' ? topP : 1}
+                  step={0.01}
+                />
+              </Col>
+            </Row>
+            <SettingDivider />
+          </>
+        )}
         <Row align="middle">
           <Label>{t('chat.settings.context_count')}</Label>
           <Tooltip title={t('chat.settings.context_count.tip')}>
             <QuestionIcon />
           </Tooltip>
+          {advancedMode && (
+            <HStack alignItems="center" style={{ marginLeft: 'auto' }}>
+              <Switch
+                size="small"
+                checked={enableInfiniteContext}
+                onChange={async (checked) => {
+                  if (checked) {
+                    const confirmed = await modalConfirm({
+                      title: t('chat.settings.infinite.confirm'),
+                      content: t('chat.settings.infinite.confirm_content'),
+                      okButtonProps: {
+                        danger: true
+                      }
+                    })
+                    if (!confirmed) return
+                  }
+                  setEnableInfiniteContext(checked)
+                  onUpdateAssistantSettings({ enableInfiniteContext: checked })
+                }}
+              />
+              <span style={{ marginLeft: '5px', fontSize: '12px' }}>{t('chat.settings.infinite')}</span>
+            </HStack>
+          )}
         </Row>
         <Row align="middle" gutter={10}>
           <Col span={24}>
             <Slider
               min={0}
-              max={10}
+              max={advancedMode ? 20 : 10}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={typeof contextCount === 'number' ? contextCount : 0}
               step={1}
-              tooltip={{ formatter: formatSliderTooltip }}
+              disabled={enableInfiniteContext && advancedMode}
             />
           </Col>
         </Row>
+
+        <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
           <Switch
@@ -197,51 +274,55 @@ const SettingsTab: FC<Props> = (props) => {
             }}
           />
         </SettingRow>
-        <SettingDivider />
-        <Row align="middle" justify="space-between" style={{ marginBottom: 10 }}>
-          <HStack alignItems="center">
-            <Label>{t('chat.settings.max_tokens')}</Label>
-            <Tooltip title={t('chat.settings.max_tokens.tip')}>
-              <QuestionIcon />
-            </Tooltip>
-          </HStack>
-          <Switch
-            size="small"
-            checked={enableMaxTokens}
-            onChange={async (enabled) => {
-              if (enabled) {
-                const confirmed = await modalConfirm({
-                  title: t('chat.settings.max_tokens.confirm'),
-                  content: t('chat.settings.max_tokens.confirm_content'),
-                  okButtonProps: {
-                    danger: true
+        {advancedMode && (
+          <>
+            <SettingDivider />
+            <Row align="middle" justify="space-between" style={{ marginBottom: 10 }}>
+              <HStack alignItems="center">
+                <Label>{t('chat.settings.max_tokens')}</Label>
+                <Tooltip title={t('chat.settings.max_tokens.tip')}>
+                  <QuestionIcon />
+                </Tooltip>
+              </HStack>
+              <Switch
+                size="small"
+                checked={enableMaxTokens}
+                onChange={async (enabled) => {
+                  if (enabled) {
+                    const confirmed = await modalConfirm({
+                      title: t('chat.settings.max_tokens.confirm'),
+                      content: t('chat.settings.max_tokens.confirm_content'),
+                      okButtonProps: {
+                        danger: true
+                      }
+                    })
+                    if (!confirmed) return
                   }
-                })
-                if (!confirmed) return
-              }
-              setEnableMaxTokens(enabled)
-              onUpdateAssistantSettings({ enableMaxTokens: enabled })
-            }}
-          />
-        </Row>
-        {enableMaxTokens && (
-          <Row align="middle" gutter={10}>
-            <Col span={24}>
-              <InputNumber
-                disabled={!enableMaxTokens}
-                min={0}
-                max={10000000}
-                step={100}
-                value={typeof maxTokens === 'number' ? maxTokens : 0}
-                changeOnBlur
-                onChange={(value) => value && setMaxTokens(value)}
-                onBlur={() => onMaxTokensChange(maxTokens)}
-                style={{ width: '100%' }}
+                  setEnableMaxTokens(enabled)
+                  onUpdateAssistantSettings({ enableMaxTokens: enabled })
+                }}
               />
-            </Col>
-          </Row>
+            </Row>
+            {enableMaxTokens && (
+              <Row align="middle" gutter={10}>
+                <Col span={24}>
+                  <InputNumber
+                    disabled={!enableMaxTokens}
+                    min={0}
+                    max={10000000}
+                    step={100}
+                    value={typeof maxTokens === 'number' ? maxTokens : 0}
+                    changeOnBlur
+                    onChange={(value) => value && setMaxTokens(value)}
+                    onBlur={() => onMaxTokensChange(maxTokens)}
+                    style={{ width: '100%' }}
+                  />
+                </Col>
+              </Row>
+            )}
+          </>
         )}
-        {isReasoningModel(assistant?.model) && (
+        {isReasoningModel(assistant?.model) && advancedMode && (
           <>
             <SettingDivider />
             <Row align="middle">
@@ -266,7 +347,6 @@ const SettingsTab: FC<Props> = (props) => {
                       { value: 'high', label: t('assistants.settings.reasoning_effort.high') },
                       { value: 'off', label: t('assistants.settings.reasoning_effort.off') }
                     ]}
-                    name="group"
                     block
                   />
                 </SegmentedContainer>
@@ -543,7 +623,6 @@ export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   margin-bottom: 10px;
 `
 
-// Define the styled component with hover state styling
 const SegmentedContainer = styled.div`
   margin-top: 5px;
   .ant-segmented-item {

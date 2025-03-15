@@ -765,6 +765,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
                 contextCount={contextCount}
+                enableInfiniteContext={assistant?.settings?.enableInfiniteContext ?? false}
                 ToolbarButton={ToolbarButton}
                 onClick={onNewContext}
               />

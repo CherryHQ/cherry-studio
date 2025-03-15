@@ -40,6 +40,7 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: 'low' | 'medium' | 'high'
+  enableInfiniteContext?: boolean
 }
 
 export type Agent = Omit<Assistant, 'model'>

@@ -79,6 +79,7 @@ export interface SettingsState {
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
+  advancedMode: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -143,7 +144,8 @@ const initialState: SettingsState = {
   notionSplitSize: 90,
   yuqueToken: '',
   yuqueUrl: '',
-  yuqueRepoId: ''
+  yuqueRepoId: '',
+  advancedMode: false
 }
 
 const settingsSlice = createSlice({
@@ -332,6 +334,9 @@ const settingsSlice = createSlice({
     },
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
+    },
+    setAdvancedMode: (state, action: PayloadAction<boolean>) => {
+      state.advancedMode = action.payload
     }
   }
 })
@@ -395,7 +400,8 @@ export const {
   setNotionSplitSize,
   setYuqueToken,
   setYuqueRepoId,
-  setYuqueUrl
+  setYuqueUrl,
+  setAdvancedMode
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
