@@ -1,4 +1,4 @@
-import { CheckOutlined, QuestionCircleOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons'
+import { CheckOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
@@ -35,8 +35,8 @@ import {
 } from '@renderer/store/settings'
 import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Checkbox, Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import { Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -46,14 +46,7 @@ interface Props {
 
 const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
-  const {
-    messageStyle,
-    codeStyle,
-    fontSize,
-    language,
-    advancedMode: storeAdvancedMode,
-    setAdvancedMode: updateAdvancedMode
-  } = useSettings()
+  const { messageStyle, codeStyle, fontSize, language, advancedMode: storeAdvancedMode } = useSettings()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
@@ -91,9 +84,12 @@ const SettingsTab: FC<Props> = (props) => {
     thoughtAutoCollapse
   } = useSettings()
 
-  const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
-    updateAssistantSettings(settings)
-  }
+  const onUpdateAssistantSettings = useCallback(
+    (settings: Partial<AssistantSettings>) => {
+      updateAssistantSettings(settings)
+    },
+    [updateAssistantSettings]
+  )
 
   const onTemperatureChange = (value) => {
     if (!isNaN(value as number)) {
@@ -145,108 +141,6 @@ const SettingsTab: FC<Props> = (props) => {
     })
   }
 
-  const toggleAdvancedMode = async (checked: boolean) => {
-    if (checked) {
-      let allCheckedValue = false
-
-      const ConfirmContent = () => {
-        const [checkboxes, setCheckboxes] = useState({
-          temperature: false,
-          topP: false,
-          context: false,
-          maxTokens: false,
-          reasoning: false
-        })
-
-        const allChecked = Object.values(checkboxes).every((value) => value)
-
-        // 更新外部变量以便在确认对话框关闭后使用
-        useEffect(() => {
-          allCheckedValue = allChecked
-
-          // 动态更新确认按钮的禁用状态
-          const okButton = document.querySelector('.ant-modal-confirm-btns .ant-btn-primary') as HTMLButtonElement
-          if (okButton) {
-            okButton.disabled = !allChecked
-          }
-        }, [allChecked])
-
-        const handleCheckboxChange = (key: string) => (e: any) => {
-          setCheckboxes((prev) => ({ ...prev, [key]: e.target.checked }))
-        }
-
-        return (
-          <div>
-            {t('chat.settings.advanced_mode.confirm_content')}
-            <ul style={{ marginTop: 10, paddingLeft: 20 }}>
-              <li>
-                <Checkbox checked={checkboxes.temperature} onChange={handleCheckboxChange('temperature')}>
-                  {t('chat.settings.advanced_mode.temperature_warning')}
-                </Checkbox>
-              </li>
-              <li>
-                <Checkbox checked={checkboxes.topP} onChange={handleCheckboxChange('topP')}>
-                  {t('chat.settings.advanced_mode.top_p_warning')}
-                </Checkbox>
-              </li>
-              <li>
-                <Checkbox checked={checkboxes.context} onChange={handleCheckboxChange('context')}>
-                  {t('chat.settings.advanced_mode.context_warning')}
-                </Checkbox>
-              </li>
-              <li>
-                <Checkbox checked={checkboxes.maxTokens} onChange={handleCheckboxChange('maxTokens')}>
-                  {t('chat.settings.advanced_mode.max_tokens_warning')}
-                </Checkbox>
-              </li>
-              <li>
-                <Checkbox checked={checkboxes.reasoning} onChange={handleCheckboxChange('reasoning')}>
-                  {t('chat.settings.advanced_mode.reasoning_warning')}
-                </Checkbox>
-              </li>
-            </ul>
-            <div style={{ marginTop: 15, color: '#ff4d4f' }}>
-              {!allChecked && t('chat.settings.advanced_mode.check_all_warning')}
-            </div>
-          </div>
-        )
-      }
-
-      const confirmed = await modalConfirm({
-        title: t('chat.settings.advanced_mode.confirm'),
-        icon: <WarningOutlined style={{ color: '#ff4d4f' }} />,
-        content: <ConfirmContent />,
-        okText: t('chat.settings.advanced_mode.confirm_button'),
-        cancelText: t('common.cancel'),
-        okButtonProps: {
-          danger: true
-        }
-      })
-
-      // 检查是否确认并且所有复选框都被勾选
-      if (!confirmed || !allCheckedValue) return
-    } else {
-      // 关闭进阶模式的确认对话框
-      const confirmed = await modalConfirm({
-        title: t('chat.settings.advanced_mode.disable_confirm'),
-        icon: <WarningOutlined style={{ color: '#ff4d4f' }} />,
-        content: t('chat.settings.advanced_mode.disable_confirm_content'),
-        okText: t('chat.settings.advanced_mode.disable_confirm_button'),
-        cancelText: t('common.cancel'),
-        // 确保确认按钮始终可用
-        okButtonProps: {
-          danger: true,
-          disabled: false // 明确设置为不禁用
-        }
-      })
-      if (!confirmed) return
-    }
-
-    // 更新本地状态和Redux全局状态
-    setAdvancedMode(checked)
-    updateAdvancedMode(checked)
-  }
-
   useEffect(() => {
     setTemperature(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
     setContextCount(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
@@ -260,8 +154,18 @@ const SettingsTab: FC<Props> = (props) => {
 
   // 当 storeAdvancedMode 变化时，更新本地状态
   useEffect(() => {
+    // 只有当从开启状态切换到关闭状态时，才重置上下文设置
+    if (advancedMode && !storeAdvancedMode) {
+      setEnableInfiniteContext(false)
+      setContextCount(5)
+      onUpdateAssistantSettings({
+        enableInfiniteContext: false,
+        contextCount: 5
+      })
+    }
+
     setAdvancedMode(storeAdvancedMode)
-  }, [storeAdvancedMode])
+  }, [storeAdvancedMode, onUpdateAssistantSettings, advancedMode])
 
   return (
     <Container className="settings-tab">
@@ -272,16 +176,6 @@ const SettingsTab: FC<Props> = (props) => {
             <ReloadOutlined onClick={onReset} style={{ cursor: 'pointer', fontSize: 12, padding: '0 3px' }} />
           </Tooltip>
         </SettingSubtitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitleSmall>
-            {t('chat.settings.advanced_mode')}
-            <Tooltip title={t('chat.settings.advanced_mode.tip')}>
-              <QuestionIcon style={{ marginLeft: 4 }} />
-            </Tooltip>
-          </SettingRowTitleSmall>
-          <Switch size="small" checked={advancedMode} onChange={toggleAdvancedMode} />
-        </SettingRow>
         <SettingDivider />
         <Row align="middle">
           <Label>{t('chat.settings.temperature')}</Label>
@@ -322,9 +216,9 @@ const SettingsTab: FC<Props> = (props) => {
                 />
               </Col>
             </Row>
+            <SettingDivider />
           </>
         )}
-        <SettingDivider />
         <Row align="middle">
           <Label>{t('chat.settings.context_count')}</Label>
           <Tooltip title={t('chat.settings.context_count.tip')}>
@@ -358,7 +252,7 @@ const SettingsTab: FC<Props> = (props) => {
           <Col span={24}>
             <Slider
               min={0}
-              max={20}
+              max={advancedMode ? 20 : 10}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={typeof contextCount === 'number' ? contextCount : 0}
