@@ -1,15 +1,9 @@
-name: Release
+name: Nightly Build
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag (e.g. v1.0.0)'
-        required: true
-        default: 'v0.9.18'
-  push:
-    tags:
-      - v*.*.*
+  schedule:
+    - cron: '0 17 * * *' # 1:00 BJ Time
 
 permissions:
   contents: write
@@ -26,16 +20,6 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
-
-      - name: Get release tag
-        id: get-tag
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -62,12 +46,16 @@ jobs:
       - name: Install Dependencies
         run: yarn install
 
+      - name: Generate date tag
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           yarn build:npm linux
           yarn build:linux
-
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
@@ -96,12 +84,30 @@ jobs:
       - name: Replace spaces in filenames
         run: node scripts/replace-spaces.js
 
-      - name: Release
-        uses: ncipollo/release-action@v1
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          draft: true
-          allowUpdates: true
-          makeLatest: false
-          tag: ${{ steps.get-tag.outputs.tag }}
-          artifacts: 'dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/*.blockmap'
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.snap
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            dist/latest*.yml
+            dist/*.blockmap
+          retention-days: 3 # 保留3天
+
+      - name: Add warning to summary
+        run: |
+          echo "## ⚠️ 警告：这是每日构建版本" >> $GITHUB_STEP_SUMMARY
+          echo "此版本为自动构建的不稳定版本，仅供测试使用。不建议在生产环境中使用。" >> $GITHUB_STEP_SUMMARY
+          echo "安装此版本前请务必备份数据，并做好数据迁移准备。" >> $GITHUB_STEP_SUMMARY
+          echo "构建日期：$(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "## ⚠️ Warning: This is a nightly build version" >> $GITHUB_STEP_SUMMARY
+          echo "This version is an unstable version built automatically and is only for testing. It is not recommended to use it in a production environment." >> $GITHUB_STEP_SUMMARY
+          echo "Please backup your data before installing this version and prepare for data migration." >> $GITHUB_STEP_SUMMARY
+          echo "Build date: $(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY

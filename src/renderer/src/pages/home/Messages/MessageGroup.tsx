@@ -4,7 +4,6 @@ import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Message, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Popover } from 'antd'
-import type { Dispatch, SetStateAction } from 'react'
 import { memo, useCallback, useEffect, useState } from 'react'
 import styled, { css } from 'styled-components'
 
@@ -15,12 +14,10 @@ interface Props {
   messages: (Message & { index: number })[]
   topic: Topic
   hidePresetMessages?: boolean
-  onSetMessages: Dispatch<SetStateAction<Message[]>>
 }
 
-const MessageGroup = ({ messages, topic, hidePresetMessages, onSetMessages }: Props) => {
+const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
-  // const { t } = useTranslation()
 
   const [multiModelMessageStyle, setMultiModelMessageStyle] =
     useState<MultiModelMessageStyle>(multiModelMessageStyleSetting)
@@ -31,10 +28,6 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, onSetMessages }: Pr
   const isGrouped = messageLength > 1 && messages.every((m) => m.role === 'assistant')
   const isHorizontal = multiModelMessageStyle === 'horizontal'
   const isGrid = multiModelMessageStyle === 'grid'
-
-  // const handleDeleteGroup = useCallback(async () => {
-
-  // }, [messages, t, deleteGroupMessages])
 
   useEffect(() => {
     setSelectedIndex(messageLength - 1)
@@ -51,10 +44,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, onSetMessages }: Pr
         hidePresetMessages,
         style: {
           paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15
-        },
-        onSetMessages
-        // onDeleteMessage,
-        // onGetMessages
+        }
       }
 
       const messageWrapper = (
@@ -99,8 +89,6 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, onSetMessages }: Pr
       selectedIndex,
       topic,
       hidePresetMessages,
-      onSetMessages,
-      // onDeleteMessage,
       gridPopoverTrigger
     ]
   )

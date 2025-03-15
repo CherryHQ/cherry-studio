@@ -117,7 +117,7 @@ export const getKnowledgeBaseReference = async (base: KnowledgeBase, message: Me
 }
 
 export const getKnowledgeBaseReferences = async (message: Message) => {
-  if (isEmpty(message.knowledgeBaseIds)) {
+  if (isEmpty(message.knowledgeBaseIds) || isEmpty(message.content)) {
     return []
   }
 

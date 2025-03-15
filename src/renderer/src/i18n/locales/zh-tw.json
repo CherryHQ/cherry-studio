@@ -170,6 +170,7 @@
       "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
+      "topics.new": "開始新對話",
       "translate": "翻譯",
       "navigation": {
         "prev": "上一條訊息",
@@ -248,7 +249,8 @@
       "render": {
         "description": "渲染公式失敗，請檢查公式格式是否正確",
         "title": "渲染錯誤"
-      }
+      },
+      "user_message_not_found": "無法找到原始用戶訊息"
     },
     "export": {
       "assistant": "助手",
@@ -398,8 +400,9 @@
       "backup.success": "備份成功",
       "chat.completion.paused": "聊天完成已暫停",
       "citations": "參考文獻",
-      "copied": "已複製",
-      "copy.success": "複製成功",
+      "copied": "已複製！",
+      "copy.success": "已複製！",
+      "copy.failed": "複製失敗",
       "error.chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "error.dimension_too_large": "內容尺寸過大",
       "error.enter.api.host": "請先輸入您的 API 主機地址",
@@ -422,6 +425,8 @@
       "group.delete.title": "刪除分組訊息",
       "ignore.knowledge.base": "網路模式開啟，忽略知識庫",
       "info.notion.block_reach_limit": "對話過長，自動分頁匯出到 Notion",
+      "loading.notion.preparing": "正在準備匯出到 Notion...",
+      "loading.notion.exporting_progress": "正在匯出到 Notion ({{current}}/{{total}})...",
       "mention.title": "切換模型回答",
       "message.code_style": "程式碼風格",
       "message.delete.content": "確定要刪除此訊息嗎？",
@@ -608,7 +613,8 @@
       "xirang": "天翼雲息壤",
       "yi": "零一萬物",
       "zhinao": "360 智腦",
-      "zhipu": "智譜 AI"
+      "zhipu": "智譜 AI",
+      "gpustack": "GPUStack"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -623,6 +629,12 @@
         "title": "復原進度"
       },
       "title": "資料復原"
+    },
+    "gpustack": {
+      "keep_alive_time.description": "模型在記憶體中保持的時間（預設為 5 分鐘）。",
+      "keep_alive_time.placeholder": "分鐘",
+      "keep_alive_time.title": "保持活躍時間",
+      "title": "GPUStack"
     },
     "settings": {
       "about": "關於與回饋",
@@ -789,6 +801,7 @@
         "addError": "添加伺服器失敗",
         "args": "參數",
         "argsTooltip": "每個參數佔一行",
+        "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
         "commandRequired": "請輸入指令",
         "config_description": "設定模型上下文協議伺服器",
@@ -965,6 +978,7 @@
         "blacklist_description": "以下網站不會出現在搜尋結果中",
         "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "檢查",
+        "check_success": "驗證成功",
         "check_failed": "驗證失敗",
         "get_api_key": "點選這裡取得金鑰",
         "no_provider_selected": "請選擇搜尋服務商後再檢查",

@@ -11,6 +11,9 @@ type LlmSettings = {
   lmstudio: {
     keepAliveTime: number
   }
+  gpustack: {
+    keepAliveTime: number
+  }
 }
 
 export interface LlmState {
@@ -426,6 +429,16 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS['tencent-cloud-ti'],
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'gpustack',
+      name: 'GPUStack',
+      type: 'openai',
+      apiKey: '',
+      apiHost: '',
+      models: SYSTEM_MODELS.gpustack,
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {
@@ -433,6 +446,9 @@ const initialState: LlmState = {
       keepAliveTime: 0
     },
     lmstudio: {
+      keepAliveTime: 0
+    },
+    gpustack: {
       keepAliveTime: 0
     }
   }
@@ -461,6 +477,9 @@ const getIntegratedInitialState = () => {
         keepAliveTime: 3600
       },
       lmstudio: {
+        keepAliveTime: 3600
+      },
+      gpustack: {
         keepAliveTime: 3600
       }
     }
@@ -534,6 +553,9 @@ const settingsSlice = createSlice({
     setLMStudioKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.lmstudio.keepAliveTime = action.payload
     },
+    setGPUStackKeepAliveTime: (state, action: PayloadAction<number>) => {
+      state.settings.gpustack.keepAliveTime = action.payload
+    },
     updateModel: (
       state,
       action: PayloadAction<{
@@ -564,6 +586,7 @@ export const {
   setTranslateModel,
   setOllamaKeepAliveTime,
   setLMStudioKeepAliveTime,
+  setGPUStackKeepAliveTime,
   updateModel
 } = settingsSlice.actions
 

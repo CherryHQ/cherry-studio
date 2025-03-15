@@ -73,11 +73,47 @@ export default class OpenAIProvider extends BaseProvider {
     })
   }
 
+  /**
+   * Check if the provider does not support files
+   * @returns True if the provider does not support files, false otherwise
+   */
   private get isNotSupportFiles() {
-    const providers = ['deepseek', 'baichuan', 'minimax', 'doubao', 'xirang']
+    const providers = ['deepseek', 'baichuan', 'minimax', 'xirang']
     return providers.includes(this.provider.id)
   }
 
+  /**
+   * Extract the file content from the message
+   * @param message - The message
+   * @returns The file content
+   */
+  private async extractFileContent(message: Message) {
+    if (message.files) {
+      const textFiles = message.files.filter((file) => [FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type))
+
+      if (textFiles.length > 0) {
+        let text = ''
+        const divider = '\n\n---\n\n'
+
+        for (const file of textFiles) {
+          const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
+          const fileNameRow = 'file: ' + file.origin_name + '\n\n'
+          text = text + fileNameRow + fileContent + divider
+        }
+
+        return text
+      }
+    }
+
+    return ''
+  }
+
+  /**
+   * Get the message parameter
+   * @param message - The message
+   * @param model - The model
+   * @returns The message parameter
+   */
   private async getMessageParam(
     message: Message,
     model: Model
@@ -85,6 +121,7 @@ export default class OpenAIProvider extends BaseProvider {
     const isVision = isVisionModel(model)
     const content = await this.getMessageContent(message)
 
+    // If the message does not have files, return the message
     if (!message.files) {
       return {
         role: message.role,
@@ -92,39 +129,22 @@ export default class OpenAIProvider extends BaseProvider {
       }
     }
 
+    // If the model does not support files, extract the file content
     if (this.isNotSupportFiles) {
-      if (message.files) {
-        const textFiles = message.files.filter((file) => [FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type))
-
-        if (textFiles.length > 0) {
-          let text = ''
-          const divider = '\n\n---\n\n'
-
-          for (const file of textFiles) {
-            const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
-            const fileNameRow = 'file: ' + file.origin_name + '\n\n'
-            text = text + fileNameRow + fileContent + divider
-          }
-
-          return {
-            role: message.role,
-            content: content + divider + text
-          }
-        }
-      }
+      const fileContent = await this.extractFileContent(message)
 
       return {
         role: message.role,
-        content
+        content: content + '\n\n---\n\n' + fileContent
       }
     }
 
-    const parts: ChatCompletionContentPart[] = [
-      {
-        type: 'text',
-        text: content
-      }
-    ]
+    // If the model supports files, add the file content to the message
+    const parts: ChatCompletionContentPart[] = []
+
+    if (content) {
+      parts.push({ type: 'text', text: content })
+    }
 
     for (const file of message.files || []) {
       if (file.type === FileTypes.IMAGE && isVision) {
@@ -149,12 +169,22 @@ export default class OpenAIProvider extends BaseProvider {
     } as ChatCompletionMessageParam
   }
 
+  /**
+   * Get the temperature for the assistant
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The temperature
+   */
   private getTemperature(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model)) return undefined
-
-    return assistant?.settings?.temperature
+    return isReasoningModel(model) ? undefined : assistant?.settings?.temperature
   }
 
+  /**
+   * Get the provider specific parameters for the assistant
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The provider specific parameters
+   */
   private getProviderSpecificParameters(assistant: Assistant, model: Model) {
     const { maxTokens } = getAssistantSettings(assistant)
 
@@ -176,12 +206,24 @@ export default class OpenAIProvider extends BaseProvider {
     return {}
   }
 
+  /**
+   * Get the top P for the assistant
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The top P
+   */
   private getTopP(assistant: Assistant, model: Model) {
     if (isReasoningModel(model)) return undefined
 
     return assistant?.settings?.topP
   }
 
+  /**
+   * Get the reasoning effort for the assistant
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The reasoning effort
+   */
   private getReasoningEffort(assistant: Assistant, model: Model) {
     if (this.provider.id === 'groq') {
       return {}
@@ -221,6 +263,7 @@ export default class OpenAIProvider extends BaseProvider {
 
         return {
           thinking: {
+            type: 'enabled',
             budget_tokens: budgetTokens
           }
         }
@@ -232,11 +275,74 @@ export default class OpenAIProvider extends BaseProvider {
     return {}
   }
 
+  /**
+   * Check if the model is an OpenAI reasoning model
+   * @param model - The model
+   * @returns True if the model is an OpenAI reasoning model, false otherwise
+   */
   private isOpenAIReasoning(model: Model) {
     return model.id.startsWith('o1') || model.id.startsWith('o3')
   }
 
-  async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams): Promise<void> {
+  /**
+   * Check if the model is a Glm-4-alltools
+   * @param model - The model
+   * @returns True if the model is a Glm-4-alltools, false otherwise
+   */
+  private isZhipuTool(model: Model) {
+    return model.id.includes('glm-4-alltools')
+  }
+
+  /**
+   * Clean the tool call arguments
+   * @param toolCall - The tool call
+   * @returns The cleaned tool call
+   */
+  private cleanToolCallArgs(toolCall: ChatCompletionMessageToolCall): ChatCompletionMessageToolCall {
+    if (toolCall.function.arguments) {
+      let args = toolCall.function.arguments
+      const codeBlockRegex = /```(?:\w*\n)?([\s\S]*?)```/
+      const match = args.match(codeBlockRegex)
+      if (match) {
+        // Extract content from code block
+        let extractedArgs = match[1].trim()
+        // Clean function call format like tool_call(name1=value1,name2=value2)
+        const functionCallRegex = /^\s*\w+\s*\(([\s\S]*?)\)\s*$/
+        const functionMatch = extractedArgs.match(functionCallRegex)
+        if (functionMatch) {
+          // Try to convert parameters to JSON format
+          const params = functionMatch[1].split(',').filter(Boolean)
+          const paramsObj = {}
+          params.forEach((param) => {
+            const [name, value] = param.split('=').map((p) => p.trim())
+            if (name && value !== undefined) {
+              paramsObj[name] = value
+            }
+          })
+          extractedArgs = JSON.stringify(paramsObj)
+        }
+        toolCall.function.arguments = extractedArgs
+      }
+      args = toolCall.function.arguments
+      const firstBraceIndex = args.indexOf('{')
+      const lastBraceIndex = args.lastIndexOf('}')
+      if (firstBraceIndex !== -1 && lastBraceIndex !== -1 && firstBraceIndex < lastBraceIndex) {
+        toolCall.function.arguments = args.substring(firstBraceIndex, lastBraceIndex + 1)
+      }
+    }
+    return toolCall
+  }
+
+  /**
+   * Generate completions for the assistant
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @param mcpTools - The MCP tools
+   * @param onChunk - The onChunk callback
+   * @param onFilterMessages - The onFilterMessages callback
+   * @returns The completions
+   */
+  async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
@@ -251,9 +357,8 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     const userMessages: ChatCompletionMessageParam[] = []
-
     const _messages = filterUserRoleStartMessages(
-      filterContextMessages(filterEmptyMessages(takeRight(messages, contextCount + 1)))
+      filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
     )
 
     onFilterMessages(_messages)
@@ -308,7 +413,7 @@ export default class OpenAIProvider extends BaseProvider {
     let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
 
     mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
@@ -319,8 +424,7 @@ export default class OpenAIProvider extends BaseProvider {
     ) as ChatCompletionMessageParam[]
 
     const toolResponses: MCPToolResponse[] = []
-
-    const processStream = async (stream: any) => {
+    const processStream = async (stream: any, idx: number) => {
       if (!isSupportStreamOutput()) {
         const time_completion_millsec = new Date().getTime() - start_time_millsec
         return onChunk({
@@ -333,8 +437,7 @@ export default class OpenAIProvider extends BaseProvider {
           }
         })
       }
-
-      const toolCalls: ChatCompletionMessageToolCall[] = []
+      const final_tool_calls = {} as Record<number, ChatCompletionMessageToolCall>
 
       for await (const chunk of stream) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
@@ -364,27 +467,42 @@ export default class OpenAIProvider extends BaseProvider {
         const finishReason = chunk.choices[0]?.finish_reason
 
         if (delta?.tool_calls) {
-          const chunkToolCalls: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall[] = delta.tool_calls
-          if (finishReason !== 'tool_calls') {
-            if (toolCalls.length === 0) {
-              for (const toolCall of chunkToolCalls) {
-                toolCalls.push(toolCall as ChatCompletionMessageToolCall)
-              }
+          const chunkToolCalls = delta.tool_calls
+          for (const t of chunkToolCalls) {
+            const { index, id, function: fn, type } = t
+            const args = fn && typeof fn.arguments === 'string' ? fn.arguments : ''
+            if (!(index in final_tool_calls)) {
+              final_tool_calls[index] = {
+                id,
+                function: {
+                  name: fn?.name,
+                  arguments: args
+                },
+                type
+              } as ChatCompletionMessageToolCall
             } else {
-              for (let i = 0; i < chunkToolCalls.length; i++) {
-                toolCalls[i].function.arguments += chunkToolCalls[i].function?.arguments || ''
-              }
+              final_tool_calls[index].function.arguments += args
             }
+          }
+          if (finishReason !== 'tool_calls') {
             continue
           }
         }
 
         if (finishReason === 'tool_calls') {
+          const toolCalls = Object.values(final_tool_calls).map(this.cleanToolCallArgs)
           console.log('start invoke tools', toolCalls)
-          reqMessages.push({
-            role: 'assistant',
-            tool_calls: toolCalls
-          } as ChatCompletionAssistantMessageParam)
+          if (this.isZhipuTool(model)) {
+            reqMessages.push({
+              role: 'assistant',
+              content: `argments=${JSON.stringify(toolCalls[0].function.arguments)}`
+            })
+          } else {
+            reqMessages.push({
+              role: 'assistant',
+              tool_calls: toolCalls
+            } as ChatCompletionAssistantMessageParam)
+          }
 
           for (const toolCall of toolCalls) {
             const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall)
@@ -392,11 +510,9 @@ export default class OpenAIProvider extends BaseProvider {
               continue
             }
 
-            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking' }, onChunk)
+            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking', id: toolCall.id }, onChunk)
 
             const toolCallResponse = await callMCPTool(mcpTool)
-
-            console.log('[OpenAIProvider] toolCallResponse', toolCallResponse)
 
             reqMessages.push({
               role: 'tool',
@@ -406,9 +522,12 @@ export default class OpenAIProvider extends BaseProvider {
               tool_call_id: toolCall.id
             } as ChatCompletionToolMessageParam)
 
-            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'done', response: toolCallResponse }, onChunk)
+            upsertMCPToolResponse(
+              toolResponses,
+              { tool: mcpTool, status: 'done', response: toolCallResponse, id: toolCall.id },
+              onChunk
+            )
           }
-
           const newStream = await this.sdk.chat.completions
             // @ts-ignore key is not typed
             .create(
@@ -430,7 +549,7 @@ export default class OpenAIProvider extends BaseProvider {
                 signal
               }
             )
-          await processStream(newStream)
+          await processStream(newStream, idx + 1)
         }
 
         onChunk({
@@ -471,9 +590,20 @@ export default class OpenAIProvider extends BaseProvider {
         }
       )
 
-    await processStream(stream).finally(cleanup)
+    await processStream(stream, 0).finally(cleanup)
+    // 捕获signal的错误
+    await signalPromise?.promise?.catch((error) => {
+      throw error
+    })
   }
 
+  /**
+   * Translate a message
+   * @param message - The message
+   * @param assistant - The assistant
+   * @param onResponse - The onResponse callback
+   * @returns The translated message
+   */
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -544,6 +674,12 @@ export default class OpenAIProvider extends BaseProvider {
     return text
   }
 
+  /**
+   * Summarize a message
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The summary
+   */
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
@@ -585,6 +721,12 @@ export default class OpenAIProvider extends BaseProvider {
     return removeSpecialCharactersForTopicName(content.substring(0, 50))
   }
 
+  /**
+   * Generate text
+   * @param prompt - The prompt
+   * @param content - The content
+   * @returns The generated text
+   */
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
     const model = getDefaultModel()
 
@@ -600,6 +742,12 @@ export default class OpenAIProvider extends BaseProvider {
     return response.choices[0].message?.content || ''
   }
 
+  /**
+   * Generate suggestions
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The suggestions
+   */
   async suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]> {
     const model = assistant.model
 
@@ -622,6 +770,11 @@ export default class OpenAIProvider extends BaseProvider {
     return response?.questions?.filter(Boolean)?.map((q: any) => ({ content: q })) || []
   }
 
+  /**
+   * Check if the model is valid
+   * @param model - The model
+   * @returns The validity of the model
+   */
   public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
@@ -648,6 +801,10 @@ export default class OpenAIProvider extends BaseProvider {
     }
   }
 
+  /**
+   * Get the models
+   * @returns The models
+   */
   public async models(): Promise<OpenAI.Models.Model[]> {
     try {
       const response = await this.sdk.models.list()
@@ -684,6 +841,11 @@ export default class OpenAIProvider extends BaseProvider {
     }
   }
 
+  /**
+   * Generate an image
+   * @param params - The parameters
+   * @returns The generated image
+   */
   public async generateImage({
     model,
     prompt,
@@ -716,6 +878,11 @@ export default class OpenAIProvider extends BaseProvider {
     return response.data.map((item) => item.url)
   }
 
+  /**
+   * Get the embedding dimensions
+   * @param model - The model
+   * @returns The embedding dimensions
+   */
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     const data = await this.sdk.embeddings.create({
       model: model.id,

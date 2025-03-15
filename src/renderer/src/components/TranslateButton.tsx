@@ -91,7 +91,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
 const ToolbarButton = styled(Button)`
   min-width: 30px;
   height: 30px;
-  font-size: 17px;
+  font-size: 16px;
   border-radius: 50%;
   transition: all 0.3s ease;
   color: var(--color-icon);

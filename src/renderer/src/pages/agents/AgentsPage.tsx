@@ -88,7 +88,7 @@ const AgentsPage: FC = () => {
     [t]
   )
 
-  const getAgentFromSystemAgent = (agent: (typeof systemAgents)[number]) => {
+  const getAgentFromSystemAgent = useCallback((agent: (typeof systemAgents)[number]) => {
     return {
       ...omit(agent, 'group'),
       name: agent.name,
@@ -96,7 +96,7 @@ const AgentsPage: FC = () => {
       topics: [],
       type: 'agent'
     }
-  }
+  }, [])
 
   const getLocalizedGroupName = useCallback(
     (group: string) => {
@@ -121,7 +121,7 @@ const AgentsPage: FC = () => {
         </Row>
       )
     },
-    [onAddAgentConfirm]
+    [getAgentFromSystemAgent, onAddAgentConfirm]
   )
 
   const tabItems = useMemo(() => {

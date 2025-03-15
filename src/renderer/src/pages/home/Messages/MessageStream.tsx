@@ -14,7 +14,6 @@ interface MessageStreamProps {
   hidePresetMessages?: boolean
   isGrouped?: boolean
   style?: React.CSSProperties
-  onSetMessages?: React.Dispatch<React.SetStateAction<Message[]>>
 }
 
 const MessageStreamContainer = styled.div`
@@ -30,8 +29,7 @@ const MessageStream: React.FC<MessageStreamProps> = ({
   index,
   hidePresetMessages,
   isGrouped,
-  style,
-  onSetMessages
+  style
 }) => {
   // 获取流式消息
   const streamMessage = useAppSelector((state) => selectStreamMessage(state, _message.topicId, _message.id))
@@ -63,7 +61,6 @@ const MessageStream: React.FC<MessageStreamProps> = ({
         isGrouped={isGrouped}
         style={style}
         isStreaming={isStreaming}
-        onSetMessages={onSetMessages}
       />
     </MessageStreamContainer>
   )
