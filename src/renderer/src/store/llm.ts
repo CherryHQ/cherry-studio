@@ -21,6 +21,7 @@ export interface LlmState {
   defaultModel: Model
   topicNamingModel: Model
   translateModel: Model
+  searchSummaryModel: Model
   settings: LlmSettings
 }
 
@@ -28,6 +29,7 @@ const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.silicon[1],
   topicNamingModel: SYSTEM_MODELS.silicon[2],
   translateModel: SYSTEM_MODELS.silicon[3],
+  searchSummaryModel: SYSTEM_MODELS.silicon[2],
   providers: [
     {
       id: 'silicon',
@@ -461,6 +463,7 @@ const getIntegratedInitialState = () => {
     defaultModel: model,
     topicNamingModel: model,
     translateModel: model,
+    searchSummaryModel: model,
     providers: [
       {
         id: 'ollama',
@@ -547,6 +550,9 @@ const settingsSlice = createSlice({
     setTranslateModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.translateModel = action.payload.model
     },
+    setSearchSummaryModel: (state, action: PayloadAction<{ model: Model }>) => {
+      state.searchSummaryModel = action.payload.model
+    },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.ollama.keepAliveTime = action.payload
     },
@@ -584,6 +590,7 @@ export const {
   setDefaultModel,
   setTopicNamingModel,
   setTranslateModel,
+  setSearchSummaryModel,
   setOllamaKeepAliveTime,
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,

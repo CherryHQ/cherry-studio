@@ -35,6 +35,7 @@ export default abstract class BaseProvider {
   abstract completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
   abstract translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void): Promise<string>
   abstract summaries(messages: Message[], assistant: Assistant): Promise<string>
+  abstract summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null>
   abstract suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]>
   abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>
   abstract check(model: Model): Promise<{ valid: boolean; error: Error | null }>
