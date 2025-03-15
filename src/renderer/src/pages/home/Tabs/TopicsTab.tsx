@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import ObsidianFolderSelector from '@renderer/components/ObsidianFolderSelector'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
@@ -19,12 +20,14 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import store from '@renderer/store'
+import store, { RootState } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
+  exportMarkdownToNotion,
+  exportMarkdownToObsidian,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
   exportTopicToNotion,
@@ -35,6 +38,7 @@ import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 interface Props {
@@ -53,6 +57,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>()
+
+  const obsidianApiKey = useSelector((state: RootState) => state.settings.obsidianApiKey)
+  const obsidianUrl = useSelector((state: RootState) => state.settings.obsidianUrl)
 
   const handleDeleteClick = useCallback((topicId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -253,6 +260,64 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
                 exportMarkdownToYuque(topic.name, markdown)
+              }
+            },
+            {
+              label: t('chat.topics.export.obsidian'),
+              key: 'obsidian',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                if (!obsidianUrl || !obsidianApiKey) {
+                  window.message.error(t('chat.topics.export.obsidian_not_configured'))
+                  return
+                }
+                try {
+                  // 初始获取根目录结构
+                  const response = await fetch(`${obsidianUrl}/vault/`, {
+                    headers: {
+                      Authorization: `Bearer ${obsidianApiKey}`
+                    }
+                  })
+
+                  if (!response.ok) {
+                    window.message.error(t('chat.topics.export.obsidian_fetch_failed'))
+                    return
+                  }
+
+                  const data = await response.json()
+
+                  // 创建一个状态变量来存储选择的路径
+                  let selectedPath = '/'
+
+                  // 显示文件夹选择对话框
+                  window.modal.confirm({
+                    title: t('chat.topics.export.obsidian_select_folder'),
+                    content: (
+                      <ObsidianFolderSelector
+                        defaultPath={selectedPath}
+                        initialFiles={data.files || []}
+                        obsidianUrl={obsidianUrl}
+                        obsidianApiKey={obsidianApiKey}
+                        onPathChange={(path) => {
+                          selectedPath = path
+                        }}
+                      />
+                    ),
+                    width: 600,
+                    icon: null,
+                    closable: true,
+                    maskClosable: true,
+                    centered: true,
+                    okButtonProps: { type: 'primary' },
+                    okText: t('chat.topics.export.obsidian_select_folder.btn'),
+                    onOk: () => {
+                      exportMarkdownToObsidian(topic.name, markdown, selectedPath)
+                    }
+                  })
+                } catch (error) {
+                  window.message.error(t('chat.topics.export.obsidian_fetch_failed'))
+                  console.error(error)
+                }
               }
             }
           ]

@@ -162,6 +162,13 @@
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
       "topics.export.yuque": "語雀にエクスポート",
+      "topics.export.obsidian": "Obsidian にエクスポート",
+      "topics.export.obsidian_not_configured": "Obsidian が未設定です",
+      "topics.export.obsidian_fetch_failed": "Obsidian ファイルフォルダー構造の取得に失敗しました",
+      "topics.export.obsidian_select_folder": "Obsidian ファイルフォルダーを選択",
+      "topics.export.obsidian_select_folder.btn": "確定",
+      "topics.export.obsidian_export_success": "エクスポート成功",
+      "topics.export.obsidian_export_failed": "エクスポート失敗",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
       "topics.pinned": "トピックを固定",
@@ -748,6 +755,21 @@
           "title": "Yuque設定",
           "token": "Yuqueトークン",
           "token_placeholder": "Yuqueトークンを入力してください"
+        },
+        "obsidian": {
+          "check": {
+            "button": "接続確認",
+            "empty_url": "先に Obsidian REST API URL を入力してください",
+            "empty_api_key": "先に Obsidian API Key を入力してください",
+            "fail": "Obsidian 接続確認に失敗しました",
+            "success": "Obsidian 接続確認に成功しました"
+          },
+          "help": "Obsidian プラグイン Local REST API をインストールしてから、Obsidian API Key を取得してください",
+          "url": "Obsidian ナレッジベース URL",
+          "url_placeholder": "http://127.0.0.1:27123",
+          "title": "Obsidian 設定",
+          "api_key": "Obsidian API Key",
+          "api_key_placeholder": "Obsidian API Key を入力してください"
         }
       },
       "display.assistant.title": "アシスタント設定",

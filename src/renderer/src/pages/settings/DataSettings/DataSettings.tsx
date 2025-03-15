@@ -26,6 +26,8 @@ import MarkdownExportSettings from './MarkdownExportSettings'
 import NotionSettings from './NotionSettings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
+import ObsidianSettings from './ObsidianSettings'
+import ObsidianIcon from '@renderer/assets/images/apps/obsidian.svg'
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -43,7 +45,12 @@ const DataSettings: FC = () => {
       icon: <FileMarkdownOutlined style={{ fontSize: 16 }} />
     },
     { key: 'notion', title: 'settings.data.notion.title', icon: <i className="iconfont icon-notion" /> },
-    { key: 'yuque', title: 'settings.data.yuque.title', icon: <YuqueOutlined style={{ fontSize: 16 }} /> }
+    { key: 'yuque', title: 'settings.data.yuque.title', icon: <YuqueOutlined style={{ fontSize: 16 }} /> },
+    {
+      key: 'obsidian',
+      title: 'settings.data.obsidian.title',
+      icon: <img src={ObsidianIcon} alt="obsidian" style={{ width: '16px', height: '16px' }} />
+    }
   ]
 
   useEffect(() => {
@@ -180,6 +187,7 @@ const DataSettings: FC = () => {
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'notion' && <NotionSettings />}
         {menu === 'yuque' && <YuqueSettings />}
+        {menu === 'obsidian' && <ObsidianSettings />}
       </SettingContainer>
     </Container>
   )

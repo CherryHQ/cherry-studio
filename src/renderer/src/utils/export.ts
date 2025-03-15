@@ -316,3 +316,33 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
     setExportState({ isExporting: false })
   }
 }
+
+export const exportMarkdownToObsidian = async (title: string, markdown: string, path: string = '/') => {
+  try {
+    const obsidianUrl = store.getState().settings.obsidianUrl
+    const obsidianApiKey = store.getState().settings.obsidianApiKey
+
+    const fileName = `${removeSpecialCharactersForFileName(title)}.md`
+    // 处理路径，确保格式正确
+    const targetPath = `${path}${fileName}`
+
+    const response = await fetch(`${obsidianUrl}/vault${targetPath}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'text/markdown',
+        Authorization: `Bearer ${obsidianApiKey}`
+      },
+      body: markdown
+    })
+
+    if (!response.ok) {
+      window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+      return
+    }
+
+    window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
+  } catch (error) {
+    window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
+    console.error(error)
+  }
+}
