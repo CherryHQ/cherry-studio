@@ -1,40 +1,70 @@
-name: Release
+name: Build and Release
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.0.0)'
-        required: true
-        default: 'v0.9.18'
-  push:
-    tags:
-      - v*.*.*
+        description: "Release tag (e.g. v1.1.0)"
+        required: false
+        default: "v1.1.0"
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            platform: win
+            artifacts: |
+              dist/Cherry-Studio-*-portable.exe
+              dist/Cherry-Studio-*-setup.exe
+              dist/Cherry-Studio-*-setup.exe.blockmap
+              dist/latest.yml
+          - os: ubuntu-latest
+            platform: linux
+            artifacts: |
+              dist/Cherry-Studio-*-x86_64.AppImage
+              dist/Cherry-Studio-*-arm64.AppImage
+              dist/latest-linux.yml
+              dist/latest-linux-arm64.yml
+          - os: macos-latest
+            platform: mac
+            artifacts: |
+              dist/Cherry-Studio-*-x64.dmg
+              dist/Cherry-Studio-*-x64.dmg.blockmap
+              dist/Cherry-Studio-*-x64.zip
+              dist/Cherry-Studio-*-x64.zip.blockmap
+              dist/Cherry-Studio-*-arm64.dmg
+              dist/Cherry-Studio-*-arm64.dmg.blockmap
+              dist/Cherry-Studio-*-arm64.zip
+              dist/Cherry-Studio-*-arm64.zip.blockmap
+              dist/latest-mac.yml
       fail-fast: false
 
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
 
-      - name: Get release tag
-        id: get-tag
+      - name: Get version
+        id: get-version
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Running on tag: v$VERSION"
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            VERSION="dev-$(echo $GITHUB_SHA | cut -c1-8)-$(date +'%Y%m%d%H%M%S')"
+            echo "Running on commit: $VERSION"
+            echo "tag=$VERSION" >> $GITHUB_OUTPUT
           fi
 
       - name: Install Node.js
@@ -75,6 +105,11 @@ jobs:
       - name: Build Mac
         if: matrix.os == 'macos-latest'
         run: |
+          if [[ -z "${CSC_LINK}" ]] || [[ -z "${CSC_KEY_PASSWORD}" ]]; then
+            echo "Missing required secrets: CSC_LINK or CSC_KEY_PASSWORD"
+            mkdir -p dist
+            exit 0
+          fi
           yarn build:npm mac
           yarn build:mac
         env:
@@ -94,14 +129,62 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
 
       - name: Replace spaces in filenames
+        if:
         run: node scripts/replace-spaces.js
 
-      - name: Release
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ steps.get-tag.outputs.tag }}-${{ matrix.platform }}
+          path: ${{ matrix.artifacts }}
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release tag
+        id: get-tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          find all-artifacts -type f -not -path "*/\.*" -exec cp {} release/ \;
+
+      - name: Create Release
         uses: ncipollo/release-action@v1
         with:
           draft: true
           allowUpdates: true
+          prerelease: true
           makeLatest: false
           tag: ${{ steps.get-tag.outputs.tag }}
-          artifacts: 'dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/*.blockmap'
+          artifacts: "release/*"
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  summary:
+    runs-on: ubuntu-latest
+    if: ${{ !(startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag)) }}
+    steps:
+      - name: Adding markdown to $GITHUB_STEP_SUMMARY
+        run: |
+          echo "# ⚠️ WARNING - UNSTABLE ⚠️" >> $GITHUB_STEP_SUMMARY
+          echo "This artifacts is in alpha testing phase and may be unstable." >> $GITHUB_STEP_SUMMARY
+          echo "Use with caution and have backup as it may lead to unexpected behavior or data loss." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# ⚠️ 警告 - 不稳定 ⚠️" >> $GITHUB_STEP_SUMMARY
+          echo "下方工作产物处于测试阶段，可能不稳定。" >> $GITHUB_STEP_SUMMARY
+          echo "请谨慎使用，做好备份，因为它可能导致意外行为或数据丢失。" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
