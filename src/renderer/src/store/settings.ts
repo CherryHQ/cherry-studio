@@ -28,6 +28,9 @@ export interface SettingsState {
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
+  launchOnBoot: boolean
+  launchToTray: boolean
+  trayOnClose: boolean
   tray: boolean
   theme: ThemeMode
   windowStyle: 'transparent' | 'opaque'
@@ -95,6 +98,9 @@ const initialState: SettingsState = {
   showMessageDivider: true,
   messageFont: 'system',
   showInputEstimatedTokens: false,
+  launchOnBoot: false,
+  launchToTray: false,
+  trayOnClose: true,
   tray: true,
   theme: ThemeMode.auto,
   windowStyle: 'transparent',
@@ -190,8 +196,17 @@ const settingsSlice = createSlice({
     setShowInputEstimatedTokens: (state, action: PayloadAction<boolean>) => {
       state.showInputEstimatedTokens = action.payload
     },
+    setLaunchOnBoot: (state, action: PayloadAction<boolean>) => {
+      state.launchOnBoot = action.payload
+    },
+    setLaunchToTray: (state, action: PayloadAction<boolean>) => {
+      state.launchToTray = action.payload
+    },
     setTray: (state, action: PayloadAction<boolean>) => {
       state.tray = action.payload
+    },
+    setTrayOnClose: (state, action: PayloadAction<boolean>) => {
+      state.trayOnClose = action.payload
     },
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
       state.theme = action.payload
@@ -350,6 +365,9 @@ export const {
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
+  setLaunchOnBoot,
+  setLaunchToTray,
+  setTrayOnClose,
   setTray,
   setTheme,
   setFontSize,

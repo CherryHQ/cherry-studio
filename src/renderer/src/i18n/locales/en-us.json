@@ -966,7 +966,12 @@
       "topic.position.left": "Left",
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
-      "tray.title": "Enable System Tray Icon",
+      "tray.title": "Tray",
+      "tray.show": "Show Tray Icon",
+      "tray.onclose": "Minimize to Tray on Close",
+      "launch.title": "Launch",
+      "launch.onboot": "Start Automatically on Boot",
+      "launch.totray": "Minimize to Tray on Launch",
       "websearch": {
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",

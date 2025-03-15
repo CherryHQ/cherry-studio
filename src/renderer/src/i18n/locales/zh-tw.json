@@ -966,7 +966,12 @@
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
-      "tray.title": "啟用系統工具列圖示",
+      "tray.title": "系统匣",
+      "tray.show": "顯示系统匣圖示",
+      "tray.onclose": "關閉時最小化到系统匣",
+      "launch.title": "啟動",
+      "launch.onboot": "開機自動啟動",
+      "launch.totray": "啟動時最小化到系统匣",
       "websearch": {
         "blacklist": "黑名單",
         "blacklist_description": "以下網站不會出現在搜尋結果中",
