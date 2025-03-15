@@ -35,7 +35,7 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
 
   const messageBackground = getMessageBackground(true, isAssistantMessage)
 
-  const maxWidth = isMiniWindow() ? '480px' : '100%'
+  const maxWidth = isMiniWindow() ? '800px' : '100%'
 
   if (['summary', 'explanation'].includes(route) && index === total - 1) {
     return null
@@ -64,6 +64,7 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
 
 const MessageContainer = styled.div`
   display: flex;
+  width: 100%;
   flex-direction: column;
   position: relative;
   transition: background-color 0.3s ease;

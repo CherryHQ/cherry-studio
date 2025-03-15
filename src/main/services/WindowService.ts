@@ -15,6 +15,7 @@ export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
+  private isPinnedMiniWindow: boolean = false
   private wasFullScreen: boolean = false
   private selectionMenuWindow: BrowserWindow | null = null
   private lastSelectedText: string = ''
@@ -322,8 +323,12 @@ export class WindowService {
     const isMac = process.platform === 'darwin'
 
     this.miniWindow = new BrowserWindow({
-      width: 500,
-      height: 520,
+      width: 550,
+      height: 400,
+      minWidth: 350,
+      minHeight: 380,
+      maxWidth: 1024,
+      maxHeight: 768,
       show: true,
       autoHideMenuBar: true,
       transparent: isMac,
@@ -332,7 +337,7 @@ export class WindowService {
       center: true,
       frame: false,
       alwaysOnTop: true,
-      resizable: false,
+      resizable: true,
       useContentSize: true,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -343,7 +348,9 @@ export class WindowService {
     })
 
     this.miniWindow.on('blur', () => {
-      this.miniWindow?.hide()
+      if (!this.isPinnedMiniWindow) {
+        this.miniWindow?.hide()
+      }
     })
 
     this.miniWindow.on('closed', () => {
@@ -385,6 +392,10 @@ export class WindowService {
     } else {
       this.showMiniWindow()
     }
+  }
+
+  public setPinMiniWindow(isPinned) {
+    this.isPinnedMiniWindow = isPinned
   }
 
   public showSelectionMenu(bounds: { x: number; y: number }) {

@@ -261,6 +261,8 @@ const HomeWindow: FC = () => {
       <Divider style={{ margin: '10px 0' }} />
       <Footer
         route={route}
+        canUseBackspace={text.length > 0 || clipboardText.length == 0}
+        clearClipboard={clearClipboard}
         onExit={() => {
           setRoute('home')
           setText('')
@@ -275,6 +277,7 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   height: 100%;
+  width: 100%;
   flex-direction: column;
   -webkit-app-region: drag;
   padding: 8px 10px;
@@ -283,6 +286,8 @@ const Container = styled.div`
 
 const Main = styled.main`
   display: flex;
+  flex-direction: column;
+
   flex: 1;
   overflow: hidden;
 `
