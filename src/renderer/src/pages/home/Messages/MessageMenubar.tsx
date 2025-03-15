@@ -33,6 +33,9 @@ import dayjs from 'dayjs'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import MessageNavigator from './MessageNavigator'
+
 interface Props {
   message: Message
   assistant: Assistant
@@ -343,6 +346,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </ActionButton>
         </Dropdown>
       )}
+      {isAssistantMessage && <MessageNavigator message={message} topic={topic} />}
     </MenusBar>
   )
 }
