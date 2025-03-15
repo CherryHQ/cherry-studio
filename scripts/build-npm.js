@@ -33,6 +33,10 @@ async function downloadNpm(platform) {
       '@libsql/win32-x64-msvc',
       'https://registry.npmjs.org/@libsql/win32-x64-msvc/-/win32-x64-msvc-0.4.7.tgz'
     )
+    const fs = require('fs')
+    fs.cp('./local-packages/@libsql', './node_modules/@libsql', { recursive: true }, (err) => {
+      if (err) throw err
+    })
   }
 }
 

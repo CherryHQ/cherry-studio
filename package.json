@@ -25,6 +25,7 @@
     "build:unpack": "dotenv npm run build && electron-builder --dir",
     "build:win": "dotenv npm run build && electron-builder --win",
     "build:win:x64": "dotenv npm run build && electron-builder --win --x64",
+    "build:win:arm64": "dotenv npm run build && electron-builder --win --arm64",
     "build:mac": "dotenv electron-vite build && electron-builder --mac",
     "build:mac:arm64": "dotenv electron-vite build && electron-builder --mac --arm64",
     "build:mac:x64": "dotenv electron-vite build && electron-builder --mac --x64",
