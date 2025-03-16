@@ -283,7 +283,6 @@ export type GenerateImageParams = {
 }
 
 export type GenerateImageResponse = {
-  text: string
   images: string[]
 }
 

@@ -177,7 +177,9 @@
         "next": "次のメッセージ",
         "first": "最初のメッセージです",
         "last": "最後のメッセージです"
-      }
+      },
+      "input.generate_image": "画像を生成する",
+      "input.generate_image_not_supported": "モデルは画像の生成をサポートしていません。"
     },
     "code_block": {
       "collapse": "折りたたむ",

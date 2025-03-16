@@ -177,7 +177,9 @@
         "next": "下一條訊息",
         "first": "已經是第一條訊息",
         "last": "已經是最後一條訊息"
-      }
+      },
+      "input.generate_image": "生成圖片",
+      "input.generate_image_not_supported": "模型不支援生成圖片"
     },
     "code_block": {
       "collapse": "折疊",

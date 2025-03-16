@@ -1,6 +1,6 @@
 import BaseProvider from '@renderer/providers/BaseProvider'
 import ProviderFactory from '@renderer/providers/ProviderFactory'
-import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
@@ -54,8 +54,8 @@ export default class AiProvider {
     return this.sdk.getApiKey()
   }
 
-  public async generateImage({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
-    return this.sdk.generateImage({ messages, assistant, onChunk, onFilterMessages })
+  public async generateImage(params: GenerateImageParams): Promise<string[]> {
+    return this.sdk.generateImage(params)
   }
 
   public async getEmbeddingDimensions(model: Model): Promise<number> {

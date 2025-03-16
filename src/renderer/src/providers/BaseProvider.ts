@@ -2,7 +2,15 @@ import { FOOTNOTE_PROMPT, REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import { getKnowledgeBaseReferences } from '@renderer/services/KnowledgeService'
-import type { Assistant, KnowledgeReference, Message, Model, Provider, Suggestion } from '@renderer/types'
+import type {
+  Assistant,
+  GenerateImageParams,
+  KnowledgeReference,
+  Message,
+  Model,
+  Provider,
+  Suggestion
+} from '@renderer/types'
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
@@ -31,7 +39,7 @@ export default abstract class BaseProvider {
   abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>
   abstract check(model: Model): Promise<{ valid: boolean; error: Error | null }>
   abstract models(): Promise<OpenAI.Models.Model[]>
-  abstract generateImage({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
+  abstract generateImage(params: GenerateImageParams): Promise<string[]>
   abstract getEmbeddingDimensions(model: Model): Promise<number>
 
   public getBaseURL(): string {
