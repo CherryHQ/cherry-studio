@@ -1,5 +1,7 @@
 import { Message } from '@renderer/types'
+import { Image as AntdImage } from 'antd'
 import { FC } from 'react'
+import styled from 'styled-components'
 
 interface Props {
   message: Message
@@ -7,41 +9,21 @@ interface Props {
 
 const MessageImage: FC<Props> = ({ message }) => {
   return (
-    <div
-      style={{
-        marginTop: '10px',
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '10px',
-        maxWidth: '100%'
-      }}>
+    <Container style={{ marginBottom: 8 }}>
       {message.metadata?.generateImage!.images.map((image, index) => (
-        <div
-          key={`image-container-${index}`}
-          style={{
-            height: '150px',
-            width: 'calc(33.33% - 7px)',
-            minWidth: '120px',
-            padding: '5px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden'
-          }}>
-          <img
-            key={`image-${index}`}
-            src={image}
-            alt={`生成图像 ${index + 1}`}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain'
-            }}
-          />
-        </div>
+        <Image src={image} key={`image-${index}`} width="33%" />
       ))}
-    </div>
+    </Container>
   )
 }
+const Container = styled.div`
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  margin-top: 8px;
+`
+const Image = styled(AntdImage)`
+  border-radius: 10px;
+`
 
 export default MessageImage
