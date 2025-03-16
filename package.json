@@ -83,6 +83,7 @@
     "epub": "patch:epub@npm%3A1.3.0#~/.yarn/patches/epub-npm-1.3.0-8325494ffe.patch",
     "fetch-socks": "^1.3.2",
     "fs-extra": "^11.2.0",
+    "https-proxy-agent-v5": "npm:https-proxy-agent@5.0.1",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
     "p-queue": "^8.1.0",

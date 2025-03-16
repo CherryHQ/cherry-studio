@@ -1,6 +1,6 @@
 import { ProxyConfig as _ProxyConfig, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
-import { HttpsProxyAgent } from 'https-proxy-agent'
+import { HttpsProxyAgent } from 'https-proxy-agent-v5'
 import { ProxyAgent, setGlobalDispatcher } from 'undici'
 
 type ProxyMode = 'system' | 'custom' | 'none'
