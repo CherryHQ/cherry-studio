@@ -1,4 +1,10 @@
-import { ContentListUnion, createPartFromBase64, GoogleGenAI } from '@google/genai'
+import {
+  ContentListUnion,
+  createPartFromBase64,
+  FinishReason,
+  GenerateContentResponse,
+  GoogleGenAI
+} from '@google/genai'
 import {
   Content,
   FileDataPart,
@@ -106,6 +112,25 @@ export default class GeminiProvider extends BaseProvider {
     const role = message.role === 'user' ? 'user' : 'model'
 
     const parts: Part[] = [{ text: await this.getMessageContent(message) }]
+    // Add any generated images from previous responses
+    if (message.metadata?.generateImage?.images && message.metadata.generateImage.images.length > 0) {
+      for (const imageUrl of message.metadata.generateImage.images) {
+        if (imageUrl && imageUrl.startsWith('data:')) {
+          // Extract base64 data and mime type from the data URL
+          const matches = imageUrl.match(/^data:(.+);base64,(.*)$/)
+          if (matches && matches.length === 3) {
+            const mimeType = matches[1]
+            const base64Data = matches[2]
+            parts.push({
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType
+              }
+            } as InlineDataPart)
+          }
+        }
+      }
+    }
 
     for (const file of message.files || []) {
       if (file.type === FileTypes.IMAGE) {
@@ -521,22 +546,28 @@ export default class GeminiProvider extends BaseProvider {
       throw new Error('No user message found')
     }
 
-    // 创建内容列表
-    let contents: ContentListUnion = [userLastMessage.content]
+    const history: Content[] = []
 
-    // 添加图片文件（如果存在）
+    for (const message of userMessages) {
+      history.push(await this.getMessageContents(message))
+    }
+
+    const userLastMessageContent = await this.getMessageContents(userLastMessage)
+    const allContents = [...history, userLastMessageContent]
+
+    let contents: ContentListUnion = allContents.length > 0 ? (allContents as ContentListUnion) : []
+
     contents = await this.addImageFileToContents(userLastMessage, contents)
 
-    // 调用Gemini API生成内容
     const response = await this.callGeminiGenerateContent(model.id, contents)
 
     console.log('response', response)
 
-    if (!this.isValidGeminiResponse(response)) {
-      return
+    const { isValid, message } = this.isValidGeminiResponse(response)
+    if (!isValid) {
+      throw new Error(`Gemini API error: ${message}`)
     }
 
-    // 处理响应结果
     this.processGeminiImageResponse(response, onChunk)
   }
 
@@ -565,7 +596,10 @@ export default class GeminiProvider extends BaseProvider {
    * @param contents - 内容列表
    * @returns 生成结果
    */
-  private async callGeminiGenerateContent(modelId: string, contents: ContentListUnion) {
+  private async callGeminiGenerateContent(
+    modelId: string,
+    contents: ContentListUnion
+  ): Promise<GenerateContentResponse> {
     try {
       return await this.imageSdk.models.generateContent({
         model: modelId,
@@ -586,8 +620,11 @@ export default class GeminiProvider extends BaseProvider {
    * @param response - Gemini响应
    * @returns 是否有效
    */
-  private isValidGeminiResponse(response: any): boolean {
-    return response?.candidates?.[0]?.content?.parts ? true : false
+  private isValidGeminiResponse(response: GenerateContentResponse): { isValid: boolean; message: string } {
+    return {
+      isValid: response?.candidates?.[0]?.finishReason === FinishReason.STOP ? true : false,
+      message: response?.candidates?.[0]?.finishReason || ''
+    }
   }
 
   /**
