@@ -106,8 +106,17 @@ jobs:
 
           # macOS artifacts
           if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            find dist -name "*.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.dmg \;
-            find dist -name "*.zip" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.zip \;
+            # 处理arm64架构文件
+            find dist -name "*-arm64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64.dmg \;
+            find dist -name "*-arm64.dmg.blockmap" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64.dmg.blockmap \;
+            find dist -name "*-arm64.zip" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64.zip \;
+            find dist -name "*-arm64.zip.blockmap" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64.zip.blockmap \;
+            
+            # 处理x64架构文件
+            find dist -name "*-x64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64.dmg \;
+            find dist -name "*-x64.dmg.blockmap" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64.dmg.blockmap \;
+            find dist -name "*-x64.zip" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64.zip \;
+            find dist -name "*-x64.zip.blockmap" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64.zip.blockmap \;
           fi
 
           # Linux artifacts
