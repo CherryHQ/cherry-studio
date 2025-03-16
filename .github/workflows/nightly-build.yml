@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  nightly-build:
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -84,23 +84,49 @@ jobs:
       - name: Replace spaces in filenames
         run: node scripts/replace-spaces.js
 
+      - name: Rename artifacts with nightly format
+        shell: bash
+        run: |
+          mkdir -p renamed-artifacts
+          DATE=${{ steps.date.outputs.date }}
+
+          # Windows artifacts
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            find dist -name "*.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.exe \;
+          fi
+
+          # macOS artifacts
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            find dist -name "*.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.dmg \;
+            find dist -name "*.zip" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.zip \;
+          fi
+
+          # Linux artifacts
+          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+            find dist -name "*.AppImage" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.AppImage \;
+            find dist -name "*.snap" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.snap \;
+            find dist -name "*.deb" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.deb \;
+            find dist -name "*.rpm" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.rpm \;
+            find dist -name "*.tar.gz" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.tar.gz \;
+          fi
+
+          # Copy update files
+          cp dist/latest*.yml renamed-artifacts/ || true
+          cp dist/*.blockmap renamed-artifacts/ || true
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
-          path: |
-            dist/*.exe
-            dist/*.zip
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.snap
-            dist/*.deb
-            dist/*.rpm
-            dist/*.tar.gz
-            dist/latest*.yml
-            dist/*.blockmap
+          name: cherry-studio-nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
+          path: renamed-artifacts/*
           retention-days: 3 # 保留3天
+          compression-level: 0 # 不压缩
 
+  summary:
+    name: Generate Build Summary
+    runs-on: ubuntu-latest
+    needs: nightly-build
+    steps:
       - name: Add warning to summary
         run: |
           echo "## ⚠️ 警告：这是每日构建版本" >> $GITHUB_STEP_SUMMARY
