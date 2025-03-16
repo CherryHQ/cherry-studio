@@ -90,9 +90,18 @@ jobs:
           mkdir -p renamed-artifacts
           DATE=${{ steps.date.outputs.date }}
 
-          # Windows artifacts
+          # Windows artifacts - based on actual file naming pattern
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            find dist -name "*.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}.exe \;
+            # Setup installer
+            find dist -name "*setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-setup.exe \;
+            
+            # Portable exe
+            find dist -name "*portable.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-portable.exe \;
+
+            # Rename blockmap files to match the new exe names
+            if [ -f "dist/*setup.exe.blockmap" ]; then
+              cp dist/*setup.exe.blockmap renamed-artifacts/cherry-studio-nightly-${DATE}-setup.exe.blockmap || true
+            fi
           fi
 
           # macOS artifacts
@@ -112,7 +121,14 @@ jobs:
 
           # Copy update files
           cp dist/latest*.yml renamed-artifacts/ || true
-          cp dist/*.blockmap renamed-artifacts/ || true
+
+          # Rename blockmap files if needed
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            # Rename blockmap files to match the new exe names
+            if [ -f "dist/*setup.exe.blockmap" ]; then
+              cp dist/*setup.exe.blockmap renamed-artifacts/cherry-studio-nightly-${DATE}-setup.exe.blockmap || true
+            fi
+          fi
 
       - name: List files to be uploaded
         shell: bash
@@ -123,7 +139,7 @@ jobs:
           elif [ "$RUNNER_OS" == "Windows" ]; then
             dir renamed-artifacts
           else
-            ls -l renamed-artifacts
+            ls -la renamed-artifacts
           fi
           echo "总计: $(find renamed-artifacts -type f | wc -l) 个文件"
 
