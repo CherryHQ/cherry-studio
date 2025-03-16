@@ -173,8 +173,7 @@ jobs:
           retention-days: 3 # 保留3天
           compression-level: 0 # 不压缩
 
-  summary:
-    name: Generate Build Summary
+  Build-Summary:
     needs: nightly-build
     if: always()
     runs-on: ubuntu-latest
