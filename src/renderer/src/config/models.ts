@@ -186,6 +186,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4.5',
   'claude',
   'qwen',
+  'hunyuan',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
