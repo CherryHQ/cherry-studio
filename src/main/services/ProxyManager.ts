@@ -139,7 +139,8 @@ export class ProxyManager {
   setGlobalProxy() {
     const proxyUrl = this.proxyUrl
     if (proxyUrl) {
-      const [protocol, host, port] = proxyUrl.split(':')
+      const [protocol, address] = proxyUrl.split('://')
+      const [host, port] = address.split(':')
       if (!protocol.includes('socks')) {
         setGlobalDispatcher(new ProxyAgent(proxyUrl))
       } else {
