@@ -6,10 +6,11 @@ import {
   GlobalOutlined,
   HolderOutlined,
   PauseCircleOutlined,
+  PictureOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -623,7 +624,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const onEnableWebSearch = () => {
-    console.log(assistant)
     if (!isWebSearchModel(model)) {
       if (!WebSearchService.isWebSearchEnabled()) {
         window.modal.confirm({
@@ -642,9 +642,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
   }
 
+  const onEnableGenerateImage = () => {
+    updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
+  }
+
   useEffect(() => {
     if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
+    }
+    if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
+      updateAssistant({ ...assistant, enableGenerateImage: false })
     }
   }, [assistant, model, updateAssistant])
 
@@ -735,6 +742,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 />
               )}
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
+              <Tooltip
+                placement="top"
+                title={
+                  !isGenerateImageModel(model)
+                    ? t('chat.input.generate_image_not_supported')
+                    : t('chat.input.generate_image')
+                }
+                arrow>
+                <ToolbarButton type="text" disabled={!isGenerateImageModel(model)} onClick={onEnableGenerateImage}>
+                  <PictureOutlined
+                    style={{ color: assistant.enableGenerateImage ? 'var(--color-link)' : 'var(--color-icon)' }}
+                  />
+                </ToolbarButton>
+              </Tooltip>
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}

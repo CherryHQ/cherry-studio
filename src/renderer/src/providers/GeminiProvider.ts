@@ -1,3 +1,4 @@
+import { GoogleGenAI } from '@google/genai'
 import {
   Content,
   FileDataPart,
@@ -38,10 +39,12 @@ import BaseProvider from './BaseProvider'
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI
   private requestOptions: RequestOptions
+  private imageSdk: GoogleGenAI
 
   constructor(provider: Provider) {
     super(provider)
     this.sdk = new GoogleGenerativeAI(this.apiKey)
+    this.imageSdk = new GoogleGenAI({ apiKey: this.apiKey })
     this.requestOptions = {
       baseUrl: this.getBaseURL()
     }
@@ -489,8 +492,48 @@ export default class GeminiProvider extends BaseProvider {
    * Generate an image
    * @returns The generated image
    */
-  public async generateImage(): Promise<string[]> {
-    return []
+  public async generateImage({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
+    const defaultModel = getDefaultModel()
+    const model = assistant.model || defaultModel
+    const { contextCount } = getAssistantSettings(assistant)
+
+    const userMessages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
+    onFilterMessages(userMessages)
+
+    const userLastMessage = userMessages.pop()
+
+    const response = await this.imageSdk.models.generateContent({
+      model: model.id,
+      contents: userLastMessage?.content || '',
+      config: {
+        responseModalities: ['Text', 'Image']
+      }
+    })
+    console.log('gemini', response)
+
+    if (!response.candidates || !response.candidates[0].content || !response.candidates[0].content.parts) return
+    const parts = response.candidates[0].content.parts
+
+    const images = parts
+      .filter((part): part is Part & { inlineData: InlineDataPart['inlineData'] } => part.inlineData !== undefined)
+      .map((part) => {
+        if (!part.inlineData.data.startsWith('data:')) {
+          return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`
+        }
+        return part.inlineData.data
+      })
+    const text = parts
+      .filter((part): part is Part & { text: string } => part.text !== undefined)
+      .map((part) => part.text)
+      .join('')
+
+    onChunk({
+      generateImage: {
+        text: text,
+        images: images
+      }
+    })
+    return
   }
 
   /**

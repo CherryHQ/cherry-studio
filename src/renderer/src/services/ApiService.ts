@@ -38,67 +38,84 @@ export async function fetchChatCompletion({
     let _messages: Message[] = []
     let isFirstChunk = true
 
-    // Search web
-    if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
-      const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
+    // generate image
+    if (assistant.enableGenerateImage) {
+      await AI.generateImage({
+        messages: filterUsefulMessages(messages),
+        assistant,
+        onFilterMessages: (messages) => (_messages = messages),
+        onChunk: ({ generateImage }) => {
+          if (generateImage) {
+            message.content = message.content + generateImage.text || ''
+            message.metadata = {
+              ...message.metadata,
+              generateImage: generateImage
+            }
+          }
+        }
+      })
+    } else {
+      // Search web
+      if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
+        const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
 
-      if (isEmpty(webSearchParams)) {
-        const lastMessage = findLast(messages, (m) => m.role === 'user')
-        const hasKnowledgeBase = !isEmpty(lastMessage?.knowledgeBaseIds)
-        if (lastMessage) {
-          if (hasKnowledgeBase) {
-            window.message.info({
-              content: i18n.t('message.ignore.knowledge.base'),
-              key: 'knowledge-base-no-match-info'
-            })
+        if (isEmpty(webSearchParams)) {
+          const lastMessage = findLast(messages, (m) => m.role === 'user')
+          const hasKnowledgeBase = !isEmpty(lastMessage?.knowledgeBaseIds)
+          if (lastMessage) {
+            if (hasKnowledgeBase) {
+              window.message.info({
+                content: i18n.t('message.ignore.knowledge.base'),
+                key: 'knowledge-base-no-match-info'
+              })
+            }
+            onResponse({ ...message, status: 'searching' })
+            const webSearch = await WebSearchService.search(webSearchProvider, lastMessage.content)
+            message.metadata = {
+              ...message.metadata,
+              webSearch: webSearch
+            }
+            window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
           }
-          onResponse({ ...message, status: 'searching' })
-          const webSearch = await WebSearchService.search(webSearchProvider, lastMessage.content)
-          message.metadata = {
-            ...message.metadata,
-            webSearch: webSearch
-          }
-          window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
         }
       }
-    }
 
-    const allMCPTools = await window.api.mcp.listTools()
-    await AI.completions({
-      messages: filterUsefulMessages(messages),
-      assistant,
-      onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse }) => {
-        message.content = message.content + text || ''
-        message.usage = usage
-        message.metrics = metrics
+      const allMCPTools = await window.api.mcp.listTools()
+      await AI.completions({
+        messages: filterUsefulMessages(messages),
+        assistant,
+        onFilterMessages: (messages) => (_messages = messages),
+        onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse }) => {
+          message.content = message.content + text || ''
+          message.usage = usage
+          message.metrics = metrics
 
-        if (reasoning_content) {
-          message.reasoning_content = (message.reasoning_content || '') + reasoning_content
-        }
-
-        if (search) {
-          message.metadata = { ...message.metadata, groundingMetadata: search }
-        }
-
-        if (mcpToolResponse) {
-          message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
-        }
-
-        // Handle citations from Perplexity API
-        if (isFirstChunk && citations) {
-          message.metadata = {
-            ...message.metadata,
-            citations
+          if (reasoning_content) {
+            message.reasoning_content = (message.reasoning_content || '') + reasoning_content
           }
-          isFirstChunk = false
-        }
 
-        onResponse({ ...message, status: 'pending' })
-      },
-      mcpTools: allMCPTools
-    })
+          if (search) {
+            message.metadata = { ...message.metadata, groundingMetadata: search }
+          }
 
+          if (mcpToolResponse) {
+            message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
+          }
+
+          // Handle citations from Perplexity API
+          if (isFirstChunk && citations) {
+            message.metadata = {
+              ...message.metadata,
+              citations
+            }
+            isFirstChunk = false
+          }
+
+          onResponse({ ...message, status: 'pending' })
+        },
+        mcpTools: allMCPTools
+      })
+    }
     message.status = 'success'
 
     if (!message.usage || !message?.usage?.completion_tokens) {
@@ -119,6 +136,7 @@ export async function fetchChatCompletion({
         }
       }
     }
+    console.log('message', message)
   } catch (error: any) {
     if (isAbortError(error)) {
       message.status = 'paused'

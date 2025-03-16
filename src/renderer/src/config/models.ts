@@ -1978,6 +1978,28 @@ export function isWebSearchModel(model: Model): boolean {
   return false
 }
 
+export function isGenerateImageModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!provider) {
+    return false
+  }
+
+  const isEmbedding = isEmbeddingModel(model)
+
+  if (isEmbedding) {
+    return false
+  }
+  if (model.id === 'gemini-2.0-flash-exp') {
+    return true
+  }
+  return false
+}
+
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
   if (isWebSearchModel(model)) {
     if (assistant.enableWebSearch) {
