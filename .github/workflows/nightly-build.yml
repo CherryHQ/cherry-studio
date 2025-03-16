@@ -122,26 +122,34 @@ jobs:
           # Copy update files
           cp dist/latest*.yml renamed-artifacts/ || true
 
-      - name: Generate SHA256 checksums
+      # Generate SHA256 checksums (Windows)
+      - name: Generate SHA256 checksums (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd renamed-artifacts
+          echo "# SHA256 checksums for Windows - $(Get-Date -Format 'yyyy-MM-dd')" > SHA256SUMS.txt
+          Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object {
+            $file = $_.Name
+            $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
+            Add-Content -Path SHA256SUMS.txt -Value "$hash  $file"
+          }
+          cat SHA256SUMS.txt
+
+      # Generate SHA256 checksums (macOS/Linux)
+      - name: Generate SHA256 checksums (macOS/Linux)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
-          mkdir -p renamed-artifacts
           cd renamed-artifacts
-          echo "# SHA256 checksums for ${{ matrix.os }} - $(date +'%Y-%m-%d')" > SHA256SUMS.txt
-
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            # Windows - use PowerShell for better handling
-            powershell -Command "Get-ChildItem -File | Where-Object { `$_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object { `$file = `$_.Name; `$hash = (Get-FileHash -Algorithm SHA256 `$file).Hash.ToLower(); Add-Content -Path SHA256SUMS.txt -Value \"`$hash  `$file\" }"
+          echo "# SHA256 checksums for ${{ runner.os }} - $(date +'%Y-%m-%d')" > SHA256SUMS.txt
+          if command -v shasum &>/dev/null; then
+            # macOS
+            shasum -a 256 * 2>/dev/null | grep -v SHA256SUMS.txt > SHA256SUMS.txt || echo "No files to hash" > SHA256SUMS.txt
           else
-            # macOS/Linux
-            if command -v shasum &>/dev/null; then
-              shasum -a 256 * 2>/dev/null | grep -v SHA256SUMS.txt > SHA256SUMS.txt || echo "No files to hash" > SHA256SUMS.txt
-            else
-              sha256sum * 2>/dev/null | grep -v SHA256SUMS.txt > SHA256SUMS.txt || echo "No files to hash" > SHA256SUMS.txt
-            fi
+            # Linux
+            sha256sum * 2>/dev/null | grep -v SHA256SUMS.txt > SHA256SUMS.txt || echo "No files to hash" > SHA256SUMS.txt
           fi
-
-          echo "SHA256 checksums generated for ${{ matrix.os }}:"
           cat SHA256SUMS.txt
 
       - name: List files to be uploaded
