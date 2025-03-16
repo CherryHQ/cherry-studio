@@ -154,10 +154,10 @@ jobs:
           echo "# SHA256 checksums for ${{ runner.os }} - $(date +'%Y-%m-%d')" > SHA256SUMS.txt
           if command -v shasum &>/dev/null; then
             # macOS
-            shasum -a 256 * 2>/dev/null | grep -v SHA256SUMS.txt > SHA256SUMS.txt || echo "No files to hash" > SHA256SUMS.txt
+            shasum -a 256 * 2>/dev/null | grep -v SHA256SUMS.txt >> SHA256SUMS.txt || echo "No files to hash" >> SHA256SUMS.txt
           else
             # Linux
-            sha256sum * 2>/dev/null | grep -v SHA256SUMS.txt > SHA256SUMS.txt || echo "No files to hash" > SHA256SUMS.txt
+            sha256sum * 2>/dev/null | grep -v SHA256SUMS.txt >> SHA256SUMS.txt || echo "No files to hash" >> SHA256SUMS.txt
           fi
           cat SHA256SUMS.txt
 
