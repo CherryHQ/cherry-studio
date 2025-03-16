@@ -30,7 +30,7 @@ interface Props {
 
 const Markdown: FC<Props> = ({ message }) => {
   const { t } = useTranslation()
-  const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
+  const { renderInputMessageAsMarkdown, renderHtmlInMarkdown, mathEngine } = useSettings()
 
   const rehypeMath = useMemo(() => (mathEngine === 'KaTeX' ? rehypeKatex : rehypeMathjax), [mathEngine])
 
@@ -43,8 +43,8 @@ const Markdown: FC<Props> = ({ message }) => {
 
   const rehypePlugins = useMemo(() => {
     const hasElements = ALLOWED_ELEMENTS.test(messageContent)
-    return hasElements ? [rehypeRaw, rehypeMath] : [rehypeMath]
-  }, [messageContent, rehypeMath])
+    return hasElements && renderHtmlInMarkdown ? [rehypeRaw, rehypeMath] : [rehypeMath]
+  }, [messageContent, rehypeMath, renderHtmlInMarkdown])
 
   const components = useCallback(() => {
     const baseComponents = {

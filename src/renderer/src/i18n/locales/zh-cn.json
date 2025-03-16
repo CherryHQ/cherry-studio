@@ -137,6 +137,7 @@
       "settings.max_tokens.confirm": "开启消息长度限制",
       "settings.max_tokens.confirm_content": "开启消息长度限制后，单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "settings.max_tokens.tip": "单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
+      "settings.render_html_in_markdown": "渲染HTML标签",
       "settings.reset": "重置",
       "settings.set_as_default": "应用到默认助手",
       "settings.show_line_numbers": "代码显示行号",

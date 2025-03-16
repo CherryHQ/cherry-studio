@@ -137,6 +137,7 @@
       "settings.max_tokens.confirm": "Enable max tokens limit",
       "settings.max_tokens.confirm_content": "Enable max tokens limit, affects the length of the result. Need to consider the context limit of the model, otherwise an error will be reported",
       "settings.max_tokens.tip": "The maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
+      "settings.render_html_in_markdown": "Render HTML tags",
       "settings.reset": "Reset",
       "settings.set_as_default": "Apply to default assistant",
       "settings.show_line_numbers": "Show line numbers in code",

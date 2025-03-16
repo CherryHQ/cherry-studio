@@ -137,6 +137,7 @@
       "settings.max_tokens.confirm": "啟用訊息長度限制",
       "settings.max_tokens.confirm_content": "啟用訊息長度限制後，單次互動所用的最大 Token 數，會影響返回結果的長度。要根據模型上下文限制來設定，否則會發生錯誤。",
       "settings.max_tokens.tip": "模型可以生成的最大 Token 數。要根據模型上下文限制來設定，否則會發生錯誤。",
+      "settings.render_html_in_markdown": "渲染 HTML 標籤",
       "settings.reset": "重設",
       "settings.set_as_default": "設為預設助手",
       "settings.show_line_numbers": "程式碼顯示行號",

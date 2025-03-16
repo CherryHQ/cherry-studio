@@ -137,6 +137,7 @@
       "settings.max_tokens.confirm": "最大トークン制限を有効にする",
       "settings.max_tokens.confirm_content": "最大トークン制限を有効にすると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
       "settings.max_tokens.tip": "モデルが生成できる最大トークン数。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
+      "settings.render_html_in_markdown": "HTMLタグを表示",
       "settings.reset": "リセット",
       "settings.set_as_default": "デフォルトのアシスタントに適用",
       "settings.show_line_numbers": "コードに行番号を表示",
