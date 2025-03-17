@@ -18,8 +18,6 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
 
   useEffect(() => {
     if (activeTopic && activeTopic.assistantId === _assistant.id) {
-      console.log('activeTopic', activeTopic)
-      console.log('assistant', _assistant)
       store.dispatch(
         updateTopicInfo({
           id: activeTopic.id,
