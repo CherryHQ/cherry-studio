@@ -53,7 +53,7 @@ export function filterEmptyMessages(messages: Message[]): Message[] {
 }
 
 export function filterUsefulMessages(messages: Message[]): Message[] {
-  const _messages = messages
+  const _messages = [...messages]
   const groupedMessages = getGroupedMessages(messages)
 
   Object.entries(groupedMessages).forEach(([key, messages]) => {

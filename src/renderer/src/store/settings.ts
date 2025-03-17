@@ -79,6 +79,8 @@ export interface SettingsState {
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
+  obsidianApiKey: string | null
+  obsidianUrl: string | null
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -143,7 +145,9 @@ const initialState: SettingsState = {
   notionSplitSize: 90,
   yuqueToken: '',
   yuqueUrl: '',
-  yuqueRepoId: ''
+  yuqueRepoId: '',
+  obsidianApiKey: '',
+  obsidianUrl: ''
 }
 
 const settingsSlice = createSlice({
@@ -332,6 +336,12 @@ const settingsSlice = createSlice({
     },
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
+    },
+    setObsidianApiKey: (state, action: PayloadAction<string>) => {
+      state.obsidianApiKey = action.payload
+    },
+    setObsidianUrl: (state, action: PayloadAction<string>) => {
+      state.obsidianUrl = action.payload
     }
   }
 })
@@ -395,7 +405,9 @@ export const {
   setNotionSplitSize,
   setYuqueToken,
   setYuqueRepoId,
-  setYuqueUrl
+  setYuqueUrl,
+  setObsidianApiKey,
+  setObsidianUrl
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
