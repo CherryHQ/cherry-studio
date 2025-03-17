@@ -119,7 +119,7 @@ const MessageMenubar: FC<Props> = (props) => {
     if (a.length !== b.length) return false
     return a.every((item, index) => item.id === b[index].id)
   }
-  
+
   const handleTranslate = useCallback(
     async (language: string) => {
       if (isTranslating) return
