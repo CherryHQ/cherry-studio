@@ -3,6 +3,7 @@ const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
 const https = require('https')
+const AdmZip = require('adm-zip')
 
 // Base URL for downloading bun binaries
 const BUN_RELEASE_BASE_URL = 'https://github.com/oven-sh/bun/releases/download'
@@ -73,6 +74,41 @@ async function getLatestBunVersion() {
 }
 
 /**
+ * Downloads a file from a URL with redirect handling
+ * @param {string} url The URL to download from
+ * @param {string} destinationPath The path to save the file to
+ * @returns {Promise<void>}
+ */
+async function downloadWithRedirects(url, destinationPath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destinationPath)
+    const request = (url) => {
+      https
+        .get(url, (response) => {
+          if (response.statusCode === 302 || response.statusCode === 301) {
+            // Handle redirect
+            request(response.headers.location)
+            return
+          }
+
+          if (response.statusCode !== 200) {
+            reject(new Error(`Failed to download: ${response.statusCode}`))
+            return
+          }
+
+          response.pipe(file)
+          file.on('finish', () => {
+            file.close(resolve)
+          })
+        })
+        .on('error', reject)
+    }
+
+    request(url)
+  })
+}
+
+/**
  * Downloads and extracts the bun binary for the specified platform and architecture
  * @param {string} platform Platform to download for (e.g., 'darwin', 'win32', 'linux')
  * @param {string} arch Architecture to download for (e.g., 'x64', 'arm64')
@@ -107,16 +143,36 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
     console.log(`Downloading bun ${version} for ${platformKey}...`)
     console.log(`URL: ${downloadUrl}`)
 
-    // Download the file
-    execSync(`curl --fail -L -o "${localFilename}" "${downloadUrl}"`, { stdio: 'inherit' })
+    // Use the new download function
+    await downloadWithRedirects(downloadUrl, localFilename)
 
-    // Extract the zip file
+    // Extract the zip file using adm-zip
     console.log(`Extracting ${packageName} to ${archDir}...`)
-    execSync(`unzip -o "${localFilename}" -d "${tempdir}"`, { stdio: 'inherit' })
-    execSync(`mv ${tempdir}/${packageName.split('.')[0]}/* ${archDir}/`, { stdio: 'inherit' })
+    const zip = new AdmZip(localFilename)
+    zip.extractAllTo(tempdir, true)
 
-    // Clean up the downloaded file
+    // Move files using Node.js fs
+    const sourceDir = path.join(tempdir, packageName.split('.')[0])
+    const files = fs.readdirSync(sourceDir)
+    for (const file of files) {
+      const sourcePath = path.join(sourceDir, file)
+      const destPath = path.join(archDir, file)
+      fs.renameSync(sourcePath, destPath)
+
+      // Set executable permissions for non-Windows platforms
+      if (platform !== 'win32') {
+        try {
+          // 755 permission: rwxr-xr-x
+          fs.chmodSync(destPath, '755')
+        } catch (error) {
+          console.warn(`Warning: Failed to set executable permissions: ${error.message}`)
+        }
+      }
+    }
+
+    // Clean up
     fs.unlinkSync(localFilename)
+    fs.rmdirSync(sourceDir, { recursive: true })
 
     console.log(`Successfully installed bun ${version} for ${platformKey}`)
     return true

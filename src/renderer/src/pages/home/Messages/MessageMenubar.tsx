@@ -12,6 +12,7 @@ import {
   TranslationOutlined
 } from '@ant-design/icons'
 import { UploadOutlined } from '@ant-design/icons'
+import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
@@ -211,6 +212,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const title = getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToYuque(title, markdown)
+            }
+          },
+          {
+            label: t('chat.topics.export.obsidian'),
+            key: 'obsidian',
+            onClick: async () => {
+              const markdown = messageToMarkdown(message)
+              const title = getMessageTitle(message)
+              await ObsidianExportPopup.show({ title, markdown })
             }
           }
         ]

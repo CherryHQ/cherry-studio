@@ -38,7 +38,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const { t } = useTranslation()
 
   const onTemperatureChange = (value) => {
-    console.debug('[onTemperatureChange]', value)
     if (!isNaN(value as number)) {
       updateAssistantSettings({ temperature: value })
     }

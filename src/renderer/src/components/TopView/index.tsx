@@ -31,8 +31,6 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const [messageApi, messageContextHolder] = message.useMessage()
   const [modal, modalContextHolder] = Modal.useModal()
 
-  console.debug('TopViewContainer', elements)
-
   useAppInit()
 
   useEffect(() => {

@@ -1,13 +1,11 @@
 import { isLinux, isMac, isWin } from '@main/constant'
-import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { getBinaryPath } from '@main/utils/process'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { MCPServer, MCPTool } from '@types'
 import log from 'electron-log'
 import { EventEmitter } from 'events'
-import os from 'os'
-import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 import { windowService } from './WindowService'
@@ -327,16 +325,13 @@ export default class MCPService extends EventEmitter {
         transport = new this.sseTransport!(new URL(baseUrl))
       } else if (command) {
         let cmd: string = command
-        const binariesDir = path.join(os.homedir(), '.cherrystudio', 'bin')
-        log.info(`[MCP] Using binaries directory: ${binariesDir}`)
         if (command === 'npx') {
-          // check if cmd exists, if not exist, install it using `node scripts/install-bun.js`
-          const isBunExist = await isBinaryExists('bun')
-          if (!isBunExist) {
-            log.info(`[MCP] Installing bun...`)
-            await runInstallScript('install-bun.js')
+          cmd = await getBinaryPath('bun')
+
+          if (cmd === 'bun') {
+            cmd = 'npx'
           }
-          cmd = getBinaryPath('bun')
+
           log.info(`[MCP] Using command: ${cmd}`)
 
           // add -x to args if args exist
@@ -344,21 +339,16 @@ export default class MCPService extends EventEmitter {
             if (!args.includes('-y')) {
               args.unshift('-y')
             }
-            if (!args.includes('x')) {
+            if (cmd.includes('bun') && !args.includes('x')) {
               args.unshift('x')
             }
           }
         } else if (command === 'uvx') {
-          // check if cmd exists, if not exist, install it using `node scripts/install-uv.js`
-          const isUvxExist = await isBinaryExists('uvx')
-          if (!isUvxExist) {
-            log.info(`[MCP] Installing uvx...`)
-            await runInstallScript('install-uv.js')
-          }
-          cmd = getBinaryPath('uvx')
+          cmd = await getBinaryPath('uvx')
         }
 
         log.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
+
         transport = new this.stdioTransport!({
           command: cmd,
           args,

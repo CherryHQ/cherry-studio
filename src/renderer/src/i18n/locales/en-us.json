@@ -162,6 +162,15 @@
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
       "topics.export.yuque": "Export to Yuque",
+      "topics.export.obsidian": "Export to Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian not configured",
+      "topics.export.obsidian_fetch_failed": "Failed to fetch Obsidian folder structure",
+      "topics.export.obsidian_select_folder": "Select Obsidian folder",
+      "topics.export.obsidian_select_folder.btn": "Confirm",
+      "topics.export.obsidian_export_success": "Export success",
+      "topics.export.obsidian_export_failed": "Export failed",
+      "topics.export.obsidian_show_md_files": "Show MD Files",
+      "topics.export.obsidian_selected_path": "Selected Path",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
       "topics.pinned": "Pinned Topics",
@@ -750,6 +759,21 @@
           "title": "Yuque Configuration",
           "token": "Yuque Token",
           "token_placeholder": "Please enter the Yuque Token"
+        },
+        "obsidian": {
+          "check": {
+            "button": "Check",
+            "empty_url": "Please enter the Obsidian REST API URL first",
+            "empty_api_key": "Please enter the Obsidian API Key first",
+            "fail": "Obsidian connection verification failed",
+            "success": "Obsidian connection verification successful"
+          },
+          "help": "Install the Obsidian plugin Local REST API first, then get the Obsidian API Key",
+          "url": "Obsidian Knowledge Base URL",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Obsidian Configuration",
+          "api_key": "Obsidian API Key",
+          "api_key_placeholder": "Please enter the Obsidian API Key"
         }
       },
       "display.assistant.title": "Assistant Settings",
@@ -848,8 +872,7 @@
           "no_packages": "No packages found",
           "search_error": "Search error"
         },
-        "jsonMode": "JSON Schema",
-        "normalMode": "Normal mode",
+        "editJson": "Edit JSON",
         "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
         "jsonFormatError": "JSON formatting error",
         "jsonSaveSuccess": "JSON configuration has been saved.",

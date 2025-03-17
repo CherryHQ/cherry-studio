@@ -162,6 +162,15 @@
       "topics.export.title": "Экспорт",
       "topics.export.word": "Экспорт как Word",
       "topics.export.yuque": "Экспорт в Yuque",
+      "topics.export.obsidian": "Экспорт в Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian не настроен",
+      "topics.export.obsidian_fetch_failed": "Не удалось получить структуру файлов Obsidian",
+      "topics.export.obsidian_select_folder": "Выберите папку Obsidian",
+      "topics.export.obsidian_select_folder.btn": "Определить",
+      "topics.export.obsidian_export_success": "Экспорт успешно завершен",
+      "topics.export.obsidian_export_failed": "Экспорт не удалось",
+      "topics.export.obsidian_show_md_files": "Показать файлы MD",
+      "topics.export.obsidian_selected_path": "Выбранный путь",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
@@ -750,6 +759,21 @@
           "title": "Настройка Yuque",
           "token": "Токен Yuque",
           "token_placeholder": "Введите токен Yuque"
+        },
+        "obsidian": {
+          "check": {
+            "button": "Проверить",
+            "empty_url": "Сначала введите URL REST API Obsidian",
+            "empty_api_key": "Сначала введите API Key Obsidian",
+            "fail": "Не удалось проверить подключение к Obsidian",
+            "success": "Подключение к Obsidian успешно проверено"
+          },
+          "help": "Сначала установите плагин Local REST API Obsidian, затем получите API Key Obsidian",
+          "url": "URL базы знаний Obsidian",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Настройка Obsidian",
+          "api_key": "API Key Obsidian",
+          "api_key_placeholder": "Введите API Key Obsidian"
         }
       },
       "display.assistant.title": "Настройки ассистентов",
@@ -848,8 +872,7 @@
           "no_packages": "Ничего не найдено",
           "search_error": "Ошибка поиска"
         },
-        "jsonMode": "JSON-схема",
-        "normalMode": "Обычный режим",
+        "editJson": "Редактировать JSON",
         "jsonModeHint": "Редактируйте JSON-форматирование конфигурации сервера MCP. Перед сохранением убедитесь, что формат правильный.",
         "jsonFormatError": "Ошибка форматирования JSON",
         "jsonSaveSuccess": "JSON конфигурация сохранена",

@@ -118,7 +118,7 @@ const api = {
     cleanup: () => ipcRenderer.invoke('mcp:cleanup')
   },
   shell: {
-    openExternal: shell.openExternal
+    openExternal: shell?.openExternal
   },
 
   // Binary related APIs

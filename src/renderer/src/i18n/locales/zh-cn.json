@@ -164,6 +164,15 @@
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
       "topics.export.yuque": "导出到语雀",
+      "topics.export.obsidian": "导出到 Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian 未配置",
+      "topics.export.obsidian_fetch_failed": "获取 Obsidian 文件夹结构失败",
+      "topics.export.obsidian_select_folder": "选择 Obsidian 文件夹",
+      "topics.export.obsidian_select_folder.btn": "确定",
+      "topics.export.obsidian_export_success": "导出成功",
+      "topics.export.obsidian_export_failed": "导出失败",
+      "topics.export.obsidian_show_md_files": "显示md文件",
+      "topics.export.obsidian_selected_path": "已选择路径",
       "topics.list": "话题列表",
       "topics.move_to": "移动到",
       "topics.pinned": "固定话题",
@@ -750,6 +759,21 @@
           "title": "语雀配置",
           "token": "语雀 Token",
           "token_placeholder": "请输入语雀Token"
+        },
+        "obsidian": {
+          "check": {
+            "button": "检查",
+            "empty_url": "请先输入 Obsidian REST API URL",
+            "empty_api_key": "请先输入 Obsidian API Key",
+            "fail": "Obsidian 连接验证失败",
+            "success": "Obsidian 连接验证成功"
+          },
+          "help": "先安装 Obsidian 插件 Local REST API，然后获取 Obsidian API Key",
+          "url": "Obsidian 知识库 URL",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Obsidian 配置",
+          "api_key": "Obsidian API Key",
+          "api_key_placeholder": "请输入 Obsidian API Key"
         }
       },
       "display.assistant.title": "助手设置",
@@ -848,8 +872,7 @@
           "no_packages": "未找到包",
           "search_error": "搜索失败"
         },
-        "jsonMode": "JSON模式",
-        "normalMode": "常规模式",
+        "editJson": "编辑JSON",
         "jsonModeHint": "编辑MCP服务器配置的JSON表示。保存前请确保格式正确。",
         "jsonFormatError": "JSON格式化错误",
         "jsonSaveSuccess": "JSON配置已保存",

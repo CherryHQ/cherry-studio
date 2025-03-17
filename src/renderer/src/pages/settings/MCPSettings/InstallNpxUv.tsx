@@ -6,8 +6,8 @@ import styled from 'styled-components'
 import { SettingRow, SettingSubtitle } from '..'
 
 const InstallNpxUv: FC = () => {
-  const [isUvInstalled, setIsUvInstalled] = useState(false)
-  const [isBunInstalled, setIsBunInstalled] = useState(false)
+  const [isUvInstalled, setIsUvInstalled] = useState(true)
+  const [isBunInstalled, setIsBunInstalled] = useState(true)
   const [isInstallingUv, setIsInstallingUv] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
   const { t } = useTranslation()

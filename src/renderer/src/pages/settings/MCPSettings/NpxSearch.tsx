@@ -24,7 +24,7 @@ const NpxSearch: FC = () => {
   const { Paragraph, Text } = Typography
 
   // Add new state variables for npm scope search
-  const [npmScope, setNpmScope] = useState('')
+  const [npmScope, setNpmScope] = useState('@modelcontextprotocol')
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
 
@@ -70,7 +70,7 @@ const NpxSearch: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.mcp.npx_list.title')}</SettingTitle>
       <SettingDivider />
-      <Paragraph type="secondary" style={{ margin: '0 0 20px 0' }}>
+      <Paragraph type="secondary" style={{ margin: '0 0 10px 0' }}>
         {t('settings.mcp.npx_list.desc')}
       </Paragraph>
 
@@ -82,7 +82,7 @@ const NpxSearch: FC = () => {
             onChange={(e) => setNpmScope(e.target.value)}
             onPressEnter={handleNpmSearch}
           />
-          <Button type="primary" icon={<SearchOutlined />} onClick={handleNpmSearch} disabled={searchLoading}>
+          <Button icon={<SearchOutlined />} onClick={handleNpmSearch} disabled={searchLoading}>
             {t('settings.mcp.npx_list.search')}
           </Button>
         </Space.Compact>

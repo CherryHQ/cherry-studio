@@ -3,6 +3,7 @@ const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
 const https = require('https')
+const tar = require('tar')
 
 // Base URL for downloading uv binaries
 const UV_RELEASE_BASE_URL = 'https://github.com/astral-sh/uv/releases/download'
@@ -28,6 +29,41 @@ const UV_PACKAGES = {
   'linux-musl-x64': 'uv-x86_64-unknown-linux-musl.tar.gz',
   'linux-musl-armv6l': 'uv-arm-unknown-linux-musleabihf.tar.gz',
   'linux-musl-armv7l': 'uv-armv7-unknown-linux-musleabihf.tar.gz'
+}
+
+/**
+ * Downloads a file from a URL with redirect handling
+ * @param {string} url The URL to download from
+ * @param {string} destinationPath The path to save the file to
+ * @returns {Promise<void>}
+ */
+async function downloadWithRedirects(url, destinationPath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destinationPath)
+    const request = (url) => {
+      https
+        .get(url, (response) => {
+          if (response.statusCode === 302 || response.statusCode === 301) {
+            // Handle redirect
+            request(response.headers.location)
+            return
+          }
+
+          if (response.statusCode !== 200) {
+            reject(new Error(`Failed to download: ${response.statusCode}`))
+            return
+          }
+
+          response.pipe(file)
+          file.on('finish', () => {
+            file.close(resolve)
+          })
+        })
+        .on('error', reject)
+    }
+
+    request(url)
+  })
 }
 
 /**
@@ -105,21 +141,40 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
     console.log(`Downloading uv ${version} for ${platformKey}...`)
     console.log(`URL: ${downloadUrl}`)
 
-    // Download the file
-    execSync(`curl --fail -L -o "${localFilename}" "${downloadUrl}"`, { stdio: 'inherit' })
+    // Use the new download function
+    await downloadWithRedirects(downloadUrl, localFilename)
 
-    // Extract based on file extension
+    // Extract files using tar
     console.log(`Extracting ${packageName} to ${archDir}...`)
-    if (packageName.endsWith('.tar.gz')) {
-      execSync(`tar -xzf "${localFilename}" -C "${tempdir}"`, { stdio: 'inherit' })
-    } else if (packageName.endsWith('.zip')) {
-      execSync(`unzip -o "${localFilename}" -d "${tempdir}"`, { stdio: 'inherit' })
+    await tar.x({
+      file: localFilename,
+      cwd: tempdir,
+      // zip 文件也可以用 tar 解压
+      z: packageName.endsWith('.tar.gz') // 对于 .tar.gz 文件启用 gzip 解压
+    })
+
+    // Move files using Node.js fs
+    const sourceDir = path.join(tempdir, packageName.split('.')[0])
+    const files = fs.readdirSync(sourceDir)
+    for (const file of files) {
+      const sourcePath = path.join(sourceDir, file)
+      const destPath = path.join(archDir, file)
+      fs.renameSync(sourcePath, destPath)
+
+      // Set executable permissions for non-Windows platforms
+      if (platform !== 'win32') {
+        try {
+          // 755 permission: rwxr-xr-x
+          fs.chmodSync(destPath, '755')
+        } catch (error) {
+          console.warn(`Warning: Failed to set executable permissions: ${error.message}`)
+        }
+      }
     }
 
-    execSync(`mv ${tempdir}/${packageName.split('.')[0]}/* ${archDir}/`, { stdio: 'inherit' })
-
-    // Clean up the downloaded file
+    // Clean up
     fs.unlinkSync(localFilename)
+    fs.rmdirSync(sourceDir, { recursive: true })
 
     console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
     return true

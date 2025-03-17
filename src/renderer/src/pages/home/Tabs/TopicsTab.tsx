@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
@@ -253,6 +254,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
                 exportMarkdownToYuque(topic.name, markdown)
+              }
+            },
+            {
+              label: t('chat.topics.export.obsidian'),
+              key: 'obsidian',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                await ObsidianExportPopup.show({ title: topic.name, markdown })
               }
             }
           ]
