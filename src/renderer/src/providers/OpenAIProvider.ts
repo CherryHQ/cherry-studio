@@ -513,10 +513,30 @@ export default class OpenAIProvider extends BaseProvider {
             upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking', id: toolCall.id }, onChunk)
 
             const toolCallResponse = await callMCPTool(mcpTool)
+            const toolResponsContent: { type: string; text?: string; image_url?: { url: string } }[] = []
+            for (const content of toolCallResponse.content) {
+              if (content.type === 'text') {
+                toolResponsContent.push({
+                  type: 'text',
+                  text: content.text
+                })
+              } else if (content.type === 'image') {
+                toolResponsContent.push({
+                  type: 'image_url',
+                  image_url: { url: `data:${content.mimeType};base64,${content.data}` }
+                })
+              } else {
+                console.warn('Unsupported content type:', content.type)
+                toolResponsContent.push({
+                  type: 'text',
+                  text: 'unsupported content type: ' + content.type
+                })
+              }
+            }
 
             reqMessages.push({
               role: 'tool',
-              content: toolCallResponse.content,
+              content: toolResponsContent,
               tool_call_id: toolCall.id
             } as ChatCompletionToolMessageParam)
 

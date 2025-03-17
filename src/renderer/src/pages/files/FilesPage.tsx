@@ -27,16 +27,26 @@ import ContentView from './ContentView'
 
 const FilesPage: FC = () => {
   const { t } = useTranslation()
-  const [fileType, setFileType] = useState<FileTypes | 'all' | 'gemini'>('all')
+  const [fileType, setFileType] = useState<FileType | 'document' | 'image' | 'text' | 'gemini'>('document')
   const { providers } = useProviders()
 
   const geminiProviders = providers.filter((provider) => provider.type === 'gemini')
 
+  const tempFilesSort = (files: FileType[]) => {
+    return files.sort((a, b) => {
+      const aIsTemp = a.origin_name.startsWith('temp_file')
+      const bIsTemp = b.origin_name.startsWith('temp_file')
+      if (aIsTemp && !bIsTemp) return 1
+      if (!aIsTemp && bIsTemp) return -1
+      return 0
+    })
+  }
+
   const files = useLiveQuery<FileType[]>(() => {
     if (fileType === 'all') {
-      return db.files.orderBy('count').toArray()
+      return db.files.orderBy('count').toArray().then(tempFilesSort)
     }
-    return db.files.where('type').equals(fileType).sortBy('count')
+    return db.files.where('type').equals(fileType).sortBy('count').then(tempFilesSort)
   }, [fileType])
 
   const handleDelete = async (fileId: string) => {
@@ -169,15 +179,15 @@ const FilesPage: FC = () => {
   )
 
   const menuItems = [
-    { key: 'all', label: t('files.all'), icon: <FileTextOutlined /> },
+    { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FilePdfOutlined /> },
     { key: FileTypes.IMAGE, label: t('files.image'), icon: <FileImageOutlined /> },
     { key: FileTypes.TEXT, label: t('files.text'), icon: <FileTextOutlined /> },
-    { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FilePdfOutlined /> },
     ...geminiProviders.map((provider) => ({
       key: 'gemini_' + provider.id,
       label: provider.name,
       icon: <FilePdfOutlined />
-    }))
+    })),
+    { key: 'all', label: t('files.all'), icon: <FileTextOutlined /> }
   ].filter(Boolean) as MenuProps['items']
 
   return (
