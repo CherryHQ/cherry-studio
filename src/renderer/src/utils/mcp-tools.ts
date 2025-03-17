@@ -77,13 +77,26 @@ export function openAIToolsToMcpTool(
 
 export async function callMCPTool(tool: MCPTool): Promise<any> {
   console.log(`[MCP] Calling Tool: ${tool.serverName} ${tool.name}`, tool)
-  const resp = await window.api.mcp.callTool({
-    client: tool.serverName,
-    name: tool.name,
-    args: tool.inputSchema
-  })
-  console.log(`[MCP] Tool called: ${tool.serverName} ${tool.name}`, resp)
-  return resp
+  try {
+    const resp = await window.api.mcp.callTool({
+      client: tool.serverName,
+      name: tool.name,
+      args: tool.inputSchema
+    })
+    console.log(`[MCP] Tool called: ${tool.serverName} ${tool.name}`, resp)
+    return resp
+  } catch (e) {
+    console.error(`[MCP] Error calling Tool: ${tool.serverName} ${tool.name}`, e)
+    return Promise.resolve({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: `Error calling tool ${tool.name}: ${JSON.stringify(e)}`
+        }
+      ]
+    })
+  }
 }
 
 export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> {

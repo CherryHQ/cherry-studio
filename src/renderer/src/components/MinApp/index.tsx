@@ -151,6 +151,7 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
           style={WebviewStyle}
           allowpopups={'true' as any}
           partition="persist:webview"
+          nodeintegration={true}
         />
       )}
     </Drawer>

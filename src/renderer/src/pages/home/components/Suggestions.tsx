@@ -48,16 +48,8 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
 
   useEffect(() => {
     suggestionsHandle()
-    // const unsubscribes = [
-    // EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, async (msg: Message) => {
-
-    // ]
-    // return () => {
-    //   for (const unsub of unsubscribes) {
-    //     unsub()
-    //   }
-    // }
-  }, []) // Remove messages dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     setSuggestions(suggestionsMap.get(messages[messages.length - 1]?.id) || [])

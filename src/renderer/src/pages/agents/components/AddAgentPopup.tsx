@@ -61,6 +61,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
     }
     updateTokenCount()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.getFieldValue('prompt')])
 
   const onFinish = (values: FieldType) => {

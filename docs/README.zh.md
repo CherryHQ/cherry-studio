@@ -28,37 +28,38 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 1. **多样化 LLM 服务支持**：
 
-   - ☁️ 支持主流 LLM 云服务：OpenAI、Gemini、Anthropic、硅基流动等
-   - 🔗 集成流行 AI Web 服务：Claude、Peplexity、Poe、腾讯元宝、知乎直答等
-   - 💻 支持 Ollama、LM Studio 本地模型部署
+- ☁️ 支持主流 LLM 云服务：OpenAI、Gemini、Anthropic、硅基流动等
+- 🔗 集成流行 AI Web 服务：Claude、Peplexity、Poe、腾讯元宝、知乎直答等
+- 💻 支持 Ollama、LM Studio 本地模型部署
 
 2. **智能助手与对话**：
 
-   - 📚 内置 300+ 预配置 AI 助手
-   - 🤖 支持自定义创建专属助手
-   - 💬 多模型同时对话，获得多样化观点
+- 📚 内置 300+ 预配置 AI 助手
+- 🤖 支持自定义创建专属助手
+- 💬 多模型同时对话，获得多样化观点
 
 3. **文档与数据处理**：
 
-   - 📄 支持文本、图片、Office、PDF 等多种格式
-   - ☁️ WebDAV 文件管理与数据备份
-   - 📊 Mermaid 图表可视化
-   - 💻 代码高亮显示
+- 📄 支持文本、图片、Office、PDF 等多种格式
+- ☁️ WebDAV 文件管理与数据备份
+- 📊 Mermaid 图表可视化
+- 💻 代码高亮显示
 
 4. **实用工具集成**：
 
-   - 🔍 全局搜索功能
-   - 📝 话题管理系统
-   - 🔤 AI 驱动的翻译功能
-   - 🎯 拖拽排序
-   - 🔌 小程序支持
+- 🔍 全局搜索功能
+- 📝 话题管理系统
+- 🔤 AI 驱动的翻译功能
+- 🎯 拖拽排序
+- 🔌 小程序支持
 
 5. **优质使用体验**：
-   - 🖥️ Windows、Mac、Linux 跨平台支持
-   - 📦 开箱即用，无需配置环境
-   - 🎨 支持明暗主题与透明窗口
-   - 📝 完整的 Markdown 渲染
-   - 🤲 便捷的内容分享功能
+
+- 🖥️ Windows、Mac、Linux 跨平台支持
+- 📦 开箱即用，无需配置环境
+- 🎨 支持明暗主题与透明窗口
+- 📝 完整的 Markdown 渲染
+- 🤲 便捷的内容分享功能
 
 # 📝 待辦事項
 
@@ -77,36 +78,7 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 # 🖥️ 开发
 
-## IDE 设置
-
-[Cursor](https://www.cursor.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-
-## 项目设置
-
-### 安装
-
-```bash
-$ yarn
-```
-
-### 开发
-
-```bash
-$ yarn dev
-```
-
-### 构建
-
-```bash
-# Windows
-$ yarn build:win
-
-# macOS
-$ yarn build:mac
-
-# Linux
-$ yarn build:linux
-```
+参考[开发文档](dev.md)
 
 # 🤝 贡献
 
