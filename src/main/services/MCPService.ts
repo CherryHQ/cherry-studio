@@ -376,7 +376,7 @@ export default class MCPService extends EventEmitter {
       this.emit('server-started', { name })
     } catch (error) {
       log.error(`[MCP] Error activating server ${name}:`, error)
-      server.isActive = false
+      this.setServerActive({ name, isActive: false })
       throw error
     }
   }

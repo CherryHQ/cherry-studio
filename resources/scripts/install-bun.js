@@ -25,55 +25,6 @@ const BUN_PACKAGES = {
 }
 
 /**
- * Fetches the latest version of bun from GitHub API
- * @returns {Promise<string>} The latest version tag (without 'bun-v' prefix)
- */
-async function getLatestBunVersion() {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'api.github.com',
-      path: '/repos/oven-sh/bun/releases/latest',
-      headers: {
-        'User-Agent': 'cherry-studio-install-script'
-      }
-    }
-
-    const req = https.get(options, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`Request failed with status code ${res.statusCode}`))
-        return
-      }
-
-      let data = ''
-      res.on('data', (chunk) => {
-        data += chunk
-      })
-
-      res.on('end', () => {
-        try {
-          const release = JSON.parse(data)
-          // Remove the 'bun-v' prefix if present
-          const version = release.tag_name.startsWith('bun-v')
-            ? release.tag_name.substring(5)
-            : release.tag_name.startsWith('v')
-              ? release.tag_name.substring(1)
-              : release.tag_name
-          resolve(version)
-        } catch (error) {
-          reject(new Error(`Failed to parse GitHub API response: ${error.message}`))
-        }
-      })
-    })
-
-    req.on('error', (error) => {
-      reject(new Error(`Failed to fetch latest version: ${error.message}`))
-    })
-
-    req.end()
-  })
-}
-
-/**
  * Downloads a file from a URL with redirect handling
  * @param {string} url The URL to download from
  * @param {string} destinationPath The path to save the file to
@@ -129,34 +80,36 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
   }
 
   // Create output directory structure
-  const archDir = path.join(os.homedir(), '.cherrystudio', 'bin')
+  const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
   // Ensure directories exist
-  fs.mkdirSync(archDir, { recursive: true })
+  fs.mkdirSync(binDir, { recursive: true })
 
   // Download URL for the specific binary
   const downloadUrl = `${BUN_RELEASE_BASE_URL}/bun-v${version}/${packageName}`
   const tempdir = os.tmpdir()
   // Create a temporary file for the downloaded binary
-  const localFilename = path.join(tempdir, packageName)
+  const tempFilename = path.join(tempdir, packageName)
 
   try {
     console.log(`Downloading bun ${version} for ${platformKey}...`)
     console.log(`URL: ${downloadUrl}`)
 
     // Use the new download function
-    await downloadWithRedirects(downloadUrl, localFilename)
+    await downloadWithRedirects(downloadUrl, tempFilename)
 
     // Extract the zip file using adm-zip
-    console.log(`Extracting ${packageName} to ${archDir}...`)
-    const zip = new AdmZip(localFilename)
+    console.log(`Extracting ${packageName} to ${binDir}...`)
+    const zip = new AdmZip(tempFilename)
     zip.extractAllTo(tempdir, true)
 
     // Move files using Node.js fs
     const sourceDir = path.join(tempdir, packageName.split('.')[0])
     const files = fs.readdirSync(sourceDir)
+
     for (const file of files) {
       const sourcePath = path.join(sourceDir, file)
-      const destPath = path.join(archDir, file)
+      const destPath = path.join(binDir, file)
+
       fs.renameSync(sourcePath, destPath)
 
       // Set executable permissions for non-Windows platforms
@@ -171,16 +124,29 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
     }
 
     // Clean up
-    fs.unlinkSync(localFilename)
-    fs.rmdirSync(sourceDir, { recursive: true })
+    fs.unlinkSync(tempFilename)
+    fs.rmSync(sourceDir, { recursive: true })
 
     console.log(`Successfully installed bun ${version} for ${platformKey}`)
     return true
   } catch (error) {
     console.error(`Error installing bun for ${platformKey}: ${error.message}`)
-    if (fs.existsSync(localFilename)) {
-      fs.unlinkSync(localFilename)
+    // Clean up temporary file if it exists
+    if (fs.existsSync(tempFilename)) {
+      fs.unlinkSync(tempFilename)
     }
+
+    // Check if binDir is empty and remove it if so
+    try {
+      const files = fs.readdirSync(binDir)
+      if (files.length === 0) {
+        fs.rmSync(binDir, { recursive: true })
+        console.log(`Removed empty directory: ${binDir}`)
+      }
+    } catch (cleanupError) {
+      console.warn(`Warning: Failed to clean up directory: ${cleanupError.message}`)
+    }
+
     return false
   }
 }
@@ -192,8 +158,9 @@ function detectPlatformAndArch() {
   const platform = os.platform()
   const arch = os.arch()
   const isMusl = platform === 'linux' && detectIsMusl()
+  const isBaseline = platform === 'win32'
 
-  return { platform, arch, isMusl }
+  return { platform, arch, isMusl, isBaseline }
 }
 
 /**
@@ -213,65 +180,26 @@ function detectIsMusl() {
  * Main function to install bun
  */
 async function installBun() {
-  const args = process.argv.slice(2)
-  const specifiedVersion = args.find((arg) => !arg.startsWith('--'))
-
   // Get the latest version if no specific version is provided
-  const version = specifiedVersion || (await getLatestBunVersion())
+  const version = DEFAULT_BUN_VERSION
   console.log(`Using bun version: ${version}`)
 
-  const specificPlatform = args.find((arg) => arg.startsWith('--platform='))?.split('=')[1]
-  const specificArch = args.find((arg) => arg.startsWith('--arch='))?.split('=')[1]
-  const specificMusl = args.includes('--musl')
-  const specificBaseline = args.includes('--baseline')
-  const installAll = args.includes('--all')
+  const { platform, arch, isMusl, isBaseline } = detectPlatformAndArch()
 
-  if (installAll) {
-    console.log(`Installing all bun ${version} binaries...`)
-    for (const platformKey in BUN_PACKAGES) {
-      let platform,
-        arch,
-        isMusl = false,
-        isBaseline = false
+  console.log(
+    `Installing bun ${version} for ${platform}-${arch}${isMusl ? ' (MUSL)' : ''}${isBaseline ? ' (baseline)' : ''}...`
+  )
 
-      if (platformKey.includes('-musl-')) {
-        const [platformPart, archPart] = platformKey.split('-musl-')
-        platform = platformPart
-        isMusl = true
-
-        if (archPart.includes('-baseline')) {
-          ;[arch] = archPart.split('-baseline')
-          isBaseline = true
-        } else {
-          arch = archPart
-        }
-      } else if (platformKey.includes('-baseline')) {
-        const [platformPart, archPart] = platformKey.split('-')
-        platform = platformPart
-        arch = archPart.replace('-baseline', '')
-        isBaseline = true
-      } else {
-        ;[platform, arch] = platformKey.split('-')
-      }
-
-      await downloadBunBinary(platform, arch, version, isMusl, isBaseline)
-    }
-  } else {
-    const { platform, arch, isMusl } = detectPlatformAndArch()
-    const targetPlatform = specificPlatform || platform
-    const targetArch = specificArch || arch
-    const targetMusl = specificMusl || isMusl
-    const targetBaseline = specificBaseline || false
-
-    console.log(
-      `Installing bun ${version} for ${targetPlatform}-${targetArch}${targetMusl ? ' (MUSL)' : ''}${targetBaseline ? ' (baseline)' : ''}...`
-    )
-    await downloadBunBinary(targetPlatform, targetArch, version, targetMusl, targetBaseline)
-  }
+  await downloadBunBinary(platform, arch, version, isMusl, isBaseline)
 }
 
 // Run the installation
-installBun().catch((error) => {
-  console.error('Installation failed:', error)
-  process.exit(1)
-})
+installBun()
+  .then(() => {
+    console.log('Installation successful')
+    process.exit(0)
+  })
+  .catch((error) => {
+    console.error('Installation failed:', error)
+    process.exit(1)
+  })

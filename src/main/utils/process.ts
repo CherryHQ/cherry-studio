@@ -39,7 +39,7 @@ export async function getBinaryPath(name: string): Promise<string> {
   let cmd = process.platform === 'win32' ? `${name}.exe` : name
   const binariesDir = path.join(os.homedir(), '.cherrystudio', 'bin')
   const binariesDirExists = await fs.existsSync(binariesDir)
-  cmd = binariesDirExists ? path.join(binariesDir, name) : name
+  cmd = binariesDirExists ? path.join(binariesDir, cmd) : name
   return cmd
 }
 

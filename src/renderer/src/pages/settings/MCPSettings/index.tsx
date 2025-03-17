@@ -4,7 +4,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppSelector } from '@renderer/store'
 import { MCPServer } from '@renderer/types'
 import { Button, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
@@ -18,6 +18,7 @@ const MCPSettings: FC = () => {
   const { theme } = useTheme()
   const { Paragraph, Text } = Typography
   const mcpServers = useAppSelector((state) => state.mcp.servers)
+  const [loadingServer, setLoadingServer] = useState<string | null>(null)
 
   const handleDelete = (serverName: string) => {
     window.modal.confirm({
@@ -39,10 +40,13 @@ const MCPSettings: FC = () => {
   }
 
   const handleToggleActive = async (name: string, isActive: boolean) => {
+    setLoadingServer(name)
     try {
       await window.api.mcp.setServerActive(name, isActive)
     } catch (error: any) {
       window.message.error(`${t('settings.mcp.toggleError')}: ${error.message}`)
+    } finally {
+      setLoadingServer(null)
     }
   }
 
@@ -95,7 +99,11 @@ const MCPSettings: FC = () => {
       key: 'isActive',
       width: '100px',
       render: (isActive: boolean, record: MCPServer) => (
-        <Switch checked={isActive} onChange={(checked) => handleToggleActive(record.name, checked)} />
+        <Switch
+          checked={isActive}
+          loading={loadingServer === record.name}
+          onChange={(checked) => handleToggleActive(record.name, checked)}
+        />
       )
     },
     {

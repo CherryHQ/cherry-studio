@@ -770,12 +770,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               />
             </ToolbarMenu>
             <ToolbarMenu>
-              <TranslateButton
-                text={text}
-                onTranslated={onTranslated}
-                isLoading={isTranslating}
-                ToolbarButton={ToolbarButton}
-              />
+              <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>

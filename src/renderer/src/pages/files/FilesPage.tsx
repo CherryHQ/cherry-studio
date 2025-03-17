@@ -27,7 +27,7 @@ import ContentView from './ContentView'
 
 const FilesPage: FC = () => {
   const { t } = useTranslation()
-  const [fileType, setFileType] = useState<FileType | 'document' | 'image' | 'text' | 'gemini'>('document')
+  const [fileType, setFileType] = useState<string>('document')
   const { providers } = useProviders()
 
   const geminiProviders = providers.filter((provider) => provider.type === 'gemini')

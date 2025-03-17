@@ -43,8 +43,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   }))
 
   ipcMain.handle('app:proxy', async (_, proxy: string) => {
-    const proxyConfig: ProxyConfig =
-      proxy === 'system' ? { mode: 'system' } : proxy ? { mode: 'custom', url: proxy } : { mode: 'none' }
+    let proxyConfig: ProxyConfig
+
+    if (proxy === 'system') {
+      proxyConfig = { mode: 'system' }
+    } else if (proxy) {
+      proxyConfig = { mode: 'custom', url: proxy }
+    } else {
+      proxyConfig = { mode: 'none' }
+    }
+
     await proxyManager.configureProxy(proxyConfig)
   })
 

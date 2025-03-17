@@ -4,9 +4,10 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { getUserMessage } from '@renderer/services/MessagesService'
-import { Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 interface Props {
   text?: string
@@ -14,10 +15,9 @@ interface Props {
   disabled?: boolean
   style?: React.CSSProperties
   isLoading?: boolean
-  ToolbarButton: any
 }
 
-const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading, ToolbarButton }) => {
+const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading }) => {
   const { t } = useTranslation()
   const { translateModel } = useDefaultModel()
   const [isTranslating, setIsTranslating] = useState(false)
@@ -87,5 +87,41 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
     </Tooltip>
   )
 }
+
+const ToolbarButton = styled(Button)`
+  min-width: 30px;
+  height: 30px;
+  font-size: 16px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  color: var(--color-icon);
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  &.anticon,
+  &.iconfont {
+    transition: all 0.3s ease;
+    color: var(--color-icon);
+  }
+  &:hover {
+    background-color: var(--color-background-soft);
+    .anticon,
+    .iconfont {
+      color: var(--color-text-1);
+    }
+  }
+  &.active {
+    background-color: var(--color-primary) !important;
+    .anticon,
+    .iconfont {
+      color: var(--color-white-soft);
+    }
+    &:hover {
+      background-color: var(--color-primary);
+    }
+  }
+`
 
 export default TranslateButton
