@@ -980,7 +980,8 @@
         "click_tray_to_show": "Click the tray icon to start",
         "enable_quick_assistant": "Enable Quick Assistant",
         "title": "Quick Assistant",
-        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start",
+        "auto_paste_to_quick_assistant": "Auto-paste to Quick Assistant"
       },
       "shortcuts": {
         "action": "Action",

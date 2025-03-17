@@ -980,7 +980,8 @@
         "click_tray_to_show": "トレイアイコンをクリックして起動",
         "enable_quick_assistant": "クイックアシスタントを有効にする",
         "title": "クイックアシスタント",
-        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます"
+        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます",
+        "auto_paste_to_quick_assistant": "自動的にクイックアシスタントに貼り付け"
       },
       "shortcuts": {
         "action": "操作",

@@ -980,7 +980,8 @@
         "click_tray_to_show": "点击托盘图标启动",
         "enable_quick_assistant": "启用快捷助手",
         "title": "快捷助手",
-        "use_shortcut_to_show": "右键点击托盘图标或使用快捷键启动"
+        "use_shortcut_to_show": "右键点击托盘图标或使用快捷键启动",
+        "auto_paste_to_quick_assistant": "自动粘贴到快速助手"
       },
       "shortcuts": {
         "action": "操作",

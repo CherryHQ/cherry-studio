@@ -66,9 +66,11 @@ export interface SettingsState {
     disabled: SidebarIcon[]
   }
   narrowMode: boolean
+  // QuickAssistant
   enableQuickAssistant: boolean
   clickTrayToShowQuickAssistant: boolean
   multiModelMessageStyle: MultiModelMessageStyle
+  autoPasteToQuickAssistant: boolean
   notionDatabaseID: string | null
   notionApiKey: string | null
   notionPageNameKey: string | null
@@ -135,6 +137,7 @@ const initialState: SettingsState = {
   narrowMode: false,
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
+  autoPasteToQuickAssistant: true,
   multiModelMessageStyle: 'fold',
   notionDatabaseID: '',
   notionApiKey: '',
@@ -304,6 +307,9 @@ const settingsSlice = createSlice({
     setEnableQuickAssistant: (state, action: PayloadAction<boolean>) => {
       state.enableQuickAssistant = action.payload
     },
+    setAutoPasteToQuickAssistant: (state, action: PayloadAction<boolean>) => {
+      state.autoPasteToQuickAssistant = action.payload
+    },
     setMultiModelMessageStyle: (state, action: PayloadAction<'horizontal' | 'vertical' | 'fold' | 'grid'>) => {
       state.multiModelMessageStyle = action.payload
     },
@@ -395,6 +401,7 @@ export const {
   setNarrowMode,
   setClickTrayToShowQuickAssistant,
   setEnableQuickAssistant,
+  setAutoPasteToQuickAssistant,
   setMultiModelMessageStyle,
   setNotionDatabaseID,
   setNotionApiKey,
