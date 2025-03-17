@@ -974,7 +974,9 @@
         "remove_invalid_keys": "刪除無效金鑰",
         "search": "搜尋模型平臺...",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "enter_new_api_key": "輸入新的API密鑰",
+        "key_already_exists": "API密鑰已存在"
       },
       "proxy": {
         "mode": {

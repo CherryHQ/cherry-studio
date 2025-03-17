@@ -974,7 +974,9 @@
         "remove_invalid_keys": "Удалить недействительные ключи",
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
-        "title": "Провайдеры моделей"
+        "title": "Провайдеры моделей",
+        "enter_new_api_key": "Введите новый API ключ",
+        "key_already_exists": "API ключ уже существует"
       },
       "proxy": {
         "mode": {

@@ -974,7 +974,9 @@
         "remove_invalid_keys": "Remove Invalid Keys",
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "enter_new_api_key": "Enter new API key",
+        "key_already_exists": "API key already exists"
       },
       "proxy": {
         "mode": {

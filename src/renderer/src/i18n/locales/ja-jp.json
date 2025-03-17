@@ -974,7 +974,9 @@
         "remove_invalid_keys": "無効なキーを削除",
         "search": "プロバイダーを検索...",
         "search_placeholder": "モデルIDまたは名前を検索",
-        "title": "モデルプロバイダー"
+        "title": "モデルプロバイダー",
+        "enter_new_api_key": "新しいAPIキーを入力",
+        "key_already_exists": "APIキーはすでに存在します"
       },
       "proxy": {
         "mode": {

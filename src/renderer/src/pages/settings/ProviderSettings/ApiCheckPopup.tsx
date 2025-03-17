@@ -1,12 +1,20 @@
-import { CheckCircleFilled, CloseCircleFilled, LoadingOutlined, MinusCircleOutlined } from '@ant-design/icons'
+import {
+  CheckCircleFilled,
+  CheckCircleTwoTone,
+  CloseCircleFilled,
+  CloseCircleTwoTone,
+  LoadingOutlined,
+  MinusCircleOutlined,
+  PlusOutlined
+} from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { checkApi } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { Button, List, Modal, Space, Spin, Typography } from 'antd'
-import { useState } from 'react'
+import { Button, Input, List, message, Modal, Space, Spin, Typography } from 'antd'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -34,9 +42,50 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type
     const uniqueKeys = new Set(apiKeys)
     return Array.from(uniqueKeys).map((key) => ({ key }))
   })
+  const [isAddingNew, setIsAddingNew] = useState(false)
+  const [newApiKey, setNewApiKey] = useState('')
+  const newInputRef = useRef<any>(null)
   const { t } = useTranslation()
   const [isChecking, setIsChecking] = useState(false)
   const [isCheckingSingle, setIsCheckingSingle] = useState(false)
+
+  useEffect(() => {
+    if (isAddingNew && newInputRef.current) {
+      newInputRef.current.focus()
+    }
+  }, [isAddingNew])
+
+  const handleAddNewKey = () => {
+    setIsAddingNew(true)
+    setNewApiKey('')
+  }
+
+  const handleSaveNewKey = () => {
+    if (newApiKey.trim()) {
+      // Check if the key already exists
+      const keyExists = keyStatuses.some((status) => status.key === newApiKey.trim())
+
+      if (keyExists) {
+        // Show warning message
+        message.warning({
+          key: 'duplicate-key',
+          style: { marginTop: '3vh' },
+          duration: 3,
+          content: t('settings.provider.key_already_exists')
+        })
+        return
+      }
+
+      setKeyStatuses((prev) => [...prev, { key: newApiKey.trim() }])
+    }
+    setIsAddingNew(false)
+    setNewApiKey('')
+  }
+
+  const handleCancelNewKey = () => {
+    setIsAddingNew(false)
+    setNewApiKey('')
+  }
 
   const checkAllKeys = async () => {
     setIsChecking(true)
@@ -142,6 +191,15 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type
             <Button key="check" type="primary" ghost onClick={checkAllKeys} disabled={isChecking || isCheckingSingle}>
               {t('settings.provider.check_all_keys')}
             </Button>
+            <Button
+              key="add"
+              type="primary"
+              ghost
+              onClick={handleAddNewKey}
+              icon={<PlusOutlined />}
+              disabled={isAddingNew}>
+              {t('common.add')}
+            </Button>
             <Button key="save" type="primary" onClick={onOk}>
               {t('common.save')}
             </Button>
@@ -181,6 +239,34 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type
             </List.Item>
           )}
         />
+        {isAddingNew && (
+          <List.Item>
+            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+              <Input.Password
+                ref={newInputRef}
+                value={newApiKey}
+                onChange={(e) => setNewApiKey(e.target.value)}
+                placeholder={t('settings.provider.enter_new_api_key')}
+                style={{ width: '90%' }}
+                onPressEnter={handleSaveNewKey}
+                spellCheck={false}
+                type="password"
+              />
+              <Space>
+                <CheckCircleTwoTone
+                  twoToneColor="#52c41a"
+                  style={{ fontSize: '20px', cursor: 'pointer' }}
+                  onClick={handleSaveNewKey}
+                />
+                <CloseCircleTwoTone
+                  twoToneColor="#ff4d4f"
+                  style={{ fontSize: '20px', cursor: 'pointer' }}
+                  onClick={handleCancelNewKey}
+                />
+              </Space>
+            </Space>
+          </List.Item>
+        )}
       </Scrollbar>
     </Modal>
   )
