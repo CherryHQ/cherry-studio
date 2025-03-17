@@ -839,7 +839,13 @@
           "scope_required": "Please enter npm scope",
           "no_packages": "No packages found",
           "search_error": "Search error"
-        }
+        },
+        "jsonMode": "JSON Schema",
+        "normalMode": "Normal mode",
+        "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
+        "jsonFormatError": "JSON formatting error",
+        "jsonSaveSuccess": "JSON configuration has been saved.",
+        "jsonSaveError": "Failed to save JSON configuration."
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",

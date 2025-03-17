@@ -839,7 +839,13 @@
           "scope_required": "npm スコープを入力してください",
           "no_packages": "パッケージが見つかりません",
           "search_error": "パッケージの検索に失敗しました"
-        }
+        },
+        "jsonMode": "JSONスキーマ",
+        "normalMode": "通常モード",
+        "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
+        "jsonFormatError": "JSONフォーマットエラー",
+        "jsonSaveSuccess": "JSON設定が保存されました。",
+        "jsonSaveError": "JSON設定の保存に失敗しました"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",

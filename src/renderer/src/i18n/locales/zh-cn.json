@@ -839,7 +839,13 @@
           "scope_required": "请输入 npm 作用域",
           "no_packages": "未找到包",
           "search_error": "搜索失败"
-        }
+        },
+        "jsonMode": "JSON模式",
+        "normalMode": "常规模式",
+        "jsonModeHint": "编辑MCP服务器配置的JSON表示。保存前请确保格式正确。",
+        "jsonFormatError": "JSON格式化错误",
+        "jsonSaveSuccess": "JSON配置已保存",
+        "jsonSaveError": "保存JSON配置失败"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
