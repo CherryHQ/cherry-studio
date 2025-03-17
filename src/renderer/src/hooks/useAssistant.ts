@@ -102,7 +102,20 @@ export function useAssistant(id: string) {
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
     removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
     setModel: (model: Model) => dispatch(setModel({ assistantId: assistant.id, model })),
-    updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
+    updateAssistant: (assistant: Assistant) => {
+      dispatch(updateAssistant(assistant))
+      // Update all topicInfo records associated with this assistant
+      assistant.topics.forEach((topic) => {
+        dispatch(
+          updateTopicInfo({
+            id: topic.id,
+            assistantId: assistant.id,
+            assistantEmoji: assistant.emoji,
+            name: topic.name
+          })
+        )
+      })
+    },
     updateAssistantSettings: (settings: Partial<AssistantSettings>) => {
       dispatch(updateAssistantSettings({ assistantId: assistant.id, settings }))
     }
