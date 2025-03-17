@@ -119,7 +119,13 @@ const api = {
   },
   shell: {
     openExternal: shell.openExternal
-  }
+  },
+
+  // Binary related APIs
+  isBinaryExist: (name: string) => ipcRenderer.invoke('app:is-binary-exist', name),
+  getBinaryPath: (name: string) => ipcRenderer.invoke('app:get-binary-path', name),
+  installUVBinary: () => ipcRenderer.invoke('app:install-uv-binary'),
+  installBunBinary: () => ipcRenderer.invoke('app:install-bun-binary')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

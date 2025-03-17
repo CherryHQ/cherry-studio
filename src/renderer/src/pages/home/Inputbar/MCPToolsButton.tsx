@@ -14,7 +14,7 @@ interface Props {
 }
 
 const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton }) => {
-  const { mcpServers } = useMCPServers()
+  const { mcpServers, activedMcpServers } = useMCPServers()
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<any>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -73,6 +73,10 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton
       )}
     </div>
   )
+
+  if (activedMcpServers.length === 0) {
+    return null
+  }
 
   return (
     <Dropdown

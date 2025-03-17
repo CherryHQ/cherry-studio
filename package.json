@@ -85,6 +85,7 @@
     "fs-extra": "^11.2.0",
     "https-proxy-agent-v5": "npm:https-proxy-agent@5.0.1",
     "markdown-it": "^14.1.0",
+    "npx-scope-finder": "^1.2.0",
     "officeparser": "^4.1.1",
     "p-queue": "^8.1.0",
     "tokenx": "^0.4.1",

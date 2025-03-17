@@ -516,9 +516,7 @@ export default class OpenAIProvider extends BaseProvider {
 
             reqMessages.push({
               role: 'tool',
-              content: isString(toolCallResponse.content)
-                ? toolCallResponse.content
-                : JSON.stringify(toolCallResponse.content),
+              content: toolCallResponse.content,
               tool_call_id: toolCall.id
             } as ChatCompletionToolMessageParam)
 
