@@ -990,6 +990,12 @@
         "title": "网络搜索"
       }
     },
+    "tabs": {
+      "pin_tab": "固定标签页",
+      "unpin_tab": "取消固定",
+      "close_right": "关闭右侧标签页",
+      "close_others": "关闭其他标签页"
+    },
     "translate": {
       "any.language": "任意语言",
       "button.translate": "翻译",

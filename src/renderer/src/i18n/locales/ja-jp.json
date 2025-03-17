@@ -990,6 +990,12 @@
         "title": "ウェブ検索"
       }
     },
+    "tabs": {
+      "pin_tab": "タブをピン留めする",
+      "unpin_tab": "ピン留めを解除",
+      "close_right": "右側のタブを閉じる",
+      "close_others": "他のタブを閉じる"
+    },
     "translate": {
       "any.language": "任意の言語",
       "button.translate": "翻訳",

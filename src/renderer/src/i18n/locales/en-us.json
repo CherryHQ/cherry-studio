@@ -990,6 +990,12 @@
         "title": "Web Search"
       }
     },
+    "tabs": {
+      "pin_tab": "Pin Tab",
+      "unpin_tab": "Unpin Tab",
+      "close_right": "Close Tabs to the Right",
+      "close_others": "Close Other Tabs"
+    },
     "translate": {
       "any.language": "Any language",
       "button.translate": "Translate",

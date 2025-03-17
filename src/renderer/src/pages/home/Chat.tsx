@@ -3,11 +3,12 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
 import { Flex } from 'antd'
-import { FC } from 'react'
+import { FC, useMemo } from 'react'
 import styled from 'styled-components'
 
 import Inputbar from './Inputbar/Inputbar'
 import Messages from './Messages/Messages'
+import ContentTab from './TabBread/ContentTab'
 import Tabs from './Tabs'
 
 interface Props {
@@ -19,18 +20,33 @@ interface Props {
 
 const Chat: FC<Props> = (props) => {
   const { assistant } = useAssistant(props.assistant.id)
-  const { topicPosition, messageStyle } = useSettings()
+  const { topicPosition, showAssistants, messageStyle } = useSettings()
   const { showTopics } = useShowTopics()
+
+  const maxWidth = useMemo(() => {
+    const showRightTopics = showTopics && topicPosition === 'right'
+    const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
+    const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
+    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth} - 5px)`
+  }, [showAssistants, showTopics, topicPosition])
 
   return (
     <Container id="chat" className={messageStyle}>
-      <Main id="chat-main" vertical flex={1} justify="space-between">
-        <Messages
-          key={props.activeTopic.id}
-          assistant={assistant}
-          topic={props.activeTopic}
+      <Main id="chat-main" vertical flex={1} style={{ maxWidth }}>
+        <ContentTab
+          activeTopicId={props.activeTopic.id}
+          activeAssistantId={props.assistant.id}
+          setActiveAssistant={props.setActiveAssistant}
           setActiveTopic={props.setActiveTopic}
         />
+        <MessagesContainer>
+          <Messages
+            key={props.activeTopic.id}
+            assistant={assistant}
+            topic={props.activeTopic}
+            setActiveTopic={props.setActiveTopic}
+          />
+        </MessagesContainer>
         <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
       </Main>
       {topicPosition === 'right' && showTopics && (
@@ -45,6 +61,13 @@ const Chat: FC<Props> = (props) => {
     </Container>
   )
 }
+
+const MessagesContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+`
 
 const Container = styled.div`
   display: flex;

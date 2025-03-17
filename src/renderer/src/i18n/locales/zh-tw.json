@@ -990,6 +990,12 @@
         "title": "網路搜尋"
       }
     },
+    "tabs": {
+      "pin_tab": "固定標籤頁",
+      "unpin_tab": "取消固定",
+      "close_right": "關閉右側標籤頁",
+      "close_others": "關閉其他標籤頁"
+    },
     "translate": {
       "any.language": "任意語言",
       "button.translate": "翻譯",

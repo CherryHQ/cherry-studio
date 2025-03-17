@@ -16,6 +16,7 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
+import { updateTopicInfo } from '@renderer/store/topicInfo'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 
 import { TopicManager } from './useTopic'
@@ -33,6 +34,9 @@ export function useAssistants() {
       const assistant = assistants.find((a) => a.id === id)
       const topics = assistant?.topics || []
       topics.forEach(({ id }) => TopicManager.removeTopic(id))
+    },
+    findAssistantByTopicId: (topicId: string): Assistant | undefined => {
+      return assistants.find((assistant) => assistant.topics.some((topic) => topic.id === topicId))
     }
   }
 }
@@ -45,7 +49,17 @@ export function useAssistant(id: string) {
   return {
     assistant,
     model: assistant?.model ?? assistant?.defaultModel ?? defaultModel,
-    addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
+    addTopic: (topic: Topic) => {
+      dispatch(addTopic({ assistantId: assistant.id, topic }))
+      dispatch(
+        updateTopicInfo({
+          id: topic.id,
+          assistantId: assistant.id,
+          assistantEmoji: assistant.emoji,
+          name: topic.name
+        })
+      )
+    },
     removeTopic: (topic: Topic) => {
       TopicManager.removeTopic(topic.id)
       dispatch(removeTopic({ assistantId: assistant.id, topic }))
@@ -65,8 +79,26 @@ export function useAssistant(id: string) {
             }))
           }
         })
+      dispatch(
+        updateTopicInfo({
+          id: topic.id,
+          assistantId: toAssistant.id,
+          assistantEmoji: toAssistant.emoji,
+          name: topic.name
+        })
+      )
     },
-    updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
+    updateTopic: (topic: Topic) => {
+      dispatch(updateTopic({ assistantId: assistant.id, topic }))
+      dispatch(
+        updateTopicInfo({
+          id: topic.id,
+          assistantId: assistant.id,
+          assistantEmoji: assistant.emoji,
+          name: topic.name
+        })
+      )
+    },
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
     removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
     setModel: (model: Model) => dispatch(setModel({ assistantId: assistant.id, model })),

@@ -4,6 +4,7 @@ import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
 import { prepareTopicMessages } from '@renderer/store/messages'
+import { removeTopicInfo, updateTopicInfo } from '@renderer/store/topicInfo'
 import { Assistant, Topic } from '@renderer/types'
 import { find, isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
@@ -11,15 +12,24 @@ import { useEffect, useState } from 'react'
 import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
 
-let _activeTopic: Topic
-let _setActiveTopic: (topic: Topic) => void
-
 export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
   const { assistant } = useAssistant(_assistant.id)
-  const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
+  const [activeTopic, setActiveTopic] = useState(topic || assistant?.topics[0])
 
-  _activeTopic = activeTopic
-  _setActiveTopic = setActiveTopic
+  useEffect(() => {
+    if (activeTopic && activeTopic.assistantId === _assistant.id) {
+      console.log('activeTopic', activeTopic)
+      console.log('assistant', _assistant)
+      store.dispatch(
+        updateTopicInfo({
+          id: activeTopic.id,
+          assistantId: activeTopic.assistantId,
+          assistantEmoji: _assistant.emoji,
+          name: activeTopic.name
+        })
+      )
+    }
+  }, [activeTopic, _assistant.id, _assistant.emoji, _assistant])
 
   useEffect(() => {
     if (activeTopic) {
@@ -53,7 +63,11 @@ export async function getTopicById(topicId: string) {
   return { ...topic, messages } as Topic
 }
 
-export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
+export const autoRenameTopic = async (
+  assistant: Assistant,
+  topicId: string,
+  setActiveTopic?: (topic: Topic) => void
+) => {
   const topic = await getTopicById(topicId)
   const enableTopicNaming = getStoreSetting('enableTopicNaming')
 
@@ -65,8 +79,12 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     const topicName = topic.messages[0]?.content.substring(0, 50)
     if (topicName) {
       const data = { ...topic, name: topicName } as Topic
-      _setActiveTopic(data)
+      setActiveTopic && setActiveTopic(data)
       store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+      store.dispatch(
+        updateTopicInfo({ id: topicId, assistantId: assistant.id, assistantEmoji: assistant.emoji, name: topicName })
+      )
+      return data
     }
     return
   }
@@ -76,10 +94,14 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
     if (summaryText) {
       const data = { ...topic, name: summaryText }
-      _setActiveTopic(data)
+      setActiveTopic && setActiveTopic(data)
       store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+      store.dispatch(
+        updateTopicInfo({ id: topicId, assistantId: assistant.id, assistantEmoji: assistant.emoji, name: summaryText })
+      )
     }
   }
+  return
 }
 
 // Convert class to object with functions since class only has static methods
@@ -114,6 +136,7 @@ export const TopicManager = {
     }
 
     db.topics.delete(id)
+    store.dispatch(removeTopicInfo(id))
   },
 
   async clearTopicMessages(id: string) {

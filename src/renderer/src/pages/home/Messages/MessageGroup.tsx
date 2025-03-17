@@ -141,7 +141,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
   overflow-y: auto;
   grid-template-columns: repeat(
     ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
-    minmax(550px, 1fr)
+    minmax(469px, 1fr)
   );
   @media (max-width: 800px) {
     grid-template-columns: repeat(
