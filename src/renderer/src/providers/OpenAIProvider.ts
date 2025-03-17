@@ -33,7 +33,7 @@ import {
   openAIToolsToMcpTool,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
-import { isString, takeRight } from 'lodash'
+import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionAssistantMessageParam,
