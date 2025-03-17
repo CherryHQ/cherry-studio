@@ -873,6 +873,7 @@
         },
         "editJson": "编辑JSON",
         "jsonModeHint": "编辑MCP服务器配置的JSON表示。保存前请确保格式正确。",
+        "jsonFormat": "格式化",
         "jsonFormatError": "JSON格式化错误",
         "jsonSaveSuccess": "JSON配置已保存",
         "jsonSaveError": "保存JSON配置失败"

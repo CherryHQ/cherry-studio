@@ -1,10 +1,13 @@
+import { FormatPainterOutlined } from '@ant-design/icons'
+import Editor from '@monaco-editor/react'
 import { TopView } from '@renderer/components/TopView'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
-import { MCPServer } from '@renderer/types'
-import { Modal, Typography } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
-import { useEffect, useState } from 'react'
+import { MCPServer, ThemeMode } from '@renderer/types'
+import { Button, Modal, Space, Typography } from 'antd'
+import { editor } from 'monaco-editor'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -17,6 +20,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [jsonSaving, setJsonSaving] = useState(false)
   const [jsonError, setJsonError] = useState('')
   const mcpServers = useAppSelector((state) => state.mcp.servers)
+  const { theme } = useTheme()
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
 
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
@@ -96,6 +101,46 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   EditMcpJsonPopup.hide = onCancel
 
+  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
+    editorRef.current = editor
+  }
+
+  const formatJSON = () => {
+    try {
+      if (!jsonConfig.trim()) return
+
+      const parsed = JSON.parse(jsonConfig)
+      const formatted = JSON.stringify(parsed, null, 2)
+      setJsonConfig(formatted)
+      if (editorRef.current) {
+        editorRef.current.setValue(formatted)
+      }
+      setJsonError('')
+    } catch (error: any) {
+      setJsonError(error.message || t('settings.mcp.jsonFormatError'))
+    }
+  }
+
+  const handleEditorChange = (value: string | undefined) => {
+    const newValue = value || ''
+    setJsonConfig(newValue)
+    validateJson(newValue)
+  }
+
+  const validateJson = (value: string) => {
+    if (!value.trim()) {
+      setJsonError('')
+      return
+    }
+
+    try {
+      JSON.parse(value)
+      setJsonError('')
+    } catch (error: any) {
+      setJsonError(error.message || t('settings.mcp.jsonFormatError'))
+    }
+  }
+
   return (
     <Modal
       title={t('settings.mcp.editJson')}
@@ -112,19 +157,33 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <Typography.Text type="secondary">
           {jsonError ? <span style={{ color: 'red' }}>{jsonError}</span> : ''}
         </Typography.Text>
+        <Space>
+          <Button icon={<FormatPainterOutlined />} onClick={formatJSON} title={t('settings.mcp.jsonFormat')}>
+            {t('settings.mcp.jsonFormat')}
+          </Button>
+        </Space>
       </div>
-      <TextArea
+      <Editor
+        height="60vh"
+        defaultLanguage="json"
+        language="json"
         value={jsonConfig}
-        onChange={(e) => setJsonConfig(e.target.value)}
-        style={{
-          width: '100%',
-          fontFamily: 'monospace',
-          minHeight: '60vh',
-          marginBottom: '16px'
+        onChange={handleEditorChange}
+        theme={theme === ThemeMode.dark ? 'vs-dark' : 'light'}
+        options={{
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          lineNumbers: 'on',
+          automaticLayout: true,
+          wordWrap: 'on',
+          formatOnPaste: true,
+          formatOnType: true
         }}
-        onFocus={() => setJsonError('')}
+        onMount={handleEditorDidMount}
       />
-      <Typography.Text type="secondary">{t('settings.mcp.jsonModeHint')}</Typography.Text>
+      <Typography.Text type="secondary" style={{ marginTop: '16px' }}>
+        {t('settings.mcp.jsonModeHint')}
+      </Typography.Text>
     </Modal>
   )
 }

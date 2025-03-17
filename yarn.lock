@@ -1830,6 +1830,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@monaco-editor/loader@npm:^1.5.0":
+  version: 1.5.0
+  resolution: "@monaco-editor/loader@npm:1.5.0"
+  dependencies:
+    state-local: "npm:^1.0.6"
+  checksum: 10c0/d8e1fd75fea113b4d91405784ed4db757df450c6e57a85e87728281e819a73a3ef9fe0cbb1dc1509456f1e895ad9c11e4748f80b68900cb6cf600170e14ce6ed
+  languageName: node
+  linkType: hard
+
+"@monaco-editor/react@npm:^4.7.0":
+  version: 4.7.0
+  resolution: "@monaco-editor/react@npm:4.7.0"
+  dependencies:
+    "@monaco-editor/loader": "npm:^1.5.0"
+  peerDependencies:
+    monaco-editor: ">= 0.25.0 < 1"
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/a4e91c6eda1a71f5fd23871bd801de435490ccbc43934d23cba65cefe2be7e9d02c9a57c4ef80fc9fe99e4d4deea51e5db19cb4e0ecf3f51818dda0eb9cdbf12
+  languageName: node
+  linkType: hard
+
 "@neon-rs/load@npm:^0.0.4":
   version: 0.0.4
   resolution: "@neon-rs/load@npm:0.0.4"
@@ -3181,6 +3203,7 @@ __metadata:
     "@llm-tools/embedjs-loader-xml": "npm:^0.1.28"
     "@llm-tools/embedjs-openai": "npm:^0.1.28"
     "@modelcontextprotocol/sdk": "patch:@modelcontextprotocol/sdk@npm%3A1.6.1#~/.yarn/patches/@modelcontextprotocol-sdk-npm-1.6.1-b46313efe7.patch"
+    "@monaco-editor/react": "npm:^4.7.0"
     "@notionhq/client": "npm:^2.2.15"
     "@reduxjs/toolkit": "npm:^2.2.5"
     "@tavily/core": "patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch"
@@ -3235,6 +3258,7 @@ __metadata:
     lodash: "npm:^4.17.21"
     markdown-it: "npm:^14.1.0"
     mime: "npm:^4.0.4"
+    monaco-editor: "npm:^0.52.2"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
@@ -10810,6 +10834,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"monaco-editor@npm:^0.52.2":
+  version: 0.52.2
+  resolution: "monaco-editor@npm:0.52.2"
+  checksum: 10c0/5a92da64f1e2ab375c0ce99364137f794d057c97bed10ecc65a08d6e6846804b8ecbd377eacf01e498f7dfbe1b21e8be64f728256681448f0484df90e767b435
+  languageName: node
+  linkType: hard
+
 "mri@npm:1.1.4":
   version: 1.1.4
   resolution: "mri@npm:1.1.4"
@@ -14418,6 +14449,13 @@ __metadata:
   version: 1.0.0
   resolution: "stat-mode@npm:1.0.0"
   checksum: 10c0/89b66a538dbfd45038fefdaf5b2104dc6e911605af1c201793e9629592ed9fdc7bdd1bca42806d0d4167c6d9cacac1f3fda41ddfe334a5c1f898113da38fae74
+  languageName: node
+  linkType: hard
+
+"state-local@npm:^1.0.6":
+  version: 1.0.7
+  resolution: "state-local@npm:1.0.7"
+  checksum: 10c0/8dc7daeac71844452fafb514a6d6b6f40d7e2b33df398309ea1c7b3948d6110c57f112b7196500a10c54fdde40291488c52c875575670fb5c819602deca48bd9
   languageName: node
   linkType: hard
 
