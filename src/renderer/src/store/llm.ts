@@ -120,6 +120,16 @@ const initialState: LlmState = {
       enabled: false
     },
     {
+      id: 'alayanew',
+      name: 'AlayaNew',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://deepseek.alayanew.com',
+      models: SYSTEM_MODELS.alayanew,
+      isSystem: true,
+      enabled: false
+    },
+    {
       id: 'infini',
       name: 'Infini',
       type: 'openai',

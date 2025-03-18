@@ -4,6 +4,7 @@ const os = require('os')
 const { execSync } = require('child_process')
 const https = require('https')
 const tar = require('tar')
+const AdmZip = require('adm-zip')
 
 // Base URL for downloading uv binaries
 const UV_RELEASE_BASE_URL = 'https://github.com/astral-sh/uv/releases/download'
@@ -67,51 +68,6 @@ async function downloadWithRedirects(url, destinationPath) {
 }
 
 /**
- * Fetches the latest version of uv from GitHub API
- * @returns {Promise<string>} The latest version tag (without 'v' prefix)
- */
-async function getLatestUvVersion() {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'api.github.com',
-      path: '/repos/astral-sh/uv/releases/latest',
-      headers: {
-        'User-Agent': 'cherry-studio-install-script'
-      }
-    }
-
-    const req = https.get(options, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`Request failed with status code ${res.statusCode}`))
-        return
-      }
-
-      let data = ''
-      res.on('data', (chunk) => {
-        data += chunk
-      })
-
-      res.on('end', () => {
-        try {
-          const release = JSON.parse(data)
-          // Remove the 'v' prefix if present
-          const version = release.tag_name.startsWith('v') ? release.tag_name.substring(1) : release.tag_name
-          resolve(version)
-        } catch (error) {
-          reject(new Error(`Failed to parse GitHub API response: ${error.message}`))
-        }
-      })
-    })
-
-    req.on('error', (error) => {
-      reject(new Error(`Failed to fetch latest version: ${error.message}`))
-    })
-
-    req.end()
-  })
-}
-
-/**
  * Downloads and extracts the uv binary for the specified platform and architecture
  * @param {string} platform Platform to download for (e.g., 'darwin', 'win32', 'linux')
  * @param {string} arch Architecture to download for (e.g., 'x64', 'arm64')
@@ -128,61 +84,82 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
   }
 
   // Create output directory structure
-  const archDir = path.join(os.homedir(), '.cherrystudio', 'bin')
+  const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
   // Ensure directories exist
-  fs.mkdirSync(archDir, { recursive: true })
+  fs.mkdirSync(binDir, { recursive: true })
 
   // Download URL for the specific binary
   const downloadUrl = `${UV_RELEASE_BASE_URL}/${version}/${packageName}`
   const tempdir = os.tmpdir()
-  const localFilename = path.join(tempdir, packageName)
+  const tempFilename = path.join(tempdir, packageName)
 
   try {
     console.log(`Downloading uv ${version} for ${platformKey}...`)
     console.log(`URL: ${downloadUrl}`)
 
-    // Use the new download function
-    await downloadWithRedirects(downloadUrl, localFilename)
+    await downloadWithRedirects(downloadUrl, tempFilename)
 
-    // Extract files using tar
-    console.log(`Extracting ${packageName} to ${archDir}...`)
-    await tar.x({
-      file: localFilename,
-      cwd: tempdir,
-      // zip 文件也可以用 tar 解压
-      z: packageName.endsWith('.tar.gz') // 对于 .tar.gz 文件启用 gzip 解压
-    })
+    console.log(`Extracting ${packageName} to ${binDir}...`)
 
-    // Move files using Node.js fs
-    const sourceDir = path.join(tempdir, packageName.split('.')[0])
-    const files = fs.readdirSync(sourceDir)
-    for (const file of files) {
-      const sourcePath = path.join(sourceDir, file)
-      const destPath = path.join(archDir, file)
-      fs.renameSync(sourcePath, destPath)
+    // 根据文件扩展名选择解压方法
+    if (packageName.endsWith('.zip')) {
+      // 使用 adm-zip 处理 zip 文件
+      const zip = new AdmZip(tempFilename)
+      zip.extractAllTo(binDir, true)
+      fs.unlinkSync(tempFilename)
+      console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
+      return true
+    } else {
+      // tar.gz 文件的处理保持不变
+      await tar.x({
+        file: tempFilename,
+        cwd: tempdir,
+        z: true
+      })
 
-      // Set executable permissions for non-Windows platforms
-      if (platform !== 'win32') {
-        try {
-          // 755 permission: rwxr-xr-x
-          fs.chmodSync(destPath, '755')
-        } catch (error) {
-          console.warn(`Warning: Failed to set executable permissions: ${error.message}`)
+      // Move files using Node.js fs
+      const sourceDir = path.join(tempdir, packageName.split('.')[0])
+      const files = fs.readdirSync(sourceDir)
+      for (const file of files) {
+        const sourcePath = path.join(sourceDir, file)
+        const destPath = path.join(binDir, file)
+        fs.renameSync(sourcePath, destPath)
+
+        // Set executable permissions for non-Windows platforms
+        if (platform !== 'win32') {
+          try {
+            fs.chmodSync(destPath, '755')
+          } catch (error) {
+            console.warn(`Warning: Failed to set executable permissions: ${error.message}`)
+          }
         }
       }
-    }
 
-    // Clean up
-    fs.unlinkSync(localFilename)
-    fs.rmdirSync(sourceDir, { recursive: true })
+      // Clean up
+      fs.unlinkSync(tempFilename)
+      fs.rmSync(sourceDir, { recursive: true })
+    }
 
     console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
     return true
   } catch (error) {
     console.error(`Error installing uv for ${platformKey}: ${error.message}`)
-    if (fs.existsSync(localFilename)) {
-      fs.unlinkSync(localFilename)
+
+    if (fs.existsSync(tempFilename)) {
+      fs.unlinkSync(tempFilename)
     }
+
+    // Check if binDir is empty and remove it if so
+    try {
+      const files = fs.readdirSync(binDir)
+      if (files.length === 0) {
+        fs.rmSync(binDir, { recursive: true })
+        console.log(`Removed empty directory: ${binDir}`)
+      }
+    } catch (cleanupError) {
+      console.warn(`Warning: Failed to clean up directory: ${cleanupError.message}`)
+    }
+
     return false
   }
 }
@@ -215,43 +192,24 @@ function detectIsMusl() {
  * Main function to install uv
  */
 async function installUv() {
-  const args = process.argv.slice(2)
-  const specifiedVersion = args.find((arg) => !arg.startsWith('--'))
-
   // Get the latest version if no specific version is provided
-  const version = specifiedVersion || (await getLatestUvVersion())
+  const version = DEFAULT_UV_VERSION
   console.log(`Using uv version: ${version}`)
 
-  const specificPlatform = args.find((arg) => arg.startsWith('--platform='))?.split('=')[1]
-  const specificArch = args.find((arg) => arg.startsWith('--arch='))?.split('=')[1]
-  const specificMusl = args.includes('--musl')
-  const installAll = args.includes('--all')
+  const { platform, arch, isMusl } = detectPlatformAndArch()
 
-  if (installAll) {
-    console.log(`Installing all uv ${version} binaries...`)
-    for (const platformKey in UV_PACKAGES) {
-      const [platformArch, musl] = platformKey.split('-musl-')
-      if (musl) {
-        const [platform, arch] = platformArch.split('-')
-        await downloadUvBinary(platform, arch, version, true)
-      } else {
-        const [platform, arch] = platformKey.split('-')
-        await downloadUvBinary(platform, arch, version, false)
-      }
-    }
-  } else {
-    const { platform, arch, isMusl } = detectPlatformAndArch()
-    const targetPlatform = specificPlatform || platform
-    const targetArch = specificArch || arch
-    const targetMusl = specificMusl || isMusl
+  console.log(`Installing uv ${version} for ${platform}-${arch}${isMusl ? ' (MUSL)' : ''}...`)
 
-    console.log(`Installing uv ${version} for ${targetPlatform}-${targetArch}${targetMusl ? ' (MUSL)' : ''}...`)
-    await downloadUvBinary(targetPlatform, targetArch, version, targetMusl)
-  }
+  await downloadUvBinary(platform, arch, version, isMusl)
 }
 
 // Run the installation
-installUv().catch((error) => {
-  console.error('Installation failed:', error)
-  process.exit(1)
-})
+installUv()
+  .then(() => {
+    console.log('Installation successful')
+    process.exit(0)
+  })
+  .catch((error) => {
+    console.error('Installation failed:', error)
+    process.exit(1)
+  })

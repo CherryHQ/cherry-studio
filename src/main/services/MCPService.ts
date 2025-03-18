@@ -309,7 +309,8 @@ export default class MCPService extends EventEmitter {
   public async activate(server: MCPServer): Promise<void> {
     await this.ensureInitialized()
 
-    const { name, baseUrl, command, args, env } = server
+    const { name, baseUrl, command, env } = server
+    const args = [...(server.args || [])]
 
     // Skip if already running
     if (this.clients[name]) {
@@ -375,7 +376,7 @@ export default class MCPService extends EventEmitter {
       this.emit('server-started', { name })
     } catch (error) {
       log.error(`[MCP] Error activating server ${name}:`, error)
-      server.isActive = false
+      this.setServerActive({ name, isActive: false })
       throw error
     }
   }
