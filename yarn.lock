@@ -3237,7 +3237,7 @@ __metadata:
     mime: "npm:^4.0.4"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
-    openai: "patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch"
+    openai: "npm:^4.87.3"
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
     react: "npm:^18.2.0"
@@ -11381,29 +11381,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:4.77.3":
-  version: 4.77.3
-  resolution: "openai@npm:4.77.3"
-  dependencies:
-    "@types/node": "npm:^18.11.18"
-    "@types/node-fetch": "npm:^2.6.4"
-    abort-controller: "npm:^3.0.0"
-    agentkeepalive: "npm:^4.2.1"
-    form-data-encoder: "npm:1.7.2"
-    formdata-node: "npm:^4.3.2"
-    node-fetch: "npm:^2.6.7"
-  peerDependencies:
-    zod: ^3.23.8
-  peerDependenciesMeta:
-    zod:
-      optional: true
-  bin:
-    openai: bin/cli
-  checksum: 10c0/b90a4071cc1a8257339e3001377396226422519d168ae3c05b5abc662bbac2009c5ccd37f0112c431b0ce45d83e616305ee264846ddb2f2129f186faf9b5a8cc
-  languageName: node
-  linkType: hard
-
-"openai@npm:^4.87.3":
+"openai@npm:4.87.3, openai@npm:^4.87.3":
   version: 4.87.3
   resolution: "openai@npm:4.87.3"
   dependencies:
@@ -11428,9 +11406,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch":
-  version: 4.77.3
-  resolution: "openai@patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch::version=4.77.3&hash=c5d42a"
+"openai@patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch":
+  version: 4.87.3
+  resolution: "openai@patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch::version=4.87.3&hash=bae887"
   dependencies:
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.4"
@@ -11440,13 +11418,16 @@ __metadata:
     formdata-node: "npm:^4.3.2"
     node-fetch: "npm:^2.6.7"
   peerDependencies:
+    ws: ^8.18.0
     zod: ^3.23.8
   peerDependenciesMeta:
+    ws:
+      optional: true
     zod:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/c3449d3d9945675d7debc4e3a68f58093400985e5275b29e4eb5610300ad3fa4589e527fda526ce770f9a945d7a1d03ffb33e34a3566f996a6947125aa761b1e
+  checksum: 10c0/922e1ccbbe605e60ca170ccab09452e250ac4b01b79119e26ccb521e9aaa62148a62160afb5c87f940195f968ca953564125607b8ae797bd5c337bf9071df76f
   languageName: node
   linkType: hard
 

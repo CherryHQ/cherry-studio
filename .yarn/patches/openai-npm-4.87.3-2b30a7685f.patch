@@ -24,13 +24,13 @@ index 9c1a0264dcd73a85de1cf81df4efab9ce9ee2ab7..33f9f1f237f2eb2667a05dae1a7e3dc9
              ...this.authHeaders(opts),
          };
      }
-diff --git a/error.js b/error.js
-index d08cb5c38e1c978f778fb52d08833b356ed58342..e1fa73b9bcbd952c71034214c522cf563c5af440 100644
---- a/error.js
-+++ b/error.js
-@@ -40,7 +40,7 @@ class APIError extends OpenAIError {
+diff --git a/error.mjs b/error.mjs
+index 7d19f5578040afa004bc887aab1725e8703d2bac..59ec725b6142299a62798ac4bdedb63ba7d9932c 100644
+--- a/error.mjs
++++ b/error.mjs
+@@ -36,7 +36,7 @@ export class APIError extends OpenAIError {
          if (!status || !headers) {
-             return new APIConnectionError({ message, cause: (0, core_1.castToError)(errorResponse) });
+             return new APIConnectionError({ message, cause: castToError(errorResponse) });
          }
 -        const error = errorResponse?.['error'];
 +        const error = errorResponse?.['error'] || errorResponse;

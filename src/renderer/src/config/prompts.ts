@@ -1,3 +1,5 @@
+import dayjs from 'dayjs'
+
 export const AGENT_PROMPT = `
 You are a Prompt Generator. You will integrate user input information into a structured Prompt using Markdown syntax. Please do not use code blocks for output, display directly!
 
@@ -89,8 +91,7 @@ export const WEB_SEARCH_PROMPT_FOR_ZHIPU = `
 # 以下是来自互联网的信息：
 {search_result}
 
-# 当前日期: 2024-XX-XX
-
+# 当前日期: ${dayjs().format('YYYY-MM-DD')}
 # 要求：
 根据最新发布的信息回答用户问题，当回答引用了参考信息时，必须在句末使用对应的[ref_序号]来标明参考信息来源。
 `
