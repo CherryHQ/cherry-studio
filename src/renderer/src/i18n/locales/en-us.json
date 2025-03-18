@@ -961,7 +961,6 @@
         "charge": "Charge",
         "check": "Check",
         "check_all_keys": "Check All Keys",
-        "check_multiple_keys": "Check Multiple API Keys",
         "delete.content": "Are you sure you want to delete this provider?",
         "delete.title": "Delete Provider",
         "docs_check": "Check",

@@ -18,9 +18,10 @@ import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import SelectProviderModelPopup from './SelectProviderModelPopup'
+
 interface Props {
   provider: Provider | WebSearchProvider
-  model?: Model
   apiKeys: string
   onChange: (keys: string) => void
   type?: 'provider' | 'websearch'
@@ -32,7 +33,7 @@ interface KeyStatus {
   checking?: boolean
 }
 
-const ApiKeyList: FC<Props> = ({ provider, model, apiKeys, onChange, type = 'provider' }) => {
+const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' }) => {
   const [keyStatuses, setKeyStatuses] = useState<KeyStatus[]>(() => {
     const formattedApiKeys = formatApiKeys(apiKeys)
     if (formattedApiKeys.includes(',')) {
@@ -103,7 +104,7 @@ const ApiKeyList: FC<Props> = ({ provider, model, apiKeys, onChange, type = 'pro
     setNewApiKey('')
   }
 
-  const checkSingleKey = async (keyIndex: number) => {
+  const checkSingleKey = async (keyIndex: number, selectedModel?: Model) => {
     if (isChecking || keyStatuses[keyIndex].checking) {
       return
     }
@@ -112,21 +113,34 @@ const ApiKeyList: FC<Props> = ({ provider, model, apiKeys, onChange, type = 'pro
     setKeyStatuses((prev) => prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: true } : status)))
 
     try {
-      let valid = false
-      if (type === 'provider') {
-        if (!model) {
-          window.message.error({ content: t('message.error.enter.model'), key: 'api-check' })
-          throw new Error(t('message.error.enter.model'))
+      const { valid, error } = await (async () => {
+        if (type === 'provider') {
+          const model =
+            selectedModel ||
+            (await SelectProviderModelPopup.show({
+              provider: provider as Provider
+            }))
+          if (!model) {
+            const errorMessage = t('message.error.enter.model')
+            window.message.error({ content: errorMessage, key: 'api-check' })
+            throw new Error(errorMessage)
+          }
+          return checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
+        } else {
+          return WebSearchService.checkSearch({
+            ...(provider as WebSearchProvider),
+            apiKey: keyStatuses[keyIndex].key
+          })
         }
-        const result = await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
-        valid = result.valid
-      } else {
-        const result = await WebSearchService.checkSearch({
-          ...(provider as WebSearchProvider),
-          apiKey: keyStatuses[keyIndex].key
-        })
-        valid = result.valid
-      }
+      })()
+
+      const errorMessage = error?.message ? ' ' + error.message : ''
+      window.message[valid ? 'success' : 'error']({
+        key: 'api-check',
+        style: { marginTop: '3vh' },
+        duration: valid ? 2 : 8,
+        content: valid ? t('settings.websearch.check_success') : t('settings.websearch.check_failed') + errorMessage
+      })
 
       setKeyStatuses((prev) =>
         prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false, isValid: valid } : status))
@@ -143,10 +157,18 @@ const ApiKeyList: FC<Props> = ({ provider, model, apiKeys, onChange, type = 'pro
   const checkAllKeys = async () => {
     setIsChecking(true)
 
-    // Error handling is already done in checkSingleKey
     try {
+      let selectedModel
+      if (type === 'provider') {
+        selectedModel = await SelectProviderModelPopup.show({ provider: provider as Provider })
+        if (!selectedModel) {
+          window.message.error({ content: t('message.error.enter.model'), key: 'api-check' })
+          return
+        }
+      }
+
       for (let i = 0; i < keyStatuses.length; i++) {
-        await checkSingleKey(i)
+        await checkSingleKey(i, selectedModel)
       }
     } finally {
       setIsChecking(false)
@@ -312,7 +334,7 @@ const StatusIndicator = styled.div<{ type: string }>`
       case 'error':
         return '#ff4d4f'
       default:
-        return 'var(--color-text)'
+        return 'var(--color-link)'
     }
   }};
 `

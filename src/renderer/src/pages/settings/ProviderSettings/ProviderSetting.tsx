@@ -231,13 +231,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           </Space>
         </Flex>
       </SettingSubtitle>
-      <ApiKeyList
-        provider={provider}
-        model={models[2]} // TODO: refactor this
-        apiKeys={apiKey}
-        onChange={handleApiKeyChange}
-        type="provider"
-      />
+      <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="provider" />
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
           <HStack gap={5}>

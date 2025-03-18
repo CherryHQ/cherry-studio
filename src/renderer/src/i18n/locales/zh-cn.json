@@ -961,7 +961,6 @@
         "charge": "充值",
         "check": "检查",
         "check_all_keys": "检查所有密钥",
-        "check_multiple_keys": "检查多个 API 密钥",
         "delete.content": "确定要删除此模型提供商吗?",
         "delete.title": "删除提供商",
         "docs_check": "查看",

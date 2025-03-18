@@ -961,7 +961,6 @@
         "charge": "儲值",
         "check": "檢查",
         "check_all_keys": "檢查所有金鑰",
-        "check_multiple_keys": "檢查多個 API 金鑰",
         "delete.content": "確定要刪除此提供者嗎？",
         "delete.title": "刪除提供者",
         "docs_check": "檢查",
