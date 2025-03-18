@@ -158,8 +158,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           {jsonError ? <span style={{ color: 'red' }}>{jsonError}</span> : ''}
         </Typography.Text>
         <Space>
-          <Button icon={<FormatPainterOutlined />} onClick={formatJSON} title={t('settings.mcp.jsonFormat')}>
-            {t('settings.mcp.jsonFormat')}
+          <Button icon={<FormatPainterOutlined />} onClick={formatJSON} title={t('common.format')}>
+            {t('common.format')}
           </Button>
         </Space>
       </div>

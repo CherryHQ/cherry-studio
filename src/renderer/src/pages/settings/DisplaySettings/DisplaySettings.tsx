@@ -1,4 +1,5 @@
-import { SyncOutlined } from '@ant-design/icons'
+import { FormatPainterOutlined, SyncOutlined } from '@ant-design/icons'
+import Editor from '@monaco-editor/react'
 import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -13,8 +14,9 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, Input, Segmented, Switch } from 'antd'
-import { FC, useCallback, useMemo, useState } from 'react'
+import { Button, Segmented, Switch, Typography } from 'antd'
+import { editor } from 'monaco-editor'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -47,6 +49,9 @@ const DisplaySettings: FC = () => {
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
 
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const [cssError, setCssError] = useState('')
+
   // 使用useCallback优化回调函数
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
@@ -67,6 +72,55 @@ const DisplaySettings: FC = () => {
     updateMinapps(DEFAULT_MIN_APPS)
     updateDisabledMinapps([])
   }, [updateDisabledMinapps, updateMinapps])
+
+  const formatCSS = useCallback(() => {
+    if (!editorRef.current) return
+
+    editorRef.current.getAction('editor.action.formatDocument')?.run()
+  }, [])
+
+  const handleEditorDidMount = useCallback(
+    (editor: editor.IStandaloneCodeEditor) => {
+      editorRef.current = editor
+
+      if (!customCss) {
+        const placeholderText = t('settings.display.custom.css.placeholder')
+        const decoration = editor.createDecorationsCollection([
+          {
+            range: {
+              startLineNumber: 1,
+              startColumn: 1,
+              endLineNumber: 1,
+              endColumn: 1
+            },
+            options: {
+              after: {
+                content: placeholderText,
+                inlineClassName: 'monaco-placeholder-text'
+              }
+            }
+          }
+        ])
+
+        const disposable = editor.onDidChangeModelContent(() => {
+          if (editor.getValue()) {
+            decoration.clear()
+            disposable.dispose()
+          }
+        })
+      }
+    },
+    [customCss, t]
+  )
+
+  const handleCssChange = useCallback(
+    (value: string | undefined) => {
+      const newValue = value || ''
+      dispatch(setCustomCss(newValue))
+      setCssError('')
+    },
+    [dispatch]
+  )
 
   const themeOptions = useMemo(
     () => [
@@ -201,15 +255,38 @@ const DisplaySettings: FC = () => {
           </TitleExtra>
         </SettingTitle>
         <SettingDivider />
-        <Input.TextArea
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+          <Typography.Text type="secondary">
+            {cssError ? <span style={{ color: 'red' }}>{cssError}</span> : ''}
+          </Typography.Text>
+          <Button icon={<FormatPainterOutlined />} onClick={formatCSS} title={t('common.format')}>
+            {t('common.format')}
+          </Button>
+        </div>
+        <Editor
+          height="200px"
+          defaultLanguage="css"
+          language="css"
           value={customCss}
-          onChange={(e) => dispatch(setCustomCss(e.target.value))}
-          placeholder={t('settings.display.custom.css.placeholder')}
-          style={{
-            minHeight: 200,
-            fontFamily: 'monospace'
+          onChange={handleCssChange}
+          theme={theme === ThemeMode.dark ? 'vs-dark' : 'light'}
+          options={{
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            lineNumbers: 'on',
+            automaticLayout: true,
+            wordWrap: 'on',
+            formatOnPaste: true,
+            formatOnType: true
           }}
+          onMount={handleEditorDidMount}
         />
+        <style>{`
+          .monaco-placeholder-text {
+            color: rgba(127, 127, 127, 0.7);
+            font-style: italic;
+          }
+        `}</style>
       </SettingGroup>
     </SettingContainer>
   )

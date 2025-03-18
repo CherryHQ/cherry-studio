@@ -213,6 +213,7 @@
       "download": "ダウンロード",
       "duplicate": "複製",
       "edit": "編集",
+      "format": "フォーマット",
       "footnote": "引用内容",
       "footnotes": "脚注",
       "fullscreen": "全画面モードに入りました。F11キーで終了します",
@@ -873,7 +874,6 @@
         },
         "editJson": "JSONを編集",
         "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
-        "jsonFormat": "フォーマット",
         "jsonFormatError": "JSONフォーマットエラー",
         "jsonSaveSuccess": "JSON設定が保存されました。",
         "jsonSaveError": "JSON設定の保存に失敗しました"

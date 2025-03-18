@@ -213,6 +213,7 @@
       "download": "下载",
       "duplicate": "复制",
       "edit": "编辑",
+      "format": "格式化",
       "footnote": "引用内容",
       "footnotes": "引用内容",
       "fullscreen": "已进入全屏模式，按 F11 退出",
@@ -873,7 +874,6 @@
         },
         "editJson": "编辑JSON",
         "jsonModeHint": "编辑MCP服务器配置的JSON表示。保存前请确保格式正确。",
-        "jsonFormat": "格式化",
         "jsonFormatError": "JSON格式化错误",
         "jsonSaveSuccess": "JSON配置已保存",
         "jsonSaveError": "保存JSON配置失败"
