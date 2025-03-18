@@ -581,13 +581,13 @@ export default class OpenAIProvider extends BaseProvider {
           text: delta?.content || '',
           reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
           usage: chunk.usage,
-          webSearch,
           metrics: {
             completion_tokens: chunk.usage?.completion_tokens,
             time_completion_millsec,
             time_first_token_millsec,
             time_thinking_millsec
           },
+          webSearch,
           annotations: delta?.annotations,
           citations,
           mcpToolResponse: toolResponses
