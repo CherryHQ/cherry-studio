@@ -3,9 +3,9 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import {
-  setAutoPasteToQuickAssistant,
   setClickTrayToShowQuickAssistant,
-  setEnableQuickAssistant
+  setEnableQuickAssistant,
+  setReadClipboardAtStartup
 } from '@renderer/store/settings'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
 import { Switch, Tooltip } from 'antd'
@@ -18,7 +18,7 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowT
 const QuickAssistantSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray, autoPasteToQuickAssistant } = useSettings()
+  const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray, readClipboardAtStartup } = useSettings()
   const dispatch = useAppDispatch()
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
@@ -48,9 +48,9 @@ const QuickAssistantSettings: FC = () => {
     checked && setTray(true)
   }
 
-  const handleClickAutoPasteToQuickAssistant = async (checked: boolean) => {
-    dispatch(setAutoPasteToQuickAssistant(checked))
-    await window.api.config.set('autoPasteToQuickAssistant', checked)
+  const handleClickReadClipboardAtStartup = async (checked: boolean) => {
+    dispatch(setReadClipboardAtStartup(checked))
+    await window.api.config.set('readClipboardAtStartup', checked)
     window.api.miniWindow.close()
   }
 
@@ -81,8 +81,8 @@ const QuickAssistantSettings: FC = () => {
           <>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.quickAssistant.auto_paste_to_quick_assistant')}</SettingRowTitle>
-              <Switch checked={autoPasteToQuickAssistant} onChange={handleClickAutoPasteToQuickAssistant} />
+              <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
+              <Switch checked={readClipboardAtStartup} onChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
           </>
         )}
