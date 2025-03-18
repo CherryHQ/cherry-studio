@@ -119,7 +119,7 @@ const ProvidersList: FC = () => {
   })
 
   return (
-    <Container>
+    <Container className="selectable">
       <ProviderListContainer>
         <AddButtonWrapper>
           <Input

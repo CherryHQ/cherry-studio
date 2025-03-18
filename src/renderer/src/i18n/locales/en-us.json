@@ -402,6 +402,10 @@
       "title": "Mermaid Diagram"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "Pasted Text",
+        "pasted_image": "Pasted Image"
+      },
       "api.check.model.title": "Select the model to use for detection",
       "api.connection.failed": "Connection failed",
       "api.connection.success": "Connection successful",

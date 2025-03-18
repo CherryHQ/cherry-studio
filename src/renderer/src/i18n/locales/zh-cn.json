@@ -402,6 +402,10 @@
       "title": "Mermaid 图表"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "剪切板文件",
+        "pasted_image": "剪切板图片"
+      },
       "api.check.model.title": "请选择要检测的模型",
       "api.connection.failed": "连接失败",
       "api.connection.success": "连接成功",

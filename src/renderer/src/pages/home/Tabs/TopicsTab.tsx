@@ -138,7 +138,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             if (messages.length >= 2) {
               const summaryText = await fetchMessagesSummary({ messages, assistant })
               if (summaryText) {
-                updateTopic({ ...topic, name: summaryText })
+                updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
               }
             }
           }
@@ -154,7 +154,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               defaultValue: topic?.name || ''
             })
             if (name && topic?.name !== name) {
-              updateTopic({ ...topic, name })
+              updateTopic({ ...topic, name, isNameManuallyEdited: true })
             }
           }
         },

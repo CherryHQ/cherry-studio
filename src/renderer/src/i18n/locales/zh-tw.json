@@ -402,6 +402,10 @@
       "title": "Mermaid 圖表"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "剪切板文件",
+        "pasted_image": "剪切板圖片"
+      },
       "api.check.model.title": "請選擇要偵測的模型",
       "api.connection.failed": "連接失敗",
       "api.connection.success": "連接成功",

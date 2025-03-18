@@ -30,7 +30,7 @@ const MessageAttachments: FC<Props> = ({ message }) => {
           uid: file.id,
           url: 'file://' + FileManager.getSafePath(file),
           status: 'done',
-          name: file.origin_name
+          name: FileManager.formatFileName(file)
         }))}
       />
     </Container>

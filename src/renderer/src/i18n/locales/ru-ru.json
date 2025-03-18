@@ -408,6 +408,10 @@
       "title": "GPUStack"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "Вырезанный текст",
+        "pasted_image": "Вырезанное изображение"
+      },
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",

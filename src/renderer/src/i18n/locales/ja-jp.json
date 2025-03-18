@@ -402,6 +402,10 @@
       "title": "Mermaid図"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "クリップボードファイル",
+        "pasted_image": "クリップボード画像"
+      },
       "api.check.model.title": "検出に使用するモデルを選択してください",
       "api.connection.failed": "接続に失敗しました",
       "api.connection.success": "接続に成功しました",

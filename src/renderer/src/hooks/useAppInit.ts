@@ -1,5 +1,6 @@
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
@@ -21,6 +22,7 @@ export function useAppInit() {
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
+  const { theme } = useTheme()
 
   useUpdateHandler()
   useFullScreenNotice()
@@ -58,8 +60,14 @@ export function useAppInit() {
 
   useEffect(() => {
     const transparentWindow = windowStyle === 'transparent' && isMac && !minappShow
+
+    if (minappShow) {
+      window.root.style.background = theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)'
+      return
+    }
+
     window.root.style.background = transparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
-  }, [windowStyle, minappShow])
+  }, [windowStyle, minappShow, theme])
 
   useEffect(() => {
     if (isLocalAi) {
