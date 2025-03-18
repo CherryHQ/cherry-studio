@@ -83,7 +83,8 @@
       "manage": "Редактировать",
       "select_model": "Выбрать модель",
       "show.all": "Показать все",
-      "update_available": "Доступно обновление"
+      "update_available": "Доступно обновление",
+      "includes_user_questions": "Включает вопросы пользователей"
     },
     "chat": {
       "add.assistant.title": "Добавить ассистента",
@@ -535,7 +536,9 @@
         "function_calling": "Вызов функции"
       },
       "vision": "Визуальные",
-      "websearch": "Веб-поисковые"
+      "websearch": "Веб-поисковые",
+      "edit": "Редактировать модель",
+      "no_matches": "Нет доступных моделей"
     },
     "navbar": {
       "expand": "Развернуть диалоговое окно",
