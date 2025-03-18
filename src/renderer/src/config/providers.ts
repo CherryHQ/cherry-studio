@@ -7,6 +7,7 @@ import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.p
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
+import BedrockProviderLogo from '@renderer/assets/images/providers/bedrock.png'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
@@ -44,6 +45,7 @@ import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 
 const PROVIDER_LOGO_MAP = {
   openai: OpenAiProviderLogo,
+  bedrock: BedrockProviderLogo,
   silicon: SiliconFlowProviderLogo,
   deepseek: DeepSeekProviderLogo,
   'gitee-ai': GiteeAIProviderLogo,
@@ -551,6 +553,17 @@ export const PROVIDER_CONFIG = {
       official: 'https://gpustack.ai/',
       docs: 'https://docs.gpustack.ai/latest/',
       models: 'https://docs.gpustack.ai/latest/overview/#supported-models'
+    }
+  },
+  bedrock: {
+    api: {
+      url: 'https://bedrock-runtime.us-east-1.amazonaws.com'
+    },
+    websites: {
+      official: 'https://aws.amazon.com/bedrock/',
+      apiKey: 'https://console.aws.amazon.com/iam/',
+      docs: 'https://docs.aws.amazon.com/bedrock/',
+      models: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html'
     }
   }
 }

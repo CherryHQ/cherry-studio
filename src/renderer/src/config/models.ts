@@ -10,6 +10,7 @@ import AisingaporeModelLogo from '@renderer/assets/images/models/aisingapore.png
 import AisingaporeModelLogoDark from '@renderer/assets/images/models/aisingapore_dark.png'
 import BaichuanModelLogo from '@renderer/assets/images/models/baichuan.png'
 import BaichuanModelLogoDark from '@renderer/assets/images/models/baichuan_dark.png'
+import BedrockModelLogo from '@renderer/assets/images/models/bedrock.png'
 import BgeModelLogo from '@renderer/assets/images/models/bge.webp'
 import BigcodeModelLogo from '@renderer/assets/images/models/bigcode.webp'
 import BigcodeModelLogoDark from '@renderer/assets/images/models/bigcode_dark.webp'
@@ -158,7 +159,8 @@ const visionAllowedModels = [
   'o1(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
-  'gemma-3(?:-[\\w-]+)'
+  'gemma-3(?:-[\\w-]+)',
+  'amazon.nova-'
 ]
 
 const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+']
@@ -193,7 +195,9 @@ export const FUNCTION_CALLING_MODELS = [
   'hunyuan',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
-  'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
+  'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
+  'nova',
+  'deepseek'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = ['aqa(?:-[\\w-]+)?', 'imagen(?:-[\\w-]+)?']
@@ -327,7 +331,8 @@ export function getModelLogo(modelId: string) {
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     sonar: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
-    'bge-': BgeModelLogo
+    'bge-': BgeModelLogo,
+    'amazon.nova-': BedrockModelLogo
   }
 
   for (const key in logoMap) {
@@ -1785,6 +1790,44 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'tencent-cloud-ti',
       name: 'DeepSeek V3',
       group: 'DeepSeek'
+    }
+  ],
+  bedrock: [
+    {
+      id: 'anthropic.claude-3-5-haiku-20241022-v1:0',
+      provider: 'bedrock',
+      name: 'Claude 3.5 Haiku',
+      group: 'Bedrock'
+    },
+    {
+      id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+      provider: 'bedrock',
+      name: 'Claude 3.5 Sonnet',
+      group: 'Bedrock'
+    },
+    {
+      id: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+      provider: 'bedrock',
+      name: 'Claude 3.7 Sonnet',
+      group: 'Bedrock'
+    },
+    {
+      id: 'deepseek.r1-v1:0',
+      provider: 'bedrock',
+      name: 'DeepSeek R1',
+      group: 'Bedrock'
+    },
+    {
+      id: 'amazon.nova-lite-v1:0',
+      provider: 'bedrock',
+      name: 'Amazon Nova Lite',
+      group: 'Bedrock'
+    },
+    {
+      id: 'amazon.nova-pro-v1:0',
+      provider: 'bedrock',
+      name: 'Amazon Nova Pro',
+      group: 'Bedrock'
     }
   ],
   gpustack: []

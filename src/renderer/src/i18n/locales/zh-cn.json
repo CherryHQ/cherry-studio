@@ -634,7 +634,8 @@
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
       "gpustack": "GPUStack",
-      "alayanew": "Alaya NeW"
+      "alayanew": "Alaya NeW",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",

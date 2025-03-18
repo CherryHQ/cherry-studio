@@ -33,9 +33,30 @@ const MessageThought: FC<Props> = ({ message }) => {
     return null
   }
 
+  // 清理思考内容中可能包含的用户查询信息
+  const cleanReasoningContent = (() => {
+    if (!message.reasoning_content) return ''
+
+    // 移除可能的用户查询前缀
+    let content = message.reasoning_content
+
+    // 检查并移除类似"The user has responded with..."的前缀
+    const userQueryPattern = /^The user has responded with.*?\n/
+    content = content.replace(userQueryPattern, '')
+
+    // 检查并移除类似"<user_query>..."的部分
+    const userQueryTagPattern = /<user_query>[\s\S]*?<\/user_query>/g
+    content = content.replace(userQueryTagPattern, '')
+
+    // 移除开头的多余空行
+    content = content.replace(/^\s+/, '')
+
+    return content
+  })()
+
   const copyThought = () => {
-    if (message.reasoning_content) {
-      navigator.clipboard.writeText(message.reasoning_content)
+    if (cleanReasoningContent) {
+      navigator.clipboard.writeText(cleanReasoningContent)
       antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
@@ -79,7 +100,7 @@ const MessageThought: FC<Props> = ({ message }) => {
           ),
           children: (
             <div style={{ fontFamily, fontSize }}>
-              <Markdown message={{ ...message, content: message.reasoning_content }} />
+              <Markdown message={{ ...message, content: cleanReasoningContent }} />
             </div>
           )
         }

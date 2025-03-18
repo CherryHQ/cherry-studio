@@ -640,7 +640,8 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "gpustack": "GPUStack",
-      "alayanew": "Alaya NeW"
+      "alayanew": "Alaya NeW",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",

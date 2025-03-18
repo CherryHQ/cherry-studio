@@ -71,7 +71,15 @@ export async function fetchChatCompletion({
       onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse }) => {
         message.content = message.content + text || ''
         message.usage = usage
-        message.metrics = metrics
+
+        // 合并metrics而不是直接覆盖，确保time_thinking_millsec不会丢失
+        if (metrics) {
+          message.metrics = {
+            ...message.metrics,
+            ...metrics
+          }
+          console.log('[ApiService] Updated metrics:', JSON.stringify(message.metrics))
+        }
 
         if (reasoning_content) {
           message.reasoning_content = (message.reasoning_content || '') + reasoning_content
@@ -152,6 +160,8 @@ export async function fetchTranslate({ message, assistant, onResponse }: FetchTr
   }
 
   const provider = getProviderByModel(model)
+
+  console.log('provider', provider)
 
   if (!hasApiKey(provider)) {
     throw new Error(i18n.t('error.no_api_key'))

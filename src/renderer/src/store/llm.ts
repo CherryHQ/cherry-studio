@@ -14,6 +14,12 @@ type LlmSettings = {
   gpustack: {
     keepAliveTime: number
   }
+  bedrock: {
+    region: string
+    accessKeyId: string
+    secretAccessKey: string
+    crossRegion: boolean
+  }
 }
 
 export interface LlmState {
@@ -449,6 +455,16 @@ const initialState: LlmState = {
       models: SYSTEM_MODELS.gpustack,
       isSystem: true,
       enabled: false
+    },
+    {
+      id: 'bedrock',
+      name: 'Amazon Bedrock',
+      type: 'bedrock',
+      apiKey: '',
+      apiHost: '',
+      models: SYSTEM_MODELS.bedrock,
+      isSystem: true,
+      enabled: false
     }
   ],
   settings: {
@@ -460,6 +476,12 @@ const initialState: LlmState = {
     },
     gpustack: {
       keepAliveTime: 0
+    },
+    bedrock: {
+      region: 'us-east-1',
+      accessKeyId: '',
+      secretAccessKey: '',
+      crossRegion: true
     }
   }
 }
@@ -566,6 +588,28 @@ const settingsSlice = createSlice({
     setGPUStackKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.gpustack.keepAliveTime = action.payload
     },
+    setBedrockApikey: (
+      state,
+      action: PayloadAction<{ region?: string; accessKeyId?: string; secretAccessKey?: string; crossRegion?: boolean }>
+    ) => {
+      // 更新 bedrock 设置
+      state.settings.bedrock = {
+        ...state.settings.bedrock,
+        ...action.payload
+      }
+      const { accessKeyId, secretAccessKey, region, crossRegion } = state.settings.bedrock
+
+      const apiKey = `${accessKeyId},${secretAccessKey},${region},${crossRegion}`
+
+      state.providers = state.providers.map((p) =>
+        p.id === 'bedrock'
+          ? {
+              ...p,
+              apiKey
+            }
+          : p
+      )
+    },
     updateModel: (
       state,
       action: PayloadAction<{
@@ -597,6 +641,7 @@ export const {
   setOllamaKeepAliveTime,
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,
+  setBedrockApikey,
   updateModel
 } = settingsSlice.actions
 
