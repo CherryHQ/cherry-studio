@@ -1018,6 +1018,7 @@
       "theme.window.style.title": "Window Style",
       "theme.window.style.transparent": "Transparent Window",
       "title": "Settings",
+      "topic.horizontal.tab": "Show horizontal tabs",
       "topic.position": "Topic position",
       "topic.position.left": "Left",
       "topic.position.right": "Right",

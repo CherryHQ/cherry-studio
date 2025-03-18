@@ -3,6 +3,7 @@ import {
   SendMessageShortcut,
   setSendMessageShortcut as _setSendMessageShortcut,
   setShowAssistantIcon,
+  setShowHorizontalTab,
   setSidebarIcons,
   setTargetLanguage,
   setTheme,
@@ -34,6 +35,9 @@ export function useSettings() {
     },
     setTargetLanguage(targetLanguage: TranslateLanguageVarious) {
       dispatch(setTargetLanguage(targetLanguage))
+    },
+    setShowHorizontalTab(showHorizontalTab: boolean) {
+      dispatch(setShowHorizontalTab(showHorizontalTab))
     },
     setTopicPosition(topicPosition: 'left' | 'right') {
       dispatch(setTopicPosition(topicPosition))

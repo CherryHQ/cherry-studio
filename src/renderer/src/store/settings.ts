@@ -31,6 +31,7 @@ export interface SettingsState {
   tray: boolean
   theme: ThemeMode
   windowStyle: 'transparent' | 'opaque'
+  showHorizontalTab: boolean
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
@@ -103,6 +104,7 @@ const initialState: SettingsState = {
   theme: ThemeMode.auto,
   windowStyle: 'transparent',
   fontSize: 14,
+  showHorizontalTab: true,
   topicPosition: 'left',
   showTopicTime: false,
   showAssistantIcon: false,
@@ -208,6 +210,9 @@ const settingsSlice = createSlice({
     },
     setWindowStyle: (state, action: PayloadAction<'transparent' | 'opaque'>) => {
       state.windowStyle = action.payload
+    },
+    setShowHorizontalTab: (state, action: PayloadAction<boolean>) => {
+      state.showHorizontalTab = action.payload
     },
     setTopicPosition: (state, action: PayloadAction<'left' | 'right'>) => {
       state.topicPosition = action.payload
@@ -370,6 +375,7 @@ export const {
   setTheme,
   setFontSize,
   setWindowStyle,
+  setShowHorizontalTab,
   setTopicPosition,
   setShowTopicTime,
   setShowAssistantIcon,

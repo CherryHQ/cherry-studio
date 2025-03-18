@@ -20,7 +20,7 @@ interface Props {
 
 const Chat: FC<Props> = (props) => {
   const { assistant } = useAssistant(props.assistant.id)
-  const { topicPosition, showAssistants, messageStyle } = useSettings()
+  const { showHorizontalTab, topicPosition, showAssistants, messageStyle } = useSettings()
   const { showTopics } = useShowTopics()
 
   const maxWidth = useMemo(() => {
@@ -33,12 +33,14 @@ const Chat: FC<Props> = (props) => {
   return (
     <Container id="chat" className={messageStyle}>
       <Main id="chat-main" vertical flex={1} style={{ maxWidth }}>
-        <ContentTab
-          activeTopicId={props.activeTopic.id}
-          activeAssistantId={props.assistant.id}
-          setActiveAssistant={props.setActiveAssistant}
-          setActiveTopic={props.setActiveTopic}
-        />
+        {showHorizontalTab && (
+          <ContentTab
+            activeTopicId={props.activeTopic.id}
+            activeAssistantId={props.assistant.id}
+            setActiveAssistant={props.setActiveAssistant}
+            setActiveTopic={props.setActiveTopic}
+          />
+        )}
         <MessagesContainer>
           <Messages
             key={props.activeTopic.id}
