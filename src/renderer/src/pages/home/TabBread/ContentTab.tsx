@@ -7,7 +7,7 @@ import { EVENT_NAMES } from '@renderer/services/EventService'
 import store, { RootState } from '@renderer/store'
 import { removeTopicInfo, updateTopicInfo } from '@renderer/store/topicInfo'
 import { Assistant, Topic } from '@renderer/types'
-import { Dropdown, MenuProps, Tabs, Tooltip } from 'antd'
+import { Dropdown, MenuProps, Tabs as TabsAntd, Tooltip } from 'antd'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -22,9 +22,41 @@ interface Props {
   setActiveAssistant?: (assistant: Assistant) => void
 }
 
-const TabsContainer = styled.div`
+const Tabs = styled(TabsAntd)`
   .ant-tabs-nav {
     margin-bottom: 0;
+  }
+  .ant-tabs-tab {
+    transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+    color: var(--color-text) !important;
+    background: var(--color-background-soft) !important;
+    border: none !important;
+  }
+  .ant-tabs-tab:hover {
+    color: var(--color-text) !important;
+    background-color: var(--color-background-mute) !important;
+  }
+  .ant-tabs-tab-active {
+    background: var(--color-background-mute) !important;
+    color: var(--color-text) !important;
+    transform: scale(1.02);
+  }
+  .ant-tabs-tab-btn:active {
+    color: var(--color-text) !important;
+  }
+  .ant-tabs-tab-active {
+    .ant-tabs-tab-btn {
+      color: var(--color-text) !important;
+    }
+  }
+  .ant-tabs-content {
+    transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+  }
+  .ant-tabs-ink-bar {
+    display: none !important;
+  }
+  .ant-tabs-tabpane {
+    transition: none !important;
   }
 `
 
@@ -214,17 +246,16 @@ const ContentTab: React.FC<Props> = ({ activeTopicId, activeAssistantId, setActi
 
   return (
     <div>
-      <TabsContainer>
-        <Tabs
-          type="editable-card"
-          hideAdd
-          tabPosition="top"
-          onChange={handleChange}
-          activeKey={activeTopicId}
-          onEdit={handleEdit}
-          items={items}
-        />
-      </TabsContainer>
+      <Tabs
+        type="editable-card"
+        animated={false}
+        hideAdd
+        tabPosition="top"
+        onChange={handleChange}
+        activeKey={activeTopicId}
+        onEdit={handleEdit}
+        items={items}
+      />
       <BreadcrumbNavigator
         activeAssistantId={activeAssistantId}
         activeTopicId={activeTopicId}

@@ -24,7 +24,7 @@ const BreadcrumbContainer = styled.div`
     align-items: center;
 
     &:hover {
-      color: var(--color-primary);
+      color: var(--color-text);
     }
   }
 

@@ -81,6 +81,7 @@ const Container = styled.div`
 
 const Main = styled(Flex)`
   height: calc(100vh - var(--navbar-height));
+  background-color: var(--color-background);
 `
 
 export default Chat
