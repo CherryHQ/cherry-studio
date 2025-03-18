@@ -189,6 +189,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('knowledge-base:add', KnowledgeService.add)
   ipcMain.handle('knowledge-base:remove', KnowledgeService.remove)
   ipcMain.handle('knowledge-base:search', KnowledgeService.search)
+  ipcMain.handle('knowledge-base:rerank', KnowledgeService.rerank)
 
   // window
   ipcMain.handle('window:set-minimum-size', (_, width: number, height: number) => {

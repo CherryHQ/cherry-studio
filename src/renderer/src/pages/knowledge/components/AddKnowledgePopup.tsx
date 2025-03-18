@@ -1,5 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
-import { isEmbeddingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import AiProvider from '@renderer/providers/AiProvider'
@@ -20,6 +20,7 @@ interface ShowParams {
 interface FormData {
   name: string
   model: string
+  rerankModel: string
 }
 
 interface Props extends ShowParams {
@@ -37,6 +38,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     .map((p) => p.models)
     .flat()
     .filter((model) => isEmbeddingModel(model))
+  const rerankModels = providers
+    .map((p) => p.models)
+    .flat()
+    .filter((model) => isRerankModel(model))
+  console.log('rerankModels', rerankModels)
   const nameInputRef = useRef<any>(null)
 
   const selectOptions = providers
@@ -53,10 +59,25 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     }))
     .filter((group) => group.options.length > 0)
 
+  const rerankSelectOptions = providers
+    .filter((p) => p.models.length > 0)
+    .map((p) => ({
+      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+      title: p.name,
+      options: sortBy(p.models, 'name')
+        .filter((model) => isRerankModel(model))
+        .map((m) => ({
+          label: m.name,
+          value: getModelUniqId(m)
+        }))
+    }))
+    .filter((group) => group.options.length > 0)
+
   const onOk = async () => {
     try {
       const values = await form.validateFields()
       const selectedModel = find(allModels, JSON.parse(values.model)) as Model
+      const selectedRerankModel = find(rerankModels, JSON.parse(values.rerankModel)) as Model
 
       if (selectedModel) {
         setLoading(true)
@@ -82,6 +103,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           id: nanoid(),
           name: values.name,
           model: selectedModel,
+          rerankModel: selectedRerankModel,
           dimensions,
           items: [],
           created_at: Date.now(),
@@ -133,6 +155,14 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           tooltip={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
           rules={[{ required: true, message: t('message.error.enter.model') }]}>
           <Select style={{ width: '100%' }} options={selectOptions} placeholder={t('settings.models.empty')} />
+        </Form.Item>
+
+        <Form.Item
+          name="rerankModel"
+          label={t('models.rerank_model')}
+          tooltip={{ title: t('models.rerank_model_tooltip'), placement: 'right' }}
+          rules={[{ required: false, message: t('message.error.enter.model') }]}>
+          <Select style={{ width: '100%' }} options={rerankSelectOptions} placeholder={t('settings.models.empty')} />
         </Form.Item>
       </Form>
     </Modal>

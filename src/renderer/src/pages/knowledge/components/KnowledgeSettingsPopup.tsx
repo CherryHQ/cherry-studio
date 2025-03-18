@@ -2,7 +2,7 @@ import { WarningOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { isEmbeddingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -23,6 +23,8 @@ interface FormData {
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  rerankModel?: string
+  topN?: number
 }
 
 interface Props extends ShowParams {
@@ -59,6 +61,20 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
     }))
     .filter((group) => group.options.length > 0)
 
+  const rerankSelectOptions = providers
+    .filter((p) => p.models.length > 0)
+    .map((p) => ({
+      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+      title: p.name,
+      options: sortBy(p.models, 'name')
+        .filter((model) => isRerankModel(model))
+        .map((m) => ({
+          label: m.name,
+          value: getModelUniqId(m)
+        }))
+    }))
+    .filter((group) => group.options.length > 0)
+
   const onOk = async () => {
     try {
       const values = await form.validateFields()
@@ -68,7 +84,11 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         documentCount: values.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
         chunkSize: values.chunkSize,
         chunkOverlap: values.chunkOverlap,
-        threshold: values.threshold ?? undefined
+        threshold: values.threshold ?? undefined,
+        rerankModel: values.rerankModel
+          ? providers.flatMap((p) => p.models).find((m) => getModelUniqId(m) === values.rerankModel)
+          : undefined,
+        topN: values.topN
       }
       updateKnowledgeBase(newBase)
       setOpen(false)
@@ -114,6 +134,20 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           tooltip={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
           rules={[{ required: true, message: t('message.error.enter.model') }]}>
           <Select style={{ width: '100%' }} options={selectOptions} placeholder={t('settings.models.empty')} disabled />
+        </Form.Item>
+
+        <Form.Item
+          name="rerankModel"
+          label={t('models.rerank_model')}
+          initialValue={getModelUniqId(base.rerankModel)}
+          tooltip={{ title: t('models.rerank_model_tooltip'), placement: 'right' }}
+          rules={[{ required: false, message: t('message.error.enter.model') }]}>
+          <Select
+            style={{ width: '100%' }}
+            options={rerankSelectOptions}
+            placeholder={t('settings.models.empty')}
+            allowClear
+          />
         </Form.Item>
 
         <Form.Item
@@ -192,6 +226,22 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             }
           ]}>
           <InputNumber placeholder={t('knowledge.threshold_placeholder')} step={0.1} style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item
+          name="topN"
+          label={t('knowledge.topN')}
+          initialValue={base.topN}
+          rules={[
+            {
+              validator(_, value) {
+                if (value && (value < 0 || value > 10)) {
+                  return Promise.reject(new Error(t('knowledge.topN_too_large_or_small')))
+                }
+                return Promise.resolve()
+              }
+            }
+          ]}>
+          <InputNumber placeholder={t('knowledge.topN_placeholder')} style={{ width: '100%' }} />
         </Form.Item>
       </Form>
       <Alert message={t('knowledge.chunk_size_change_warning')} type="warning" showIcon icon={<WarningOutlined />} />

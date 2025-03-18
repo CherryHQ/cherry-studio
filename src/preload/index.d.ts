@@ -90,6 +90,15 @@ declare global {
           base: KnowledgeBaseParams
         }) => Promise<void>
         search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) => Promise<ExtractChunkData[]>
+        rerank: ({
+          search,
+          base,
+          results
+        }: {
+          search: string
+          base: KnowledgeBaseParams
+          results: ExtractChunkData[]
+        }) => Promise<ExtractChunkData[]>
       }
       window: {
         setMinimumSize: (width: number, height: number) => Promise<void>
