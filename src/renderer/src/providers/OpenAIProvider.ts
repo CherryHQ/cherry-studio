@@ -33,7 +33,7 @@ import {
   openAIToolsToMcpTool,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
-import { isString, takeRight } from 'lodash'
+import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionAssistantMessageParam,
@@ -357,7 +357,6 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     const userMessages: ChatCompletionMessageParam[] = []
-
     const _messages = filterUserRoleStartMessages(
       filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
     )
@@ -414,7 +413,7 @@ export default class OpenAIProvider extends BaseProvider {
     let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
 
     mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
@@ -425,7 +424,6 @@ export default class OpenAIProvider extends BaseProvider {
     ) as ChatCompletionMessageParam[]
 
     const toolResponses: MCPToolResponse[] = []
-
     const processStream = async (stream: any, idx: number) => {
       if (!isSupportStreamOutput()) {
         const time_completion_millsec = new Date().getTime() - start_time_millsec
@@ -515,15 +513,46 @@ export default class OpenAIProvider extends BaseProvider {
             upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking', id: toolCall.id }, onChunk)
 
             const toolCallResponse = await callMCPTool(mcpTool)
+            const toolResponsContent: { type: string; text?: string; image_url?: { url: string } }[] = []
+            for (const content of toolCallResponse.content) {
+              if (content.type === 'text') {
+                toolResponsContent.push({
+                  type: 'text',
+                  text: content.text
+                })
+              } else if (content.type === 'image') {
+                toolResponsContent.push({
+                  type: 'image_url',
+                  image_url: { url: `data:${content.mimeType};base64,${content.data}` }
+                })
+              } else {
+                console.warn('Unsupported content type:', content.type)
+                toolResponsContent.push({
+                  type: 'text',
+                  text: 'unsupported content type: ' + content.type
+                })
+              }
+            }
 
-            reqMessages.push({
-              role: 'tool',
-              content: isString(toolCallResponse.content)
-                ? toolCallResponse.content
-                : JSON.stringify(toolCallResponse.content),
-              tool_call_id: toolCall.id
-            } as ChatCompletionToolMessageParam)
+            const provider = lastUserMessage?.model?.provider
+            const modelName = lastUserMessage?.model?.name
 
+            if (
+              modelName?.toLocaleLowerCase().includes('gpt') ||
+              (provider === 'dashscope' && modelName?.toLocaleLowerCase().includes('qwen'))
+            ) {
+              reqMessages.push({
+                role: 'tool',
+                content: toolResponsContent,
+                tool_call_id: toolCall.id
+              } as ChatCompletionToolMessageParam)
+            } else {
+              reqMessages.push({
+                role: 'tool',
+                content: JSON.stringify(toolResponsContent),
+                tool_call_id: toolCall.id
+              } as ChatCompletionToolMessageParam)
+            }
             upsertMCPToolResponse(
               toolResponses,
               { tool: mcpTool, status: 'done', response: toolCallResponse, id: toolCall.id },
@@ -593,6 +622,10 @@ export default class OpenAIProvider extends BaseProvider {
       )
 
     await processStream(stream, 0).finally(cleanup)
+    // 捕获signal的错误
+    await signalPromise?.promise?.catch((error) => {
+      throw error
+    })
   }
 
   /**

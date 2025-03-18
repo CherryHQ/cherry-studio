@@ -160,24 +160,45 @@ export default abstract class BaseProvider {
     )
   }
 
-  protected createAbortController(messageId?: string) {
+  protected createAbortController(messageId?: string, isAddEventListener?: boolean) {
     const abortController = new AbortController()
+    const abortFn = () => abortController.abort()
 
     if (messageId) {
-      addAbortController(messageId, () => abortController.abort())
+      addAbortController(messageId, abortFn)
     }
 
     const cleanup = () => {
       if (messageId) {
-        removeAbortController(messageId)
+        signalPromise.resolve?.(undefined)
+        removeAbortController(messageId, abortFn)
       }
     }
+    const signalPromise: {
+      resolve: (value: unknown) => void
+      promise: Promise<unknown>
+    } = {
+      resolve: () => {},
+      promise: Promise.resolve()
+    }
 
-    abortController.signal.addEventListener('abort', () => {
-      // 兼容
-      cleanup()
-    })
-
+    if (isAddEventListener) {
+      signalPromise.promise = new Promise((resolve, reject) => {
+        signalPromise.resolve = resolve
+        if (abortController.signal.aborted) {
+          reject(new Error('Request was aborted.'))
+        }
+        // 捕获abort事件,有些abort事件必须
+        abortController.signal.addEventListener('abort', () => {
+          reject(new Error('Request was aborted.'))
+        })
+      })
+      return {
+        abortController,
+        cleanup,
+        signalPromise
+      }
+    }
     return {
       abortController,
       cleanup

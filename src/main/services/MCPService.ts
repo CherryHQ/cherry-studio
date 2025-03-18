@@ -1,4 +1,5 @@
 import { isLinux, isMac, isWin } from '@main/constant'
+import { getBinaryPath } from '@main/utils/process'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
@@ -32,6 +33,7 @@ export default class MCPService extends EventEmitter {
   constructor() {
     super()
     this.createServerLoadingPromise()
+    this.init().catch((err) => this.logError('Failed to initialize MCP service', err))
   }
 
   /**
@@ -59,7 +61,7 @@ export default class MCPService extends EventEmitter {
 
     // Initialize if not already initialized
     if (!this.initialized) {
-      this.init().catch(this.logError('Failed to initialize MCP service'))
+      this.init().catch((err) => this.logError('Failed to initialize MCP service', err))
     }
   }
 
@@ -75,10 +77,10 @@ export default class MCPService extends EventEmitter {
 
     this.initPromise = (async () => {
       try {
+        log.info('[MCP] Starting initialization')
+
         // Wait for servers to be loaded from Redux
         await this.waitForServers()
-
-        log.info('[MCP] Starting initialization')
 
         // Load SDK components in parallel for better performance
         const [Client, StdioTransport, SSETransport] = await Promise.all([
@@ -96,7 +98,7 @@ export default class MCPService extends EventEmitter {
 
         // Load active servers
         await this.loadActiveServers()
-        log.info('[MCP] Initialization completed successfully')
+        log.info('[MCP] Initialization successfully')
 
         return
       } catch (err) {
@@ -125,8 +127,8 @@ export default class MCPService extends EventEmitter {
   /**
    * Helper to create consistent error logging functions
    */
-  private logError(message: string) {
-    return (err: Error) => log.error(`[MCP] ${message}:`, err)
+  private logError(message: string, err?: any): void {
+    log.error(`[MCP] ${message}`, err)
   }
 
   /**
@@ -137,7 +139,7 @@ export default class MCPService extends EventEmitter {
       const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
       return Client
     } catch (err) {
-      log.error('[MCP] Failed to import Client:', err)
+      this.logError('Failed to import Client:', err)
       throw err
     }
   }
@@ -224,15 +226,31 @@ export default class MCPService extends EventEmitter {
       await this.deactivate(server.name)
     } else if (!wasActive && server.isActive) {
       await this.activate(server)
+    } else {
+      await this.restartServer(server)
     }
 
     // Update servers list
     const updatedServers = [...this.servers]
     updatedServers[index] = server
     this.servers = updatedServers
+
+    // Notify Redux
     this.notifyReduxServersChanged(updatedServers)
   }
 
+  public async restartServer(_server: MCPServer): Promise<void> {
+    await this.ensureInitialized()
+
+    const server = this.servers.find((s) => s.name === _server.name)
+
+    if (server) {
+      if (server.isActive) {
+        await this.deactivate(server.name)
+      }
+      await this.activate(server)
+    }
+  }
   /**
    * Delete an MCP server
    */
@@ -291,7 +309,8 @@ export default class MCPService extends EventEmitter {
   public async activate(server: MCPServer): Promise<void> {
     await this.ensureInitialized()
 
-    const { name, baseUrl, command, args, env } = server
+    const { name, baseUrl, command, env } = server
+    const args = [...(server.args || [])]
 
     // Skip if already running
     if (this.clients[name]) {
@@ -308,8 +327,28 @@ export default class MCPService extends EventEmitter {
       } else if (command) {
         let cmd: string = command
         if (command === 'npx') {
-          cmd = process.platform === 'win32' ? `${command}.cmd` : command
+          cmd = await getBinaryPath('bun')
+
+          if (cmd === 'bun') {
+            cmd = 'npx'
+          }
+
+          log.info(`[MCP] Using command: ${cmd}`)
+
+          // add -x to args if args exist
+          if (args && args.length > 0) {
+            if (!args.includes('-y')) {
+              args.unshift('-y')
+            }
+            if (cmd.includes('bun') && !args.includes('x')) {
+              args.unshift('x')
+            }
+          }
+        } else if (command === 'uvx') {
+          cmd = await getBinaryPath('uvx')
         }
+
+        log.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
 
         transport = new this.stdioTransport!({
           command: cmd,
@@ -333,11 +372,11 @@ export default class MCPService extends EventEmitter {
       this.clients[name] = client
       this.activeServers.set(name, { client, server })
 
-      log.info(`[MCP] Server ${name} started successfully`)
+      log.info(`[MCP] Activated server: ${server.name}`)
       this.emit('server-started', { name })
     } catch (error) {
       log.error(`[MCP] Error activating server ${name}:`, error)
-      server.isActive = false
+      this.setServerActive({ name, isActive: false })
       throw error
     }
   }
@@ -370,6 +409,7 @@ export default class MCPService extends EventEmitter {
    */
   public async listTools(serverName?: string): Promise<MCPTool[]> {
     await this.ensureInitialized()
+    log.info(`[MCP] Listing tools from ${serverName || 'all active servers'}`)
 
     try {
       // If server name provided, list tools for that server only
@@ -381,18 +421,19 @@ export default class MCPService extends EventEmitter {
       let allTools: MCPTool[] = []
 
       for (const clientName in this.clients) {
+        log.info(`[MCP] Listing tools from ${clientName}`)
         try {
           const tools = await this.listToolsFromServer(clientName)
           allTools = allTools.concat(tools)
         } catch (error) {
-          this.logError(`[MCP] Error listing tools for ${clientName}`)
+          this.logError(`Error listing tools for ${clientName}`, error)
         }
       }
 
       log.info(`[MCP] Total tools listed: ${allTools.length}`)
       return allTools
     } catch (error) {
-      this.logError('Error listing tools:')
+      this.logError('Error listing tools:', error)
       return []
     }
   }
@@ -401,11 +442,13 @@ export default class MCPService extends EventEmitter {
    * Helper method to list tools from a specific server
    */
   private async listToolsFromServer(serverName: string): Promise<MCPTool[]> {
+    log.info(`[MCP] start list tools from ${serverName}:`)
     if (!this.clients[serverName]) {
       throw new Error(`MCP Client ${serverName} not found`)
     }
-
     const { tools } = await this.clients[serverName].listTools()
+
+    log.info(`[MCP] Tools from ${serverName}:`, tools)
     return tools.map((tool: any) => ({
       ...tool,
       serverName,
@@ -476,22 +519,21 @@ export default class MCPService extends EventEmitter {
       return
     }
 
-    log.info(`[MCP] Loading ${activeServers.length} active servers`)
+    log.info(`[MCP] Start loading ${activeServers.length} active servers`)
 
     // Activate servers in parallel for better performance
     await Promise.allSettled(
       activeServers.map(async (server) => {
         try {
           await this.activate(server)
-          log.info(`[MCP] Successfully activated server: ${server.name}`)
         } catch (error) {
-          this.logError(`Failed to activate server ${server.name}`)
+          this.logError(`Failed to activate server ${server.name}`, error)
           this.emit('server-error', { name: server.name, error })
         }
       })
     )
 
-    log.info(`[MCP] Loaded and activated ${Object.keys(this.clients).length} servers`)
+    log.info(`[MCP] End loading ${Object.keys(this.clients).length} active servers`)
   }
 
   /**
