@@ -974,7 +974,8 @@
         "search_placeholder": "搜索模型 ID 或名称",
         "title": "模型服务",
         "enter_new_api_key": "输入新的API密钥",
-        "key_already_exists": "API密钥已存在"
+        "key_already_exists": "API密钥已存在",
+        "check_tooltip.latency": "耗时"
       },
       "proxy": {
         "mode": {

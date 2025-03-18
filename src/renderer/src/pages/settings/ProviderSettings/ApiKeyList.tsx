@@ -13,7 +13,7 @@ import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { Button, Card, Flex, Input, List, message, Space, Typography } from 'antd'
+import { Button, Card, Flex, Input, List, message, Space, Tooltip, Typography } from 'antd'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -31,6 +31,15 @@ interface KeyStatus {
   key: string
   isValid?: boolean
   checking?: boolean
+  error?: string
+  model?: Model
+  latency?: number
+}
+
+const STATUS_COLORS = {
+  success: '#52c41a',
+  error: '#ff4d4f',
+  warning: '#faad14'
 }
 
 const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' }) => {
@@ -113,27 +122,29 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     setKeyStatuses((prev) => prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: true } : status)))
 
     try {
-      const { valid, error } = await (async () => {
-        if (type === 'provider') {
-          const model =
-            selectedModel ||
-            (await SelectProviderModelPopup.show({
-              provider: provider as Provider
-            }))
-          if (!model) {
-            const errorMessage = t('message.error.enter.model')
-            window.message.error({ content: errorMessage, key: 'api-check' })
-            throw new Error(errorMessage)
-          }
-          return checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
-        } else {
-          return WebSearchService.checkSearch({
-            ...(provider as WebSearchProvider),
-            apiKey: keyStatuses[keyIndex].key
-          })
+      const startTime = Date.now()
+      let result: { valid: boolean; error?: any }
+      let model: Model | undefined
+      if (type === 'provider') {
+        model =
+          selectedModel ||
+          (await SelectProviderModelPopup.show({
+            provider: provider as Provider
+          }))
+        if (!model) {
+          const errorMessage = t('message.error.enter.model')
+          window.message.error({ content: errorMessage, key: 'api-check' })
+          throw new Error(errorMessage)
         }
-      })()
+        result = await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
+      } else {
+        result = await WebSearchService.checkSearch({
+          ...(provider as WebSearchProvider),
+          apiKey: keyStatuses[keyIndex].key
+        })
+      }
 
+      const { valid, error } = result
       const errorMessage = error?.message ? ' ' + error.message : ''
       window.message[valid ? 'success' : 'error']({
         key: 'api-check',
@@ -142,12 +153,34 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
         content: valid ? t('settings.websearch.check_success') : t('settings.websearch.check_failed') + errorMessage
       })
 
+      const latency = Date.now() - startTime
+
       setKeyStatuses((prev) =>
-        prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false, isValid: valid } : status))
+        prev.map((status, idx) =>
+          idx === keyIndex
+            ? {
+                ...status,
+                checking: false,
+                isValid: valid,
+                error: error?.message,
+                model: selectedModel || model,
+                latency
+              }
+            : status
+        )
       )
     } catch (error) {
       setKeyStatuses((prev) =>
-        prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false, isValid: false } : status))
+        prev.map((status, idx) =>
+          idx === keyIndex
+            ? {
+                ...status,
+                checking: false,
+                isValid: false,
+                error: error instanceof Error ? error.message : String(error)
+              }
+            : status
+        )
       )
     } finally {
       setIsCheckingSingle(false)
@@ -187,6 +220,33 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     onChange(updatedKeyStatuses.map((status) => status.key).join(','))
   }
 
+  const renderKeyCheckResultTooltip = (status: KeyStatus) => {
+    if (status.checking) {
+      return t('settings.models.check.checking')
+    }
+
+    const statusTitle = status.isValid
+      ? t('settings.models.check.passed')
+      : `${t('settings.models.check.failed')}${status.error ? ` (${status.error})` : ''}`
+    const statusColor = status.isValid ? STATUS_COLORS.success : STATUS_COLORS.error
+
+    return (
+      <div>
+        <strong style={{ color: statusColor }}>{statusTitle}</strong>
+        {type === 'provider' && status.model && (
+          <div style={{ marginTop: 5 }}>
+            {t('common.model')}: {status.model.name}
+          </div>
+        )}
+        {status.latency && status.isValid && (
+          <div style={{ marginTop: 5 }}>
+            {t('settings.provider.check_tooltip.latency')}: {(status.latency / 1000).toFixed(2)}s
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
       <Card size="small" type="inner" style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}>
@@ -206,21 +266,23 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                           <Typography.Text copyable={{ text: status.key }}>{maskApiKey(status.key)}</Typography.Text>
                         </ApiKeyContainer>
                         <ApiKeyActions>
-                          {status.checking && (
-                            <StatusIndicator type="checking">
-                              <LoadingOutlined style={{ fontSize: 16 }} spin />
-                            </StatusIndicator>
-                          )}
-                          {status.isValid === true && !status.checking && (
-                            <StatusIndicator type="success">
-                              <CheckCircleFilled />
-                            </StatusIndicator>
-                          )}
-                          {status.isValid === false && !status.checking && (
-                            <StatusIndicator type="error">
-                              <CloseCircleFilled />
-                            </StatusIndicator>
-                          )}
+                          <Tooltip title={renderKeyCheckResultTooltip(status)}>
+                            {status.checking && (
+                              <StatusIndicator type="checking">
+                                <LoadingOutlined style={{ fontSize: 16 }} spin />
+                              </StatusIndicator>
+                            )}
+                            {status.isValid === true && !status.checking && (
+                              <StatusIndicator type="success">
+                                <CheckCircleFilled />
+                              </StatusIndicator>
+                            )}
+                            {status.isValid === false && !status.checking && (
+                              <StatusIndicator type="error">
+                                <CloseCircleFilled />
+                              </StatusIndicator>
+                            )}
+                          </Tooltip>
                           <CheckButton
                             onClick={() => checkSingleKey(index)}
                             style={{

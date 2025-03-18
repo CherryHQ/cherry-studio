@@ -974,7 +974,8 @@
         "search_placeholder": "モデルIDまたは名前を検索",
         "title": "モデルプロバイダー",
         "enter_new_api_key": "新しいAPIキーを入力",
-        "key_already_exists": "APIキーはすでに存在します"
+        "key_already_exists": "APIキーはすでに存在します",
+        "check_tooltip.latency": "遅延"
       },
       "proxy": {
         "mode": {

@@ -974,7 +974,8 @@
         "search_placeholder": "Search model id or name",
         "title": "Model Provider",
         "enter_new_api_key": "Enter new API key",
-        "key_already_exists": "API key already exists"
+        "key_already_exists": "API key already exists",
+        "check_tooltip.latency": "Latency"
       },
       "proxy": {
         "mode": {
