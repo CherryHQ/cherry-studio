@@ -12,6 +12,7 @@ import {
   TranslationOutlined
 } from '@ant-design/icons'
 import { UploadOutlined } from '@ant-design/icons'
+import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
@@ -30,7 +31,6 @@ import {
 } from '@renderer/utils/export'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { isEmpty } from 'lodash'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -55,7 +55,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const assistantModel = assistant?.model
   const {
-    messages,
     loading,
     editMessage,
     setStreamMessage,
@@ -86,22 +85,11 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
-      // messageUpdate 为了处理用户消息更改后的message
-      if (loading) return
-      const groupdMessages = messages.filter((m) => m.askId === message.id)
-
-      // Resend all grouped messages
-      if (!isEmpty(groupdMessages)) {
-        for (const assistantMessage of groupdMessages) {
-          const _model = assistantMessage.model || assistantModel
-          await resendMessage({ ...assistantMessage, model: _model }, assistant)
-        }
-        return
+      if (!loading) {
+        await resendMessage(messageUpdate ?? message, assistant)
       }
-
-      await resendMessage(messageUpdate ?? message, assistant)
     },
-    [message, assistantModel, resendMessage, assistant, messages, loading]
+    [assistant, loading, message, resendMessage]
   )
 
   const onEdit = useCallback(async () => {
@@ -123,10 +111,10 @@ const MessageMenubar: FC<Props> = (props) => {
         ) : null
       }
     })
-    if (editedText && editedText !== message.content && resendMessage) {
-      // 同步修改store中用户消息
+
+    if (editedText && editedText !== message.content) {
       await editMessage(message.id, { content: editedText })
-      handleResendUserMessage({ ...message, content: editedText })
+      resendMessage && handleResendUserMessage({ ...message, content: editedText })
     }
   }, [message, editMessage, handleResendUserMessage, t])
 
@@ -224,6 +212,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const title = getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToYuque(title, markdown)
+            }
+          },
+          {
+            label: t('chat.topics.export.obsidian'),
+            key: 'obsidian',
+            onClick: async () => {
+              const markdown = messageToMarkdown(message)
+              const title = getMessageTitle(message)
+              await ObsidianExportPopup.show({ title, markdown })
             }
           }
         ]
@@ -334,19 +331,17 @@ const MessageMenubar: FC<Props> = (props) => {
           </ActionButton>
         </Tooltip>
       )}
-      {!isGrouped && (
-        <Popconfirm
-          title={t('message.message.delete.content')}
-          okButtonProps={{ danger: true }}
-          icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-          onConfirm={() => deleteMessage(message)}>
-          <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-            <Tooltip title={t('common.delete')} mouseEnterDelay={1}>
-              <DeleteOutlined />
-            </Tooltip>
-          </ActionButton>
-        </Popconfirm>
-      )}
+      <Popconfirm
+        title={t('message.message.delete.content')}
+        okButtonProps={{ danger: true }}
+        icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+        onConfirm={() => deleteMessage(message)}>
+        <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
+          <Tooltip title={t('common.delete')} mouseEnterDelay={1}>
+            <DeleteOutlined />
+          </Tooltip>
+        </ActionButton>
+      </Popconfirm>
       {!isUserMessage && (
         <Dropdown
           menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}

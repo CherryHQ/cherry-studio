@@ -55,6 +55,9 @@ const ListItemContent = styled.div`
 `
 
 const IconWrapper = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-right: 8px;
 `
 
