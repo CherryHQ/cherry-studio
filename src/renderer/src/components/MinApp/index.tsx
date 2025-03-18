@@ -64,7 +64,9 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
     const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
     updatePinnedMinapps(newPinned)
   }
+
   const isInDevelopment = process.env.NODE_ENV === 'development'
+
   const Title = () => {
     return (
       <TitleContainer style={{ justifyContent: 'space-between' }}>
@@ -176,6 +178,7 @@ const TitleContainer = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
+  background-color: transparent;
 `
 
 const TitleText = styled.div`

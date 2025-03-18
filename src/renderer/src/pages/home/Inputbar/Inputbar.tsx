@@ -1,6 +1,7 @@
 import {
   ClearOutlined,
   ColumnHeightOutlined,
+  FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
   GlobalOutlined,
@@ -123,6 +124,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
+  const newTopicShortcut = useShortcutDisplay('new_topic')
   const cleanTopicShortcut = useShortcutDisplay('clear_topic')
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
@@ -707,6 +709,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           </DragHandle>
           <Toolbar>
             <ToolbarMenu>
+              <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
+                <ToolbarButton type="text" onClick={addNewTopic}>
+                  <FormOutlined />
+                </ToolbarButton>
+              </Tooltip>
               <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
               <MentionModelsButton
                 mentionModels={mentionModels}

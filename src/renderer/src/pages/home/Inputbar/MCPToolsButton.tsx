@@ -2,7 +2,6 @@ import { CodeOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { Dropdown, Switch, Tooltip } from 'antd'
-import { every } from 'lodash'
 import { FC, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -28,11 +27,31 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton
   // Check if all active servers are enabled
   const activeServers = mcpServers.filter((s) => s.isActive)
 
-  const enableAll = every(activeServers, (server) =>
+  const anyEnable = activeServers.some((server) =>
     enabledMCPs.some((enabledServer) => enabledServer.name === server.name)
   )
 
-  const setEnableAll = () => activeServers.forEach((s) => toggelEnableMCP(s))
+  const enableAll = () =>
+    mcpServers.forEach((s) => {
+      toggelEnableMCP(s)
+    })
+
+  const disableAll = () =>
+    mcpServers.forEach((s) => {
+      enabledMCPs.forEach((enabledServer) => {
+        if (enabledServer.name === s.name) {
+          toggelEnableMCP(s)
+        }
+      })
+    })
+
+  const toggelAll = () => {
+    if (anyEnable) {
+      disableAll()
+    } else {
+      enableAll()
+    }
+  }
 
   const menu = (
     <div ref={menuRef} className="ant-dropdown-menu">
@@ -41,7 +60,7 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton
           <h4>{t('settings.mcp.title')}</h4>
           <div className="enable-all-container">
             {/* <span className="enable-all-label">{t('mcp.enable_all')}</span> */}
-            <Switch size="small" checked={enableAll} onChange={setEnableAll} />
+            <Switch size="small" checked={anyEnable} onChange={toggelAll} />
           </div>
         </div>
       </DropdownHeader>
