@@ -26,8 +26,7 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
       `https://${hostname}/favicon.ico`,
       `https://icon.horse/icon/${hostname}`,
       `https://favicon.cccyun.cc/${hostname}`,
-      `https://favicon.im/${hostname}`,
-      `https://www.google.com/s2/favicons?domain=${hostname}`
+      `https://favicon.im/${hostname}`
     ]
 
     // Main controller to abort all requests when needed

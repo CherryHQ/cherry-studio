@@ -2,9 +2,11 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
   isOpenAIoSeries,
+  isOpenAIWebSearch,
   isReasoningModel,
   isSupportedModel,
-  isVisionModel
+  isVisionModel,
+  isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -176,7 +178,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The temperature
    */
   private getTemperature(assistant: Assistant, model: Model) {
-    return isReasoningModel(model) ? undefined : assistant?.settings?.temperature
+    return isReasoningModel(model) || isOpenAIWebSearch(model) ? undefined : assistant?.settings?.temperature
   }
 
   /**
@@ -213,7 +215,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The top P
    */
   private getTopP(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model)) return undefined
+    if (isReasoningModel(model) || isOpenAIWebSearch(model)) return undefined
 
     return assistant?.settings?.topP
   }
@@ -367,12 +369,9 @@ export default class OpenAIProvider extends BaseProvider {
       userMessages.push(await this.getMessageParam(message, model))
     }
 
-    const isOpenAIReasoning = this.isOpenAIReasoning(model)
+    // const isOpenAIReasoning = this.isOpenAIReasoning(model)
 
     const isSupportStreamOutput = () => {
-      if (isOpenAIReasoning) {
-        return false
-      }
       return streamOutput
     }
 
@@ -489,6 +488,11 @@ export default class OpenAIProvider extends BaseProvider {
           }
         }
 
+        let webSearch: any[] | undefined = undefined
+        if (assistant.enableWebSearch && isZhipuModel(model) && finishReason === 'stop') {
+          webSearch = chunk?.web_search
+        }
+
         if (finishReason === 'tool_calls') {
           const toolCalls = Object.values(final_tool_calls).map(this.cleanToolCallArgs)
           console.log('start invoke tools', toolCalls)
@@ -574,12 +578,14 @@ export default class OpenAIProvider extends BaseProvider {
           text: delta?.content || '',
           reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
           usage: chunk.usage,
+          webSearch,
           metrics: {
             completion_tokens: chunk.usage?.completion_tokens,
             time_completion_millsec,
             time_first_token_millsec,
             time_thinking_millsec
           },
+          annotations: delta?.annotations,
           citations,
           mcpToolResponse: toolResponses
         })

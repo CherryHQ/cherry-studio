@@ -1,6 +1,5 @@
-import { InfoCircleOutlined, SearchOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
-import Favicon from '@renderer/components/Icons/FallbackFavicon'
-import { HStack } from '@renderer/components/Layout'
+import { SearchOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import { isOpenAIWebSearch } from '@renderer/config/models'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
@@ -14,9 +13,9 @@ import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import Markdown from '../Markdown/Markdown'
+import CitationsList from './CitationsList'
 import MessageAttachments from './MessageAttachments'
 import MessageError from './MessageError'
-import MessageSearchResults from './MessageSearchResults'
 import MessageThought from './MessageThought'
 import MessageTools from './MessageTools'
 
@@ -28,6 +27,7 @@ interface Props {
 const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const { t } = useTranslation()
   const message = withMessageThought(clone(_message))
+  const isWebCitation = model && (isOpenAIWebSearch(model) || model.provider === 'openrouter')
 
   // Process content to make citation numbers clickable
   const processedContent = useMemo(() => {
@@ -57,9 +57,15 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
 
   // Format citations for display
   const formattedCitations = useMemo(() => {
-    if (!message.metadata?.citations?.length) return null
+    if (!message.metadata?.citations?.length && !message.metadata?.annotations?.length) return null
 
-    return message.metadata.citations.map((url, index) => {
+    if (model && isOpenAIWebSearch(model)) {
+      return message.metadata.annotations?.map((url, index) => {
+        return { number: index + 1, url: url.url_citation?.url, hostname: url.url_citation.title }
+      })
+    }
+
+    return message.metadata?.citations?.map((url, index) => {
       try {
         const hostname = new URL(url).hostname
         return { number: index + 1, url, hostname }
@@ -67,7 +73,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
         return { number: index + 1, url, hostname: url }
       }
     })
-  }, [message.metadata?.citations])
+  }, [message.metadata?.citations, message.metadata?.annotations, model])
 
   if (message.status === 'sending') {
     return (
@@ -116,36 +122,54 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           )}
         </Fragment>
       )}
-      <MessageSearchResults message={message} />
+      {message?.metadata?.groundingMetadata && message.status == 'success' && (
+        <>
+          <CitationsList
+            citations={message.metadata.groundingMetadata.groundingChunks.map((chunk, index) => ({
+              number: index + 1,
+              url: chunk.web?.uri,
+              title: chunk.web?.title,
+              showFavicon: false
+            }))}
+          />
+          <SearchEntryPoint
+            dangerouslySetInnerHTML={{
+              __html: message.metadata.groundingMetadata.searchEntryPoint?.renderedContent
+                ?.replace(/@media \(prefers-color-scheme: light\)/g, 'body[theme-mode="light"]')
+                .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]')
+            }}
+          />
+        </>
+      )}
       {formattedCitations && (
-        <CitationsContainer>
-          <CitationsTitle>
-            {t('message.citations')}
-            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-          </CitationsTitle>
-          {formattedCitations.map(({ number, url, hostname }) => (
-            <CitationLink key={number} href={url} target="_blank" rel="noopener noreferrer">
-              {number}. <span className="hostname">{hostname}</span>
-            </CitationLink>
-          ))}
-        </CitationsContainer>
+        <CitationsList
+          citations={formattedCitations.map((citation) => ({
+            number: citation.number,
+            url: citation.url,
+            hostname: citation.hostname,
+            showFavicon: isWebCitation
+          }))}
+        />
       )}
       {message?.metadata?.webSearch && message.status === 'success' && (
-        <CitationsContainer className="footnotes">
-          <CitationsTitle>
-            {t('message.citations')}
-            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-          </CitationsTitle>
-          {message.metadata.webSearch.results.map((result, index) => (
-            <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
-              <Favicon hostname={new URL(result.url).hostname} alt={result.title} />
-              <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
-                {result.title}
-              </CitationLink>
-            </HStack>
-          ))}
-        </CitationsContainer>
+        <CitationsList
+          citations={message.metadata.webSearch.results.map((result, index) => ({
+            number: index + 1,
+            url: result.url,
+            title: result.title,
+            showFavicon: true
+          }))}
+        />
+      )}
+      {message?.metadata?.webSearchZhipu && message.status === 'success' && (
+        <CitationsList
+          citations={message.metadata.webSearchZhipu.map((result, index) => ({
+            number: index + 1,
+            url: result.link,
+            title: result.title,
+            showFavicon: true
+          }))}
+        />
       )}
       <MessageAttachments message={message} />
     </Fragment>
@@ -176,46 +200,15 @@ const MentionTag = styled.span`
   color: var(--color-link);
 `
 
-const CitationsContainer = styled.div`
-  background-color: rgb(242, 247, 253);
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin: 12px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
-  body[theme-mode='dark'] & {
-    background-color: rgba(255, 255, 255, 0.05);
-  }
-`
-
-const CitationsTitle = styled.div`
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--color-text-1);
-`
-
-const CitationLink = styled.a`
-  font-size: 14px;
-  line-height: 1.6;
-  text-decoration: none;
-  color: var(--color-text-1);
-
-  .hostname {
-    color: var(--color-link);
-  }
-
-  &:hover {
-    text-decoration: underline;
-  }
-`
-
 const SearchingText = styled.div`
   font-size: 14px;
   line-height: 1.6;
   text-decoration: none;
   color: var(--color-text-1);
+`
+
+const SearchEntryPoint = styled.div`
+  margin: 10px 2px;
 `
 
 export default React.memo(MessageContent)

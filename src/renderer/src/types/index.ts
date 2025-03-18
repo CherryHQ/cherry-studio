@@ -71,8 +71,12 @@ export type Message = {
   metadata?: {
     // Gemini
     groundingMetadata?: any
-    // Perplexity
+    // Perplexity Or Openrouter
     citations?: string[]
+    // OpenAI
+    annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
+    // Zhipu
+    webSearchZhipu?: any[]
     // Web search
     webSearch?: WebSearchResponse
     // MCP Tools

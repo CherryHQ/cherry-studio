@@ -74,6 +74,7 @@ export class ProxyManager {
     try {
       await this.setSessionsProxy({ mode: 'system' })
       const url = await this.resolveSystemProxy()
+      console.log('url', url)
       if (url && url !== this.proxyUrl) {
         this.proxyUrl = url.toLowerCase()
         this.proxyAgent = new HttpsProxyAgent(this.proxyUrl)

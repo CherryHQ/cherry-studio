@@ -1,9 +1,10 @@
-import { getOpenAIWebSearchParams } from '@renderer/config/models'
+import { getOpenAIWebSearchParams, isOpenAIWebSearch, isZhipuModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
+import { convertLinks, extractUrlsFromMarkdown } from '@renderer/utils/linkConverter'
 import { cloneDeep, findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -42,7 +43,7 @@ export async function fetchChatCompletion({
     if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
       const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
 
-      if (isEmpty(webSearchParams)) {
+      if (isEmpty(webSearchParams) && !isOpenAIWebSearch(assistant.model)) {
         const lastMessage = findLast(messages, (m) => m.role === 'user')
         const hasKnowledgeBase = !isEmpty(lastMessage?.knowledgeBaseIds)
         if (lastMessage) {
@@ -68,7 +69,32 @@ export async function fetchChatCompletion({
       messages: filterUsefulMessages(messages),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse }) => {
+      onChunk: ({
+        text,
+        reasoning_content,
+        usage,
+        metrics,
+        webSearch,
+        search,
+        annotations,
+        citations,
+        mcpToolResponse
+      }) => {
+        if (assistant.model) {
+          let convertForZhipu = false
+          if (
+            isOpenAIWebSearch(assistant.model) ||
+            (assistant.model.provider === 'openrouter' && assistant.enableWebSearch)
+          ) {
+            convertForZhipu = false
+          } else if (isZhipuModel(assistant.model)) {
+            convertForZhipu = true
+          }
+          text = convertLinks(text || '', isFirstChunk, convertForZhipu)
+        }
+        if (isFirstChunk) {
+          isFirstChunk = false
+        }
         message.content = message.content + text || ''
         message.usage = usage
         message.metrics = metrics
@@ -77,21 +103,48 @@ export async function fetchChatCompletion({
           message.reasoning_content = (message.reasoning_content || '') + reasoning_content
         }
 
-        if (search) {
-          message.metadata = { ...message.metadata, groundingMetadata: search }
-        }
-
         if (mcpToolResponse) {
           message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
         }
 
         // Handle citations from Perplexity API
-        if (isFirstChunk && citations) {
+        if (citations) {
           message.metadata = {
             ...message.metadata,
             citations
           }
-          isFirstChunk = false
+        }
+
+        // Handle web search from Gemini
+        if (search) {
+          message.metadata = { ...message.metadata, groundingMetadata: search }
+        }
+
+        // Handle annotations from OpenAI
+        if (annotations) {
+          message.metadata = {
+            ...message.metadata,
+            annotations: annotations
+          }
+        }
+
+        // Handle web search from Zhipu
+        if (webSearch) {
+          message.metadata = {
+            ...message.metadata,
+            webSearchZhipu: webSearch
+          }
+        }
+
+        // Handle citations from Openrouter
+        if (assistant.model?.provider === 'openrouter' && assistant.enableWebSearch) {
+          const extractedUrls = extractUrlsFromMarkdown(message.content)
+          if (extractedUrls.length > 0) {
+            message.metadata = {
+              ...message.metadata,
+              citations: extractedUrls
+            }
+          }
         }
 
         onResponse({ ...message, status: 'pending' })

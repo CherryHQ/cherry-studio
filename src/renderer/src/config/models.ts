@@ -1895,6 +1895,10 @@ export function isOpenAIoSeries(model: Model): boolean {
   return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
 }
 
+export function isOpenAIWebSearch(model: Model): boolean {
+  return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -1937,7 +1941,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider?.type === 'openai') {
-    if (model?.id?.includes('gemini-2.0-flash-exp')) {
+    if (model?.id?.includes('gemini-2.0-flash-exp') || isOpenAIWebSearch(model)) {
       return true
     }
   }
@@ -2003,6 +2007,10 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
         }
       }
 
+      if (isOpenAIWebSearch(model)) {
+        return {}
+      }
+
       return {
         tools: webSearchTools
       }
@@ -2022,4 +2030,12 @@ export function isGemmaModel(model?: Model): boolean {
   }
 
   return model.id.includes('gemma-') || model.group === 'Gemma'
+}
+
+export function isZhipuModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return model.provider === 'zhipu'
 }
