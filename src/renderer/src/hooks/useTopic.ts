@@ -73,6 +73,10 @@ export const autoRenameTopic = async (
     return
   }
 
+  if (topic.isNameManuallyEdited) {
+    return
+  }
+
   if (!enableTopicNaming) {
     const topicName = topic.messages[0]?.content.substring(0, 50)
     if (topicName) {

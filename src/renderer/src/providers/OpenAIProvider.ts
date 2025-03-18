@@ -33,7 +33,7 @@ import {
   openAIToolsToMcpTool,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
-import { isString, takeRight } from 'lodash'
+import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionAssistantMessageParam,
@@ -513,15 +513,46 @@ export default class OpenAIProvider extends BaseProvider {
             upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking', id: toolCall.id }, onChunk)
 
             const toolCallResponse = await callMCPTool(mcpTool)
+            const toolResponsContent: { type: string; text?: string; image_url?: { url: string } }[] = []
+            for (const content of toolCallResponse.content) {
+              if (content.type === 'text') {
+                toolResponsContent.push({
+                  type: 'text',
+                  text: content.text
+                })
+              } else if (content.type === 'image') {
+                toolResponsContent.push({
+                  type: 'image_url',
+                  image_url: { url: `data:${content.mimeType};base64,${content.data}` }
+                })
+              } else {
+                console.warn('Unsupported content type:', content.type)
+                toolResponsContent.push({
+                  type: 'text',
+                  text: 'unsupported content type: ' + content.type
+                })
+              }
+            }
 
-            reqMessages.push({
-              role: 'tool',
-              content: isString(toolCallResponse.content)
-                ? toolCallResponse.content
-                : JSON.stringify(toolCallResponse.content),
-              tool_call_id: toolCall.id
-            } as ChatCompletionToolMessageParam)
+            const provider = lastUserMessage?.model?.provider
+            const modelName = lastUserMessage?.model?.name
 
+            if (
+              modelName?.toLocaleLowerCase().includes('gpt') ||
+              (provider === 'dashscope' && modelName?.toLocaleLowerCase().includes('qwen'))
+            ) {
+              reqMessages.push({
+                role: 'tool',
+                content: toolResponsContent,
+                tool_call_id: toolCall.id
+              } as ChatCompletionToolMessageParam)
+            } else {
+              reqMessages.push({
+                role: 'tool',
+                content: JSON.stringify(toolResponsContent),
+                tool_call_id: toolCall.id
+              } as ChatCompletionToolMessageParam)
+            }
             upsertMCPToolResponse(
               toolResponses,
               { tool: mcpTool, status: 'done', response: toolCallResponse, id: toolCall.id },
@@ -647,10 +678,6 @@ export default class OpenAIProvider extends BaseProvider {
 
     for await (const chunk of response) {
       const deltaContent = chunk.choices[0]?.delta?.content || ''
-
-      if (!deltaContent.trim()) {
-        continue
-      }
 
       if (isReasoning) {
         if (deltaContent.includes('<think>')) {

@@ -135,6 +135,10 @@ declare global {
         // status
         cleanup: () => Promise<void>
       }
+      isBinaryExist: (name: string) => Promise<boolean>
+      getBinaryPath: (name: string) => Promise<string>
+      installUVBinary: () => Promise<void>
+      installBunBinary: () => Promise<void>
     }
   }
 }

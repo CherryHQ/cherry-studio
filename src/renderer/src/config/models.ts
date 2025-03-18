@@ -186,6 +186,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4.5',
   'claude',
   'qwen',
+  'hunyuan',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
@@ -598,6 +599,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: '01-ai'
     }
   ],
+  alayanew: [],
   openai: [
     { id: 'gpt-4.5-preview', provider: 'openai', name: ' gpt-4.5-preview', group: 'gpt-4.5' },
     { id: 'gpt-4o', provider: 'openai', name: ' GPT-4o', group: 'GPT 4o' },

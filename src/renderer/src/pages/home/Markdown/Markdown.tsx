@@ -26,9 +26,17 @@ const ALLOWED_ELEMENTS =
 
 interface Props {
   message: Message
+  citationsData?: Map<
+    string,
+    {
+      url: string
+      title?: string
+      content?: string
+    }
+  >
 }
 
-const Markdown: FC<Props> = ({ message }) => {
+const Markdown: FC<Props> = ({ message, citationsData }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
 
@@ -48,7 +56,12 @@ const Markdown: FC<Props> = ({ message }) => {
 
   const components = useCallback(() => {
     const baseComponents = {
-      a: Link,
+      a: (props: any) => {
+        if (props.href && citationsData?.has(props.href)) {
+          return <Link {...props} citationData={citationsData.get(props.href)} />
+        }
+        return <Link {...props} />
+      },
       code: CodeBlock,
       img: ImagePreview
     } as Partial<Components>
@@ -58,7 +71,7 @@ const Markdown: FC<Props> = ({ message }) => {
     }
 
     return baseComponents
-  }, [messageContent])
+  }, [messageContent, citationsData])
 
   if (message.role === 'user' && !renderInputMessageAsMarkdown) {
     return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>

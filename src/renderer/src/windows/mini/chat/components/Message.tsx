@@ -3,10 +3,12 @@ import { useModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import MessageErrorBoundary from '@renderer/pages/home/Messages/MessageErrorBoundary'
+import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { Message } from '@renderer/types'
 import { isMiniWindow } from '@renderer/utils'
-import { Dispatch, FC, memo, SetStateAction, useMemo, useRef } from 'react'
+import { Dispatch, FC, memo, SetStateAction, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -21,7 +23,8 @@ interface Props {
 const getMessageBackground = (isBubbleStyle: boolean, isAssistantMessage: boolean) =>
   isBubbleStyle ? (isAssistantMessage ? 'transparent' : 'var(--chat-background-user)') : undefined
 
-const MessageItem: FC<Props> = ({ message, index, total, route }) => {
+const MessageItem: FC<Props> = ({ message: _message, index, total, route, onSetMessages, onGetMessages }) => {
+  const [message, setMessage] = useState(_message)
   const model = useModel(getMessageModelId(message))
   const isBubbleStyle = true
   const { messageFont, fontSize } = useSettings()
@@ -36,6 +39,32 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
   const messageBackground = getMessageBackground(true, isAssistantMessage)
 
   const maxWidth = isMiniWindow() ? '480px' : '100%'
+
+  useEffect(() => {
+    if (onGetMessages && onSetMessages) {
+      if (message.status === 'sending') {
+        const messages = onGetMessages()
+        fetchChatCompletion({
+          message,
+          messages: messages
+            .filter((m) => !m.status.includes('ing'))
+            .slice(
+              0,
+              messages.findIndex((m) => m.id === message.id)
+            ),
+          assistant: { ...getDefaultAssistant(), model: getDefaultModel() },
+          onResponse: (msg) => {
+            setMessage(msg)
+            if (msg.status !== 'pending') {
+              const _messages = messages.map((m) => (m.id === msg.id ? msg : m))
+              onSetMessages(_messages)
+            }
+          }
+        })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message.status])
 
   if (['summary', 'explanation'].includes(route) && index === total - 1) {
     return null
