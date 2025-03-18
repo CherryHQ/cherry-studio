@@ -534,24 +534,25 @@ export default class OpenAIProvider extends BaseProvider {
               }
             }
 
+            const provider = lastUserMessage?.model?.provider
+            const modelName = lastUserMessage?.model?.name
+
             if (
-              lastUserMessage?.model?.provider === 'doubao' ||
-              lastUserMessage?.model?.name.toLowerCase().includes('deepseek')
+              modelName?.toLocaleLowerCase().includes('gpt') ||
+              (provider === 'dashscope' && modelName?.toLocaleLowerCase().includes('qwen'))
             ) {
-              console.log('doubao or deepseek only support tool content in text')
-              reqMessages.push({
-                role: 'tool',
-                content: JSON.stringify(toolResponsContent),
-                tool_call_id: toolCall.id
-              } as ChatCompletionToolMessageParam)
-            } else {
               reqMessages.push({
                 role: 'tool',
                 content: toolResponsContent,
                 tool_call_id: toolCall.id
               } as ChatCompletionToolMessageParam)
+            } else {
+              reqMessages.push({
+                role: 'tool',
+                content: JSON.stringify(toolResponsContent),
+                tool_call_id: toolCall.id
+              } as ChatCompletionToolMessageParam)
             }
-
             upsertMCPToolResponse(
               toolResponses,
               { tool: mcpTool, status: 'done', response: toolCallResponse, id: toolCall.id },
