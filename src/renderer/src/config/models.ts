@@ -180,7 +180,7 @@ export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|
 // Rerank models
 export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
 
-export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
+export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 
 // Tool calling models
 export const FUNCTION_CALLING_MODELS = [
