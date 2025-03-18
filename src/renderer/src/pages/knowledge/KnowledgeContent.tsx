@@ -103,7 +103,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           created_at: new Date().toISOString()
         }))
         .filter(({ ext }) => fileTypes.includes(ext))
-      console.debug('[KnowledgeContent] Uploading files:', _files, files)
       const uploadedFiles = await FileManager.uploadFiles(_files)
       addFiles(uploadedFiles)
     }

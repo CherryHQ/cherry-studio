@@ -162,6 +162,15 @@
       "topics.export.title": "Экспорт",
       "topics.export.word": "Экспорт как Word",
       "topics.export.yuque": "Экспорт в Yuque",
+      "topics.export.obsidian": "Экспорт в Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian не настроен",
+      "topics.export.obsidian_fetch_failed": "Не удалось получить структуру файлов Obsidian",
+      "topics.export.obsidian_select_folder": "Выберите папку Obsidian",
+      "topics.export.obsidian_select_folder.btn": "Определить",
+      "topics.export.obsidian_export_success": "Экспорт успешно завершен",
+      "topics.export.obsidian_export_failed": "Экспорт не удалось",
+      "topics.export.obsidian_show_md_files": "Показать файлы MD",
+      "topics.export.obsidian_selected_path": "Выбранный путь",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
@@ -170,6 +179,7 @@
       "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
+      "topics.new": "Новый топик",
       "translate": "Перевести",
       "navigation": {
         "prev": "Предыдущее сообщение",
@@ -248,7 +258,8 @@
       "render": {
         "description": "Не удалось рендерить формулу. Пожалуйста, проверьте, правильно ли формат формулы",
         "title": "Ошибка рендеринга"
-      }
+      },
+      "user_message_not_found": "Не удалось найти исходное сообщение пользователя"
     },
     "export": {
       "assistant": "Ассистент",
@@ -388,7 +399,17 @@
       },
       "title": "Диаграмма Mermaid"
     },
+    "gpustack": {
+      "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
+      "keep_alive_time.placeholder": "Минуты",
+      "keep_alive_time.title": "Время жизни модели",
+      "title": "GPUStack"
+    },
     "message": {
+      "attachments": {
+        "pasted_text": "Вырезанный текст",
+        "pasted_image": "Вырезанное изображение"
+      },
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",
@@ -400,6 +421,7 @@
       "citations": "Источники",
       "copied": "Скопировано!",
       "copy.success": "Скопировано!",
+      "copy.failed": "Не удалось скопировать",
       "error.chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента.",
       "error.dimension_too_large": "Размер содержимого слишком велик",
       "error.enter.api.host": "Пожалуйста, введите ваш API хост",
@@ -422,6 +444,8 @@
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
       "info.notion.block_reach_limit": "Диалог слишком длинный, экспортируется в Notion по страницам",
+      "loading.notion.preparing": "Подготовка к экспорту в Notion...",
+      "loading.notion.exporting_progress": "Экспорт в Notion ({{current}}/{{total}})...",
       "mention.title": "Переключить модель ответа",
       "message.code_style": "Стиль кода",
       "message.delete.content": "Вы уверены, что хотите удалить это сообщение?",
@@ -608,7 +632,9 @@
       "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "gpustack": "GPUStack",
+      "alayanew": "Alaya NeW"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
@@ -736,6 +762,21 @@
           "title": "Настройка Yuque",
           "token": "Токен Yuque",
           "token_placeholder": "Введите токен Yuque"
+        },
+        "obsidian": {
+          "check": {
+            "button": "Проверить",
+            "empty_url": "Сначала введите URL REST API Obsidian",
+            "empty_api_key": "Сначала введите API Key Obsidian",
+            "fail": "Не удалось проверить подключение к Obsidian",
+            "success": "Подключение к Obsidian успешно проверено"
+          },
+          "help": "Сначала установите плагин Local REST API Obsidian, затем получите API Key Obsidian",
+          "url": "URL базы знаний Obsidian",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Настройка Obsidian",
+          "api_key": "API Key Obsidian",
+          "api_key_placeholder": "Введите API Key Obsidian"
         }
       },
       "display.assistant.title": "Настройки ассистентов",
@@ -789,13 +830,14 @@
         "addError": "Ошибка добавления сервера",
         "args": "Аргументы",
         "argsTooltip": "Каждый аргумент с новой строки",
+        "baseUrlTooltip": "Адрес удаленного URL",
         "command": "Команда",
         "commandRequired": "Пожалуйста, введите команду",
         "config_description": "Настройка серверов протокола контекста модели",
         "confirmDelete": "Удалить сервер",
         "confirmDeleteMessage": "Вы уверены, что хотите удалить этот сервер?",
         "deleteError": "Не удалось удалить сервер",
-        "deleteSuccess": "Сервер успешно удален",        
+        "deleteSuccess": "Сервер успешно удален",
         "description": "Описание",
         "duplicateName": "Сервер с таким именем уже существует",
         "editServer": "Редактировать сервер",
@@ -811,7 +853,33 @@
         "updateSuccess": "Сервер успешно обновлен",
         "updateError": "Ошибка обновления сервера",
         "url": "URL",
-        "toggleError": "Переключение не удалось"
+        "toggleError": "Переключение не удалось",
+        "dependenciesInstalling": "Установка зависимостей...",
+        "dependenciesInstall": "Установить зависимости",
+        "installSuccess": "Зависимости успешно установлены",
+        "installError": "Не удалось установить зависимости",
+        "missingDependencies": "отсутствует, пожалуйста, установите для продолжения.",
+        "install": "Установить",
+        "npx_list": {
+          "title": "Список пакетов NPX",
+          "desc": "Поиск и добавление npm пакетов в качестве MCP серверов",
+          "scope_placeholder": "Введите область npm (например, @your-org)",
+          "search": "Поиск",
+          "package_name": "Имя пакета",
+          "description": "Описание",
+          "usage": "Использование",
+          "npm": "NPM",
+          "version": "Версия",
+          "actions": "Действия",
+          "scope_required": "Пожалуйста, введите область npm",
+          "no_packages": "Ничего не найдено",
+          "search_error": "Ошибка поиска"
+        },
+        "editJson": "Редактировать JSON",
+        "jsonModeHint": "Редактируйте JSON-форматирование конфигурации сервера MCP. Перед сохранением убедитесь, что формат правильный.",
+        "jsonFormatError": "Ошибка форматирования JSON",
+        "jsonSaveSuccess": "JSON конфигурация сохранена",
+        "jsonSaveError": "Не удалось сохранить конфигурацию JSON"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
@@ -961,6 +1029,7 @@
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
         "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "проверка",
+        "check_success": "Проверка успешна",
         "check_failed": "Проверка не прошла",
         "get_api_key": "Получить ключ API",
         "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",

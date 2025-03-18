@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react'
-
+import React, { useEffect, useRef } from 'react'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import { ThemeMode } from '@renderer/types'
 import MermaidPopup from './MermaidPopup'
 
 interface Props {
@@ -7,16 +8,29 @@ interface Props {
 }
 
 const Mermaid: React.FC<Props> = ({ chart }) => {
+  const { theme } = useTheme()
+  const mermaidRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
-    window?.mermaid?.contentLoaded()
-  }, [])
+    if (mermaidRef.current && window.mermaid) {
+      mermaidRef.current.innerHTML = chart
+      mermaidRef.current.removeAttribute('data-processed')
+      if (window.mermaid.initialize) {
+        window.mermaid.initialize({
+          startOnLoad: true,
+          theme: theme === ThemeMode.dark ? 'dark' : 'default'
+        })
+      }
+      window.mermaid.contentLoaded()
+    }
+  }, [chart, theme])
 
   const onPreview = () => {
     MermaidPopup.show({ chart })
   }
 
   return (
-    <div className="mermaid" onClick={onPreview} style={{ cursor: 'pointer' }}>
+    <div ref={mermaidRef} className="mermaid" onClick={onPreview} style={{ cursor: 'pointer' }}>
       {chart}
     </div>
   )

@@ -1,6 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from '@google/generative-ai/server'
 import { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import type { MCPServer, MCPTool } from '@renderer/types'
 import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
 import type { LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
@@ -129,11 +130,15 @@ declare global {
         deleteServer: (serverName: string) => Promise<void>
         setServerActive: (name: string, isActive: boolean) => Promise<void>
         // tools
-        listTools: () => Promise<MCPTool>
+        listTools: () => Promise<MCPTool[]>
         callTool: ({ client, name, args }: { client: string; name: string; args: any }) => Promise<any>
         // status
         cleanup: () => Promise<void>
       }
+      isBinaryExist: (name: string) => Promise<boolean>
+      getBinaryPath: (name: string) => Promise<string>
+      installUVBinary: () => Promise<void>
+      installBunBinary: () => Promise<void>
     }
   }
 }

@@ -34,12 +34,6 @@ export async function fetchChatCompletion({
   const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
 
-  // store.dispatch(setGenerating(true))
-
-  // onResponse({ ...message })
-
-  // addAbortController(message.askId ?? message.id)
-
   try {
     let _messages: Message[] = []
     let isFirstChunk = true
@@ -70,7 +64,6 @@ export async function fetchChatCompletion({
     }
 
     const allMCPTools = await window.api.mcp.listTools()
-
     await AI.completions({
       messages: filterUsefulMessages(messages),
       assistant,
@@ -127,9 +120,12 @@ export async function fetchChatCompletion({
       }
     }
   } catch (error: any) {
-    if (isAbortError(error)) return
-    message.status = 'error'
-    message.error = formatMessageError(error)
+    if (isAbortError(error)) {
+      message.status = 'paused'
+    } else {
+      message.status = 'error'
+      message.error = formatMessageError(error)
+    }
   }
 
   // Emit chat completion event
@@ -307,4 +303,13 @@ export async function fetchModels(provider: Provider) {
   } catch (error) {
     return []
   }
+}
+
+/**
+ * Format API keys
+ * @param value Raw key string
+ * @returns Formatted key string
+ */
+export const formatApiKeys = (value: string) => {
+  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
 }
