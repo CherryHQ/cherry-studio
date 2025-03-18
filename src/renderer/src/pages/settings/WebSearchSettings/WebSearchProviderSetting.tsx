@@ -1,18 +1,17 @@
 import { CheckOutlined, ExportOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
-import { formatApiKeys } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Flex, Input } from 'antd'
+import { Avatar, Button, Card, Divider, Flex, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
-import ApiCheckPopup from '../ProviderSettings/ApiCheckPopup'
+import ApiKeyList from '../ProviderSettings/ApiKeyList'
 
 interface Props {
   provider: WebSearchProvider
@@ -30,10 +29,9 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
   const officialWebsite = webSearchProviderConfig?.websites?.official
 
-  const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
-      updateProvider({ ...provider, apiKey })
-    }
+  const handleApiKeyChange = (newApiKey: string) => {
+    setApiKey(newApiKey)
+    updateProvider({ ...provider, apiKey: newApiKey })
   }
 
   const onUpdateApiHost = () => {
@@ -56,26 +54,6 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
         icon: <InfoCircleOutlined />,
         key: 'no-provider-selected'
       })
-      return
-    }
-
-    if (apiKey.includes(',')) {
-      const keys = apiKey
-        .split(',')
-        .map((k) => k.trim())
-        .filter((k) => k)
-
-      const result = await ApiCheckPopup.show({
-        title: t('settings.provider.check_multiple_keys'),
-        provider: { ...provider, apiHost },
-        apiKeys: keys,
-        type: 'websearch'
-      })
-
-      if (result?.validKeys) {
-        setApiKey(result.validKeys.join(','))
-        updateProvider({ ...provider, apiKey: result.validKeys.join(',') })
-      }
       return
     }
 
@@ -130,30 +108,17 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {hasObjectKey(provider, 'apiKey') && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-          <Flex gap={8}>
-            <Input.Password
-              value={apiKey}
-              placeholder={t('settings.provider.api_key')}
-              onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
-              onBlur={onUpdateApiKey}
-              spellCheck={false}
-              type="password"
-              autoFocus={apiKey === ''}
-            />
-            <Button
-              ghost={apiValid}
-              type={apiValid ? 'primary' : 'default'}
-              onClick={checkSearch}
-              disabled={apiChecking}>
-              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
-            </Button>
-          </Flex>
-          <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.websearch.get_api_key')}
-            </SettingHelpLink>
-            <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
-          </SettingHelpTextRow>
+          <Card>
+            <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="websearch" />
+          </Card>
+          {apiKeyWebsite && (
+            <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
+              <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                {t('settings.websearch.get_api_key')}
+              </SettingHelpLink>
+              <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+            </SettingHelpTextRow>
+          )}
         </>
       )}
 

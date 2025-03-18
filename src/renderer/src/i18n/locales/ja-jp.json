@@ -972,6 +972,7 @@
         "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
         "remove_invalid_keys": "無効なキーを削除",
+        "invalid_key": "無効なAPIキー",
         "search": "プロバイダーを検索...",
         "search_placeholder": "モデルIDまたは名前を検索",
         "title": "モデルプロバイダー",

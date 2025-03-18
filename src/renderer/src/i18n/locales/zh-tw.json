@@ -972,6 +972,7 @@
         "not_checked": "未檢查",
         "remove_duplicate_keys": "移除重複金鑰",
         "remove_invalid_keys": "刪除無效金鑰",
+        "invalid_key": "無效的 API 金鑰",
         "search": "搜尋模型平臺...",
         "search_placeholder": "搜尋模型 ID 或名稱",
         "title": "模型提供者",

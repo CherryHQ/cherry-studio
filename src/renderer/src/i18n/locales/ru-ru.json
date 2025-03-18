@@ -972,6 +972,7 @@
         "not_checked": "Не проверено",
         "remove_duplicate_keys": "Удалить дубликаты ключей",
         "remove_invalid_keys": "Удалить недействительные ключи",
+        "invalid_key": "Недействительный ключ API",
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
         "title": "Провайдеры моделей",

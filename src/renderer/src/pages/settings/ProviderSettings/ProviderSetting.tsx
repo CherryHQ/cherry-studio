@@ -1,18 +1,16 @@
-import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined } from '@ant-design/icons'
+import { ExportOutlined, HeartOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
-import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
-import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Button, Divider, Flex, Input, Space, Switch } from 'antd'
+import { Button, Card, Divider, Flex, Input, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
 import { FC, useEffect, useState } from 'react'
@@ -27,14 +25,13 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
-import ApiCheckPopup from './ApiCheckPopup'
+import ApiKeyList from './ApiKeyList'
 import GPUStackSettings from './GPUStackSettings'
 import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
 import OllamSettings from './OllamaSettings'
-import SelectProviderModelPopup from './SelectProviderModelPopup'
 
 interface Props {
   provider: Provider
@@ -45,8 +42,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
-  const [apiValid, setApiValid] = useState(false)
-  const [apiChecking, setApiChecking] = useState(false)
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -61,18 +56,17 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
 
-  const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
-      updateProvider({ ...provider, apiKey })
-    }
-  }
-
   const onUpdateApiHost = () => {
     if (apiHost.trim()) {
       updateProvider({ ...provider, apiHost })
     } else {
       setApiHost(provider.apiHost)
     }
+  }
+
+  const handleApiKeyChange = (newApiKey: string) => {
+    setApiKey(newApiKey)
+    updateProvider({ ...provider, apiKey: newApiKey })
   }
 
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
@@ -88,10 +82,15 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    const keys = apiKey
-      .split(',')
-      .map((k) => k.trim())
-      .filter((k) => k)
+    let keys: string[] = []
+    if (apiKey.includes(',')) {
+      keys = apiKey
+        .split(',')
+        .map((k) => k.trim())
+        .filter((k) => k)
+    } else {
+      keys = [apiKey]
+    }
 
     if (keys.length === 0) {
       window.message.error({
@@ -170,64 +169,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     setIsHealthChecking(false)
   }
 
-  const onCheckApi = async () => {
-    if (isEmpty(models)) {
-      window.message.error({
-        key: 'no-models',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.provider.no_models')
-      })
-      return
-    }
-
-    const model = await SelectProviderModelPopup.show({ provider })
-
-    if (!model) {
-      window.message.error({ content: i18n.t('message.error.enter.model'), key: 'api-check' })
-      return
-    }
-
-    if (apiKey.includes(',')) {
-      const keys = apiKey
-        .split(',')
-        .map((k) => k.trim())
-        .filter((k) => k)
-
-      const result = await ApiCheckPopup.show({
-        title: t('settings.provider.check_multiple_keys'),
-        provider: { ...provider, apiHost },
-        model,
-        apiKeys: keys,
-        type: 'provider'
-      })
-
-      if (result?.validKeys) {
-        setApiKey(result.validKeys.join(','))
-        updateProvider({ ...provider, apiKey: result.validKeys.join(',') })
-      }
-    } else {
-      setApiChecking(true)
-
-      const { valid, error } = await checkApi({ ...provider, apiKey, apiHost }, model)
-
-      const errorMessage = error && error?.message ? ' ' + error?.message : ''
-
-      window.message[valid ? 'success' : 'error']({
-        key: 'api-check',
-        style: { marginTop: '3vh' },
-        duration: valid ? 2 : 8,
-        content: valid
-          ? i18n.t('message.api.connection.success')
-          : i18n.t('message.api.connection.failed') + errorMessage
-      })
-
-      setApiValid(valid)
-      setApiChecking(false)
-      setTimeout(() => setApiValid(false), 3000)
-    }
-  }
-
   const onReset = () => {
     setApiHost(configedApiHost)
     updateProvider({ ...provider, apiHost: configedApiHost })
@@ -274,25 +215,20 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-      <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-        <Input.Password
-          value={apiKey}
-          placeholder={t('settings.provider.api_key')}
-          onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
-          onBlur={onUpdateApiKey}
-          spellCheck={false}
-          type="password"
-          autoFocus={provider.enabled && apiKey === ''}
+      <Card>
+        <ApiKeyList
+          provider={provider}
+          model={models[2]} // TODO: refactor this
+          apiKeys={apiKey}
+          onChange={handleApiKeyChange}
+          type="provider"
         />
-        {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
-        <Button
-          type={apiValid ? 'primary' : 'default'}
-          ghost={apiValid}
-          onClick={onCheckApi}
-          disabled={!apiHost || apiChecking}>
-          {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.provider.check')}
-        </Button>
-      </Space.Compact>
+      </Card>
+      {isProviderSupportAuth(provider) && (
+        <div style={{ marginTop: 10 }}>
+          <OAuthButton provider={provider} onSuccess={handleApiKeyChange} />
+        </div>
+      )}
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
           <HStack gap={5}>
