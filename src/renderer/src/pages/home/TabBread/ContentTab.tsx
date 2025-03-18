@@ -41,8 +41,14 @@ const Tabs = styled(TabsAntd)`
     color: var(--color-text) !important;
     transform: scale(1.02);
   }
-  .ant-tabs-tab-btn:active {
-    color: var(--color-text) !important;
+  .ant-tabs-tab-btn {
+    &:focus:not(:focus-visible) {
+      outline: none !important;
+      color: var(--color-text) !important;
+    }
+    &:active {
+      color: var(--color-text) !important;
+    }
   }
   .ant-tabs-tab-active {
     .ant-tabs-tab-btn {
@@ -233,7 +239,7 @@ const ContentTab: React.FC<Props> = ({ activeTopicId, activeAssistantId, setActi
       topicInfos.map((topic) => ({
         key: topic.id,
         label: (
-          <Tooltip title={topic.name} placement="bottom">
+          <Tooltip title={topic.name} placement="bottomLeft">
             <TabLabel width={100} onContextMenu={(e) => handleContextMenu(e, topic.id)}>
               {`${topic.assistantEmoji} ${topic.name}`}
             </TabLabel>
