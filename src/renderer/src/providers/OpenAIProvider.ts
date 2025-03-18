@@ -679,10 +679,6 @@ export default class OpenAIProvider extends BaseProvider {
     for await (const chunk of response) {
       const deltaContent = chunk.choices[0]?.delta?.content || ''
 
-      if (!deltaContent.trim()) {
-        continue
-      }
-
       if (isReasoning) {
         if (deltaContent.includes('<think>')) {
           isThinking = true

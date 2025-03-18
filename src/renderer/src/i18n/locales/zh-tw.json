@@ -362,7 +362,11 @@
       "title": "知識庫",
       "url_added": "網址已新增",
       "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "topN": "返回結果數量",
+      "topN_placeholder": "未設定",
+      "topN__too_large_or_small": "返回結果數量不能大於100或小於1",
+      "topN_tooltip": "返回的匹配結果數量，數值越大，匹配結果越多，但消耗的 Token 也越多"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -400,6 +404,10 @@
       "title": "Mermaid 圖表"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "剪切板文件",
+        "pasted_image": "剪切板圖片"
+      },
       "api.check.model.title": "請選擇要偵測的模型",
       "api.connection.failed": "連接失敗",
       "api.connection.success": "連接成功",
@@ -529,7 +537,9 @@
         "function_calling": "函數調用"
       },
       "vision": "視覺",
-      "websearch": "網路搜尋"
+      "websearch": "網路搜尋",
+      "rerank_model": "重排序模型",
+      "rerank_model_tooltip": "在設定->模型服務中點擊管理按鈕添加"
     },
     "navbar": {
       "expand": "伸縮對話框",
@@ -980,7 +990,8 @@
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",
         "title": "快捷助手",
-        "use_shortcut_to_show": "右鍵點選工具列圖示或使用快捷鍵啟動"
+        "use_shortcut_to_show": "右鍵點選工具列圖示或使用快捷鍵啟動",
+        "read_clipboard_at_startup": "啟動時讀取剪貼簿"
       },
       "shortcuts": {
         "action": "操作",

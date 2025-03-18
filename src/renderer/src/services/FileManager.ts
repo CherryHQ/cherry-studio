@@ -1,7 +1,9 @@
 import db from '@renderer/databases'
+import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { FileType } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
+import dayjs from 'dayjs'
 
 class FileManager {
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileType[] | null> {
@@ -109,6 +111,24 @@ class FileManager {
     }
 
     await db.files.update(file.id, file)
+  }
+
+  static formatFileName(file: FileType) {
+    if (!file || !file.origin_name) {
+      return ''
+    }
+
+    const date = dayjs(file.created_at).format('YYYY-MM-DD')
+
+    if (file.origin_name.includes('pasted_text')) {
+      return date + ' ' + i18n.t('message.attachments.pasted_text') + file.ext
+    }
+
+    if (file.origin_name.startsWith('temp_file') && file.origin_name.includes('image')) {
+      return date + ' ' + i18n.t('message.attachments.pasted_image') + file.ext
+    }
+
+    return file.origin_name
   }
 }
 
