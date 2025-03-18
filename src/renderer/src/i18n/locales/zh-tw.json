@@ -162,6 +162,15 @@
       "topics.export.title": "匯出",
       "topics.export.word": "匯出為 Word",
       "topics.export.yuque": "匯出到語雀",
+      "topics.export.obsidian": "匯出到 Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian 未配置",
+      "topics.export.obsidian_fetch_failed": "獲取 Obsidian 文件夾結構失敗",
+      "topics.export.obsidian_select_folder": "選擇 Obsidian 文件夾",
+      "topics.export.obsidian_select_folder.btn": "確定",
+      "topics.export.obsidian_export_success": "匯出成功",
+      "topics.export.obsidian_export_failed": "匯出失敗",
+      "topics.export.obsidian_show_md_files": "顯示md文件",
+      "topics.export.obsidian_selected_path": "已選擇路徑",
       "topics.list": "話題列表",
       "topics.move_to": "移動到",
       "topics.pinned": "固定話題",
@@ -614,7 +623,8 @@
       "yi": "零一萬物",
       "zhinao": "360 智腦",
       "zhipu": "智譜 AI",
-      "gpustack": "GPUStack"
+      "gpustack": "GPUStack",
+      "alayanew": "Alaya NeW"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -748,6 +758,21 @@
           "title": "語雀設定",
           "token": "語雀 Token",
           "token_placeholder": "請輸入語雀 Token"
+        },
+        "obsidian": {
+          "check": {
+            "button": "檢查",
+            "empty_url": "請先輸入 Obsidian REST API URL",
+            "empty_api_key": "請先輸入 Obsidian API Key",
+            "fail": "Obsidian 連接驗證失敗",
+            "success": "Obsidian 連接驗證成功"
+          },
+          "help": "先安裝 Obsidian 插件 Local REST API，然後獲取 Obsidian API Key",
+          "url": "Obsidian 知識庫 URL",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Obsidian 設定",
+          "api_key": "Obsidian API Key",
+          "api_key_placeholder": "請輸入 Obsidian API Key"
         }
       },
       "display.assistant.title": "助手設定",
@@ -824,7 +849,33 @@
         "updateSuccess": "伺服器更新成功",
         "updateError": "更新伺服器失敗",
         "url": "URL",
-        "toggleError": "切換失敗"
+        "toggleError": "切換失敗",
+        "dependenciesInstalling": "正在安裝相依套件...",
+        "dependenciesInstall": "安裝相依套件",
+        "installSuccess": "相依套件安裝成功",
+        "installError": "安裝相依套件失敗",
+        "missingDependencies": "缺失，請安裝它以繼續",
+        "install": "安裝",
+        "npx_list": {
+          "title": "NPX 包列表",
+          "desc": "搜索並添加 npm 包作為 MCP 服務",
+          "scope_placeholder": "輸入 npm 作用域 (例如 @your-org)",
+          "search": "搜索",
+          "package_name": "包名稱",
+          "description": "描述",
+          "usage": "用法",
+          "npm": "NPM",
+          "version": "版本",
+          "actions": "操作",
+          "scope_required": "請輸入 npm 作用域",
+          "no_packages": "未找到包",
+          "search_error": "搜索失敗"
+        },
+        "editJson": "編輯JSON",
+        "jsonModeHint": "編輯MCP伺服器配置的JSON表示。保存前請確保格式正確。",
+        "jsonFormatError": "JSON格式錯誤",
+        "jsonSaveSuccess": "JSON配置已儲存",
+        "jsonSaveError": "保存JSON配置失敗"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",

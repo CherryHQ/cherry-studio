@@ -2,6 +2,7 @@ import ZhinaoProviderLogo from '@renderer/assets/images/models/360.png'
 import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.jpg'
+import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
@@ -40,95 +41,55 @@ import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+
+const PROVIDER_LOGO_MAP = {
+  openai: OpenAiProviderLogo,
+  silicon: SiliconFlowProviderLogo,
+  deepseek: DeepSeekProviderLogo,
+  'gitee-ai': GiteeAIProviderLogo,
+  yi: ZeroOneProviderLogo,
+  groq: GroqProviderLogo,
+  zhipu: ZhipuProviderLogo,
+  ollama: OllamaProviderLogo,
+  lmstudio: LMStudioProviderLogo,
+  moonshot: MoonshotProviderLogo,
+  openrouter: OpenRouterProviderLogo,
+  baichuan: BaichuanProviderLogo,
+  dashscope: BailianProviderLogo,
+  modelscope: ModelScopeProviderLogo,
+  xirang: XirangProviderLogo,
+  anthropic: AnthropicProviderLogo,
+  aihubmix: AiHubMixProviderLogo,
+  gemini: GoogleProviderLogo,
+  stepfun: StepProviderLogo,
+  doubao: BytedanceProviderLogo,
+  'graphrag-kylin-mountain': GraphRagProviderLogo,
+  minimax: MinimaxProviderLogo,
+  github: GithubProviderLogo,
+  ocoolai: OcoolAiProviderLogo,
+  together: TogetherProviderLogo,
+  fireworks: FireworksProviderLogo,
+  zhinao: ZhinaoProviderLogo,
+  nvidia: NvidiaProviderLogo,
+  'azure-openai': AzureProviderLogo,
+  hunyuan: HunyuanProviderLogo,
+  grok: GrokProviderLogo,
+  hyperbolic: HyperbolicProviderLogo,
+  mistral: MistralProviderLogo,
+  jina: JinaProviderLogo,
+  ppio: PPIOProviderLogo,
+  'baidu-cloud': BaiduCloudProviderLogo,
+  dmxapi: DmxapiProviderLogo,
+  perplexity: PerplexityProviderLogo,
+  infini: InfiniProviderLogo,
+  o3: O3ProviderLogo,
+  'tencent-cloud-ti': TencentCloudProviderLogo,
+  gpustack: GPUStackProviderLogo,
+  alayanew: AlayaNewProviderLogo
+} as const
+
 export function getProviderLogo(providerId: string) {
-  switch (providerId) {
-    case 'openai':
-      return OpenAiProviderLogo
-    case 'silicon':
-      return SiliconFlowProviderLogo
-    case 'deepseek':
-      return DeepSeekProviderLogo
-    case 'gitee-ai':
-      return GiteeAIProviderLogo
-    case 'yi':
-      return ZeroOneProviderLogo
-    case 'groq':
-      return GroqProviderLogo
-    case 'zhipu':
-      return ZhipuProviderLogo
-    case 'ollama':
-      return OllamaProviderLogo
-    case 'lmstudio':
-      return LMStudioProviderLogo
-    case 'moonshot':
-      return MoonshotProviderLogo
-    case 'openrouter':
-      return OpenRouterProviderLogo
-    case 'baichuan':
-      return BaichuanProviderLogo
-    case 'dashscope':
-      return BailianProviderLogo
-    case 'modelscope':
-      return ModelScopeProviderLogo
-    case 'xirang':
-      return XirangProviderLogo
-    case 'anthropic':
-      return AnthropicProviderLogo
-    case 'aihubmix':
-      return AiHubMixProviderLogo
-    case 'gemini':
-      return GoogleProviderLogo
-    case 'stepfun':
-      return StepProviderLogo
-    case 'doubao':
-      return BytedanceProviderLogo
-    case 'graphrag-kylin-mountain':
-      return GraphRagProviderLogo
-    case 'minimax':
-      return MinimaxProviderLogo
-    case 'github':
-      return GithubProviderLogo
-    case 'ocoolai':
-      return OcoolAiProviderLogo
-    case 'together':
-      return TogetherProviderLogo
-    case 'fireworks':
-      return FireworksProviderLogo
-    case 'zhinao':
-      return ZhinaoProviderLogo
-    case 'nvidia':
-      return NvidiaProviderLogo
-    case 'azure-openai':
-      return AzureProviderLogo
-    case 'hunyuan':
-      return HunyuanProviderLogo
-    case 'grok':
-      return GrokProviderLogo
-    case 'hyperbolic':
-      return HyperbolicProviderLogo
-    case 'mistral':
-      return MistralProviderLogo
-    case 'jina':
-      return JinaProviderLogo
-    case 'ppio':
-      return PPIOProviderLogo
-    case 'baidu-cloud':
-      return BaiduCloudProviderLogo
-    case 'dmxapi':
-      return DmxapiProviderLogo
-    case 'perplexity':
-      return PerplexityProviderLogo
-    case 'infini':
-      return InfiniProviderLogo
-    case 'o3':
-      return O3ProviderLogo
-    case 'tencent-cloud-ti':
-      return TencentCloudProviderLogo
-    case 'gpustack':
-      return GPUStackProviderLogo
-    default:
-      return undefined
-  }
+  return PROVIDER_LOGO_MAP[providerId as keyof typeof PROVIDER_LOGO_MAP]
 }
 
 export const PROVIDER_CONFIG = {
@@ -387,9 +348,15 @@ export const PROVIDER_CONFIG = {
       models: 'https://platform.minimaxi.com/document/Models'
     }
   },
-  'graphrag-kylin-mountain': {
+  alayanew: {
     api: {
-      url: ''
+      url: 'https://deepseek.alayanew.com'
+    },
+    websites: {
+      official: 'https://www.alayanew.com/backend/register?id=cherrystudio',
+      apiKey: 'https://www.alayanew.com/access?id=cherrystudio',
+      docs: 'https://docs.alayanew.com/docs/modelService/interview?utm_source=cherrystudio',
+      models: 'https://www.alayanew.com/product/deepseek?id=cherrystudio'
     }
   },
   openrouter: {

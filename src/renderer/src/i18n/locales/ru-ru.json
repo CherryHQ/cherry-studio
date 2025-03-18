@@ -162,6 +162,15 @@
       "topics.export.title": "Экспорт",
       "topics.export.word": "Экспорт как Word",
       "topics.export.yuque": "Экспорт в Yuque",
+      "topics.export.obsidian": "Экспорт в Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian не настроен",
+      "topics.export.obsidian_fetch_failed": "Не удалось получить структуру файлов Obsidian",
+      "topics.export.obsidian_select_folder": "Выберите папку Obsidian",
+      "topics.export.obsidian_select_folder.btn": "Определить",
+      "topics.export.obsidian_export_success": "Экспорт успешно завершен",
+      "topics.export.obsidian_export_failed": "Экспорт не удалось",
+      "topics.export.obsidian_show_md_files": "Показать файлы MD",
+      "topics.export.obsidian_selected_path": "Выбранный путь",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
@@ -620,7 +629,8 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
-      "gpustack": "GPUStack"
+      "gpustack": "GPUStack",
+      "alayanew": "Alaya NeW"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
@@ -748,6 +758,21 @@
           "title": "Настройка Yuque",
           "token": "Токен Yuque",
           "token_placeholder": "Введите токен Yuque"
+        },
+        "obsidian": {
+          "check": {
+            "button": "Проверить",
+            "empty_url": "Сначала введите URL REST API Obsidian",
+            "empty_api_key": "Сначала введите API Key Obsidian",
+            "fail": "Не удалось проверить подключение к Obsidian",
+            "success": "Подключение к Obsidian успешно проверено"
+          },
+          "help": "Сначала установите плагин Local REST API Obsidian, затем получите API Key Obsidian",
+          "url": "URL базы знаний Obsidian",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Настройка Obsidian",
+          "api_key": "API Key Obsidian",
+          "api_key_placeholder": "Введите API Key Obsidian"
         }
       },
       "display.assistant.title": "Настройки ассистентов",
@@ -824,7 +849,33 @@
         "updateSuccess": "Сервер успешно обновлен",
         "updateError": "Ошибка обновления сервера",
         "url": "URL",
-        "toggleError": "Переключение не удалось"
+        "toggleError": "Переключение не удалось",
+        "dependenciesInstalling": "Установка зависимостей...",
+        "dependenciesInstall": "Установить зависимости",
+        "installSuccess": "Зависимости успешно установлены",
+        "installError": "Не удалось установить зависимости",
+        "missingDependencies": "отсутствует, пожалуйста, установите для продолжения.",
+        "install": "Установить",
+        "npx_list": {
+          "title": "Список пакетов NPX",
+          "desc": "Поиск и добавление npm пакетов в качестве MCP серверов",
+          "scope_placeholder": "Введите область npm (например, @your-org)",
+          "search": "Поиск",
+          "package_name": "Имя пакета",
+          "description": "Описание",
+          "usage": "Использование",
+          "npm": "NPM",
+          "version": "Версия",
+          "actions": "Действия",
+          "scope_required": "Пожалуйста, введите область npm",
+          "no_packages": "Ничего не найдено",
+          "search_error": "Ошибка поиска"
+        },
+        "editJson": "Редактировать JSON",
+        "jsonModeHint": "Редактируйте JSON-форматирование конфигурации сервера MCP. Перед сохранением убедитесь, что формат правильный.",
+        "jsonFormatError": "Ошибка форматирования JSON",
+        "jsonSaveSuccess": "JSON конфигурация сохранена",
+        "jsonSaveError": "Не удалось сохранить конфигурацию JSON"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",

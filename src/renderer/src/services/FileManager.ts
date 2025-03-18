@@ -27,7 +27,7 @@ class FileManager {
   }
 
   static async uploadFile(file: FileType): Promise<FileType> {
-    console.debug(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
+    console.log(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
 
     const uploadFile = await window.api.file.upload(file)
     const fileRecord = await db.files.get(uploadFile.id)
@@ -60,7 +60,7 @@ class FileManager {
   static async deleteFile(id: string, force: boolean = false): Promise<void> {
     const file = await this.getFile(id)
 
-    console.debug('[FileManager] Deleting file:', file)
+    console.log('[FileManager] Deleting file:', file)
 
     if (!file) {
       return

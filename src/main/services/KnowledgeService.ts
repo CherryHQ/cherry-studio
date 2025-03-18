@@ -334,7 +334,6 @@ class KnowledgeService {
   ): LoaderTask {
     const { base, item, forceReload } = options
     const content = item.content as string
-    console.debug('chunkSize', base.chunkSize)
 
     const encoder = new TextEncoder()
     const contentBytes = encoder.encode(content)
@@ -470,7 +469,7 @@ class KnowledgeService {
     { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
   ): Promise<void> => {
     const ragApplication = await this.getRagApplication(base)
-    console.debug(`[ KnowledgeService Remove Item UniqueId: ${uniqueId}]`)
+    console.log(`[ KnowledgeService Remove Item UniqueId: ${uniqueId}]`)
     for (const id of uniqueIds) {
       await ragApplication.deleteLoader(id)
     }

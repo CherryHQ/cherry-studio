@@ -22,7 +22,6 @@ export const useKnowledgeFiles = () => {
   }, [bases])
 
   const removeAllFiles = async () => {
-    console.debug('removeAllFiles', knowledgeFiles)
     await FileManager.deleteFiles(knowledgeFiles)
 
     const newBases = bases.map((kb) => ({

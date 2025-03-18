@@ -162,6 +162,15 @@
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
       "topics.export.yuque": "語雀にエクスポート",
+      "topics.export.obsidian": "Obsidian にエクスポート",
+      "topics.export.obsidian_not_configured": "Obsidian 未設定",
+      "topics.export.obsidian_fetch_failed": "Obsidian ファイルフォルダ構造取得失敗",
+      "topics.export.obsidian_select_folder": "Obsidian ファイルフォルダ選択",
+      "topics.export.obsidian_select_folder.btn": "確定",
+      "topics.export.obsidian_export_success": "エクスポート成功",
+      "topics.export.obsidian_export_failed": "エクスポート失敗",
+      "topics.export.obsidian_show_md_files": "mdファイルを表示",
+      "topics.export.obsidian_selected_path": "選択済みパス",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
       "topics.pinned": "トピックを固定",
@@ -620,7 +629,8 @@
       "yi": "零一万物",
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
-      "gpustack": "GPUStack"
+      "gpustack": "GPUStack",
+      "alayanew": "Alaya NeW"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -691,8 +701,8 @@
         "markdown_export.help": "入力された場合、エクスポート時に自動的にこのパスに保存されます。未入力の場合、保存ダイアログが表示されます。",
         "notion.api_key": "Notion APIキー",
         "notion.api_key_placeholder": "Notion APIキーを入力してください",
-        "notion.auto_split": "내보내기 시 자동 분할",
-        "notion.auto_split_tip": "긴 주제를 Notion으로 내보낼 때 자동으로 페이지 분할",
+        "notion.auto_split": "ダイアログをエクスポートすると自動ページ分割",
+        "notion.auto_split_tip": "ダイアログが長い場合、Notionに自動的にページ分割してエクスポートします",
         "notion.check": {
           "button": "確認",
           "empty_api_key": "Api_keyが設定されていません",
@@ -706,9 +716,9 @@
         "notion.help": "Notion 設定ドキュメント",
         "notion.page_name_key": "ページタイトルフィールド名",
         "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
-        "notion.split_size": "분할 크기",
-        "notion.split_size_help": "권장: 무료 플랜 90, Plus 플랜 24990, 기본값 90",
-        "notion.split_size_placeholder": "페이지당 블록 제한 입력(기본값 90)",
+        "notion.split_size": "自動ページ分割サイズ",
+        "notion.split_size_help": "Notion無料版ユーザーは90、有料版ユーザーは24990、デフォルトは90",
+        "notion.split_size_placeholder": "ページごとのブロック数制限を入力してください(デフォルト90)",
         "notion.title": "Notion 設定",
         "title": "データ設定",
         "webdav": {
@@ -748,6 +758,21 @@
           "title": "Yuque設定",
           "token": "Yuqueトークン",
           "token_placeholder": "Yuqueトークンを入力してください"
+        },
+        "obsidian": {
+          "check": {
+            "button": "確認",
+            "empty_url": "Obsidian REST API URL を先に入力してください",
+            "empty_api_key": "Obsidian API Key を先に入力してください",
+            "fail": "Obsidian 接続確認に失敗しました",
+            "success": "Obsidian 接続確認に成功しました"
+          },
+          "help": "Obsidian プラグイン Local REST API を先にインストールしてください。その後、Obsidian API Key を取得してください",
+          "url": "Obsidian 知識ベース URL",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Obsidian 設定",
+          "api_key": "Obsidian API Key",
+          "api_key_placeholder": "Obsidian API Key を入力してください"
         }
       },
       "display.assistant.title": "アシスタント設定",
@@ -824,7 +849,33 @@
         "updateSuccess": "サーバーが正常に更新されました",
         "updateError": "サーバーの更新に失敗しました",
         "url": "URL",
-        "toggleError": "切り替えに失敗しました"
+        "toggleError": "切り替えに失敗しました",
+        "dependenciesInstalling": "依存関係をインストール中...",
+        "dependenciesInstall": "依存関係をインストール",
+        "installSuccess": "依存関係のインストールに成功しました",
+        "installError": "依存関係のインストールに失敗しました",
+        "missingDependencies": "が不足しています。続行するにはインストールしてください。",
+        "install": "インストール",
+        "npx_list": {
+          "title": "NPX パッケージリスト",
+          "desc": "npm パッケージを検索して MCP サーバーとして追加",
+          "scope_placeholder": "npm スコープを入力 (例: @your-org)",
+          "search": "検索",
+          "package_name": "パッケージ名",
+          "description": "説明",
+          "usage": "使用法",
+          "npm": "NPM",
+          "version": "バージョン",
+          "actions": "アクション",
+          "scope_required": "npm スコープを入力してください",
+          "no_packages": "パッケージが見つかりません",
+          "search_error": "パッケージの検索に失敗しました"
+        },
+        "editJson": "JSONを編集",
+        "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
+        "jsonFormatError": "JSONフォーマットエラー",
+        "jsonSaveSuccess": "JSON設定が保存されました。",
+        "jsonSaveError": "JSON設定の保存に失敗しました"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",

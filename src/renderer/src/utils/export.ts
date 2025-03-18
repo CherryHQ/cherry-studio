@@ -316,3 +316,64 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
     setExportState({ isExporting: false })
   }
 }
+
+/**
+ * 导出Markdown到Obsidian
+ */
+export const exportMarkdownToObsidian = async (
+  fileName: string,
+  markdown: string,
+  selectedPath: string,
+  isMdFile: boolean = false
+) => {
+  try {
+    const obsidianUrl = store.getState().settings.obsidianUrl
+    const obsidianApiKey = store.getState().settings.obsidianApiKey
+
+    if (!obsidianUrl || !obsidianApiKey) {
+      window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
+      return
+    }
+
+    // 如果是md文件，直接将内容追加到该文件
+    if (isMdFile) {
+      const response = await fetch(`${obsidianUrl}vault${selectedPath}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/markdown',
+          Authorization: `Bearer ${obsidianApiKey}`
+        },
+        body: `\n\n${markdown}` // 添加两个换行后追加内容
+      })
+
+      if (!response.ok) {
+        window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+        return
+      }
+    } else {
+      // 创建新文件
+      const sanitizedFileName = removeSpecialCharactersForFileName(fileName)
+      const path = selectedPath === '/' ? '' : selectedPath
+      const fullPath = path.endsWith('/') ? `${path}${sanitizedFileName}.md` : `${path}/${sanitizedFileName}.md`
+
+      const response = await fetch(`${obsidianUrl}vault${fullPath}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'text/markdown',
+          Authorization: `Bearer ${obsidianApiKey}`
+        },
+        body: markdown
+      })
+
+      if (!response.ok) {
+        window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+        return
+      }
+    }
+
+    window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
+  } catch (error) {
+    console.error('导出到Obsidian失败:', error)
+    window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+  }
+}

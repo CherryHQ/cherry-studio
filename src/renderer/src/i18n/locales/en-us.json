@@ -162,6 +162,15 @@
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
       "topics.export.yuque": "Export to Yuque",
+      "topics.export.obsidian": "Export to Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian not configured",
+      "topics.export.obsidian_fetch_failed": "Failed to fetch Obsidian folder structure",
+      "topics.export.obsidian_select_folder": "Select Obsidian folder",
+      "topics.export.obsidian_select_folder.btn": "Confirm",
+      "topics.export.obsidian_export_success": "Export success",
+      "topics.export.obsidian_export_failed": "Export failed",
+      "topics.export.obsidian_show_md_files": "Show MD Files",
+      "topics.export.obsidian_selected_path": "Selected Path",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
       "topics.pinned": "Pinned Topics",
@@ -620,7 +629,8 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
-      "gpustack": "GPUStack"
+      "gpustack": "GPUStack",
+      "alayanew": "Alaya NeW"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -748,6 +758,21 @@
           "title": "Yuque Configuration",
           "token": "Yuque Token",
           "token_placeholder": "Please enter the Yuque Token"
+        },
+        "obsidian": {
+          "check": {
+            "button": "Check",
+            "empty_url": "Please enter the Obsidian REST API URL first",
+            "empty_api_key": "Please enter the Obsidian API Key first",
+            "fail": "Obsidian connection verification failed",
+            "success": "Obsidian connection verification successful"
+          },
+          "help": "Install the Obsidian plugin Local REST API first, then get the Obsidian API Key",
+          "url": "Obsidian Knowledge Base URL",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Obsidian Configuration",
+          "api_key": "Obsidian API Key",
+          "api_key_placeholder": "Please enter the Obsidian API Key"
         }
       },
       "display.assistant.title": "Assistant Settings",
@@ -824,7 +849,33 @@
         "updateSuccess": "Server updated successfully",
         "updateError": "Failed to update server",
         "url": "URL",
-        "toggleError": "Toggle failed"
+        "toggleError": "Toggle failed",
+        "dependenciesInstalling": "Installing dependencies...",
+        "dependenciesInstall": "Install Dependencies",
+        "installSuccess": "Dependencies installed successfully",
+        "installError": "Failed to install dependencies",
+        "missingDependencies": "is Missing, please install it to continue.",
+        "install": "Install",
+        "npx_list": {
+          "title": "NPX Package List",
+          "desc": "Search and add npm packages as MCP servers",
+          "scope_placeholder": "Enter npm scope (e.g. @your-org)",
+          "search": "Search",
+          "package_name": "Package Name",
+          "description": "Description",
+          "usage": "Usage",
+          "npm": "NPM",
+          "version": "Version",
+          "actions": "Actions",
+          "scope_required": "Please enter npm scope",
+          "no_packages": "No packages found",
+          "search_error": "Search error"
+        },
+        "editJson": "Edit JSON",
+        "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
+        "jsonFormatError": "JSON formatting error",
+        "jsonSaveSuccess": "JSON configuration has been saved.",
+        "jsonSaveError": "Failed to save JSON configuration."
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
