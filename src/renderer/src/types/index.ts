@@ -96,6 +96,7 @@ export type Topic = {
   messages: Message[]
   pinned?: boolean
   prompt?: string
+  isNameManuallyEdited?: boolean
 }
 
 export type User = {

@@ -354,7 +354,7 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://www.alayanew.com/backend/register?id=cherrystudio',
-      apiKey: 'https://www.alayanew.com/access?id=cherrystudio',
+      apiKey: ' https://www.alayanew.com/backend/register?id=cherrystudio',
       docs: 'https://docs.alayanew.com/docs/modelService/interview?utm_source=cherrystudio',
       models: 'https://www.alayanew.com/product/deepseek?id=cherrystudio'
     }

@@ -404,6 +404,10 @@
       "title": "Mermaid 圖表"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "剪切板文件",
+        "pasted_image": "剪切板圖片"
+      },
       "api.check.model.title": "請選擇要偵測的模型",
       "api.connection.failed": "連接失敗",
       "api.connection.success": "連接成功",
@@ -986,7 +990,8 @@
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",
         "title": "快捷助手",
-        "use_shortcut_to_show": "右鍵點選工具列圖示或使用快捷鍵啟動"
+        "use_shortcut_to_show": "右鍵點選工具列圖示或使用快捷鍵啟動",
+        "read_clipboard_at_startup": "啟動時讀取剪貼簿"
       },
       "shortcuts": {
         "action": "操作",

@@ -404,6 +404,10 @@
       "title": "Mermaid図"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "クリップボードファイル",
+        "pasted_image": "クリップボード画像"
+      },
       "api.check.model.title": "検出に使用するモデルを選択してください",
       "api.connection.failed": "接続に失敗しました",
       "api.connection.success": "接続に成功しました",
@@ -986,7 +990,8 @@
         "click_tray_to_show": "トレイアイコンをクリックして起動",
         "enable_quick_assistant": "クイックアシスタントを有効にする",
         "title": "クイックアシスタント",
-        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます"
+        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます",
+        "read_clipboard_at_startup": "起動時にクリップボードを読み取る"
       },
       "shortcuts": {
         "action": "操作",

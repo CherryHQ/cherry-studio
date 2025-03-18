@@ -2,7 +2,11 @@ import { InfoCircleOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
-import { setClickTrayToShowQuickAssistant, setEnableQuickAssistant } from '@renderer/store/settings'
+import {
+  setClickTrayToShowQuickAssistant,
+  setEnableQuickAssistant,
+  setReadClipboardAtStartup
+} from '@renderer/store/settings'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
 import { Switch, Tooltip } from 'antd'
 import { FC } from 'react'
@@ -14,7 +18,7 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowT
 const QuickAssistantSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray } = useSettings()
+  const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray, readClipboardAtStartup } = useSettings()
   const dispatch = useAppDispatch()
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
@@ -44,6 +48,12 @@ const QuickAssistantSettings: FC = () => {
     checked && setTray(true)
   }
 
+  const handleClickReadClipboardAtStartup = async (checked: boolean) => {
+    dispatch(setReadClipboardAtStartup(checked))
+    await window.api.config.set('readClipboardAtStartup', checked)
+    window.api.miniWindow.close()
+  }
+
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -64,6 +74,15 @@ const QuickAssistantSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.click_tray_to_show')}</SettingRowTitle>
               <Switch checked={clickTrayToShowQuickAssistant} onChange={handleClickTrayToShowQuickAssistant} />
+            </SettingRow>
+          </>
+        )}
+        {enableQuickAssistant && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
+              <Switch checked={readClipboardAtStartup} onChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
           </>
         )}
