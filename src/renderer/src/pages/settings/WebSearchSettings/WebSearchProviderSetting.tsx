@@ -4,13 +4,13 @@ import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Card, Divider, Flex, Input } from 'antd'
+import { Avatar, Button, Divider, Flex, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
+import { SettingHelpLink, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 import ApiKeyList from '../ProviderSettings/ApiKeyList'
 
 interface Props {
