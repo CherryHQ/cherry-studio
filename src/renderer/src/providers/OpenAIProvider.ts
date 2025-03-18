@@ -904,8 +904,10 @@ export default class OpenAIProvider extends BaseProvider {
         guidance_scale: guidanceScale,
         prompt_enhancement: promptEnhancement
       }
-    })) as { data: Array<{ url: string }> }
-
+    })) as { data: Array<{ url: string }>, images: Array<{ url: string }> }
+    if (response.images) {
+      return response.images.map((item) => item.url)
+    }
     return response.data.map((item) => item.url)
   }
 
