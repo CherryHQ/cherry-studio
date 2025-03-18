@@ -362,7 +362,11 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "topN": "Number of results returned",
+      "topN_placeholder": "Not set",
+      "topN__too_large_or_small": "The number of results returned cannot be greater than 100 or less than 1.",
+      "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed."
     },
     "languages": {
       "arabic": "Arabic",
@@ -533,7 +537,9 @@
         "function_calling": "Function Calling"
       },
       "vision": "Vision",
-      "websearch": "WebSearch"
+      "websearch": "WebSearch",
+      "rerank_model": "Reordering Model",
+      "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add."
     },
     "navbar": {
       "expand": "Expand Dialog",

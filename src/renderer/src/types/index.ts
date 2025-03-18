@@ -254,6 +254,8 @@ export interface KnowledgeBase {
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  rerankModel?: Model
+  topN?: number
 }
 
 export type KnowledgeBaseParams = {
@@ -265,6 +267,9 @@ export type KnowledgeBaseParams = {
   baseURL: string
   chunkSize?: number
   chunkOverlap?: number
+  rerankModel?: string
+  rerankModelProvider?: string
+  topN?: number
 }
 
 export type GenerateImageParams = {

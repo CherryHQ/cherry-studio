@@ -362,7 +362,11 @@
       "title": "知識庫",
       "url_added": "網址已新增",
       "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "topN": "返回結果數量",
+      "topN_placeholder": "未設定",
+      "topN__too_large_or_small": "返回結果數量不能大於100或小於1",
+      "topN_tooltip": "返回的匹配結果數量，數值越大，匹配結果越多，但消耗的 Token 也越多"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -533,7 +537,9 @@
         "function_calling": "函數調用"
       },
       "vision": "視覺",
-      "websearch": "網路搜尋"
+      "websearch": "網路搜尋",
+      "rerank_model": "重排序模型",
+      "rerank_model_tooltip": "在設定->模型服務中點擊管理按鈕添加"
     },
     "navbar": {
       "expand": "伸縮對話框",

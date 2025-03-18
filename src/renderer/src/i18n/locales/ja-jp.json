@@ -362,7 +362,11 @@
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "topN": "返却される結果の数",
+      "topN_placeholder": "未設定",
+      "topN__too_large_or_small": "結果の数は100より大きくてはならず、1より小さくてはなりません。",
+      "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -533,7 +537,9 @@
         "function_calling": "関数呼び出し"
       },
       "vision": "画像",
-      "websearch": "ウェブ検索"
+      "websearch": "ウェブ検索",
+      "rerank_model": "再順序付けモデル",
+      "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。"
     },
     "navbar": {
       "expand": "ダイアログを展開",
