@@ -1,4 +1,4 @@
-import { ExportOutlined, HeartOutlined } from '@ant-design/icons'
+import { ApiOutlined, ExportOutlined, HeartOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
@@ -10,7 +10,7 @@ import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/servic
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Button, Card, Divider, Flex, Input, Space, Switch } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
 import { FC, useEffect, useState } from 'react'
@@ -214,21 +214,30 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-      <Card>
-        <ApiKeyList
-          provider={provider}
-          model={models[2]} // TODO: refactor this
-          apiKeys={apiKey}
-          onChange={handleApiKeyChange}
-          type="provider"
-        />
-      </Card>
-      {isProviderSupportAuth(provider) && (
-        <div style={{ marginTop: 10 }}>
-          <OAuthButton provider={provider} onSuccess={handleApiKeyChange} />
-        </div>
-      )}
+      <SettingSubtitle style={{ marginBottom: 5, marginTop: 5 }}>
+        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+          <span>{t('settings.provider.api_key')}</span>
+          <Space>
+            {isProviderSupportAuth(provider) && (
+              <OAuthButton
+                provider={provider}
+                onSuccess={handleApiKeyChange}
+                type="text"
+                size="small"
+                icon={<ApiOutlined />}
+                title={t('auth.get_key')}
+              />
+            )}
+          </Space>
+        </Flex>
+      </SettingSubtitle>
+      <ApiKeyList
+        provider={provider}
+        model={models[2]} // TODO: refactor this
+        apiKeys={apiKey}
+        onChange={handleApiKeyChange}
+        type="provider"
+      />
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
           <HStack gap={5}>
@@ -241,7 +250,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
               </SettingHelpLink>
             )}
           </HStack>
-          <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
         </SettingHelpTextRow>
       )}
       <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>

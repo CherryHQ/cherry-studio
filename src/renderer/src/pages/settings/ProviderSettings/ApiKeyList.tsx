@@ -1,17 +1,19 @@
 import {
   CheckCircleFilled,
-  CheckCircleTwoTone,
+  CheckCircleOutlined,
   CloseCircleFilled,
-  CloseCircleTwoTone,
+  CloseCircleOutlined,
   LoadingOutlined,
   MinusCircleOutlined,
-  PlusOutlined
+  PlusOutlined,
+  RedoOutlined
 } from '@ant-design/icons'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { Button, Input, List, message, Space, Spin, Typography } from 'antd'
+import { Button, Card, Flex, Input, List, message, Space, Typography } from 'antd'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -41,7 +43,7 @@ const ApiKeyList: FC<Props> = ({ provider, model, apiKeys, onChange, type = 'pro
       const uniqueKeys = new Set(keys)
       return Array.from(uniqueKeys).map((key) => ({ key }))
     } else {
-      return [{ key: formattedApiKeys }]
+      return formattedApiKeys ? [{ key: formattedApiKeys }] : []
     }
   })
   const [isAddingNew, setIsAddingNew] = useState(false)
@@ -165,90 +167,167 @@ const ApiKeyList: FC<Props> = ({ provider, model, apiKeys, onChange, type = 'pro
 
   return (
     <>
-      <List
-        dataSource={keyStatuses}
-        renderItem={(status, index) => (
-          <List.Item>
-            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-              <Typography.Text copyable={{ text: status.key }}>{maskApiKey(status.key)}</Typography.Text>
-              <Space>
-                {status.checking && (
-                  <Space>
-                    <Spin indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />} />
-                  </Space>
-                )}
-                {status.isValid === true && !status.checking && <CheckCircleFilled style={{ color: '#52c41a' }} />}
-                {status.isValid === false && !status.checking && <CloseCircleFilled style={{ color: '#ff4d4f' }} />}
-                {status.isValid === undefined && !status.checking && <span>{t('settings.provider.not_checked')}</span>}
-                <Button size="small" onClick={() => checkSingleKey(index)} disabled={isChecking || isCheckingSingle}>
-                  {t('settings.provider.check')}
-                </Button>
-                <RemoveIcon
-                  onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
-                  style={{
-                    cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
-                    opacity: isChecking || isCheckingSingle ? 0.5 : 1
-                  }}
+      <Card size="small" type="inner" style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}>
+        {keyStatuses.length === 0 && !isAddingNew ? (
+          <Typography.Text type="secondary">{t('error.no_api_key')}</Typography.Text>
+        ) : (
+          <>
+            {keyStatuses.length > 0 && (
+              <Scrollbar style={{ maxHeight: '50vh', overflowX: 'hidden' }}>
+                <List
+                  size="small"
+                  dataSource={keyStatuses}
+                  renderItem={(status, index) => (
+                    <List.Item style={{ padding: '4px 0px' }}>
+                      <ApiKeyListItem>
+                        <ApiKeyContainer>
+                          <Typography.Text copyable={{ text: status.key }}>{maskApiKey(status.key)}</Typography.Text>
+                        </ApiKeyContainer>
+                        <ApiKeyActions>
+                          {status.checking && (
+                            <StatusIndicator type="checking">
+                              <LoadingOutlined style={{ fontSize: 16 }} spin />
+                            </StatusIndicator>
+                          )}
+                          {status.isValid === true && !status.checking && (
+                            <StatusIndicator type="success">
+                              <CheckCircleFilled />
+                            </StatusIndicator>
+                          )}
+                          {status.isValid === false && !status.checking && (
+                            <StatusIndicator type="error">
+                              <CloseCircleFilled />
+                            </StatusIndicator>
+                          )}
+                          <CheckButton
+                            onClick={() => checkSingleKey(index)}
+                            style={{
+                              cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                              opacity: isChecking || isCheckingSingle ? 0.5 : 1
+                            }}
+                            title={t('settings.provider.check')}
+                          />
+                          <RemoveButton
+                            onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
+                            style={{
+                              cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                              opacity: isChecking || isCheckingSingle ? 0.5 : 1
+                            }}
+                          />
+                        </ApiKeyActions>
+                      </ApiKeyListItem>
+                    </List.Item>
+                  )}
                 />
-              </Space>
-            </Space>
-          </List.Item>
+              </Scrollbar>
+            )}
+            {isAddingNew && (
+              <List.Item style={{ padding: '4px 0px' }}>
+                <ApiKeyListItem>
+                  <Input.Password
+                    ref={newInputRef}
+                    value={newApiKey}
+                    onChange={(e) => setNewApiKey(e.target.value)}
+                    placeholder={t('settings.provider.enter_new_api_key')}
+                    style={{ width: '60%', fontSize: '14px' }}
+                    onPressEnter={handleSaveNewKey}
+                    spellCheck={false}
+                    type="password"
+                  />
+                  <ApiKeyActions>
+                    <CheckCircleOutlined
+                      style={{ fontSize: '20px', cursor: 'pointer', color: '#52c41a' }}
+                      onClick={handleSaveNewKey}
+                    />
+                    <CloseCircleOutlined
+                      style={{ fontSize: '20px', cursor: 'pointer', color: '#ff4d4f' }}
+                      onClick={handleCancelNewKey}
+                    />
+                  </ApiKeyActions>
+                </ApiKeyListItem>
+              </List.Item>
+            )}
+          </>
         )}
-      />
-      {isAddingNew && (
-        <List.Item>
-          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Input.Password
-              ref={newInputRef}
-              value={newApiKey}
-              onChange={(e) => setNewApiKey(e.target.value)}
-              placeholder={t('settings.provider.enter_new_api_key')}
-              style={{ width: '90%' }}
-              onPressEnter={handleSaveNewKey}
-              spellCheck={false}
-              type="password"
-            />
-            <Space>
-              <CheckCircleTwoTone
-                twoToneColor="#52c41a"
-                style={{ fontSize: '20px', cursor: 'pointer' }}
-                onClick={handleSaveNewKey}
-              />
-              <CloseCircleTwoTone
-                twoToneColor="#ff4d4f"
-                style={{ fontSize: '20px', cursor: 'pointer' }}
-                onClick={handleCancelNewKey}
-              />
-            </Space>
-          </Space>
-        </List.Item>
-      )}
-      <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
+      </Card>
+
+      <Flex gap={10} style={{ marginTop: '8px' }}>
         <Space>
-          <Button key="remove" danger onClick={removeInvalidKeys} disabled={isChecking || isCheckingSingle}>
+          <Button key="add" type="primary" onClick={handleAddNewKey} icon={<PlusOutlined />} disabled={isAddingNew}>
+            {t('common.add')}
+          </Button>
+          <Button key="check" type="default" onClick={checkAllKeys} disabled={isChecking || isCheckingSingle}>
+            {t('settings.provider.check_all_keys')}
+          </Button>
+        </Space>
+        <Space>
+          <Button
+            key="remove"
+            type="default"
+            danger
+            onClick={removeInvalidKeys}
+            disabled={isChecking || isCheckingSingle}>
             {t('settings.provider.remove_invalid_keys')}
           </Button>
         </Space>
-        <Space>
-          <Button key="check" type="primary" ghost onClick={checkAllKeys} disabled={isChecking || isCheckingSingle}>
-            {t('settings.provider.check_all_keys')}
-          </Button>
-          <Button
-            key="add"
-            type="primary"
-            ghost
-            onClick={handleAddNewKey}
-            icon={<PlusOutlined />}
-            disabled={isAddingNew}>
-            {t('common.add')}
-          </Button>
-        </Space>
-      </Space>
+      </Flex>
     </>
   )
 }
 
-const RemoveIcon = styled(MinusCircleOutlined)`
+// Styled components for the list items
+const ApiKeyListItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+`
+
+const ApiKeyContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+`
+
+const ApiKeyActions = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+`
+
+const StatusIndicator = styled.div<{ type: string }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  color: ${(props) => {
+    switch (props.type) {
+      case 'success':
+        return '#52c41a'
+      case 'error':
+        return '#ff4d4f'
+      default:
+        return 'var(--color-text)'
+    }
+  }};
+`
+
+const CheckButton = styled(RedoOutlined)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--color-link);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+`
+
+const RemoveButton = styled(MinusCircleOutlined)`
   display: flex;
   align-items: center;
   justify-content: center;

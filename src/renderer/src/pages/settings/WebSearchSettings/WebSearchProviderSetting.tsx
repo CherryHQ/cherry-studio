@@ -108,15 +108,12 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {hasObjectKey(provider, 'apiKey') && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-          <Card>
-            <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="websearch" />
-          </Card>
+          <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="websearch" />
           {apiKeyWebsite && (
             <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
               <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                 {t('settings.websearch.get_api_key')}
               </SettingHelpLink>
-              <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
             </SettingHelpTextRow>
           )}
         </>

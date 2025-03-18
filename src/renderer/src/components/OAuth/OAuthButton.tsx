@@ -31,7 +31,7 @@ const OAuthButton: FC<Props> = ({ provider, ...props }) => {
 
   return (
     <Button onClick={onAuth} {...props}>
-      {t('auth.get_key')}
+      {/* {t('auth.get_key')} */}
     </Button>
   )
 }
