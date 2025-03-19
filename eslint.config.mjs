@@ -29,6 +29,29 @@ export default defineConfig([
       'prettier/prettier': ['error', { endOfLine: 'auto' }]
     }
   },
+  // Configuration for ensuring compatibility with the original ESLint(8.x) rules
+  ...[
+    {
+      rules: {
+        '@typescript-eslint/no-require-imports': 'off',
+        '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }],
+        '@typescript-eslint/no-unused-expressions': 'off',
+        '@typescript-eslint/no-empty-object-type': 'off',
+        '@eslint-react/hooks-extra/no-direct-set-state-in-use-effect': 'off',
+        '@eslint-react/web-api/no-leaked-event-listener': 'off',
+        '@eslint-react/web-api/no-leaked-timeout': 'off',
+        '@eslint-react/no-unknown-property': 'off',
+        '@eslint-react/no-nested-component-definitions': 'off',
+        '@eslint-react/dom/no-dangerously-set-innerhtml': 'off',
+        '@eslint-react/no-array-index-key': 'off',
+        '@eslint-react/no-unstable-default-props': 'off',
+        '@eslint-react/no-unstable-context-value': 'off',
+        '@eslint-react/hooks-extra/prefer-use-state-lazy-initialization': 'off',
+        '@eslint-react/hooks-extra/no-unnecessary-use-prefix': 'off',
+        '@eslint-react/no-children-to-array': 'off'
+      }
+    }
+  ],
   {
     ignores: ['node_modules/**', 'dist/**', 'out/**', '.gitignore', 'scripts/cloudflare-worker.js']
   }
