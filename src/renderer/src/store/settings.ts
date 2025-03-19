@@ -81,6 +81,8 @@ export interface SettingsState {
   yuqueRepoId: string | null
   obsidianApiKey: string | null
   obsidianUrl: string | null
+  joplinToken: string | null
+  joplinUrl: string | null
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -147,7 +149,9 @@ const initialState: SettingsState = {
   yuqueUrl: '',
   yuqueRepoId: '',
   obsidianApiKey: '',
-  obsidianUrl: ''
+  obsidianUrl: '',
+  joplinToken: '',
+  joplinUrl: ''
 }
 
 const settingsSlice = createSlice({
@@ -342,6 +346,12 @@ const settingsSlice = createSlice({
     },
     setObsidianUrl: (state, action: PayloadAction<string>) => {
       state.obsidianUrl = action.payload
+    },
+    setJoplinToken: (state, action: PayloadAction<string>) => {
+      state.joplinToken = action.payload
+    },
+    setJoplinUrl: (state, action: PayloadAction<string>) => {
+      state.joplinUrl = action.payload
     }
   }
 })
@@ -407,7 +417,9 @@ export const {
   setYuqueRepoId,
   setYuqueUrl,
   setObsidianApiKey,
-  setObsidianUrl
+  setObsidianUrl,
+  setJoplinToken,
+  setJoplinUrl
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

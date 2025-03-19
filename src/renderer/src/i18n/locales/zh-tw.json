@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "匯出失敗",
       "topics.export.obsidian_show_md_files": "顯示md文件",
       "topics.export.obsidian_selected_path": "已選擇路徑",
+      "topics.export.joplin": "匯出到 Joplin",
       "topics.list": "話題列表",
       "topics.move_to": "移動到",
       "topics.pinned": "固定話題",
@@ -434,6 +435,8 @@
       "error.notion.no_api_key": "未設定 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "匯出語雀錯誤，請檢查連接狀態並對照文件檢查設定",
       "error.yuque.no_config": "未設定語雀 Token 或知識庫 Url",
+      "error.joplin.no_config": "未設定 Joplin 授權Token 或 URL",
+      "error.joplin.export": "匯出 Joplin 失敗，請保持 Joplin 已運行並檢查連接狀態或檢查設定",
       "group.delete.content": "刪除分組訊息會刪除使用者提問和所有助手的回答",
       "group.delete.title": "刪除分組訊息",
       "ignore.knowledge.base": "網路模式開啟，忽略知識庫",
@@ -466,6 +469,7 @@
       "success.markdown.export.specified": "成功導出 Markdown 文件",
       "success.notion.export": "成功匯出到 Notion",
       "success.yuque.export": "成功匯出到語雀",
+      "success.joplin.export": "成功匯出到 Joplin",
       "switch.disabled": "請等待當前回覆完成",
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
@@ -777,6 +781,21 @@
           "title": "Obsidian 設定",
           "api_key": "Obsidian API Key",
           "api_key_placeholder": "請輸入 Obsidian API Key"
+        },
+        "joplin": {
+          "check": {
+            "button": "檢查",
+            "empty_url": "請先輸入 Joplin 剪輯服務 URL",
+            "empty_token": "請先輸入 Joplin 授權Token",
+            "fail": "Joplin 連接驗證失敗",
+            "success": "Joplin 連接驗證成功"
+          },
+          "title": "Joplin 設定",
+          "help": "在 Joplin 選項中，啟用剪輯服務（無需安裝瀏覽器外掛），確認埠編號，並複製授權Token",
+          "url": "Joplin 剪輯服務 URL",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Joplin 授權Token",
+          "token_placeholder": "請輸入 Joplin 授權Token"
         }
       },
       "display.assistant.title": "助手設定",

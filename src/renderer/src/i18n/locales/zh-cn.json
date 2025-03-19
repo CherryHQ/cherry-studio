@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "导出失败",
       "topics.export.obsidian_show_md_files": "显示md文件",
       "topics.export.obsidian_selected_path": "已选择路径",
+      "topics.export.joplin": "导出到 Joplin",
       "topics.list": "话题列表",
       "topics.move_to": "移动到",
       "topics.pinned": "固定话题",
@@ -434,6 +435,8 @@
       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
       "error.yuque.no_config": "未配置语雀 Token 或 知识库 URL",
+      "error.joplin.no_config": "未配置 Joplin 授权令牌 或 URL",
+      "error.joplin.export": "导出 Joplin 失败，请保持 Joplin 已运行并检查连接状态或检查配置",
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
       "ignore.knowledge.base": "联网模式开启，忽略知识库",
@@ -466,6 +469,7 @@
       "success.markdown.export.specified": "成功导出 Markdown 文件",
       "success.notion.export": "成功导出到 Notion",
       "success.yuque.export": "成功导出到语雀",
+      "success.joplin.export": "成功导出到 Joplin",
       "switch.disabled": "请等待当前回复完成后操作",
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -777,6 +781,21 @@
           "title": "Obsidian 配置",
           "api_key": "Obsidian API Key",
           "api_key_placeholder": "请输入 Obsidian API Key"
+        },
+        "joplin": {
+          "check": {
+            "button": "检查",
+            "empty_url": "请先输入 Joplin 剪裁服务监听 URL",
+            "empty_token": "请先输入 Joplin 授权令牌",
+            "fail": "Joplin 连接验证失败",
+            "success": "Joplin 连接验证成功"
+          },
+          "title": "Joplin 配置",
+          "help": "在 Joplin 选项中，启用网页剪裁服务（无需安装浏览器插件），确认端口号，并复制授权令牌",
+          "url": "Joplin 剪裁服务监听 URL",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Joplin 授权令牌",
+          "token_placeholder": "请输入 Joplin 授权令牌"
         }
       },
       "display.assistant.title": "助手设置",
