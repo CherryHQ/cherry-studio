@@ -1075,6 +1075,8 @@
         "search_provider_placeholder": "Choose a search service provider.",
         "search_result_default": "Default",
         "search_with_time": "Search with dates included",
+        "enhance_mode": "Search enhance mode",
+        "enhance_mode_tooltip": "Use the default model to extract search keywords from the problem and search",
         "tavily": {
           "api_key": "Tavily API Key",
           "api_key.placeholder": "Enter Tavily API Key",

@@ -80,6 +80,7 @@ const MCPSettings: FC = () => {
 
         return (
           <Paragraph
+            className="selectable"
             ellipsis={{
               rows: 1,
               expandable: 'collapsible',

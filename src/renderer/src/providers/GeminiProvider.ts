@@ -518,7 +518,10 @@ export default class GeminiProvider extends BaseProvider {
           temperature: assistant?.settings?.temperature
         }
       },
-      this.requestOptions
+      {
+        ...this.requestOptions,
+        timeout: 20 * 1000
+      }
     )
 
     const chat = await geminiModel.startChat()

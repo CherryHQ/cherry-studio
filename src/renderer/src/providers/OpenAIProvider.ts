@@ -780,13 +780,18 @@ export default class OpenAIProvider extends BaseProvider {
       content: messages.map((m) => m.content).join('\n')
     }
     // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create({
-      model: model.id,
-      messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
-      stream: false,
-      keep_alive: this.keepAliveTime,
-      max_tokens: 1000
-    })
+    const response = await this.sdk.chat.completions.create(
+      {
+        model: model.id,
+        messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
+        stream: false,
+        keep_alive: this.keepAliveTime,
+        max_tokens: 1000
+      },
+      {
+        timeout: 20 * 1000
+      }
+    )
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''

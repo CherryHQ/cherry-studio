@@ -1075,6 +1075,8 @@
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
         "search_result_default": "デフォルト",
         "search_with_time": "日付を含む検索",
+        "enhance_mode": "検索強化モード",
+        "enhance_mode_tooltip": "デフォルトモデルを使用して問題から検索キーワードを抽出し、検索を実行します",
         "tavily": {
           "api_key": "Tavily API キー",
           "api_key.placeholder": "Tavily API キーを入力してください",

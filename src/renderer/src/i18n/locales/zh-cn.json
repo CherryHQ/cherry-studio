@@ -1075,6 +1075,8 @@
         "search_provider_placeholder": "选择一个搜索服务商",
         "search_result_default": "默认",
         "search_with_time": "搜索包含日期",
+        "enhance_mode": "搜索增强模式",
+        "enhance_mode_tooltip": "使用默认模型提取关键词后搜索",
         "tavily": {
           "api_key": "Tavily API 密钥",
           "api_key.placeholder": "请输入 Tavily API 密钥",
