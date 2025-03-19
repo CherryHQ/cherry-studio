@@ -39,7 +39,10 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     apiVersion: provider.apiVersion,
     baseURL: host,
     chunkSize,
-    chunkOverlap: base.chunkOverlap
+    chunkOverlap: base.chunkOverlap,
+    rerankModel: base.rerankModel?.id,
+    rerankModelProvider: base.rerankModel?.provider,
+    topN: base.topN
   }
 }
 
@@ -92,8 +95,17 @@ export const getKnowledgeBaseReference = async (base: KnowledgeBase, message: Me
       })
     )
 
-  const _searchResults = await Promise.all(
-    searchResults.map(async (item) => {
+  let rerankResults = searchResults
+  if (base.rerankModel) {
+    rerankResults = await window.api.knowledgeBase.rerank({
+      search: message.content,
+      base: getKnowledgeBaseParams(base),
+      results: searchResults
+    })
+  }
+
+  const processdResults = await Promise.all(
+    rerankResults.map(async (item) => {
       const file = await getFileFromUrl(item.metadata.source)
       return { ...item, file }
     })
@@ -102,7 +114,7 @@ export const getKnowledgeBaseReference = async (base: KnowledgeBase, message: Me
   const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
 
   const references = await Promise.all(
-    take(_searchResults, documentCount).map(async (item, index) => {
+    take(processdResults, documentCount).map(async (item, index) => {
       const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
       return {
         id: index + 1,

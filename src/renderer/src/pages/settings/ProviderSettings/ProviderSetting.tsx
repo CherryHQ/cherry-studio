@@ -28,6 +28,7 @@ import {
   SettingTitle
 } from '..'
 import ApiCheckPopup from './ApiCheckPopup'
+import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
@@ -242,9 +243,12 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   useEffect(() => {
+    if (provider.id === 'copilot') {
+      return
+    }
     setApiKey(provider.apiKey)
     setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost])
+  }, [provider.apiKey, provider.apiHost, provider.id])
 
   // Save apiKey to provider when unmount
   useEffect(() => {
@@ -283,6 +287,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           spellCheck={false}
           type="password"
           autoFocus={provider.enabled && apiKey === ''}
+          disabled={provider.id === 'copilot'}
         />
         {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
         <Button
@@ -350,6 +355,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
         <GraphRAGSettings provider={provider} />
       )}
+      {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Flex align="center" justify="space-between" style={{ width: '100%' }}>
           <span>{t('common.models')}</span>
