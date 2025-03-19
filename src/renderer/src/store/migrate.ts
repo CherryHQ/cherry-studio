@@ -10,7 +10,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
-import { moveProvider } from './llm'
+import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { DEFAULT_SIDEBAR_ICONS } from './settings'
 
 // remove logo base64 data to reduce the size of the state
@@ -22,101 +22,36 @@ function removeMiniAppIconsFromState(state: RootState) {
   }
 }
 
+// add provider to state
+function addProvider(state: RootState, id: string) {
+  if (!state.llm.providers.find((p) => p.id === id)) {
+    const _provider = INITIAL_PROVIDERS.find((p) => p.id === id)
+    if (_provider) {
+      state.llm.providers.push(_provider)
+    }
+  }
+}
+
 const migrateConfig = {
   '2': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'yi',
-            name: 'Yi',
-            apiKey: '',
-            apiHost: 'https://api.lingyiwanwu.com',
-            isSystem: true,
-            models: SYSTEM_MODELS.yi
-          }
-        ]
-      }
-    }
+    addProvider(state, 'yi')
+    return state
   },
   '3': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'zhipu',
-            name: 'ZhiPu',
-            apiKey: '',
-            apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
-            isSystem: true,
-            models: SYSTEM_MODELS.zhipu
-          }
-        ]
-      }
-    }
+    addProvider(state, 'zhipu')
+    return state
   },
   '4': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'ollama',
-            name: 'Ollama',
-            apiKey: '',
-            apiHost: 'http://localhost:11434',
-            isSystem: true,
-            models: []
-          }
-        ]
-      }
-    }
+    addProvider(state, 'ollama')
+    return state
   },
   '5': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'moonshot',
-            name: 'Moonshot',
-            apiKey: '',
-            apiHost: 'https://api.moonshot.cn',
-            isSystem: true,
-            models: SYSTEM_MODELS.moonshot
-          }
-        ]
-      }
-    }
+    addProvider(state, 'moonshot')
+    return state
   },
   '6': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'openrouter',
-            name: 'OpenRouter',
-            apiKey: '',
-            apiHost: 'https://openrouter.ai/api/v1/',
-            models: SYSTEM_MODELS.openrouter,
-            isSystem: true
-          }
-        ]
-      }
-    }
+    addProvider(state, 'openrouter')
+    return state
   },
   '7': (state: RootState) => {
     return {
@@ -167,73 +102,17 @@ const migrateConfig = {
     }
   },
   '10': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'baichuan',
-            name: 'BAICHUAN AI',
-            apiKey: '',
-            apiHost: 'https://api.baichuan-ai.com',
-            models: SYSTEM_MODELS.baichuan,
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'baichuan')
+    return state
   },
   '11': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'dashscope',
-            name: 'DashScope',
-            apiKey: '',
-            apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
-            models: SYSTEM_MODELS.bailian,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'anthropic',
-            name: 'Anthropic',
-            apiKey: '',
-            apiHost: 'https://api.anthropic.com/',
-            models: SYSTEM_MODELS.anthropic,
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'dashscope')
+    addProvider(state, 'anthropic')
+    return state
   },
   '12': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'aihubmix',
-            name: 'AiHubMix',
-            apiKey: '',
-            apiHost: 'https://aihubmix.com',
-            models: SYSTEM_MODELS.aihubmix,
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'aihubmix')
+    return state
   },
   '13': (state: RootState) => {
     return {
@@ -314,71 +193,14 @@ const migrateConfig = {
     }
   },
   '21': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'gemini',
-            name: 'Gemini',
-            apiKey: '',
-            apiHost: 'https://generativelanguage.googleapis.com',
-            models: SYSTEM_MODELS.gemini,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'stepfun',
-            name: 'StepFun',
-            apiKey: '',
-            apiHost: 'https://api.stepfun.com',
-            models: SYSTEM_MODELS.stepfun,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'doubao',
-            name: 'doubao',
-            apiKey: '',
-            apiHost: 'https://ark.cn-beijing.volces.com/api/v3/',
-            models: SYSTEM_MODELS.doubao,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'graphrag-kylin-mountain',
-            name: 'GraphRAG',
-            apiKey: '',
-            apiHost: '',
-            models: [],
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'gemini')
+    addProvider(state, 'stepfun')
+    addProvider(state, 'doubao')
+    return state
   },
   '22': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'minimax',
-            name: 'MiniMax',
-            apiKey: '',
-            apiHost: 'https://api.minimax.chat/v1/',
-            models: SYSTEM_MODELS.minimax,
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'minimax')
+    return state
   },
   '23': (state: RootState) => {
     return {
@@ -411,44 +233,12 @@ const migrateConfig = {
     }
   },
   '25': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'github',
-            name: 'Github Models',
-            apiKey: '',
-            apiHost: 'https://models.inference.ai.azure.com/',
-            models: SYSTEM_MODELS.github,
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'github')
+    return state
   },
   '26': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'ocoolai',
-            name: 'ocoolAI',
-            apiKey: '',
-            apiHost: 'https://one.ooo.cool',
-            models: [],
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'ocoolai')
+    return state
   },
   '27': (state: RootState) => {
     return {
@@ -460,60 +250,11 @@ const migrateConfig = {
     }
   },
   '28': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'together',
-            name: 'Together',
-            apiKey: '',
-            apiHost: 'https://api.together.xyz',
-            models: SYSTEM_MODELS.together,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'fireworks',
-            name: 'Fireworks',
-            apiKey: '',
-            apiHost: 'https://api.fireworks.ai/inference',
-            models: SYSTEM_MODELS.fireworks,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'zhinao',
-            name: 'zhinao',
-            apiKey: '',
-            apiHost: 'https://api.360.cn',
-            models: SYSTEM_MODELS.zhinao,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'hunyuan',
-            name: 'hunyuan',
-            apiKey: '',
-            apiHost: 'https://api.hunyuan.cloud.tencent.com',
-            models: SYSTEM_MODELS.hunyuan,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'nvidia',
-            name: 'Nvidia',
-            apiKey: '',
-            apiHost: 'https://integrate.api.nvidia.com',
-            models: SYSTEM_MODELS.nvidia,
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'together')
+    addProvider(state, 'fireworks')
+    addProvider(state, 'zhinao')
+    addProvider(state, 'hunyuan')
+    addProvider(state, 'nvidia')
   },
   '29': (state: RootState) => {
     return {
@@ -531,25 +272,8 @@ const migrateConfig = {
     }
   },
   '30': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'azure-openai',
-            name: 'Azure OpenAI',
-            apiKey: '',
-            apiHost: '',
-            apiVersion: '',
-            models: SYSTEM_MODELS['azure-openai'],
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'azure-openai')
+    return state
   },
   '31': (state: RootState) => {
     return {
@@ -566,24 +290,8 @@ const migrateConfig = {
     }
   },
   '32': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'hunyuan',
-            name: 'Hunyuan',
-            apiKey: '',
-            apiHost: 'https://api.hunyuan.cloud.tencent.com',
-            models: SYSTEM_MODELS.hunyuan,
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'hunyuan')
+    return state
   },
   '33': (state: RootState) => {
     state.assistants.defaultAssistant.type = 'assistant'
@@ -638,42 +346,10 @@ const migrateConfig = {
     return state
   },
   '38': (state: RootState) => {
-    return {
-      ...state,
-      llm: {
-        ...state.llm,
-        providers: [
-          ...state.llm.providers,
-          {
-            id: 'grok',
-            name: 'Grok',
-            apiKey: '',
-            apiHost: 'https://api.x.ai',
-            models: SYSTEM_MODELS.grok,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'hyperbolic',
-            name: 'Hyperbolic',
-            apiKey: '',
-            apiHost: 'https://api.hyperbolic.xyz',
-            models: SYSTEM_MODELS.hyperbolic,
-            isSystem: true,
-            enabled: false
-          },
-          {
-            id: 'mistral',
-            name: 'Mistral',
-            apiKey: '',
-            apiHost: 'https://api.mistral.ai',
-            models: SYSTEM_MODELS.mistral,
-            isSystem: true,
-            enabled: false
-          }
-        ]
-      }
-    }
+    addProvider(state, 'grok')
+    addProvider(state, 'hyperbolic')
+    addProvider(state, 'mistral')
+    return state
   },
   '39': (state: RootState) => {
     state.settings.codeStyle = 'auto'
@@ -770,16 +446,7 @@ const migrateConfig = {
     return state
   },
   '50': (state: RootState) => {
-    state.llm.providers.push({
-      id: 'jina',
-      name: 'Jina',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://api.jina.ai',
-      models: SYSTEM_MODELS.jina,
-      isSystem: true,
-      enabled: false
-    })
+    addProvider(state, 'jina')
     return state
   },
   '51': (state: RootState) => {
@@ -809,19 +476,6 @@ const migrateConfig = {
         disabled: []
       }
     }
-    return state
-  },
-  '56': (state: RootState) => {
-    state.llm.providers.push({
-      id: 'qwenlm',
-      name: 'QwenLM',
-      type: 'qwenlm',
-      apiKey: '',
-      apiHost: 'https://chat.qwenlm.ai/api/',
-      models: SYSTEM_MODELS.qwenlm,
-      isSystem: true,
-      enabled: false
-    })
     return state
   },
   '57': (state: RootState) => {
@@ -908,16 +562,7 @@ const migrateConfig = {
   },
   '64': (state: RootState) => {
     state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'qwenlm')
-    state.llm.providers.push({
-      id: 'baidu-cloud',
-      name: 'Baidu Cloud',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://qianfan.baidubce.com/v2/',
-      models: SYSTEM_MODELS['baidu-cloud'],
-      isSystem: true,
-      enabled: false
-    })
+    addProvider(state, 'baidu-cloud')
     return state
   },
   '65': (state: RootState) => {
@@ -925,28 +570,8 @@ const migrateConfig = {
     return state
   },
   '66': (state: RootState) => {
-    state.llm.providers.push(
-      {
-        id: 'gitee-ai',
-        name: 'gitee ai',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'https://ai.gitee.com',
-        models: SYSTEM_MODELS['gitee-ai'],
-        isSystem: true,
-        enabled: false
-      },
-      {
-        id: 'ppio',
-        name: 'PPIO',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'https://api.ppinfra.com/v3/openai',
-        models: SYSTEM_MODELS.ppio,
-        isSystem: true,
-        enabled: false
-      }
-    )
+    addProvider(state, 'gitee-ai')
+    addProvider(state, 'ppio')
 
     state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'graphrag-kylin-mountain')
 
@@ -967,58 +592,11 @@ const migrateConfig = {
       }
     }
 
-    state.llm.providers.push(
-      {
-        id: 'modelscope',
-        name: 'ModelScope',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'https://api-inference.modelscope.cn/v1/',
-        models: SYSTEM_MODELS.modelscope,
-        isSystem: true,
-        enabled: false
-      },
-      {
-        id: 'lmstudio',
-        name: 'LM Studio',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'http://localhost:1234',
-        models: SYSTEM_MODELS.lmstudio,
-        isSystem: true,
-        enabled: false
-      },
-      {
-        id: 'perplexity',
-        name: 'Perplexity',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'https://api.perplexity.ai/',
-        models: SYSTEM_MODELS.perplexity,
-        isSystem: true,
-        enabled: false
-      },
-      {
-        id: 'infini',
-        name: 'Infini',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'https://cloud.infini-ai.com/maas',
-        models: SYSTEM_MODELS.infini,
-        isSystem: true,
-        enabled: false
-      },
-      {
-        id: 'dmxapi',
-        name: 'DMXAPI',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'https://api.dmxapi.com',
-        models: SYSTEM_MODELS.dmxapi,
-        isSystem: true,
-        enabled: false
-      }
-    )
+    addProvider(state, 'modelscope')
+    addProvider(state, 'lmstudio')
+    addProvider(state, 'perplexity')
+    addProvider(state, 'infini')
+    addProvider(state, 'dmxapi')
 
     state.llm.settings.lmstudio = {
       keepAliveTime: 5
@@ -1034,31 +612,8 @@ const migrateConfig = {
       }
     }
 
-    if (!state.llm.providers.find((provider) => provider.id === 'modelscope')) {
-      state.llm.providers.push({
-        id: 'modelscope',
-        name: 'ModelScope',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'https://api-inference.modelscope.cn/v1/',
-        models: SYSTEM_MODELS.modelscope,
-        isSystem: true,
-        enabled: false
-      })
-    }
-
-    if (!state.llm.providers.find((provider) => provider.id === 'lmstudio')) {
-      state.llm.providers.push({
-        id: 'lmstudio',
-        name: 'LM Studio',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'http://localhost:1234',
-        models: SYSTEM_MODELS.lmstudio,
-        isSystem: true,
-        enabled: false
-      })
-    }
+    addProvider(state, 'modelscope')
+    addProvider(state, 'lmstudio')
 
     return state
   },
@@ -1126,29 +681,9 @@ const migrateConfig = {
       state.websearch.excludeDomains = []
     }
 
-    if (!state.llm.providers.find((provider) => provider.id === 'lmstudio')) {
-      state.llm.providers.push({
-        id: 'lmstudio',
-        name: 'LM Studio',
-        type: 'openai',
-        apiKey: '',
-        apiHost: 'http://localhost:1234',
-        models: SYSTEM_MODELS.lmstudio,
-        isSystem: true,
-        enabled: false
-      })
-    }
-
-    state.llm.providers.splice(1, 0, {
-      id: 'o3',
-      name: 'O3',
-      apiKey: '',
-      apiHost: 'https://api.o3.fan',
-      models: SYSTEM_MODELS.o3,
-      isSystem: true,
-      type: 'openai',
-      enabled: false
-    })
+    addProvider(state, 'lmstudio')
+    addProvider(state, 'o3')
+    moveProvider(state.llm.providers, 'o3', 2)
 
     state.assistants.assistants.forEach((assistant) => {
       const leadingEmoji = getLeadingEmoji(assistant.name)
@@ -1178,16 +713,7 @@ const migrateConfig = {
     return state
   },
   '74': (state: RootState) => {
-    state.llm.providers.push({
-      id: 'xirang',
-      name: 'Xirang',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://wishub-x1.ctyun.cn',
-      models: SYSTEM_MODELS.xirang,
-      isSystem: true,
-      enabled: false
-    })
+    addProvider(state, 'xirang')
     return state
   },
   '75': (state: RootState) => {
@@ -1202,16 +728,7 @@ const migrateConfig = {
     return state
   },
   '76': (state: RootState) => {
-    state.llm.providers.push({
-      id: 'tencent-cloud-ti',
-      name: 'Tencent Cloud TI',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://api.lkeap.cloud.tencent.com',
-      models: SYSTEM_MODELS['tencent-cloud-ti'],
-      isSystem: true,
-      enabled: false
-    })
+    addProvider(state, 'tencent-cloud-ti')
     return state
   },
   '77': (state: RootState) => {
@@ -1235,7 +752,6 @@ const migrateConfig = {
         delete p.enabled
       })
     }
-
     return state
   },
   '78': (state: RootState) => {
@@ -1245,30 +761,16 @@ const migrateConfig = {
     return state
   },
   '79': (state: RootState) => {
-    state.llm.providers.push({
-      id: 'gpustack',
-      name: 'GPUStack',
-      type: 'openai',
-      apiKey: '',
-      apiHost: '',
-      models: SYSTEM_MODELS.gpustack,
-      isSystem: true,
-      enabled: false
-    })
+    addProvider(state, 'gpustack')
     return state
   },
   '80': (state: RootState) => {
-    state.llm.providers.push({
-      id: 'alayanew',
-      name: 'AlayaNew',
-      type: 'openai',
-      apiKey: '',
-      apiHost: 'https://deepseek.alayanew.com',
-      models: SYSTEM_MODELS.alayanew,
-      isSystem: true,
-      enabled: false
-    })
+    addProvider(state, 'alayanew')
     state.llm.providers = moveProvider(state.llm.providers, 'alayanew', 10)
+    return state
+  },
+  '81': (state: RootState) => {
+    addProvider(state, 'copilot')
     return state
   }
 }
