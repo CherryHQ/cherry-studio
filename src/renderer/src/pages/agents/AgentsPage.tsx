@@ -304,8 +304,13 @@ const Tabs = styled(TabsAntd)<{ $language: string }>`
   .ant-tabs-ink-bar {
     display: none;
   }
-  .ant-tabs-tab-btn:active {
-    color: var(--color-text) !important;
+  .ant-tabs-tab-btn {
+    &:focus:not(:focus-visible) {
+      outline: none !important;
+    }
+    &:active {
+      color: var(--color-text) !important;
+    }
   }
   .ant-tabs-tab-active {
     .ant-tabs-tab-btn {

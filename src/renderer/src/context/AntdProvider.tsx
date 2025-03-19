@@ -30,6 +30,9 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
             defaultShadow: 'none',
             dangerShadow: 'none',
             primaryShadow: 'none'
+          },
+          Tabs: {
+            cardGutter: 4
           }
         },
         token: {

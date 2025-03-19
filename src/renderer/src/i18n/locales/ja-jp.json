@@ -1026,6 +1026,7 @@
       "theme.window.style.title": "ウィンドウスタイル",
       "theme.window.style.transparent": "透明ウィンドウ",
       "title": "設定",
+      "topic.horizontal.tab": "水平タブを表示",
       "topic.position": "トピックの位置",
       "topic.position.left": "左",
       "topic.position.right": "右",
@@ -1053,6 +1054,12 @@
         },
         "title": "ウェブ検索"
       }
+    },
+    "tabs": {
+      "pin_tab": "タブをピン留めする",
+      "unpin_tab": "ピン留めを解除",
+      "close_right": "右側のタブを閉じる",
+      "close_others": "他のタブを閉じる"
     },
     "translate": {
       "any.language": "任意の言語",

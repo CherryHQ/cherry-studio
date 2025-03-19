@@ -233,6 +233,7 @@ const MessageContentContainer = styled.div`
   margin-left: 46px;
   margin-top: 5px;
   overflow-y: auto;
+  overflow-x: hidden;
 `
 
 const MessageFooter = styled.div`

@@ -99,6 +99,14 @@ export type Topic = {
   isNameManuallyEdited?: boolean
 }
 
+export type TopicInfo = {
+  id: string
+  assistantId: string
+  assistantEmoji?: string
+  name: string
+  pinned?: boolean
+}
+
 export type User = {
   id: string
   name: string

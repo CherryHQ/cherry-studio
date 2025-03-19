@@ -28,6 +28,8 @@ const DisplaySettings: FC = () => {
     theme,
     windowStyle,
     setWindowStyle,
+    showHorizontalTab,
+    setShowHorizontalTab,
     topicPosition,
     setTopicPosition,
     clickAssistantToShowTopic,
@@ -122,6 +124,11 @@ const DisplaySettings: FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.topic.horizontal.tab')}</SettingRowTitle>
+          <Switch checked={showHorizontalTab} onChange={(checked) => setShowHorizontalTab(checked)} />
+        </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.position')}</SettingRowTitle>
