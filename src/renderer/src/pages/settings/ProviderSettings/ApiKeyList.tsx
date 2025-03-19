@@ -42,20 +42,22 @@ const STATUS_COLORS = {
   warning: '#faad14'
 }
 
+const formatAndConvertKeysToArray = (apiKeys: string): KeyStatus[] => {
+  const formattedApiKeys = formatApiKeys(apiKeys)
+  if (formattedApiKeys.includes(',')) {
+    const keys = formattedApiKeys
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k)
+    const uniqueKeys = new Set(keys)
+    return Array.from(uniqueKeys).map((key) => ({ key }))
+  } else {
+    return formattedApiKeys ? [{ key: formattedApiKeys }] : []
+  }
+}
+
 const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' }) => {
-  const [keyStatuses, setKeyStatuses] = useState<KeyStatus[]>(() => {
-    const formattedApiKeys = formatApiKeys(apiKeys)
-    if (formattedApiKeys.includes(',')) {
-      const keys = formattedApiKeys
-        .split(',')
-        .map((k) => k.trim())
-        .filter((k) => k)
-      const uniqueKeys = new Set(keys)
-      return Array.from(uniqueKeys).map((key) => ({ key }))
-    } else {
-      return formattedApiKeys ? [{ key: formattedApiKeys }] : []
-    }
-  })
+  const [keyStatuses, setKeyStatuses] = useState<KeyStatus[]>(() => formatAndConvertKeysToArray(apiKeys))
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [newApiKey, setNewApiKey] = useState('')
   const newInputRef = useRef<any>(null)
@@ -68,6 +70,10 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       newInputRef.current.focus()
     }
   }, [isAddingNew])
+
+  useEffect(() => {
+    setKeyStatuses(formatAndConvertKeysToArray(apiKeys))
+  }, [apiKeys])
 
   const handleAddNewKey = () => {
     setIsAddingNew(true)
