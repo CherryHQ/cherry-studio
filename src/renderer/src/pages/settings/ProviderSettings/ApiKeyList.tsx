@@ -262,9 +262,15 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
 
   return (
     <>
-      <Card size="small" type="inner" style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}>
+      <Card
+        size="small"
+        type="inner"
+        styles={{ body: { padding: 0 } }}
+        style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}>
         {keyStatuses.length === 0 && !isAddingNew ? (
-          <Typography.Text type="secondary">{t('error.no_api_key')}</Typography.Text>
+          <Typography.Text type="secondary" style={{ padding: '8px 12px', display: 'block' }}>
+            {t('error.no_api_key')}
+          </Typography.Text>
         ) : (
           <>
             {keyStatuses.length > 0 && (
@@ -273,7 +279,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                   size="small"
                   dataSource={keyStatuses}
                   renderItem={(status, index) => (
-                    <List.Item style={{ padding: '4px 0px' }}>
+                    <List.Item style={{ padding: '8px 12px' }}>
                       <ApiKeyListItem>
                         <ApiKeyContainer>
                           <Typography.Text copyable={{ text: status.key }}>{maskApiKey(status.key)}</Typography.Text>
@@ -319,7 +325,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
               </Scrollbar>
             )}
             {isAddingNew && (
-              <List.Item style={{ padding: '4px 0px' }}>
+              <List.Item style={{ padding: '8px 12px' }}>
                 <ApiKeyListItem>
                   <Input.Password
                     ref={newInputRef}
