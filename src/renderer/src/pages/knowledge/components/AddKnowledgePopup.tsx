@@ -20,7 +20,7 @@ interface ShowParams {
 interface FormData {
   name: string
   model: string
-  rerankModel: string
+  rerankModel: string | undefined
 }
 
 interface Props extends ShowParams {
