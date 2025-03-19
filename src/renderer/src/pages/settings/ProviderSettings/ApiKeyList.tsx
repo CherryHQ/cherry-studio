@@ -122,26 +122,36 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     setKeyStatuses((prev) => prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: true } : status)))
 
     try {
-      const startTime = Date.now()
+      let latency: number
       let result: { valid: boolean; error?: any }
       let model: Model | undefined
+
       if (type === 'provider') {
-        model =
-          selectedModel ||
-          (await SelectProviderModelPopup.show({
-            provider: provider as Provider
-          }))
-        if (!model) {
-          const errorMessage = t('message.error.enter.model')
-          window.message.error({ content: errorMessage, key: 'api-check' })
-          throw new Error(errorMessage)
+        try {
+          model =
+            selectedModel ||
+            (await SelectProviderModelPopup.show({
+              provider: provider as Provider
+            }))
+        } catch (err) {
+          // User canceled the popup, just stop checking without marking as failed
+          setKeyStatuses((prev) =>
+            prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false } : status))
+          )
+          setIsCheckingSingle(false)
+          return
         }
+
+        const startTime = Date.now()
         result = await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
+        latency = Date.now() - startTime
       } else {
+        const startTime = Date.now()
         result = await WebSearchService.checkSearch({
           ...(provider as WebSearchProvider),
           apiKey: keyStatuses[keyIndex].key
         })
+        latency = Date.now() - startTime
       }
 
       const { valid, error } = result
@@ -152,8 +162,6 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
         duration: valid ? 2 : 8,
         content: valid ? t('settings.websearch.check_success') : t('settings.websearch.check_failed') + errorMessage
       })
-
-      const latency = Date.now() - startTime
 
       setKeyStatuses((prev) =>
         prev.map((status, idx) =>
@@ -193,9 +201,14 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     try {
       let selectedModel
       if (type === 'provider') {
-        selectedModel = await SelectProviderModelPopup.show({ provider: provider as Provider })
-        if (!selectedModel) {
-          window.message.error({ content: t('message.error.enter.model'), key: 'api-check' })
+        try {
+          selectedModel = await SelectProviderModelPopup.show({ provider: provider as Provider })
+          if (!selectedModel) {
+            window.message.error({ content: t('message.error.enter.model'), key: 'api-check' })
+            return
+          }
+        } catch (err) {
+          // User canceled the popup, just stop checking
           return
         }
       }
