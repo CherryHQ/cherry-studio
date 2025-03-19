@@ -8,6 +8,9 @@ import { windowService } from './WindowService'
 let showAppAccelerator: string | null = null
 let showMiniWindowAccelerator: string | null = null
 
+// store the focus and blur handlers for each window to unregister them later
+const windowOnHandlers = new Map<BrowserWindow, { onFocusHandler: () => void; onBlurHandler: () => void }>()
+
 function getShortcutHandler(shortcut: Shortcut) {
   switch (shortcut.key) {
     case 'zoom_in':
@@ -113,8 +116,6 @@ const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutForm
 
 export function registerShortcuts(window: BrowserWindow) {
   window.once('ready-to-show', () => {
-    window.webContents.setZoomFactor(configManager.getZoomFactor())
-
     if (configManager.getLaunchToTray()) {
       registerOnlyUniversalShortcuts()
     }
@@ -161,9 +162,10 @@ export function registerShortcuts(window: BrowserWindow) {
 
           case 'mini_window':
             //available only when QuickAssistant enabled
-            if (configManager.getEnableQuickAssistant()) {
-              showMiniWindowAccelerator = formatShortcutKey(shortcut.shortcut)
+            if (!configManager.getEnableQuickAssistant()) {
+              return
             }
+            showMiniWindowAccelerator = formatShortcutKey(shortcut.shortcut)
             break
 
           //the following ZOOMs will register shortcuts seperately, so will return
@@ -217,8 +219,12 @@ export function registerShortcuts(window: BrowserWindow) {
     }
   }
 
-  window.on('focus', () => register())
-  window.on('blur', () => unregister())
+  // only register the event handlers once
+  if (undefined === windowOnHandlers.get(window)) {
+    window.on('focus', register)
+    window.on('blur', unregister)
+    windowOnHandlers.set(window, { onFocusHandler: register, onBlurHandler: unregister })
+  }
 
   if (!window.isDestroyed() && window.isFocused()) {
     register()
@@ -229,6 +235,11 @@ export function unregisterAllShortcuts() {
   try {
     showAppAccelerator = null
     showMiniWindowAccelerator = null
+    windowOnHandlers.forEach((handlers, window) => {
+      window.off('focus', handlers.onFocusHandler)
+      window.off('blur', handlers.onBlurHandler)
+    })
+    windowOnHandlers.clear()
     globalShortcut.unregisterAll()
   } catch (error) {
     Logger.error('[ShortcutService] Failed to unregister all shortcuts')

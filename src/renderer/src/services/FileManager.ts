@@ -28,6 +28,10 @@ class FileManager {
     return Promise.all(files.map((file) => this.addFile(file)))
   }
 
+  static async readFile(file: FileType): Promise<Buffer> {
+    return (await window.api.file.binaryFile(file.id + file.ext)).data
+  }
+
   static async uploadFile(file: FileType): Promise<FileType> {
     console.log(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
 

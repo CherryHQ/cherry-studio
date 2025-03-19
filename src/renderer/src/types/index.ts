@@ -116,6 +116,9 @@ export type Provider = {
   models: Model[]
   enabled?: boolean
   isSystem?: boolean
+  isAuthed?: boolean
+  rateLimit?: number
+  isNotSupportArrayContent?: boolean
 }
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'

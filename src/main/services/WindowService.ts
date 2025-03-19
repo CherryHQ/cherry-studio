@@ -143,6 +143,8 @@ export class WindowService {
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      
       // show window only when laucn to tray not set
       const isLaunchToTray = configManager.getLaunchToTray()
       if (!isLaunchToTray) {
@@ -302,7 +304,7 @@ export class WindowService {
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
-        this.mainWindow.restore()
+        return this.mainWindow.restore()
       }
       this.mainWindow.show()
       this.mainWindow.focus()
