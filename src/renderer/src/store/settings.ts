@@ -75,6 +75,7 @@ export interface SettingsState {
   notionApiKey: string | null
   notionPageNameKey: string | null
   markdownExportPath: string | null
+  forceDollarMathInMarkdown: boolean
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
@@ -143,6 +144,7 @@ const initialState: SettingsState = {
   notionApiKey: '',
   notionPageNameKey: 'Name',
   markdownExportPath: null,
+  forceDollarMathInMarkdown: false,
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
   notionSplitSize: 90,
@@ -325,6 +327,9 @@ const settingsSlice = createSlice({
     setmarkdownExportPath: (state, action: PayloadAction<string | null>) => {
       state.markdownExportPath = action.payload
     },
+    setForceDollarMathInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.forceDollarMathInMarkdown = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
@@ -407,6 +412,7 @@ export const {
   setNotionApiKey,
   setNotionPageNameKey,
   setmarkdownExportPath,
+  setForceDollarMathInMarkdown,
   setThoughtAutoCollapse,
   setNotionAutoSplit,
   setNotionSplitSize,

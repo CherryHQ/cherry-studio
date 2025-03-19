@@ -709,6 +709,8 @@
         "markdown_export.path_placeholder": "导出路径",
         "markdown_export.select": "选择",
         "markdown_export.help": "若填入，则每次导出时将自动保存到该路径；否则，将弹出保存对话框",
+        "markdown_export.force_dollar_math.title": "强制使用$$来标记LaTeX公式",
+        "markdown_export.force_dollar_math.help": "开启后，导出Markdown时会将强制使用$$来标记LaTeX公式。注意：该项也会影响所有通过Markdown导出的方式，如Notion、语雀等。",
         "notion.api_key": "Notion 密钥",
         "notion.api_key_placeholder": "请输入Notion 密钥",
         "notion.auto_split": "导出对话时自动分页",

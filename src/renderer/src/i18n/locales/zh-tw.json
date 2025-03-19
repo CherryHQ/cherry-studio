@@ -709,6 +709,8 @@
         "markdown_export.path_placeholder": "匯出路徑",
         "markdown_export.select": "選擇",
         "markdown_export.help": "若填入，每次匯出時將自動儲存至該路徑；否則，將彈出儲存對話框。",
+        "markdown_export.force_dollar_math.title": "LaTeX公式強制使用$$",
+        "markdown_export.force_dollar_math.help": "開啟後，匯出Markdown時會強制使用$$來標記LaTeX公式。注意：該項也會影響所有透過Markdown匯出的方式，如Notion、語雀等。",
         "notion.api_key": "Notion 金鑰",
         "notion.api_key_placeholder": "請輸入 Notion 金鑰",
         "notion.auto_split": "匯出對話時自動分頁",

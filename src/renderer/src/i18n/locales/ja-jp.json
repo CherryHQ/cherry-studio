@@ -709,6 +709,8 @@
         "markdown_export.path_placeholder": "エクスポートパス",
         "markdown_export.select": "選択",
         "markdown_export.help": "入力された場合、エクスポート時に自動的にこのパスに保存されます。未入力の場合、保存ダイアログが表示されます。",
+        "markdown_export.force_dollar_math.title": "LaTeX数式に$$を強制使用",
+        "markdown_export.force_dollar_math.help": "有効にすると、Markdownにエクスポートする際にLaTeX数式を$$で強制的にマークします。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
         "notion.api_key": "Notion APIキー",
         "notion.api_key_placeholder": "Notion APIキーを入力してください",
         "notion.auto_split": "ダイアログをエクスポートすると自動ページ分割",

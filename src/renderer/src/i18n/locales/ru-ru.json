@@ -709,6 +709,8 @@
         "markdown_export.path_placeholder": "Путь экспорта",
         "markdown_export.select": "Выбрать",
         "markdown_export.help": "Если указано, файлы будут автоматически сохраняться в этот путь; в противном случае появится диалоговое окно сохранения.",
+        "markdown_export.force_dollar_math.title": "Принудительно использовать $$ для формул LaTeX",
+        "markdown_export.force_dollar_math.help": "Если включено, при экспорте в Markdown для обозначения формул LaTeX будет принудительно использоваться $$. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
         "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",

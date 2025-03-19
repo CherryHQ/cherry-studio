@@ -709,6 +709,8 @@
         "markdown_export.path_placeholder": "Export Path",
         "markdown_export.select": "Select",
         "markdown_export.help": "If provided, exports will be automatically saved to this path; otherwise, a save dialog will appear.",
+        "markdown_export.force_dollar_math.title": "Force $$ for LaTeX formulas",
+        "markdown_export.force_dollar_math.help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
         "notion.auto_split": "Auto split when exporting",
