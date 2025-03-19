@@ -1,6 +1,5 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import store from '@renderer/store'
+import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   clearStreamMessage,
   clearTopicMessages,
@@ -10,12 +9,15 @@ import {
   selectTopicLoading,
   selectTopicMessages,
   setStreamMessage,
+  setTopicLoading,
   updateMessage,
   updateMessages
 } from '@renderer/store/messages'
 import type { Assistant, Message, Topic } from '@renderer/types'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { useCallback } from 'react'
+
+import { TopicManager } from './useTopic'
 /**
  * 自定义Hook，提供消息操作相关的功能
  *
@@ -122,7 +124,9 @@ export function useMessageOperations(topic: Topic) {
    */
   const clearTopicMessagesAction = useCallback(
     async (_topicId?: string) => {
-      await dispatch(clearTopicMessages(_topicId || topic.id))
+      const topicId = _topicId || topic.id
+      await dispatch(clearTopicMessages(topicId))
+      await TopicManager.clearTopicMessages(topicId)
     },
     [dispatch, topic.id]
   )
@@ -154,37 +158,35 @@ export function useMessageOperations(topic: Topic) {
   /**
    * 暂停消息生成
    */
-  const pauseMessage = useCallback(
-    async (messageId: string) => {
-      // 1. 调用 abort
-      abortCompletion(messageId)
+  // const pauseMessage = useCallback(
+  //   // 存的是用户消息的id，也就是助手消息的askId
+  //   async (message: Message) => {
+  //     // 1. 调用 abort
 
-      // 2. 更新消息状态
-      await editMessage(messageId, { status: 'paused' })
+  //     // 2. 更新消息状态,
+  //     // await editMessage(message.id, { status: 'paused', content: message.content })
 
-      // 3. 清理流式消息
-      clearStreamMessageAction(messageId)
-    },
-    [editMessage, clearStreamMessageAction]
-  )
+  //     // 3.更改loading状态
+  //     dispatch(setTopicLoading({ topicId: message.topicId, loading: false }))
+
+  //     // 4. 清理流式消息
+  //     // clearStreamMessageAction(message.id)
+  //   },
+  //   [editMessage, dispatch, clearStreamMessageAction]
+  // )
 
   const pauseMessages = useCallback(async () => {
-    // 从 store 获取当前 topic 的所有流式消息
+    // 暂停的消息不需要在这更改status,通过catch判断abort错误之后设置message.status
     const streamMessages = store.getState().messages.streamMessagesByTopic[topic.id]
-    if (streamMessages) {
-      // 获取所有流式消息的 askId
-      const askIds = new Set(
-        Object.values(streamMessages)
-          .map((msg) => msg.askId)
-          .filter(Boolean)
-      )
+    if (!streamMessages) return
+    // 不需要重复暂停
+    const askIds = [...new Set(Object.values(streamMessages).map((m) => m?.askId))]
 
-      // 对每个 askId 执行暂停
-      for (const askId of askIds) {
-        await pauseMessage(askId)
-      }
+    for (const askId of askIds) {
+      askId && abortCompletion(askId)
     }
-  }, [topic.id, pauseMessage])
+    dispatch(setTopicLoading({ topicId: topic.id, loading: false }))
+  }, [topic.id, dispatch])
 
   /**
    * 恢复/重发消息
@@ -212,7 +214,7 @@ export function useMessageOperations(topic: Topic) {
     clearStreamMessage: clearStreamMessageAction,
     createNewContext,
     clearTopicMessages: clearTopicMessagesAction,
-    pauseMessage,
+    // pauseMessage,
     pauseMessages,
     resumeMessage
   }

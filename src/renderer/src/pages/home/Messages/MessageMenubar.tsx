@@ -12,11 +12,11 @@ import {
   TranslationOutlined
 } from '@ant-design/icons'
 import { UploadOutlined } from '@ant-design/icons'
+import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -31,7 +31,6 @@ import {
 } from '@renderer/utils/export'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { isEmpty } from 'lodash'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -56,7 +55,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const assistantModel = assistant?.model
   const {
-    messages,
+    loading,
     editMessage,
     setStreamMessage,
     deleteMessage,
@@ -79,29 +78,18 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const onNewBranch = useCallback(async () => {
-    await modelGenerating()
+    if (loading) return
     EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
     window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
-  }, [index, t])
+  }, [index, t, loading])
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
-      // messageUpdate 为了处理用户消息更改后的message
-      await modelGenerating()
-      const groupdMessages = messages.filter((m) => m.askId === message.id)
-
-      // Resend all grouped messages
-      if (!isEmpty(groupdMessages)) {
-        for (const assistantMessage of groupdMessages) {
-          const _model = assistantMessage.model || assistantModel
-          await resendMessage({ ...assistantMessage, model: _model }, assistant)
-        }
-        return
+      if (!loading) {
+        await resendMessage(messageUpdate ?? message, assistant)
       }
-
-      await resendMessage(messageUpdate ?? message, assistant)
     },
-    [message, assistantModel, resendMessage, assistant]
+    [assistant, loading, message, resendMessage]
   )
 
   const onEdit = useCallback(async () => {
@@ -123,16 +111,12 @@ const MessageMenubar: FC<Props> = (props) => {
         ) : null
       }
     })
+
     if (editedText && editedText !== message.content) {
-      // 同步修改store中用户消息
-      editMessage(message.id, { content: editedText })
-
-      // const updatedMessages = onGetMessages?.() || []
-      // dispatch(updateMessages(topic, updatedMessages))
+      await editMessage(message.id, { content: editedText })
+      resendMessage && handleResendUserMessage({ ...message, content: editedText })
     }
-
-    if (resendMessage) handleResendUserMessage({ ...message, content: editedText })
-  }, [message, editMessage, topic, handleResendUserMessage, t])
+  }, [message, editMessage, handleResendUserMessage, t])
 
   const handleTranslate = useCallback(
     async (language: string) => {
@@ -229,6 +213,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const markdown = messageToMarkdown(message)
               exportMarkdownToYuque(title, markdown)
             }
+          },
+          {
+            label: t('chat.topics.export.obsidian'),
+            key: 'obsidian',
+            onClick: async () => {
+              const markdown = messageToMarkdown(message)
+              const title = getMessageTitle(message)
+              await ObsidianExportPopup.show({ title, markdown })
+            }
           }
         ]
       }
@@ -238,7 +231,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
     e?.stopPropagation?.()
-    await modelGenerating()
+    if (loading) return
     const selectedModel = isGrouped ? model : assistantModel
     const _message = resetAssistantMessage(message, selectedModel)
     editMessage(message.id, { ..._message })
@@ -247,12 +240,9 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onMentionModel = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    await modelGenerating()
+    if (loading) return
     const selectedModel = await SelectModelPopup.show({ model })
     if (!selectedModel) return
-
-    // const mentionModelMessage: Message = resetAssistantMessage(message, selectedModel)
-    // dispatch(updateMessage({ topicId: topic.id, messageId: message.id, updates: _message }))
     resendMessage(message, { ...assistant, model: selectedModel }, true)
   }
 
@@ -341,19 +331,17 @@ const MessageMenubar: FC<Props> = (props) => {
           </ActionButton>
         </Tooltip>
       )}
-      {!isGrouped && (
-        <Popconfirm
-          title={t('message.message.delete.content')}
-          okButtonProps={{ danger: true }}
-          icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-          onConfirm={() => deleteMessage(message)}>
-          <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-            <Tooltip title={t('common.delete')} mouseEnterDelay={1}>
-              <DeleteOutlined />
-            </Tooltip>
-          </ActionButton>
-        </Popconfirm>
-      )}
+      <Popconfirm
+        title={t('message.message.delete.content')}
+        okButtonProps={{ danger: true }}
+        icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+        onConfirm={() => deleteMessage(message)}>
+        <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
+          <Tooltip title={t('common.delete')} mouseEnterDelay={1}>
+            <DeleteOutlined />
+          </Tooltip>
+        </ActionButton>
+      </Popconfirm>
       {!isUserMessage && (
         <Dropdown
           menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}

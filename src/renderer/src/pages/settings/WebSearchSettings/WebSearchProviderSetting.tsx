@@ -1,6 +1,7 @@
 import { CheckOutlined, ExportOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
+import { formatApiKeys } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
@@ -10,7 +11,8 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingHelpLink, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
+import ApiCheckPopup from '../ProviderSettings/ApiCheckPopup'
 
 interface Props {
   provider: WebSearchProvider
@@ -19,8 +21,8 @@ interface Props {
 const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { provider, updateProvider } = useWebSearchProvider(_provider.id)
   const { t } = useTranslation()
-  const [apiKey, setApiKey] = useState(provider.apiKey)
-  const [apiHost, setApiHost] = useState(provider.apiHost)
+  const [apiKey, setApiKey] = useState(provider.apiKey || '')
+  const [apiHost, setApiHost] = useState(provider.apiHost || '')
   const [apiChecking, setApiChecking] = useState(false)
   const [apiValid, setApiValid] = useState(false)
 
@@ -35,7 +37,10 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   const onUpdateApiHost = () => {
-    const trimmedHost = apiHost?.trim() || ''
+    let trimmedHost = apiHost?.trim() || ''
+    if (trimmedHost.endsWith('/')) {
+      trimmedHost = trimmedHost.slice(0, -1)
+    }
     if (trimmedHost !== provider.apiHost) {
       updateProvider({ ...provider, apiHost: trimmedHost })
     } else {
@@ -54,27 +59,47 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
+    if (apiKey.includes(',')) {
+      const keys = apiKey
+        .split(',')
+        .map((k) => k.trim())
+        .filter((k) => k)
+
+      const result = await ApiCheckPopup.show({
+        title: t('settings.provider.check_multiple_keys'),
+        provider: { ...provider, apiHost },
+        apiKeys: keys,
+        type: 'websearch'
+      })
+
+      if (result?.validKeys) {
+        setApiKey(result.validKeys.join(','))
+        updateProvider({ ...provider, apiKey: result.validKeys.join(',') })
+      }
+      return
+    }
+
     try {
       setApiChecking(true)
       const { valid, error } = await WebSearchService.checkSearch(provider)
 
-      setApiValid(valid)
+      const errorMessage = error && error?.message ? ' ' + error?.message : ''
+      window.message[valid ? 'success' : 'error']({
+        key: 'api-check',
+        style: { marginTop: '3vh' },
+        duration: valid ? 2 : 8,
+        content: valid ? t('settings.websearch.check_success') : t('settings.websearch.check_failed') + errorMessage
+      })
 
-      if (!valid && error) {
-        const errorMessage = error.message ? ' ' + error.message : ''
-        window.message.error({
-          content: errorMessage,
-          duration: 4,
-          key: 'search-check-error'
-        })
-      }
+      setApiValid(valid)
     } catch (err) {
       console.error('Check search error:', err)
       setApiValid(false)
       window.message.error({
-        content: t('settings.websearch.check_failed'),
-        duration: 3,
-        key: 'check-search-error'
+        key: 'check-search-error',
+        style: { marginTop: '3vh' },
+        duration: 8,
+        content: t('settings.websearch.check_failed')
       })
     } finally {
       setApiChecking(false)
@@ -109,7 +134,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
             <Input.Password
               value={apiKey}
               placeholder={t('settings.provider.api_key')}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
               spellCheck={false}
               type="password"
@@ -127,6 +152,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.websearch.get_api_key')}
             </SettingHelpLink>
+            <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
           </SettingHelpTextRow>
         </>
       )}
@@ -136,12 +162,21 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
           </SettingSubtitle>
-          <Input
-            value={apiHost}
-            placeholder={t('settings.provider.api_host')}
-            onChange={(e) => setApiHost(e.target.value)}
-            onBlur={onUpdateApiHost}
-          />
+          <Flex>
+            <Input
+              value={apiHost}
+              placeholder={t('settings.provider.api_host')}
+              onChange={(e) => setApiHost(e.target.value)}
+              onBlur={onUpdateApiHost}
+            />
+            <Button
+              ghost={apiValid}
+              type={apiValid ? 'primary' : 'default'}
+              onClick={checkSearch}
+              disabled={apiChecking}>
+              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
+            </Button>
+          </Flex>
         </>
       )}
     </>

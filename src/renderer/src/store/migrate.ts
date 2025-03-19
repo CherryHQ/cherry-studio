@@ -1256,6 +1256,33 @@ const migrateConfig = {
     state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
     removeMiniAppIconsFromState(state)
     return state
+  },
+  '79': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'gpustack',
+      name: 'GPUStack',
+      type: 'openai',
+      apiKey: '',
+      apiHost: '',
+      models: SYSTEM_MODELS.gpustack,
+      isSystem: true,
+      enabled: false
+    })
+    return state
+  },
+  '80': (state: RootState) => {
+    state.llm.providers.push({
+      id: 'alayanew',
+      name: 'AlayaNew',
+      type: 'openai',
+      apiKey: '',
+      apiHost: 'https://deepseek.alayanew.com',
+      models: SYSTEM_MODELS.alayanew,
+      isSystem: true,
+      enabled: false
+    })
+    state.llm.providers = moveProvider(state.llm.providers, 'alayanew', 10)
+    return state
   }
 }
 

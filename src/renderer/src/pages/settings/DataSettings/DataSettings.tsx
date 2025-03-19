@@ -1,4 +1,12 @@
-import { FileSearchOutlined, FolderOpenOutlined, SaveOutlined } from '@ant-design/icons'
+import {
+  CloudSyncOutlined,
+  DatabaseOutlined,
+  FileMarkdownOutlined,
+  FileSearchOutlined,
+  FolderOpenOutlined,
+  SaveOutlined,
+  YuqueOutlined
+} from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
@@ -16,6 +24,7 @@ import styled from 'styled-components'
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import MarkdownExportSettings from './MarkdownExportSettings'
 import NotionSettings from './NotionSettings'
+import ObsidianSettings from './ObsidianSettings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
 
@@ -27,11 +36,24 @@ const DataSettings: FC = () => {
   const [menu, setMenu] = useState<string>('data')
 
   const menuItems = [
-    { key: 'data', title: 'settings.data.data.title' },
-    { key: 'webdav', title: 'settings.data.webdav.title' },
-    { key: 'markdown_export', title: 'settings.data.markdown_export.title' },
-    { key: 'notion', title: 'settings.data.notion.title' },
-    { key: 'yuque', title: 'settings.data.yuque.title' }
+    { key: 'data', title: 'settings.data.data.title', icon: <DatabaseOutlined style={{ fontSize: 16 }} /> },
+    { key: 'webdav', title: 'settings.data.webdav.title', icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
+    {
+      key: 'markdown_export',
+      title: 'settings.data.markdown_export.title',
+      icon: <FileMarkdownOutlined style={{ fontSize: 16 }} />
+    },
+    { key: 'notion', title: 'settings.data.notion.title', icon: <i className="iconfont icon-notion" /> },
+    {
+      key: 'yuque',
+      title: 'settings.data.yuque.title',
+      icon: <YuqueOutlined style={{ fontSize: 16 }} />
+    },
+    {
+      key: 'obsidian',
+      title: 'settings.data.obsidian.title',
+      icon: <i className="iconfont icon-obsidian" />
+    }
   ]
 
   useEffect(() => {
@@ -88,7 +110,14 @@ const DataSettings: FC = () => {
     <Container>
       <MenuList>
         {menuItems.map((item) => (
-          <ListItem key={item.key} title={t(item.title)} active={menu === item.key} onClick={() => setMenu(item.key)} />
+          <ListItem
+            key={item.key}
+            title={t(item.title)}
+            active={menu === item.key}
+            onClick={() => setMenu(item.key)}
+            titleStyle={{ fontWeight: 500 }}
+            icon={item.icon}
+          />
         ))}
       </MenuList>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1 }}>
@@ -161,6 +190,7 @@ const DataSettings: FC = () => {
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'notion' && <NotionSettings />}
         {menu === 'yuque' && <YuqueSettings />}
+        {menu === 'obsidian' && <ObsidianSettings />}
       </SettingContainer>
     </Container>
   )
@@ -183,11 +213,15 @@ const StyledIcon = styled(FileSearchOutlined)`
 const MenuList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
   width: var(--settings-width);
   padding: 12px;
   border-right: 0.5px solid var(--color-border);
   height: 100%;
+  .iconfont {
+    color: var(--color-text-2);
+    line-height: 16px;
+  }
 `
 
 export default DataSettings

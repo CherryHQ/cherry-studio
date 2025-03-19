@@ -7,11 +7,10 @@ import {
   GlobalOutlined,
   HolderOutlined,
   PauseCircleOutlined,
-  PicCenterOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -49,6 +48,7 @@ import KnowledgeBaseButton from './KnowledgeBaseButton'
 import MCPToolsButton from './MCPToolsButton'
 import MentionModelsButton from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
+import NewContextButton from './NewContextButton'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 interface Props {
@@ -71,13 +71,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     pasteLongTextAsFile,
     pasteLongTextThreshold,
     showInputEstimatedTokens,
-    clickAssistantToShowTopic,
     autoTranslateWithSpace
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
-  // const generating = useAppSelector((state) => state.runtime.generating)
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
@@ -103,11 +101,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const navigate = useNavigate()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
+  const showMCPToolsIcon = isFunctionCallingModel(model)
 
   const [tokenCount, setTokenCount] = useState(0)
 
   const [mentionFromKeyboard, setMentionFromKeyboard] = useState(false)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
     debounce((newText) => {
       if (showInputEstimatedTokens) {
@@ -125,12 +125,23 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
   const newTopicShortcut = useShortcutDisplay('new_topic')
-  const newContextShortcut = useShortcutDisplay('toggle_new_context')
   const cleanTopicShortcut = useShortcutDisplay('clear_topic')
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
   _files = files
+
+  const resizeTextArea = useCallback(() => {
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (textArea) {
+      // 如果已经手动设置了高度,则不自动调整
+      if (textareaHeight) {
+        return
+      }
+      textArea.style.height = 'auto'
+      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
+    }
+  }, [textareaHeight])
 
   const sendMessage = useCallback(async () => {
     if (inputEmpty || loading) {
@@ -140,6 +151,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       return
     }
 
+    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
+
     try {
       // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
@@ -148,7 +161,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (uploadedFiles) {
         userMessage.files = uploadedFiles
       }
+
       const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
+
       if (knowledgeBaseIds) {
         userMessage.knowledgeBaseIds = knowledgeBaseIds
       }
@@ -160,10 +175,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (enabledMCPs) {
         userMessage.enabledMCPs = enabledMCPs
       }
+
       userMessage.usage = await estimateMessageUsage(userMessage)
       currentMessageId.current = userMessage.id
 
-      dispatch(_sendMessage(userMessage, assistant, topic))
+      dispatch(
+        _sendMessage(userMessage, assistant, topic, {
+          mentions: mentionModels
+        })
+      )
 
       // Clear input
       setText('')
@@ -174,7 +194,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } catch (error) {
       console.error('Failed to send message:', error)
     }
-  }, [inputEmpty, files, dispatch, text, assistant, topic, selectedKnowledgeBases, mentionModels, enabledMCPs, loading])
+  }, [
+    assistant,
+    dispatch,
+    enabledMCPs,
+    files,
+    inputEmpty,
+    loading,
+    mentionModels,
+    resizeTextArea,
+    selectedKnowledgeBases,
+    text,
+    topic
+  ])
 
   const translate = async () => {
     if (isTranslating) {
@@ -295,8 +327,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     addTopic(topic)
     setActiveTopic(topic)
 
-    clickAssistantToShowTopic && setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant, clickAssistantToShowTopic, setActiveTopic, setModel])
+    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+  }, [addTopic, assistant, setActiveTopic, setModel])
 
   const onPause = async () => {
     await pauseMessages()
@@ -316,18 +348,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       return
     }
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
-  }
-
-  const resizeTextArea = () => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      // 如果已经手动设置了高度,则不自动调整
-      if (textareaHeight) {
-        return
-      }
-      textArea.style.height = 'auto'
-      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
-    }
   }
 
   const onToggleExpended = () => {
@@ -384,6 +404,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               const selectedFile = await window.api.file.get(tempFilePath)
               selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
               break
+            } else {
+              window.message.info({
+                key: 'file_not_supported',
+                content: t('chat.input.file_not_supported')
+              })
             }
           }
 
@@ -417,7 +442,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
     },
-    [pasteLongTextAsFile, pasteLongTextThreshold, supportExts, t, text]
+    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -504,10 +529,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     clearTopic()
   })
 
-  useShortcut('toggle_new_context', () => {
-    onNewContext()
-  })
-
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
     const unsubscribes = [
@@ -531,7 +552,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [addNewTopic])
+  }, [addNewTopic, resizeTextArea])
 
   useEffect(() => {
     textareaRef.current?.focus()
@@ -539,6 +560,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   useEffect(() => {
     setTimeout(() => resizeTextArea(), 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -695,6 +717,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   <FormOutlined />
                 </ToolbarButton>
               </Tooltip>
+              <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
               <MentionModelsButton
                 mentionModels={mentionModels}
                 onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
@@ -715,8 +738,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   disabled={files.length > 0}
                 />
               )}
-              <MCPToolsButton enabledMCPs={enabledMCPs} onEnableMCP={toggelEnableMCP} ToolbarButton={ToolbarButton} />
-              <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
+              {showMCPToolsIcon && (
+                <MCPToolsButton
+                  enabledMCPs={enabledMCPs}
+                  toggelEnableMCP={toggelEnableMCP}
+                  ToolbarButton={ToolbarButton}
+                />
+              )}
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}
@@ -730,11 +758,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   </ToolbarButton>
                 </Popconfirm>
               </Tooltip>
-              <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
-                <ToolbarButton type="text" onClick={onNewContext}>
-                  <PicCenterOutlined />
-                </ToolbarButton>
-              </Tooltip>
               <Tooltip placement="top" title={expended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
                 <ToolbarButton type="text" onClick={onToggleExpended}>
                   {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
@@ -747,6 +770,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   </ToolbarButton>
                 </Tooltip>
               )}
+              <NewContextButton onNewContext={onNewContext} ToolbarButton={ToolbarButton} />
               <TokenCount
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}

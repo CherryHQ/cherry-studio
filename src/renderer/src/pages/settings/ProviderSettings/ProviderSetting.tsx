@@ -6,7 +6,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
-import { checkApi } from '@renderer/services/ApiService'
+import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
@@ -29,6 +29,7 @@ import {
 } from '..'
 import ApiCheckPopup from './ApiCheckPopup'
 import GithubCopilotSettings from './GithubCopilotSettings'
+import GPUStackSettings from './GPUStackSettings'
 import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
@@ -198,7 +199,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         title: t('settings.provider.check_multiple_keys'),
         provider: { ...provider, apiHost },
         model,
-        apiKeys: keys
+        apiKeys: keys,
+        type: 'provider'
       })
 
       if (result?.validKeys) {
@@ -238,10 +240,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
 
     return formatApiHost(apiHost) + 'chat/completions'
-  }
-
-  const formatApiKeys = (value: string) => {
-    return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
   }
 
   useEffect(() => {
@@ -331,8 +329,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {isOpenAIProvider(provider) && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <SettingHelpText style={{ marginLeft: 6 }}>{hostPreview()}</SettingHelpText>
-          <SettingHelpText>{t('settings.provider.api.url.tip')}</SettingHelpText>
+          <SettingHelpText
+            style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+            {hostPreview()}
+          </SettingHelpText>
+          <SettingHelpText style={{ minWidth: 'fit-content' }}>{t('settings.provider.api.url.tip')}</SettingHelpText>
         </SettingHelpTextRow>
       )}
       {isAzureOpenAI && (
@@ -350,6 +351,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'ollama' && <OllamSettings />}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
+      {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
         <GraphRAGSettings provider={provider} />
       )}

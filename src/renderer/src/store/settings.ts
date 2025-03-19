@@ -66,9 +66,11 @@ export interface SettingsState {
     disabled: SidebarIcon[]
   }
   narrowMode: boolean
+  // QuickAssistant
   enableQuickAssistant: boolean
   clickTrayToShowQuickAssistant: boolean
   multiModelMessageStyle: MultiModelMessageStyle
+  readClipboardAtStartup: boolean
   notionDatabaseID: string | null
   notionApiKey: string | null
   notionPageNameKey: string | null
@@ -79,6 +81,8 @@ export interface SettingsState {
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
+  obsidianApiKey: string | null
+  obsidianUrl: string | null
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -133,6 +137,7 @@ const initialState: SettingsState = {
   narrowMode: false,
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
+  readClipboardAtStartup: true,
   multiModelMessageStyle: 'fold',
   notionDatabaseID: '',
   notionApiKey: '',
@@ -143,7 +148,9 @@ const initialState: SettingsState = {
   notionSplitSize: 90,
   yuqueToken: '',
   yuqueUrl: '',
-  yuqueRepoId: ''
+  yuqueRepoId: '',
+  obsidianApiKey: '',
+  obsidianUrl: ''
 }
 
 const settingsSlice = createSlice({
@@ -300,6 +307,9 @@ const settingsSlice = createSlice({
     setEnableQuickAssistant: (state, action: PayloadAction<boolean>) => {
       state.enableQuickAssistant = action.payload
     },
+    setReadClipboardAtStartup: (state, action: PayloadAction<boolean>) => {
+      state.readClipboardAtStartup = action.payload
+    },
     setMultiModelMessageStyle: (state, action: PayloadAction<'horizontal' | 'vertical' | 'fold' | 'grid'>) => {
       state.multiModelMessageStyle = action.payload
     },
@@ -332,6 +342,12 @@ const settingsSlice = createSlice({
     },
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
+    },
+    setObsidianApiKey: (state, action: PayloadAction<string>) => {
+      state.obsidianApiKey = action.payload
+    },
+    setObsidianUrl: (state, action: PayloadAction<string>) => {
+      state.obsidianUrl = action.payload
     }
   }
 })
@@ -385,6 +401,7 @@ export const {
   setNarrowMode,
   setClickTrayToShowQuickAssistant,
   setEnableQuickAssistant,
+  setReadClipboardAtStartup,
   setMultiModelMessageStyle,
   setNotionDatabaseID,
   setNotionApiKey,
@@ -395,7 +412,9 @@ export const {
   setNotionSplitSize,
   setYuqueToken,
   setYuqueRepoId,
-  setYuqueUrl
+  setYuqueUrl,
+  setObsidianApiKey,
+  setObsidianUrl
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

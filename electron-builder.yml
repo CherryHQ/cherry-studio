@@ -80,4 +80,8 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    修复公式渲染问题
+    支持引文预览功能
+    界面显示优化
+    修复快捷弹窗无法对话问题
+    MCP：修复豆包无法使用问题
+    MCP：修复 Linux 上无法安装问题
