@@ -645,7 +645,8 @@
       "zhipu": "ZHIPU AI",
       "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
-      "alayanew": "Alaya NeW"
+      "alayanew": "Alaya NeW",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
@@ -835,6 +836,19 @@
       "input.target_language.english": "Английский",
       "input.target_language.japanese": "Японский",
       "input.target_language.russian": "Русский",
+      "bedrock": {
+        "region": "Регион",
+        "region.placeholder": "Введите регион ваших моделей Bedrock",
+        "region.tooltip": "Выберите регион AWS, где развернуты ваши модели Bedrock",
+        "accessKeyId": "Идентификатор ключа доступа",
+        "accessKeyId.placeholder": "Введите идентификатор ключа доступа AWS",
+        "secretAccessKey": "Секретный ключ доступа",
+        "secretAccessKey.placeholder": "Введите секретный ключ доступа AWS",
+        "crossRegion": "Межрегиональный",
+        "crossRegion.tooltip": "Выберите регион AWS, где развернуты ваши модели Bedrock",
+        "apiHost": "Хост API",
+        "apiHost.tooltip": "Включить доступ к моделям в разных регионах"
+      },
       "mcp": {
         "actions": "Действия",
         "active": "Активен",

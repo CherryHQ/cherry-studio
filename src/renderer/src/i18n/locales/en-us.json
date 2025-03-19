@@ -645,7 +645,8 @@
       "zhipu": "ZHIPU AI",
       "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
-      "alayanew": "Alaya NeW"
+      "alayanew": "Alaya NeW",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -954,6 +955,19 @@
       "moresetting.check.confirm": "Confirm Selection",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
       "moresetting.warn": "Risk Warning",
+      "bedrock": {
+        "region": "Регион",
+        "region.placeholder": "Введите регион ваших моделей Bedrock",
+        "region.tooltip": "Выберите регион AWS, где развернуты ваши модели Bedrock",
+        "accessKeyId": "Идентификатор ключа доступа",
+        "accessKeyId.placeholder": "Введите идентификатор ключа доступа AWS",
+        "secretAccessKey": "Секретный ключ доступа",
+        "secretAccessKey.placeholder": "Введите секретный ключ доступа AWS",
+        "crossRegion": "Межрегиональный",
+        "crossRegion.tooltip": "Выберите регион AWS, где развернуты ваши модели Bedrock",
+        "apiHost": "Хост API",
+        "apiHost.tooltip": "Включить доступ к моделям в разных регионах"
+      },
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",

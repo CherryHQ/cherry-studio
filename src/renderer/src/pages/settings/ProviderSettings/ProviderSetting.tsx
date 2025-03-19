@@ -28,6 +28,8 @@ import {
   SettingTitle
 } from '..'
 import ApiCheckPopup from './ApiCheckPopup'
+
+import BedrockSettings from './BedrockSettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import GraphRAGSettings from './GraphRAGSettings'
@@ -283,6 +285,56 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
+      {/* Bedrock 类型不显示通用 API Host 输入框 */}
+      {provider.type !== 'bedrock' && (
+        <>
+          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
+          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+            <Input.Password
+              value={apiKey}
+              placeholder={t('settings.provider.api_key')}
+              onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
+              onBlur={onUpdateApiKey}
+              spellCheck={false}
+              type="password"
+              autoFocus={provider.enabled && apiKey === ''}
+            />
+            {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
+            <Button
+              type={apiValid ? 'primary' : 'default'}
+              ghost={apiValid}
+              onClick={onCheckApi}
+              disabled={!apiHost || apiChecking}>
+              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.provider.check')}
+            </Button>
+          </Space.Compact>
+          {apiKeyWebsite && (
+            <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+              <HStack gap={5}>
+                <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                  {t('settings.provider.get_api_key')}
+                </SettingHelpLink>
+                {isProviderSupportCharge(provider) && (
+                  <SettingHelpLink onClick={() => providerCharge(provider.id)}>
+                    {t('settings.provider.charge')}
+                  </SettingHelpLink>
+                )}
+              </HStack>
+              <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+            </SettingHelpTextRow>
+          )}
+          <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
+          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+            <Input
+              value={apiHost}
+              placeholder={t('settings.provider.api_host')}
+              onChange={(e) => setApiHost(e.target.value)}
+              onBlur={onUpdateApiHost}
+            />
+            {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
+              <Button danger onClick={onReset}>
+                {t('settings.provider.api.url.reset')}
+              </Button>
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
@@ -315,32 +367,20 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
                 {t('settings.provider.charge')}
               </SettingHelpLink>
             )}
-          </HStack>
-          <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
-        </SettingHelpTextRow>
-      )}
-      <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
-      <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-        <Input
-          value={apiHost}
-          placeholder={t('settings.provider.api_host')}
-          onChange={(e) => setApiHost(e.target.value)}
-          onBlur={onUpdateApiHost}
-        />
-        {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
-          <Button danger onClick={onReset}>
-            {t('settings.provider.api.url.reset')}
-          </Button>
-        )}
-      </Space.Compact>
-      {isOpenAIProvider(provider) && (
-        <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <SettingHelpText
-            style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
-            {hostPreview()}
-          </SettingHelpText>
-          <SettingHelpText style={{ minWidth: 'fit-content' }}>{t('settings.provider.api.url.tip')}</SettingHelpText>
-        </SettingHelpTextRow>
+          </Space.Compact>
+
+          {isOpenAIProvider(provider) && (
+            <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+              <SettingHelpText
+                style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+                {hostPreview()}
+              </SettingHelpText>
+              <SettingHelpText style={{ minWidth: 'fit-content' }}>
+                {t('settings.provider.api.url.tip')}
+              </SettingHelpText>
+            </SettingHelpTextRow>
+          )}
+        </>
       )}
       {isAzureOpenAI && (
         <>
@@ -360,6 +400,23 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
         <GraphRAGSettings provider={provider} />
+      )}
+          <BedrockSettings
+            settings={{
+              region: provider.apiHost?.match(/https:\/\/bedrock-runtime\.(.+?)\.amazonaws\.com/)?.[1] || 'us-east-1',
+              accessKeyId: provider.apiKey?.split(',')[0] || '',
+              secretAccessKey: provider.apiKey?.split(',')[1] || '',
+              crossRegion: true
+            }}
+            onUpdate={(settings) => {
+              updateProvider({
+                ...provider,
+                apiKey: settings.apiKey,
+                apiHost: settings.apiHost
+              })
+            }}
+          />
+        </>
       )}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>

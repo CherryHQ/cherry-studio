@@ -645,7 +645,8 @@
       "zhipu": "智譜AI",
       "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
-      "alayanew": "Alaya NeW"
+      "alayanew": "Alaya NeW",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -835,6 +836,19 @@
       "input.target_language.english": "英語",
       "input.target_language.japanese": "日本語",
       "input.target_language.russian": "ロシア語",
+      "bedrock": {
+        "region": "リージョン",
+        "region.placeholder": "Bedrock モデルのリージョンを入力してください",
+        "region.tooltip": "Bedrock モデルがデプロイされている AWS リージョンを選択してください",
+        "accessKeyId": "アクセス キー ID",
+        "accessKeyId.placeholder": "AWS アクセス キー ID を入力してください",
+        "secretAccessKey": "シークレット アクセス キー",
+        "secretAccessKey.placeholder": "AWS シークレット アクセス キーを入力してください",
+        "crossRegion": "クロスリージョン",
+        "crossRegion.tooltip": "Bedrock モデルがデプロイされている AWS リージョンを選択してください",
+        "apiHost": "API ホスト",
+        "apiHost.tooltip": "異なるリージョンのモデルにアクセスできるようにします"
+      },
       "mcp": {
         "actions": "操作",
         "active": "有効",

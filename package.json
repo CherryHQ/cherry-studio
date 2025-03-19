@@ -53,6 +53,7 @@
     "@agentic/exa": "^7.3.3",
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
+    "@aws-sdk/client-bedrock-runtime": "^3.758.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
     "@emotion/is-prop-valid": "^1.3.1",

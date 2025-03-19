@@ -1,5 +1,5 @@
 import type { GroundingMetadata } from '@google/generative-ai'
-import type { Assistant, MCPToolResponse, Message, Metrics } from '@renderer/types'
+import type { Assistant, MCPTool, MCPToolResponse, Message, Metrics } from '@renderer/types'
 
 interface ChunkCallbackData {
   text?: string

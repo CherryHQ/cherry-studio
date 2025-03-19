@@ -639,7 +639,8 @@
       "zhipu": "智譜 AI",
       "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
-      "alayanew": "Alaya NeW"
+      "alayanew": "Alaya NeW",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -835,6 +836,19 @@
       "input.target_language.english": "英文",
       "input.target_language.japanese": "日文",
       "input.target_language.russian": "俄文",
+      "bedrock": {
+        "region": "地區",
+        "region.placeholder": "輸入您的基岩模型的地區",
+        "region.tooltip": "選擇部署 Bedrock 模型的 AWS 區域",
+        "accessKeyId": "存取金鑰 ID",
+        "accessKeyId.placeholder": "輸入您的 AWS 存取金鑰 ID",
+        "secretAccessKey": "秘密存取金鑰",
+        "secretAccessKey.placeholder": "輸入您的 AWS 秘密存取金鑰",
+        "crossRegion": "跨區域",
+        "crossRegion.tooltip": "選擇部署 Bedrock 模型的 AWS 區域",
+        "apiHost": "API 主機",
+        "apiHost.tooltip": "啟用存取不同地區的模型"
+      },
       "mcp": {
         "actions": "操作",
         "active": "啟用",

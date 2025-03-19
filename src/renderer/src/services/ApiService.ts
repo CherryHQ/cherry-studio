@@ -106,7 +106,14 @@ export async function fetchChatCompletion({
       onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse }) => {
         message.content = message.content + text || ''
         message.usage = usage
-        message.metrics = metrics
+
+        // Merge metrics instead of directly overwriting to ensure that time_thinking_millsec is not lost.
+        if (metrics) {
+          message.metrics = {
+            ...message.metrics,
+            ...metrics
+          }
+        }
 
         if (reasoning_content) {
           message.reasoning_content = (message.reasoning_content || '') + reasoning_content
@@ -363,5 +370,5 @@ export async function fetchModels(provider: Provider) {
  * @returns Formatted key string
  */
 export const formatApiKeys = (value: string) => {
-  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
+  return value.replace(/，/g, ',').replace(/ /g, ',').replace(/ /g, '').replace(/\n/g, ',')
 }

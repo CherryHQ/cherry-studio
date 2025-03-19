@@ -639,7 +639,8 @@
       "zhipu": "智谱AI",
       "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
-      "alayanew": "Alaya NeW"
+      "alayanew": "Alaya NeW",
+      "bedrock": "Amazon Bedrock"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -835,6 +836,19 @@
       "input.target_language.english": "英文",
       "input.target_language.japanese": "日文",
       "input.target_language.russian": "俄文",
+      "bedrock": {
+        "region": "区域",
+        "region.placeholder": "输入您的 Bedrock 模型的区域",
+        "region.tooltip": "选择您的 Bedrock 模型部署到的 AWS 区域",
+        "accessKeyId": "访问密钥 ID",
+        "accessKeyId.placeholder": "输入您的 AWS 访问密钥 ID",
+        "secretAccessKey": "访问密钥",
+        "secretAccessKey.placeholder": "输入您的 AWS 访问密钥",
+        "crossRegion": "跨区域",
+        "crossRegion.tooltip": "选择您的 Bedrock 模型部署到的 AWS 区域",
+        "apiHost": "API 主机",
+        "apiHost.tooltip": "启用访问不同区域的模型"
+      },
       "mcp": {
         "actions": "操作",
         "active": "启用",
