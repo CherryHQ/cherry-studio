@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "Экспорт не удалось",
       "topics.export.obsidian_show_md_files": "Показать файлы MD",
       "topics.export.obsidian_selected_path": "Выбранный путь",
+      "topics.export.joplin": "Экспорт в Joplin",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
@@ -233,9 +234,10 @@
       "topics": "Топики",
       "warning": "Предупреждение",
       "you": "Вы",
-      "confirm": "确认的翻译是: Подтверждение",
+      "confirm": "Подтверждение",
       "copied": "Скопировано",
-      "more": "Ещё"
+      "more": "Ещё",
+      "advanced_settings": "Дополнительные настройки"
     },
     "docs": {
       "title": "Документация"
@@ -446,6 +448,8 @@
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+      "error.joplin.no_config": "Joplin Authorization Token или URL не настроен",
+      "error.joplin.export": "Не удалось экспортировать в Joplin, пожалуйста, убедитесь, что Joplin запущен и проверьте состояние подключения или настройки",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
@@ -478,6 +482,7 @@
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
       "success.notion.export": "Успешный экспорт в Notion",
       "success.yuque.export": "Успешный экспорт в Yuque",
+      "success.joplin.export": "Успешный экспорт в Joplin",
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -789,6 +794,21 @@
           "title": "Настройка Obsidian",
           "api_key": "API Key Obsidian",
           "api_key_placeholder": "Введите API Key Obsidian"
+        },
+        "joplin": {
+          "check": {
+            "button": "Проверить",
+            "empty_url": "Сначала введите URL Joplin",
+            "empty_token": "Сначала введите токен Joplin",
+            "fail": "Не удалось проверить подключение к Joplin",
+            "success": "Подключение к Joplin успешно проверено"
+          },
+          "title": "Настройка Joplin",
+          "help": "Включите Joplin опцию, проверьте порт и скопируйте токен",
+          "url": "URL Joplin",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Токен Joplin",
+          "token_placeholder": "Введите токен Joplin"
         }
       },
       "display.assistant.title": "Настройки ассистентов",
@@ -855,6 +875,7 @@
         "editServer": "Редактировать сервер",
         "env": "Переменные окружения",
         "envTooltip": "Формат: KEY=value, по одной на строку",
+        "findMore": "Найти больше MCP серверов",
         "name": "Имя",
         "nameRequired": "Пожалуйста, введите имя сервера",
         "noServers": "Серверы не настроены",
@@ -981,6 +1002,7 @@
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
         "title": "Провайдеры моделей",
+        "is_not_support_array_content": "Включить совместимый режим",
         "copilot": {
           "tooltip": "Для использования Github Copilot необходимо сначала войти в Github.",
           "description": "Ваша учетная запись Github должна подписаться на Copilot.",
@@ -1073,6 +1095,8 @@
         "search_provider_placeholder": "Выберите поставщика поисковых услуг",
         "search_result_default": "По умолчанию",
         "search_with_time": "Поиск, содержащий дату",
+        "enhance_mode": "Режим улучшения поиска",
+        "enhance_mode_tooltip": "Используйте модель по умолчанию для извлечения ключевых слов из проблемы и поиска",
         "tavily": {
           "api_key": "Ключ API Tavily",
           "api_key.placeholder": "Введите ключ API Tavily",

@@ -3,7 +3,7 @@ import { useAppSelector } from '@renderer/store'
 import { MCPServer } from '@renderer/types'
 import { Form, Input, Modal, Radio, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -131,12 +131,10 @@ const PopupContainer: React.FC<Props> = ({ server, create, resolve }) => {
   }
 
   const onCancel = () => {
-    console.log('onCancel')
     setOpen(false)
   }
 
   const onClose = () => {
-    console.log('onClose')
     resolve({})
   }
 
@@ -153,7 +151,8 @@ const PopupContainer: React.FC<Props> = ({ server, create, resolve }) => {
       maskClosable={false}
       width={600}
       transitionName="ant-move-down"
-      centered>
+      centered
+      bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}>
       <Form form={form} layout="vertical">
         <Form.Item
           name="name"

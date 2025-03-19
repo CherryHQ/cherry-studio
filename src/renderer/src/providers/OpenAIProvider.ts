@@ -31,12 +31,11 @@ import {
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   callMCPTool,
-  filterMCPTools,
   mcpToolsToOpenAITools,
   openAIToolsToMcpTool,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
-import { takeRight } from 'lodash'
+import { isEmpty, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionAssistantMessageParam,
@@ -84,7 +83,12 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns True if the provider does not support files, false otherwise
    */
   private get isNotSupportFiles() {
+    if (this.provider?.isNotSupportArrayContent) {
+      return true
+    }
+
     const providers = ['deepseek', 'baichuan', 'minimax', 'xirang']
+
     return providers.includes(this.provider.id)
   }
 
@@ -94,7 +98,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The file content
    */
   private async extractFileContent(message: Message) {
-    if (message.files) {
+    if (message.files && message.files.length > 0) {
       const textFiles = message.files.filter((file) => [FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type))
 
       if (textFiles.length > 0) {
@@ -128,7 +132,7 @@ export default class OpenAIProvider extends BaseProvider {
     const content = await this.getMessageContent(message)
 
     // If the message does not have files, return the message
-    if (!message.files) {
+    if (isEmpty(message.files)) {
       return {
         role: message.role,
         content
@@ -423,7 +427,6 @@ export default class OpenAIProvider extends BaseProvider {
     const { signal } = abortController
     await this.checkIsCopilot()
 
-    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
     const tools = mcpTools && mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : undefined
 
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
@@ -784,13 +787,18 @@ export default class OpenAIProvider extends BaseProvider {
       content: messages.map((m) => m.content).join('\n')
     }
     // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create({
-      model: model.id,
-      messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
-      stream: false,
-      keep_alive: this.keepAliveTime,
-      max_tokens: 1000
-    })
+    const response = await this.sdk.chat.completions.create(
+      {
+        model: model.id,
+        messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
+        stream: false,
+        keep_alive: this.keepAliveTime,
+        max_tokens: 1000
+      },
+      {
+        timeout: 20 * 1000
+      }
+    )
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''

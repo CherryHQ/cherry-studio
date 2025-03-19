@@ -26,6 +26,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
+  exportMarkdownToJoplin,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
   exportTopicToNotion,
@@ -262,6 +263,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
                 await ObsidianExportPopup.show({ title: topic.name, markdown })
+              }
+            },
+            {
+              label: t('chat.topics.export.joplin'),
+              key: 'joplin',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToJoplin(topic.name, markdown)
               }
             }
           ]
