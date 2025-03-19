@@ -23,6 +23,7 @@ import { SitemapLoader } from '@llm-tools/embedjs-loader-sitemap'
 import { WebLoader } from '@llm-tools/embedjs-loader-web'
 import { AzureOpenAiEmbeddings, OpenAiEmbeddings } from '@llm-tools/embedjs-openai'
 import { addFileLoader } from '@main/loader'
+import Reranker from '@main/reranker/Reranker'
 import { proxyManager } from '@main/services/ProxyManager'
 import { windowService } from '@main/services/WindowService'
 import { getInstanceName } from '@main/utils'
@@ -481,6 +482,13 @@ class KnowledgeService {
   ): Promise<ExtractChunkData[]> => {
     const ragApplication = await this.getRagApplication(base)
     return await ragApplication.search(search)
+  }
+
+  public rerank = async (
+    _: Electron.IpcMainInvokeEvent,
+    { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }
+  ): Promise<ExtractChunkData[]> => {
+    return await new Reranker(base).rerank(search, results)
   }
 }
 

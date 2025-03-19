@@ -29,7 +29,7 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const { defaultModel: model } = useDefaultModel()
-  const { language } = useSettings()
+  const { language, readClipboardAtStartup } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
@@ -39,12 +39,14 @@ const HomeWindow: FC = () => {
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
   const readClipboard = useCallback(async () => {
+    if (!readClipboardAtStartup) return
+
     const text = await navigator.clipboard.readText().catch(() => null)
     if (text && text !== lastClipboardText) {
       setLastClipboardText(text)
       setClipboardText(text.trim())
     }
-  }, [lastClipboardText])
+  }, [readClipboardAtStartup, lastClipboardText])
 
   const focusInput = () => {
     if (inputBarRef.current) {

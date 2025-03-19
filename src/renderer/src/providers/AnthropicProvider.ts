@@ -458,6 +458,38 @@ export default class AnthropicProvider extends BaseProvider {
   }
 
   /**
+   * Summarize a message for search
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The summary
+   */
+  public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
+    const model = assistant.model || getDefaultModel()
+    //这里只有上一条回答和当前的搜索消息
+    const systemMessage = {
+      role: 'system',
+      content: assistant.prompt
+    }
+
+    const userMessage = {
+      role: 'user',
+      content: messages.map((m) => m.content).join('\n')
+    }
+
+    const response = await this.sdk.messages.create({
+      messages: [userMessage] as Anthropic.Messages.MessageParam[],
+      model: model.id,
+      system: systemMessage.content,
+      stream: false,
+      max_tokens: 4096
+    })
+
+    const content = response.content[0].type === 'text' ? response.content[0].text : ''
+
+    return content
+  }
+
+  /**
    * Generate text
    * @param prompt - The prompt
    * @param content - The content

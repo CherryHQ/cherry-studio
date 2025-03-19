@@ -110,7 +110,8 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
       const sourcePath = path.join(sourceDir, file)
       const destPath = path.join(binDir, file)
 
-      fs.renameSync(sourcePath, destPath)
+      fs.copyFileSync(sourcePath, destPath)
+      fs.unlinkSync(sourcePath)
 
       // Set executable permissions for non-Windows platforms
       if (platform !== 'win32') {

@@ -90,6 +90,15 @@ declare global {
           base: KnowledgeBaseParams
         }) => Promise<void>
         search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) => Promise<ExtractChunkData[]>
+        rerank: ({
+          search,
+          base,
+          results
+        }: {
+          search: string
+          base: KnowledgeBaseParams
+          results: ExtractChunkData[]
+        }) => Promise<ExtractChunkData[]>
       }
       window: {
         setMinimumSize: (width: number, height: number) => Promise<void>
@@ -134,6 +143,16 @@ declare global {
         callTool: ({ client, name, args }: { client: string; name: string; args: any }) => Promise<any>
         // status
         cleanup: () => Promise<void>
+      }
+      copilot: {
+        getAuthMessage: (
+          headers?: Record<string, string>
+        ) => Promise<{ device_code: string; user_code: string; verification_uri: string }>
+        getCopilotToken: (device_code: string, headers?: Record<string, string>) => Promise<{ access_token: string }>
+        saveCopilotToken: (access_token: string) => Promise<void>
+        getToken: (headers?: Record<string, string>) => Promise<{ token: string }>
+        logout: () => Promise<void>
+        getUser: (token: string) => Promise<{ login: string; avatar: string }>
       }
       isBinaryExist: (name: string) => Promise<boolean>
       getBinaryPath: (name: string) => Promise<string>

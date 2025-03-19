@@ -1,6 +1,7 @@
 import {
   ClearOutlined,
   ColumnHeightOutlined,
+  FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
   GlobalOutlined,
@@ -20,7 +21,7 @@ import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
-import { getUserMessage } from '@renderer/services/MessagesService'
+import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
@@ -123,6 +124,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
+  const newTopicShortcut = useShortcutDisplay('new_topic')
   const cleanTopicShortcut = useShortcutDisplay('clear_topic')
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
@@ -143,6 +145,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const sendMessage = useCallback(async () => {
     if (inputEmpty || loading) {
+      return
+    }
+    if (checkRateLimit(assistant)) {
       return
     }
 
@@ -707,6 +712,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           </DragHandle>
           <Toolbar>
             <ToolbarMenu>
+              <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
+                <ToolbarButton type="text" onClick={addNewTopic}>
+                  <FormOutlined />
+                </ToolbarButton>
+              </Tooltip>
               <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
               <MentionModelsButton
                 mentionModels={mentionModels}

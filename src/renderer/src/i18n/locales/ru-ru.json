@@ -233,6 +233,8 @@
       "topics": "Топики",
       "warning": "Предупреждение",
       "you": "Вы",
+      "confirm": "确认的翻译是: Подтверждение",
+      "copied": "Скопировано",
       "more": "Ещё"
     },
     "docs": {
@@ -362,7 +364,11 @@
       "title": "База знаний",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "topN": "Количество возвращаемых результатов",
+      "topN_placeholder": "Не установлено",
+      "topN__too_large_or_small": "Количество возвращаемых результатов не может быть больше 100 или меньше 1.",
+      "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает."
     },
     "languages": {
       "arabic": "Арабский",
@@ -406,6 +412,10 @@
       "title": "GPUStack"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "Вырезанный текст",
+        "pasted_image": "Вырезанное изображение"
+      },
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",
@@ -473,7 +483,8 @@
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
-      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!"
+      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
+      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова."
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -535,7 +546,9 @@
         "function_calling": "Вызов функции"
       },
       "vision": "Визуальные",
-      "websearch": "Веб-поисковые"
+      "websearch": "Веб-поисковые",
+      "rerank_model": "Модель переупорядочивания",
+      "rerank_model_tooltip": "В настройках -> Служба модели нажмите кнопку \"Управление\", чтобы добавить."
     },
     "navbar": {
       "expand": "Развернуть диалоговое окно",
@@ -629,6 +642,7 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
       "alayanew": "Alaya NeW"
     },
@@ -699,6 +713,8 @@
         "markdown_export.path_placeholder": "Путь экспорта",
         "markdown_export.select": "Выбрать",
         "markdown_export.help": "Если указано, файлы будут автоматически сохраняться в этот путь; в противном случае появится диалоговое окно сохранения.",
+        "markdown_export.force_dollar_math.title": "Принудительно использовать $$ для формул LaTeX",
+        "markdown_export.force_dollar_math.help": "Если включено, при экспорте в Markdown для обозначения формул LaTeX будет принудительно использоваться $$. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
         "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
@@ -964,7 +980,31 @@
         "remove_invalid_keys": "Удалить недействительные ключи",
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
-        "title": "Провайдеры моделей"
+        "title": "Провайдеры моделей",
+        "copilot": {
+          "tooltip": "Для использования Github Copilot необходимо сначала войти в Github.",
+          "description": "Ваша учетная запись Github должна подписаться на Copilot.",
+          "login": "Войти в Github",
+          "connect": "Подключить Github",
+          "logout": "Выйти из Github",
+          "auth_success_title": "Аутентификация успешна",
+          "code_generated_title": "Получить код устройства",
+          "code_generated_desc": "Пожалуйста, скопируйте код устройства в приведенную ниже ссылку браузера.",
+          "code_failed": "Получение кода устройства не удалось, пожалуйста, попробуйте еще раз.",
+          "auth_success": "Github Copilot认证成功",
+          "auth_failed": "Github Copilot认证失败",
+          "logout_success": "Успешно вышел",
+          "logout_failed": "Не удалось выйти, пожалуйста, повторите попытку.",
+          "confirm_title": "Предупреждение о рисках",
+          "confirm_login": "Чрезмерное использование может привести к блокировке вашего Github, будьте осторожны!!!!",
+          "rate_limit": "Ограничение скорости",
+          "custom_headers": "Пользовательские заголовки запроса",
+          "headers_description": "Пользовательские заголовки запроса (формат json)",
+          "expand": "развернуть",
+          "model_setting": "Настройки модели",
+          "invalid_json": "Ошибка формата JSON",
+          "open_verification_first": "Пожалуйста, сначала щелкните по ссылке выше, чтобы перейти на страницу проверки."
+        }
       },
       "proxy": {
         "mode": {
@@ -980,7 +1020,8 @@
         "click_tray_to_show": "Нажмите на иконку трея для запуска",
         "enable_quick_assistant": "Включить быстрый помощник",
         "title": "Быстрый помощник",
-        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска"
+        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска",
+        "read_clipboard_at_startup": "Чтение буфера обмена при запуске"
       },
       "shortcuts": {
         "action": "Действие",

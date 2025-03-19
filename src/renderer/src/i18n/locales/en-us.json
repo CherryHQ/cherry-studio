@@ -233,6 +233,8 @@
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
+      "copied": "Copied",
+      "confirm": "Confirm",
       "more": "More"
     },
     "docs": {
@@ -362,7 +364,11 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "topN": "Number of results returned",
+      "topN_placeholder": "Not set",
+      "topN__too_large_or_small": "The number of results returned cannot be greater than 100 or less than 1.",
+      "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed."
     },
     "languages": {
       "arabic": "Arabic",
@@ -400,6 +406,10 @@
       "title": "Mermaid Diagram"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "Pasted Text",
+        "pasted_image": "Pasted Image"
+      },
       "api.check.model.title": "Select the model to use for detection",
       "api.connection.failed": "Connection failed",
       "api.connection.success": "Connection successful",
@@ -467,7 +477,8 @@
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!"
+      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
+      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -529,7 +540,9 @@
         "function_calling": "Function Calling"
       },
       "vision": "Vision",
-      "websearch": "WebSearch"
+      "websearch": "WebSearch",
+      "rerank_model": "Reordering Model",
+      "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add."
     },
     "navbar": {
       "expand": "Expand Dialog",
@@ -629,6 +642,7 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
       "alayanew": "Alaya NeW"
     },
@@ -699,6 +713,8 @@
         "markdown_export.path_placeholder": "Export Path",
         "markdown_export.select": "Select",
         "markdown_export.help": "If provided, exports will be automatically saved to this path; otherwise, a save dialog will appear.",
+        "markdown_export.force_dollar_math.title": "Force $$ for LaTeX formulas",
+        "markdown_export.force_dollar_math.help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
         "notion.auto_split": "Auto split when exporting",
@@ -964,7 +980,31 @@
         "remove_invalid_keys": "Remove Invalid Keys",
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "copilot": {
+          "tooltip": "You need to log in to Github before using Github Copilot",
+          "description": "Your GitHub account needs to subscribe to Copilot.",
+          "login": "Log in to Github",
+          "connect": "Connect to Github",
+          "logout": "Exit GitHub",
+          "auth_success_title": "Certification successful.",
+          "code_generated_title": "Obtain Device Code",
+          "code_generated_desc": "Please copy the device code into the browser link below.",
+          "code_failed": "Failed to obtain Device Code, please try again.",
+          "auth_success": "GitHub Copilot authentication successful.",
+          "auth_failed": "Github Copilot authentication failed.",
+          "logout_success": "Successfully logged out.",
+          "logout_failed": "Exit failed, please try again.",
+          "confirm_title": "Risk Warning",
+          "confirm_login": "Excessive use may lead to your Github account being banned, please use it cautiously!!!!",
+          "rate_limit": "Rate limiting",
+          "custom_headers": "Custom request header",
+          "headers_description": "Custom request headers (JSON format)",
+          "expand": "Expand",
+          "model_setting": "Model settings",
+          "invalid_json": "JSON format error",
+          "open_verification_first": "Please click the link above to access the verification page."
+        }
       },
       "proxy": {
         "mode": {
@@ -980,7 +1020,8 @@
         "click_tray_to_show": "Click the tray icon to start",
         "enable_quick_assistant": "Enable Quick Assistant",
         "title": "Quick Assistant",
-        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start",
+        "read_clipboard_at_startup": "Read clipboard at startup"
       },
       "shortcuts": {
         "action": "Action",

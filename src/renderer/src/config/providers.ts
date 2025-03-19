@@ -66,6 +66,7 @@ const PROVIDER_LOGO_MAP = {
   'graphrag-kylin-mountain': GraphRagProviderLogo,
   minimax: MinimaxProviderLogo,
   github: GithubProviderLogo,
+  copilot: GithubProviderLogo,
   ocoolai: OcoolAiProviderLogo,
   together: TogetherProviderLogo,
   fireworks: FireworksProviderLogo,
@@ -238,6 +239,11 @@ export const PROVIDER_CONFIG = {
       models: 'https://github.com/marketplace/models'
     }
   },
+  copilot: {
+    api: {
+      url: 'https://api.githubcopilot.com/'
+    }
+  },
   yi: {
     api: {
       url: 'https://api.lingyiwanwu.com'
@@ -354,7 +360,7 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://www.alayanew.com/backend/register?id=cherrystudio',
-      apiKey: 'https://www.alayanew.com/access?id=cherrystudio',
+      apiKey: ' https://www.alayanew.com/backend/register?id=cherrystudio',
       docs: 'https://docs.alayanew.com/docs/modelService/interview?utm_source=cherrystudio',
       models: 'https://www.alayanew.com/product/deepseek?id=cherrystudio'
     }
