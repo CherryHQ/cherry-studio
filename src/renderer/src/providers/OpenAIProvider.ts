@@ -534,12 +534,25 @@ export default class OpenAIProvider extends BaseProvider {
               }
             }
 
-            reqMessages.push({
-              role: 'tool',
-              content: toolResponsContent,
-              tool_call_id: toolCall.id
-            } as ChatCompletionToolMessageParam)
+            const provider = lastUserMessage?.model?.provider
+            const modelName = lastUserMessage?.model?.name
 
+            if (
+              modelName?.toLocaleLowerCase().includes('gpt') ||
+              (provider === 'dashscope' && modelName?.toLocaleLowerCase().includes('qwen'))
+            ) {
+              reqMessages.push({
+                role: 'tool',
+                content: toolResponsContent,
+                tool_call_id: toolCall.id
+              } as ChatCompletionToolMessageParam)
+            } else {
+              reqMessages.push({
+                role: 'tool',
+                content: JSON.stringify(toolResponsContent),
+                tool_call_id: toolCall.id
+              } as ChatCompletionToolMessageParam)
+            }
             upsertMCPToolResponse(
               toolResponses,
               { tool: mcpTool, status: 'done', response: toolCallResponse, id: toolCall.id },
@@ -665,10 +678,6 @@ export default class OpenAIProvider extends BaseProvider {
 
     for await (const chunk of response) {
       const deltaContent = chunk.choices[0]?.delta?.content || ''
-
-      if (!deltaContent.trim()) {
-        continue
-      }
 
       if (isReasoning) {
         if (deltaContent.includes('<think>')) {

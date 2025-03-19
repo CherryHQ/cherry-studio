@@ -362,7 +362,11 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "topN": "Number of results returned",
+      "topN_placeholder": "Not set",
+      "topN__too_large_or_small": "The number of results returned cannot be greater than 100 or less than 1.",
+      "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed."
     },
     "languages": {
       "arabic": "Arabic",
@@ -400,6 +404,10 @@
       "title": "Mermaid Diagram"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "Pasted Text",
+        "pasted_image": "Pasted Image"
+      },
       "api.check.model.title": "Select the model to use for detection",
       "api.connection.failed": "Connection failed",
       "api.connection.success": "Connection successful",
@@ -529,7 +537,9 @@
         "function_calling": "Function Calling"
       },
       "vision": "Vision",
-      "websearch": "WebSearch"
+      "websearch": "WebSearch",
+      "rerank_model": "Reordering Model",
+      "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add."
     },
     "navbar": {
       "expand": "Expand Dialog",
@@ -980,7 +990,8 @@
         "click_tray_to_show": "Click the tray icon to start",
         "enable_quick_assistant": "Enable Quick Assistant",
         "title": "Quick Assistant",
-        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start",
+        "read_clipboard_at_startup": "Read clipboard at startup"
       },
       "shortcuts": {
         "action": "Action",

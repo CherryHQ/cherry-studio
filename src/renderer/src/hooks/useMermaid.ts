@@ -18,7 +18,6 @@ export const useMermaid = () => {
         startOnLoad: true,
         theme: theme === ThemeMode.dark ? 'dark' : 'default'
       })
-      window.mermaid.contentLoaded()
     })
   }, [theme])
 

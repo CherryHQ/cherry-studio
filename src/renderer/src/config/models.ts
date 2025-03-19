@@ -176,7 +176,11 @@ export const REASONING_REGEX =
 
 // Embedding models
 export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings)/i
-export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
+
+// Rerank models
+export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
+
+export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 
 // Tool calling models
 export const FUNCTION_CALLING_MODELS = [
@@ -186,6 +190,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4.5',
   'claude',
   'qwen',
+  'hunyuan',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
@@ -1877,6 +1882,13 @@ export function isEmbeddingModel(model: Model): boolean {
   }
 
   return EMBEDDING_REGEX.test(model.id) || model.type?.includes('embedding') || false
+}
+
+export function isRerankModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return RERANKING_REGEX.test(model.id) || false
 }
 
 export function isVisionModel(model: Model): boolean {

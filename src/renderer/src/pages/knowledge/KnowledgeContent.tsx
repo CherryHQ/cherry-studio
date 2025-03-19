@@ -96,7 +96,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           name: file.name,
           path: file.path,
           size: file.size,
-          ext: `.${file.name.split('.').pop()}`,
+          ext: `.${file.name.split('.').pop()}`.toLowerCase(),
           count: 1,
           origin_name: file.name,
           type: file.type as FileTypes,

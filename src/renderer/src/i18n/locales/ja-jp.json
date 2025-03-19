@@ -362,7 +362,11 @@
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "topN": "返却される結果の数",
+      "topN_placeholder": "未設定",
+      "topN__too_large_or_small": "結果の数は100より大きくてはならず、1より小さくてはなりません。",
+      "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -400,6 +404,10 @@
       "title": "Mermaid図"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "クリップボードファイル",
+        "pasted_image": "クリップボード画像"
+      },
       "api.check.model.title": "検出に使用するモデルを選択してください",
       "api.connection.failed": "接続に失敗しました",
       "api.connection.success": "接続に成功しました",
@@ -529,7 +537,9 @@
         "function_calling": "関数呼び出し"
       },
       "vision": "画像",
-      "websearch": "ウェブ検索"
+      "websearch": "ウェブ検索",
+      "rerank_model": "再順序付けモデル",
+      "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。"
     },
     "navbar": {
       "expand": "ダイアログを展開",
@@ -980,7 +990,8 @@
         "click_tray_to_show": "トレイアイコンをクリックして起動",
         "enable_quick_assistant": "クイックアシスタントを有効にする",
         "title": "クイックアシスタント",
-        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます"
+        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます",
+        "read_clipboard_at_startup": "起動時にクリップボードを読み取る"
       },
       "shortcuts": {
         "action": "操作",
