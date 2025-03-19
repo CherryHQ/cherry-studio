@@ -121,7 +121,16 @@ const api = {
     cleanup: () => ipcRenderer.invoke('mcp:cleanup')
   },
   shell: {
-    openExternal: shell?.openExternal
+    openExternal: shell.openExternal
+  },
+  copilot: {
+    getAuthMessage: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-auth-message', headers),
+    getCopilotToken: (device_code: string, headers?: Record<string, string>) =>
+      ipcRenderer.invoke('copilot:get-copilot-token', device_code, headers),
+    saveCopilotToken: (access_token: string) => ipcRenderer.invoke('copilot:save-copilot-token', access_token),
+    getToken: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-token', headers),
+    logout: () => ipcRenderer.invoke('copilot:logout'),
+    getUser: (token: string) => ipcRenderer.invoke('copilot:get-user', token)
   },
 
   // Binary related APIs

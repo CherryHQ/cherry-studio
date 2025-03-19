@@ -8,6 +8,7 @@ import log from 'electron-log'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
 
+import { CacheService } from './CacheService'
 import { windowService } from './WindowService'
 
 /**
@@ -446,14 +447,33 @@ export default class MCPService extends EventEmitter {
     if (!this.clients[serverName]) {
       throw new Error(`MCP Client ${serverName} not found`)
     }
+    const cacheKey = `mcp:list_tool:${serverName}`
+
+    if (CacheService.has(cacheKey)) {
+      log.info(`[MCP] Tools from ${serverName} loaded from cache`)
+      // Check if cache is still valid
+      const cachedTools = CacheService.get<MCPTool[]>(cacheKey)
+      if (cachedTools && cachedTools.length > 0) {
+        return cachedTools
+      }
+      CacheService.remove(cacheKey)
+    }
+
     const { tools } = await this.clients[serverName].listTools()
 
-    log.info(`[MCP] Tools from ${serverName}:`, tools)
-    return tools.map((tool: any) => ({
+    const transformedTools = tools.map((tool: any) => ({
       ...tool,
       serverName,
       id: 'f' + uuidv4().replace(/-/g, '')
     }))
+
+    // Cache the tools for 5 minutes
+    if (transformedTools.length > 0) {
+      CacheService.set(cacheKey, transformedTools, 5 * 60 * 1000)
+    }
+
+    log.info(`[MCP] Tools from ${serverName}:`, transformedTools)
+    return transformedTools
   }
 
   /**
