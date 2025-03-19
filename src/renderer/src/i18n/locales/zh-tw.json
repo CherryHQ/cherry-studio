@@ -165,6 +165,15 @@
       "topics.export.title": "匯出",
       "topics.export.word": "匯出為 Word",
       "topics.export.yuque": "匯出到語雀",
+      "topics.export.obsidian": "匯出到 Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian 未配置",
+      "topics.export.obsidian_fetch_failed": "獲取 Obsidian 文件夾結構失敗",
+      "topics.export.obsidian_select_folder": "選擇 Obsidian 文件夾",
+      "topics.export.obsidian_select_folder.btn": "確定",
+      "topics.export.obsidian_export_success": "匯出成功",
+      "topics.export.obsidian_export_failed": "匯出失敗",
+      "topics.export.obsidian_show_md_files": "顯示md文件",
+      "topics.export.obsidian_selected_path": "已選擇路徑",
       "topics.list": "話題列表",
       "topics.move_to": "移動到",
       "topics.pinned": "固定話題",
@@ -173,6 +182,7 @@
       "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
+      "topics.new": "開始新對話",
       "translate": "翻譯",
       "navigation": {
         "prev": "上一條訊息",
@@ -226,7 +236,10 @@
       "topics": "話題",
       "warning": "警告",
       "you": "您",
-      "more": "更多"
+      "copied": "已複製",
+      "confirm": "確認",
+      "more": "更多",
+      "advanced_settings": "進階設定"
     },
     "docs": {
       "title": "說明文件"
@@ -251,7 +264,8 @@
       "render": {
         "description": "渲染公式失敗，請檢查公式格式是否正確",
         "title": "渲染錯誤"
-      }
+      },
+      "user_message_not_found": "無法找到原始用戶訊息"
     },
     "export": {
       "assistant": "助手",
@@ -314,9 +328,9 @@
       "delete_confirm": "確定要刪除此知識庫嗎？",
       "directories": "目錄",
       "directory_placeholder": "請輸入目錄路徑",
-      "document_count": "請求文件分段數量",
+      "document_count": "請求文件片段數量",
       "document_count_default": "預設",
-      "document_count_help": "請求文件分段數量越多，附帶的資訊越多，但需要消耗的 Token 也越多",
+      "document_count_help": "請求文件片段數量越多，附帶的資訊越多，但需要消耗的 Token 也越多",
       "drag_file": "拖拽檔案到這裡",
       "edit_remark": "修改備註",
       "edit_remark_placeholder": "請輸入備註內容",
@@ -354,7 +368,11 @@
       "title": "知識庫",
       "url_added": "網址已新增",
       "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "topN": "返回結果數量",
+      "topN_placeholder": "未設定",
+      "topN__too_large_or_small": "返回結果數量不能大於100或小於1",
+      "topN_tooltip": "返回的匹配結果數量，數值越大，匹配結果越多，但消耗的 Token 也越多"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -392,6 +410,10 @@
       "title": "Mermaid 圖表"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "剪切板文件",
+        "pasted_image": "剪切板圖片"
+      },
       "api.check.model.title": "請選擇要偵測的模型",
       "api.connection.failed": "連接失敗",
       "api.connection.success": "連接成功",
@@ -401,8 +423,9 @@
       "backup.success": "備份成功",
       "chat.completion.paused": "聊天完成已暫停",
       "citations": "參考文獻",
-      "copied": "已複製",
-      "copy.success": "複製成功",
+      "copied": "已複製！",
+      "copy.success": "已複製！",
+      "copy.failed": "複製失敗",
       "error.chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "error.dimension_too_large": "內容尺寸過大",
       "error.enter.api.host": "請先輸入您的 API 主機地址",
@@ -425,6 +448,8 @@
       "group.delete.title": "刪除分組訊息",
       "ignore.knowledge.base": "網路模式開啟，忽略知識庫",
       "info.notion.block_reach_limit": "對話過長，自動分頁匯出到 Notion",
+      "loading.notion.preparing": "正在準備匯出到 Notion...",
+      "loading.notion.exporting_progress": "正在匯出到 Notion ({{current}}/{{total}})...",
       "mention.title": "切換模型回答",
       "message.code_style": "程式碼風格",
       "message.delete.content": "確定要刪除此訊息嗎？",
@@ -456,7 +481,8 @@
       "upgrade.success.button": "重新啟動",
       "upgrade.success.content": "請重新啟動程式以完成升級",
       "upgrade.success.title": "升級成功",
-      "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！"
+      "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！",
+      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試"
     },
     "minapp": {
       "sidebar.add.title": "新增到側邊欄",
@@ -518,7 +544,9 @@
         "function_calling": "函數調用"
       },
       "vision": "視覺",
-      "websearch": "網路搜尋"
+      "websearch": "網路搜尋",
+      "rerank_model": "重排序模型",
+      "rerank_model_tooltip": "在設定->模型服務中點擊管理按鈕添加"
     },
     "navbar": {
       "expand": "伸縮對話框",
@@ -612,7 +640,9 @@
       "yi": "零一萬物",
       "zhinao": "360 智腦",
       "zhipu": "智譜 AI",
-      "gpustack": "GPUStack"
+      "copilot": "GitHub Copilot",
+      "gpustack": "GPUStack",
+      "alayanew": "Alaya NeW"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -687,6 +717,8 @@
         "markdown_export.path_placeholder": "匯出路徑",
         "markdown_export.select": "選擇",
         "markdown_export.help": "若填入，每次匯出時將自動儲存至該路徑；否則，將彈出儲存對話框。",
+        "markdown_export.force_dollar_math.title": "LaTeX公式強制使用$$",
+        "markdown_export.force_dollar_math.help": "開啟後，匯出Markdown時會強制使用$$來標記LaTeX公式。注意：該項也會影響所有透過Markdown匯出的方式，如Notion、語雀等。",
         "notion.api_key": "Notion 金鑰",
         "notion.api_key_placeholder": "請輸入 Notion 金鑰",
         "notion.auto_split": "匯出對話時自動分頁",
@@ -746,6 +778,21 @@
           "title": "語雀設定",
           "token": "語雀 Token",
           "token_placeholder": "請輸入語雀 Token"
+        },
+        "obsidian": {
+          "check": {
+            "button": "檢查",
+            "empty_url": "請先輸入 Obsidian REST API URL",
+            "empty_api_key": "請先輸入 Obsidian API Key",
+            "fail": "Obsidian 連接驗證失敗",
+            "success": "Obsidian 連接驗證成功"
+          },
+          "help": "先安裝 Obsidian 插件 Local REST API，然後獲取 Obsidian API Key",
+          "url": "Obsidian 知識庫 URL",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Obsidian 設定",
+          "api_key": "Obsidian API Key",
+          "api_key_placeholder": "請輸入 Obsidian API Key"
         }
       },
       "display.advanced.title": "高級設定",
@@ -837,7 +884,33 @@
         "updateSuccess": "伺服器更新成功",
         "updateError": "更新伺服器失敗",
         "url": "URL",
-        "toggleError": "切換失敗"
+        "toggleError": "切換失敗",
+        "dependenciesInstalling": "正在安裝相依套件...",
+        "dependenciesInstall": "安裝相依套件",
+        "installSuccess": "相依套件安裝成功",
+        "installError": "安裝相依套件失敗",
+        "missingDependencies": "缺失，請安裝它以繼續",
+        "install": "安裝",
+        "npx_list": {
+          "title": "NPX 包列表",
+          "desc": "搜索並添加 npm 包作為 MCP 服務",
+          "scope_placeholder": "輸入 npm 作用域 (例如 @your-org)",
+          "search": "搜索",
+          "package_name": "包名稱",
+          "description": "描述",
+          "usage": "用法",
+          "npm": "NPM",
+          "version": "版本",
+          "actions": "操作",
+          "scope_required": "請輸入 npm 作用域",
+          "no_packages": "未找到包",
+          "search_error": "搜索失敗"
+        },
+        "editJson": "編輯JSON",
+        "jsonModeHint": "編輯MCP伺服器配置的JSON表示。保存前請確保格式正確。",
+        "jsonFormatError": "JSON格式錯誤",
+        "jsonSaveSuccess": "JSON配置已儲存",
+        "jsonSaveError": "保存JSON配置失敗"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -926,7 +999,32 @@
         "remove_invalid_keys": "刪除無效金鑰",
         "search": "搜尋模型平臺...",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "is_not_support_array_content": "開啟相容模式",
+        "copilot": {
+          "tooltip": "使用 Github Copilot 需要先登入 Github",
+          "description": "您的 Github 帳號需要訂閱 Copilot",
+          "login": "登入 Github",
+          "connect": "連接 Github",
+          "logout": "退出 Github",
+          "auth_success_title": "認證成功",
+          "code_generated_title": "獲取設備代碼",
+          "code_generated_desc": "請將設備代碼複製到下面的瀏覽器連結中",
+          "code_failed": "獲取 Device Code失敗，請重試",
+          "auth_success": "Github Copilot 認證成功",
+          "auth_failed": "Github Copilot認證失敗",
+          "logout_success": "已成功登出",
+          "logout_failed": "退出失敗，請重試",
+          "confirm_title": "風險警告",
+          "confirm_login": "過度使用可能會導致您的 Github 帳號遭到封號，請謹慎使用!!!!",
+          "rate_limit": "速率限制",
+          "custom_headers": "自訂請求標頭",
+          "headers_description": "自訂請求標頭(json格式)",
+          "expand": "展開",
+          "model_setting": "模型設定",
+          "invalid_json": "JSON 格式錯誤",
+          "open_verification_first": "請先點擊上方連結訪問驗證頁面"
+        }
       },
       "proxy": {
         "mode": {
@@ -942,7 +1040,8 @@
         "click_tray_to_show": "點選工具列圖示啟動",
         "enable_quick_assistant": "啟用快捷助手",
         "title": "快捷助手",
-        "use_shortcut_to_show": "右鍵點選工具列圖示或使用快捷鍵啟動"
+        "use_shortcut_to_show": "右鍵點選工具列圖示或使用快捷鍵啟動",
+        "read_clipboard_at_startup": "啟動時讀取剪貼簿"
       },
       "shortcuts": {
         "action": "操作",

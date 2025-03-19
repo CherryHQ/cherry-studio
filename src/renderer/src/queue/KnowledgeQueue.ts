@@ -155,7 +155,7 @@ class KnowledgeQueue {
           })
         )
       }
-      console.debug(`[KnowledgeQueue] Updated uniqueId for item ${item.id} in base ${baseId} `)
+      console.log(`[KnowledgeQueue] Updated uniqueId for item ${item.id} in base ${baseId} `)
 
       store.dispatch(clearCompletedProcessing({ baseId }))
     } catch (error) {

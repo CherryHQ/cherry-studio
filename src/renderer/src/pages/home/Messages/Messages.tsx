@@ -28,6 +28,7 @@ import styled from 'styled-components'
 import ChatNavigation from './ChatNavigation'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
+import NewTopicButton from './NewTopicButton'
 import Prompt from './Prompt'
 
 interface MessagesProps {
@@ -45,7 +46,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const { messages, displayCount, updateMessages, clearTopicMessages, deleteMessage } = useMessageOperations(topic)
+  const { messages, displayCount, loading, updateMessages, clearTopicMessages, deleteMessage } =
+    useMessageOperations(topic)
+
+  const messagesRef = useRef<Message[]>(messages)
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   useEffect(() => {
     const reversedMessages = [...messages].reverse()
@@ -68,9 +76,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
 
   useEffect(() => {
     const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, () => {
-        scrollToBottom()
-      }),
+      EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom),
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
         const defaultTopic = getDefaultTopic(assistant.id)
 
@@ -101,6 +107,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         }
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {
+        const messages = messagesRef.current
+
+        if (messages.length === 0) {
+          return
+        }
+
         const lastMessage = last(messages)
 
         if (lastMessage?.type === 'clear') {
@@ -108,8 +120,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           scrollToBottom()
           return
         }
-
-        if (messages.length === 0) return
 
         const clearMessage = getUserMessage({ assistant, topic, type: 'clear' })
         const newMessages = [...messages, clearMessage]
@@ -141,7 +151,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
 
     return () => unsubscribes.forEach((unsub) => unsub())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, dispatch, scrollToBottom, topic, updateTopic])
+  }, [assistant, dispatch, scrollToBottom, topic])
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -183,6 +193,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       ref={containerRef}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
+        {messages.length >= 2 && !loading && <NewTopicButton />}
         <InfiniteScroll
           dataLength={displayMessages.length}
           next={loadMoreMessages}

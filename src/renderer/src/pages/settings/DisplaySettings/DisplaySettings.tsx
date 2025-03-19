@@ -246,14 +246,6 @@ const DisplaySettings: FC = () => {
         )}
       </SettingGroup>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.show.icon')}</SettingRowTitle>
-          <Switch checked={showAssistantIcon} onChange={(checked) => setShowAssistantIcon(checked)} />
-        </SettingRow>
-      </SettingGroup>
-      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -284,6 +276,14 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
           <Switch checked={showTopicTime} onChange={(checked) => dispatch(setShowTopicTime(checked))} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.assistant.show.icon')}</SettingRowTitle>
+          <Switch checked={showAssistantIcon} onChange={(checked) => setShowAssistantIcon(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

@@ -1,4 +1,5 @@
 import { electronAPI } from '@electron-toolkit/preload'
+import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
 
@@ -75,7 +76,9 @@ const api = {
     remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
       ipcRenderer.invoke('knowledge-base:remove', { uniqueId, uniqueIds, base }),
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke('knowledge-base:search', { search, base })
+      ipcRenderer.invoke('knowledge-base:search', { search, base }),
+    rerank: ({ search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }) =>
+      ipcRenderer.invoke('knowledge-base:rerank', { search, base, results })
   },
   window: {
     setMinimumSize: (width: number, height: number) => ipcRenderer.invoke('window:set-minimum-size', width, height),
@@ -119,7 +122,22 @@ const api = {
   },
   shell: {
     openExternal: shell.openExternal
-  }
+  },
+  copilot: {
+    getAuthMessage: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-auth-message', headers),
+    getCopilotToken: (device_code: string, headers?: Record<string, string>) =>
+      ipcRenderer.invoke('copilot:get-copilot-token', device_code, headers),
+    saveCopilotToken: (access_token: string) => ipcRenderer.invoke('copilot:save-copilot-token', access_token),
+    getToken: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-token', headers),
+    logout: () => ipcRenderer.invoke('copilot:logout'),
+    getUser: (token: string) => ipcRenderer.invoke('copilot:get-user', token)
+  },
+
+  // Binary related APIs
+  isBinaryExist: (name: string) => ipcRenderer.invoke('app:is-binary-exist', name),
+  getBinaryPath: (name: string) => ipcRenderer.invoke('app:get-binary-path', name),
+  installUVBinary: () => ipcRenderer.invoke('app:install-uv-binary'),
+  installBunBinary: () => ipcRenderer.invoke('app:install-bun-binary')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

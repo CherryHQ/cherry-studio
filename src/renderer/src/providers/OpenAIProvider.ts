@@ -15,6 +15,7 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
+import store from '@renderer/store'
 import {
   Assistant,
   FileTypes,
@@ -33,7 +34,7 @@ import {
   openAIToolsToMcpTool,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
-import { isString, takeRight } from 'lodash'
+import { isEmpty, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionAssistantMessageParam,
@@ -69,7 +70,10 @@ export default class OpenAIProvider extends BaseProvider {
       dangerouslyAllowBrowser: true,
       apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
-      defaultHeaders: this.defaultHeaders()
+      defaultHeaders: {
+        ...this.defaultHeaders(),
+        ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {})
+      }
     })
   }
 
@@ -78,7 +82,12 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns True if the provider does not support files, false otherwise
    */
   private get isNotSupportFiles() {
+    if (this.provider?.isNotSupportArrayContent) {
+      return true
+    }
+
     const providers = ['deepseek', 'baichuan', 'minimax', 'xirang']
+
     return providers.includes(this.provider.id)
   }
 
@@ -88,7 +97,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The file content
    */
   private async extractFileContent(message: Message) {
-    if (message.files) {
+    if (message.files && message.files.length > 0) {
       const textFiles = message.files.filter((file) => [FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type))
 
       if (textFiles.length > 0) {
@@ -122,7 +131,7 @@ export default class OpenAIProvider extends BaseProvider {
     const content = await this.getMessageContent(message)
 
     // If the message does not have files, return the message
-    if (!message.files) {
+    if (isEmpty(message.files)) {
       return {
         role: message.role,
         content
@@ -415,6 +424,7 @@ export default class OpenAIProvider extends BaseProvider {
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
     const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
+    await this.checkIsCopilot()
 
     mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
     const tools = mcpTools && mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : undefined
@@ -513,15 +523,46 @@ export default class OpenAIProvider extends BaseProvider {
             upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking', id: toolCall.id }, onChunk)
 
             const toolCallResponse = await callMCPTool(mcpTool)
+            const toolResponsContent: { type: string; text?: string; image_url?: { url: string } }[] = []
+            for (const content of toolCallResponse.content) {
+              if (content.type === 'text') {
+                toolResponsContent.push({
+                  type: 'text',
+                  text: content.text
+                })
+              } else if (content.type === 'image') {
+                toolResponsContent.push({
+                  type: 'image_url',
+                  image_url: { url: `data:${content.mimeType};base64,${content.data}` }
+                })
+              } else {
+                console.warn('Unsupported content type:', content.type)
+                toolResponsContent.push({
+                  type: 'text',
+                  text: 'unsupported content type: ' + content.type
+                })
+              }
+            }
 
-            reqMessages.push({
-              role: 'tool',
-              content: isString(toolCallResponse.content)
-                ? toolCallResponse.content
-                : JSON.stringify(toolCallResponse.content),
-              tool_call_id: toolCall.id
-            } as ChatCompletionToolMessageParam)
+            const provider = lastUserMessage?.model?.provider
+            const modelName = lastUserMessage?.model?.name
 
+            if (
+              modelName?.toLocaleLowerCase().includes('gpt') ||
+              (provider === 'dashscope' && modelName?.toLocaleLowerCase().includes('qwen'))
+            ) {
+              reqMessages.push({
+                role: 'tool',
+                content: toolResponsContent,
+                tool_call_id: toolCall.id
+              } as ChatCompletionToolMessageParam)
+            } else {
+              reqMessages.push({
+                role: 'tool',
+                content: JSON.stringify(toolResponsContent),
+                tool_call_id: toolCall.id
+              } as ChatCompletionToolMessageParam)
+            }
             upsertMCPToolResponse(
               toolResponses,
               { tool: mcpTool, status: 'done', response: toolCallResponse, id: toolCall.id },
@@ -567,7 +608,6 @@ export default class OpenAIProvider extends BaseProvider {
         })
       }
     }
-
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
@@ -628,6 +668,8 @@ export default class OpenAIProvider extends BaseProvider {
 
     const stream = isSupportedStreamOutput()
 
+    await this.checkIsCopilot()
+
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -647,10 +689,6 @@ export default class OpenAIProvider extends BaseProvider {
 
     for await (const chunk of response) {
       const deltaContent = chunk.choices[0]?.delta?.content || ''
-
-      if (!deltaContent.trim()) {
-        continue
-      }
 
       if (isReasoning) {
         if (deltaContent.includes('<think>')) {
@@ -705,6 +743,8 @@ export default class OpenAIProvider extends BaseProvider {
       content: userMessageContent
     }
 
+    await this.checkIsCopilot()
+
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -722,6 +762,40 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   /**
+   * Summarize a message for search
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The summary
+   */
+  public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
+    const model = assistant.model || getDefaultModel()
+
+    const systemMessage = {
+      role: 'system',
+      content: assistant.prompt
+    }
+
+    const userMessage = {
+      role: 'user',
+      content: messages.map((m) => m.content).join('\n')
+    }
+    // @ts-ignore key is not typed
+    const response = await this.sdk.chat.completions.create({
+      model: model.id,
+      messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
+      stream: false,
+      keep_alive: this.keepAliveTime,
+      max_tokens: 1000
+    })
+
+    // 针对思考类模型的返回，总结仅截取</think>之后的内容
+    let content = response.choices[0].message?.content || ''
+    content = content.replace(/^<think>(.*?)<\/think>/s, '')
+
+    return content
+  }
+
+  /**
    * Generate text
    * @param prompt - The prompt
    * @param content - The content
@@ -729,6 +803,8 @@ export default class OpenAIProvider extends BaseProvider {
    */
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
     const model = getDefaultModel()
+
+    await this.checkIsCopilot()
 
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -755,6 +831,8 @@ export default class OpenAIProvider extends BaseProvider {
       return []
     }
 
+    await this.checkIsCopilot()
+
     const response: any = await this.sdk.request({
       method: 'post',
       path: '/advice_questions',
@@ -779,7 +857,6 @@ export default class OpenAIProvider extends BaseProvider {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
-
     const body = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
@@ -787,6 +864,7 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     try {
+      await this.checkIsCopilot()
       const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
 
       return {
@@ -807,6 +885,8 @@ export default class OpenAIProvider extends BaseProvider {
    */
   public async models(): Promise<OpenAI.Models.Model[]> {
     try {
+      await this.checkIsCopilot()
+
       const response = await this.sdk.models.list()
 
       if (this.provider.id === 'github') {
@@ -884,10 +964,20 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The embedding dimensions
    */
   public async getEmbeddingDimensions(model: Model): Promise<number> {
+    await this.checkIsCopilot()
+
     const data = await this.sdk.embeddings.create({
       model: model.id,
       input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
     })
     return data.data[0].embedding.length
+  }
+
+  public async checkIsCopilot() {
+    if (this.provider.id !== 'copilot') return
+    const defaultHeaders = store.getState().copilot.defaultHeaders
+    // copilot每次请求前需要重新获取token，因为token中附带时间戳
+    const { token } = await window.api.copilot.getToken(defaultHeaders)
+    this.sdk.apiKey = token
   }
 }

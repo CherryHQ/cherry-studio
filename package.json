@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.1.3",
+  "version": "1.1.7",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -46,13 +46,13 @@
     "test": "npx -y tsx --test src/**/*.test.ts",
     "format": "prettier --write .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "prepare": "husky"
   },
   "dependencies": {
     "@agentic/exa": "^7.3.3",
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
-    "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
     "@emotion/is-prop-valid": "^1.3.1",
@@ -69,6 +69,7 @@
     "@llm-tools/embedjs-openai": "^0.1.28",
     "@modelcontextprotocol/sdk": "patch:@modelcontextprotocol/sdk@npm%3A1.6.1#~/.yarn/patches/@modelcontextprotocol-sdk-npm-1.6.1-b46313efe7.patch",
     "@notionhq/client": "^2.2.15",
+    "@tryfabric/martian": "^1.2.4",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "adm-zip": "^0.5.16",
     "apache-arrow": "^18.1.0",
@@ -81,8 +82,10 @@
     "fetch-socks": "^1.3.2",
     "fs-extra": "^11.2.0",
     "markdown-it": "^14.1.0",
+    "npx-scope-finder": "^1.2.0",
     "officeparser": "^4.1.1",
     "p-queue": "^8.1.0",
+    "tar": "^7.4.3",
     "tokenx": "^0.4.1",
     "undici": "^7.4.0",
     "webdav": "4.11.4",
@@ -92,6 +95,7 @@
     "@anthropic-ai/sdk": "^0.38.0",
     "@electron-toolkit/eslint-config-prettier": "^2.0.0",
     "@electron-toolkit/eslint-config-ts": "^1.0.1",
+    "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@hello-pangea/dnd": "^16.6.0",
     "@kangfenmao/keyv-storage": "^0.1.0",
@@ -132,11 +136,13 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.0.0",
     "html-to-image": "^1.11.13",
+    "husky": "^9.1.7",
     "i18next": "^23.11.5",
+    "lint-staged": "^15.5.0",
     "lodash": "^4.17.21",
     "mime": "^4.0.4",
     "openai": "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch",
-    "prettier": "^3.2.4",
+    "prettier": "^3.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hotkeys-hook": "^4.6.1",
@@ -174,5 +180,14 @@
     "@langchain/openai@npm:>=0.1.0 <0.4.0": "patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch",
     "openai@npm:^4.77.0": "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
   },
-  "packageManager": "yarn@4.6.0"
+  "packageManager": "yarn@4.6.0",
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,yml,yaml,css,scss,html}": [
+      "prettier --write"
+    ]
+  }
 }

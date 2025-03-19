@@ -165,6 +165,15 @@
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
       "topics.export.yuque": "語雀にエクスポート",
+      "topics.export.obsidian": "Obsidian にエクスポート",
+      "topics.export.obsidian_not_configured": "Obsidian 未設定",
+      "topics.export.obsidian_fetch_failed": "Obsidian ファイルフォルダ構造取得失敗",
+      "topics.export.obsidian_select_folder": "Obsidian ファイルフォルダ選択",
+      "topics.export.obsidian_select_folder.btn": "確定",
+      "topics.export.obsidian_export_success": "エクスポート成功",
+      "topics.export.obsidian_export_failed": "エクスポート失敗",
+      "topics.export.obsidian_show_md_files": "mdファイルを表示",
+      "topics.export.obsidian_selected_path": "選択済みパス",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
       "topics.pinned": "トピックを固定",
@@ -173,6 +182,7 @@
       "topics.prompt.tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供",
       "topics.title": "トピック",
       "topics.unpinned": "固定解除",
+      "topics.new": "新しいトピック",
       "translate": "翻訳",
       "navigation": {
         "prev": "前のメッセージ",
@@ -226,7 +236,10 @@
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
-      "more": "もっと"
+      "copied": "コピーされました",
+      "confirm": "確認",
+      "more": "もっと",
+      "advanced_settings": "詳細設定"
     },
     "docs": {
       "title": "ドキュメント"
@@ -251,7 +264,8 @@
       "render": {
         "description": "数式のレンダリングに失敗しました。数式の形式が正しいか確認してください",
         "title": "レンダリングエラー"
-      }
+      },
+      "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした"
     },
     "export": {
       "assistant": "アシスタント",
@@ -354,7 +368,11 @@
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "topN": "返却される結果の数",
+      "topN_placeholder": "未設定",
+      "topN__too_large_or_small": "結果の数は100より大きくてはならず、1より小さくてはなりません。",
+      "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -392,6 +410,10 @@
       "title": "Mermaid図"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "クリップボードファイル",
+        "pasted_image": "クリップボード画像"
+      },
       "api.check.model.title": "検出に使用するモデルを選択してください",
       "api.connection.failed": "接続に失敗しました",
       "api.connection.success": "接続に成功しました",
@@ -403,6 +425,7 @@
       "citations": "参考文献",
       "copied": "コピーしました！",
       "copy.success": "コピーしました！",
+      "copy.failed": "コピーに失敗しました",
       "error.chunk_overlap_too_large": "チャンクの重なりは、チャンクサイズを超えることはできません",
       "error.dimension_too_large": "内容のサイズが大きすぎます",
       "error.enter.api.host": "APIホストを入力してください",
@@ -423,6 +446,8 @@
       "error.yuque.no_config": "語雀Token または 知識ベースID が設定されていません",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
+      "loading.notion.preparing": "Notionへのエクスポートを準備中...",
+      "loading.notion.exporting_progress": "Notionにエクスポート中 ({{current}}/{{total}})...",
       "ignore.knowledge.base": "インターネットモードが有効になっています。ナレッジベースを無視します",
       "info.notion.block_reach_limit": "会話が長すぎます。Notionにページごとにエクスポートしています",
       "mention.title": "モデルを切り替える",
@@ -456,7 +481,8 @@
       "upgrade.success.button": "再起動",
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
-      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
+      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
+      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
@@ -518,7 +544,9 @@
         "function_calling": "関数呼び出し"
       },
       "vision": "画像",
-      "websearch": "ウェブ検索"
+      "websearch": "ウェブ検索",
+      "rerank_model": "再順序付けモデル",
+      "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。"
     },
     "navbar": {
       "expand": "ダイアログを展開",
@@ -618,7 +646,9 @@
       "yi": "零一万物",
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
-      "gpustack": "GPUStack"
+      "copilot": "GitHub Copilot",
+      "gpustack": "GPUStack",
+      "alayanew": "Alaya NeW"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -687,10 +717,12 @@
         "markdown_export.path_placeholder": "エクスポートパス",
         "markdown_export.select": "選択",
         "markdown_export.help": "入力された場合、エクスポート時に自動的にこのパスに保存されます。未入力の場合、保存ダイアログが表示されます。",
+        "markdown_export.force_dollar_math.title": "LaTeX数式に$$を強制使用",
+        "markdown_export.force_dollar_math.help": "有効にすると、Markdownにエクスポートする際にLaTeX数式を$$で強制的にマークします。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
         "notion.api_key": "Notion APIキー",
         "notion.api_key_placeholder": "Notion APIキーを入力してください",
-        "notion.auto_split": "내보내기 시 자동 분할",
-        "notion.auto_split_tip": "긴 주제를 Notion으로 내보낼 때 자동으로 페이지 분할",
+        "notion.auto_split": "ダイアログをエクスポートすると自動ページ分割",
+        "notion.auto_split_tip": "ダイアログが長い場合、Notionに自動的にページ分割してエクスポートします",
         "notion.check": {
           "button": "確認",
           "empty_api_key": "Api_keyが設定されていません",
@@ -704,9 +736,9 @@
         "notion.help": "Notion 設定ドキュメント",
         "notion.page_name_key": "ページタイトルフィールド名",
         "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
-        "notion.split_size": "분할 크기",
-        "notion.split_size_help": "권장: 무료 플랜 90, Plus 플랜 24990, 기본값 90",
-        "notion.split_size_placeholder": "페이지당 블록 제한 입력(기본값 90)",
+        "notion.split_size": "自動ページ分割サイズ",
+        "notion.split_size_help": "Notion無料版ユーザーは90、有料版ユーザーは24990、デフォルトは90",
+        "notion.split_size_placeholder": "ページごとのブロック数制限を入力してください(デフォルト90)",
         "notion.title": "Notion 設定",
         "title": "データ設定",
         "webdav": {
@@ -746,6 +778,21 @@
           "title": "Yuque設定",
           "token": "Yuqueトークン",
           "token_placeholder": "Yuqueトークンを入力してください"
+        },
+        "obsidian": {
+          "check": {
+            "button": "確認",
+            "empty_url": "Obsidian REST API URL を先に入力してください",
+            "empty_api_key": "Obsidian API Key を先に入力してください",
+            "fail": "Obsidian 接続確認に失敗しました",
+            "success": "Obsidian 接続確認に成功しました"
+          },
+          "help": "Obsidian プラグイン Local REST API を先にインストールしてください。その後、Obsidian API Key を取得してください",
+          "url": "Obsidian 知識ベース URL",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Obsidian 設定",
+          "api_key": "Obsidian API Key",
+          "api_key_placeholder": "Obsidian API Key を入力してください"
         }
       },
       "display.advanced.title": "高度な設定",
@@ -837,7 +884,33 @@
         "updateSuccess": "サーバーが正常に更新されました",
         "updateError": "サーバーの更新に失敗しました",
         "url": "URL",
-        "toggleError": "切り替えに失敗しました"
+        "toggleError": "切り替えに失敗しました",
+        "dependenciesInstalling": "依存関係をインストール中...",
+        "dependenciesInstall": "依存関係をインストール",
+        "installSuccess": "依存関係のインストールに成功しました",
+        "installError": "依存関係のインストールに失敗しました",
+        "missingDependencies": "が不足しています。続行するにはインストールしてください。",
+        "install": "インストール",
+        "npx_list": {
+          "title": "NPX パッケージリスト",
+          "desc": "npm パッケージを検索して MCP サーバーとして追加",
+          "scope_placeholder": "npm スコープを入力 (例: @your-org)",
+          "search": "検索",
+          "package_name": "パッケージ名",
+          "description": "説明",
+          "usage": "使用法",
+          "npm": "NPM",
+          "version": "バージョン",
+          "actions": "アクション",
+          "scope_required": "npm スコープを入力してください",
+          "no_packages": "パッケージが見つかりません",
+          "search_error": "パッケージの検索に失敗しました"
+        },
+        "editJson": "JSONを編集",
+        "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
+        "jsonFormatError": "JSONフォーマットエラー",
+        "jsonSaveSuccess": "JSON設定が保存されました。",
+        "jsonSaveError": "JSON設定の保存に失敗しました"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -926,7 +999,32 @@
         "remove_invalid_keys": "無効なキーを削除",
         "search": "プロバイダーを検索...",
         "search_placeholder": "モデルIDまたは名前を検索",
-        "title": "モデルプロバイダー"
+        "title": "モデルプロバイダー",
+        "is_not_support_array_content": "互換モードを有効にする",
+        "copilot": {
+          "tooltip": "Github Copilot を使用するには、まず Github にログインする必要があります。",
+          "description": "あなたのGithubアカウントはCopilotを購読する必要があります。",
+          "login": "GitHubにログインする",
+          "connect": "GitHubに接続する",
+          "logout": "GitHubから退出する",
+          "auth_success_title": "認証成功",
+          "code_generated_title": "デバイスコードを取得する",
+          "code_generated_desc": "デバイスコードを下記のブラウザリンクにコピーしてください。",
+          "code_failed": "デバイスコードの取得に失敗しました。再試行してください。",
+          "auth_success": "Github Copilotの認証が成功しました",
+          "auth_failed": "Github Copilotの認証に失敗しました。",
+          "logout_success": "正常にログアウトしました。",
+          "logout_failed": "ログアウトに失敗しました。もう一度お試しください。",
+          "confirm_title": "リスク警告",
+          "confirm_login": "過度使用すると、あなたのGithubアカウントが停止される可能性があるため、慎重に使用してください!!!!",
+          "rate_limit": "レート制限",
+          "custom_headers": "カスタムリクエストヘッダー",
+          "headers_description": "カスタムリクエストヘッダー（JSONフォーマット）",
+          "expand": "展開",
+          "model_setting": "モデル設定",
+          "invalid_json": "JSONフォーマットエラー",
+          "open_verification_first": "上のリンクをクリックして、確認ページにアクセスしてください。"
+        }
       },
       "proxy": {
         "mode": {
@@ -942,7 +1040,8 @@
         "click_tray_to_show": "トレイアイコンをクリックして起動",
         "enable_quick_assistant": "クイックアシスタントを有効にする",
         "title": "クイックアシスタント",
-        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます"
+        "use_shortcut_to_show": "トレイアイコンを右クリックするか、ショートカットキーで起動できます",
+        "read_clipboard_at_startup": "起動時にクリップボードを読み取る"
       },
       "shortcuts": {
         "action": "操作",

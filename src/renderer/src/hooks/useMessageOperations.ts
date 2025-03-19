@@ -1,4 +1,3 @@
-import db from '@renderer/databases'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
@@ -63,11 +62,8 @@ export function useMessageOperations(topic: Topic) {
           updates
         })
       )
-      await db.topics.update(topic.id, {
-        messages: messages.map((m) => (m.id === messageId ? { ...m, ...updates } : m))
-      })
     },
-    [dispatch, messages, topic.id]
+    [dispatch, topic.id]
   )
 
   /**
