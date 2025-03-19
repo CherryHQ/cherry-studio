@@ -10,6 +10,7 @@ import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { isEmoji } from '@renderer/utils'
@@ -33,14 +34,13 @@ const Sidebar: FC = () => {
   const { minappShow } = useRuntime()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { windowStyle, sidebarIcons } = useSettings()
+  const { sidebarIcons } = useSettings()
   const { theme, toggleTheme } = useTheme()
   const { pinned } = useMinapps()
 
   const onEditUser = () => UserPopup.show()
 
-  const macTransparentWindow = isMac && windowStyle === 'transparent'
-  const sidebarBgColor = macTransparentWindow ? 'transparent' : 'var(--navbar-background)'
+  const backgroundColor = useNavBackgroundColor()
 
   const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
 
@@ -59,12 +59,7 @@ const Sidebar: FC = () => {
   }
 
   return (
-    <Container
-      id="app-sidebar"
-      style={{
-        backgroundColor: sidebarBgColor,
-        zIndex: minappShow ? 10000 : 'initial'
-      }}>
+    <Container id="app-sidebar" style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
       {isEmoji(avatar) ? (
         <EmojiAvatar onClick={onEditUser}>{avatar}</EmojiAvatar>
       ) : (

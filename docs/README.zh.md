@@ -63,7 +63,7 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 # 📝 待辦事項
 
-- [x] 快捷弹窗 (读取剪贴板、快速提问、解释、翻译、总结）
+- [x] 快捷弹窗（读取剪贴板、快速提问、解释、翻译、总结）
 - [x] 多模型回答对比
 - [x] 支持使用服务供应商提供的 SSO 进行登入
 - [x] 全部模型支持连网（开发中...）
@@ -99,13 +99,13 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 3. **提交更改**：提交并推送您的更改。
 4. **打开 Pull Request**：描述您的更改和原因。
 
-有关更详细的指南，请参阅我们的 [贡献指南](./CONTRIBUTING.md)。
+有关更详细的指南，请参阅我们的 [贡献指南](../CONTRIBUTING.md)。
 
 感谢您的支持和贡献！
 
 ## 相关项目
 
-- [one-api](https://github.com/songquanpeng/one-api):LLM API管理及分发系统，支持OpenAI、Azure、Anthropic等主流模型，统一API接口，可用于密钥管理与二次分发。
+- [one-api](https://github.com/songquanpeng/one-api)：LLM API 管理及分发系统，支持 OpenAI、Azure、Anthropic 等主流模型，统一 API 接口，可用于密钥管理与二次分发。
 
 # 🚀 贡献者
 

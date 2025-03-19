@@ -176,7 +176,11 @@ export const REASONING_REGEX =
 
 // Embedding models
 export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings)/i
-export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
+
+// Rerank models
+export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
+
+export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 
 // Tool calling models
 export const FUNCTION_CALLING_MODELS = [
@@ -1031,6 +1035,14 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'OpenAI'
     }
   ],
+  copilot: [
+    {
+      id: 'gpt-4o-mini',
+      provider: 'copilot',
+      name: 'OpenAI GPT-4o-mini',
+      group: 'OpenAI'
+    }
+  ],
   yi: [
     { id: 'yi-lightning', name: 'Yi Lightning', provider: 'yi', group: 'yi-lightning', owned_by: '01.ai' },
     { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
@@ -1880,8 +1892,18 @@ export function isEmbeddingModel(model: Model): boolean {
   return EMBEDDING_REGEX.test(model.id) || model.type?.includes('embedding') || false
 }
 
+export function isRerankModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return RERANKING_REGEX.test(model.id) || false
+}
+
 export function isVisionModel(model: Model): boolean {
   if (!model) {
+    return false
+  }
+  if (model.provider === 'copilot') {
     return false
   }
 
