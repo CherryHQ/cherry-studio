@@ -1,4 +1,4 @@
-import { WarningOutlined } from '@ant-design/icons'
+import { DownOutlined, WarningOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -11,6 +11,7 @@ import { Alert, Form, Input, InputNumber, Modal, Select, Slider } from 'antd'
 import { sortBy } from 'lodash'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 interface ShowParams {
   base: KnowledgeBase
@@ -33,6 +34,7 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
   const [open, setOpen] = useState(true)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [form] = Form.useForm<FormData>()
   const { t } = useTranslation()
   const { providers } = useProviders()
@@ -118,7 +120,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       destroyOnClose
       maskClosable={false}
       centered>
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" className="compact-form">
         <Form.Item
           name="name"
           label={t('common.name')}
@@ -163,93 +165,125 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           />
         </Form.Item>
 
-        <Form.Item
-          name="chunkSize"
-          label={t('knowledge.chunk_size')}
-          tooltip={{ title: t('knowledge.chunk_size_tooltip') }}
-          initialValue={base.chunkSize}
-          rules={[
-            {
-              validator(_, value) {
-                const maxContext = getEmbeddingMaxContext(base.model.id)
-                if (value && maxContext && value > maxContext) {
-                  return Promise.reject(new Error(t('knowledge.chunk_size_too_large', { max_context: maxContext })))
-                }
-                return Promise.resolve()
-              }
-            }
-          ]}>
-          <InputNumber
-            style={{ width: '100%' }}
-            min={100}
-            defaultValue={base.chunkSize}
-            placeholder={t('knowledge.chunk_size_placeholder')}
+        <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>
+          <DownOutlined
+            style={{
+              transform: showAdvanced ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.3s',
+              marginRight: 8
+            }}
           />
-        </Form.Item>
+          {t('common.advanced_settings')}
+        </AdvancedSettingsButton>
 
-        <Form.Item
-          name="chunkOverlap"
-          label={t('knowledge.chunk_overlap')}
-          initialValue={base.chunkOverlap}
-          tooltip={{ title: t('knowledge.chunk_overlap_tooltip') }}
-          rules={[
-            ({ getFieldValue }) => ({
-              validator(_, value) {
-                if (!value || getFieldValue('chunkSize') > value) {
+        <div style={{ display: showAdvanced ? 'block' : 'none' }}>
+          <Form.Item
+            name="chunkSize"
+            label={t('knowledge.chunk_size')}
+            layout="horizontal"
+            tooltip={{ title: t('knowledge.chunk_size_tooltip') }}
+            initialValue={base.chunkSize}
+            rules={[
+              {
+                validator(_, value) {
+                  const maxContext = getEmbeddingMaxContext(base.model.id)
+                  if (value && maxContext && value > maxContext) {
+                    return Promise.reject(new Error(t('knowledge.chunk_size_too_large', { max_context: maxContext })))
+                  }
                   return Promise.resolve()
                 }
-                return Promise.reject(new Error(t('message.error.chunk_overlap_too_large')))
               }
-            })
-          ]}
-          dependencies={['chunkSize']}>
-          <InputNumber
-            style={{ width: '100%' }}
-            min={0}
-            defaultValue={base.chunkOverlap}
-            placeholder={t('knowledge.chunk_overlap_placeholder')}
+            ]}>
+            <InputNumber
+              style={{ width: '100%' }}
+              min={100}
+              defaultValue={base.chunkSize}
+              placeholder={t('knowledge.chunk_size_placeholder')}
+            />
+          </Form.Item>
+          <Form.Item
+            name="chunkOverlap"
+            label={t('knowledge.chunk_overlap')}
+            layout="horizontal"
+            initialValue={base.chunkOverlap}
+            tooltip={{ title: t('knowledge.chunk_overlap_tooltip') }}
+            rules={[
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('chunkSize') > value) {
+                    return Promise.resolve()
+                  }
+                  return Promise.reject(new Error(t('message.error.chunk_overlap_too_large')))
+                }
+              })
+            ]}
+            dependencies={['chunkSize']}>
+            <InputNumber
+              style={{ width: '100%' }}
+              min={0}
+              defaultValue={base.chunkOverlap}
+              placeholder={t('knowledge.chunk_overlap_placeholder')}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="threshold"
+            label={t('knowledge.threshold')}
+            layout="horizontal"
+            tooltip={{ title: t('knowledge.threshold_tooltip') }}
+            initialValue={base.threshold}
+            rules={[
+              {
+                validator(_, value) {
+                  if (value && (value > 1 || value < 0)) {
+                    return Promise.reject(new Error(t('knowledge.threshold_too_large_or_small')))
+                  }
+                  return Promise.resolve()
+                }
+              }
+            ]}>
+            <InputNumber placeholder={t('knowledge.threshold_placeholder')} step={0.1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="topN"
+            label={t('knowledge.topN')}
+            layout="horizontal"
+            initialValue={base.topN}
+            rules={[
+              {
+                validator(_, value) {
+                  if (value && (value < 0 || value > 10)) {
+                    return Promise.reject(new Error(t('knowledge.topN_too_large_or_small')))
+                  }
+                  return Promise.resolve()
+                }
+              }
+            ]}>
+            <InputNumber placeholder={t('knowledge.topN_placeholder')} style={{ width: '100%' }} />
+          </Form.Item>
+          <Alert
+            message={t('knowledge.chunk_size_change_warning')}
+            type="warning"
+            showIcon
+            icon={<WarningOutlined />}
           />
-        </Form.Item>
-        <Form.Item
-          name="threshold"
-          label={t('knowledge.threshold')}
-          tooltip={{ title: t('knowledge.threshold_tooltip') }}
-          initialValue={base.threshold}
-          rules={[
-            {
-              validator(_, value) {
-                if (value && (value > 1 || value < 0)) {
-                  return Promise.reject(new Error(t('knowledge.threshold_too_large_or_small')))
-                }
-                return Promise.resolve()
-              }
-            }
-          ]}>
-          <InputNumber placeholder={t('knowledge.threshold_placeholder')} step={0.1} style={{ width: '100%' }} />
-        </Form.Item>
-        <Form.Item
-          name="topN"
-          label={t('knowledge.topN')}
-          initialValue={base.topN}
-          rules={[
-            {
-              validator(_, value) {
-                if (value && (value < 0 || value > 10)) {
-                  return Promise.reject(new Error(t('knowledge.topN_too_large_or_small')))
-                }
-                return Promise.resolve()
-              }
-            }
-          ]}>
-          <InputNumber placeholder={t('knowledge.topN_placeholder')} style={{ width: '100%' }} />
-        </Form.Item>
+        </div>
       </Form>
-      <Alert message={t('knowledge.chunk_size_change_warning')} type="warning" showIcon icon={<WarningOutlined />} />
     </Modal>
   )
 }
 
 const TopViewKey = 'KnowledgeSettingsPopup'
+
+const AdvancedSettingsButton = styled.div`
+  cursor: pointer;
+  margin-bottom: 16px;
+  margin-top: -10px;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+`
 
 export default class KnowledgeSettingsPopup {
   static hide() {

@@ -20,7 +20,6 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   anthropicToolUseToMcpTool,
   callMCPTool,
-  filterMCPTools,
   mcpToolsToAnthropicTools,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
@@ -180,7 +179,6 @@ export default class AnthropicProvider extends BaseProvider {
 
     const userMessages = flatten(userMessagesParams)
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
     const tools = mcpTools ? mcpToolsToAnthropicTools(mcpTools) : undefined
 
     const body: MessageCreateParamsNonStreaming = {
@@ -476,13 +474,18 @@ export default class AnthropicProvider extends BaseProvider {
       content: messages.map((m) => m.content).join('\n')
     }
 
-    const response = await this.sdk.messages.create({
-      messages: [userMessage] as Anthropic.Messages.MessageParam[],
-      model: model.id,
-      system: systemMessage.content,
-      stream: false,
-      max_tokens: 4096
-    })
+    const response = await this.sdk.messages.create(
+      {
+        messages: [userMessage] as Anthropic.Messages.MessageParam[],
+        model: model.id,
+        system: systemMessage.content,
+        stream: false,
+        max_tokens: 4096
+      },
+      {
+        timeout: 20 * 1000
+      }
+    )
 
     const content = response.content[0].type === 'text' ? response.content[0].text : ''
 

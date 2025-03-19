@@ -27,7 +27,6 @@ import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provid
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   callMCPTool,
-  filterMCPTools,
   geminiFunctionCallToMcpTool,
   mcpToolsToGeminiTools,
   upsertMCPToolResponse
@@ -197,7 +196,6 @@ export default class GeminiProvider extends BaseProvider {
       history.push(await this.getMessageContents(message))
     }
 
-    mcpTools = filterMCPTools(mcpTools, userLastMessage?.enabledMCPs)
     const tools = mcpToolsToGeminiTools(mcpTools)
     const toolResponses: MCPToolResponse[] = []
 
@@ -518,7 +516,10 @@ export default class GeminiProvider extends BaseProvider {
           temperature: assistant?.settings?.temperature
         }
       },
-      this.requestOptions
+      {
+        ...this.requestOptions,
+        timeout: 20 * 1000
+      }
     )
 
     const chat = await geminiModel.startChat()

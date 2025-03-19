@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "Export failed",
       "topics.export.obsidian_show_md_files": "Show MD Files",
       "topics.export.obsidian_selected_path": "Selected Path",
+      "topics.export.joplin": "Export to Joplin",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
       "topics.pinned": "Pinned Topics",
@@ -235,7 +236,8 @@
       "you": "You",
       "copied": "Copied",
       "confirm": "Confirm",
-      "more": "More"
+      "more": "More",
+      "advanced_settings": "Advanced Settings"
     },
     "docs": {
       "title": "Docs"
@@ -440,6 +442,8 @@
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
       "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
+      "error.joplin.no_config": "Joplin Authorization Token or URL is not configured",
+      "error.joplin.export": "Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
       "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
@@ -472,6 +476,7 @@
       "success.markdown.export.specified": "Successfully exported the Markdown file",
       "success.notion.export": "Successfully exported to Notion",
       "success.yuque.export": "Successfully exported to Yuque",
+      "success.joplin.export": "Successfully exported to Joplin",
       "switch.disabled": "Please wait for the current reply to complete",
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
@@ -789,6 +794,21 @@
           "title": "Obsidian Configuration",
           "api_key": "Obsidian API Key",
           "api_key_placeholder": "Please enter the Obsidian API Key"
+        },
+        "joplin": {
+          "check": {
+            "button": "Check",
+            "empty_url": "Please enter Joplin Clipper Service URL",
+            "empty_token": "Please enter Joplin Authorization Token",
+            "fail": "Joplin connection verification failed",
+            "success": "Joplin connection verification successful"
+          },
+          "title": "Joplin Configuration",
+          "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
+          "url": "Joplin Web Clipper Service URL",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Joplin Authorization Token",
+          "token_placeholder": "Joplin Authorization Token"
         }
       },
       "display.assistant.title": "Assistant Settings",
@@ -855,6 +875,7 @@
         "editServer": "Edit Server",
         "env": "Environment Variables",
         "envTooltip": "Format: KEY=value, one per line",
+        "findMore": "Find More MCP Servers",
         "name": "Name",
         "nameRequired": "Please enter a server name",
         "noServers": "No servers configured",
@@ -981,6 +1002,7 @@
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
         "title": "Model Provider",
+        "is_not_support_array_content": "Enable compatible mode",
         "copilot": {
           "tooltip": "You need to log in to Github before using Github Copilot",
           "description": "Your GitHub account needs to subscribe to Copilot.",
@@ -1073,6 +1095,8 @@
         "search_provider_placeholder": "Choose a search service provider.",
         "search_result_default": "Default",
         "search_with_time": "Search with dates included",
+        "enhance_mode": "Search enhance mode",
+        "enhance_mode_tooltip": "Use the default model to extract search keywords from the problem and search",
         "tavily": {
           "api_key": "Tavily API Key",
           "api_key.placeholder": "Enter Tavily API Key",

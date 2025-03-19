@@ -1,4 +1,4 @@
-import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined } from '@ant-design/icons'
+import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
@@ -35,6 +35,7 @@ import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
 import OllamSettings from './OllamaSettings'
+import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
 interface Props {
@@ -268,6 +269,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             <Link target="_blank" href={providerConfig.websites.official}>
               <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
             </Link>
+          )}
+          {!provider.isSystem && (
+            <Button type="text" style={{ width: 30 }} onClick={() => ProviderSettingsPopup.show({ provider })}>
+              <SettingOutlined />
+            </Button>
           )}
         </Flex>
         <Switch
