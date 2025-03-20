@@ -237,7 +237,8 @@
       "copied": "Copied",
       "confirm": "Confirm",
       "more": "More",
-      "advanced_settings": "Advanced Settings"
+      "advanced_settings": "Advanced Settings",
+      "expand": "Expand"
     },
     "docs": {
       "title": "Docs"
@@ -483,7 +484,11 @@
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
       "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
-      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
+      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again.",
+      "tools": {
+        "invoking": "Invoking",
+        "completed": "Completed"
+      }
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",

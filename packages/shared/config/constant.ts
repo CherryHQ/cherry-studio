@@ -103,7 +103,10 @@ export const textExts = [
   '.cxx', // C++ 源文件
   '.cppm', // C++20 模块接口文件
   '.ipp', // 模板实现文件
-  '.ixx' // C++20 模块实现文件
+  '.ixx', // C++20 模块实现文件
+  '.f90', // Fortran 90 源文件
+  '.f', // Fortran 固定格式源代码文件
+  '.f03' // Fortran 2003+ 源代码文件
 ]
 
 export const ZOOM_SHORTCUTS = [

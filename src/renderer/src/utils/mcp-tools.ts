@@ -18,7 +18,10 @@ const supportedAttributes = [
 ]
 
 function filterPropertieAttributes(tool: MCPTool, filterNestedObj = false) {
-  const roperties = tool.inputSchema.properties
+  const properties = tool.inputSchema.properties
+  if (!properties) {
+    return {}
+  }
   const getSubMap = (obj: Record<string, any>, keys: string[]) => {
     const filtered = Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)))
 
@@ -46,10 +49,10 @@ function filterPropertieAttributes(tool: MCPTool, filterNestedObj = false) {
     return filtered
   }
 
-  for (const [key, val] of Object.entries(roperties)) {
-    roperties[key] = getSubMap(val, supportedAttributes)
+  for (const [key, val] of Object.entries(properties)) {
+    properties[key] = getSubMap(val, supportedAttributes)
   }
-  return roperties
+  return properties
 }
 
 export function mcpToolsToOpenAITools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {

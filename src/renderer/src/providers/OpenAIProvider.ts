@@ -510,7 +510,7 @@ export default class OpenAIProvider extends BaseProvider {
           firstChunk = true
         }
 
-        if (finishReason === 'tool_calls') {
+        if (finishReason === 'tool_calls' || (finishReason === 'stop' && Object.keys(final_tool_calls).length > 0)) {
           const toolCalls = Object.values(final_tool_calls).map(this.cleanToolCallArgs)
           console.log('start invoke tools', toolCalls)
           if (this.isZhipuTool(model)) {

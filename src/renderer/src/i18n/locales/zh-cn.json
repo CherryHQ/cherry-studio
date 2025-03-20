@@ -237,7 +237,8 @@
       "warning": "警告",
       "you": "用户",
       "more": "更多",
-      "advanced_settings": "高级设置"
+      "advanced_settings": "高级设置",
+      "expand": "展开"
     },
     "docs": {
       "title": "帮助文档"
@@ -483,7 +484,11 @@
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
       "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!",
-      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
+      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试",
+      "tools": {
+        "invoking": "调用中",
+        "completed": "已完成"
+      }
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
