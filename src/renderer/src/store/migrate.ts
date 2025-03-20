@@ -773,7 +773,7 @@ const migrateConfig = {
     addProvider(state, 'copilot')
     return state
   },
-  '80': (state: RootState) => {
+  '82': (state: RootState) => {
     state.settings.searchSummaryPrompt = SEARCH_SUMMARY_PROMPT
     return state
   }
