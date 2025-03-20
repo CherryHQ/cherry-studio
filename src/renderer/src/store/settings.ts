@@ -75,18 +75,19 @@ export interface SettingsState {
   notionApiKey: string | null
   notionPageNameKey: string | null
   markdownExportPath: string | null
+  forceDollarMathInMarkdown: boolean
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
-  //obsidian settings  obsidianApiKey, obsidianUrl, obsidianVault, obisidanFolder
-  obsidianApiKey: string | null
-  obsidianUrl: string | null
+  //obsidian settings   obsidianVault, obisidanFolder
   obsidianValut: string | null
   obsidianFolder: string | null
   obsidianTages: string | null
+  joplinToken: string | null
+  joplinUrl: string | null
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -147,17 +148,19 @@ const initialState: SettingsState = {
   notionApiKey: '',
   notionPageNameKey: 'Name',
   markdownExportPath: null,
+  forceDollarMathInMarkdown: false,
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
   notionSplitSize: 90,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
-  obsidianApiKey: '',
-  obsidianUrl: '',
   obsidianValut: '',
   obsidianFolder: '',
-  obsidianTages: ''
+  obsidianTages: '',
+  joplinToken: '',
+  joplinUrl: ''
+
 }
 
 const settingsSlice = createSlice({
@@ -332,6 +335,9 @@ const settingsSlice = createSlice({
     setmarkdownExportPath: (state, action: PayloadAction<string | null>) => {
       state.markdownExportPath = action.payload
     },
+    setForceDollarMathInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.forceDollarMathInMarkdown = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
@@ -350,12 +356,6 @@ const settingsSlice = createSlice({
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
     },
-    setObsidianApiKey: (state, action: PayloadAction<string>) => {
-      state.obsidianApiKey = action.payload
-    },
-    setObsidianUrl: (state, action: PayloadAction<string>) => {
-      state.obsidianUrl = action.payload
-    },
     setObsidianValut: (state, action: PayloadAction<string>) => {
       state.obsidianValut = action.payload
     },
@@ -364,6 +364,12 @@ const settingsSlice = createSlice({
     },
     setObsidianTages: (state, action: PayloadAction<string>) => {
       state.obsidianTages = action.payload
+    },
+    setJoplinToken: (state, action: PayloadAction<string>) => {
+      state.joplinToken = action.payload
+    },
+    setJoplinUrl: (state, action: PayloadAction<string>) => {
+      state.joplinUrl = action.payload
     }
   }
 })
@@ -423,17 +429,18 @@ export const {
   setNotionApiKey,
   setNotionPageNameKey,
   setmarkdownExportPath,
+  setForceDollarMathInMarkdown,
   setThoughtAutoCollapse,
   setNotionAutoSplit,
   setNotionSplitSize,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
-  setObsidianApiKey,
-  setObsidianUrl,
   setObsidianValut,
   setObsidianFolder,
-  setObsidianTages
+  setObsidianTages,
+  setJoplinToken,
+  setJoplinUrl
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

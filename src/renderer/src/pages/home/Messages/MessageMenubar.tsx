@@ -24,6 +24,7 @@ import { Message, Model } from '@renderer/types'
 import { Assistant, Topic } from '@renderer/types'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, removeTrailingDoubleSpaces } from '@renderer/utils'
 import {
+  exportMarkdownToJoplin,
   exportMarkdownToNotion,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
@@ -221,6 +222,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const markdown = messageToMarkdown(message)
               const title = topic.name?.replace(/\//g, '_') || 'Untitled'
               await ObsidianExportPopup.show({ title, markdown, processingMethod: '1' })
+            }
+          },
+          {
+            label: t('chat.topics.export.joplin'),
+            key: 'joplin',
+            onClick: async () => {
+              const title = getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMarkdownToJoplin(title, markdown)
             }
           }
         ]

@@ -34,6 +34,10 @@ export default class AiProvider {
     return this.sdk.summaries(messages, assistant)
   }
 
+  public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
+    return this.sdk.summaryForSearch(messages, assistant)
+  }
+
   public async suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]> {
     return this.sdk.suggestions(messages, assistant)
   }

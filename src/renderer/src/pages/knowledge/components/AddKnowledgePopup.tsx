@@ -20,7 +20,7 @@ interface ShowParams {
 interface FormData {
   name: string
   model: string
-  rerankModel: string
+  rerankModel: string | undefined
 }
 
 interface Props extends ShowParams {
@@ -42,7 +42,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     .map((p) => p.models)
     .flat()
     .filter((model) => isRerankModel(model))
-  console.log('rerankModels', rerankModels)
   const nameInputRef = useRef<any>(null)
 
   const selectOptions = providers
@@ -77,7 +76,9 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     try {
       const values = await form.validateFields()
       const selectedModel = find(allModels, JSON.parse(values.model)) as Model
-      const selectedRerankModel = find(rerankModels, JSON.parse(values.rerankModel)) as Model
+      const selectedRerankModel = values.rerankModel
+        ? (find(rerankModels, JSON.parse(values.rerankModel)) as Model)
+        : undefined
 
       if (selectedModel) {
         setLoading(true)
