@@ -497,8 +497,6 @@ export default class AnthropicProvider extends BaseProvider {
     return content
   }
 
-
-
   /**
    * Generate text
    * @param prompt - The prompt
