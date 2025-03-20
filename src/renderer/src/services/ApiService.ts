@@ -62,14 +62,18 @@ export async function fetchChatCompletion({
           onResponse({ ...message, status: 'searching' })
 
           try {
-            // 等待关键词生成完成
-            const keywords = await fetchSearchSummary({
-              messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
-              assistant: getDefaultSearchSummaryAssistant()
-            })
+            if (WebSearchService.isEnhanceModeEnabled()) {
+              // 等待关键词生成完成
+              const keywords = await fetchSearchSummary({
+                messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
+                assistant: getDefaultSearchSummaryAssistant()
+              })
 
-            if (keywords) {
-              query = keywords
+              if (keywords) {
+                query = keywords
+              } else {
+                query = lastMessage.content
+              }
             } else {
               query = lastMessage.content
             }

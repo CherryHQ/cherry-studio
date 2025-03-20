@@ -15,6 +15,7 @@ import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
+import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
 import { setSearchSummaryPrompt, setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
@@ -187,32 +188,34 @@ const ModelSettings: FC = () => {
         </HStack>
         <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>
       </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle style={{ marginBottom: 12 }}>
-          <div>
-            <GlobalOutlined style={iconStyle} />
-            {t('settings.models.search_summary_model')}
-          </div>
-        </SettingTitle>
-        <HStack alignItems="center">
-          <Select
-            value={defaultSearchSummaryModel}
-            defaultValue={defaultSearchSummaryModel}
-            style={{ width: 360 }}
-            onChange={(value) => setSearchSummaryModel(find(allModels, JSON.parse(value)) as Model)}
-            options={selectOptions}
-            showSearch
-            placeholder={t('settings.models.empty')}
-          />
-          <Button icon={<SettingOutlined />} style={{ marginLeft: 8 }} onClick={onUpdateSearchSummaryModel} />
-          {searchSummaryPrompt !== SEARCH_SUMMARY_PROMPT && (
-            <Tooltip title={t('common.reset')}>
-              <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetSearchSummaryPrompt}></Button>
-            </Tooltip>
-          )}
-        </HStack>
-        <SettingDescription>{t('settings.models.search_summary_model_description')}</SettingDescription>
-      </SettingGroup>
+      {WebSearchService.isEnhanceModeEnabled() && (
+        <SettingGroup theme={theme}>
+          <SettingTitle style={{ marginBottom: 12 }}>
+            <div>
+              <GlobalOutlined style={iconStyle} />
+              {t('settings.models.search_summary_model')}
+            </div>
+          </SettingTitle>
+          <HStack alignItems="center">
+            <Select
+              value={defaultSearchSummaryModel}
+              defaultValue={defaultSearchSummaryModel}
+              style={{ width: 360 }}
+              onChange={(value) => setSearchSummaryModel(find(allModels, JSON.parse(value)) as Model)}
+              options={selectOptions}
+              showSearch
+              placeholder={t('settings.models.empty')}
+            />
+            <Button icon={<SettingOutlined />} style={{ marginLeft: 8 }} onClick={onUpdateSearchSummaryModel} />
+            {searchSummaryPrompt !== SEARCH_SUMMARY_PROMPT && (
+              <Tooltip title={t('common.reset')}>
+                <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetSearchSummaryPrompt}></Button>
+              </Tooltip>
+            )}
+          </HStack>
+          <SettingDescription>{t('settings.models.search_summary_model_description')}</SettingDescription>
+        </SettingGroup>
+      )}
     </SettingContainer>
   )
 }
