@@ -81,8 +81,12 @@ export interface SettingsState {
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
+  //obsidian settings  obsidianApiKey, obsidianUrl, obsidianVault, obisidanFolder
   obsidianApiKey: string | null
   obsidianUrl: string | null
+  obsidianValut: string | null
+  obsidianFolder: string | null
+  obsidianTages: string | null
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -150,7 +154,10 @@ const initialState: SettingsState = {
   yuqueUrl: '',
   yuqueRepoId: '',
   obsidianApiKey: '',
-  obsidianUrl: ''
+  obsidianUrl: '',
+  obsidianValut: '',
+  obsidianFolder: '',
+  obsidianTages: ''
 }
 
 const settingsSlice = createSlice({
@@ -348,6 +355,15 @@ const settingsSlice = createSlice({
     },
     setObsidianUrl: (state, action: PayloadAction<string>) => {
       state.obsidianUrl = action.payload
+    },
+    setObsidianValut: (state, action: PayloadAction<string>) => {
+      state.obsidianValut = action.payload
+    },
+    setObsidianFolder: (state, action: PayloadAction<string>) => {
+      state.obsidianFolder = action.payload
+    },
+    setObsidianTages: (state, action: PayloadAction<string>) => {
+      state.obsidianTages = action.payload
     }
   }
 })
@@ -414,7 +430,10 @@ export const {
   setYuqueRepoId,
   setYuqueUrl,
   setObsidianApiKey,
-  setObsidianUrl
+  setObsidianUrl,
+  setObsidianValut,
+  setObsidianFolder,
+  setObsidianTages
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
