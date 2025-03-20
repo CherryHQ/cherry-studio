@@ -84,8 +84,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // theme
-  ipcMain.handle('app:set-theme', (_, theme: ThemeMode) => {
+  ipcMain.handle('app:set-theme', (event, theme: ThemeMode) => {
+    if (theme === configManager.getTheme()) return
+
     configManager.setTheme(theme)
+
+    // should sync theme change to all windows
+    const senderWindowId = event.sender.id
+    const windows = BrowserWindow.getAllWindows()
+    // 向其他窗口广播主题变化
+    windows.forEach((win) => {
+      if (win.webContents.id !== senderWindowId) {
+        win.webContents.send('theme:change', theme)
+      }
+    })
+
     mainWindow?.setTitleBarOverlay &&
       mainWindow.setTitleBarOverlay(theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight)
   })
