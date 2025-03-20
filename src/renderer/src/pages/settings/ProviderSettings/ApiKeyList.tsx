@@ -64,6 +64,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
   const { t } = useTranslation()
   const [isChecking, setIsChecking] = useState(false)
   const [isCheckingSingle, setIsCheckingSingle] = useState(false)
+  const isCopilot = provider.id === 'copilot'
 
   useEffect(() => {
     if (isAddingNew && newInputRef.current) {
@@ -317,10 +318,10 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                             title={t('settings.provider.check')}
                           />
                           <RemoveButton
-                            onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
+                            onClick={() => !isChecking && !isCheckingSingle && !isCopilot && removeKey(index)}
                             style={{
-                              cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
-                              opacity: isChecking || isCheckingSingle ? 0.5 : 1
+                              cursor: isChecking || isCheckingSingle || isCopilot ? 'not-allowed' : 'pointer',
+                              opacity: isChecking || isCheckingSingle || isCopilot ? 0.5 : 1
                             }}
                           />
                         </ApiKeyActions>
@@ -361,24 +362,28 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       </Card>
 
       <Flex gap={10} style={{ marginTop: '8px' }}>
-        <Space>
-          <Button key="add" type="primary" onClick={handleAddNewKey} icon={<PlusOutlined />} disabled={isAddingNew}>
-            {t('common.add')}
-          </Button>
-          <Button key="check" type="default" onClick={checkAllKeys} disabled={isChecking || isCheckingSingle}>
-            {t('settings.provider.check_all_keys')}
-          </Button>
-        </Space>
-        <Space>
-          <Button
-            key="remove"
-            type="default"
-            danger
-            onClick={removeInvalidKeys}
-            disabled={isChecking || isCheckingSingle}>
-            {t('settings.provider.remove_invalid_keys')}
-          </Button>
-        </Space>
+        {!isCopilot && (
+          <>
+            <Space>
+              <Button key="add" type="primary" onClick={handleAddNewKey} icon={<PlusOutlined />} disabled={isAddingNew}>
+                {t('common.add')}
+              </Button>
+              <Button key="check" type="default" onClick={checkAllKeys} disabled={isChecking || isCheckingSingle}>
+                {t('settings.provider.check_all_keys')}
+              </Button>
+            </Space>
+            <Space>
+              <Button
+                key="remove"
+                type="default"
+                danger
+                onClick={removeInvalidKeys}
+                disabled={isChecking || isCheckingSingle}>
+                {t('settings.provider.remove_invalid_keys')}
+              </Button>
+            </Space>
+          </>
+        )}
       </Flex>
     </>
   )
