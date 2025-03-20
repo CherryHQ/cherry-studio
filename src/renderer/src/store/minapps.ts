@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { MinAppType, SidebarIcon } from '@renderer/types'
+import { MinAppType, RecentlyUseMinAppType, SidebarIcon } from '@renderer/types'
 
 export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'assistants',
@@ -16,12 +16,14 @@ export interface MinAppsState {
   enabled: MinAppType[]
   disabled: MinAppType[]
   pinned: MinAppType[]
+  recentlyUse: RecentlyUseMinAppType[]
 }
 
 const initialState: MinAppsState = {
   enabled: DEFAULT_MIN_APPS,
   disabled: [],
-  pinned: []
+  pinned: [],
+  recentlyUse: []
 }
 
 const minAppsSlice = createSlice({
@@ -39,10 +41,13 @@ const minAppsSlice = createSlice({
     },
     setPinnedMinApps: (state, action: PayloadAction<MinAppType[]>) => {
       state.pinned = action.payload.map((app) => ({ ...app, logo: undefined }))
+    },
+    setRecentlyUse: (state, action: PayloadAction<RecentlyUseMinAppType[]>) => {
+      state.recentlyUse = action.payload.map((app) => ({ ...app, logo: undefined }))
     }
   }
 })
 
-export const { setMinApps, addMinApp, setDisabledMinApps, setPinnedMinApps } = minAppsSlice.actions
+export const { setMinApps, addMinApp, setDisabledMinApps, setPinnedMinApps, setRecentlyUse } = minAppsSlice.actions
 
 export default minAppsSlice.reducer

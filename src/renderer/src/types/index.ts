@@ -164,6 +164,10 @@ export type MinAppType = {
   style?: React.CSSProperties
 }
 
+export type RecentlyUseMinAppType = MinAppType & {
+  timestamp: number
+}
+
 export interface FileType {
   id: string
   name: string
