@@ -75,8 +75,8 @@ export type Message = {
     citations?: string[]
     // OpenAI
     annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
-    // Zhipu
-    webSearchZhipu?: any[]
+    // Zhipu or Hunyuan
+    webSearchInfo?: any[]
     // Web search
     webSearch?: WebSearchResponse
     // MCP Tools

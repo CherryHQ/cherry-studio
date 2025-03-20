@@ -1,11 +1,24 @@
-import { getOpenAIWebSearchParams, isOpenAIWebSearch, isZhipuModel } from '@renderer/config/models'
+import {
+  getOpenAIWebSearchParams,
+  isHunyuanSearchModel,
+  isOpenAIWebSearch,
+  isZhipuModel
+} from '@renderer/config/models'
 import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
-import { convertLinks, extractUrlsFromMarkdown } from '@renderer/utils/linkConverter'
+import {
+  cleanLinkCommas,
+  completeLinks,
+  convertLinks,
+  convertLinksToHunyuan,
+  convertLinksToOpenRouter,
+  convertLinksToZhipu,
+  extractUrlsFromMarkdown
+} from '@renderer/utils/linkConverter'
 import { cloneDeep, findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -124,16 +137,17 @@ export async function fetchChatCompletion({
         mcpToolResponse
       }) => {
         if (assistant.model) {
-          let convertForZhipu = false
-          if (
-            isOpenAIWebSearch(assistant.model) ||
-            (assistant.model.provider === 'openrouter' && assistant.enableWebSearch)
-          ) {
-            convertForZhipu = false
-          } else if (isZhipuModel(assistant.model)) {
-            convertForZhipu = true
+          if (isOpenAIWebSearch(assistant.model)) {
+            text = convertLinks(text || '', isFirstChunk)
+          } else if (assistant.model.provider === 'openrouter' && assistant.enableWebSearch) {
+            text = convertLinksToOpenRouter(text || '', isFirstChunk)
+          } else if (assistant.enableWebSearch) {
+            if (isZhipuModel(assistant.model)) {
+              text = convertLinksToZhipu(text || '', isFirstChunk)
+            } else if (isHunyuanSearchModel(assistant.model)) {
+              text = convertLinksToHunyuan(text || '', webSearch || [], isFirstChunk)
+            }
           }
-          text = convertLinks(text || '', isFirstChunk, convertForZhipu)
         }
         if (isFirstChunk) {
           isFirstChunk = false
@@ -171,11 +185,11 @@ export async function fetchChatCompletion({
           }
         }
 
-        // Handle web search from Zhipu
+        // Handle web search from Zhipu or Hunyuan
         if (webSearch) {
           message.metadata = {
             ...message.metadata,
-            webSearchZhipu: webSearch
+            webSearchInfo: webSearch
           }
         }
 
@@ -187,6 +201,12 @@ export async function fetchChatCompletion({
               ...message.metadata,
               citations: extractedUrls
             }
+          }
+        }
+        if (assistant.enableWebSearch) {
+          message.content = cleanLinkCommas(message.content)
+          if (webSearch && isZhipuModel(assistant.model)) {
+            message.content = completeLinks(message.content, webSearch)
           }
         }
 

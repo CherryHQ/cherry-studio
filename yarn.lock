@@ -3388,7 +3388,7 @@ __metadata:
     mime: "npm:^4.0.4"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
-    openai: "npm:^4.87.3"
+    openai: "patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch"
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
     react: "npm:^18.2.0"
@@ -11078,7 +11078,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:4.87.3, openai@npm:^4.87.3":
+"openai@npm:4.87.3":
   version: 4.87.3
   resolution: "openai@npm:4.87.3"
   dependencies:
@@ -11105,7 +11105,7 @@ __metadata:
 
 "openai@patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch":
   version: 4.87.3
-  resolution: "openai@patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch::version=4.87.3&hash=bae887"
+  resolution: "openai@patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch::version=4.87.3&hash=7dcff7"
   dependencies:
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.4"
@@ -11124,7 +11124,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/922e1ccbbe605e60ca170ccab09452e250ac4b01b79119e26ccb521e9aaa62148a62160afb5c87f940195f968ca953564125607b8ae797bd5c337bf9071df76f
+  checksum: 10c0/e23ddf28487ab0fdd72fb3c429500986651f1204cba5e778e1aa02ba5b382a2a68de8ca81d717d8d0fdbea985f07b0476b2e4a86d57bf71bf1d65aa141d7d7de
   languageName: node
   linkType: hard
 

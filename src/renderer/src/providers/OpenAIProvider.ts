@@ -1,6 +1,7 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
+  isHunyuanSearchModel,
   isOpenAIoSeries,
   isOpenAIWebSearch,
   isReasoningModel,
@@ -434,6 +435,7 @@ export default class OpenAIProvider extends BaseProvider {
     ) as ChatCompletionMessageParam[]
 
     const toolResponses: MCPToolResponse[] = []
+    let firstChunk = true
     const processStream = async (stream: any, idx: number) => {
       if (!isSupportStreamOutput()) {
         const time_completion_millsec = new Date().getTime() - start_time_millsec
@@ -502,6 +504,10 @@ export default class OpenAIProvider extends BaseProvider {
         let webSearch: any[] | undefined = undefined
         if (assistant.enableWebSearch && isZhipuModel(model) && finishReason === 'stop') {
           webSearch = chunk?.web_search
+        }
+        if (firstChunk && assistant.enableWebSearch && isHunyuanSearchModel(model)) {
+          webSearch = chunk?.search_info?.search_results
+          firstChunk = true
         }
 
         if (finishReason === 'tool_calls') {

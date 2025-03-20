@@ -43,39 +43,95 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
     })
   }
 
+  // Format citations for display
+  const formattedCitations = useMemo(() => {
+    if (!message.metadata?.citations?.length && !message.metadata?.annotations?.length) return null
+
+    let citations: any[] = []
+
+    if (model && isOpenAIWebSearch(model)) {
+      citations =
+        message.metadata.annotations?.map((url, index) => {
+          return { number: index + 1, url: url.url_citation?.url, hostname: url.url_citation.title }
+        }) || []
+    } else {
+      citations =
+        message.metadata?.citations?.map((url, index) => {
+          try {
+            const hostname = new URL(url).hostname
+            return { number: index + 1, url, hostname }
+          } catch {
+            return { number: index + 1, url, hostname: url }
+          }
+        }) || []
+    }
+
+    // Deduplicate by URL
+    const urlSet = new Set()
+    return citations
+      .filter((citation) => {
+        if (!citation.url || urlSet.has(citation.url)) return false
+        urlSet.add(citation.url)
+        return true
+      })
+      .map((citation, index) => ({
+        ...citation,
+        number: index + 1 // Renumber citations sequentially after deduplication
+      }))
+  }, [message.metadata?.citations, message.metadata?.annotations, model])
+
   // 获取引用数据
   const citationsData = useMemo(() => {
-    const searchResults = message?.metadata?.webSearch?.results || []
-    const citationsUrls = message?.metadata?.citations || []
+    const searchResults =
+      message?.metadata?.webSearch?.results ||
+      message?.metadata?.webSearchInfo ||
+      message?.metadata?.groundingMetadata?.groundingChunks.map((chunk) => chunk.web) ||
+      message?.metadata?.annotations?.map((annotation) => annotation.url_citation) ||
+      []
+    const citationsUrls = formattedCitations || []
 
     // 合并引用数据
     const data = new Map()
 
     // 添加webSearch结果
     searchResults.forEach((result) => {
-      data.set(result.url, {
-        url: result.url,
-        title: result.title,
+      data.set(result.url || result.uri || result.link, {
+        url: result.url || result.uri || result.link,
+        title: result.title || result.hostname,
         content: result.content
       })
     })
 
     // 添加citations
-    citationsUrls.forEach((url) => {
-      if (!data.has(url)) {
-        data.set(url, {
-          url: url
-          // 如果没有title和content，将在CitationTooltip中显示hostname
+    citationsUrls.forEach((result) => {
+      if (!data.has(result.url)) {
+        data.set(result.url, {
+          url: result.url,
+          title: result.title || result.hostname || undefined,
+          content: result.content || undefined
         })
       }
     })
 
     return data
-  }, [message.metadata?.citations, message.metadata?.webSearch?.results])
+  }, [
+    formattedCitations,
+    message?.metadata?.annotations,
+    message?.metadata?.groundingMetadata?.groundingChunks,
+    message?.metadata?.webSearch?.results,
+    message?.metadata?.webSearchInfo
+  ])
 
   // Process content to make citation numbers clickable
   const processedContent = useMemo(() => {
-    if (!(message.metadata?.citations || message.metadata?.webSearch)) {
+    if (
+      !(
+        message.metadata?.citations ||
+        message.metadata?.webSearch ||
+        message.metadata?.webSearchInfo ||
+        message.metadata?.annotations
+      )
+    ) {
       return message.content
     }
 
@@ -87,39 +143,32 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
 
     // Convert [n] format to superscript numbers and make them clickable
     // Use <sup> tag for superscript and make it a link with citation data
-    content = content.replace(/\[\[(\d+)\]\]|\[(\d+)\]/g, (match, num1, num2) => {
-      const num = num1 || num2
-      const index = parseInt(num) - 1
-      if (index >= 0 && index < citations.length) {
-        const link = citations[index]
-        const citationData = link ? encodeHTML(JSON.stringify(citationsData.get(link) || { url: link })) : null
-        return link ? `[<sup data-citation='${citationData}'>${num}</sup>](${link})` : `<sup>${num}</sup>`
-      }
-      return match
-    })
-
-    return content
-  }, [message.content, message.metadata, citationsData])
-
-  // Format citations for display
-  const formattedCitations = useMemo(() => {
-    if (!message.metadata?.citations?.length && !message.metadata?.annotations?.length) return null
-
-    if (model && isOpenAIWebSearch(model)) {
-      return message.metadata.annotations?.map((url, index) => {
-        return { number: index + 1, url: url.url_citation?.url, hostname: url.url_citation.title }
+    if (message.metadata?.webSearch) {
+      content = content.replace(/\[\[(\d+)\]\]|\[(\d+)\]/g, (match, num1, num2) => {
+        const num = num1 || num2
+        const index = parseInt(num) - 1
+        if (index >= 0 && index < citations.length) {
+          const link = citations[index]
+          const citationData = link ? encodeHTML(JSON.stringify(citationsData.get(link) || { url: link })) : null
+          return link ? `[<sup data-citation='${citationData}'>${num}</sup>](${link})` : `<sup>${num}</sup>`
+        }
+        return match
+      })
+    } else {
+      content = content.replace(/\[<sup>(\d+)<\/sup>\]\(([^)]+)\)/g, (_, num, url) => {
+        const citationData = url ? encodeHTML(JSON.stringify(citationsData.get(url) || { url })) : null
+        return `[<sup data-citation='${citationData}'>${num}</sup>](${url})`
       })
     }
-
-    return message.metadata?.citations?.map((url, index) => {
-      try {
-        const hostname = new URL(url).hostname
-        return { number: index + 1, url, hostname }
-      } catch {
-        return { number: index + 1, url, hostname: url }
-      }
-    })
-  }, [message.metadata?.citations, message.metadata?.annotations, model])
+    return content
+  }, [
+    message.metadata?.citations,
+    message.metadata?.webSearch,
+    message.metadata?.webSearchInfo,
+    message.metadata?.annotations,
+    message.content,
+    citationsData
+  ])
 
   if (message.status === 'sending') {
     return (
@@ -155,7 +204,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       </Flex>
       <MessageThought message={message} />
       <MessageTools message={message} />
-      <Markdown message={{ ...message, content: processedContent }} citationsData={citationsData} />
+      <Markdown message={{ ...message, content: processedContent }} />
       {message.translatedContent && (
         <Fragment>
           <Divider style={{ margin: 0, marginBottom: 10 }}>
@@ -207,11 +256,11 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           }))}
         />
       )}
-      {message?.metadata?.webSearchZhipu && message.status === 'success' && (
+      {message?.metadata?.webSearchInfo && message.status === 'success' && (
         <CitationsList
-          citations={message.metadata.webSearchZhipu.map((result, index) => ({
+          citations={message.metadata.webSearchInfo.map((result, index) => ({
             number: index + 1,
-            url: result.link,
+            url: result.link || result.url,
             title: result.title,
             showFavicon: true
           }))}
