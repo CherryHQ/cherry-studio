@@ -1141,6 +1141,10 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "tools": {
+      "invoking": "Invoking",
+      "completed": "Completed"
     }
   }
 }

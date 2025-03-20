@@ -1141,6 +1141,10 @@
       "quit": "結束",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
+    },
+    "tools": {
+      "invoking": "調用中",
+      "completed": "已完成"
     }
   }
 }

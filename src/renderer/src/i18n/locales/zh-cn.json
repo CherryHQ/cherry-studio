@@ -1141,6 +1141,10 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "tools": {
+      "invoking": "调用中",
+      "completed": "已完成"
     }
   }
 }
