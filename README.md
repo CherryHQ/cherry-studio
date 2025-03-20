@@ -1,6 +1,6 @@
 <h1 align="center">
-  <a href="https://github.com/kangfenmao/cherry-studio/releases">
-    <img src="https://github.com/kangfenmao/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" /><br>
+  <a href="https://github.com/CherryHQ/cherry-studio/releases">
+    <img src="https://github.com/CherryHQ/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" /><br>
   </a>
 </h1>
   <p align="center">English | <a href="./docs/README.zh.md">中文</a> | <a href="./docs/README.ja.md">日本語</a><br></p>
@@ -52,6 +52,7 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 - 🔤 AI-powered Translation
 - 🎯 Drag-and-drop Sorting
 - 🔌 Mini Program Support
+- ⚙️ MCP(Model Context Protocol) Server
 
 5. **Enhanced User Experience**:
 
@@ -111,7 +112,7 @@ Thank you for your support and contributions!
 
 # 🚀 Contributors
 
-<a href="https://github.com/kangfenmao/cherry-studio/graphs/contributors">
+<a href="https://github.com/CherryHQ/cherry-studio/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=kangfenmao/cherry-studio" />
 </a>
 <br /><br />

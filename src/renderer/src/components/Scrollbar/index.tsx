@@ -11,29 +11,27 @@ const Scrollbar: FC<Props> = forwardRef<HTMLDivElement, Props>((props, ref) => {
   const [isScrolling, setIsScrolling] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const handleScroll = useCallback(
-    throttle(() => {
-      setIsScrolling(true)
+  const handleScroll = useCallback(() => {
+    setIsScrolling(true)
 
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
 
-      timeoutRef.current = setTimeout(() => setIsScrolling(false), 1500) // 增加到 2 秒
-    }, 200),
-    []
-  )
+    timeoutRef.current = setTimeout(() => setIsScrolling(false), 1500)
+  }, [])
+
+  const throttledHandleScroll = throttle(handleScroll, 200)
 
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
+      timeoutRef.current && clearTimeout(timeoutRef.current)
+      throttledHandleScroll.cancel()
     }
-  }, [])
+  }, [throttledHandleScroll])
 
   return (
-    <Container {...props} isScrolling={isScrolling} onScroll={handleScroll} ref={ref}>
+    <Container {...props} isScrolling={isScrolling} onScroll={throttledHandleScroll} ref={ref}>
       {props.children}
     </Container>
   )

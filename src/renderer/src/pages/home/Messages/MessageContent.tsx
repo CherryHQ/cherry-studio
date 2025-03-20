@@ -29,6 +29,50 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const { t } = useTranslation()
   const message = withMessageThought(clone(_message))
 
+  // HTML实体编码辅助函数
+  const encodeHTML = (str: string) => {
+    return str.replace(/[&<>"']/g, (match) => {
+      const entities: { [key: string]: string } = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&apos;'
+      }
+      return entities[match]
+    })
+  }
+
+  // 获取引用数据
+  const citationsData = useMemo(() => {
+    const searchResults = message?.metadata?.webSearch?.results || []
+    const citationsUrls = message?.metadata?.citations || []
+
+    // 合并引用数据
+    const data = new Map()
+
+    // 添加webSearch结果
+    searchResults.forEach((result) => {
+      data.set(result.url, {
+        url: result.url,
+        title: result.title,
+        content: result.content
+      })
+    })
+
+    // 添加citations
+    citationsUrls.forEach((url) => {
+      if (!data.has(url)) {
+        data.set(url, {
+          url: url
+          // 如果没有title和content，将在CitationTooltip中显示hostname
+        })
+      }
+    })
+
+    return data
+  }, [message.metadata?.citations, message.metadata?.webSearch?.results])
+
   // Process content to make citation numbers clickable
   const processedContent = useMemo(() => {
     if (!(message.metadata?.citations || message.metadata?.webSearch)) {
@@ -42,18 +86,20 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
     const citations = message?.metadata?.citations || searchResultsCitations
 
     // Convert [n] format to superscript numbers and make them clickable
-    // Use <sup> tag for superscript and make it a link
-    content = content.replace(/\[(\d+)\]/g, (match, num) => {
+    // Use <sup> tag for superscript and make it a link with citation data
+    content = content.replace(/\[\[(\d+)\]\]|\[(\d+)\]/g, (match, num1, num2) => {
+      const num = num1 || num2
       const index = parseInt(num) - 1
       if (index >= 0 && index < citations.length) {
         const link = citations[index]
-        return link ? `[<sup>${num}</sup>](${link})` : `<sup>${num}</sup>`
+        const citationData = link ? encodeHTML(JSON.stringify(citationsData.get(link) || { url: link })) : null
+        return link ? `[<sup data-citation='${citationData}'>${num}</sup>](${link})` : `<sup>${num}</sup>`
       }
       return match
     })
 
     return content
-  }, [message.content, message.metadata])
+  }, [message.content, message.metadata, citationsData])
 
   // Format citations for display
   const formattedCitations = useMemo(() => {
@@ -103,7 +149,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       </Flex>
       <MessageThought message={message} />
       <MessageTools message={message} />
-      <Markdown message={{ ...message, content: processedContent }} />
+      <Markdown message={{ ...message, content: processedContent }} citationsData={citationsData} />
       {message.translatedContent && (
         <Fragment>
           <Divider style={{ margin: 0, marginBottom: 10 }}>

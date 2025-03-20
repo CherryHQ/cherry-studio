@@ -1,6 +1,6 @@
 @font-face {
   font-family: 'iconfont'; /* Project id 4753420 */
-  src: url('iconfont.woff2?t=1741743579060') format('woff2');
+  src: url('iconfont.woff2?t=1742184675192') format('woff2');
 }
 
 .iconfont {
@@ -9,6 +9,10 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-obsidian:before {
+  content: '\e677';
 }
 
 .icon-notion:before {

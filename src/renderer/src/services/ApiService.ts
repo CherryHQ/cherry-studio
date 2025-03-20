@@ -3,7 +3,7 @@ import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
 import { cloneDeep, findLast, isEmpty } from 'lodash'
 
@@ -49,6 +49,7 @@ export async function fetchChatCompletion({
         const lastMessage = findLast(messages, (m) => m.role === 'user')
         const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
         const hasKnowledgeBase = !isEmpty(lastMessage?.knowledgeBaseIds)
+
         if (lastMessage) {
           if (hasKnowledgeBase) {
             window.message.info({
@@ -57,24 +58,27 @@ export async function fetchChatCompletion({
             })
           }
 
+          // 更新消息状态为搜索中
+          onResponse({ ...message, status: 'searching' })
+
           try {
             // 等待关键词生成完成
             const searchSummaryAssistant = getDefaultAssistant()
             searchSummaryAssistant.model = assistant.model || getDefaultModel()
             searchSummaryAssistant.prompt = SEARCH_SUMMARY_PROMPT
-            const keywords = await fetchSearchSummary({
-              messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
-              assistant: searchSummaryAssistant
-            })
 
-            if (keywords) {
-              query = keywords
+            // 如果启用搜索增强模式，则使用搜索增强模式
+            if (WebSearchService.isEnhanceModeEnabled()) {
+              const keywords = await fetchSearchSummary({
+                messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
+                assistant: searchSummaryAssistant
+              })
+              if (keywords) {
+                query = keywords
+              }
             } else {
               query = lastMessage.content
             }
-
-            // 更新消息状态为搜索中
-            onResponse({ ...message, status: 'searching' })
 
             // 等待搜索完成
             const webSearch = await WebSearchService.search(webSearchProvider, query)
@@ -84,6 +88,7 @@ export async function fetchChatCompletion({
               ...message.metadata,
               webSearch: webSearch
             }
+
             window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
           } catch (error) {
             console.error('Web search failed:', error)
@@ -92,7 +97,16 @@ export async function fetchChatCompletion({
       }
     }
 
-    const allMCPTools = await window.api.mcp.listTools()
+    const lastUserMessage = findLast(messages, (m) => m.role === 'user')
+    // Get MCP tools
+    let mcpTools: MCPTool[] = []
+    const enabledMCPs = lastUserMessage?.enabledMCPs
+
+    if (enabledMCPs && enabledMCPs.length > 0) {
+      const allMCPTools = await window.api.mcp.listTools()
+      mcpTools = allMCPTools.filter((tool) => enabledMCPs.some((mcp) => mcp.name === tool.serverName))
+    }
+
     await AI.completions({
       messages: filterUsefulMessages(messages),
       assistant,
@@ -125,7 +139,7 @@ export async function fetchChatCompletion({
 
         onResponse({ ...message, status: 'pending' })
       },
-      mcpTools: allMCPTools
+      mcpTools: mcpTools
     })
 
     message.status = 'success'

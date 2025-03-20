@@ -1,14 +1,14 @@
 import { createAsyncThunk, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import db from '@renderer/databases'
 import { autoRenameTopic, TopicManager } from '@renderer/hooks/useTopic'
+import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getAssistantMessage, resetAssistantMessage } from '@renderer/services/MessagesService'
 import type { AppDispatch, RootState } from '@renderer/store'
 import type { Assistant, Message, Topic } from '@renderer/types'
 import { Model } from '@renderer/types'
 import { clearTopicQueue, getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
-import { throttle } from 'lodash'
+import { cloneDeep, isEmpty, throttle } from 'lodash'
 
 export interface MessagesState {
   messagesByTopic: Record<string, Message[]>
@@ -94,9 +94,11 @@ const messagesSlice = createSlice({
     },
     addMessage: (state, action: PayloadAction<{ topicId: string; messages: Message | Message[] }>) => {
       const { topicId, messages } = action.payload
+
       if (!state.messagesByTopic[topicId]) {
         state.messagesByTopic[topicId] = []
       }
+
       if (Array.isArray(messages)) {
         // 为了兼容多模型新发消息,一次性添加多个助手消息
         // 不是什么好主意,不符合语义
@@ -111,6 +113,7 @@ const messagesSlice = createSlice({
       action: PayloadAction<{ topicId: string; messages: Message | Message[]; position?: number }>
     ) => {
       const { topicId, messages, position } = action.payload
+
       if (!state.messagesByTopic[topicId]) {
         state.messagesByTopic[topicId] = []
       }
@@ -135,10 +138,14 @@ const messagesSlice = createSlice({
     ) => {
       const { topicId, messageId, updates } = action.payload
       const topicMessages = state.messagesByTopic[topicId]
+
       if (topicMessages) {
         const message = topicMessages.find((msg) => msg.id === messageId)
         if (message) {
           Object.assign(message, updates)
+          db.topics.update(topicId, {
+            messages: topicMessages.map((m) => (m.id === message.id ? cloneDeep(message) : m))
+          })
         }
       }
     },
@@ -156,9 +163,11 @@ const messagesSlice = createSlice({
     },
     setStreamMessage: (state, action: PayloadAction<{ topicId: string; message: Message | null }>) => {
       const { topicId, message } = action.payload
+
       if (!state.streamMessagesByTopic[topicId]) {
         state.streamMessagesByTopic[topicId] = {}
       }
+
       if (message) {
         state.streamMessagesByTopic[topicId][message.id] = message
       }
@@ -189,11 +198,13 @@ const messagesSlice = createSlice({
         // 添加新消息
         state.messagesByTopic[topicId].push(streamMessage)
       }
+
       // 删除流状态
       delete state.streamMessagesByTopic[topicId][messageId]
     },
     clearStreamMessage: (state, action: PayloadAction<{ topicId: string; messageId: string }>) => {
       const { topicId, messageId } = action.payload
+
       if (state.streamMessagesByTopic[topicId]) {
         delete state.streamMessagesByTopic[topicId][messageId]
       }
@@ -227,6 +238,7 @@ const handleResponseMessageUpdate = (
     if (message.status === 'success') {
       autoRenameTopic(assistant, topicId)
     }
+
     if (message.status !== 'sending') {
       dispatch(commitStreamMessage({ topicId, messageId: message.id }))
       const state = getState()
@@ -242,9 +254,7 @@ const handleResponseMessageUpdate = (
 const syncMessagesWithDB = async (topicId: string, messages: Message[]) => {
   const topic = await db.topics.get(topicId)
   if (topic) {
-    await db.topics.update(topicId, {
-      messages
-    })
+    await db.topics.update(topicId, { messages })
   } else {
     await db.topics.add({ id: topicId, messages })
   }
@@ -273,19 +283,17 @@ export const sendMessage =
         dispatch(clearTopicMessages(topic.id))
       }
 
-      EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
-
       // 处理助手消息
       let assistantMessages: Message[] = []
-      if (options?.resendAssistantMessage) {
+      if (!isEmpty(options?.resendAssistantMessage)) {
         // 直接使用传入的助手消息，进行重置
         const messageToReset = options.resendAssistantMessage
         if (Array.isArray(messageToReset)) {
           assistantMessages = messageToReset.map((m) => {
-            const { model, id } = m
-            const resetMessage = resetAssistantMessage(m, model)
+            const isGroupedMessage = messageToReset.length > 1
+            const resetMessage = resetAssistantMessage(m, isGroupedMessage ? m.model : assistant.model)
             // 更新状态
-            dispatch(updateMessage({ topicId: topic.id, messageId: id, updates: resetMessage }))
+            dispatch(updateMessage({ topicId: topic.id, messageId: m.id, updates: resetMessage }))
             // 使用重置后的消息
             return resetMessage
           })
@@ -321,26 +329,37 @@ export const sendMessage =
         // 最后一个具有相同askId的助手消息，在其后插入
         let position: number | undefined
         if (options?.isMentionModel) {
+          // 寻找用户提问对应的助手回答消息位置
           const lastAssistantIndex = currentMessages.findLastIndex(
             (m) => m.role === 'assistant' && m.askId === userMessage.id
           )
+
+          // 如果找到了助手消息，在助手消息后插入
           if (lastAssistantIndex !== -1) {
             position = lastAssistantIndex + 1
+          } else {
+            // 如果找不到助手消息，则在用户消息后插入
+            const userMessageIndex = currentMessages.findIndex((m) => m.role === 'user' && m.id === userMessage.id)
+            if (userMessageIndex !== -1) {
+              position = userMessageIndex + 1
+            }
           }
         }
 
         dispatch(
           appendMessage({
             topicId: topic.id,
-            messages: !options?.isMentionModel ? [userMessage, ...assistantMessages] : assistantMessages,
+            messages: options?.isMentionModel ? assistantMessages : [userMessage, ...assistantMessages],
             position
           })
         )
       }
+
       for (const assistantMessage of assistantMessages) {
         // for of会收到await 影响,在暂停的时候会因为异步的原因有概率拿不到数据
         dispatch(setStreamMessage({ topicId: topic.id, message: assistantMessage }))
       }
+
       const queue = getTopicQueue(topic.id)
 
       for (const assistantMessage of assistantMessages) {
@@ -388,15 +407,10 @@ export const sendMessage =
                 return messagesUpToUser.filter((m) => !m.status?.includes('ing'))
               }
 
-              // 如果找不到对应的用户消息，使用原有逻辑
-              // 按理说不会找不到 先注释掉看看
-              // if (messageIndex !== -1) {
-              //   const messagesUpToAssistant = messages.slice(0, messageIndex)
-              //   return messagesUpToAssistant.filter((m) => !m.status?.includes('ing'))
-              // }
               // 没有找到消息索引的情况，过滤所有消息
               return messages.filter((m) => !m.status?.includes('ing'))
             }
+
             await fetchChatCompletion({
               message: { ...assistantMessage },
               messages: handleMessages(),
@@ -456,12 +470,14 @@ export const resendMessage =
       if (message.role === 'user') {
         // 查找此用户消息对应的助手消息
         const assistantMessage = topicMessages.filter((m) => m.role === 'assistant' && m.askId === message.id)
+
         return dispatch(
           sendMessage(message, assistant, topic, {
             resendAssistantMessage: assistantMessage,
             // 用户可能把助手消息删了,然后重新发送用户消息
-            // 如果isMentionModel为false,则只会发送add助手消息
-            isMentionModel: !assistantMessage
+            // 如果 isMentionModel 为 false, 则只会发送 add 助手消息
+            isMentionModel: isEmpty(assistantMessage),
+            mentions: message.mentions
           })
         )
       }
@@ -469,8 +485,15 @@ export const resendMessage =
       // 如果是助手消息，找到对应的用户消息
       const userMessage = topicMessages.find((m) => m.id === message.askId && m.role === 'user')
       if (!userMessage) {
-        console.error('Cannot find original user message to resend')
-        return dispatch(setError('Cannot find original user message to resend'))
+        dispatch(
+          updateMessage({
+            topicId: topic.id,
+            messageId: message.id,
+            updates: { status: 'error', error: { message: i18n.t('error.user_message_not_found') } }
+          })
+        )
+        console.error(i18n.t('error.user_message_not_found'))
+        return dispatch(setError(i18n.t('error.user_message_not_found')))
       }
 
       if (isMentionModel) {
@@ -509,6 +532,7 @@ export const loadTopicMessagesThunk = (topic: Topic) => async (dispatch: AppDisp
     dispatch(setTopicLoading({ topicId: topic.id, loading: false }))
   }
 }
+
 // Modified clearMessages thunk
 export const clearTopicMessagesThunk = (topic: Topic) => async (dispatch: AppDispatch) => {
   try {
