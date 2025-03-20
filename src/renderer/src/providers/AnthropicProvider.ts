@@ -9,7 +9,12 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { isReasoningModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import {
+  getAssistantSettings,
+  getDefaultModel,
+  getSearchSummaryModel,
+  getTopNamingModel
+} from '@renderer/services/AssistantService'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -462,7 +467,7 @@ export default class AnthropicProvider extends BaseProvider {
    * @returns The summary
    */
   public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
-    const model = assistant.model || getDefaultModel()
+    const model = getSearchSummaryModel() || assistant.model || getDefaultModel()
     //这里只有上一条回答和当前的搜索消息
     const systemMessage = {
       role: 'system',
@@ -491,6 +496,8 @@ export default class AnthropicProvider extends BaseProvider {
 
     return content
   }
+
+
 
   /**
    * Generate text
