@@ -12,6 +12,29 @@ interface Props {
   message: Message
 }
 
+function beautifyToolName(name: string) {
+  // 用空格代替下划线 首字母大写
+  // list_allowed_directories
+  // 👇
+  // List Allowed Directories
+
+  return name.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function beautifyMCPServerName(name: string) {
+  try {
+    // @modelcontextprotocol/server-sequential-thinking
+    //          👇
+    // Server-Sequential-Thinking
+    const parts = name.split('/')
+    const lastPart = parts[parts.length - 1]
+    return lastPart.replace(/\b\w/g, (char) => char.toUpperCase())
+  } catch (error) {
+    console.error(error)
+    return name
+  }
+}
+
 const MessageTools: FC<Props> = ({ message }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
@@ -30,7 +53,9 @@ const MessageTools: FC<Props> = ({ message }) => {
   const toolAliasMap = useMemo(() => {
     return mcpServers.reduce(
       (acc, server) => {
-        acc[server.name] = server.alias || server.name
+        if (server.alias) {
+          acc[server.name] = server.alias
+        }
         return acc
       },
       {} as Record<string, string>
@@ -70,7 +95,8 @@ const MessageTools: FC<Props> = ({ message }) => {
         label: (
           <MessageTitleLabel>
             <TitleContent>
-              <ToolName>{toolAliasMap[tool.serverName] || tool.name}</ToolName>
+              <MCPServerName>{toolAliasMap[tool.serverName] || beautifyMCPServerName(tool.serverName)}</MCPServerName>
+              <ToolName>{beautifyToolName(tool.name) || tool.name}</ToolName>
               <StatusIndicator $isInvoking={isInvoking}>
                 {isInvoking ? t('tools.invoking') : t('tools.completed')}
                 {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
@@ -87,7 +113,10 @@ const MessageTools: FC<Props> = ({ message }) => {
                         e.stopPropagation()
                         setExpandedResponse({
                           content: JSON.stringify(response, null, 2),
-                          title: toolAliasMap[tool.serverName] || tool.name
+                          title:
+                            (toolAliasMap[tool.serverName] || beautifyMCPServerName(tool.serverName)) +
+                            ' - ' +
+                            beautifyToolName(tool.name)
                         })
                       }}
                       aria-label={t('common.expand')}>
@@ -141,7 +170,12 @@ const MessageTools: FC<Props> = ({ message }) => {
         onCancel={() => setExpandedResponse(null)}
         footer={null}
         width="80%"
-        bodyStyle={{ maxHeight: '80vh', overflow: 'auto' }}>
+        styles={{
+          body: {
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }
+        }}>
         {expandedResponse && (
           <ExpandedResponseContainer style={{ fontFamily, fontSize }}>
             <ActionButton
@@ -202,6 +236,14 @@ const TitleContent = styled.div`
 `
 
 const ToolName = styled.span`
+  color: var(--color-text-2);
+  font-size: 12px;
+  border-left: 1px solid var(--color-border);
+  padding-left: 8px;
+  margin-left: 8px;
+`
+
+const MCPServerName = styled.span`
   color: var(--color-text);
   font-weight: 500;
   font-size: 13px;
