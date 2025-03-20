@@ -131,7 +131,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     try {
       let latency: number
       let result: { valid: boolean; error?: any }
-      let model: Model | undefined
+      let model: Model
 
       if (type === 'provider') {
         try {
