@@ -60,9 +60,8 @@ const api = {
     update: (shortcuts: Shortcut[]) => ipcRenderer.invoke('shortcuts:update', shortcuts)
   },
   knowledgeBase: {
-    create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) =>
-      ipcRenderer.invoke('knowledge-base:create', { id, model, apiKey, baseURL }),
-    reset: ({ base }: { base: KnowledgeBaseParams }) => ipcRenderer.invoke('knowledge-base:reset', { base }),
+    create: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:create', base),
+    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:reset', base),
     delete: (id: string) => ipcRenderer.invoke('knowledge-base:delete', id),
     add: ({
       base,
@@ -121,7 +120,16 @@ const api = {
     cleanup: () => ipcRenderer.invoke('mcp:cleanup')
   },
   shell: {
-    openExternal: shell?.openExternal
+    openExternal: shell.openExternal
+  },
+  copilot: {
+    getAuthMessage: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-auth-message', headers),
+    getCopilotToken: (device_code: string, headers?: Record<string, string>) =>
+      ipcRenderer.invoke('copilot:get-copilot-token', device_code, headers),
+    saveCopilotToken: (access_token: string) => ipcRenderer.invoke('copilot:save-copilot-token', access_token),
+    getToken: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-token', headers),
+    logout: () => ipcRenderer.invoke('copilot:logout'),
+    getUser: (token: string) => ipcRenderer.invoke('copilot:get-user', token)
   },
 
   // Binary related APIs

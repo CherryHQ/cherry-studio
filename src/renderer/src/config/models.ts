@@ -1035,6 +1035,14 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'OpenAI'
     }
   ],
+  copilot: [
+    {
+      id: 'gpt-4o-mini',
+      provider: 'copilot',
+      name: 'OpenAI GPT-4o-mini',
+      group: 'OpenAI'
+    }
+  ],
   yi: [
     { id: 'yi-lightning', name: 'Yi Lightning', provider: 'yi', group: 'yi-lightning', owned_by: '01.ai' },
     { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
@@ -1893,6 +1901,9 @@ export function isRerankModel(model: Model): boolean {
 
 export function isVisionModel(model: Model): boolean {
   if (!model) {
+    return false
+  }
+  if (model.provider === 'copilot') {
     return false
   }
 

@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "Экспорт не удалось",
       "topics.export.obsidian_show_md_files": "Показать файлы MD",
       "topics.export.obsidian_selected_path": "Выбранный путь",
+      "topics.export.joplin": "Экспорт в Joplin",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
@@ -233,7 +234,11 @@
       "topics": "Топики",
       "warning": "Предупреждение",
       "you": "Вы",
-      "more": "Ещё"
+      "confirm": "Подтверждение",
+      "copied": "Скопировано",
+      "more": "Ещё",
+      "advanced_settings": "Дополнительные настройки",
+      "expand": "Развернуть"
     },
     "docs": {
       "title": "Документация"
@@ -444,6 +449,8 @@
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+      "error.joplin.no_config": "Joplin Authorization Token или URL не настроен",
+      "error.joplin.export": "Не удалось экспортировать в Joplin, пожалуйста, убедитесь, что Joplin запущен и проверьте состояние подключения или настройки",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
@@ -476,12 +483,18 @@
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
       "success.notion.export": "Успешный экспорт в Notion",
       "success.yuque.export": "Успешный экспорт в Yuque",
+      "success.joplin.export": "Успешный экспорт в Joplin",
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
-      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!"
+      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
+      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова.",
+      "tools": {
+        "invoking": "Вызов",
+        "completed": "Завершено"
+      }
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -639,6 +652,7 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
       "alayanew": "Alaya NeW"
     },
@@ -709,6 +723,8 @@
         "markdown_export.path_placeholder": "Путь экспорта",
         "markdown_export.select": "Выбрать",
         "markdown_export.help": "Если указано, файлы будут автоматически сохраняться в этот путь; в противном случае появится диалоговое окно сохранения.",
+        "markdown_export.force_dollar_math.title": "Принудительно использовать $$ для формул LaTeX",
+        "markdown_export.force_dollar_math.help": "Если включено, при экспорте в Markdown для обозначения формул LaTeX будет принудительно использоваться $$. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
         "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
@@ -783,6 +799,21 @@
           "title": "Настройка Obsidian",
           "api_key": "API Key Obsidian",
           "api_key_placeholder": "Введите API Key Obsidian"
+        },
+        "joplin": {
+          "check": {
+            "button": "Проверить",
+            "empty_url": "Сначала введите URL Joplin",
+            "empty_token": "Сначала введите токен Joplin",
+            "fail": "Не удалось проверить подключение к Joplin",
+            "success": "Подключение к Joplin успешно проверено"
+          },
+          "title": "Настройка Joplin",
+          "help": "Включите Joplin опцию, проверьте порт и скопируйте токен",
+          "url": "URL Joplin",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Токен Joplin",
+          "token_placeholder": "Введите токен Joplin"
         }
       },
       "display.assistant.title": "Настройки ассистентов",
@@ -849,6 +880,7 @@
         "editServer": "Редактировать сервер",
         "env": "Переменные окружения",
         "envTooltip": "Формат: KEY=value, по одной на строку",
+        "findMore": "Найти больше MCP серверов",
         "name": "Имя",
         "nameRequired": "Пожалуйста, введите имя сервера",
         "noServers": "Серверы не настроены",
@@ -974,7 +1006,32 @@
         "remove_invalid_keys": "Удалить недействительные ключи",
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
-        "title": "Провайдеры моделей"
+        "title": "Провайдеры моделей",
+        "is_not_support_array_content": "Включить совместимый режим",
+        "copilot": {
+          "tooltip": "Для использования Github Copilot необходимо сначала войти в Github.",
+          "description": "Ваша учетная запись Github должна подписаться на Copilot.",
+          "login": "Войти в Github",
+          "connect": "Подключить Github",
+          "logout": "Выйти из Github",
+          "auth_success_title": "Аутентификация успешна",
+          "code_generated_title": "Получить код устройства",
+          "code_generated_desc": "Пожалуйста, скопируйте код устройства в приведенную ниже ссылку браузера.",
+          "code_failed": "Получение кода устройства не удалось, пожалуйста, попробуйте еще раз.",
+          "auth_success": "Github Copilot认证成功",
+          "auth_failed": "Github Copilot认证失败",
+          "logout_success": "Успешно вышел",
+          "logout_failed": "Не удалось выйти, пожалуйста, повторите попытку.",
+          "confirm_title": "Предупреждение о рисках",
+          "confirm_login": "Чрезмерное использование может привести к блокировке вашего Github, будьте осторожны!!!!",
+          "rate_limit": "Ограничение скорости",
+          "custom_headers": "Пользовательские заголовки запроса",
+          "headers_description": "Пользовательские заголовки запроса (формат json)",
+          "expand": "развернуть",
+          "model_setting": "Настройки модели",
+          "invalid_json": "Ошибка формата JSON",
+          "open_verification_first": "Пожалуйста, сначала щелкните по ссылке выше, чтобы перейти на страницу проверки."
+        }
       },
       "proxy": {
         "mode": {
@@ -1043,6 +1100,8 @@
         "search_provider_placeholder": "Выберите поставщика поисковых услуг",
         "search_result_default": "По умолчанию",
         "search_with_time": "Поиск, содержащий дату",
+        "enhance_mode": "Режим улучшения поиска",
+        "enhance_mode_tooltip": "Используйте модель по умолчанию для извлечения ключевых слов из проблемы и поиска",
         "tavily": {
           "api_key": "Ключ API Tavily",
           "api_key.placeholder": "Введите ключ API Tavily",

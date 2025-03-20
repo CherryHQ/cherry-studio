@@ -10,7 +10,10 @@ export default class SiliconFlowReranker extends BaseReranker {
   }
 
   public rerank = async (query: string, searchResults: ExtractChunkData[]): Promise<ExtractChunkData[]> => {
-    const url = `${this.base.baseURL}/rerank`
+    const baseURL = this.base?.rerankBaseURL?.endsWith('/')
+      ? this.base.rerankBaseURL.slice(0, -1)
+      : this.base.rerankBaseURL
+    const url = `${baseURL}/rerank`
 
     const { data } = await axios.post(
       url,

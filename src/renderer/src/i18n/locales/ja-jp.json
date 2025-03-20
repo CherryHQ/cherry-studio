@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "エクスポート失敗",
       "topics.export.obsidian_show_md_files": "mdファイルを表示",
       "topics.export.obsidian_selected_path": "選択済みパス",
+      "topics.export.joplin": "Joplin にエクスポート",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
       "topics.pinned": "トピックを固定",
@@ -233,7 +234,11 @@
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
-      "more": "もっと"
+      "copied": "コピーされました",
+      "confirm": "確認",
+      "more": "もっと",
+      "advanced_settings": "詳細設定",
+      "expand": "展開"
     },
     "docs": {
       "title": "ドキュメント"
@@ -438,6 +443,8 @@
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
       "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.yuque.no_config": "語雀Token または 知識ベースID が設定されていません",
+      "error.joplin.no_config": "Joplin 認証トークン または URL が設定されていません",
+      "error.joplin.export": "Joplin へのエクスポートに失敗しました。Joplin が実行中であることを確認してください",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
       "loading.notion.preparing": "Notionへのエクスポートを準備中...",
@@ -470,12 +477,18 @@
       "success.markdown.export.specified": "Markdown ファイルを正常にエクスポートしました",
       "success.notion.export": "Notionへのエクスポートに成功しました",
       "success.yuque.export": "語雀へのエクスポートに成功しました",
+      "success.joplin.export": "Joplin へのエクスポートに成功しました",
       "switch.disabled": "現在の応答が完了するまで切り替えを無効にします",
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
-      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
+      "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
+      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。",
+      "tools": {
+        "invoking": "呼び出し中",
+        "completed": "完了"
+      }
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
@@ -639,6 +652,7 @@
       "yi": "零一万物",
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
+      "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
       "alayanew": "Alaya NeW"
     },
@@ -709,6 +723,8 @@
         "markdown_export.path_placeholder": "エクスポートパス",
         "markdown_export.select": "選択",
         "markdown_export.help": "入力された場合、エクスポート時に自動的にこのパスに保存されます。未入力の場合、保存ダイアログが表示されます。",
+        "markdown_export.force_dollar_math.title": "LaTeX数式に$$を強制使用",
+        "markdown_export.force_dollar_math.help": "有効にすると、Markdownにエクスポートする際にLaTeX数式を$$で強制的にマークします。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
         "notion.api_key": "Notion APIキー",
         "notion.api_key_placeholder": "Notion APIキーを入力してください",
         "notion.auto_split": "ダイアログをエクスポートすると自動ページ分割",
@@ -783,6 +799,21 @@
           "title": "Obsidian 設定",
           "api_key": "Obsidian API Key",
           "api_key_placeholder": "Obsidian API Key を入力してください"
+        },
+        "joplin": {
+          "check": {
+            "button": "確認",
+            "empty_url": "Joplin 剪輯服務 URL を先に入力してください",
+            "empty_token": "Joplin 認証トークン を先に入力してください",
+            "fail": "Joplin 接続確認に失敗しました",
+            "success": "Joplin 接続確認に成功しました"
+          },
+          "title": "Joplin 設定",
+          "help": "Joplin オプションで、剪輯サービスを有効にしてください。ポート番号を確認し、認証トークンをコピーしてください",
+          "url": "Joplin 剪輯服務 URL",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Joplin 認証トークン",
+          "token_placeholder": "Joplin 認証トークンを入力してください"
         }
       },
       "display.assistant.title": "アシスタント設定",
@@ -849,6 +880,7 @@
         "editServer": "サーバーを編集",
         "env": "環境変数",
         "envTooltip": "形式: KEY=value, 1行に1つ",
+        "findMore": "MCP サーバーを見つける",
         "name": "名前",
         "nameRequired": "サーバー名を入力してください",
         "noServers": "サーバーが設定されていません",
@@ -974,7 +1006,32 @@
         "remove_invalid_keys": "無効なキーを削除",
         "search": "プロバイダーを検索...",
         "search_placeholder": "モデルIDまたは名前を検索",
-        "title": "モデルプロバイダー"
+        "title": "モデルプロバイダー",
+        "is_not_support_array_content": "互換モードを有効にする",
+        "copilot": {
+          "tooltip": "Github Copilot を使用するには、まず Github にログインする必要があります。",
+          "description": "あなたのGithubアカウントはCopilotを購読する必要があります。",
+          "login": "GitHubにログインする",
+          "connect": "GitHubに接続する",
+          "logout": "GitHubから退出する",
+          "auth_success_title": "認証成功",
+          "code_generated_title": "デバイスコードを取得する",
+          "code_generated_desc": "デバイスコードを下記のブラウザリンクにコピーしてください。",
+          "code_failed": "デバイスコードの取得に失敗しました。再試行してください。",
+          "auth_success": "Github Copilotの認証が成功しました",
+          "auth_failed": "Github Copilotの認証に失敗しました。",
+          "logout_success": "正常にログアウトしました。",
+          "logout_failed": "ログアウトに失敗しました。もう一度お試しください。",
+          "confirm_title": "リスク警告",
+          "confirm_login": "過度使用すると、あなたのGithubアカウントが停止される可能性があるため、慎重に使用してください!!!!",
+          "rate_limit": "レート制限",
+          "custom_headers": "カスタムリクエストヘッダー",
+          "headers_description": "カスタムリクエストヘッダー（JSONフォーマット）",
+          "expand": "展開",
+          "model_setting": "モデル設定",
+          "invalid_json": "JSONフォーマットエラー",
+          "open_verification_first": "上のリンクをクリックして、確認ページにアクセスしてください。"
+        }
       },
       "proxy": {
         "mode": {
@@ -1043,6 +1100,8 @@
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
         "search_result_default": "デフォルト",
         "search_with_time": "日付を含む検索",
+        "enhance_mode": "検索強化モード",
+        "enhance_mode_tooltip": "デフォルトモデルを使用して問題から検索キーワードを抽出し、検索を実行します",
         "tavily": {
           "api_key": "Tavily API キー",
           "api_key.placeholder": "Tavily API キーを入力してください",

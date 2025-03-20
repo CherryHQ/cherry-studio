@@ -11,10 +11,12 @@ import FileManager from './FileManager'
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)
+  const rerankProvider = getProviderByModel(base.rerankModel)
   const aiProvider = new AiProvider(provider)
+  const rerankAiProvider = new AiProvider(rerankProvider)
 
   let host = aiProvider.getBaseURL()
-
+  const rerankHost = rerankAiProvider.getBaseURL()
   if (provider.type === 'gemini') {
     host = host + '/v1beta/openai/'
   }
@@ -40,6 +42,8 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     baseURL: host,
     chunkSize,
     chunkOverlap: base.chunkOverlap,
+    rerankBaseURL: rerankHost,
+    rerankApiKey: rerankAiProvider.getApiKey() || 'secret',
     rerankModel: base.rerankModel?.id,
     rerankModelProvider: base.rerankModel?.provider,
     topN: base.topN

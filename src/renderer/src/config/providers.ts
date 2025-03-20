@@ -66,6 +66,7 @@ const PROVIDER_LOGO_MAP = {
   'graphrag-kylin-mountain': GraphRagProviderLogo,
   minimax: MinimaxProviderLogo,
   github: GithubProviderLogo,
+  copilot: GithubProviderLogo,
   ocoolai: OcoolAiProviderLogo,
   together: TogetherProviderLogo,
   fireworks: FireworksProviderLogo,
@@ -185,7 +186,7 @@ export const PROVIDER_CONFIG = {
   },
   together: {
     api: {
-      url: 'https://api.tohgether.xyz'
+      url: 'https://api.together.xyz'
     },
     websites: {
       official: 'https://www.together.ai/',
@@ -236,6 +237,11 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://github.com/settings/tokens',
       docs: 'https://docs.github.com/en/github-models',
       models: 'https://github.com/marketplace/models'
+    }
+  },
+  copilot: {
+    api: {
+      url: 'https://api.githubcopilot.com/'
     }
   },
   yi: {

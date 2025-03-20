@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "匯出失敗",
       "topics.export.obsidian_show_md_files": "顯示md文件",
       "topics.export.obsidian_selected_path": "已選擇路徑",
+      "topics.export.joplin": "匯出到 Joplin",
       "topics.list": "話題列表",
       "topics.move_to": "移動到",
       "topics.pinned": "固定話題",
@@ -233,7 +234,11 @@
       "topics": "話題",
       "warning": "警告",
       "you": "您",
-      "more": "更多"
+      "copied": "已複製",
+      "confirm": "確認",
+      "more": "更多",
+      "advanced_settings": "進階設定",
+      "expand": "展開"
     },
     "docs": {
       "title": "說明文件"
@@ -322,9 +327,9 @@
       "delete_confirm": "確定要刪除此知識庫嗎？",
       "directories": "目錄",
       "directory_placeholder": "請輸入目錄路徑",
-      "document_count": "請求文件分段數量",
+      "document_count": "請求文件片段數量",
       "document_count_default": "預設",
-      "document_count_help": "請求文件分段數量越多，附帶的資訊越多，但需要消耗的 Token 也越多",
+      "document_count_help": "請求文件片段數量越多，附帶的資訊越多，但需要消耗的 Token 也越多",
       "drag_file": "拖拽檔案到這裡",
       "edit_remark": "修改備註",
       "edit_remark_placeholder": "請輸入備註內容",
@@ -438,6 +443,8 @@
       "error.notion.no_api_key": "未設定 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "匯出語雀錯誤，請檢查連接狀態並對照文件檢查設定",
       "error.yuque.no_config": "未設定語雀 Token 或知識庫 Url",
+      "error.joplin.no_config": "未設定 Joplin 授權Token 或 URL",
+      "error.joplin.export": "匯出 Joplin 失敗，請保持 Joplin 已運行並檢查連接狀態或檢查設定",
       "group.delete.content": "刪除分組訊息會刪除使用者提問和所有助手的回答",
       "group.delete.title": "刪除分組訊息",
       "ignore.knowledge.base": "網路模式開啟，忽略知識庫",
@@ -470,12 +477,18 @@
       "success.markdown.export.specified": "成功導出 Markdown 文件",
       "success.notion.export": "成功匯出到 Notion",
       "success.yuque.export": "成功匯出到語雀",
+      "success.joplin.export": "成功匯出到 Joplin",
       "switch.disabled": "請等待當前回覆完成",
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
       "upgrade.success.content": "請重新啟動程式以完成升級",
       "upgrade.success.title": "升級成功",
-      "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！"
+      "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！",
+      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試",
+      "tools": {
+        "invoking": "調用中",
+        "completed": "已完成"
+      }
     },
     "minapp": {
       "sidebar.add.title": "新增到側邊欄",
@@ -633,6 +646,7 @@
       "yi": "零一萬物",
       "zhinao": "360 智腦",
       "zhipu": "智譜 AI",
+      "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
       "alayanew": "Alaya NeW"
     },
@@ -709,6 +723,8 @@
         "markdown_export.path_placeholder": "匯出路徑",
         "markdown_export.select": "選擇",
         "markdown_export.help": "若填入，每次匯出時將自動儲存至該路徑；否則，將彈出儲存對話框。",
+        "markdown_export.force_dollar_math.title": "LaTeX公式強制使用$$",
+        "markdown_export.force_dollar_math.help": "開啟後，匯出Markdown時會強制使用$$來標記LaTeX公式。注意：該項也會影響所有透過Markdown匯出的方式，如Notion、語雀等。",
         "notion.api_key": "Notion 金鑰",
         "notion.api_key_placeholder": "請輸入 Notion 金鑰",
         "notion.auto_split": "匯出對話時自動分頁",
@@ -783,6 +799,21 @@
           "title": "Obsidian 設定",
           "api_key": "Obsidian API Key",
           "api_key_placeholder": "請輸入 Obsidian API Key"
+        },
+        "joplin": {
+          "check": {
+            "button": "檢查",
+            "empty_url": "請先輸入 Joplin 剪輯服務 URL",
+            "empty_token": "請先輸入 Joplin 授權Token",
+            "fail": "Joplin 連接驗證失敗",
+            "success": "Joplin 連接驗證成功"
+          },
+          "title": "Joplin 設定",
+          "help": "在 Joplin 選項中，啟用剪輯服務（無需安裝瀏覽器外掛），確認埠編號，並複製授權Token",
+          "url": "Joplin 剪輯服務 URL",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Joplin 授權Token",
+          "token_placeholder": "請輸入 Joplin 授權Token"
         }
       },
       "display.assistant.title": "助手設定",
@@ -849,6 +880,7 @@
         "editServer": "編輯伺服器",
         "env": "環境變數",
         "envTooltip": "格式：KEY=value，每行一個",
+        "findMore": "更多 MCP 伺服器",
         "name": "名稱",
         "nameRequired": "請輸入伺服器名稱",
         "noServers": "未設定伺服器",
@@ -974,7 +1006,32 @@
         "remove_invalid_keys": "刪除無效金鑰",
         "search": "搜尋模型平臺...",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "is_not_support_array_content": "開啟相容模式",
+        "copilot": {
+          "tooltip": "使用 Github Copilot 需要先登入 Github",
+          "description": "您的 Github 帳號需要訂閱 Copilot",
+          "login": "登入 Github",
+          "connect": "連接 Github",
+          "logout": "退出 Github",
+          "auth_success_title": "認證成功",
+          "code_generated_title": "獲取設備代碼",
+          "code_generated_desc": "請將設備代碼複製到下面的瀏覽器連結中",
+          "code_failed": "獲取 Device Code失敗，請重試",
+          "auth_success": "Github Copilot 認證成功",
+          "auth_failed": "Github Copilot認證失敗",
+          "logout_success": "已成功登出",
+          "logout_failed": "退出失敗，請重試",
+          "confirm_title": "風險警告",
+          "confirm_login": "過度使用可能會導致您的 Github 帳號遭到封號，請謹慎使用!!!!",
+          "rate_limit": "速率限制",
+          "custom_headers": "自訂請求標頭",
+          "headers_description": "自訂請求標頭(json格式)",
+          "expand": "展開",
+          "model_setting": "模型設定",
+          "invalid_json": "JSON 格式錯誤",
+          "open_verification_first": "請先點擊上方連結訪問驗證頁面"
+        }
       },
       "proxy": {
         "mode": {
@@ -1043,6 +1100,8 @@
         "search_provider_placeholder": "選擇一個搜尋服務商",
         "search_result_default": "預設",
         "search_with_time": "搜尋包含日期",
+        "enhance_mode": "搜索增強模式",
+        "enhance_mode_tooltip": "使用預設模型提取關鍵詞後搜索",
         "tavily": {
           "api_key": "Tavily API 金鑰",
           "api_key.placeholder": "請輸入 Tavily API 金鑰",

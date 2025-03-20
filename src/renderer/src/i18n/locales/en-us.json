@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "Export failed",
       "topics.export.obsidian_show_md_files": "Show MD Files",
       "topics.export.obsidian_selected_path": "Selected Path",
+      "topics.export.joplin": "Export to Joplin",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
       "topics.pinned": "Pinned Topics",
@@ -233,7 +234,11 @@
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
-      "more": "More"
+      "copied": "Copied",
+      "confirm": "Confirm",
+      "more": "More",
+      "advanced_settings": "Advanced Settings",
+      "expand": "Expand"
     },
     "docs": {
       "title": "Docs"
@@ -438,6 +443,8 @@
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
       "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
+      "error.joplin.no_config": "Joplin Authorization Token or URL is not configured",
+      "error.joplin.export": "Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
       "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
@@ -470,12 +477,18 @@
       "success.markdown.export.specified": "Successfully exported the Markdown file",
       "success.notion.export": "Successfully exported to Notion",
       "success.yuque.export": "Successfully exported to Yuque",
+      "success.joplin.export": "Successfully exported to Joplin",
       "switch.disabled": "Please wait for the current reply to complete",
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!"
+      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
+      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again.",
+      "tools": {
+        "invoking": "Invoking",
+        "completed": "Completed"
+      }
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -639,6 +652,7 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
       "alayanew": "Alaya NeW"
     },
@@ -709,6 +723,8 @@
         "markdown_export.path_placeholder": "Export Path",
         "markdown_export.select": "Select",
         "markdown_export.help": "If provided, exports will be automatically saved to this path; otherwise, a save dialog will appear.",
+        "markdown_export.force_dollar_math.title": "Force $$ for LaTeX formulas",
+        "markdown_export.force_dollar_math.help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
         "notion.auto_split": "Auto split when exporting",
@@ -783,6 +799,21 @@
           "title": "Obsidian Configuration",
           "api_key": "Obsidian API Key",
           "api_key_placeholder": "Please enter the Obsidian API Key"
+        },
+        "joplin": {
+          "check": {
+            "button": "Check",
+            "empty_url": "Please enter Joplin Clipper Service URL",
+            "empty_token": "Please enter Joplin Authorization Token",
+            "fail": "Joplin connection verification failed",
+            "success": "Joplin connection verification successful"
+          },
+          "title": "Joplin Configuration",
+          "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
+          "url": "Joplin Web Clipper Service URL",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Joplin Authorization Token",
+          "token_placeholder": "Joplin Authorization Token"
         }
       },
       "display.assistant.title": "Assistant Settings",
@@ -849,6 +880,7 @@
         "editServer": "Edit Server",
         "env": "Environment Variables",
         "envTooltip": "Format: KEY=value, one per line",
+        "findMore": "Find More MCP Servers",
         "name": "Name",
         "nameRequired": "Please enter a server name",
         "noServers": "No servers configured",
@@ -974,7 +1006,32 @@
         "remove_invalid_keys": "Remove Invalid Keys",
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "is_not_support_array_content": "Enable compatible mode",
+        "copilot": {
+          "tooltip": "You need to log in to Github before using Github Copilot",
+          "description": "Your GitHub account needs to subscribe to Copilot.",
+          "login": "Log in to Github",
+          "connect": "Connect to Github",
+          "logout": "Exit GitHub",
+          "auth_success_title": "Certification successful.",
+          "code_generated_title": "Obtain Device Code",
+          "code_generated_desc": "Please copy the device code into the browser link below.",
+          "code_failed": "Failed to obtain Device Code, please try again.",
+          "auth_success": "GitHub Copilot authentication successful.",
+          "auth_failed": "Github Copilot authentication failed.",
+          "logout_success": "Successfully logged out.",
+          "logout_failed": "Exit failed, please try again.",
+          "confirm_title": "Risk Warning",
+          "confirm_login": "Excessive use may lead to your Github account being banned, please use it cautiously!!!!",
+          "rate_limit": "Rate limiting",
+          "custom_headers": "Custom request header",
+          "headers_description": "Custom request headers (JSON format)",
+          "expand": "Expand",
+          "model_setting": "Model settings",
+          "invalid_json": "JSON format error",
+          "open_verification_first": "Please click the link above to access the verification page."
+        }
       },
       "proxy": {
         "mode": {
@@ -1043,6 +1100,8 @@
         "search_provider_placeholder": "Choose a search service provider.",
         "search_result_default": "Default",
         "search_with_time": "Search with dates included",
+        "enhance_mode": "Search enhance mode",
+        "enhance_mode_tooltip": "Use the default model to extract search keywords from the problem and search",
         "tavily": {
           "api_key": "Tavily API Key",
           "api_key.placeholder": "Enter Tavily API Key",

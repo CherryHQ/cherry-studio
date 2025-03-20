@@ -68,8 +68,8 @@ declare global {
         update: (shortcuts: Shortcut[]) => Promise<void>
       }
       knowledgeBase: {
-        create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) => Promise<void>
-        reset: ({ base }: { base: KnowledgeBaseParams }) => Promise<void>
+        create: (base: KnowledgeBaseParams) => Promise<void>
+        reset: (base: KnowledgeBaseParams) => Promise<void>
         delete: (id: string) => Promise<void>
         add: ({
           base,
@@ -143,6 +143,16 @@ declare global {
         callTool: ({ client, name, args }: { client: string; name: string; args: any }) => Promise<any>
         // status
         cleanup: () => Promise<void>
+      }
+      copilot: {
+        getAuthMessage: (
+          headers?: Record<string, string>
+        ) => Promise<{ device_code: string; user_code: string; verification_uri: string }>
+        getCopilotToken: (device_code: string, headers?: Record<string, string>) => Promise<{ access_token: string }>
+        saveCopilotToken: (access_token: string) => Promise<void>
+        getToken: (headers?: Record<string, string>) => Promise<{ token: string }>
+        logout: () => Promise<void>
+        getUser: (token: string) => Promise<{ login: string; avatar: string }>
       }
       isBinaryExist: (name: string) => Promise<boolean>
       getBinaryPath: (name: string) => Promise<string>
