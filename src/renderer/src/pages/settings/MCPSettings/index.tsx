@@ -66,8 +66,15 @@ const MCPSettings: FC = () => {
       title: t('settings.mcp.name'),
       dataIndex: 'name',
       key: 'name',
-      width: '300px',
+      width: '200px',
       render: (text: string, record: MCPServer) => <Text strong={record.isActive}>{text}</Text>
+    },
+    {
+      title: t('settings.mcp.alias'),
+      dataIndex: 'alias',
+      key: 'alias',
+      width: '100px',
+      render: (text: string) => <Text>{text || '-'}</Text>
     },
     {
       title: t('settings.mcp.type'),

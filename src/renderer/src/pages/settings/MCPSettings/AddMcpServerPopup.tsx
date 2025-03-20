@@ -17,6 +17,7 @@ interface Props extends ShowParams {
 
 interface MCPFormValues {
   name: string
+  alias?: string
   description?: string
   serverType: 'sse' | 'stdio'
   baseUrl?: string
@@ -42,6 +43,7 @@ const PopupContainer: React.FC<Props> = ({ server, create, resolve }) => {
 
       form.setFieldsValue({
         name: server.name,
+        alias: server.alias || '',
         description: server.description,
         serverType: serverType,
         baseUrl: server.baseUrl || '',
@@ -70,6 +72,7 @@ const PopupContainer: React.FC<Props> = ({ server, create, resolve }) => {
       const values = await form.validateFields()
       const mcpServer: MCPServer = {
         name: values.name,
+        alias: values.alias || '',
         description: values.description,
         isActive: values.isActive
       }
@@ -159,6 +162,10 @@ const PopupContainer: React.FC<Props> = ({ server, create, resolve }) => {
           label={t('settings.mcp.name')}
           rules={[{ required: true, message: t('settings.mcp.nameRequired') }]}>
           <Input disabled={!!server} placeholder={t('common.name')} />
+        </Form.Item>
+
+        <Form.Item name="alias" label={t('settings.mcp.alias')}>
+          <Input placeholder={t('settings.mcp.aliasPlaceholder')} />
         </Form.Item>
 
         <Form.Item name="description" label={t('settings.mcp.description')}>

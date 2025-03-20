@@ -912,7 +912,9 @@
         "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
         "jsonFormatError": "JSONフォーマットエラー",
         "jsonSaveSuccess": "JSON設定が保存されました。",
-        "jsonSaveError": "JSON設定の保存に失敗しました"
+        "jsonSaveError": "JSON設定の保存に失敗しました",
+        "alias": "エイリアス",
+        "aliasPlaceholder": "例：mcp-server"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",

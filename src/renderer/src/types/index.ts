@@ -339,6 +339,7 @@ export interface MCPServerParameter {
 
 export interface MCPServer {
   name: string
+  alias?: string
   description?: string
   baseUrl?: string
   command?: string

@@ -912,7 +912,9 @@
         "jsonModeHint": "Редактируйте JSON-форматирование конфигурации сервера MCP. Перед сохранением убедитесь, что формат правильный.",
         "jsonFormatError": "Ошибка форматирования JSON",
         "jsonSaveSuccess": "JSON конфигурация сохранена",
-        "jsonSaveError": "Не удалось сохранить конфигурацию JSON"
+        "jsonSaveError": "Не удалось сохранить конфигурацию JSON",
+        "alias": "Псевдоним",
+        "aliasPlaceholder": "Например: mcp-server"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",

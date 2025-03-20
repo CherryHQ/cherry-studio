@@ -1,4 +1,5 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined } from '@ant-design/icons'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MCPToolResponse, Message } from '@renderer/types'
 import { Collapse, message as antdMessage, Modal, Tooltip } from 'antd'
@@ -24,6 +25,17 @@ const MessageTools: FC<Props> = ({ message }) => {
   }, [messageFont])
 
   const toolResponses = message.metadata?.mcpTools || []
+
+  const { mcpServers } = useMCPServers()
+  const toolAliasMap = useMemo(() => {
+    return mcpServers.reduce(
+      (acc, server) => {
+        acc[server.name] = server.alias || server.name
+        return acc
+      },
+      {} as Record<string, string>
+    )
+  }, [mcpServers])
 
   if (isEmpty(toolResponses)) {
     return null
@@ -58,7 +70,7 @@ const MessageTools: FC<Props> = ({ message }) => {
         label: (
           <MessageTitleLabel>
             <TitleContent>
-              <ToolName>{tool.name}</ToolName>
+              <ToolName>{toolAliasMap[tool.serverName] || tool.name}</ToolName>
               <StatusIndicator $isInvoking={isInvoking}>
                 {isInvoking ? t('tools.invoking') : t('tools.completed')}
                 {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
@@ -75,7 +87,7 @@ const MessageTools: FC<Props> = ({ message }) => {
                         e.stopPropagation()
                         setExpandedResponse({
                           content: JSON.stringify(response, null, 2),
-                          title: tool.name
+                          title: toolAliasMap[tool.serverName] || tool.name
                         })
                       }}
                       aria-label={t('common.expand')}>
