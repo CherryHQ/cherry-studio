@@ -34,15 +34,15 @@ export function getModelName(model?: Model) {
 }
 
 export function hasAnyVisionModel(model: Model, models?: Model[]) {
-  return isVisionModel(model) || (models && models.some((model) => isVisionModel(model)))
+  return Boolean(isVisionModel(model)) || Boolean(models?.some((model) => isVisionModel(model)))
 }
 
 export function hasAnyFunctionCallingModel(model: Model, models?: Model[]) {
-  return isFunctionCallingModel(model) || (models && models.some((model) => isFunctionCallingModel(model)))
+  return Boolean(isFunctionCallingModel(model)) || Boolean(models?.some((model) => isFunctionCallingModel(model)))
 }
 
 export function hasAnyWebSearchModel(model: Model, models?: Model[]) {
-  return isWebSearchModel(model) || (models && models.some((model) => isWebSearchModel(model)))
+  return Boolean(isWebSearchModel(model)) || Boolean(models?.some((model) => isWebSearchModel(model)))
 }
 
 // Generic function to perform model checks
