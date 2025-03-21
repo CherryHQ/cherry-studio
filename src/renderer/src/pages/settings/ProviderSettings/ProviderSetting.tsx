@@ -95,14 +95,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       .map((k) => k.trim())
       .filter((k) => k)
 
+    // Add an empty key to enable health checks for local models.
+    // Error messages will be shown for each model if a valid key is needed.
     if (keys.length === 0) {
-      window.message.error({
-        key: 'no-api-keys',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.models.check.no_api_keys')
-      })
-      return
+      keys.push('')
     }
 
     // Show configuration dialog to get health check parameters
@@ -112,7 +108,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       apiKeys: keys
     })
 
-    if (result.cancelled || result.apiKeys.length === 0) {
+    if (result.cancelled) {
       return
     }
 
@@ -162,9 +158,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       duration: 10,
       content: t('settings.models.check.model_status_summary', {
         provider: provider.name,
-        count_passed: successModels.length,
-        count_failed: failedModels.length,
-        count_partial: partialModels.length
+        count_passed: successModels.length + partialModels.length,
+        count_partial: partialModels.length,
+        count_failed: failedModels.length
       })
     })
 

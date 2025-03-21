@@ -85,7 +85,7 @@
     "npx-scope-finder": "^1.2.0",
     "officeparser": "^4.1.1",
     "p-queue": "^8.1.0",
-    "socks-proxy-agent": "^8.0.3",
+    "proxy-agent": "^6.5.0",
     "tar": "^7.4.3",
     "tokenx": "^0.4.1",
     "undici": "^7.4.0",

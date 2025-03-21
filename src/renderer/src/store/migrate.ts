@@ -795,6 +795,13 @@ const migrateConfig = {
     return state
   },
   '83': (state: RootState) => {
+    state.settings.messageNavigation = 'buttons'
+    state.settings.launchOnBoot = false
+    state.settings.launchToTray = false
+    state.settings.trayOnClose = true
+    return state
+  },
+  '84': (state: RootState) => {
     // cant get old prompts from state
     const oldsearchSummaryPrompt = state.settings.searchSummaryPrompt
     const oldtranslateModelPrompt = state.settings.translateModelPrompt

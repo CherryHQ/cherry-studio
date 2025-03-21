@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { MCPServer, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, session, shell } from 'electron'
@@ -68,9 +69,36 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setLanguage(language)
   })
 
+  // launch on boot
+  ipcMain.handle('app:set-launch-on-boot', (_, isActive: boolean) => {
+    // Set login item settings for windows and mac
+    // linux is not supported because it requires more file operations
+    if (isWin || isMac) {
+      if (isActive) {
+        app.setLoginItemSettings({
+          openAtLogin: true
+        })
+      } else {
+        app.setLoginItemSettings({
+          openAtLogin: false
+        })
+      }
+    }
+  })
+
+  // launch to tray
+  ipcMain.handle('app:set-launch-to-tray', (_, isActive: boolean) => {
+    configManager.setLaunchToTray(isActive)
+  })
+
   // tray
   ipcMain.handle('app:set-tray', (_, isActive: boolean) => {
     configManager.setTray(isActive)
+  })
+
+  // to tray on close
+  ipcMain.handle('app:set-tray-on-close', (_, isActive: boolean) => {
+    configManager.setTrayOnClose(isActive)
   })
 
   ipcMain.handle('app:restart-tray', () => TrayService.getInstance().restartTray())
