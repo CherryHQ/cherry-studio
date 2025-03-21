@@ -418,6 +418,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@buttercup/fetch@npm:^0.2.1":
+  version: 0.2.1
+  resolution: "@buttercup/fetch@npm:0.2.1"
+  dependencies:
+    node-fetch: "npm:^3.3.0"
+  dependenciesMeta:
+    node-fetch:
+      optional: true
+  checksum: 10c0/e18cc830d7700d592812d9321d69d52537ae451eb3881021ed0a544d523e0a827ab1b8746823faa1166e17fd3257cbaa63ae9cc304ed534984e615c6c21f3944
+  languageName: node
+  linkType: hard
+
 "@cfworker/json-schema@npm:^4.0.2":
   version: 4.1.1
   resolution: "@cfworker/json-schema@npm:4.1.1"
@@ -3411,6 +3423,7 @@ __metadata:
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.77.2"
     shiki: "npm:^1.22.2"
+    socks-proxy-agent: "npm:^8.0.3"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
     tar: "npm:^7.4.3"
@@ -3420,7 +3433,7 @@ __metadata:
     undici: "npm:^7.4.0"
     uuid: "npm:^10.0.0"
     vite: "npm:^5.0.12"
-    webdav: "npm:4.11.4"
+    webdav: "npm:^5.8.0"
     zipread: "npm:^1.3.3"
   peerDependencies:
     react: ^17.0.0 || ^18.0.0
@@ -3927,16 +3940,6 @@ __metadata:
   version: 1.13.2
   resolution: "aws4@npm:1.13.2"
   checksum: 10c0/c993d0d186d699f685d73113733695d648ec7d4b301aba2e2a559d0cd9c1c902308cc52f4095e1396b23fddbc35113644e7f0a6a32753636306e41e3ed6f1e79
-  languageName: node
-  linkType: hard
-
-"axios@npm:^0.27.2":
-  version: 0.27.2
-  resolution: "axios@npm:0.27.2"
-  dependencies:
-    follow-redirects: "npm:^1.14.9"
-    form-data: "npm:^4.0.0"
-  checksum: 10c0/76d673d2a90629944b44d6f345f01e58e9174690f635115d5ffd4aca495d99bcd8f95c590d5ccb473513f5ebc1d1a6e8934580d0c57cdd0498c3a101313ef771
   languageName: node
   linkType: hard
 
@@ -5844,6 +5847,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"entities@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "entities@npm:6.0.0"
+  checksum: 10c0/b82a7bd5de282860f3c36a91e815e41e874fd036c83956a568b82729678492eb088359d6f7e0a4f5c00776427263fcba04959b8340fefa430c39b9bce770427e
+  languageName: node
+  linkType: hard
+
 "env-paths@npm:^2.2.0, env-paths@npm:^2.2.1":
   version: 2.2.1
   resolution: "env-paths@npm:2.2.1"
@@ -6685,7 +6695,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fast-xml-parser@npm:^4.2.4, fast-xml-parser@npm:^4.5.0, fast-xml-parser@npm:^4.5.1":
+"fast-xml-parser@npm:^4.5.0, fast-xml-parser@npm:^4.5.1":
   version: 4.5.3
   resolution: "fast-xml-parser@npm:4.5.3"
   dependencies:
@@ -6912,7 +6922,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"follow-redirects@npm:^1.14.9, follow-redirects@npm:^1.15.6":
+"follow-redirects@npm:^1.15.6":
   version: 1.15.9
   resolution: "follow-redirects@npm:1.15.9"
   peerDependenciesMeta:
@@ -7737,15 +7747,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"he@npm:^1.2.0":
-  version: 1.2.0
-  resolution: "he@npm:1.2.0"
-  bin:
-    he: bin/he
-  checksum: 10c0/a27d478befe3c8192f006cdd0639a66798979dfa6e2125c6ac582a19a5ebfec62ad83e8382e6036170d873f46e4536a7e795bf8b95bf7c247f4cc0825ccc8c17
-  languageName: node
-  linkType: hard
-
 "hoist-non-react-statics@npm:^3.3.0, hoist-non-react-statics@npm:^3.3.2":
   version: 3.3.2
   resolution: "hoist-non-react-statics@npm:3.3.2"
@@ -7771,10 +7772,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hot-patcher@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "hot-patcher@npm:1.0.0"
-  checksum: 10c0/0c3ee3e1cb45f8b09ecb6d9af11b35b05f94b0767e09a303d89a7b6073b55ee98bd5c9b563ff17bfa1add55bbe3ff7598bbbb8c035578e05dd12631f2351cdb6
+"hot-patcher@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "hot-patcher@npm:2.0.1"
+  checksum: 10c0/cabccf0d78b9604cdd73b88d1cfcdff5ae27b501df97ee20131979513cc17c532f4f04605d24ac9225d2c046fc435062cec86b49f9fb3f524b446a296e8c1b62
   languageName: node
   linkType: hard
 
@@ -8884,10 +8885,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"layerr@npm:^0.1.2":
-  version: 0.1.2
-  resolution: "layerr@npm:0.1.2"
-  checksum: 10c0/e329ec13a31cd676c2fdf2127d43b794dab692991d7fa64cfd752d36e0c17799341e208b4727d944373d0a8c91fdd263023d66498e3152f8672238de47f9c602
+"layerr@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "layerr@npm:3.0.0"
+  checksum: 10c0/320c9b9cf1392c73c9ff8f8d1bb7a782093ac7341fe5d7fea6ebfeea6d785af8e0fc573541431b6ffcb268577f8aea66168757e73a15035568a00ab9e4370705
   languageName: node
   linkType: hard
 
@@ -10351,7 +10352,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"minimatch@npm:^5.0.1, minimatch@npm:^5.1.0, minimatch@npm:^5.1.1":
+"minimatch@npm:^5.0.1, minimatch@npm:^5.1.1":
   version: 5.1.6
   resolution: "minimatch@npm:5.1.6"
   dependencies:
@@ -10360,7 +10361,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"minimatch@npm:^9.0.4":
+"minimatch@npm:^9.0.4, minimatch@npm:^9.0.5":
   version: 9.0.5
   resolution: "minimatch@npm:9.0.5"
   dependencies:
@@ -10723,7 +10724,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-fetch@npm:^3.3.2":
+"node-fetch@npm:^3.3.0, node-fetch@npm:^3.3.2":
   version: 3.3.2
   resolution: "node-fetch@npm:3.3.2"
   dependencies:
@@ -14997,10 +14998,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"url-join@npm:^4.0.1":
-  version: 4.0.1
-  resolution: "url-join@npm:4.0.1"
-  checksum: 10c0/ac65e2c7c562d7b49b68edddcf55385d3e922bc1dd5d90419ea40b53b6de1607d1e45ceb71efb9d60da02c681d13c6cb3a1aa8b13fc0c989dfc219df97ee992d
+"url-join@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "url-join@npm:5.0.0"
+  checksum: 10c0/ed2b166b4b5a98adcf6828a48b6bd6df1dac4c8a464a73cf4d8e2457ed410dd8da6be0d24855b86026cd7f5c5a3657c1b7b2c7a7c5b8870af17635a41387b04c
   languageName: node
   linkType: hard
 
@@ -15267,24 +15268,25 @@ __metadata:
   languageName: node
   linkType: hard
 
-"webdav@npm:4.11.4":
-  version: 4.11.4
-  resolution: "webdav@npm:4.11.4"
+"webdav@npm:^5.8.0":
+  version: 5.8.0
+  resolution: "webdav@npm:5.8.0"
   dependencies:
-    axios: "npm:^0.27.2"
+    "@buttercup/fetch": "npm:^0.2.1"
     base-64: "npm:^1.0.0"
     byte-length: "npm:^1.0.2"
-    fast-xml-parser: "npm:^4.2.4"
-    he: "npm:^1.2.0"
-    hot-patcher: "npm:^1.0.0"
-    layerr: "npm:^0.1.2"
+    entities: "npm:^6.0.0"
+    fast-xml-parser: "npm:^4.5.1"
+    hot-patcher: "npm:^2.0.1"
+    layerr: "npm:^3.0.0"
     md5: "npm:^2.3.0"
-    minimatch: "npm:^5.1.0"
+    minimatch: "npm:^9.0.5"
     nested-property: "npm:^4.0.0"
+    node-fetch: "npm:^3.3.2"
     path-posix: "npm:^1.0.0"
-    url-join: "npm:^4.0.1"
+    url-join: "npm:^5.0.0"
     url-parse: "npm:^1.5.10"
-  checksum: 10c0/8b1ae47c4df6c3ee832ff1abe05ca8c03c5284519a07b41ae816e417688de0aae6f9c5ced04ecedd14daae5ec7367c6af010fda55d3458b424e51a95a817133e
+  checksum: 10c0/eb4742ca07b3bd22594bbec139d6bfe34c76e4802ef5bcf259a6d555890cd89de85b365b73364c89c9841df203e47879f0c9c0ac74c40aa1f52298ba83b9a727
   languageName: node
   linkType: hard
 

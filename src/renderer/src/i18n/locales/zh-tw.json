@@ -768,7 +768,13 @@
           "syncError": "備份錯誤",
           "syncStatus": "備份狀態",
           "title": "WebDAV",
-          "user": "WebDAV 使用者名稱"
+          "user": "WebDAV 使用者名稱",
+          "backup.modal.title": "備份到 WebDAV",
+          "backup.modal.filename.placeholder": "請輸入備份文件名",
+          "restore.modal.title": "從 WebDAV 恢復",
+          "restore.modal.select.placeholder": "請選擇要恢復的備份文件",
+          "restore.confirm.title": "復元確認",
+          "restore.confirm.content": "從 WebDAV 恢復將覆蓋目前資料，是否繼續？"
         },
         "yuque": {
           "check": {

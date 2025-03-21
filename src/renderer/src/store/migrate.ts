@@ -382,6 +382,7 @@ const migrateConfig = {
     return state
   },
   '44': (state: RootState) => {
+    // @ts-ignore - Accessing old settings structure
     state.settings.translateModelPrompt = TRANSLATE_PROMPT
     return state
   },
@@ -391,10 +392,12 @@ const migrateConfig = {
   },
   '46': (state: RootState) => {
     if (
+      // @ts-ignore - Accessing old settings structure
       state.settings?.translateModelPrompt?.includes(
         'If the target language is the same as the source language, do not translate'
       )
     ) {
+      // @ts-ignore - Accessing old settings structure
       state.settings.translateModelPrompt = TRANSLATE_PROMPT
     }
     return state
@@ -450,6 +453,7 @@ const migrateConfig = {
     return state
   },
   '51': (state: RootState) => {
+    // @ts-ignore - Accessing old settings structure
     state.settings.topicNamingPrompt = ''
     return state
   },
@@ -548,6 +552,7 @@ const migrateConfig = {
         provider.type = 'azure-openai'
       }
     })
+    // @ts-ignore - Accessing old settings structure
     state.settings.translateModelPrompt = TRANSLATE_PROMPT
     return state
   },
@@ -774,7 +779,31 @@ const migrateConfig = {
     return state
   },
   '82': (state: RootState) => {
-    state.settings.searchSummaryPrompt = SEARCH_SUMMARY_PROMPT
+    const runtimeState = state.runtime as any
+    if (runtimeState?.webdavSync) {
+      state.backup = state.backup || {}
+      state.backup = {
+        ...state.backup,
+        webdavSync: {
+          lastSyncTime: runtimeState.webdavSync.lastSyncTime || null,
+          syncing: runtimeState.webdavSync.syncing || false,
+          lastSyncError: runtimeState.webdavSync.lastSyncError || null
+        }
+      }
+      delete runtimeState.webdavSync
+    }
+    return state
+  },
+  '83': (state: RootState) => {
+    // cant get old prompts from state
+    const oldsearchSummaryPrompt = state.settings.searchSummaryPrompt
+    const oldtranslateModelPrompt = state.settings.translateModelPrompt
+    const oldtopicNamingPrompt = state.settings.topicNamingPrompt
+    state.prompts = {
+      searchSummaryPrompt: oldsearchSummaryPrompt || SEARCH_SUMMARY_PROMPT,
+      translateModelPrompt: oldtranslateModelPrompt || TRANSLATE_PROMPT,
+      topicNamingPrompt: oldtopicNamingPrompt || ''
+    }
     return state
   }
 }
