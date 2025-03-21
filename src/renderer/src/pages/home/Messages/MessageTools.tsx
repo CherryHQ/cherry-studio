@@ -60,7 +60,7 @@ const MessageTools: FC<Props> = ({ message }) => {
             <TitleContent>
               <ToolName>{tool.name}</ToolName>
               <StatusIndicator $isInvoking={isInvoking}>
-                {isInvoking ? t('tools.invoking') : t('tools.completed')}
+                {isInvoking ? t('message.tools.invoking') : t('message.tools.completed')}
                 {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
                 {isDone && <CheckOutlined style={{ marginLeft: 6 }} />}
               </StatusIndicator>

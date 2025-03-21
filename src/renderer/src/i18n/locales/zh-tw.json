@@ -237,7 +237,8 @@
       "copied": "已複製",
       "confirm": "確認",
       "more": "更多",
-      "advanced_settings": "進階設定"
+      "advanced_settings": "進階設定",
+      "expand": "展開"
     },
     "docs": {
       "title": "說明文件"
@@ -483,7 +484,11 @@
       "upgrade.success.content": "請重新啟動程式以完成升級",
       "upgrade.success.title": "升級成功",
       "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！",
-      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試"
+      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試",
+      "tools": {
+        "invoking": "調用中",
+        "completed": "已完成"
+      }
     },
     "minapp": {
       "sidebar.add.title": "新增到側邊欄",

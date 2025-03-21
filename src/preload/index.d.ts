@@ -68,8 +68,8 @@ declare global {
         update: (shortcuts: Shortcut[]) => Promise<void>
       }
       knowledgeBase: {
-        create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) => Promise<void>
-        reset: ({ base }: { base: KnowledgeBaseParams }) => Promise<void>
+        create: (base: KnowledgeBaseParams) => Promise<void>
+        reset: (base: KnowledgeBaseParams) => Promise<void>
         delete: (id: string) => Promise<void>
         add: ({
           base,
