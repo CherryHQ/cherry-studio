@@ -22,7 +22,8 @@ export default defineConfig({
           '@llm-tools/embedjs-loader-sitemap',
           '@llm-tools/embedjs-libsql',
           '@llm-tools/embedjs-loader-image',
-          'p-queue'
+          'p-queue',
+          'webdav'
         ]
       }),
       ...visualizerPlugin('main')

@@ -27,6 +27,7 @@ import styled from 'styled-components'
 
 import ChatNavigation from './ChatNavigation'
 import MessageGroup from './MessageGroup'
+import MessageAnchorLine from './MessageAnchorLine'
 import NarrowLayout from './NarrowLayout'
 import NewTopicButton from './NewTopicButton'
 import Prompt from './Prompt'
@@ -39,13 +40,14 @@ interface MessagesProps {
 
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
   const { t } = useTranslation()
-  const { showTopics, topicPosition, showAssistants } = useSettings()
+  const { showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const containerRef = useRef<HTMLDivElement>(null)
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [isProcessingContext, setIsProcessingContext] = useState(false)
   const { messages, displayCount, loading, updateMessages, clearTopicMessages, deleteMessage } =
     useMessageOperations(topic)
 
@@ -107,30 +109,38 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         }
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {
-        const messages = messagesRef.current
+        if (isProcessingContext) return
+        setIsProcessingContext(true)
 
-        if (messages.length === 0) {
-          return
-        }
+        try {
+          const messages = messagesRef.current
 
-        const lastMessage = last(messages)
+          if (messages.length === 0) {
+            return
+          }
 
-        if (lastMessage?.type === 'clear') {
-          deleteMessage(lastMessage)
+          const lastMessage = last(messages)
+
+          if (lastMessage?.type === 'clear') {
+            await deleteMessage(lastMessage)
+            scrollToBottom()
+            return
+          }
+
+          const clearMessage = getUserMessage({ assistant, topic, type: 'clear' })
+          const newMessages = [...messages, clearMessage]
+          await updateMessages(newMessages)
+
           scrollToBottom()
-          return
+        } finally {
+          setIsProcessingContext(false)
         }
-
-        const clearMessage = getUserMessage({ assistant, topic, type: 'clear' })
-        const newMessages = [...messages, clearMessage]
-        await updateMessages(newMessages)
-
-        scrollToBottom()
       }),
       EventEmitter.on(EVENT_NAMES.NEW_BRANCH, async (index: number) => {
         const newTopic = getDefaultTopic(assistant.id)
         newTopic.name = topic.name
-        const branchMessages = take(messages, messages.length - index)
+        const currentMessages = messagesRef.current
+        const branchMessages = take(currentMessages, currentMessages.length - index)
 
         // 将分支的消息放入数据库
         await db.topics.add({ id: newTopic.id, messages: branchMessages })
@@ -151,7 +161,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
 
     return () => unsubscribes.forEach((unsub) => unsub())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, dispatch, scrollToBottom, topic])
+  }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext])
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -217,7 +227,10 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         </InfiniteScroll>
         <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
       </NarrowLayout>
-      <ChatNavigation containerId="messages" />
+
+      {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
+
+      {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
     </Container>
   )
 }

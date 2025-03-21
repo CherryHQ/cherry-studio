@@ -2,9 +2,9 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
-const https = require('https')
 const tar = require('tar')
 const AdmZip = require('adm-zip')
+const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading uv binaries
 const UV_RELEASE_BASE_URL = 'https://github.com/astral-sh/uv/releases/download'
@@ -30,41 +30,6 @@ const UV_PACKAGES = {
   'linux-musl-x64': 'uv-x86_64-unknown-linux-musl.tar.gz',
   'linux-musl-armv6l': 'uv-arm-unknown-linux-musleabihf.tar.gz',
   'linux-musl-armv7l': 'uv-armv7-unknown-linux-musleabihf.tar.gz'
-}
-
-/**
- * Downloads a file from a URL with redirect handling
- * @param {string} url The URL to download from
- * @param {string} destinationPath The path to save the file to
- * @returns {Promise<void>}
- */
-async function downloadWithRedirects(url, destinationPath) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(destinationPath)
-    const request = (url) => {
-      https
-        .get(url, (response) => {
-          if (response.statusCode === 302 || response.statusCode === 301) {
-            // Handle redirect
-            request(response.headers.location)
-            return
-          }
-
-          if (response.statusCode !== 200) {
-            reject(new Error(`Failed to download: ${response.statusCode}`))
-            return
-          }
-
-          response.pipe(file)
-          file.on('finish', () => {
-            file.close(resolve)
-          })
-        })
-        .on('error', reject)
-    }
-
-    request(url)
-  })
 }
 
 /**

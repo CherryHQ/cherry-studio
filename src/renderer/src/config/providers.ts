@@ -186,7 +186,7 @@ export const PROVIDER_CONFIG = {
   },
   together: {
     api: {
-      url: 'https://api.tohgether.xyz'
+      url: 'https://api.together.xyz'
     },
     websites: {
       official: 'https://www.together.ai/',

@@ -24,7 +24,6 @@ import { WebLoader } from '@llm-tools/embedjs-loader-web'
 import { AzureOpenAiEmbeddings, OpenAiEmbeddings } from '@llm-tools/embedjs-openai'
 import { addFileLoader } from '@main/loader'
 import Reranker from '@main/reranker/Reranker'
-import { proxyManager } from '@main/services/ProxyManager'
 import { windowService } from '@main/services/WindowService'
 import { getInstanceName } from '@main/utils'
 import { getAllFiles } from '@main/utils/file'
@@ -125,16 +124,15 @@ class KnowledgeService {
               azureOpenAIApiVersion: apiVersion,
               azureOpenAIApiDeploymentName: model,
               azureOpenAIApiInstanceName: getInstanceName(baseURL),
-              configuration: { httpAgent: proxyManager.getProxyAgent() },
               dimensions,
               batchSize
             })
           : new OpenAiEmbeddings({
               model,
               apiKey,
-              configuration: { baseURL, httpAgent: proxyManager.getProxyAgent() },
               dimensions,
-              batchSize
+              batchSize,
+              configuration: { baseURL }
             })
       )
       .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
@@ -426,7 +424,6 @@ class KnowledgeService {
   }
 
   public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
-    proxyManager.setGlobalProxy()
     return new Promise((resolve) => {
       const { base, item, forceReload = false } = options
       const optionsNonNullableAttribute = { base, item, forceReload }

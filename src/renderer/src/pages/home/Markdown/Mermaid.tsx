@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
+import React, { useEffect, useRef } from 'react'
+
 import MermaidPopup from './MermaidPopup'
 
 interface Props {

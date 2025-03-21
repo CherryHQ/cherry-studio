@@ -28,31 +28,6 @@ const initialState: MessagesState = {
   error: null
 }
 
-// const MAX_RECENT_TOPICS = 10
-
-// // 只初始化最近的会话消息
-// export const initializeMessagesState = createAsyncThunk('messages/initialize', async () => {
-//   try {
-//     // 获取所有会话的基本信息
-//     const recentTopics = await TopicManager.getTopicLimit(MAX_RECENT_TOPICS)
-//     console.log('recentTopics', recentTopics)
-//     const messagesByTopic: Record<string, Message[]> = {}
-
-//     // 只加载最近会话的消息
-//     for (const topic of recentTopics) {
-//       if (topic.messages && topic.messages.length > 0) {
-//         const messages = topic.messages.map((msg) => ({ ...msg }))
-//         messagesByTopic[topic.id] = messages
-//       }
-//     }
-
-//     return messagesByTopic
-//   } catch (error) {
-//     console.error('Failed to initialize recent messages:', error)
-//     return {}
-//   }
-// })
-
 // 新增准备会话消息的函数，实现懒加载机制
 export const prepareTopicMessages = createAsyncThunk(
   'messages/prepareTopic',
@@ -144,7 +119,7 @@ const messagesSlice = createSlice({
         if (message) {
           Object.assign(message, updates)
           db.topics.update(topicId, {
-            messages: topicMessages.map((m) => (m.id === message.id ? cloneDeep(message) : m))
+            messages: topicMessages.map((m) => (m.id === message.id ? cloneDeep(message) : cloneDeep(m)))
           })
         }
       }
@@ -210,19 +185,6 @@ const messagesSlice = createSlice({
       }
     }
   }
-  // extraReducers: (builder) => {
-  //   builder
-  //     .addCase(initializeMessagesState.pending, (state) => {
-  //       state.error = null
-  //     })
-  //     .addCase(initializeMessagesState.fulfilled, (state, action) => {
-  //       console.log('initializeMessagesState.fulfilled', action.payload)
-  //       state.messagesByTopic = action.payload
-  //     })
-  //     .addCase(initializeMessagesState.rejected, (state, action) => {
-  //       state.error = action.error.message || 'Failed to load messages'
-  //     })
-  // }
 })
 
 const handleResponseMessageUpdate = (

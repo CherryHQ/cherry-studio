@@ -16,6 +16,7 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
+import { isReasoningModel } from '@renderer/config/models'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
@@ -23,7 +24,9 @@ import { translateText } from '@renderer/services/TranslateService'
 import { Message, Model } from '@renderer/types'
 import { Assistant, Topic } from '@renderer/types'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, removeTrailingDoubleSpaces } from '@renderer/utils'
+import { withMessageThought } from '@renderer/utils/formats'
 import {
+  exportMarkdownToJoplin,
   exportMarkdownToNotion,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
@@ -34,6 +37,8 @@ import dayjs from 'dayjs'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { clone } from 'lodash'
+
 interface Props {
   message: Message
   assistant: Assistant
@@ -53,6 +58,8 @@ const MessageMenubar: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
+  const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
+  const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const assistantModel = assistant?.model
   const {
     loading,
@@ -69,12 +76,21 @@ const MessageMenubar: FC<Props> = (props) => {
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      navigator.clipboard.writeText(removeTrailingDoubleSpaces(message.content))
+
+      // 只处理助手消息和来自推理模型的消息
+      if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
+        const processedMessage = withMessageThought(clone(message))
+        navigator.clipboard.writeText(removeTrailingDoubleSpaces(processedMessage.content.trimStart()))
+      } else {
+        // 其他情况直接复制原始内容
+        navigator.clipboard.writeText(removeTrailingDoubleSpaces(message.content.trimStart()))
+      }
+
       window.message.success({ content: t('message.copied'), key: 'copy-message' })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     },
-    [message.content, t]
+    [message, t]
   )
 
   const onNewBranch = useCallback(async () => {
@@ -95,8 +111,15 @@ const MessageMenubar: FC<Props> = (props) => {
   const onEdit = useCallback(async () => {
     let resendMessage = false
 
+    let textToEdit = message.content
+
+    if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
+      const processedMessage = withMessageThought(clone(message))
+      textToEdit = processedMessage.content
+    }
+
     const editedText = await TextEditPopup.show({
-      text: message.content,
+      text: textToEdit,
       children: (props) => {
         const onPress = () => {
           props.onOk?.()
@@ -112,7 +135,7 @@ const MessageMenubar: FC<Props> = (props) => {
       }
     })
 
-    if (editedText && editedText !== message.content) {
+    if (editedText && editedText !== textToEdit) {
       await editMessage(message.id, { content: editedText })
       resendMessage && handleResendUserMessage({ ...message, content: editedText })
     }
@@ -222,6 +245,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const title = getMessageTitle(message)
               await ObsidianExportPopup.show({ title, markdown })
             }
+          },
+          {
+            label: t('chat.topics.export.joplin'),
+            key: 'joplin',
+            onClick: async () => {
+              const title = getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMarkdownToJoplin(title, markdown)
+            }
           }
         ]
       }
@@ -280,10 +312,14 @@ const MessageMenubar: FC<Props> = (props) => {
         <Popconfirm
           title={t('message.regenerate.confirm')}
           okButtonProps={{ danger: true }}
-          destroyTooltipOnHide
           icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-          onConfirm={onRegenerate}>
-          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+          onConfirm={onRegenerate}
+          onOpenChange={(open) => open && setShowRegenerateTooltip(false)}>
+          <Tooltip
+            title={t('common.regenerate')}
+            mouseEnterDelay={0.8}
+            open={showRegenerateTooltip}
+            onOpenChange={setShowRegenerateTooltip}>
             <ActionButton className="message-action-button">
               <SyncOutlined />
             </ActionButton>
@@ -335,9 +371,14 @@ const MessageMenubar: FC<Props> = (props) => {
         title={t('message.message.delete.content')}
         okButtonProps={{ danger: true }}
         icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+        onOpenChange={(open) => open && setShowDeleteTooltip(false)}
         onConfirm={() => deleteMessage(message)}>
         <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-          <Tooltip title={t('common.delete')} mouseEnterDelay={1}>
+          <Tooltip
+            title={t('common.delete')}
+            mouseEnterDelay={1}
+            open={showDeleteTooltip}
+            onOpenChange={setShowDeleteTooltip}>
             <DeleteOutlined />
           </Tooltip>
         </ActionButton>

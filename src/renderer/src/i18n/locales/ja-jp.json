@@ -174,6 +174,7 @@
       "topics.export.obsidian_export_failed": "エクスポート失敗",
       "topics.export.obsidian_show_md_files": "mdファイルを表示",
       "topics.export.obsidian_selected_path": "選択済みパス",
+      "topics.export.joplin": "Joplin にエクスポート",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
       "topics.pinned": "トピックを固定",
@@ -239,7 +240,8 @@
       "copied": "コピーされました",
       "confirm": "確認",
       "more": "もっと",
-      "advanced_settings": "詳細設定"
+      "advanced_settings": "詳細設定",
+      "expand": "展開"
     },
     "docs": {
       "title": "ドキュメント"
@@ -444,6 +446,8 @@
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
       "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.yuque.no_config": "語雀Token または 知識ベースID が設定されていません",
+      "error.joplin.no_config": "Joplin 認証トークン または URL が設定されていません",
+      "error.joplin.export": "Joplin へのエクスポートに失敗しました。Joplin が実行中であることを確認してください",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
       "loading.notion.preparing": "Notionへのエクスポートを準備中...",
@@ -476,13 +480,18 @@
       "success.markdown.export.specified": "Markdown ファイルを正常にエクスポートしました",
       "success.notion.export": "Notionへのエクスポートに成功しました",
       "success.yuque.export": "語雀へのエクスポートに成功しました",
+      "success.joplin.export": "Joplin へのエクスポートに成功しました",
       "switch.disabled": "現在の応答が完了するまで切り替えを無効にします",
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
       "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
-      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"
+      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。",
+      "tools": {
+        "invoking": "呼び出し中",
+        "completed": "完了"
+      }
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
@@ -762,7 +771,13 @@
           "syncError": "バックアップエラー",
           "syncStatus": "バックアップ状態",
           "title": "WebDAV",
-          "user": "WebDAVユーザー"
+          "user": "WebDAVユーザー",
+          "backup.modal.title": "WebDAV にバックアップ",
+          "backup.modal.filename.placeholder": "バックアップファイル名を入力してください",
+          "restore.modal.title": "WebDAV から復元",
+          "restore.modal.select.placeholder": "復元するバックアップファイルを選択してください",
+          "restore.confirm.title": "復元を確認",
+          "restore.confirm.content": "WebDAV から復元すると現在のデータが上書きされます。続行しますか？"
         },
         "yuque": {
           "check": {
@@ -793,6 +808,21 @@
           "title": "Obsidian 設定",
           "api_key": "Obsidian API Key",
           "api_key_placeholder": "Obsidian API Key を入力してください"
+        },
+        "joplin": {
+          "check": {
+            "button": "確認",
+            "empty_url": "Joplin 剪輯服務 URL を先に入力してください",
+            "empty_token": "Joplin 認証トークン を先に入力してください",
+            "fail": "Joplin 接続確認に失敗しました",
+            "success": "Joplin 接続確認に成功しました"
+          },
+          "title": "Joplin 設定",
+          "help": "Joplin オプションで、剪輯サービスを有効にしてください。ポート番号を確認し、認証トークンをコピーしてください",
+          "url": "Joplin 剪輯服務 URL",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Joplin 認証トークン",
+          "token_placeholder": "Joplin 認証トークンを入力してください"
         }
       },
       "display.advanced.title": "高度な設定",
@@ -874,6 +904,7 @@
         "editServer": "サーバーを編集",
         "env": "環境変数",
         "envTooltip": "形式: KEY=value, 1行に1つ",
+        "findMore": "MCP サーバーを見つける",
         "name": "名前",
         "nameRequired": "サーバー名を入力してください",
         "noServers": "サーバーが設定されていません",
@@ -913,6 +944,10 @@
         "jsonSaveError": "JSON設定の保存に失敗しました"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
+      "messages.navigation": "メッセージナビゲーション",
+      "messages.navigation.none": "表示しない",
+      "messages.navigation.buttons": "上下ボタン",
+      "messages.navigation.anchor": "会話アンカー",
       "messages.grid_columns": "メッセージグリッドの表示列数",
       "messages.grid_popover_trigger": "グリッド詳細トリガー",
       "messages.grid_popover_trigger.click": "クリックで表示",
@@ -946,7 +981,7 @@
       "models.check.enabled": "開く",
       "models.check.failed": "失敗",
       "models.check.keys_status_count": "合格：{{count_passed}}個のキー、不合格：{{count_failed}}個のキー",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}}個のモデルが成功しました、{{count_failed}}個のモデルが失敗しました、{{count_partial}}個のモデルが一部成功しました",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} 個のモデルが健康チェックを完了しました（{{count_partial}} 個のモデルは一部のキーにアクセスできませんでした）、{{count_failed}} 個のモデルは完全にアクセスできませんでした。",
       "models.check.no_api_keys": "APIキーが見つかりません。まずAPIキーを追加してください。",
       "models.check.passed": "成功",
       "models.check.select_api_key": "使用するAPIキーを選択：",
@@ -1078,7 +1113,12 @@
       "topic.position.left": "左",
       "topic.position.right": "右",
       "topic.show.time": "トピックの時間を表示",
-      "tray.title": "システムトレイアイコンを有効にする",
+      "tray.title": "トレイ",
+      "tray.show": "トレイアイコンを表示",
+      "tray.onclose": "閉じるときにトレイに最小化",
+      "launch.title": "起動",
+      "launch.onboot": "起動時に自動で開始",
+      "launch.totray": "起動時にトレイに最小化",
       "websearch": {
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
@@ -1093,6 +1133,8 @@
         "search_provider_placeholder": "検索サービスプロバイダーを選択する",
         "search_result_default": "デフォルト",
         "search_with_time": "日付を含む検索",
+        "enhance_mode": "検索強化モード",
+        "enhance_mode_tooltip": "デフォルトモデルを使用して問題から検索キーワードを抽出し、検索を実行します",
         "tavily": {
           "api_key": "Tavily API キー",
           "api_key.placeholder": "Tavily API キーを入力してください",
