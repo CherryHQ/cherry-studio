@@ -10,7 +10,7 @@ import { updateMessage } from '@renderer/store/messages'
 import { Message } from '@renderer/types'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { Avatar } from 'antd'
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 interface MessageLineProps {
@@ -31,12 +31,33 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const { userName } = useSettings()
   const messagesListRef = useRef<HTMLDivElement>(null)
   const messageItemsRef = useRef<Map<string, HTMLDivElement>>(new Map())
+  const containerRef = useRef<HTMLDivElement>(null)
   const [mouseY, setMouseY] = useState<number | null>(null)
   const { topicPosition, showTopics } = useSettings()
   const showRightTopics = topicPosition === 'right' && showTopics
-  const right = showRightTopics ? 'calc(var(--topic-list-width) + 0px)' : '0px'
+  const right = showRightTopics ? 'calc(var(--topic-list-width) + 15px)' : '15px'
 
   const [listOffsetY, setListOffsetY] = useState(0)
+  const [containerHeight, setContainerHeight] = useState<number | null>(null)
+
+  // 检测并设置父容器高度
+  useEffect(() => {
+    const updateHeight = () => {
+      if (containerRef.current) {
+        const parentElement = containerRef.current.parentElement
+        if (parentElement) {
+          setContainerHeight(parentElement.clientHeight - 20)
+        }
+      }
+    }
+
+    updateHeight()
+    window.addEventListener('resize', updateHeight)
+
+    return () => {
+      window.removeEventListener('resize', updateHeight)
+    }
+  }, [])
 
   // 函数用于计算根据距离的变化值
   const calculateValueByDistance = useCallback(
@@ -128,7 +149,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
 
       if (listRect.height > containerRect.height) {
         const mousePositionRatio = (e.clientY - containerRect.top) / containerRect.height
-        const maxOffset = (containerRect.height - listRect.height) / 2
+        const maxOffset = (containerRect.height - listRect.height) / 2 - 10
         setListOffsetY(-maxOffset + mousePositionRatio * (maxOffset * 2))
       } else {
         setListOffsetY(0)
@@ -142,7 +163,12 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   }
 
   return (
-    <MessageLineContainer onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} $right={right}>
+    <MessageLineContainer
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      $right={right}
+      $height={containerHeight}>
       <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
         {messages.map((message, index) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
@@ -207,13 +233,13 @@ const MessageItemContainer = styled.div`
   transform-origin: right center;
 `
 
-const MessageLineContainer = styled.div<{ $right: string }>`
+const MessageLineContainer = styled.div<{ $right: string; $height: number | null }>`
   position: fixed;
   top: var(--status-bar-height);
   bottom: var(--status-bar-height);
   right: ${(props) => props.$right};
   width: 25px;
-  height: calc(100% - var(--status-bar-height) * 2);
+  height: ${(props) => (props.$height ? `${props.$height}px` : 'calc(100% - var(--status-bar-height) * 2)')};
   z-index: 100;
   user-select: none;
   display: flex;
@@ -221,9 +247,11 @@ const MessageLineContainer = styled.div<{ $right: string }>`
   justify-content: flex-end;
   font-size: 5px;
   overflow: hidden;
-  padding-right: 10px;
+  padding: 10px 0;
   &:hover {
-    overflow: visible;
+    width: 60%;
+    overflow-x: visible;
+    overflow-y: hidden;
     ${MessageItemContainer} {
       opacity: 1;
     }
