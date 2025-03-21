@@ -207,6 +207,7 @@ export type WebDavConfig = {
   webdavUser: string
   webdavPass: string
   webdavPath: string
+  fileName?: string
 }
 
 export type AppInfo = {

@@ -142,10 +142,10 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           name="rerankModel"
           label={t('models.rerank_model')}
           tooltip={{ title: t('models.rerank_model_tooltip'), placement: 'right' }}
+          initialValue={getModelUniqId(base.rerankModel) || undefined}
           rules={[{ required: false, message: t('message.error.enter.model') }]}>
           <Select
             style={{ width: '100%' }}
-            defaultValue={getModelUniqId(base.rerankModel) || undefined}
             options={rerankSelectOptions}
             placeholder={t('settings.models.empty')}
             allowClear
