@@ -339,7 +339,10 @@ export class WindowService {
 
     if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
       if (this.mainWindow.isFocused()) {
-        this.mainWindow.hide()
+        // if tray is enabled, hide the main window, else do nothing
+        if (configManager.getTray()) {
+          this.mainWindow.hide()
+        }
       } else {
         this.mainWindow.focus()
       }

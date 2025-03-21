@@ -1073,7 +1073,7 @@
         "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
         "reset_to_default": "重設為預設",
         "search_message": "搜尋訊息",
-        "show_app": "顯示應用程式",
+        "show_app": "顯示/隱藏應用程式",
         "show_settings": "開啟設定",
         "title": "快速方式",
         "toggle_new_context": "清除上下文",

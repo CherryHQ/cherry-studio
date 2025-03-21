@@ -1073,7 +1073,7 @@
         "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
         "reset_to_default": "Reset to Default",
         "search_message": "Search Message",
-        "show_app": "Show App",
+        "show_app": "Show/Hide App",
         "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",
         "toggle_new_context": "Clear Context",
