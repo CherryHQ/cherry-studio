@@ -292,8 +292,10 @@ const MessageMenubar: FC<Props> = (props) => {
           okButtonProps={{ danger: true }}
           destroyTooltipOnHide
           icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-          onConfirm={onRegenerate}>
-          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+          onConfirm={onRegenerate}
+          zIndex={1080}>
+          {/* set zIndex to avoid the popconfirm being covered by the tooltip. 1070 is the default zIndex of the tooltip */}
+          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8} zIndex={1070}>
             <ActionButton className="message-action-button">
               <SyncOutlined />
             </ActionButton>
