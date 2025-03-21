@@ -54,11 +54,6 @@ export async function getTopicById(topicId: string) {
   return { ...topic, messages } as Topic
 }
 
-export function isRenamingTopic(topicId: string) {
-  const renamingTopicIds = store.getState().runtime.renamingTopicIds
-  return renamingTopicIds.includes(topicId)
-}
-
 export function startRenamingTopic(topicId: string) {
   store.dispatch(addRenamingTopicId(topicId))
 }
@@ -68,7 +63,9 @@ export function finishRenamingTopic(topicId: string) {
 }
 
 export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
-  if (isRenamingTopic(topicId)) {
+  const renamingTopicIds = store.getState().runtime.renamingTopicIds
+
+  if (renamingTopicIds.includes(topicId)) {
     return
   }
 
@@ -78,11 +75,7 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     const topic = await getTopicById(topicId)
     const enableTopicNaming = getStoreSetting('enableTopicNaming')
 
-    if (isEmpty(topic.messages)) {
-      return
-    }
-
-    if (topic.isNameManuallyEdited) {
+    if (isEmpty(topic.messages) || topic.isNameManuallyEdited) {
       return
     }
 
