@@ -1,6 +1,6 @@
 import { ProxyConfig as _ProxyConfig, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
-import { HttpsProxyAgent } from 'https-proxy-agent'
+import { ProxyAgent as GeneralProxyAgent } from 'proxy-agent'
 import { ProxyAgent, setGlobalDispatcher } from 'undici'
 
 type ProxyMode = 'system' | 'custom' | 'none'
@@ -12,7 +12,7 @@ export interface ProxyConfig {
 
 export class ProxyManager {
   private config: ProxyConfig
-  private proxyAgent: HttpsProxyAgent | null = null
+  private proxyAgent: GeneralProxyAgent | null = null
   private proxyUrl: string | null = null
   private systemProxyInterval: NodeJS.Timeout | null = null
 
@@ -76,8 +76,8 @@ export class ProxyManager {
       const url = await this.resolveSystemProxy()
       if (url && url !== this.proxyUrl) {
         this.proxyUrl = url.toLowerCase()
-        this.proxyAgent = new HttpsProxyAgent(this.proxyUrl)
         this.setEnvironment(this.proxyUrl)
+        this.proxyAgent = new GeneralProxyAgent()
       }
     } catch (error) {
       console.error('Failed to set system proxy:', error)
@@ -89,8 +89,8 @@ export class ProxyManager {
     try {
       if (this.config.url) {
         this.proxyUrl = this.config.url.toLowerCase()
-        this.proxyAgent = new HttpsProxyAgent(this.proxyUrl)
         this.setEnvironment(this.proxyUrl)
+        this.proxyAgent = new GeneralProxyAgent()
         await this.setSessionsProxy({ proxyRules: this.proxyUrl })
       }
     } catch (error) {
@@ -128,7 +128,7 @@ export class ProxyManager {
     }
   }
 
-  getProxyAgent(): HttpsProxyAgent | null {
+  getProxyAgent(): GeneralProxyAgent | null {
     return this.proxyAgent
   }
 
