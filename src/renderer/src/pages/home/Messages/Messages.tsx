@@ -139,7 +139,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       EventEmitter.on(EVENT_NAMES.NEW_BRANCH, async (index: number) => {
         const newTopic = getDefaultTopic(assistant.id)
         newTopic.name = topic.name
-        const branchMessages = take(messages, messages.length - index)
+        const currentMessages = messagesRef.current
+        const branchMessages = take(currentMessages, currentMessages.length - index)
 
         // 将分支的消息放入数据库
         await db.topics.add({ id: newTopic.id, messages: branchMessages })
