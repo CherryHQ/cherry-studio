@@ -178,6 +178,7 @@
       "topics.prompt": "Topic Prompts",
       "topics.prompt.edit.title": "Edit Topic Prompts",
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
+      "topics.rename.locked": "Topic is being renamed, please try again later",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
       "topics.new": "New Topic",

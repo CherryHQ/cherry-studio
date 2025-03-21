@@ -54,10 +54,21 @@ export async function getTopicById(topicId: string) {
   return { ...topic, messages } as Topic
 }
 
-export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
+export function isRenamingTopic(topicId: string) {
   const renamingTopicIds = store.getState().runtime.renamingTopicIds
+  return renamingTopicIds.includes(topicId)
+}
 
-  if (renamingTopicIds.includes(topicId)) {
+export function startRenamingTopic(topicId: string) {
+  store.dispatch(addRenamingTopicId(topicId))
+}
+
+export function finishRenamingTopic(topicId: string) {
+  store.dispatch(removeRenamingTopicId(topicId))
+}
+
+export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
+  if (isRenamingTopic(topicId)) {
     return
   }
 

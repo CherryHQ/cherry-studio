@@ -178,6 +178,7 @@
       "topics.prompt": "话题提示词",
       "topics.prompt.edit.title": "编辑话题提示词",
       "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词",
+      "topics.rename.locked": "话题正在重命名中，请稍后再试",
       "topics.title": "话题",
       "topics.unpinned": "取消固定",
       "topics.new": "开始新对话",
