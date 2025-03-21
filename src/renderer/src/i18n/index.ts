@@ -1,6 +1,7 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
+import arSA from './locales/ar-sa.json'
 import enUS from './locales/en-us.json'
 import jaJP from './locales/ja-jp.json'
 import ruRU from './locales/ru-ru.json'
@@ -12,7 +13,8 @@ const resources = {
   'zh-CN': zhCN,
   'zh-TW': zhTW,
   'ja-JP': jaJP,
-  'ru-RU': ruRU
+  'ru-RU': ruRU,
+  'ar-SA': arSA
 }
 
 export const getLanguage = () => {
