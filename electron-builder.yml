@@ -32,12 +32,12 @@ asarUnpack:
   - '**/*.{node,dll,metal,exp,lib}'
 win:
   executableName: Cherry Studio
-  artifactName: ${productName}-${version}-portable.${ext}
+  artifactName: ${productName}-${version}-${arch}-portable.${ext}
   target:
     - target: nsis
     - target: portable
 nsis:
-  artifactName: ${productName}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always

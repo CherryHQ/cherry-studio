@@ -1,0 +1,17 @@
+diff --git a/index.js b/index.js
+index 4e8423491ab51a9eb9fee22182e4ea0fcc3d3d3b..2846c5d4354c130d478dc99565b3ecd6d85b7d2e 100644
+--- a/index.js
++++ b/index.js
+@@ -19,7 +19,11 @@ function requireNative() {
+       break;
+     }
+   }
+-  return require(`@libsql/${target}`);
++  if (target === "win32-arm64-msvc") {
++    return require(`@strongtz/win32-arm64-msvc`);
++  } else {
++    return require(`@libsql/${target}`);
++  }
+ }
+ 
+ const {
