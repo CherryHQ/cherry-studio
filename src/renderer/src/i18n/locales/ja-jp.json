@@ -768,7 +768,13 @@
           "syncError": "バックアップエラー",
           "syncStatus": "バックアップ状態",
           "title": "WebDAV",
-          "user": "WebDAVユーザー"
+          "user": "WebDAVユーザー",
+          "backup.modal.title": "WebDAV にバックアップ",
+          "backup.modal.filename.placeholder": "バックアップファイル名を入力してください",
+          "restore.modal.title": "WebDAV から復元",
+          "restore.modal.select.placeholder": "復元するバックアップファイルを選択してください",
+          "restore.confirm.title": "復元を確認",
+          "restore.confirm.content": "WebDAV から復元すると現在のデータが上書きされます。続行しますか？"
         },
         "yuque": {
           "check": {

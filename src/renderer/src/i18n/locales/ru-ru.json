@@ -768,7 +768,13 @@
           "syncError": "Ошибка резервного копирования",
           "syncStatus": "Статус резервного копирования",
           "title": "WebDAV",
-          "user": "Пользователь WebDAV"
+          "user": "Пользователь WebDAV",
+          "backup.modal.title": "Резервное копирование на WebDAV",
+          "backup.modal.filename.placeholder": "Введите имя файла резервной копии",
+          "restore.modal.title": "Восстановление с WebDAV",
+          "restore.modal.select.placeholder": "Выберите файл резервной копии для восстановления",
+          "restore.confirm.title": "Подтверждение восстановления",
+          "restore.confirm.content": "Восстановление с WebDAV перезапишет текущие данные, продолжить?"
         },
         "yuque": {
           "check": {
