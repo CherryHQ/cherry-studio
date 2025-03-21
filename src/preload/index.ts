@@ -17,6 +17,9 @@ const api = {
   openWebsite: (url: string) => ipcRenderer.invoke('open:website', url),
   minApp: (url: string) => ipcRenderer.invoke('minapp', url),
   clearCache: () => ipcRenderer.invoke('app:clear-cache'),
+  system: {
+    getDeviceType: () => ipcRenderer.invoke('system:getDeviceType')
+  },
   zip: {
     compress: (text: string) => ipcRenderer.invoke('zip:compress', text),
     decompress: (text: Buffer) => ipcRenderer.invoke('zip:decompress', text)
@@ -27,7 +30,8 @@ const api = {
     restore: (backupPath: string) => ipcRenderer.invoke('backup:restore', backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke('backup:backupToWebdav', data, webdavConfig),
-    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig)
+    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig),
+    listWebdavFiles: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:listWebdavFiles', webdavConfig)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke('file:select', options),

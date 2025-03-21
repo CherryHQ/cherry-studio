@@ -11,12 +11,6 @@ export interface UpdateState {
   available: boolean
 }
 
-export interface WebDAVSyncState {
-  lastSyncTime: number | null
-  syncing: boolean
-  lastSyncError: string | null
-}
-
 export interface RuntimeState {
   avatar: string
   generating: boolean
@@ -25,7 +19,6 @@ export interface RuntimeState {
   filesPath: string
   resourcesPath: string
   update: UpdateState
-  webdavSync: WebDAVSyncState
   export: ExportState
 }
 
@@ -47,11 +40,6 @@ const initialState: RuntimeState = {
     downloaded: false,
     downloadProgress: 0,
     available: false
-  },
-  webdavSync: {
-    lastSyncTime: null,
-    syncing: false,
-    lastSyncError: null
   },
   export: {
     isExporting: false
@@ -83,9 +71,6 @@ const runtimeSlice = createSlice({
     setUpdateState: (state, action: PayloadAction<Partial<UpdateState>>) => {
       state.update = { ...state.update, ...action.payload }
     },
-    setWebDAVSyncState: (state, action: PayloadAction<Partial<WebDAVSyncState>>) => {
-      state.webdavSync = { ...state.webdavSync, ...action.payload }
-    },
     setExportState: (state, action: PayloadAction<Partial<ExportState>>) => {
       state.export = { ...state.export, ...action.payload }
     }
@@ -100,7 +85,6 @@ export const {
   setFilesPath,
   setResourcesPath,
   setUpdateState,
-  setWebDAVSyncState,
   setExportState
 } = runtimeSlice.actions
 

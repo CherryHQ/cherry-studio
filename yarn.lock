@@ -3411,6 +3411,7 @@ __metadata:
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.77.2"
     shiki: "npm:^1.22.2"
+    socks-proxy-agent: "npm:^8.0.3"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
     tar: "npm:^7.4.3"

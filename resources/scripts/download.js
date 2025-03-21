@@ -16,21 +16,23 @@ async function downloadWithRedirects(url, destinationPath) {
     const proxyAgent = new SocksProxyAgent(proxyUrl)
     return new Promise((resolve, reject) => {
       const request = (url) => {
-        https.get(url, { agent: proxyAgent }, (response) => {
-          if (response.statusCode == 301 || response.statusCode == 302) {
-            request(response.headers.location)
-            return
-          }
-          if (response.statusCode !== 200) {
-            reject(new Error(`Download failed: ${response.statusCode} ${response.statusMessage}`))
-            return
-          }
-          const file = fs.createWriteStream(destinationPath)
-          response.pipe(file)
-          file.on('finish', () => resolve())
-        }).on('error', (err) => {
-          reject(err)
-        })
+        https
+          .get(url, { agent: proxyAgent }, (response) => {
+            if (response.statusCode == 301 || response.statusCode == 302) {
+              request(response.headers.location)
+              return
+            }
+            if (response.statusCode !== 200) {
+              reject(new Error(`Download failed: ${response.statusCode} ${response.statusMessage}`))
+              return
+            }
+            const file = fs.createWriteStream(destinationPath)
+            response.pipe(file)
+            file.on('finish', () => resolve())
+          })
+          .on('error', (err) => {
+            reject(err)
+          })
       }
       request(url)
     })
