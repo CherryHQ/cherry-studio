@@ -54,6 +54,8 @@ const MessageMenubar: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
+  const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
+  const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const assistantModel = assistant?.model
   const {
     loading,
@@ -290,10 +292,14 @@ const MessageMenubar: FC<Props> = (props) => {
         <Popconfirm
           title={t('message.regenerate.confirm')}
           okButtonProps={{ danger: true }}
-          destroyTooltipOnHide
           icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-          onConfirm={onRegenerate}>
-          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+          onConfirm={onRegenerate}
+          onOpenChange={(open) => open && setShowRegenerateTooltip(false)}>
+          <Tooltip
+            title={t('common.regenerate')}
+            mouseEnterDelay={0.8}
+            open={showRegenerateTooltip}
+            onOpenChange={setShowRegenerateTooltip}>
             <ActionButton className="message-action-button">
               <SyncOutlined />
             </ActionButton>
@@ -345,9 +351,14 @@ const MessageMenubar: FC<Props> = (props) => {
         title={t('message.message.delete.content')}
         okButtonProps={{ danger: true }}
         icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+        onOpenChange={(open) => open && setShowDeleteTooltip(false)}
         onConfirm={() => deleteMessage(message)}>
         <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-          <Tooltip title={t('common.delete')} mouseEnterDelay={1}>
+          <Tooltip
+            title={t('common.delete')}
+            mouseEnterDelay={1}
+            open={showDeleteTooltip}
+            onOpenChange={setShowDeleteTooltip}>
             <DeleteOutlined />
           </Tooltip>
         </ActionButton>
