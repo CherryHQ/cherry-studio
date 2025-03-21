@@ -144,10 +144,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   return (
     <MessageLineContainer onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} $right={right}>
       <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
-        {messages.map((message) => {
-          const opacity = 0.4 + calculateValueByDistance(message.id, 1)
+        {messages.map((message, index) => {
+          const opacity = 0.5 + calculateValueByDistance(message.id, 1)
           const scale = 1 + calculateValueByDistance(message.id, 1)
-          const offset = calculateValueByDistance(message.id, 10)
           const size = 10 + calculateValueByDistance(message.id, 20)
           const avatarSource = getAvatarSource(isLocalAi, getMessageModelId(message))
           const username = removeLeadingEmoji(getUserName(message))
@@ -160,8 +159,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
                 else messageItemsRef.current.delete(message.id)
               }}
               style={{
-                transform: `translateX(-${offset}px)`,
-                opacity: opacity
+                opacity: mouseY ? opacity : Math.max(0, 0.6 - (0.3 * Math.abs(index - messages.length / 2)) / 5)
               }}
               onClick={() => scrollToMessage(message)}>
               <MessageItemContainer style={{ transform: ` scale(${scale})` }}>
@@ -218,13 +216,10 @@ const MessageLineContainer = styled.div<{ $right: string }>`
   height: calc(100% - var(--status-bar-height) * 2);
   z-index: 100;
   user-select: none;
-  transition: transform 0.2s ease;
-  will-change: transform, opacity;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   font-size: 5px;
-  transform-origin: center center;
   overflow: hidden;
   padding-right: 10px;
   &:hover {
@@ -250,11 +245,9 @@ const MessageItem = styled.div`
   gap: 10px;
   transform-origin: right center;
   padding: 2px 0;
-  will-change: transform, opacity;
+  will-change: opacity;
   opacity: 0.4;
-  transition:
-    opacity 0.1s linear,
-    transform 0.1s linear;
+  transition: opacity 0.1s linear;
 `
 
 const MessageItemTitle = styled.div`
