@@ -6,7 +6,12 @@ import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious,
 import type { LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
 import type { UpdateInfo } from 'electron-updater'
-import { Readable } from 'stream'
+
+interface BackupFile {
+  fileName: string
+  modifiedTime: string
+  size: number
+}
 
 declare global {
   interface Window {
@@ -24,6 +29,9 @@ declare global {
       minApp: (options: { url: string; windowOptions?: Electron.BrowserWindowConstructorOptions }) => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
+      system: {
+        getDeviceType: () => Promise<'mac' | 'windows' | 'linux'>
+      }
       zip: {
         compress: (text: string) => Promise<Buffer>
         decompress: (text: Buffer) => Promise<string>
@@ -33,6 +41,7 @@ declare global {
         restore: (backupPath: string) => Promise<string>
         backupToWebdav: (data: string, webdavConfig: WebDavConfig) => Promise<boolean>
         restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
+        listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
