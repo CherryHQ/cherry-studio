@@ -121,6 +121,7 @@ export type Provider = {
   isSystem?: boolean
   isAuthed?: boolean
   rateLimit?: number
+  isNotSupportArrayContent?: boolean
 }
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
@@ -272,6 +273,8 @@ export type KnowledgeBaseParams = {
   baseURL: string
   chunkSize?: number
   chunkOverlap?: number
+  rerankApiKey?: string
+  rerankBaseURL?: string
   rerankModel?: string
   rerankModelProvider?: string
   topN?: number

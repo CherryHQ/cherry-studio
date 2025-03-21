@@ -60,9 +60,8 @@ const api = {
     update: (shortcuts: Shortcut[]) => ipcRenderer.invoke('shortcuts:update', shortcuts)
   },
   knowledgeBase: {
-    create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) =>
-      ipcRenderer.invoke('knowledge-base:create', { id, model, apiKey, baseURL }),
-    reset: ({ base }: { base: KnowledgeBaseParams }) => ipcRenderer.invoke('knowledge-base:reset', { base }),
+    create: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:create', base),
+    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:reset', base),
     delete: (id: string) => ipcRenderer.invoke('knowledge-base:delete', id),
     add: ({
       base,

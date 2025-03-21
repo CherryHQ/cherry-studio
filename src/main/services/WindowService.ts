@@ -293,7 +293,7 @@ export class WindowService {
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
-        this.mainWindow.restore()
+        return this.mainWindow.restore()
       }
       this.mainWindow.show()
       this.mainWindow.focus()

@@ -72,16 +72,19 @@ linux:
   maintainer: electronjs.org
   category: Utility
 publish:
-  provider: generic
-  url: https://cherrystudio.ocool.online
+  # provider: generic
+  # url: https://cherrystudio.ocool.online
+  provider: github
+  repo: cherry-studio
+  owner: CherryHQ
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    支持引文预览功能
-    界面显示优化
-    修复快捷弹窗无法对话问题
-    MCP：修复豆包无法使用问题
-    MCP：修复 Linux 上无法安装问题
+    知识库设置增加重排模型，提升知识库的准确性
+    自定义服务商增加兼容模式
+    增加 Github Copilot 服务商
+    PlantUML 预览支持放大和缩小
+    联网模式支持增强模式

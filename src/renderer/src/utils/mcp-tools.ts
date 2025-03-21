@@ -17,16 +17,42 @@ const supportedAttributes = [
   'anyOf'
 ]
 
-function filterPropertieAttributes(tool: MCPTool) {
-  const roperties = tool.inputSchema.properties
+function filterPropertieAttributes(tool: MCPTool, filterNestedObj = false) {
+  const properties = tool.inputSchema.properties
+  if (!properties) {
+    return {}
+  }
   const getSubMap = (obj: Record<string, any>, keys: string[]) => {
-    return Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)))
+    const filtered = Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)))
+
+    if (filterNestedObj) {
+      return {
+        ...filtered,
+        ...(obj.type === 'object' && obj.properties
+          ? {
+              properties: Object.fromEntries(
+                Object.entries(obj.properties).map(([k, v]) => [
+                  k,
+                  (v as any).type === 'object' ? getSubMap(v as Record<string, any>, keys) : v
+                ])
+              )
+            }
+          : {}),
+        ...(obj.type === 'array' && obj.items?.type === 'object'
+          ? {
+              items: getSubMap(obj.items, keys)
+            }
+          : {})
+      }
+    }
+
+    return filtered
   }
 
-  for (const [key, val] of Object.entries(roperties)) {
-    roperties[key] = getSubMap(val, supportedAttributes)
+  for (const [key, val] of Object.entries(properties)) {
+    properties[key] = getSubMap(val, supportedAttributes)
   }
-  return roperties
+  return properties
 }
 
 export function mcpToolsToOpenAITools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
@@ -130,13 +156,18 @@ export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiTo
   const functions: FunctionDeclaration[] = []
 
   for (const tool of mcpTools) {
+    const properties = filterPropertieAttributes(tool, true)
     const functionDeclaration: FunctionDeclaration = {
       name: tool.id,
       description: tool.description,
-      parameters: {
-        type: SchemaType.OBJECT,
-        properties: filterPropertieAttributes(tool)
-      }
+      ...(Object.keys(properties).length > 0
+        ? {
+            parameters: {
+              type: SchemaType.OBJECT,
+              properties
+            }
+          }
+        : {})
     }
     functions.push(functionDeclaration)
   }

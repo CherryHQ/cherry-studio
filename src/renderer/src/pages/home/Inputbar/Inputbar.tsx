@@ -519,11 +519,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [isDragging, handleDrag, handleDragEnd])
 
   useShortcut('new_topic', () => {
-    if (!loading) {
-      addNewTopic()
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-      textareaRef.current?.focus()
-    }
+    addNewTopic()
+    EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    textareaRef.current?.focus()
   })
 
   useShortcut('clear_topic', () => {

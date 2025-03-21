@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import JoplinSettings from './JoplinSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
 import NotionSettings from './NotionSettings'
 import ObsidianSettings from './ObsidianSettings'
@@ -34,6 +35,13 @@ const DataSettings: FC = () => {
   const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
+
+  //joplin icon needs to be updated into iconfont
+  const JoplinIcon = () => (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="grey" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20.97 0h-8.9a.15.15 0 00-.16.15v2.83c0 .1.08.17.18.17h1.22c.49 0 .89.38.93.86V17.4l-.01.36-.05.29-.04.13a2.06 2.06 0 01-.38.7l-.02.03a2.08 2.08 0 01-.37.34c-.5.35-1.17.5-1.92.43a4.66 4.66 0 01-2.67-1.22 3.96 3.96 0 01-1.34-2.42c-.1-.78.14-1.47.65-1.93l.07-.05c.37-.31.84-.5 1.39-.55a.09.09 0 00.01 0l.3-.01.35.01h.02a4.39 4.39 0 011.5.44c.15.08.17 0 .18-.06V9.63a.26.26 0 00-.2-.26 7.5 7.5 0 00-6.76 1.61 6.37 6.37 0 00-2.03 5.5 8.18 8.18 0 002.71 5.08A9.35 9.35 0 0011.81 24c1.88 0 3.62-.64 4.9-1.81a6.32 6.32 0 002.06-4.3l.01-10.86V4.08a.95.95 0 01.95-.93h1.22a.17.17 0 00.17-.17V.15a.15.15 0 00-.15-.15z" />
+    </svg>
+  )
 
   const menuItems = [
     { key: 'data', title: 'settings.data.data.title', icon: <DatabaseOutlined style={{ fontSize: 16 }} /> },
@@ -53,6 +61,12 @@ const DataSettings: FC = () => {
       key: 'obsidian',
       title: 'settings.data.obsidian.title',
       icon: <i className="iconfont icon-obsidian" />
+    },
+    {
+      key: 'joplin',
+      title: 'settings.data.joplin.title',
+      //joplin icon needs to be updated into iconfont
+      icon: <JoplinIcon />
     }
   ]
 
@@ -191,6 +205,7 @@ const DataSettings: FC = () => {
         {menu === 'notion' && <NotionSettings />}
         {menu === 'yuque' && <YuqueSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
+        {menu === 'joplin' && <JoplinSettings />}
       </SettingContainer>
     </Container>
   )
