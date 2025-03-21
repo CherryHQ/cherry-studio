@@ -4,6 +4,7 @@ import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
 import { prepareTopicMessages } from '@renderer/store/messages'
+import { addRenamingTopicId, removeRenamingTopicId } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { find, isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
@@ -54,35 +55,47 @@ export async function getTopicById(topicId: string) {
 }
 
 export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
-  const topic = await getTopicById(topicId)
-  const enableTopicNaming = getStoreSetting('enableTopicNaming')
+  const renamingTopicIds = store.getState().runtime.renamingTopicIds
 
-  if (isEmpty(topic.messages)) {
+  if (renamingTopicIds.includes(topicId)) {
     return
   }
 
-  if (topic.isNameManuallyEdited) {
-    return
-  }
+  store.dispatch(addRenamingTopicId(topicId))
 
-  if (!enableTopicNaming) {
-    const topicName = topic.messages[0]?.content.substring(0, 50)
-    if (topicName) {
-      const data = { ...topic, name: topicName } as Topic
-      _setActiveTopic(data)
-      store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+  try {
+    const topic = await getTopicById(topicId)
+    const enableTopicNaming = getStoreSetting('enableTopicNaming')
+
+    if (isEmpty(topic.messages)) {
+      return
     }
-    return
-  }
 
-  if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
-    const { fetchMessagesSummary } = await import('@renderer/services/ApiService')
-    const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
-    if (summaryText) {
-      const data = { ...topic, name: summaryText }
-      _setActiveTopic(data)
-      store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+    if (topic.isNameManuallyEdited) {
+      return
     }
+
+    if (!enableTopicNaming) {
+      const topicName = topic.messages[0]?.content.substring(0, 50)
+      if (topicName) {
+        const data = { ...topic, name: topicName } as Topic
+        _setActiveTopic(data)
+        store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+      }
+      return
+    }
+
+    if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
+      const { fetchMessagesSummary } = await import('@renderer/services/ApiService')
+      const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
+      if (summaryText) {
+        const data = { ...topic, name: summaryText }
+        _setActiveTopic(data)
+        store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+      }
+    }
+  } finally {
+    store.dispatch(removeRenamingTopicId(topicId))
   }
 }
 
