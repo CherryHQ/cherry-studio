@@ -6,7 +6,13 @@ interface ChunkCallbackData {
   reasoning_content?: string
   usage?: OpenAI.Completions.CompletionUsage
   metrics?: Metrics
+  // Zhipu web search
+  webSearch?: any[]
+  // Gemini web search
   search?: GroundingMetadata
+  // Openai web search
+  annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
+  // Openrouter web search or Knowledge base
   citations?: string[]
   mcpToolResponse?: MCPToolResponse[]
 }
@@ -14,7 +20,17 @@ interface ChunkCallbackData {
 interface CompletionsParams {
   messages: Message[]
   assistant: Assistant
-  onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse }: ChunkCallbackData) => void
+  onChunk: ({
+    text,
+    reasoning_content,
+    usage,
+    metrics,
+    webSearch,
+    search,
+    annotations,
+    citations,
+    mcpToolResponse
+  }: ChunkCallbackData) => void
   onFilterMessages: (messages: Message[]) => void
   mcpTools?: MCPTool[]
 }

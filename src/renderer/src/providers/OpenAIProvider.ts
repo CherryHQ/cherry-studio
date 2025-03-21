@@ -1,10 +1,13 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
+  isHunyuanSearchModel,
   isOpenAIoSeries,
+  isOpenAIWebSearch,
   isReasoningModel,
   isSupportedModel,
-  isVisionModel
+  isVisionModel,
+  isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -184,7 +187,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The temperature
    */
   private getTemperature(assistant: Assistant, model: Model) {
-    return isReasoningModel(model) ? undefined : assistant?.settings?.temperature
+    return isReasoningModel(model) || isOpenAIWebSearch(model) ? undefined : assistant?.settings?.temperature
   }
 
   /**
@@ -221,7 +224,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The top P
    */
   private getTopP(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model)) return undefined
+    if (isReasoningModel(model) || isOpenAIWebSearch(model)) return undefined
 
     return assistant?.settings?.topP
   }
@@ -432,6 +435,7 @@ export default class OpenAIProvider extends BaseProvider {
     ) as ChatCompletionMessageParam[]
 
     const toolResponses: MCPToolResponse[] = []
+    let firstChunk = true
     const processStream = async (stream: any, idx: number) => {
       if (!isSupportStreamOutput()) {
         const time_completion_millsec = new Date().getTime() - start_time_millsec
@@ -495,6 +499,15 @@ export default class OpenAIProvider extends BaseProvider {
           if (finishReason !== 'tool_calls') {
             continue
           }
+        }
+
+        let webSearch: any[] | undefined = undefined
+        if (assistant.enableWebSearch && isZhipuModel(model) && finishReason === 'stop') {
+          webSearch = chunk?.web_search
+        }
+        if (firstChunk && assistant.enableWebSearch && isHunyuanSearchModel(model)) {
+          webSearch = chunk?.search_info?.search_results
+          firstChunk = true
         }
 
         if (finishReason === 'tool_calls' || (finishReason === 'stop' && Object.keys(final_tool_calls).length > 0)) {
@@ -601,6 +614,8 @@ export default class OpenAIProvider extends BaseProvider {
             time_first_token_millsec,
             time_thinking_millsec
           },
+          webSearch,
+          annotations: delta?.annotations,
           citations,
           mcpToolResponse: toolResponses
         })

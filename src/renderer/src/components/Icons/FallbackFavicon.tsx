@@ -1,6 +1,37 @@
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 
+// 记录失败的URL的缓存键前缀
+const FAILED_FAVICON_CACHE_PREFIX = 'failed_favicon_'
+// 失败URL的缓存时间 (24小时)
+const FAILED_FAVICON_CACHE_DURATION = 24 * 60 * 60 * 1000
+
+// 检查URL是否在失败缓存中
+const isUrlFailedRecently = (url: string): boolean => {
+  const cacheKey = `${FAILED_FAVICON_CACHE_PREFIX}${url}`
+  const cachedTimestamp = localStorage.getItem(cacheKey)
+
+  if (!cachedTimestamp) return false
+
+  const timestamp = parseInt(cachedTimestamp, 10)
+  const now = Date.now()
+
+  // 如果时间戳在缓存期内，则认为URL仍处于失败状态
+  if (now - timestamp < FAILED_FAVICON_CACHE_DURATION) {
+    return true
+  }
+
+  // 清除过期的缓存
+  localStorage.removeItem(cacheKey)
+  return false
+}
+
+// 记录失败的URL到缓存
+const markUrlAsFailed = (url: string): void => {
+  const cacheKey = `${FAILED_FAVICON_CACHE_PREFIX}${url}`
+  localStorage.setItem(cacheKey, Date.now().toString())
+}
+
 // FallbackFavicon component that tries multiple favicon sources
 interface FallbackFaviconProps {
   hostname: string
@@ -22,20 +53,27 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
 
     // Generate all possible favicon URLs
     const faviconUrls = [
-      `https://favicon.splitbee.io/?url=${hostname}`,
-      `https://${hostname}/favicon.ico`,
       `https://icon.horse/icon/${hostname}`,
-      `https://favicon.cccyun.cc/${hostname}`,
+      `https://favicon.splitbee.io/?url=${hostname}`,
       `https://favicon.im/${hostname}`,
-      `https://www.google.com/s2/favicons?domain=${hostname}`
+      `https://${hostname}/favicon.ico`
     ]
+
+    // 过滤掉最近已失败的URL
+    const validFaviconUrls = faviconUrls.filter((url) => !isUrlFailedRecently(url))
+
+    // 如果所有URL都被缓存为失败，使用第一个URL
+    if (validFaviconUrls.length === 0) {
+      setFaviconState({ status: 'loaded', src: faviconUrls[0] })
+      return
+    }
 
     // Main controller to abort all requests when needed
     const controller = new AbortController()
     const { signal } = controller
 
     // Create a promise for each favicon URL
-    const faviconPromises = faviconUrls.map((url) =>
+    const faviconPromises = validFaviconUrls.map((url) =>
       fetch(url, {
         method: 'HEAD',
         signal,
@@ -44,6 +82,10 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
         .then((response) => {
           if (response.ok) {
             return url
+          }
+          // 记录4xx或5xx失败
+          if (response.status >= 400) {
+            markUrlAsFailed(url)
           }
           throw new Error(`Failed to fetch ${url}`)
         })
@@ -89,6 +131,10 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
   }, [hostname]) // Only depend on hostname
 
   const handleError = () => {
+    if (faviconState.status === 'loaded') {
+      // 记录图片加载失败的URL
+      markUrlAsFailed(faviconState.src)
+    }
     setFaviconState({ status: 'failed' })
   }
 

@@ -132,6 +132,7 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
 
+import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
 import { getWebSearchTools } from './tools'
 
 // Vision models
@@ -1918,6 +1919,10 @@ export function isOpenAIoSeries(model: Model): boolean {
   return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
 }
 
+export function isOpenAIWebSearch(model: Model): boolean {
+  return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -1960,7 +1965,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider?.type === 'openai') {
-    if (model?.id?.includes('gemini-2.0-flash-exp')) {
+    if (model?.id?.includes('gemini-2.0-flash-exp') || isOpenAIWebSearch(model)) {
       return true
     }
   }
@@ -2008,7 +2013,7 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
       const webSearchTools = getWebSearchTools(model)
 
       if (model.provider === 'hunyuan') {
-        return { enable_enhancement: true }
+        return { enable_enhancement: true, citation: true, search_info: true }
       }
 
       if (model.provider === 'dashscope') {
@@ -2022,8 +2027,12 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
 
       if (model.provider === 'openrouter') {
         return {
-          plugins: [{ id: 'web' }]
+          plugins: [{ id: 'web', search_prompts: WEB_SEARCH_PROMPT_FOR_OPENROUTER }]
         }
+      }
+
+      if (isOpenAIWebSearch(model)) {
+        return {}
       }
 
       return {
@@ -2045,4 +2054,24 @@ export function isGemmaModel(model?: Model): boolean {
   }
 
   return model.id.includes('gemma-') || model.group === 'Gemma'
+}
+
+export function isZhipuModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return model.provider === 'zhipu'
+}
+
+export function isHunyuanSearchModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (model.provider === 'hunyuan') {
+    return model.id !== 'hunyuan-lite'
+  }
+
+  return false
 }
