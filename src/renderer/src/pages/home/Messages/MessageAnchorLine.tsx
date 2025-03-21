@@ -40,13 +40,12 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const [listOffsetY, setListOffsetY] = useState(0)
   const [containerHeight, setContainerHeight] = useState<number | null>(null)
 
-  // 检测并设置父容器高度
   useEffect(() => {
     const updateHeight = () => {
       if (containerRef.current) {
         const parentElement = containerRef.current.parentElement
         if (parentElement) {
-          setContainerHeight(parentElement.clientHeight - 20)
+          setContainerHeight(parentElement.clientHeight)
         }
       }
     }
@@ -57,7 +56,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
     return () => {
       window.removeEventListener('resize', updateHeight)
     }
-  }, [])
+  }, [messages])
 
   // 函数用于计算根据距离的变化值
   const calculateValueByDistance = useCallback(
@@ -149,7 +148,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
 
       if (listRect.height > containerRect.height) {
         const mousePositionRatio = (e.clientY - containerRect.top) / containerRect.height
-        const maxOffset = (containerRect.height - listRect.height) / 2 - 10
+        const maxOffset = (containerRect.height - listRect.height) / 2 - 20
         setListOffsetY(-maxOffset + mousePositionRatio * (maxOffset * 2))
       } else {
         setListOffsetY(0)
@@ -238,18 +237,17 @@ const MessageLineContainer = styled.div<{ $right: string; $height: number | null
   top: var(--status-bar-height);
   bottom: var(--status-bar-height);
   right: ${(props) => props.$right};
-  width: 25px;
+  width: 14px;
   height: ${(props) => (props.$height ? `${props.$height}px` : 'calc(100% - var(--status-bar-height) * 2)')};
-  z-index: 100;
+  z-index: 0;
   user-select: none;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   font-size: 5px;
   overflow: hidden;
-  padding: 10px 0;
   &:hover {
-    width: 60%;
+    width: 440px;
     overflow-x: visible;
     overflow-y: hidden;
     ${MessageItemContainer} {
