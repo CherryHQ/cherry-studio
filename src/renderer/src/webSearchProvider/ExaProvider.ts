@@ -8,10 +8,10 @@ export default class ExaProvider extends BaseWebSearchProvider {
 
   constructor(provider: WebSearchProvider) {
     super(provider)
-    if (!provider.apiKey) {
+    if (!this.apiKey) {
       throw new Error('API key is required for Exa provider')
     }
-    this.exa = new ExaClient({ apiKey: provider.apiKey })
+    this.exa = new ExaClient({ apiKey: this.apiKey })
   }
 
   public async search(query: string, maxResults: number): Promise<WebSearchResponse> {
@@ -22,7 +22,10 @@ export default class ExaProvider extends BaseWebSearchProvider {
 
       const response = await this.exa.search({
         query,
-        numResults: Math.max(1, maxResults)
+        numResults: Math.max(1, maxResults),
+        contents: {
+          text: true
+        }
       })
 
       return {

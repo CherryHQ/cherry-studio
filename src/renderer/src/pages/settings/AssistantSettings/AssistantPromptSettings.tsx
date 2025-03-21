@@ -3,11 +3,12 @@ import 'emoji-picker-element'
 import { CloseCircleFilled } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HStack } from '@renderer/components/Layout'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,7 +23,16 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
   const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
   const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
   const [prompt, setPrompt] = useState(assistant.prompt)
+  const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
+
+  useEffect(() => {
+    const updateTokenCount = async () => {
+      const count = await estimateTextTokens(prompt)
+      setTokenCount(count)
+    }
+    updateTokenCount()
+  }, [prompt])
 
   const onUpdate = () => {
     const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
@@ -81,15 +91,18 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
       <Box mt={8} mb={8} style={{ fontWeight: 'bold' }}>
         {t('common.prompt')}
       </Box>
-      <TextArea
-        rows={10}
-        placeholder={t('common.assistant') + t('common.prompt')}
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        onBlur={onUpdate}
-        spellCheck={false}
-        style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 150px)' }}
-      />
+      <TextAreaContainer>
+        <TextArea
+          rows={10}
+          placeholder={t('common.assistant') + t('common.prompt')}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onBlur={onUpdate}
+          spellCheck={false}
+          style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 150px)' }}
+        />
+        <TokenCount>Tokens: {tokenCount}</TokenCount>
+      </TextAreaContainer>
       <HStack width="100%" justifyContent="flex-end" mt="10px">
         <Button type="primary" onClick={onOk}>
           {t('common.close')}
@@ -114,6 +127,23 @@ const EmojiButtonWrapper = styled.div`
   &:hover .delete-icon {
     display: block !important;
   }
+`
+
+const TextAreaContainer = styled.div`
+  position: relative;
+  width: 100%;
+`
+
+const TokenCount = styled.div`
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background-color: var(--color-background-soft);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--color-text-2);
+  user-select: none;
 `
 
 export default AssistantPromptSettings

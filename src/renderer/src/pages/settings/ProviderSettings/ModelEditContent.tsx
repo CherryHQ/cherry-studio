@@ -113,7 +113,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
                 ...(isVisionModel(model) ? ['vision'] : []),
                 ...(isEmbeddingModel(model) ? ['embedding'] : []),
                 ...(isReasoningModel(model) ? ['reasoning'] : []),
-                ...(isFunctionCallingModel(model) ? ['tools'] : [])
+                ...(isFunctionCallingModel(model) ? ['function_calling'] : [])
               ] as ModelType[]
 
               // 合并现有选择和默认类型

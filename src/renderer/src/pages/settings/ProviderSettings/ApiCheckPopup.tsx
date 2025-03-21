@@ -2,8 +2,8 @@ import { CheckCircleFilled, CloseCircleFilled, LoadingOutlined, MinusCircleOutli
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { checkApi } from '@renderer/services/ApiService'
-import { Model } from '@renderer/types'
-import { Provider } from '@renderer/types'
+import WebSearchService from '@renderer/services/WebSearchService'
+import { Model, Provider, WebSearchProvider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, List, Modal, Space, Spin, Typography } from 'antd'
 import { useState } from 'react'
@@ -12,9 +12,10 @@ import styled from 'styled-components'
 
 interface ShowParams {
   title: string
-  provider: Provider
-  model: Model
+  provider: Provider | WebSearchProvider
+  model?: Model
   apiKeys: string[]
+  type: 'provider' | 'websearch'
 }
 
 interface Props extends ShowParams {
@@ -27,7 +28,7 @@ interface KeyStatus {
   checking?: boolean
 }
 
-const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type, resolve }) => {
   const [open, setOpen] = useState(true)
   const [keyStatuses, setKeyStatuses] = useState<KeyStatus[]>(() => {
     const uniqueKeys = new Set(apiKeys)
@@ -45,7 +46,17 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, reso
       for (let i = 0; i < newStatuses.length; i++) {
         setKeyStatuses((prev) => prev.map((status, idx) => (idx === i ? { ...status, checking: true } : status)))
 
-        const { valid } = await checkApi({ ...provider, apiKey: newStatuses[i].key }, model)
+        let valid = false
+        if (type === 'provider' && model) {
+          const result = await checkApi({ ...(provider as Provider), apiKey: newStatuses[i].key }, model)
+          valid = result.valid
+        } else {
+          const result = await WebSearchService.checkSearch({
+            ...(provider as WebSearchProvider),
+            apiKey: newStatuses[i].key
+          })
+          valid = result.valid
+        }
 
         setKeyStatuses((prev) =>
           prev.map((status, idx) => (idx === i ? { ...status, checking: false, isValid: valid } : status))
@@ -65,7 +76,17 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, reso
     setKeyStatuses((prev) => prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: true } : status)))
 
     try {
-      const { valid } = await checkApi({ ...provider, apiKey: keyStatuses[keyIndex].key }, model)
+      let valid = false
+      if (type === 'provider' && model) {
+        const result = await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
+        valid = result.valid
+      } else {
+        const result = await WebSearchService.checkSearch({
+          ...(provider as WebSearchProvider),
+          apiKey: keyStatuses[keyIndex].key
+        })
+        valid = result.valid
+      }
 
       setKeyStatuses((prev) =>
         prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false, isValid: valid } : status))

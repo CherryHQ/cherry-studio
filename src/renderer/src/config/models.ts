@@ -157,7 +157,8 @@ const visionAllowedModels = [
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
-  'kimi-latest'
+  'kimi-latest',
+  'gemma-3(?:-[\\w-]+)'
 ]
 
 const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+']
@@ -175,17 +176,42 @@ export const REASONING_REGEX =
 
 // Embedding models
 export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings)/i
-export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
+
+// Rerank models
+export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
+
+export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 
 // Tool calling models
-export const FUNCTION_CALLING_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4.5', 'claude', 'qwen']
-export const FUNCTION_CALLING_REGEX = new RegExp(`\\b(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`, 'i')
+export const FUNCTION_CALLING_MODELS = [
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4',
+  'gpt-4.5',
+  'claude',
+  'qwen',
+  'hunyuan',
+  'glm-4(?:-[\\w-]+)?',
+  'learnlm(?:-[\\w-]+)?',
+  'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
+]
+
+const FUNCTION_CALLING_EXCLUDED_MODELS = ['aqa(?:-[\\w-]+)?', 'imagen(?:-[\\w-]+)?']
+
+export const FUNCTION_CALLING_REGEX = new RegExp(
+  `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
+  'i'
+)
 export function isFunctionCallingModel(model: Model): boolean {
   if (model.type?.includes('function_calling')) {
     return true
   }
 
-  if (['gemini', 'deepseek', 'anthropic'].includes(model.provider)) {
+  if (isEmbeddingModel(model)) {
+    return false
+  }
+
+  if (['deepseek', 'anthropic'].includes(model.provider)) {
     return true
   }
 
@@ -577,6 +603,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: '01-ai'
     }
   ],
+  alayanew: [],
   openai: [
     { id: 'gpt-4.5-preview', provider: 'openai', name: ' gpt-4.5-preview', group: 'gpt-4.5' },
     { id: 'gpt-4o', provider: 'openai', name: ' GPT-4o', group: 'GPT 4o' },
@@ -1005,6 +1032,14 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       id: 'gpt-4o',
       provider: 'github',
       name: 'OpenAI GPT-4o',
+      group: 'OpenAI'
+    }
+  ],
+  copilot: [
+    {
+      id: 'gpt-4o-mini',
+      provider: 'copilot',
+      name: 'OpenAI GPT-4o-mini',
       group: 'OpenAI'
     }
   ],
@@ -1759,7 +1794,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'DeepSeek V3',
       group: 'DeepSeek'
     }
-  ]
+  ],
+  gpustack: []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -1856,8 +1892,18 @@ export function isEmbeddingModel(model: Model): boolean {
   return EMBEDDING_REGEX.test(model.id) || model.type?.includes('embedding') || false
 }
 
+export function isRerankModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return RERANKING_REGEX.test(model.id) || false
+}
+
 export function isVisionModel(model: Model): boolean {
   if (!model) {
+    return false
+  }
+  if (model.provider === 'copilot') {
     return false
   }
 
@@ -1991,4 +2037,12 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
   }
 
   return {}
+}
+
+export function isGemmaModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return model.id.includes('gemma-') || model.group === 'Gemma'
 }

@@ -1,6 +1,6 @@
 {
   "name": "@cherry-studio/database",
-  "packageManager": "yarn@4.3.1",
+  "packageManager": "yarn@4.6.0",
   "dependencies": {
     "csv-parser": "^3.0.0",
     "sqlite3": "^5.1.7"

@@ -1,4 +1,5 @@
 import { electronAPI } from '@electron-toolkit/preload'
+import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
 
@@ -25,6 +26,9 @@ const api = {
       ipcRenderer.on('css-editor:set', (_event, css: string) => {
         callback(css)
       }),
+  }
+  system: {
+    getDeviceType: () => ipcRenderer.invoke('system:getDeviceType')
   },
   zip: {
     compress: (text: string) => ipcRenderer.invoke('zip:compress', text),
@@ -36,7 +40,8 @@ const api = {
     restore: (backupPath: string) => ipcRenderer.invoke('backup:restore', backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke('backup:backupToWebdav', data, webdavConfig),
-    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig)
+    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig),
+    listWebdavFiles: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:listWebdavFiles', webdavConfig)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke('file:select', options),
@@ -69,9 +74,8 @@ const api = {
     update: (shortcuts: Shortcut[]) => ipcRenderer.invoke('shortcuts:update', shortcuts)
   },
   knowledgeBase: {
-    create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) =>
-      ipcRenderer.invoke('knowledge-base:create', { id, model, apiKey, baseURL }),
-    reset: ({ base }: { base: KnowledgeBaseParams }) => ipcRenderer.invoke('knowledge-base:reset', { base }),
+    create: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:create', base),
+    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:reset', base),
     delete: (id: string) => ipcRenderer.invoke('knowledge-base:delete', id),
     add: ({
       base,
@@ -85,7 +89,9 @@ const api = {
     remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
       ipcRenderer.invoke('knowledge-base:remove', { uniqueId, uniqueIds, base }),
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke('knowledge-base:search', { search, base })
+      ipcRenderer.invoke('knowledge-base:search', { search, base }),
+    rerank: ({ search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }) =>
+      ipcRenderer.invoke('knowledge-base:rerank', { search, base, results })
   },
   window: {
     setMinimumSize: (width: number, height: number) => ipcRenderer.invoke('window:set-minimum-size', width, height),
@@ -129,7 +135,22 @@ const api = {
   },
   shell: {
     openExternal: shell.openExternal
-  }
+  },
+  copilot: {
+    getAuthMessage: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-auth-message', headers),
+    getCopilotToken: (device_code: string, headers?: Record<string, string>) =>
+      ipcRenderer.invoke('copilot:get-copilot-token', device_code, headers),
+    saveCopilotToken: (access_token: string) => ipcRenderer.invoke('copilot:save-copilot-token', access_token),
+    getToken: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-token', headers),
+    logout: () => ipcRenderer.invoke('copilot:logout'),
+    getUser: (token: string) => ipcRenderer.invoke('copilot:get-user', token)
+  },
+
+  // Binary related APIs
+  isBinaryExist: (name: string) => ipcRenderer.invoke('app:is-binary-exist', name),
+  getBinaryPath: (name: string) => ipcRenderer.invoke('app:get-binary-path', name),
+  installUVBinary: () => ipcRenderer.invoke('app:install-uv-binary'),
+  installBunBinary: () => ipcRenderer.invoke('app:install-bun-binary')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

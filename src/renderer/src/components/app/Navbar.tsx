@@ -1,15 +1,12 @@
 import { isMac } from '@renderer/config/constant'
-import { useSettings } from '@renderer/hooks/useSettings'
+import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { FC, PropsWithChildren } from 'react'
 import styled from 'styled-components'
 
 type Props = PropsWithChildren & JSX.IntrinsicElements['div']
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
-  const { windowStyle } = useSettings()
-
-  const macTransparentWindow = isMac && windowStyle === 'transparent'
-  const backgroundColor = macTransparentWindow ? 'transparent' : 'var(--navbar-background)'
+  const backgroundColor = useNavBackgroundColor()
 
   return (
     <NavbarContainer {...props} style={{ backgroundColor }}>

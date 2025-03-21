@@ -4,6 +4,7 @@ import ModelTags from '@renderer/components/ModelTags'
 import {
   getModelLogo,
   isEmbeddingModel,
+  isFunctionCallingModel,
   isReasoningModel,
   isVisionModel,
   isWebSearchModel,
@@ -55,6 +56,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     ) {
       return false
     }
+
     switch (filterType) {
       case 'reasoning':
         return isReasoningModel(model)
@@ -66,6 +68,8 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         return isFreeModel(model)
       case 'embedding':
         return isEmbeddingModel(model)
+      case 'function_calling':
+        return isFunctionCallingModel(model)
       default:
         return true
     }
@@ -159,6 +163,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             <Radio.Button value="websearch">{t('models.websearch')}</Radio.Button>
             <Radio.Button value="free">{t('models.free')}</Radio.Button>
             <Radio.Button value="embedding">{t('models.embedding')}</Radio.Button>
+            <Radio.Button value="function_calling">{t('models.function_calling')}</Radio.Button>
           </Radio.Group>
         </Center>
         <Search

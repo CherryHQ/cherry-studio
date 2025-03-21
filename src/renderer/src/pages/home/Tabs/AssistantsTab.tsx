@@ -31,11 +31,13 @@ const Assistants: FC<AssistantsTabProps> = ({
   const onDelete = useCallback(
     (assistant: Assistant) => {
       const remaining = assistants.filter((a) => a.id !== assistant.id)
-      const newActive = remaining[remaining.length - 1]
-      newActive ? setActiveAssistant(newActive) : onCreateDefaultAssistant()
+      if (assistant.id === activeAssistant?.id) {
+        const newActive = remaining[remaining.length - 1]
+        newActive ? setActiveAssistant(newActive) : onCreateDefaultAssistant()
+      }
       removeAssistant(assistant.id)
     },
-    [assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
+    [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
   )
 
   return (

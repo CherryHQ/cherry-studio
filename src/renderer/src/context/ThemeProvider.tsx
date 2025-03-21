@@ -47,7 +47,15 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
 
   useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
-  }, [])
+
+    // listen theme change from main process from other windows
+    const themeChangeListenerRemover = window.electron.ipcRenderer.on('theme:change', (_, newTheme) => {
+      setTheme(newTheme)
+    })
+    return () => {
+      themeChangeListenerRemover()
+    }
+  })
 
   useEffect(() => {
     // Set up the CSS update listener

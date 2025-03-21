@@ -77,7 +77,7 @@ export const SettingHelpText = styled.div`
 
 export const SettingHelpLink = styled(Link)`
   font-size: 11px;
-  padding: 0 5px;
+  margin: 0 5px;
 `
 
 export const SettingGroup = styled.div<{ theme?: ThemeMode }>`

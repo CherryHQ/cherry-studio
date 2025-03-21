@@ -1,22 +1,9 @@
 import store from '@renderer/store'
-import { setDefaultProvider } from '@renderer/store/websearch'
+import { setDefaultProvider, WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import WebSearchEngineProvider from '@renderer/webSearchProvider/WebSearchEngineProvider'
 import dayjs from 'dayjs'
-
-interface WebSearchState {
-  // 默认搜索提供商的ID
-  defaultProvider: string
-  // 所有可用的搜索提供商列表
-  providers: WebSearchProvider[]
-  // 是否在搜索查询中添加当前日期
-  searchWithTime: boolean
-  // 搜索结果的最大数量
-  maxResults: number
-  // 要排除的域名列表
-  excludeDomains: string[]
-}
 
 /**
  * 提供网络搜索相关功能的服务类
@@ -53,6 +40,16 @@ class WebSearchService {
     }
 
     return false
+  }
+
+  /**
+   * 检查是否启用搜索增强模式
+   * @public
+   * @returns 如果启用搜索增强模式则返回true，否则返回false
+   */
+  public isEnhanceModeEnabled(): boolean {
+    const { enhanceMode } = this.getWebSearchState()
+    return enhanceMode
   }
 
   /**

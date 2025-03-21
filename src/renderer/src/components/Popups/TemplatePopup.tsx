@@ -1,8 +1,7 @@
+import { Box } from '@renderer/components/Layout'
+import { TopView } from '@renderer/components/TopView'
 import { Modal } from 'antd'
 import { useState } from 'react'
-
-import { Box } from '../Layout'
-import { TopView } from '../TopView'
 
 interface ShowParams {
   title: string

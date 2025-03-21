@@ -52,7 +52,6 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
           if (error.name === 'AbortError') {
             throw error
           }
-          console.debug(`Failed to fetch favicon from ${url}:`, error)
           return null // Return null for failed requests
         })
     )
@@ -79,7 +78,7 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
         setFaviconState({ status: 'loaded', src: url })
       })
       .catch((error) => {
-        console.debug('All favicon requests failed:', error)
+        console.log('All favicon requests failed:', error)
         setFaviconState({ status: 'loaded', src: faviconUrls[0] })
       })
 

@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unknown-property */
 import { CloseOutlined, CodeOutlined, ExportOutlined, PushpinOutlined, ReloadOutlined } from '@ant-design/icons'
 import { isMac, isWindows } from '@renderer/config/constant'
 import { AppLogo } from '@renderer/config/env'
@@ -64,7 +63,9 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
     const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
     updatePinnedMinapps(newPinned)
   }
+
   const isInDevelopment = process.env.NODE_ENV === 'development'
+
   const Title = () => {
     return (
       <TitleContainer style={{ justifyContent: 'space-between' }}>
@@ -151,6 +152,7 @@ const PopupContainer: React.FC<Props> = ({ app, resolve }) => {
           style={WebviewStyle}
           allowpopups={'true' as any}
           partition="persist:webview"
+          nodeintegration={true}
         />
       )}
     </Drawer>
@@ -175,6 +177,7 @@ const TitleContainer = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
+  background-color: transparent;
 `
 
 const TitleText = styled.div`

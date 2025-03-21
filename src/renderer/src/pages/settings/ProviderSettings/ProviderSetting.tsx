@@ -1,4 +1,4 @@
-import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined } from '@ant-design/icons'
+import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
@@ -6,7 +6,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
-import { checkApi } from '@renderer/services/ApiService'
+import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
@@ -28,11 +28,14 @@ import {
   SettingTitle
 } from '..'
 import ApiCheckPopup from './ApiCheckPopup'
+import GithubCopilotSettings from './GithubCopilotSettings'
+import GPUStackSettings from './GPUStackSettings'
 import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
 import OllamSettings from './OllamaSettings'
+import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
 interface Props {
@@ -197,7 +200,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         title: t('settings.provider.check_multiple_keys'),
         provider: { ...provider, apiHost },
         model,
-        apiKeys: keys
+        apiKeys: keys,
+        type: 'provider'
       })
 
       if (result?.validKeys) {
@@ -239,14 +243,13 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     return formatApiHost(apiHost) + 'chat/completions'
   }
 
-  const formatApiKeys = (value: string) => {
-    return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
-  }
-
   useEffect(() => {
+    if (provider.id === 'copilot') {
+      return
+    }
     setApiKey(provider.apiKey)
     setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost])
+  }, [provider.apiKey, provider.apiHost, provider.id])
 
   // Save apiKey to provider when unmount
   useEffect(() => {
@@ -267,6 +270,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
               <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
             </Link>
           )}
+          {!provider.isSystem && (
+            <Button type="text" style={{ width: 30 }} onClick={() => ProviderSettingsPopup.show({ provider })}>
+              <SettingOutlined />
+            </Button>
+          )}
         </Flex>
         <Switch
           value={provider.enabled}
@@ -285,6 +293,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           spellCheck={false}
           type="password"
           autoFocus={provider.enabled && apiKey === ''}
+          disabled={provider.id === 'copilot'}
         />
         {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
         <Button
@@ -297,7 +306,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <HStack gap={5}>
+          <HStack>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>
@@ -326,8 +335,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {isOpenAIProvider(provider) && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <SettingHelpText style={{ marginLeft: 6 }}>{hostPreview()}</SettingHelpText>
-          <SettingHelpText>{t('settings.provider.api.url.tip')}</SettingHelpText>
+          <SettingHelpText
+            style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+            {hostPreview()}
+          </SettingHelpText>
+          <SettingHelpText style={{ minWidth: 'fit-content' }}>{t('settings.provider.api.url.tip')}</SettingHelpText>
         </SettingHelpTextRow>
       )}
       {isAzureOpenAI && (
@@ -345,9 +357,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'ollama' && <OllamSettings />}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
+      {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
         <GraphRAGSettings provider={provider} />
       )}
+      {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Flex align="center" justify="space-between" style={{ width: '100%' }}>
           <span>{t('common.models')}</span>

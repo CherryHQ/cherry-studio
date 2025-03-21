@@ -40,6 +40,6 @@
 如果您有任何问题或建议，欢迎通过以下方式联系我们：
 
 - 微信：kangfenmao
-- [GitHub Issues](https://github.com/kangfenmao/cherry-studio/issues)
+- [GitHub Issues](https://github.com/CherryHQ/cherry-studio/issues)
 
 感谢您的支持和贡献！我们期待与您一起将 Cherry Studio 打造成更好的产品。

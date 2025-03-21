@@ -112,8 +112,8 @@ const TranslatePage: FC = () => {
         message,
         assistant,
         onResponse: (text) => {
-          translatedText = text
-          setResult(text)
+          translatedText = text.replace(/^\s*\n+/g, '')
+          setResult(translatedText)
         }
       })
     } catch (error) {

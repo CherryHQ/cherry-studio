@@ -8,13 +8,9 @@ const requestQueues: { [topicId: string]: PQueue } = {}
  * @param topicId The ID of the topic
  * @returns A PQueue instance for the topic
  */
-export const getTopicQueue = (topicId: string): PQueue => {
+export const getTopicQueue = (topicId: string, options = {}): PQueue => {
   if (!requestQueues[topicId]) {
-    requestQueues[topicId] = new PQueue({
-      concurrency: 4,
-      timeout: 1000 * 60 * 5, // 5 minutes
-      throwOnTimeout: false
-    })
+    requestQueues[topicId] = new PQueue(options)
   }
   return requestQueues[topicId]
 }

@@ -4,7 +4,8 @@
     "source.fixAll.eslint": "explicit"
   },
   "search.exclude": {
-    "**/dist/**": true
+    "**/dist/**": true,
+    ".yarn/releases/**": true
   },
   "[javascript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"

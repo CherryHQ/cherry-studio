@@ -41,8 +41,16 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
         search: value,
         base: getKnowledgeBaseParams(base)
       })
+      let rerankResult = searchResults
+      if (base.rerankModel) {
+        rerankResult = await window.api.knowledgeBase.rerank({
+          search: value,
+          base: getKnowledgeBaseParams(base),
+          results: searchResults
+        })
+      }
       const results = await Promise.all(
-        searchResults.map(async (item) => {
+        rerankResult.map(async (item) => {
           const file = await getFileFromUrl(item.metadata.source)
           return { ...item, file }
         })

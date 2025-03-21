@@ -3,7 +3,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/cons
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
-import { uniqBy } from 'lodash'
+import { isEmpty, uniqBy } from 'lodash'
 
 export interface AssistantsState {
   defaultAssistant: Assistant
@@ -87,7 +87,11 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: assistant.topics.map((topic) => (topic.id === newTopic.id ? newTopic : topic))
+              topics: assistant.topics.map((topic) => {
+                const _topic = topic.id === newTopic.id ? newTopic : topic
+                _topic.messages = []
+                return _topic
+              })
             }
           : assistant
       )
@@ -97,7 +101,9 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: action.payload.topics
+              topics: action.payload.topics.map((topic) =>
+                isEmpty(topic.messages) ? topic : { ...topic, messages: [] }
+              )
             }
           : assistant
       )

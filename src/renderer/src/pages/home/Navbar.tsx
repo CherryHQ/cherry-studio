@@ -9,7 +9,6 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
@@ -85,12 +84,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
               </NavbarIcon>
             </Tooltip>
           )}
-          <TitleText
-            style={{ marginRight: 10, cursor: 'pointer' }}
-            className="nodrag"
-            onClick={() => AssistantSettingsPopup.show({ assistant })}>
-            {assistant.name}
-          </TitleText>
           <SelectModelButton assistant={assistant} />
         </HStack>
         <HStack alignItems="center" gap={8}>
@@ -156,16 +149,6 @@ export const NavbarIcon = styled.div`
   &:hover {
     background-color: var(--color-background-mute);
     color: var(--color-icon-white);
-  }
-`
-
-const TitleText = styled.span`
-  margin-left: 5px;
-  font-family: Ubuntu;
-  font-size: 12px;
-  user-select: none;
-  @media (max-width: 1080px) {
-    display: none;
   }
 `
 

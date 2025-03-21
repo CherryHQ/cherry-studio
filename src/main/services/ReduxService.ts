@@ -179,7 +179,7 @@ export class ReduxService extends EventEmitter {
 
 export const reduxService = new ReduxService()
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/** example
 async function example() {
   try {
     // 读取状态
@@ -217,3 +217,4 @@ async function example() {
     console.error('Error:', error)
   }
 }
+*/
