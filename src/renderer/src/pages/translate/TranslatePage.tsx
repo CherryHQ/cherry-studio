@@ -197,7 +197,9 @@ const TranslatePage: FC = () => {
 
     // Calculate scroll position by ratio
     const inputScrollRatio = inputEl.scrollTop / (inputEl.scrollHeight - inputEl.clientHeight || 1)
-    outputEl.scrollTop = inputScrollRatio * (outputEl.scrollHeight - outputEl.clientHeight || 1)
+    const outputScrollPosition = inputScrollRatio * (outputEl.scrollHeight - outputEl.clientHeight || 1)
+
+    outputEl.scrollTop = outputScrollPosition
 
     requestAnimationFrame(() => {
       isProgrammaticScroll.current = false
@@ -215,7 +217,9 @@ const TranslatePage: FC = () => {
 
     // Calculate scroll position by ratio
     const outputScrollRatio = outputEl.scrollTop / (outputEl.scrollHeight - outputEl.clientHeight || 1)
-    inputEl.scrollTop = outputScrollRatio * (inputEl.scrollHeight - inputEl.clientHeight || 1)
+    const inputScrollPosition = outputScrollRatio * (inputEl.scrollHeight - inputEl.clientHeight || 1)
+
+    inputEl.scrollTop = inputScrollPosition
 
     requestAnimationFrame(() => {
       isProgrammaticScroll.current = false
