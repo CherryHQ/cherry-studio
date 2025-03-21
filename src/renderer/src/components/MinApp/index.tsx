@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unknown-property */
 import { CloseOutlined, CodeOutlined, ExportOutlined, PushpinOutlined, ReloadOutlined } from '@ant-design/icons'
 import { isMac, isWindows } from '@renderer/config/constant'
 import { AppLogo } from '@renderer/config/env'

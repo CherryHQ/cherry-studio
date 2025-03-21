@@ -51,6 +51,7 @@ export interface SettingsState {
   codeStyle: CodeStyleVarious
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
+  messageNavigation: 'none' | 'buttons' | 'anchor'
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -87,6 +88,8 @@ export interface SettingsState {
   yuqueRepoId: string | null
   obsidianApiKey: string | null
   obsidianUrl: string | null
+  joplinToken: string | null
+  joplinUrl: string | null
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -126,6 +129,7 @@ const initialState: SettingsState = {
   codeStyle: 'auto',
   gridColumns: 2,
   gridPopoverTrigger: 'hover',
+  messageNavigation: 'none',
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -158,7 +162,9 @@ const initialState: SettingsState = {
   yuqueUrl: '',
   yuqueRepoId: '',
   obsidianApiKey: '',
-  obsidianUrl: ''
+  obsidianUrl: '',
+  joplinToken: '',
+  joplinUrl: ''
 }
 
 const settingsSlice = createSlice({
@@ -368,6 +374,15 @@ const settingsSlice = createSlice({
     },
     setObsidianUrl: (state, action: PayloadAction<string>) => {
       state.obsidianUrl = action.payload
+    },
+    setJoplinToken: (state, action: PayloadAction<string>) => {
+      state.joplinToken = action.payload
+    },
+    setJoplinUrl: (state, action: PayloadAction<string>) => {
+      state.joplinUrl = action.payload
+    },
+    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
+      state.messageNavigation = action.payload
     }
   }
 })
@@ -438,7 +453,10 @@ export const {
   setYuqueRepoId,
   setYuqueUrl,
   setObsidianApiKey,
-  setObsidianUrl
+  setObsidianUrl,
+  setJoplinToken,
+  setJoplinUrl,
+  setMessageNavigation
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

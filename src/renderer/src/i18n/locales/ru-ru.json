@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "Экспорт не удалось",
       "topics.export.obsidian_show_md_files": "Показать файлы MD",
       "topics.export.obsidian_selected_path": "Выбранный путь",
+      "topics.export.joplin": "Экспорт в Joplin",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
@@ -236,7 +237,8 @@
       "confirm": "Подтверждение",
       "copied": "Скопировано",
       "more": "Ещё",
-      "advanced_settings": "Дополнительные настройки"
+      "advanced_settings": "Дополнительные настройки",
+      "expand": "Развернуть"
     },
     "docs": {
       "title": "Документация"
@@ -447,6 +449,8 @@
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+      "error.joplin.no_config": "Joplin Authorization Token или URL не настроен",
+      "error.joplin.export": "Не удалось экспортировать в Joplin, пожалуйста, убедитесь, что Joplin запущен и проверьте состояние подключения или настройки",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
@@ -479,13 +483,18 @@
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
       "success.notion.export": "Успешный экспорт в Notion",
       "success.yuque.export": "Успешный экспорт в Yuque",
+      "success.joplin.export": "Успешный экспорт в Joplin",
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
       "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
-      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова."
+      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова.",
+      "tools": {
+        "invoking": "Вызов",
+        "completed": "Завершено"
+      }
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -759,7 +768,13 @@
           "syncError": "Ошибка резервного копирования",
           "syncStatus": "Статус резервного копирования",
           "title": "WebDAV",
-          "user": "Пользователь WebDAV"
+          "user": "Пользователь WebDAV",
+          "backup.modal.title": "Резервное копирование на WebDAV",
+          "backup.modal.filename.placeholder": "Введите имя файла резервной копии",
+          "restore.modal.title": "Восстановление с WebDAV",
+          "restore.modal.select.placeholder": "Выберите файл резервной копии для восстановления",
+          "restore.confirm.title": "Подтверждение восстановления",
+          "restore.confirm.content": "Восстановление с WebDAV перезапишет текущие данные, продолжить?"
         },
         "yuque": {
           "check": {
@@ -790,6 +805,21 @@
           "title": "Настройка Obsidian",
           "api_key": "API Key Obsidian",
           "api_key_placeholder": "Введите API Key Obsidian"
+        },
+        "joplin": {
+          "check": {
+            "button": "Проверить",
+            "empty_url": "Сначала введите URL Joplin",
+            "empty_token": "Сначала введите токен Joplin",
+            "fail": "Не удалось проверить подключение к Joplin",
+            "success": "Подключение к Joplin успешно проверено"
+          },
+          "title": "Настройка Joplin",
+          "help": "Включите Joplin опцию, проверьте порт и скопируйте токен",
+          "url": "URL Joplin",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Токен Joplin",
+          "token_placeholder": "Введите токен Joplin"
         }
       },
       "display.assistant.title": "Настройки ассистентов",
@@ -856,6 +886,7 @@
         "editServer": "Редактировать сервер",
         "env": "Переменные окружения",
         "envTooltip": "Формат: KEY=value, по одной на строку",
+        "findMore": "Найти больше MCP серверов",
         "name": "Имя",
         "nameRequired": "Пожалуйста, введите имя сервера",
         "noServers": "Серверы не настроены",
@@ -895,6 +926,10 @@
         "jsonSaveError": "Не удалось сохранить конфигурацию JSON"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
+      "messages.navigation": "Навигация сообщений",
+      "messages.navigation.none": "Не показывать",
+      "messages.navigation.buttons": "Кнопки пагинации",
+      "messages.navigation.anchor": "Диалог анкор",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
       "messages.grid_popover_trigger.click": "Нажатие для отображения",
@@ -928,7 +963,7 @@
       "models.check.enabled": "Включено",
       "models.check.failed": "Не прошло",
       "models.check.keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} модели прошли все ключи, {{count_failed}} модели не прошли все ключи, {{count_partial}} модели не прошли некоторые ключи",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} моделей прошли проверку состояния (из них {{count_partial}} моделей недоступны с некоторыми ключами), {{count_failed}} моделей полностью недоступны.",
       "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
       "models.check.passed": "Прошло",
       "models.check.select_api_key": "Выберите API ключ для использования:",

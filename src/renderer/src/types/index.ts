@@ -78,6 +78,10 @@ export type Message = {
     // MCP Tools
     mcpTools?: MCPToolResponse[]
   }
+  // 多模型消息样式
+  multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
+  // fold时是否选中
+  foldSelected?: boolean
 }
 
 export type Metrics = {
@@ -203,6 +207,7 @@ export type WebDavConfig = {
   webdavUser: string
   webdavPass: string
   webdavPath: string
+  fileName?: string
 }
 
 export type AppInfo = {
@@ -270,6 +275,8 @@ export type KnowledgeBaseParams = {
   baseURL: string
   chunkSize?: number
   chunkOverlap?: number
+  rerankApiKey?: string
+  rerankBaseURL?: string
   rerankModel?: string
   rerankModelProvider?: string
   topN?: number

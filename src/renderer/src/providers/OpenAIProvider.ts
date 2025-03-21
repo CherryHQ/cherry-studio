@@ -29,7 +29,6 @@ import {
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   callMCPTool,
-  filterMCPTools,
   mcpToolsToOpenAITools,
   openAIToolsToMcpTool,
   upsertMCPToolResponse
@@ -426,7 +425,6 @@ export default class OpenAIProvider extends BaseProvider {
     const { signal } = abortController
     await this.checkIsCopilot()
 
-    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
     const tools = mcpTools && mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : undefined
 
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
@@ -499,7 +497,7 @@ export default class OpenAIProvider extends BaseProvider {
           }
         }
 
-        if (finishReason === 'tool_calls') {
+        if (finishReason === 'tool_calls' || (finishReason === 'stop' && Object.keys(final_tool_calls).length > 0)) {
           const toolCalls = Object.values(final_tool_calls).map(this.cleanToolCallArgs)
           console.log('start invoke tools', toolCalls)
           if (this.isZhipuTool(model)) {

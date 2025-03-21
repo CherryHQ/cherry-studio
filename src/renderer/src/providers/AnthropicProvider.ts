@@ -20,7 +20,6 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   anthropicToolUseToMcpTool,
   callMCPTool,
-  filterMCPTools,
   mcpToolsToAnthropicTools,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
@@ -180,7 +179,6 @@ export default class AnthropicProvider extends BaseProvider {
 
     const userMessages = flatten(userMessagesParams)
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
     const tools = mcpTools ? mcpToolsToAnthropicTools(mcpTools) : undefined
 
     const body: MessageCreateParamsNonStreaming = {

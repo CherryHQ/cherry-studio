@@ -3,7 +3,7 @@ import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import { Assistant, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
 import { cloneDeep, findLast, isEmpty } from 'lodash'
 
@@ -97,7 +97,15 @@ export async function fetchChatCompletion({
       }
     }
 
-    const allMCPTools = await window.api.mcp.listTools()
+    const lastUserMessage = findLast(messages, (m) => m.role === 'user')
+    // Get MCP tools
+    let mcpTools: MCPTool[] = []
+    const enabledMCPs = lastUserMessage?.enabledMCPs
+
+    if (enabledMCPs && enabledMCPs.length > 0) {
+      const allMCPTools = await window.api.mcp.listTools()
+      mcpTools = allMCPTools.filter((tool) => enabledMCPs.some((mcp) => mcp.name === tool.serverName))
+    }
 
     await AI.completions({
       messages: filterUsefulMessages(messages),
@@ -131,7 +139,7 @@ export async function fetchChatCompletion({
 
         onResponse({ ...message, status: 'pending' })
       },
-      mcpTools: allMCPTools
+      mcpTools: mcpTools
     })
 
     message.status = 'success'

@@ -20,6 +20,9 @@ const api = {
   openWebsite: (url: string) => ipcRenderer.invoke('open:website', url),
   minApp: (url: string) => ipcRenderer.invoke('minapp', url),
   clearCache: () => ipcRenderer.invoke('app:clear-cache'),
+  system: {
+    getDeviceType: () => ipcRenderer.invoke('system:getDeviceType')
+  },
   zip: {
     compress: (text: string) => ipcRenderer.invoke('zip:compress', text),
     decompress: (text: Buffer) => ipcRenderer.invoke('zip:decompress', text)
@@ -30,7 +33,8 @@ const api = {
     restore: (backupPath: string) => ipcRenderer.invoke('backup:restore', backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke('backup:backupToWebdav', data, webdavConfig),
-    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig)
+    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig),
+    listWebdavFiles: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:listWebdavFiles', webdavConfig)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke('file:select', options),
@@ -63,9 +67,8 @@ const api = {
     update: (shortcuts: Shortcut[]) => ipcRenderer.invoke('shortcuts:update', shortcuts)
   },
   knowledgeBase: {
-    create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) =>
-      ipcRenderer.invoke('knowledge-base:create', { id, model, apiKey, baseURL }),
-    reset: ({ base }: { base: KnowledgeBaseParams }) => ipcRenderer.invoke('knowledge-base:reset', { base }),
+    create: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:create', base),
+    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:reset', base),
     delete: (id: string) => ipcRenderer.invoke('knowledge-base:delete', id),
     add: ({
       base,

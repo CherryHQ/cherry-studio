@@ -1,4 +1,11 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  EditOutlined,
+  LinkOutlined,
+  PlusOutlined,
+  QuestionCircleOutlined,
+  SearchOutlined
+} from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppSelector } from '@renderer/store'
@@ -48,6 +55,10 @@ const MCPSettings: FC = () => {
     } finally {
       setLoadingServer(null)
     }
+  }
+
+  const handleOpenMCPServers = () => {
+    window.open('https://glama.ai/mcp/servers', '_blank')
   }
 
   const columns = [
@@ -152,6 +163,9 @@ const MCPSettings: FC = () => {
           </Button>
           <Button icon={<EditOutlined />} onClick={() => EditMcpJsonPopup.show()}>
             {t('settings.mcp.editJson')}
+          </Button>
+          <Button icon={<SearchOutlined />} onClick={handleOpenMCPServers}>
+            {t('settings.mcp.findMore')} <LinkOutlined />
           </Button>
         </HStack>
         <Table

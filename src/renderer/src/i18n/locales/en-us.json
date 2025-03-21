@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "Export failed",
       "topics.export.obsidian_show_md_files": "Show MD Files",
       "topics.export.obsidian_selected_path": "Selected Path",
+      "topics.export.joplin": "Export to Joplin",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
       "topics.pinned": "Pinned Topics",
@@ -236,7 +237,8 @@
       "copied": "Copied",
       "confirm": "Confirm",
       "more": "More",
-      "advanced_settings": "Advanced Settings"
+      "advanced_settings": "Advanced Settings",
+      "expand": "Expand"
     },
     "docs": {
       "title": "Docs"
@@ -441,6 +443,8 @@
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
       "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
+      "error.joplin.no_config": "Joplin Authorization Token or URL is not configured",
+      "error.joplin.export": "Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
       "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
@@ -473,13 +477,18 @@
       "success.markdown.export.specified": "Successfully exported the Markdown file",
       "success.notion.export": "Successfully exported to Notion",
       "success.yuque.export": "Successfully exported to Yuque",
+      "success.joplin.export": "Successfully exported to Joplin",
       "switch.disabled": "Please wait for the current reply to complete",
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
       "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
-      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
+      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again.",
+      "tools": {
+        "invoking": "Invoking",
+        "completed": "Completed"
+      }
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -753,6 +762,12 @@
           "password": "WebDAV Password",
           "path": "WebDAV Path",
           "path.placeholder": "/backup",
+          "backup.modal.title": "Backup to WebDAV",
+          "backup.modal.filename.placeholder": "Please enter backup filename",
+          "restore.modal.title": "Restore from WebDAV",
+          "restore.modal.select.placeholder": "Please select a backup file to restore",
+          "restore.confirm.title": "Confirm Restore",
+          "restore.confirm.content": "Restoring from WebDAV will overwrite current data. Do you want to continue?",
           "restore.button": "Restore from WebDAV",
           "restore.content": "Restore from WebDAV will overwrite the current data, continue?",
           "restore.title": "Restore from WebDAV",
@@ -790,6 +805,21 @@
           "title": "Obsidian Configuration",
           "api_key": "Obsidian API Key",
           "api_key_placeholder": "Please enter the Obsidian API Key"
+        },
+        "joplin": {
+          "check": {
+            "button": "Check",
+            "empty_url": "Please enter Joplin Clipper Service URL",
+            "empty_token": "Please enter Joplin Authorization Token",
+            "fail": "Joplin connection verification failed",
+            "success": "Joplin connection verification successful"
+          },
+          "title": "Joplin Configuration",
+          "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
+          "url": "Joplin Web Clipper Service URL",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Joplin Authorization Token",
+          "token_placeholder": "Joplin Authorization Token"
         }
       },
       "display.assistant.title": "Assistant Settings",
@@ -856,6 +886,7 @@
         "editServer": "Edit Server",
         "env": "Environment Variables",
         "envTooltip": "Format: KEY=value, one per line",
+        "findMore": "Find More MCP Servers",
         "name": "Name",
         "nameRequired": "Please enter a server name",
         "noServers": "No servers configured",
@@ -895,6 +926,10 @@
         "jsonSaveError": "Failed to save JSON configuration."
       },
       "messages.divider": "Show divider between messages",
+      "messages.navigation": "Message Navigation",
+      "messages.navigation.none": "None",
+      "messages.navigation.buttons": "Navigation Buttons",
+      "messages.navigation.anchor": "Message Anchor",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
       "messages.grid_popover_trigger.click": "Click to display",
@@ -928,7 +963,7 @@
       "models.check.enabled": "Enabled",
       "models.check.failed": "Failed",
       "models.check.keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} models passed all keys, {{count_failed}} models failed all keys, {{count_partial}} models failed some keys",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} models passed health checks ({{count_partial}} models had inaccessible keys), {{count_failed}} models completely inaccessible.",
       "models.check.no_api_keys": "No API keys found, please add API keys first.",
       "models.check.passed": "Passed",
       "models.check.select_api_key": "Select the API key to use:",
