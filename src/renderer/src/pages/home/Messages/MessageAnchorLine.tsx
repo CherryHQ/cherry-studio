@@ -233,12 +233,12 @@ const MessageItemContainer = styled.div`
 `
 
 const MessageLineContainer = styled.div<{ $right: string; $height: number | null }>`
-  position: fixed;
-  top: var(--status-bar-height);
-  bottom: var(--status-bar-height);
-  right: ${(props) => props.$right};
   width: 14px;
-  height: ${(props) => (props.$height ? `${props.$height}px` : 'calc(100% - var(--status-bar-height) * 2)')};
+  position: fixed;
+  top: ${(props) => (props.$height ? `calc(${props.$height / 2}px + var(--status-bar-height))` : '50%')};
+  right: ${(props) => props.$right};
+  max-height: ${(props) => (props.$height ? `${props.$height}px` : 'calc(100% - var(--status-bar-height) * 2)')};
+  transform: translateY(-50%);
   z-index: 0;
   user-select: none;
   display: flex;

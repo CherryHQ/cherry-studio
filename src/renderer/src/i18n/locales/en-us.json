@@ -926,8 +926,10 @@
         "jsonSaveError": "Failed to save JSON configuration."
       },
       "messages.divider": "Show divider between messages",
-      "messages.pagination_buttons": "Show pagination buttons",
-      "messages.message_anchor": "Show message anchor",
+      "messages.navigation": "Message Navigation",
+      "messages.navigation.none": "None",
+      "messages.navigation.buttons": "Navigation Buttons",
+      "messages.navigation.anchor": "Message Anchor",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
       "messages.grid_popover_trigger.click": "Click to display",

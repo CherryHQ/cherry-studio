@@ -40,13 +40,7 @@ interface MessagesProps {
 
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
   const { t } = useTranslation()
-  const {
-    showTopics,
-    topicPosition,
-    showAssistants,
-    showPaginationButtons,
-    showMessageAnchor: showMessageLine
-  } = useSettings()
+  const { showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -233,9 +227,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
       </NarrowLayout>
 
-      {showMessageLine && <MessageAnchorLine messages={displayMessages} />}
+      {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
 
-      {showPaginationButtons && <ChatNavigation containerId="messages" />}
+      {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
     </Container>
   )
 }

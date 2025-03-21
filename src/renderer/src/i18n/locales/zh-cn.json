@@ -926,8 +926,10 @@
         "jsonSaveError": "保存JSON配置失败"
       },
       "messages.divider": "消息分割线",
-      "messages.pagination_buttons": "显示分页按钮",
-      "messages.message_anchor": "显示对话锚点",
+      "messages.navigation": "对话导航按钮",
+      "messages.navigation.none": "不显示",
+      "messages.navigation.buttons": "上下按钮",
+      "messages.navigation.anchor": "对话锚点",
       "messages.grid_columns": "消息网格展示列数",
       "messages.grid_popover_trigger": "网格详情触发",
       "messages.grid_popover_trigger.click": "点击显示",

@@ -926,8 +926,10 @@
         "jsonSaveError": "保存JSON配置失敗"
       },
       "messages.divider": "訊息間顯示分隔線",
-      "messages.pagination_buttons": "顯示分頁按鈕",
-      "messages.message_anchor": "顯示對話錨點",
+      "messages.navigation": "訊息導航",
+      "messages.navigation.none": "不顯示",
+      "messages.navigation.buttons": "上下按鈕",
+      "messages.navigation.anchor": "對話錨點",
       "messages.grid_columns": "訊息網格展示列數",
       "messages.grid_popover_trigger": "網格詳細資訊觸發",
       "messages.grid_popover_trigger.click": "點選顯示",

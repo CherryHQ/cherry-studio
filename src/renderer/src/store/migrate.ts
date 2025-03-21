@@ -774,9 +774,6 @@ const migrateConfig = {
     return state
   },
   '82': (state: RootState) => {
-    state.settings.showPaginationButtons = true
-    state.settings.showMessageAnchor = false
-
     const runtimeState = state.runtime as any
     if (runtimeState?.webdavSync) {
       state.backup = state.backup || {}
@@ -790,6 +787,10 @@ const migrateConfig = {
       }
       delete runtimeState.webdavSync
     }
+    return state
+  },
+  '83': (state: RootState) => {
+    state.settings.messageNavigation = 'buttons'
     return state
   }
 }

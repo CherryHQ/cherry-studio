@@ -926,8 +926,10 @@
         "jsonSaveError": "Не удалось сохранить конфигурацию JSON"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
-      "messages.pagination_buttons": "Показывать кнопки пагинации",
-      "messages.message_anchor": "Показывать диалог анкор",
+      "messages.navigation": "Навигация сообщений",
+      "messages.navigation.none": "Не показывать",
+      "messages.navigation.buttons": "Кнопки пагинации",
+      "messages.navigation.anchor": "Диалог анкор",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
       "messages.grid_popover_trigger.click": "Нажатие для отображения",

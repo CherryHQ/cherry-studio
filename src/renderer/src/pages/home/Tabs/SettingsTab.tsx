@@ -31,8 +31,7 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
-  setShowMessageAnchor,
-  setShowPaginationButtons,
+  setMessageNavigation,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
 import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
@@ -79,8 +78,7 @@ const SettingsTab: FC<Props> = (props) => {
     pasteLongTextThreshold,
     multiModelMessageStyle,
     thoughtAutoCollapse,
-    showPaginationButtons,
-    showMessageAnchor
+    messageNavigation
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -292,24 +290,6 @@ const SettingsTab: FC<Props> = (props) => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitleSmall>{t('settings.messages.pagination_buttons')}</SettingRowTitleSmall>
-          <Switch
-            size="small"
-            checked={showPaginationButtons}
-            onChange={(checked) => dispatch(setShowPaginationButtons(checked))}
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitleSmall>{t('settings.messages.message_anchor')}</SettingRowTitleSmall>
-          <Switch
-            size="small"
-            checked={showMessageAnchor}
-            onChange={(checked) => dispatch(setShowMessageAnchor(checked))}
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.use_serif_font')}</SettingRowTitleSmall>
           <Switch
             size="small"
@@ -380,6 +360,19 @@ const SettingsTab: FC<Props> = (props) => {
             <Select.Option value="vertical">{t('message.message.multi_model_style.vertical')}</Select.Option>
             <Select.Option value="horizontal">{t('message.message.multi_model_style.horizontal')}</Select.Option>
             <Select.Option value="grid">{t('message.message.multi_model_style.grid')}</Select.Option>
+          </StyledSelect>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.navigation')}</SettingRowTitleSmall>
+          <StyledSelect
+            size="small"
+            value={messageNavigation}
+            onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
+            style={{ width: 135 }}>
+            <Select.Option value="none">{t('settings.messages.navigation.none')}</Select.Option>
+            <Select.Option value="buttons">{t('settings.messages.navigation.buttons')}</Select.Option>
+            <Select.Option value="anchor">{t('settings.messages.navigation.anchor')}</Select.Option>
           </StyledSelect>
         </SettingRow>
         <SettingDivider />
