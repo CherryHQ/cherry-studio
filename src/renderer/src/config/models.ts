@@ -1103,6 +1103,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4v'
     },
     {
+      id: 'glm-4v-flash',
+      provider: 'zhipu',
+      name: 'GLM-4V-Flash',
+      group: 'GLM-4v'
+    },
+    {
       id: 'glm-4v-plus',
       provider: 'zhipu',
       name: 'GLM-4V-Plus',
