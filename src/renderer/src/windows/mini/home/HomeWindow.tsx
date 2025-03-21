@@ -204,7 +204,12 @@ const HomeWindow: FC = () => {
   const backgroundColor = () => {
     // ONLY MAC: when transparent style + light theme: use vibrancy effect
     // because the dark style under mac's vibrancy effect has not been implemented
-    if (isMac && windowStyle === 'transparent' && theme === 'light') {
+    if (
+      isMac &&
+      windowStyle === 'transparent' &&
+      theme === 'light' &&
+      !window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
       return 'transparent'
     }
 
