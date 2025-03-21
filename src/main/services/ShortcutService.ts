@@ -8,6 +8,9 @@ import { windowService } from './WindowService'
 let showAppAccelerator: string | null = null
 let showMiniWindowAccelerator: string | null = null
 
+// store the focus and blur handlers for each window to unregister them later
+const windowOnHandlers = new Map<BrowserWindow, { onFocusHandler: () => void; onBlurHandler: () => void }>()
+
 function getShortcutHandler(shortcut: Shortcut) {
   switch (shortcut.key) {
     case 'zoom_in':
@@ -104,10 +107,19 @@ const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutForm
 
 export function registerShortcuts(window: BrowserWindow) {
   window.once('ready-to-show', () => {
-    window.webContents.setZoomFactor(configManager.getZoomFactor())
+    if (configManager.getLaunchToTray()) {
+      registerOnlyUniversalShortcuts()
+    }
   })
 
-  const register = () => {
+  //only for clearer code
+  const registerOnlyUniversalShortcuts = () => {
+    register(true)
+  }
+
+  //onlyUniversalShortcuts is used to register shortcuts that are not window specific, like show_app & mini_window
+  //onlyUniversalShortcuts is needed when we launch to tray
+  const register = (onlyUniversalShortcuts: boolean = false) => {
     if (window.isDestroyed()) return
 
     const shortcuts = configManager.getShortcuts()
@@ -119,44 +131,55 @@ export function registerShortcuts(window: BrowserWindow) {
           return
         }
 
-        const handler = getShortcutHandler(shortcut)
+        //if not enabled, exit early from the process.
+        if (!shortcut.enabled) {
+          return
+        }
+        
+        // only register universal shortcuts when needed
+        if (onlyUniversalShortcuts && !['show_app', 'mini_window'].includes(shortcut.key)) {
+          return
+        }
 
+        const handler = getShortcutHandler(shortcut)
         if (!handler) {
           return
         }
 
-        const accelerator = formatShortcutKey(shortcut.shortcut)
+        switch (shortcut.key) {
+          case 'show_app':
+            showAppAccelerator = formatShortcutKey(shortcut.shortcut)
+            break
 
-        if (shortcut.key === 'show_app' && shortcut.enabled) {
-          showAppAccelerator = accelerator
-        }
-
-        if (shortcut.key === 'mini_window' && shortcut.enabled) {
-          showMiniWindowAccelerator = accelerator
-        }
-
-        if (shortcut.key.includes('zoom')) {
-          switch (shortcut.key) {
-            case 'zoom_in':
-              globalShortcut.register('CommandOrControl+=', () => shortcut.enabled && handler(window))
-              globalShortcut.register('CommandOrControl+numadd', () => shortcut.enabled && handler(window))
+          case 'mini_window':
+            //available only when QuickAssistant enabled
+            if (!configManager.getEnableQuickAssistant()) {
               return
-            case 'zoom_out':
-              globalShortcut.register('CommandOrControl+-', () => shortcut.enabled && handler(window))
-              globalShortcut.register('CommandOrControl+numsub', () => shortcut.enabled && handler(window))
-              return
-            case 'zoom_reset':
-              globalShortcut.register('CommandOrControl+0', () => shortcut.enabled && handler(window))
-              return
-          }
+            }
+            showMiniWindowAccelerator = formatShortcutKey(shortcut.shortcut)
+            break
+
+          //the following ZOOMs will register shortcuts seperately, so will return
+          case 'zoom_in':
+            globalShortcut.register('CommandOrControl+=', () => handler(window))
+            globalShortcut.register('CommandOrControl+numadd', () => handler(window))
+            return
+
+          case 'zoom_out':
+            globalShortcut.register('CommandOrControl+-', () => handler(window))
+            globalShortcut.register('CommandOrControl+numsub', () => handler(window))
+            return
+
+          case 'zoom_reset':
+            globalShortcut.register('CommandOrControl+0', () => handler(window))
+            return
         }
 
-        if (shortcut.enabled) {
-          const accelerator = convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(
-            shortcut.shortcut
-          )
-          globalShortcut.register(accelerator, () => handler(window))
-        }
+        const accelerator = convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(
+          shortcut.shortcut
+        )
+
+        globalShortcut.register(accelerator, () => handler(window))
       } catch (error) {
         Logger.error(`[ShortcutService] Failed to register shortcut ${shortcut.key}`)
       }
@@ -187,8 +210,12 @@ export function registerShortcuts(window: BrowserWindow) {
     }
   }
 
-  window.on('focus', () => register())
-  window.on('blur', () => unregister())
+  // only register the event handlers once
+  if (undefined === windowOnHandlers.get(window)) {
+    window.on('focus', register)
+    window.on('blur', unregister)
+    windowOnHandlers.set(window, { onFocusHandler: register, onBlurHandler: unregister })
+  }
 
   if (!window.isDestroyed() && window.isFocused()) {
     register()
@@ -199,6 +226,11 @@ export function unregisterAllShortcuts() {
   try {
     showAppAccelerator = null
     showMiniWindowAccelerator = null
+    windowOnHandlers.forEach((handlers, window) => {
+      window.off('focus', handlers.onFocusHandler)
+      window.off('blur', handlers.onBlurHandler)
+    })
+    windowOnHandlers.clear()
     globalShortcut.unregisterAll()
   } catch (error) {
     Logger.error('[ShortcutService] Failed to unregister all shortcuts')

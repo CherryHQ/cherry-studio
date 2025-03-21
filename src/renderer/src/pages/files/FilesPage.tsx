@@ -118,7 +118,7 @@ const FilesPage: FC = () => {
       key: file.id,
       file: (
         <FileNameText className="text-nowrap" onClick={() => window.api.file.openPath(file.path)}>
-          {file.origin_name}
+          {FileManager.formatFileName(file)}
         </FileNameText>
       ),
       size: formatFileSize(file.size),

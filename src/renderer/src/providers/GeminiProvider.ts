@@ -18,12 +18,15 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
-import { filterContextMessages, filterUserRoleStartMessages } from '@renderer/services/MessagesService'
+import {
+  filterContextMessages,
+  filterEmptyMessages,
+  filterUserRoleStartMessages
+} from '@renderer/services/MessagesService'
 import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   callMCPTool,
-  filterMCPTools,
   geminiFunctionCallToMcpTool,
   mcpToolsToGeminiTools,
   upsertMCPToolResponse
@@ -180,7 +183,9 @@ export default class GeminiProvider extends BaseProvider {
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
-    const userMessages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
+    const userMessages = filterUserRoleStartMessages(
+      filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
+    )
     onFilterMessages(userMessages)
 
     const userLastMessage = userMessages.pop()
@@ -191,7 +196,6 @@ export default class GeminiProvider extends BaseProvider {
       history.push(await this.getMessageContents(message))
     }
 
-    mcpTools = filterMCPTools(mcpTools, userLastMessage?.enabledMCPs)
     const tools = mcpToolsToGeminiTools(mcpTools)
     const toolResponses: MCPToolResponse[] = []
 
@@ -483,6 +487,45 @@ export default class GeminiProvider extends BaseProvider {
    */
   public async suggestions(): Promise<Suggestion[]> {
     return []
+  }
+
+  /**
+   * Summarize a message for search
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The summary
+   */
+  public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string> {
+    const model = assistant.model || getDefaultModel()
+
+    const systemMessage = {
+      role: 'system',
+      content: assistant.prompt
+    }
+
+    const userMessage = {
+      role: 'user',
+      content: messages.map((m) => m.content).join('\n')
+    }
+
+    const geminiModel = this.sdk.getGenerativeModel(
+      {
+        model: model.id,
+        systemInstruction: systemMessage.content,
+        generationConfig: {
+          temperature: assistant?.settings?.temperature
+        }
+      },
+      {
+        ...this.requestOptions,
+        timeout: 20 * 1000
+      }
+    )
+
+    const chat = await geminiModel.startChat()
+    const { response } = await chat.sendMessage(userMessage.content)
+
+    return response.text()
   }
 
   /**

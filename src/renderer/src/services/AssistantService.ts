@@ -47,7 +47,8 @@ export function getDefaultTopic(assistantId: string): Topic {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     name: i18n.t('chat.default.topic.name'),
-    messages: []
+    messages: [],
+    isNameManuallyEdited: false
   }
 }
 

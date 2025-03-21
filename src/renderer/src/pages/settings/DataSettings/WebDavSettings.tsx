@@ -1,10 +1,9 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { backupToWebdav, restoreFromWebdav, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setWebdavAutoSync,
   setWebdavHost as _setWebdavHost,
@@ -13,12 +12,19 @@ import {
   setWebdavSyncInterval as _setWebdavSyncInterval,
   setWebdavUser as _setWebdavUser
 } from '@renderer/store/settings'
-import { Button, Input, Select } from 'antd'
+import { Button, Input, Modal, Select, Spin, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { formatFileSize } from '@renderer/utils'
+
+interface BackupFile {
+  fileName: string
+  modifiedTime: string
+  size: number
+}
 
 const WebDavSettings: FC = () => {
   const {
@@ -38,44 +44,21 @@ const WebDavSettings: FC = () => {
 
   const [backuping, setBackuping] = useState(false)
   const [restoring, setRestoring] = useState(false)
+  const [isModalVisible, setIsModalVisible] = useState(false)
+  const [customFileName, setCustomFileName] = useState('')
+  const [isRestoreModalVisible, setIsRestoreModalVisible] = useState(false)
+  const [backupFiles, setBackupFiles] = useState<BackupFile[]>([])
+  const [selectedFile, setSelectedFile] = useState<string>('')
+  const [loadingFiles, setLoadingFiles] = useState(false)
 
   const dispatch = useAppDispatch()
   const { theme } = useTheme()
 
   const { t } = useTranslation()
 
-  const { webdavSync } = useRuntime()
+  const { webdavSync } = useAppSelector((state) => state.backup)
 
   // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
-
-  const onBackup = async () => {
-    if (!webdavHost) {
-      window.message.error({ content: t('message.error.invalid.webdav'), key: 'webdav-error' })
-      return
-    }
-    setBackuping(true)
-    await backupToWebdav({ showMessage: true })
-    setBackuping(false)
-  }
-
-  const onRestore = async () => {
-    if (!webdavHost) {
-      window.message.error({ content: t('message.error.invalid.webdav'), key: 'webdav-error' })
-      return
-    }
-    setRestoring(true)
-    await restoreFromWebdav()
-    setRestoring(false)
-  }
-
-  const onPressRestore = () => {
-    window.modal.confirm({
-      title: t('settings.data.webdav.restore.title'),
-      content: t('settings.data.webdav.restore.content'),
-      centered: true,
-      onOk: onRestore
-    })
-  }
 
   const onSyncIntervalChange = (value: number) => {
     setSyncInterval(value)
@@ -99,18 +82,100 @@ const WebDavSettings: FC = () => {
     return (
       <HStack gap="5px" alignItems="center">
         {webdavSync.syncing && <SyncOutlined spin />}
+        {!webdavSync.syncing && webdavSync.lastSyncError && (
+          <Tooltip title={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}>
+            <WarningOutlined style={{ color: 'red' }} />
+          </Tooltip>
+        )}
         {webdavSync.lastSyncTime && (
           <span style={{ color: 'var(--text-secondary)' }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
-        {webdavSync.lastSyncError && (
-          <span style={{ color: 'var(--error-color)' }}>
-            {t('settings.data.webdav.syncError')}: {webdavSync.lastSyncError}
-          </span>
-        )}
       </HStack>
     )
+  }
+
+  const showBackupModal = async () => {
+    // 获取默认文件名
+    const deviceType = await window.api.system.getDeviceType()
+    const timestamp = dayjs().format('YYYYMMDDHHmmss')
+    const defaultFileName = `cherry-studio.${timestamp}.${deviceType}.zip`
+    setCustomFileName(defaultFileName)
+    setIsModalVisible(true)
+  }
+
+  const handleBackup = async () => {
+    setBackuping(true)
+    try {
+      await backupToWebdav({ showMessage: true, customFileName })
+    } finally {
+      setBackuping(false)
+      setIsModalVisible(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setIsModalVisible(false)
+  }
+
+  const showRestoreModal = async () => {
+    if (!webdavHost || !webdavUser || !webdavPass || !webdavPath) {
+      window.message.error({ content: t('message.error.invalid.webdav'), key: 'webdav-error' })
+      return
+    }
+
+    setIsRestoreModalVisible(true)
+    setLoadingFiles(true)
+    try {
+      const files = await window.api.backup.listWebdavFiles({
+        webdavHost,
+        webdavUser,
+        webdavPass,
+        webdavPath
+      })
+      setBackupFiles(files)
+    } catch (error: any) {
+      window.message.error({ content: error.message, key: 'list-files-error' })
+    } finally {
+      setLoadingFiles(false)
+    }
+  }
+
+  const handleRestore = async () => {
+    if (!selectedFile || !webdavHost || !webdavUser || !webdavPass || !webdavPath) {
+      window.message.error({
+        content: !selectedFile ? t('message.error.no.file.selected') : t('message.error.invalid.webdav'),
+        key: 'restore-error'
+      })
+      return
+    }
+
+    window.modal.confirm({
+      title: t('settings.data.webdav.restore.confirm.title'),
+      content: t('settings.data.webdav.restore.confirm.content'),
+      centered: true,
+      onOk: async () => {
+        setRestoring(true)
+        try {
+          await restoreFromWebdav(selectedFile)
+          setIsRestoreModalVisible(false)
+        } catch (error: any) {
+          window.message.error({ content: error.message, key: 'restore-error' })
+        } finally {
+          setRestoring(false)
+        }
+      }
+    })
+  }
+
+  const formatFileOption = (file: BackupFile) => {
+    const date = dayjs(file.modifiedTime).format('YYYY-MM-DD HH:mm:ss')
+    const size = formatFileSize(file.size)
+    return {
+      label: `${file.fileName} (${date}, ${size})`,
+      value: file.fileName
+    }
   }
 
   return (
@@ -165,10 +230,10 @@ const WebDavSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <HStack gap="5px" justifyContent="space-between">
-          <Button onClick={onBackup} icon={<SaveOutlined />} loading={backuping}>
+          <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button onClick={onPressRestore} icon={<FolderOpenOutlined />} loading={restoring}>
+          <Button onClick={showRestoreModal} icon={<FolderOpenOutlined />} loading={restoring}>
             {t('settings.data.webdav.restore.button')}
           </Button>
         </HStack>
@@ -198,6 +263,46 @@ const WebDavSettings: FC = () => {
           </SettingRow>
         </>
       )}
+      <>
+        <Modal
+          title={t('settings.data.webdav.backup.modal.title')}
+          open={isModalVisible}
+          onOk={handleBackup}
+          onCancel={handleCancel}
+          okButtonProps={{ loading: backuping }}>
+          <Input
+            value={customFileName}
+            onChange={(e) => setCustomFileName(e.target.value)}
+            placeholder={t('settings.data.webdav.backup.modal.filename.placeholder')}
+          />
+        </Modal>
+
+        <Modal
+          title={t('settings.data.webdav.restore.modal.title')}
+          open={isRestoreModalVisible}
+          onOk={handleRestore}
+          onCancel={() => setIsRestoreModalVisible(false)}
+          okButtonProps={{ loading: restoring }}
+          width={600}>
+          <div style={{ position: 'relative' }}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder={t('settings.data.webdav.restore.modal.select.placeholder')}
+              value={selectedFile}
+              onChange={setSelectedFile}
+              options={backupFiles.map(formatFileOption)}
+              loading={loadingFiles}
+              showSearch
+              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+            />
+            {loadingFiles && (
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+                <Spin />
+              </div>
+            )}
+          </div>
+        </Modal>
+      </>
     </SettingGroup>
   )
 }

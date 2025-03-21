@@ -171,6 +171,7 @@
       "topics.export.obsidian_export_failed": "Экспорт не удалось",
       "topics.export.obsidian_show_md_files": "Показать файлы MD",
       "topics.export.obsidian_selected_path": "Выбранный путь",
+      "topics.export.joplin": "Экспорт в Joplin",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
@@ -233,7 +234,11 @@
       "topics": "Топики",
       "warning": "Предупреждение",
       "you": "Вы",
-      "more": "Ещё"
+      "confirm": "Подтверждение",
+      "copied": "Скопировано",
+      "more": "Ещё",
+      "advanced_settings": "Дополнительные настройки",
+      "expand": "Развернуть"
     },
     "docs": {
       "title": "Документация"
@@ -362,7 +367,11 @@
       "title": "База знаний",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "topN": "Количество возвращаемых результатов",
+      "topN_placeholder": "Не установлено",
+      "topN__too_large_or_small": "Количество возвращаемых результатов не может быть больше 100 или меньше 1.",
+      "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает."
     },
     "languages": {
       "arabic": "Арабский",
@@ -406,6 +415,10 @@
       "title": "GPUStack"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "Вырезанный текст",
+        "pasted_image": "Вырезанное изображение"
+      },
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",
@@ -436,6 +449,8 @@
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+      "error.joplin.no_config": "Joplin Authorization Token или URL не настроен",
+      "error.joplin.export": "Не удалось экспортировать в Joplin, пожалуйста, убедитесь, что Joplin запущен и проверьте состояние подключения или настройки",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
@@ -468,12 +483,18 @@
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
       "success.notion.export": "Успешный экспорт в Notion",
       "success.yuque.export": "Успешный экспорт в Yuque",
+      "success.joplin.export": "Успешный экспорт в Joplin",
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
-      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!"
+      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
+      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова.",
+      "tools": {
+        "invoking": "Вызов",
+        "completed": "Завершено"
+      }
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -535,7 +556,9 @@
         "function_calling": "Вызов функции"
       },
       "vision": "Визуальные",
-      "websearch": "Веб-поисковые"
+      "websearch": "Веб-поисковые",
+      "rerank_model": "Модель переупорядочивания",
+      "rerank_model_tooltip": "В настройках -> Служба модели нажмите кнопку \"Управление\", чтобы добавить."
     },
     "navbar": {
       "expand": "Развернуть диалоговое окно",
@@ -629,6 +652,7 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
       "alayanew": "Alaya NeW"
     },
@@ -699,6 +723,8 @@
         "markdown_export.path_placeholder": "Путь экспорта",
         "markdown_export.select": "Выбрать",
         "markdown_export.help": "Если указано, файлы будут автоматически сохраняться в этот путь; в противном случае появится диалоговое окно сохранения.",
+        "markdown_export.force_dollar_math.title": "Принудительно использовать $$ для формул LaTeX",
+        "markdown_export.force_dollar_math.help": "Если включено, при экспорте в Markdown для обозначения формул LaTeX будет принудительно использоваться $$. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
         "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
@@ -742,7 +768,13 @@
           "syncError": "Ошибка резервного копирования",
           "syncStatus": "Статус резервного копирования",
           "title": "WebDAV",
-          "user": "Пользователь WebDAV"
+          "user": "Пользователь WebDAV",
+          "backup.modal.title": "Резервное копирование на WebDAV",
+          "backup.modal.filename.placeholder": "Введите имя файла резервной копии",
+          "restore.modal.title": "Восстановление с WebDAV",
+          "restore.modal.select.placeholder": "Выберите файл резервной копии для восстановления",
+          "restore.confirm.title": "Подтверждение восстановления",
+          "restore.confirm.content": "Восстановление с WebDAV перезапишет текущие данные, продолжить?"
         },
         "yuque": {
           "check": {
@@ -773,6 +805,21 @@
           "title": "Настройка Obsidian",
           "api_key": "API Key Obsidian",
           "api_key_placeholder": "Введите API Key Obsidian"
+        },
+        "joplin": {
+          "check": {
+            "button": "Проверить",
+            "empty_url": "Сначала введите URL Joplin",
+            "empty_token": "Сначала введите токен Joplin",
+            "fail": "Не удалось проверить подключение к Joplin",
+            "success": "Подключение к Joplin успешно проверено"
+          },
+          "title": "Настройка Joplin",
+          "help": "Включите Joplin опцию, проверьте порт и скопируйте токен",
+          "url": "URL Joplin",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Токен Joplin",
+          "token_placeholder": "Введите токен Joplin"
         }
       },
       "display.assistant.title": "Настройки ассистентов",
@@ -839,6 +886,7 @@
         "editServer": "Редактировать сервер",
         "env": "Переменные окружения",
         "envTooltip": "Формат: KEY=value, по одной на строку",
+        "findMore": "Найти больше MCP серверов",
         "name": "Имя",
         "nameRequired": "Пожалуйста, введите имя сервера",
         "noServers": "Серверы не настроены",
@@ -878,6 +926,10 @@
         "jsonSaveError": "Не удалось сохранить конфигурацию JSON"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
+      "messages.navigation": "Навигация сообщений",
+      "messages.navigation.none": "Не показывать",
+      "messages.navigation.buttons": "Кнопки пагинации",
+      "messages.navigation.anchor": "Диалог анкор",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
       "messages.grid_popover_trigger.click": "Нажатие для отображения",
@@ -911,7 +963,7 @@
       "models.check.enabled": "Включено",
       "models.check.failed": "Не прошло",
       "models.check.keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} модели прошли все ключи, {{count_failed}} модели не прошли все ключи, {{count_partial}} модели не прошли некоторые ключи",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} моделей прошли проверку состояния (из них {{count_partial}} моделей недоступны с некоторыми ключами), {{count_failed}} моделей полностью недоступны.",
       "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
       "models.check.passed": "Прошло",
       "models.check.select_api_key": "Выберите API ключ для использования:",
@@ -964,7 +1016,32 @@
         "remove_invalid_keys": "Удалить недействительные ключи",
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
-        "title": "Провайдеры моделей"
+        "title": "Провайдеры моделей",
+        "is_not_support_array_content": "Включить совместимый режим",
+        "copilot": {
+          "tooltip": "Для использования Github Copilot необходимо сначала войти в Github.",
+          "description": "Ваша учетная запись Github должна подписаться на Copilot.",
+          "login": "Войти в Github",
+          "connect": "Подключить Github",
+          "logout": "Выйти из Github",
+          "auth_success_title": "Аутентификация успешна",
+          "code_generated_title": "Получить код устройства",
+          "code_generated_desc": "Пожалуйста, скопируйте код устройства в приведенную ниже ссылку браузера.",
+          "code_failed": "Получение кода устройства не удалось, пожалуйста, попробуйте еще раз.",
+          "auth_success": "Github Copilot认证成功",
+          "auth_failed": "Github Copilot认证失败",
+          "logout_success": "Успешно вышел",
+          "logout_failed": "Не удалось выйти, пожалуйста, повторите попытку.",
+          "confirm_title": "Предупреждение о рисках",
+          "confirm_login": "Чрезмерное использование может привести к блокировке вашего Github, будьте осторожны!!!!",
+          "rate_limit": "Ограничение скорости",
+          "custom_headers": "Пользовательские заголовки запроса",
+          "headers_description": "Пользовательские заголовки запроса (формат json)",
+          "expand": "развернуть",
+          "model_setting": "Настройки модели",
+          "invalid_json": "Ошибка формата JSON",
+          "open_verification_first": "Пожалуйста, сначала щелкните по ссылке выше, чтобы перейти на страницу проверки."
+        }
       },
       "proxy": {
         "mode": {
@@ -980,7 +1057,8 @@
         "click_tray_to_show": "Нажмите на иконку трея для запуска",
         "enable_quick_assistant": "Включить быстрый помощник",
         "title": "Быстрый помощник",
-        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска"
+        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска",
+        "read_clipboard_at_startup": "Чтение буфера обмена при запуске"
       },
       "shortcuts": {
         "action": "Действие",
@@ -1017,7 +1095,12 @@
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
-      "tray.title": "Включить значок системного трея",
+      "tray.title": "Трей",
+      "tray.show": "Показать значок в трее",
+      "tray.onclose": "Свернуть в трей при закрытии",
+      "launch.title": "Запуск",
+      "launch.onboot": "Автозапуск при включении",
+      "launch.totray": "Свернуть в трей при запуске",
       "websearch": {
         "blacklist": "Черный список",
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
@@ -1032,6 +1115,8 @@
         "search_provider_placeholder": "Выберите поставщика поисковых услуг",
         "search_result_default": "По умолчанию",
         "search_with_time": "Поиск, содержащий дату",
+        "enhance_mode": "Режим улучшения поиска",
+        "enhance_mode_tooltip": "Используйте модель по умолчанию для извлечения ключевых слов из проблемы и поиска",
         "tavily": {
           "api_key": "Ключ API Tavily",
           "api_key.placeholder": "Введите ключ API Tavily",

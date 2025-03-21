@@ -1,10 +1,10 @@
 <h1 align="center">
-  <a href="https://github.com/kangfenmao/cherry-studio/releases">
-    <img src="https://github.com/kangfenmao/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" />
+  <a href="https://github.com/CherryHQ/cherry-studio/releases">
+    <img src="https://github.com/CherryHQ/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" />
   </a>
 </h1>
 <p align="center">
-  <a href="https://github.com/kangfenmao/cherry-studio">English</a> | 中文 | <a href="./README.ja.md">日本語</a><br></p>
+  <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="./README.ja.md">日本語</a><br></p>
 <div align="center">
  <a href="https://trendshift.io/repositories/11772" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11772" alt="kangfenmao%2Fcherry-studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
@@ -52,6 +52,7 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 - 🔤 AI 驱动的翻译功能
 - 🎯 拖拽排序
 - 🔌 小程序支持
+- ⚙️ MCP(模型上下文协议) 服务
 
 5. **优质使用体验**：
 
@@ -63,7 +64,7 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 # 📝 待辦事項
 
-- [x] 快捷弹窗 (读取剪贴板、快速提问、解释、翻译、总结）
+- [x] 快捷弹窗（读取剪贴板、快速提问、解释、翻译、总结）
 - [x] 多模型回答对比
 - [x] 支持使用服务供应商提供的 SSO 进行登入
 - [x] 全部模型支持连网（开发中...）
@@ -99,17 +100,17 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 3. **提交更改**：提交并推送您的更改。
 4. **打开 Pull Request**：描述您的更改和原因。
 
-有关更详细的指南，请参阅我们的 [贡献指南](./CONTRIBUTING.md)。
+有关更详细的指南，请参阅我们的 [贡献指南](../CONTRIBUTING.md)。
 
 感谢您的支持和贡献！
 
 ## 相关项目
 
-- [one-api](https://github.com/songquanpeng/one-api):LLM API管理及分发系统，支持OpenAI、Azure、Anthropic等主流模型，统一API接口，可用于密钥管理与二次分发。
+- [one-api](https://github.com/songquanpeng/one-api)：LLM API 管理及分发系统，支持 OpenAI、Azure、Anthropic 等主流模型，统一 API 接口，可用于密钥管理与二次分发。
 
 # 🚀 贡献者
 
-<a href="https://github.com/kangfenmao/cherry-studio/graphs/contributors">
+<a href="https://github.com/CherryHQ/cherry-studio/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=kangfenmao/cherry-studio" />
 </a>
 <br /><br />

@@ -51,7 +51,7 @@
   --color-reference-background: #0b0e12;
 
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
-  --navbar-background: rgba(40, 40, 40);
+  --navbar-background: #1f1f1f;
 
   --navbar-height: 40px;
   --sidebar-width: 50px;
@@ -68,6 +68,13 @@
   --chat-text-user: var(--color-black);
 
   --list-item-border-radius: 16px;
+}
+
+body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 body[theme-mode='light'] {
@@ -158,6 +165,20 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s linear;
+}
+
+input,
+textarea,
+[contenteditable='true'],
+.markdown,
+#messages,
+.selectable,
+pre,
+code {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
 }
 
 a {

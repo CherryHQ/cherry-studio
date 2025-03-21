@@ -6,7 +6,12 @@ import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious,
 import type { LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
 import type { UpdateInfo } from 'electron-updater'
-import { Readable } from 'stream'
+
+interface BackupFile {
+  fileName: string
+  modifiedTime: string
+  size: number
+}
 
 declare global {
   interface Window {
@@ -18,12 +23,18 @@ declare global {
       openWebsite: (url: string) => void
       setProxy: (proxy: string | undefined) => void
       setLanguage: (theme: LanguageVarious) => void
+      setLaunchOnBoot: (isActive: boolean) => void
+      setLaunchToTray: (isActive: boolean) => void
       setTray: (isActive: boolean) => void
+      setTrayOnClose: (isActive: boolean) => void
       restartTray: () => void
       setTheme: (theme: 'light' | 'dark') => void
       minApp: (options: { url: string; windowOptions?: Electron.BrowserWindowConstructorOptions }) => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
+      system: {
+        getDeviceType: () => Promise<'mac' | 'windows' | 'linux'>
+      }
       zip: {
         compress: (text: string) => Promise<Buffer>
         decompress: (text: Buffer) => Promise<string>
@@ -33,6 +44,7 @@ declare global {
         restore: (backupPath: string) => Promise<string>
         backupToWebdav: (data: string, webdavConfig: WebDavConfig) => Promise<boolean>
         restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
+        listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
@@ -68,8 +80,8 @@ declare global {
         update: (shortcuts: Shortcut[]) => Promise<void>
       }
       knowledgeBase: {
-        create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) => Promise<void>
-        reset: ({ base }: { base: KnowledgeBaseParams }) => Promise<void>
+        create: (base: KnowledgeBaseParams) => Promise<void>
+        reset: (base: KnowledgeBaseParams) => Promise<void>
         delete: (id: string) => Promise<void>
         add: ({
           base,
@@ -90,6 +102,15 @@ declare global {
           base: KnowledgeBaseParams
         }) => Promise<void>
         search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) => Promise<ExtractChunkData[]>
+        rerank: ({
+          search,
+          base,
+          results
+        }: {
+          search: string
+          base: KnowledgeBaseParams
+          results: ExtractChunkData[]
+        }) => Promise<ExtractChunkData[]>
       }
       window: {
         setMinimumSize: (width: number, height: number) => Promise<void>
@@ -134,6 +155,16 @@ declare global {
         callTool: ({ client, name, args }: { client: string; name: string; args: any }) => Promise<any>
         // status
         cleanup: () => Promise<void>
+      }
+      copilot: {
+        getAuthMessage: (
+          headers?: Record<string, string>
+        ) => Promise<{ device_code: string; user_code: string; verification_uri: string }>
+        getCopilotToken: (device_code: string, headers?: Record<string, string>) => Promise<{ access_token: string }>
+        saveCopilotToken: (access_token: string) => Promise<void>
+        getToken: (headers?: Record<string, string>) => Promise<{ token: string }>
+        logout: () => Promise<void>
+        getUser: (token: string) => Promise<{ login: string; avatar: string }>
       }
       isBinaryExist: (name: string) => Promise<boolean>
       getBinaryPath: (name: string) => Promise<string>

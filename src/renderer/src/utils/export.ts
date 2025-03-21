@@ -5,14 +5,15 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import { Message, Topic } from '@renderer/types'
-import { removeSpecialCharactersForFileName } from '@renderer/utils/index'
+import { convertMathFormula, removeSpecialCharactersForFileName } from '@renderer/utils/index'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 
 export const messageToMarkdown = (message: Message) => {
+  const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
   const titleSection = `### ${roleText}`
-  const contentSection = message.content
+  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(message.content) : message.content
 
   return [titleSection, '', contentSection].join('\n')
 }
@@ -375,5 +376,44 @@ export const exportMarkdownToObsidian = async (
   } catch (error) {
     console.error('导出到Obsidian失败:', error)
     window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+  }
+}
+
+export const exportMarkdownToJoplin = async (title: string, content: string) => {
+  const { joplinUrl, joplinToken } = store.getState().settings
+
+  if (!joplinUrl || !joplinToken) {
+    window.message.error(i18n.t('message.error.joplin.no_config'))
+    return
+  }
+
+  try {
+    const baseUrl = joplinUrl.endsWith('/') ? joplinUrl : `${joplinUrl}/`
+    const response = await fetch(`${baseUrl}notes?token=${joplinToken}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: title,
+        body: content,
+        source: 'Cherry Studio'
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('service not available')
+    }
+
+    const data = await response.json()
+    if (data?.error) {
+      throw new Error('response error')
+    }
+
+    window.message.success(i18n.t('message.success.joplin.export'))
+    return
+  } catch (error) {
+    window.message.error(i18n.t('message.error.joplin.export'))
+    return
   }
 }
