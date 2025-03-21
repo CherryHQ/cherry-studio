@@ -1,4 +1,4 @@
-import { isEmbeddingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
 import { Model, Provider } from '@renderer/types'
@@ -31,6 +31,18 @@ export function getModelName(model?: Model) {
   }
 
   return modelName
+}
+
+export function hasAnyVisionModel(model: Model, models?: Model[]) {
+  return isVisionModel(model) || (models && models.some((model) => isVisionModel(model)))
+}
+
+export function hasAnyFunctionCallingModel(model: Model, models?: Model[]) {
+  return isFunctionCallingModel(model) || (models && models.some((model) => isFunctionCallingModel(model)))
+}
+
+export function hasAnyWebSearchModel(model: Model, models?: Model[]) {
+  return isWebSearchModel(model) || (models && models.some((model) => isWebSearchModel(model)))
 }
 
 // Generic function to perform model checks
