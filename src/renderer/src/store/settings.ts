@@ -295,12 +295,6 @@ const settingsSlice = createSlice({
     setCustomCss: (state, action: PayloadAction<string>) => {
       state.customCss = action.payload
     },
-    setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
-      state.topicNamingPrompt = action.payload
-    },
-    setSearchSummaryPrompt: (state, action: PayloadAction<string>) => {
-      state.searchSummaryPrompt = action.payload
-    },
     setSidebarIcons: (state, action: PayloadAction<{ visible?: SidebarIcon[]; disabled?: SidebarIcon[] }>) => {
       if (action.payload.visible) {
         state.sidebarIcons.visible = action.payload.visible
@@ -411,13 +405,10 @@ export const {
   setGridPopoverTrigger,
   setMessageStyle,
   setCodeStyle,
-  setTranslateModelPrompt,
   setAutoTranslateWithSpace,
   setEnableTopicNaming,
   setPasteLongTextThreshold,
   setCustomCss,
-  setTopicNamingPrompt,
-  setSearchSummaryPrompt,
   setSidebarIcons,
   setNarrowMode,
   setClickTrayToShowQuickAssistant,
