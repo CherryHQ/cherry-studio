@@ -14,9 +14,9 @@ import {
 import { UploadOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
-import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import MessageResend from '@renderer/pages/home/Messages/MessageResend'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -30,9 +30,9 @@ import {
   exportMessageAsMarkdown,
   messageToMarkdown
 } from '@renderer/utils/export'
-import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
+import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { FC, memo, useCallback, useMemo, useState } from 'react'
+import React, { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 interface Props {
@@ -94,30 +94,33 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const onEdit = useCallback(async () => {
-    let resendMessage = false
-
-    const editedText = await TextEditPopup.show({
+    const currentAttachments = message.role === 'user' ? message.files || [] : []
+    const result = await MessageResend.show({
       text: message.content,
-      children: (props) => {
-        const onPress = () => {
-          props.onOk?.()
-          resendMessage = true
-        }
-        return message.role === 'user' ? (
-          <ReSendButton
-            icon={<i className="iconfont icon-ic_send" style={{ color: 'var(--color-primary)' }} />}
-            onClick={onPress}>
-            {t('chat.resend')}
-          </ReSendButton>
-        ) : null
+      attachments: currentAttachments,
+      modalProps: {
+        title: t('common.edit')
       }
     })
 
-    if (editedText && editedText !== message.content) {
-      await editMessage(message.id, { content: editedText })
-      resendMessage && handleResendUserMessage({ ...message, content: editedText })
+    if (result) {
+      const { text, attachments } = result
+      if (text !== message.content || !arraysEqual(attachments, currentAttachments)) {
+        await editMessage(message.id, {
+          content: text,
+          files: attachments
+        })
+        if (message.role === 'user' && assistant) {
+          await resendMessage({ ...message, content: text, files: attachments }, assistant)
+        }
+      }
     }
-  }, [message, editMessage, handleResendUserMessage, t])
+  }, [message, editMessage, t, assistant, resendMessage])
+
+  const arraysEqual = (a: any[], b: any[]) => {
+    if (a.length !== b.length) return false
+    return a.every((item, index) => item.id === b[index].id)
+  }
 
   const handleTranslate = useCallback(
     async (language: string) => {
@@ -403,12 +406,6 @@ const ActionButton = styled.div`
   .icon-at {
     font-size: 16px;
   }
-`
-
-const ReSendButton = styled(Button)`
-  position: absolute;
-  top: 10px;
-  left: 0;
 `
 
 export default memo(MessageMenubar)
