@@ -131,7 +131,8 @@ class KnowledgeService {
               model,
               apiKey,
               dimensions,
-              batchSize
+              batchSize,
+              configuration: { baseURL }
             })
       )
       .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
