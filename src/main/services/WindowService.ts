@@ -317,7 +317,8 @@ export class WindowService {
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
-        return this.mainWindow.restore()
+        this.mainWindow.restore()
+        return
       }
       //[macOS] Known Issue
       // setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
@@ -342,6 +343,7 @@ export class WindowService {
         // if tray is enabled, hide the main window, else do nothing
         if (configManager.getTray()) {
           this.mainWindow.hide()
+          app.dock?.hide()
         }
       } else {
         this.mainWindow.focus()
