@@ -1,12 +1,12 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { app, ipcMain } from 'electron'
+import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
-import { updateUserDataPath } from './utils/upgrade'
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -18,27 +18,6 @@ if (!app.requestSingleInstanceLock()) {
   // Some APIs can only be used after this event occurs.
 
   app.whenReady().then(async () => {
-    await updateUserDataPath()
-
-    // Register custom protocol
-    if (!app.isDefaultProtocolClient('cherrystudio')) {
-      app.setAsDefaultProtocolClient('cherrystudio')
-    }
-
-    // Handle protocol open
-    app.on('open-url', (event, url) => {
-      event.preventDefault()
-      const parsedUrl = new URL(url)
-      if (parsedUrl.pathname === 'siliconflow.oauth.login') {
-        const code = parsedUrl.searchParams.get('code')
-        if (code) {
-          // Handle the OAuth code here
-          console.log('OAuth code received:', code)
-          // You can send this code to your renderer process via IPC if needed
-        }
-      }
-    })
-
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
@@ -53,9 +32,12 @@ if (!app.requestSingleInstanceLock()) {
         windowService.showMainWindow()
       }
     })
+
     registerShortcuts(mainWindow)
 
     registerIpc(mainWindow, app)
+
+    replaceDevtoolsFont(mainWindow)
 
     if (process.env.NODE_ENV === 'development') {
       installExtension(REDUX_DEVTOOLS)

@@ -6,12 +6,14 @@ import {
   TranslationOutlined
 } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
-import { AppLogo, isLocalAi, UserAvatar } from '@renderer/config/env'
+import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Tooltip } from 'antd'
 import { Avatar } from 'antd'
@@ -32,14 +34,13 @@ const Sidebar: FC = () => {
   const { minappShow } = useRuntime()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { windowStyle, sidebarIcons } = useSettings()
+  const { sidebarIcons } = useSettings()
   const { theme, toggleTheme } = useTheme()
   const { pinned } = useMinapps()
 
   const onEditUser = () => UserPopup.show()
 
-  const macTransparentWindow = isMac && windowStyle === 'transparent'
-  const sidebarBgColor = macTransparentWindow ? 'transparent' : 'var(--navbar-background)'
+  const backgroundColor = useNavBackgroundColor()
 
   const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
 
@@ -58,13 +59,12 @@ const Sidebar: FC = () => {
   }
 
   return (
-    <Container
-      id="app-sidebar"
-      style={{
-        backgroundColor: sidebarBgColor,
-        zIndex: minappShow ? 10000 : 'initial'
-      }}>
-      <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
+    <Container id="app-sidebar" style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
+      {isEmoji(avatar) ? (
+        <EmojiAvatar onClick={onEditUser}>{avatar}</EmojiAvatar>
+      ) : (
+        <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
+      )}
       <MainMenusContainer>
         <Menus onClick={MinApp.onClose}>
           <MainMenus />
@@ -81,13 +81,14 @@ const Sidebar: FC = () => {
       <Menus>
         <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
           <Icon
+            theme={theme}
             onClick={onOpenDocs}
             className={minappShow && MinApp.app?.url === 'https://docs.cherry-ai.com/' ? 'active' : ''}>
             <QuestionCircleOutlined />
           </Icon>
         </Tooltip>
         <Tooltip title={t('settings.theme.title')} mouseEnterDelay={0.8} placement="right">
-          <Icon onClick={() => toggleTheme()}>
+          <Icon theme={theme} onClick={() => toggleTheme()}>
             {theme === 'dark' ? (
               <i className="iconfont icon-theme icon-dark1" />
             ) : (
@@ -98,12 +99,11 @@ const Sidebar: FC = () => {
         <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
           <StyledLink
             onClick={async () => {
-              if (minappShow) {
-                await MinApp.close()
-              }
-              await to(isLocalAi ? '/settings/assistant' : '/settings/provider')
+              minappShow && (await MinApp.close())
+              await modelGenerating()
+              await to('/settings/provider')
             }}>
-            <Icon className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
+            <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
               <i className="iconfont icon-setting" />
             </Icon>
           </StyledLink>
@@ -119,6 +119,7 @@ const MainMenus: FC = () => {
   const { sidebarIcons } = useSettings()
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
+  const { theme } = useTheme()
 
   const isRoute = (path: string): string => (pathname === path && !minappShow ? 'active' : '')
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
@@ -151,12 +152,13 @@ const MainMenus: FC = () => {
       <Tooltip key={icon} title={t(`${icon}.title`)} mouseEnterDelay={0.8} placement="right">
         <StyledLink
           onClick={async () => {
-            if (minappShow) {
-              await MinApp.close()
-            }
+            minappShow && (await MinApp.close())
+            await modelGenerating()
             navigate(path)
           }}>
-          <Icon className={isActive}>{iconMap[icon]}</Icon>
+          <Icon theme={theme} className={isActive}>
+            {iconMap[icon]}
+          </Icon>
         </StyledLink>
       </Tooltip>
     )
@@ -167,6 +169,7 @@ const PinnedApps: FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
   const { minappShow } = useRuntime()
+  const { theme } = useTheme()
 
   return (
     <DragableList list={pinned} onUpdate={updatePinnedMinapps} listStyle={{ marginBottom: 5 }}>
@@ -186,7 +189,7 @@ const PinnedApps: FC = () => {
           <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
             <StyledLink>
               <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
-                <Icon onClick={() => MinApp.start(app)} className={isActive ? 'active' : ''}>
+                <Icon theme={theme} onClick={() => MinApp.start(app)} className={isActive ? 'active' : ''}>
                   <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} />
                 </Icon>
               </Dropdown>
@@ -220,6 +223,24 @@ const AvatarImg = styled(Avatar)`
   border: none;
   cursor: pointer;
 `
+
+const EmojiAvatar = styled.div`
+  width: 31px;
+  height: 31px;
+  background-color: var(--color-background-soft);
+  margin-bottom: ${isMac ? '12px' : '12px'};
+  margin-top: ${isMac ? '0px' : '2px'};
+  border-radius: 20%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  -webkit-app-region: none;
+  border: 0.5px solid var(--color-border);
+  font-size: 20px;
+`
+
 const MainMenusContainer = styled.div`
   display: flex;
   flex: 1;
@@ -234,7 +255,7 @@ const Menus = styled.div`
   gap: 5px;
 `
 
-const Icon = styled.div`
+const Icon = styled.div<{ theme: string }>`
   width: 35px;
   height: 35px;
   display: flex;
@@ -253,7 +274,8 @@ const Icon = styled.div`
     font-size: 17px;
   }
   &:hover {
-    background-color: var(--color-hover);
+    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    opacity: 0.8;
     cursor: pointer;
     .iconfont,
     .anticon {
@@ -261,7 +283,7 @@ const Icon = styled.div`
     }
   }
   &.active {
-    background-color: var(--color-active);
+    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     border: 0.5px solid var(--color-border);
     .iconfont,
     .anticon {

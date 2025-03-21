@@ -1,25 +1,44 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import type { WebSearchProvider } from '@renderer/types'
+
 export interface WebSearchState {
+  // 默认搜索提供商的ID
   defaultProvider: string
+  // 所有可用的搜索提供商列表
   providers: WebSearchProvider[]
+  // 是否在搜索查询中添加当前日期
   searchWithTime: boolean
+  // 搜索结果的最大数量
   maxResults: number
+  // 要排除的域名列表
   excludeDomains: string[]
+  // 是否启用搜索增强模式
+  enhanceMode: boolean
 }
 
 const initialState: WebSearchState = {
-  defaultProvider: 'tavily',
+  defaultProvider: '',
   providers: [
     {
       id: 'tavily',
       name: 'Tavily',
       apiKey: ''
+    },
+    {
+      id: 'searxng',
+      name: 'Searxng',
+      apiHost: ''
+    },
+    {
+      id: 'exa',
+      name: 'Exa',
+      apiKey: ''
     }
   ],
   searchWithTime: true,
   maxResults: 5,
-  excludeDomains: []
+  excludeDomains: [],
+  enhanceMode: false
 }
 
 const websearchSlice = createSlice({
@@ -30,6 +49,9 @@ const websearchSlice = createSlice({
       state.defaultProvider = action.payload
     },
     setWebSearchProviders: (state, action: PayloadAction<WebSearchProvider[]>) => {
+      state.providers = action.payload
+    },
+    updateWebSearchProviders: (state, action: PayloadAction<WebSearchProvider[]>) => {
       state.providers = action.payload
     },
     updateWebSearchProvider: (state, action: PayloadAction<WebSearchProvider>) => {
@@ -46,6 +68,9 @@ const websearchSlice = createSlice({
     },
     setExcludeDomains: (state, action: PayloadAction<string[]>) => {
       state.excludeDomains = action.payload
+    },
+    setEnhanceMode: (state, action: PayloadAction<boolean>) => {
+      state.enhanceMode = action.payload
     }
   }
 })
@@ -53,10 +78,12 @@ const websearchSlice = createSlice({
 export const {
   setWebSearchProviders,
   updateWebSearchProvider,
+  updateWebSearchProviders,
   setDefaultProvider,
   setSearchWithTime,
   setExcludeDomains,
-  setMaxResult
+  setMaxResult,
+  setEnhanceMode
 } = websearchSlice.actions
 
 export default websearchSlice.reducer

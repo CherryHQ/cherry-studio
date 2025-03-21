@@ -35,6 +35,7 @@ export default abstract class BaseProvider {
   abstract completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
   abstract translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void): Promise<string>
   abstract summaries(messages: Message[], assistant: Assistant): Promise<string>
+  abstract summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null>
   abstract suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]>
   abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>
   abstract check(model: Model): Promise<{ valid: boolean; error: Error | null }>
@@ -71,6 +72,8 @@ export default abstract class BaseProvider {
 
   public defaultHeaders() {
     return {
+      'HTTP-Referer': 'https://cherry-ai.com',
+      'X-Title': 'Cherry Studio',
       'X-Api-Key': this.apiKey
     }
   }
@@ -91,6 +94,10 @@ export default abstract class BaseProvider {
   }
 
   public async getMessageContent(message: Message) {
+    if (isEmpty(message.content)) {
+      return message.content
+    }
+
     const webSearchReferences = await this.getWebSearchReferences(message)
 
     if (!isEmpty(webSearchReferences)) {
@@ -113,6 +120,9 @@ export default abstract class BaseProvider {
   }
 
   private async getWebSearchReferences(message: Message) {
+    if (isEmpty(message.content)) {
+      return []
+    }
     const webSearch: TavilySearchResponse = window.keyv.get(`web-search-${message.id}`)
 
     if (webSearch) {
@@ -151,20 +161,48 @@ export default abstract class BaseProvider {
     )
   }
 
-  protected createAbortController(messageId?: string) {
+  protected createAbortController(messageId?: string, isAddEventListener?: boolean) {
     const abortController = new AbortController()
+    const abortFn = () => abortController.abort()
 
     if (messageId) {
-      addAbortController(messageId, () => abortController.abort())
+      addAbortController(messageId, abortFn)
     }
 
+    const cleanup = () => {
+      if (messageId) {
+        signalPromise.resolve?.(undefined)
+        removeAbortController(messageId, abortFn)
+      }
+    }
+    const signalPromise: {
+      resolve: (value: unknown) => void
+      promise: Promise<unknown>
+    } = {
+      resolve: () => {},
+      promise: Promise.resolve()
+    }
+
+    if (isAddEventListener) {
+      signalPromise.promise = new Promise((resolve, reject) => {
+        signalPromise.resolve = resolve
+        if (abortController.signal.aborted) {
+          reject(new Error('Request was aborted.'))
+        }
+        // 捕获abort事件,有些abort事件必须
+        abortController.signal.addEventListener('abort', () => {
+          reject(new Error('Request was aborted.'))
+        })
+      })
+      return {
+        abortController,
+        cleanup,
+        signalPromise
+      }
+    }
     return {
       abortController,
-      cleanup: () => {
-        if (messageId) {
-          removeAbortController(messageId)
-        }
-      }
+      cleanup
     }
   }
 }

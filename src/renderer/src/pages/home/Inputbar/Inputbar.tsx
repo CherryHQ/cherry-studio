@@ -1,17 +1,19 @@
 import {
   ClearOutlined,
+  ColumnHeightOutlined,
   FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
   GlobalOutlined,
+  HolderOutlined,
   PauseCircleOutlined,
-  PicCenterOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
@@ -19,19 +21,19 @@ import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
-import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
+import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
+import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setGenerating, setSearching } from '@renderer/store/runtime'
-import { Assistant, FileType, KnowledgeBase, Message, Model, Topic } from '@renderer/types'
-import { classNames, delay, getFileExtension, uuid } from '@renderer/utils'
-import { abortCompletion } from '@renderer/utils/abortController'
+import { useAppDispatch } from '@renderer/store'
+import { sendMessage as _sendMessage } from '@renderer/store/messages'
+import { setSearching } from '@renderer/store/runtime'
+import { Assistant, FileType, KnowledgeBase, MCPServer, Message, Model, Topic } from '@renderer/types'
+import { classNames, delay, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Popconfirm, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
-import dayjs from 'dayjs'
 import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -43,20 +45,22 @@ import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
+import MCPToolsButton from './MCPToolsButton'
 import MentionModelsButton from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
+import NewContextButton from './NewContextButton'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
-
 interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
+  topic: Topic
 }
 
 let _text = ''
 let _files: FileType[] = []
 
-const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
+const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
   const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
@@ -67,85 +71,142 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     pasteLongTextAsFile,
     pasteLongTextThreshold,
     showInputEstimatedTokens,
-    clickAssistantToShowTopic,
     autoTranslateWithSpace
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
-  const [contextCount, setContextCount] = useState(0)
-  const generating = useAppSelector((state) => state.runtime.generating)
+  const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
   const { isBubbleStyle } = useMessageStyle()
+  const { loading, pauseMessages } = useMessageOperations(topic)
   const dispatch = useAppDispatch()
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout>()
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
+  const [enabledMCPs, setEnabledMCPs] = useState<MCPServer[]>([])
   const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [textareaHeight, setTextareaHeight] = useState<number>()
+  const startDragY = useRef<number>(0)
+  const startHeight = useRef<number>(0)
   const currentMessageId = useRef<string>()
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const navigate = useNavigate()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
+  const showMCPToolsIcon = isFunctionCallingModel(model)
 
-  const estimateTextTokens = useCallback(debounce(estimateTxtTokens, 1000), [])
-  const inputTokenCount = useMemo(
-    () => (showInputEstimatedTokens ? estimateTextTokens(text) || 0 : 0),
-    [estimateTextTokens, showInputEstimatedTokens, text]
+  const [tokenCount, setTokenCount] = useState(0)
+
+  const [mentionFromKeyboard, setMentionFromKeyboard] = useState(false)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedEstimate = useCallback(
+    debounce((newText) => {
+      if (showInputEstimatedTokens) {
+        const count = estimateTxtTokens(newText) || 0
+        setTokenCount(count)
+      }
+    }, 500),
+    [showInputEstimatedTokens]
   )
+
+  useEffect(() => {
+    debouncedEstimate(text)
+  }, [text, debouncedEstimate])
+
+  const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
+
   const newTopicShortcut = useShortcutDisplay('new_topic')
-  const newContextShortcut = useShortcutDisplay('toggle_new_context')
   const cleanTopicShortcut = useShortcutDisplay('clear_topic')
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
   _files = files
 
-  const sendMessage = useCallback(async () => {
-    await modelGenerating()
+  const resizeTextArea = useCallback(() => {
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (textArea) {
+      // 如果已经手动设置了高度,则不自动调整
+      if (textareaHeight) {
+        return
+      }
+      textArea.style.height = 'auto'
+      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
+    }
+  }, [textareaHeight])
 
-    if (inputEmpty) {
+  const sendMessage = useCallback(async () => {
+    if (inputEmpty || loading) {
+      return
+    }
+    if (checkRateLimit(assistant)) {
       return
     }
 
-    const message: Message = {
-      id: uuid(),
-      role: 'user',
-      content: text,
-      assistantId: assistant.id,
-      topicId: assistant.topics[0].id || uuid(),
-      createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-      type: 'text',
-      status: 'success'
+    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
+
+    try {
+      // Dispatch the sendMessage action with all options
+      const uploadedFiles = await FileManager.uploadFiles(files)
+      const userMessage = getUserMessage({ assistant, topic, type: 'text', content: text })
+
+      if (uploadedFiles) {
+        userMessage.files = uploadedFiles
+      }
+
+      const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
+
+      if (knowledgeBaseIds) {
+        userMessage.knowledgeBaseIds = knowledgeBaseIds
+      }
+
+      if (mentionModels) {
+        userMessage.mentions = mentionModels
+      }
+
+      if (enabledMCPs) {
+        userMessage.enabledMCPs = enabledMCPs
+      }
+
+      userMessage.usage = await estimateMessageUsage(userMessage)
+      currentMessageId.current = userMessage.id
+
+      dispatch(
+        _sendMessage(userMessage, assistant, topic, {
+          mentions: mentionModels
+        })
+      )
+
+      // Clear input
+      setText('')
+      setFiles([])
+      setTimeout(() => setText(''), 500)
+      setTimeout(() => resizeTextArea(), 0)
+      setExpend(false)
+    } catch (error) {
+      console.error('Failed to send message:', error)
     }
-
-    if (selectedKnowledgeBases) {
-      message.knowledgeBaseIds = selectedKnowledgeBases.map((base) => base.id)
-    }
-
-    if (files.length > 0) {
-      message.files = await FileManager.uploadFiles(files)
-    }
-
-    if (mentionModels.length > 0) {
-      message.mentions = mentionModels
-    }
-    currentMessageId.current = message.id
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
-
-    setText('')
-    setFiles([])
-    setTimeout(() => setText(''), 500)
-    setTimeout(() => resizeTextArea(), 0)
-
-    setExpend(false)
-  }, [inputEmpty, text, assistant.id, assistant.topics, selectedKnowledgeBases, files, mentionModels])
+  }, [
+    assistant,
+    dispatch,
+    enabledMCPs,
+    files,
+    inputEmpty,
+    loading,
+    mentionModels,
+    resizeTextArea,
+    selectedKnowledgeBases,
+    text,
+    topic
+  ])
 
   const translate = async () => {
     if (isTranslating) {
@@ -173,6 +234,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         const cursorPosition = textArea.selectionStart
         const textBeforeCursor = text.substring(0, cursorPosition)
         if (cursorPosition === 0 || textBeforeCursor.endsWith(' ')) {
+          setMentionFromKeyboard(true)
           EventEmitter.emit(EVENT_NAMES.SHOW_MODEL_SELECTOR)
           setIsMentionPopupOpen(true)
           return
@@ -265,36 +327,27 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     addTopic(topic)
     setActiveTopic(topic)
 
-    clickAssistantToShowTopic && setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant, clickAssistantToShowTopic, setActiveTopic, setModel])
+    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+  }, [addTopic, assistant, setActiveTopic, setModel])
+
+  const onPause = async () => {
+    await pauseMessages()
+  }
 
   const clearTopic = async () => {
-    if (generating) {
-      onPause()
+    if (loading) {
+      await onPause()
       await delay(1)
     }
     EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES)
   }
 
-  const onPause = () => {
-    if (currentMessageId.current) {
-      abortCompletion(currentMessageId.current)
-    }
-    window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
-    store.dispatch(setGenerating(false))
-  }
-
   const onNewContext = () => {
-    if (generating) return onPause()
-    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
-  }
-
-  const resizeTextArea = () => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      textArea.style.height = 'auto'
-      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
+    if (loading) {
+      onPause()
+      return
     }
+    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }
 
   const onToggleExpended = () => {
@@ -306,7 +359,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       if (isExpended) {
         textArea.style.height = '70vh'
       } else {
-        resizeTextArea()
+        resetHeight()
       }
     }
 
@@ -343,7 +396,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
           event.preventDefault()
 
           if (file.path === '') {
-            if (file.type.startsWith('image/')) {
+            if (file.type.startsWith('image/') && isVisionModel(model)) {
               const tempFilePath = await window.api.file.create(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
@@ -351,6 +404,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
               const selectedFile = await window.api.file.get(tempFilePath)
               selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
               break
+            } else {
+              window.message.info({
+                key: 'file_not_supported',
+                content: t('chat.input.file_not_supported')
+              })
             }
           }
 
@@ -384,7 +442,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
         }
       }
     },
-    [pasteLongTextAsFile, pasteLongTextThreshold, supportExts, t, text]
+    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -415,20 +473,58 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setTimeout(() => resizeTextArea(), 0)
   }
 
-  useShortcut('new_topic', () => {
-    if (!generating) {
-      addNewTopic()
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-      textareaRef.current?.focus()
+  const handleDragStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+    startDragY.current = e.clientY
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (textArea) {
+      startHeight.current = textArea.offsetHeight
     }
+  }
+
+  const handleDrag = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging) return
+
+      const delta = startDragY.current - e.clientY // 改变计算方向
+      const viewportHeight = window.innerHeight
+      const maxHeightInPixels = viewportHeight * 0.7
+
+      const newHeight = Math.min(maxHeightInPixels, Math.max(startHeight.current + delta, 30))
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        textArea.style.height = `${newHeight}px`
+        setExpend(newHeight == maxHeightInPixels)
+        setTextareaHeight(newHeight)
+      }
+    },
+    [isDragging]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleDrag)
+      document.addEventListener('mouseup', handleDragEnd)
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleDrag)
+      document.removeEventListener('mouseup', handleDragEnd)
+    }
+  }, [isDragging, handleDrag, handleDragEnd])
+
+  useShortcut('new_topic', () => {
+    addNewTopic()
+    EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    textareaRef.current?.focus()
   })
 
   useShortcut('clear_topic', () => {
     clearTopic()
-  })
-
-  useShortcut('toggle_new_context', () => {
-    onNewContext()
   })
 
   useEffect(() => {
@@ -441,12 +537,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       }),
       EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount }) => {
         _setEstimateTokenCount(tokensCount)
-        setContextCount(contextCount)
+        setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
       }),
-      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
+      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
+      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
+        setText((prevText) => {
+          const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
+          setTimeout(() => resizeTextArea(), 0)
+          return newText
+        })
+        textareaRef.current?.focus()
+      })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [addNewTopic])
+  }, [addNewTopic, resizeTextArea])
 
   useEffect(() => {
     textareaRef.current?.focus()
@@ -454,6 +558,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
   useEffect(() => {
     setTimeout(() => resizeTextArea(), 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -482,16 +587,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setSelectedKnowledgeBases(bases ?? [])
   }
 
-  const onMentionModel = (model: Model) => {
+  const onMentionModel = (model: Model, fromKeyboard: boolean = false) => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
-      const cursorPosition = textArea.selectionStart
-      const textBeforeCursor = text.substring(0, cursorPosition)
-      const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+      if (fromKeyboard) {
+        const cursorPosition = textArea.selectionStart
+        const textBeforeCursor = text.substring(0, cursorPosition)
+        const lastAtIndex = textBeforeCursor.lastIndexOf('@')
 
-      if (lastAtIndex !== -1) {
-        const newText = text.substring(0, lastAtIndex) + text.substring(cursorPosition)
-        setText(newText)
+        if (lastAtIndex !== -1) {
+          const newText = text.substring(0, lastAtIndex) + text.substring(cursorPosition)
+          setText(newText)
+        }
       }
 
       setMentionModels((prev) => [...prev, model])
@@ -499,6 +606,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       setTimeout(() => {
         textareaRef.current?.focus()
       }, 0)
+      setMentionFromKeyboard(false)
     }
   }
 
@@ -506,7 +614,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     setMentionModels(mentionModels.filter((m) => m.id !== model.id))
   }
 
+  const toggelEnableMCP = (mcp: MCPServer) => {
+    setEnabledMCPs((prev) => {
+      const exists = prev.some((item) => item.name === mcp.name)
+      if (exists) {
+        return prev.filter((item) => item.name !== mcp.name)
+      } else {
+        return [...prev, mcp]
+      }
+    })
+  }
+
   const onEnableWebSearch = () => {
+    console.log(assistant)
     if (!isWebSearchModel(model)) {
       if (!WebSearchService.isWebSearchEnabled()) {
         window.modal.confirm({
@@ -531,6 +651,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     }
   }, [assistant, model, updateAssistant])
 
+  const resetHeight = () => {
+    if (expended) {
+      setExpend(false)
+    }
+    setTextareaHeight(undefined)
+    requestAnimationFrame(() => {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        textArea.style.height = 'auto'
+        const contentHeight = textArea.scrollHeight
+        textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
+      }
+    })
+  }
+
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
@@ -551,7 +686,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             spellCheck={false}
             rows={textareaRows}
             ref={textareaRef}
-            style={{ fontSize }}
+            style={{
+              fontSize,
+              height: textareaHeight ? `${textareaHeight}px` : undefined
+            }}
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
               setInputFocus(true)
@@ -567,6 +705,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             onPaste={(e) => onPaste(e.nativeEvent)}
             onClick={() => searching && dispatch(setSearching(false))}
           />
+          <DragHandle onMouseDown={handleDragStart}>
+            <HolderOutlined />
+          </DragHandle>
           <Toolbar>
             <ToolbarMenu>
               <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
@@ -574,9 +715,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   <FormOutlined />
                 </ToolbarButton>
               </Tooltip>
+              <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
               <MentionModelsButton
                 mentionModels={mentionModels}
-                onMentionModel={onMentionModel}
+                onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
                 ToolbarButton={ToolbarButton}
               />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
@@ -586,6 +728,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   />
                 </ToolbarButton>
               </Tooltip>
+              {showKnowledgeIcon && (
+                <KnowledgeBaseButton
+                  selectedBases={selectedKnowledgeBases}
+                  onSelect={handleKnowledgeBaseSelect}
+                  ToolbarButton={ToolbarButton}
+                  disabled={files.length > 0}
+                />
+              )}
+              {showMCPToolsIcon && (
+                <MCPToolsButton
+                  enabledMCPs={enabledMCPs}
+                  toggelEnableMCP={toggelEnableMCP}
+                  ToolbarButton={ToolbarButton}
+                />
+              )}
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}
@@ -595,29 +752,23 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                   icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
                   okText={t('chat.input.clear.title')}>
                   <ToolbarButton type="text">
-                    <ClearOutlined />
+                    <ClearOutlined style={{ fontSize: 17 }} />
                   </ToolbarButton>
                 </Popconfirm>
-              </Tooltip>
-              {showKnowledgeIcon && (
-                <KnowledgeBaseButton
-                  selectedBases={selectedKnowledgeBases}
-                  onSelect={handleKnowledgeBaseSelect}
-                  ToolbarButton={ToolbarButton}
-                  disabled={files.length > 0}
-                />
-              )}
-              <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
-              <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
-                <ToolbarButton type="text" onClick={onNewContext}>
-                  <PicCenterOutlined />
-                </ToolbarButton>
               </Tooltip>
               <Tooltip placement="top" title={expended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
                 <ToolbarButton type="text" onClick={onToggleExpended}>
                   {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
                 </ToolbarButton>
               </Tooltip>
+              {textareaHeight && (
+                <Tooltip placement="top" title={t('chat.input.auto_resize')} arrow>
+                  <ToolbarButton type="text" onClick={resetHeight}>
+                    <ColumnHeightOutlined />
+                  </ToolbarButton>
+                </Tooltip>
+              )}
+              <NewContextButton onNewContext={onNewContext} ToolbarButton={ToolbarButton} />
               <TokenCount
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
@@ -628,14 +779,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
             </ToolbarMenu>
             <ToolbarMenu>
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
-              {generating && (
+              {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>
                     <PauseCircleOutlined style={{ color: 'var(--color-error)', fontSize: 20 }} />
                   </ToolbarButton>
                 </Tooltip>
               )}
-              {!generating && <SendMessageButton sendMessage={sendMessage} disabled={generating || inputEmpty} />}
+              {!loading && <SendMessageButton sendMessage={sendMessage} disabled={loading || inputEmpty} />}
             </ToolbarMenu>
           </Toolbar>
         </InputBarContainer>
@@ -644,22 +795,51 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   )
 }
 
+// Add these styled components at the bottom
+const DragHandle = styled.div`
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  color: var(--color-icon);
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 1;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  .anticon {
+    transform: rotate(90deg);
+    font-size: 14px;
+  }
+`
+
 const Container = styled.div`
   display: flex;
   flex-direction: column;
 `
 
 const InputBarContainer = styled.div`
-  border: 1px solid var(--color-border);
+  border: 0.5px solid var(--color-border);
   transition: all 0.3s ease;
   position: relative;
-  margin: 0 20px 15px 20px;
-  border-radius: 10px;
+  margin: 14px 20px;
+  margin-top: 12px;
+  border-radius: 15px;
+  padding-top: 6px; // 为拖动手柄留出空间
+  background-color: var(--color-background-opacity);
 `
 
 const TextareaStyle: CSSProperties = {
   paddingLeft: 0,
-  padding: '10px 15px 8px'
+  padding: '4px 15px 8px' // 减小顶部padding
 }
 
 const Textarea = styled(TextArea)`
@@ -697,7 +877,7 @@ const ToolbarMenu = styled.div`
 const ToolbarButton = styled(Button)`
   width: 30px;
   height: 30px;
-  font-size: 17px;
+  font-size: 16px;
   border-radius: 50%;
   transition: all 0.3s ease;
   color: var(--color-icon);
@@ -712,7 +892,7 @@ const ToolbarButton = styled(Button)`
     color: var(--color-icon);
   }
   .icon-a-addchat {
-    font-size: 19px;
+    font-size: 18px;
     margin-bottom: -2px;
   }
   &:hover {

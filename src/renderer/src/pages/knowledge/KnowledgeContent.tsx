@@ -96,14 +96,13 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           name: file.name,
           path: file.path,
           size: file.size,
-          ext: `.${file.name.split('.').pop()}`,
+          ext: `.${file.name.split('.').pop()}`.toLowerCase(),
           count: 1,
           origin_name: file.name,
           type: file.type as FileTypes,
-          created_at: new Date()
+          created_at: new Date().toISOString()
         }))
         .filter(({ ext }) => fileTypes.includes(ext))
-      console.debug('[KnowledgeContent] Uploading files:', _files, files)
       const uploadedFiles = await FileManager.uploadFiles(_files)
       addFiles(uploadedFiles)
     }
@@ -263,9 +262,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 <ItemInfo>
                   <FileIcon />
                   <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
-                    <Tooltip title={file.origin_name}>
-                      <Ellipsis text={file.origin_name} />
-                    </Tooltip>
+                    <Ellipsis>
+                      <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
+                    </Ellipsis>
                   </ClickableSpan>
                 </ItemInfo>
                 <FlexAlignCenter>
@@ -295,9 +294,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 <ItemInfo>
                   <FolderOutlined />
                   <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
-                    <Tooltip title={item.content as string}>
-                      <Ellipsis text={item.content as string} />
-                    </Tooltip>
+                    <Ellipsis>
+                      <Tooltip title={item.content as string}>{item.content as string}</Tooltip>
+                    </Ellipsis>
                   </ClickableSpan>
                 </ItemInfo>
                 <FlexAlignCenter>
@@ -353,11 +352,15 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       ]
                     }}
                     trigger={['contextMenu']}>
-                    <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                    <ClickableSpan>
                       <Tooltip title={item.content as string}>
-                        <Ellipsis text={item.remark || (item.content as string)} />
+                        <Ellipsis>
+                          <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                            {item.remark || (item.content as string)}
+                          </a>
+                        </Ellipsis>
                       </Tooltip>
-                    </a>
+                    </ClickableSpan>
                   </Dropdown>
                 </ItemInfo>
                 <FlexAlignCenter>
@@ -386,11 +389,15 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               <ItemContent>
                 <ItemInfo>
                   <GlobalOutlined />
-                  <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                  <ClickableSpan>
                     <Tooltip title={item.content as string}>
-                      <Ellipsis text={item.content as string} />
+                      <Ellipsis>
+                        <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                          {item.content as string}
+                        </a>
+                      </Ellipsis>
                     </Tooltip>
-                  </a>
+                  </ClickableSpan>
                 </ItemInfo>
                 <FlexAlignCenter>
                   {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
@@ -530,13 +537,6 @@ const ItemInfo = styled.div`
   align-items: center;
   gap: 8px;
   flex: 1;
-
-  a {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 600px;
-  }
 `
 
 const IndexSection = styled.div`
@@ -570,6 +570,8 @@ const FlexAlignCenter = styled.div`
 
 const ClickableSpan = styled.span`
   cursor: pointer;
+  flex: 1;
+  width: 0;
 `
 
 const FileIcon = styled(FileTextOutlined)`

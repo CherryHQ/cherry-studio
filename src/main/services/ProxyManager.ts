@@ -1,5 +1,7 @@
 import { ProxyConfig as _ProxyConfig, session } from 'electron'
+import { socksDispatcher } from 'fetch-socks'
 import { HttpsProxyAgent } from 'https-proxy-agent'
+import { ProxyAgent, setGlobalDispatcher } from 'undici'
 
 type ProxyMode = 'system' | 'custom' | 'none'
 
@@ -12,10 +14,11 @@ export class ProxyManager {
   private config: ProxyConfig
   private proxyAgent: HttpsProxyAgent | null = null
   private proxyUrl: string | null = null
+  private systemProxyInterval: NodeJS.Timeout | null = null
 
   constructor() {
     this.config = {
-      mode: 'system',
+      mode: 'none',
       url: ''
     }
   }
@@ -25,11 +28,29 @@ export class ProxyManager {
     await Promise.all(sessions.map((session) => session.setProxy(config)))
   }
 
+  private async monitorSystemProxy(): Promise<void> {
+    // Clear any existing interval first
+    this.clearSystemProxyMonitor()
+    // Set new interval
+    this.systemProxyInterval = setInterval(async () => {
+      await this.setSystemProxy()
+    }, 10000)
+  }
+
+  private clearSystemProxyMonitor(): void {
+    if (this.systemProxyInterval) {
+      clearInterval(this.systemProxyInterval)
+      this.systemProxyInterval = null
+    }
+  }
+
   async configureProxy(config: ProxyConfig): Promise<void> {
     try {
       this.config = config
+      this.clearSystemProxyMonitor()
       if (this.config.mode === 'system') {
         await this.setSystemProxy()
+        this.monitorSystemProxy()
       } else if (this.config.mode == 'custom') {
         await this.setCustomProxy()
       } else {
@@ -51,11 +72,12 @@ export class ProxyManager {
 
   private async setSystemProxy(): Promise<void> {
     try {
-      this.proxyUrl = await this.resolveSystemProxy()
-      if (this.proxyUrl) {
+      await this.setSessionsProxy({ mode: 'system' })
+      const url = await this.resolveSystemProxy()
+      if (url && url !== this.proxyUrl) {
+        this.proxyUrl = url.toLowerCase()
         this.proxyAgent = new HttpsProxyAgent(this.proxyUrl)
         this.setEnvironment(this.proxyUrl)
-        await this.setSessionsProxy({ mode: 'system' })
       }
     } catch (error) {
       console.error('Failed to set system proxy:', error)
@@ -66,9 +88,10 @@ export class ProxyManager {
   private async setCustomProxy(): Promise<void> {
     try {
       if (this.config.url) {
-        this.proxyAgent = new HttpsProxyAgent(this.config.url)
-        this.setEnvironment(this.config.url)
-        await this.setSessionsProxy({ proxyRules: this.config.url })
+        this.proxyUrl = this.config.url.toLowerCase()
+        this.proxyAgent = new HttpsProxyAgent(this.proxyUrl)
+        this.setEnvironment(this.proxyUrl)
+        await this.setSessionsProxy({ proxyRules: this.proxyUrl })
       }
     } catch (error) {
       console.error('Failed to set custom proxy:', error)
@@ -81,6 +104,8 @@ export class ProxyManager {
     delete process.env.HTTPS_PROXY
     await this.setSessionsProxy({})
     this.config = { mode: 'none' }
+    this.proxyAgent = null
+    this.proxyUrl = null
   }
 
   private async resolveSystemProxy(): Promise<string | null> {
@@ -109,6 +134,24 @@ export class ProxyManager {
 
   getProxyUrl(): string | null {
     return this.proxyUrl
+  }
+
+  setGlobalProxy() {
+    const proxyUrl = this.proxyUrl
+    if (proxyUrl) {
+      const [protocol, address] = proxyUrl.split('://')
+      const [host, port] = address.split(':')
+      if (!protocol.includes('socks')) {
+        setGlobalDispatcher(new ProxyAgent(proxyUrl))
+      } else {
+        const dispatcher = socksDispatcher({
+          port: parseInt(port),
+          type: protocol === 'socks5' ? 5 : 4,
+          host: host
+        })
+        global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
+      }
+    }
   }
 }
 

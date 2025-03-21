@@ -8,7 +8,7 @@ import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
 import { Assistant, Message, Model } from '@renderer/types'
-import { firstLetter, removeLeadingEmoji } from '@renderer/utils'
+import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { Avatar } from 'antd'
 import dayjs from 'dayjs'
 import { CSSProperties, FC, memo, useCallback, useMemo } from 'react'
@@ -72,7 +72,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
             src={avatarSource}
             size={35}
             style={{
-              borderRadius: '20%',
+              borderRadius: '25%',
               cursor: showMinappIcon ? 'pointer' : 'default',
               border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
@@ -81,12 +81,18 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
             {avatarName}
           </Avatar>
         ) : (
-          <Avatar
-            src={avatar}
-            size={35}
-            style={{ borderRadius: '20%', cursor: 'pointer' }}
-            onClick={() => UserPopup.show()}
-          />
+          <>
+            {isEmoji(avatar) ? (
+              <EmojiAvatar onClick={() => UserPopup.show()}>{avatar}</EmojiAvatar>
+            ) : (
+              <Avatar
+                src={avatar}
+                size={35}
+                style={{ borderRadius: '25%', cursor: 'pointer' }}
+                onClick={() => UserPopup.show()}
+              />
+            )}
+          </>
         )}
         <UserWrap>
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
@@ -100,6 +106,20 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
 })
 
 MessageHeader.displayName = 'MessageHeader'
+
+const EmojiAvatar = styled.div`
+  width: 35px;
+  height: 35px;
+  background-color: var(--color-background-soft);
+  border-radius: 20%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  border: 0.5px solid var(--color-border);
+  font-size: 20px;
+`
 
 const Container = styled.div`
   display: flex;
@@ -128,8 +148,9 @@ const UserName = styled.div<{ isBubbleStyle?: boolean; theme?: string }>`
 `
 
 const MessageTime = styled.div`
-  font-size: 12px;
+  font-size: 10px;
   color: var(--color-text-3);
+  font-family: 'Ubuntu';
 `
 
 export default MessageHeader

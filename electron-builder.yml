@@ -27,7 +27,6 @@ files:
   - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
-  - '!node_modules/html2canvas/dist/{html2canvas.min.js,html2canvas.esm.js}'
 asarUnpack:
   - resources/**
   - '**/*.{node,dll,metal,exp,lib}'
@@ -73,16 +72,19 @@ linux:
   maintainer: electronjs.org
   category: Utility
 publish:
-  provider: generic
-  url: https://cherrystudio.ocool.online
+  # provider: generic
+  # url: https://cherrystudio.ocool.online
+  provider: github
+  repo: cherry-studio
+  owner: CherryHQ
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    Web 搜索增加更多配置选项
-    用户消息支持快速重新发送
-    知识库网址支持右键配置别名
-    支持更多类型的思考内容显示
-    知识库错误修复
+    知识库设置增加重排模型，提升知识库的准确性
+    自定义服务商增加兼容模式
+    增加 Github Copilot 服务商
+    PlantUML 预览支持放大和缩小
+    联网模式支持增强模式

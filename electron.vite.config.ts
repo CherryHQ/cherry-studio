@@ -21,7 +21,8 @@ export default defineConfig({
           '@llm-tools/embedjs-loader-pdf',
           '@llm-tools/embedjs-loader-sitemap',
           '@llm-tools/embedjs-libsql',
-          '@llm-tools/embedjs-loader-image'
+          '@llm-tools/embedjs-loader-image',
+          'p-queue'
         ]
       }),
       ...visualizerPlugin('main')
@@ -43,7 +44,24 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {
-    plugins: [react(), ...visualizerPlugin('renderer')],
+    plugins: [
+      react({
+        babel: {
+          plugins: [
+            [
+              'styled-components',
+              {
+                displayName: true, // 开发环境下启用组件名称
+                fileName: false, // 不在类名中包含文件名
+                pure: true, // 优化性能
+                ssr: false // 不需要服务端渲染
+              }
+            ]
+          ]
+        }
+      }),
+      ...visualizerPlugin('renderer')
+    ],
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
@@ -51,7 +69,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js']
+      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js', 'chunk-ALDIEZMG.js', 'chunk-4X6ZJEXY.js']
     }
   }
 })

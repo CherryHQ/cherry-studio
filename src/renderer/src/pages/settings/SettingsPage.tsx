@@ -1,5 +1,6 @@
 import {
   CloudOutlined,
+  CodeOutlined,
   GlobalOutlined,
   InfoCircleOutlined,
   LayoutOutlined,
@@ -10,6 +11,7 @@ import {
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { isLocalAi } from '@renderer/config/env'
+import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
@@ -19,7 +21,7 @@ import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
-import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
+import MCPSettings from './MCPSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
@@ -58,6 +60,12 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/web-search')}>
               <GlobalOutlined />
               {t('settings.websearch.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/mcp">
+            <MenuItem className={isRoute('/settings/mcp')}>
+              <CodeOutlined />
+              {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/general">
@@ -102,6 +110,7 @@ const SettingsPage: FC = () => {
             <Route path="provider" element={<ProvidersList />} />
             <Route path="model" element={<ModelSettings />} />
             <Route path="web-search" element={<WebSearchSettings />} />
+            <Route path="mcp" element={<MCPSettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
             <Route path="data/*" element={<DataSettings />} />

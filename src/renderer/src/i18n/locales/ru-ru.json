@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "Короткая",
       "settings.reasoning_effort.medium": "Средняя",
       "settings.reasoning_effort.off": "Выключено",
-      "settings.reasoning_effort.tip": "Эта настройка поддерживается только моделями с рассуждением",
+      "settings.reasoning_effort.tip": "Поддерживается только моделями с рассуждением OpenAI o-series и Anthropic",
       "title": "Ассистенты"
     },
     "auth": {
@@ -62,13 +62,28 @@
       "login": "Войти",
       "oauth_button": "Авторизоваться с {{provider}}"
     },
+    "backup": {
+      "confirm": "Вы уверены, что хотите создать резервную копию?",
+      "confirm.button": "Выбрать папку для резервной копии",
+      "content": "Резервная копия будет содержать все данные приложения, включая чаты, настройки и базу знаний. Это может занять некоторое время.",
+      "progress": {
+        "completed": "Резервная копия создана",
+        "compressing": "Сжатие файлов...",
+        "copying_files": "Копирование файлов... {{progress}}%",
+        "preparing": "Подготовка резервной копии...",
+        "title": "Прогресс резервного копирования",
+        "writing_data": "Запись данных..."
+      },
+      "title": "Резервное копирование данных"
+    },
     "button": {
       "add": "Добавить",
       "added": "Добавлено",
       "collapse": "Свернуть",
       "manage": "Редактировать",
       "select_model": "Выбрать модель",
-      "show.all": "Показать все"
+      "show.all": "Показать все",
+      "update_available": "Доступно обновление"
     },
     "chat": {
       "add.assistant.title": "Добавить ассистента",
@@ -81,11 +96,12 @@
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
       "default.name": "Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
+      "input.auto_resize": "Автоматическая высота",
       "input.clear": "Очистить {{Command}}",
       "input.clear.content": "Хотите очистить все сообщения текущего топика?",
       "input.clear.title": "Очистить все сообщения?",
       "input.collapse": "Свернуть",
-      "input.context_count.tip": "Количество контекстов",
+      "input.context_count.tip": "Контекст / Макс. контекст",
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
       "input.file_not_supported": "Модель не поддерживает этот тип файла",
@@ -103,15 +119,17 @@
       "input.web_search": "Включить веб-поиск",
       "input.web_search.button.ok": "Перейти в Настройки",
       "input.web_search.enable": "Включить веб-поиск",
-      "input.web_search.enable_content": "Необходимо включить веб-поиск в Настройки",
+      "input.web_search.enable_content": "Необходимо предварительно проверить подключение к веб-поиску в настройках",
       "message.new.branch": "Новая ветка",
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",
+      "message.quote": "Цитата",
       "message.regenerate.model": "Переключить модель",
       "message.useful": "Полезно",
       "resend": "Переотправить",
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",
+      "settings.code_wrappable": "Блок кода можно переносить",
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
@@ -144,6 +162,16 @@
       "topics.export.title": "Экспорт",
       "topics.export.word": "Экспорт как Word",
       "topics.export.yuque": "Экспорт в Yuque",
+      "topics.export.obsidian": "Экспорт в Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian не настроен",
+      "topics.export.obsidian_fetch_failed": "Не удалось получить структуру файлов Obsidian",
+      "topics.export.obsidian_select_folder": "Выберите папку Obsidian",
+      "topics.export.obsidian_select_folder.btn": "Определить",
+      "topics.export.obsidian_export_success": "Экспорт успешно завершен",
+      "topics.export.obsidian_export_failed": "Экспорт не удалось",
+      "topics.export.obsidian_show_md_files": "Показать файлы MD",
+      "topics.export.obsidian_selected_path": "Выбранный путь",
+      "topics.export.joplin": "Экспорт в Joplin",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
       "topics.pinned": "Закрепленные темы",
@@ -152,7 +180,20 @@
       "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
-      "translate": "Перевести"
+      "topics.new": "Новый топик",
+      "translate": "Перевести",
+      "navigation": {
+        "prev": "Предыдущее сообщение",
+        "next": "Следующее сообщение",
+        "first": "Уже первое сообщение",
+        "last": "Уже последнее сообщение"
+      }
+    },
+    "code_block": {
+      "collapse": "Свернуть",
+      "disable_wrap": "Отменить перенос строки",
+      "enable_wrap": "Перенос строки",
+      "expand": "Развернуть"
     },
     "common": {
       "add": "Добавить",
@@ -192,7 +233,12 @@
       "select": "Выбрать",
       "topics": "Топики",
       "warning": "Предупреждение",
-      "you": "Вы"
+      "you": "Вы",
+      "confirm": "Подтверждение",
+      "copied": "Скопировано",
+      "more": "Ещё",
+      "advanced_settings": "Дополнительные настройки",
+      "expand": "Развернуть"
     },
     "docs": {
       "title": "Документация"
@@ -217,7 +263,8 @@
       "render": {
         "description": "Не удалось рендерить формулу. Пожалуйста, проверьте, правильно ли формат формулы",
         "title": "Ошибка рендеринга"
-      }
+      },
+      "user_message_not_found": "Не удалось найти исходное сообщение пользователя"
     },
     "export": {
       "assistant": "Ассистент",
@@ -320,7 +367,11 @@
       "title": "База знаний",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "topN": "Количество возвращаемых результатов",
+      "topN_placeholder": "Не установлено",
+      "topN__too_large_or_small": "Количество возвращаемых результатов не может быть больше 100 или меньше 1.",
+      "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает."
     },
     "languages": {
       "arabic": "Арабский",
@@ -357,7 +408,17 @@
       },
       "title": "Диаграмма Mermaid"
     },
+    "gpustack": {
+      "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
+      "keep_alive_time.placeholder": "Минуты",
+      "keep_alive_time.title": "Время жизни модели",
+      "title": "GPUStack"
+    },
     "message": {
+      "attachments": {
+        "pasted_text": "Вырезанный текст",
+        "pasted_image": "Вырезанное изображение"
+      },
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",
@@ -369,7 +430,9 @@
       "citations": "Источники",
       "copied": "Скопировано!",
       "copy.success": "Скопировано!",
+      "copy.failed": "Не удалось скопировать",
       "error.chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента.",
+      "error.dimension_too_large": "Размер содержимого слишком велик",
       "error.enter.api.host": "Пожалуйста, введите ваш API хост",
       "error.enter.api.key": "Пожалуйста, введите ваш API ключ",
       "error.enter.model": "Пожалуйста, выберите модель",
@@ -380,23 +443,31 @@
       "error.invalid.enter.model": "Пожалуйста, выберите модель",
       "error.invalid.proxy.url": "Неверный URL прокси",
       "error.invalid.webdav": "Неверные настройки WebDAV",
+      "error.markdown.export.preconf": "Не удалось экспортировать файл Markdown в предуказанный путь",
+      "error.markdown.export.specified": "Не удалось экспортировать файл Markdown",
       "error.notion.export": "Ошибка экспорта в Notion, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+      "error.joplin.no_config": "Joplin Authorization Token или URL не настроен",
+      "error.joplin.export": "Не удалось экспортировать в Joplin, пожалуйста, убедитесь, что Joplin запущен и проверьте состояние подключения или настройки",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",
       "info.notion.block_reach_limit": "Диалог слишком длинный, экспортируется в Notion по страницам",
+      "loading.notion.preparing": "Подготовка к экспорту в Notion...",
+      "loading.notion.exporting_progress": "Экспорт в Notion ({{current}}/{{total}})...",
       "mention.title": "Переключить модель ответа",
       "message.code_style": "Стиль кода",
       "message.delete.content": "Вы уверены, что хотите удалить это сообщение?",
       "message.delete.title": "Удалить сообщение",
       "message.multi_model_style": "Стиль ответов от нескольких моделей",
-      "message.multi_model_style.fold": "Свернуть",
-      "message.multi_model_style.grid": "клетчатый вид",
-      "message.multi_model_style.horizontal": "Горизонтальный",
-      "message.multi_model_style.vertical": "Вертикальный",
+      "message.multi_model_style.fold": "Вкладки",
+      "message.multi_model_style.fold.compress": "Переключить на компактный макет",
+      "message.multi_model_style.fold.expand": "Переключить на расширенный макет",
+      "message.multi_model_style.grid": "Карточки",
+      "message.multi_model_style.horizontal": "Горизонтальное расположение",
+      "message.multi_model_style.vertical": "Вертикальное расположение",
       "message.style": "Стиль сообщения",
       "message.style.bubble": "Пузырь",
       "message.style.plain": "Простой",
@@ -404,17 +475,26 @@
       "reset.confirm.content": "Вы уверены, что хотите очистить все данные?",
       "reset.double.confirm.content": "Все данные будут утеряны, хотите продолжить?",
       "reset.double.confirm.title": "ДАННЫЕ БУДУТ УТЕРЯНЫ !!!",
+      "restore.failed": "Восстановление не удалось",
       "restore.success": "Успешно восстановлено",
       "save.success.title": "Успешно сохранено",
       "searching": "Поиск в Интернете...",
+      "success.markdown.export.preconf": "Файл Markdown успешно экспортирован в предуказанный путь",
+      "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
       "success.notion.export": "Успешный экспорт в Notion",
       "success.yuque.export": "Успешный экспорт в Yuque",
+      "success.joplin.export": "Успешный экспорт в Joplin",
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
-      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!"
+      "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
+      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова.",
+      "tools": {
+        "invoking": "Вызов",
+        "completed": "Завершено"
+      }
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -449,10 +529,12 @@
       "all": "Все",
       "custom_parameters": "Пользовательские параметры",
       "dimensions": "{{dimensions}} мер",
+      "edit": "Редактировать модель",
       "embedding": "Встраиваемые",
       "embedding_model": "Встраиваемые модели",
       "embedding_model_tooltip": "Добавьте в настройки->модель сервиса->управление",
       "free": "Бесплатные",
+      "no_matches": "Нет доступных моделей",
       "parameter_name": "Имя параметра",
       "parameter_type": {
         "boolean": "Логическое",
@@ -464,16 +546,24 @@
       "reasoning": "Рассуждение",
       "search": "Поиск моделей...",
       "stream_output": "Потоковый вывод",
+      "function_calling": "Вызов функции",
       "type": {
         "embedding": "Встраиваемые",
         "reasoning": "Рассуждение",
         "select": "Выберите тип модели",
         "text": "Текст",
-        "vision": "Изображение"
+        "vision": "Изображение",
+        "function_calling": "Вызов функции"
       },
       "vision": "Визуальные",
       "websearch": "Веб-поисковые",
-      "edit": "Редактировать модель"
+      "rerank_model": "Модель переупорядочивания",
+      "rerank_model_tooltip": "В настройках -> Служба модели нажмите кнопку \"Управление\", чтобы добавить."
+    },
+    "navbar": {
+      "expand": "Развернуть диалоговое окно",
+      "hide_sidebar": "Скрыть боковую панель",
+      "show_sidebar": "Показать боковую панель"
     },
     "ollama": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -520,7 +610,6 @@
       "title": "Вы - эксперт в общении, который суммирует разговоры пользователя в 10-символьном заголовке, совпадающем с языком пользователя, без использования знаков препинания и других специальных символов"
     },
     "provider": {
-      "o3": "O3",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -547,6 +636,7 @@
       "modelscope": "ModelScope",
       "moonshot": "Moonshot",
       "nvidia": "Nvidia",
+      "o3": "O3",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
       "openai": "OpenAI",
@@ -556,10 +646,29 @@
       "qwenlm": "QwenLM",
       "silicon": "SiliconFlow",
       "stepfun": "StepFun",
+      "tencent-cloud-ti": "Tencent Cloud TI",
       "together": "Together",
+      "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot",
+      "gpustack": "GPUStack",
+      "alayanew": "Alaya NeW"
+    },
+    "restore": {
+      "confirm": "Вы уверены, что хотите восстановить данные?",
+      "confirm.button": "Выбрать файл резервной копии",
+      "content": "Операция восстановления перезапишет все текущие данные приложения данными из резервной копии. Это может занять некоторое время.",
+      "progress": {
+        "completed": "Восстановление завершено",
+        "copying_files": "Копирование файлов... {{progress}}%",
+        "extracting": "Распаковка резервной копии...",
+        "preparing": "Подготовка к восстановлению...",
+        "reading_data": "Чтение данных...",
+        "title": "Прогресс восстановления"
+      },
+      "title": "Восстановление данных"
     },
     "settings": {
       "about": "О программе и обратная связь",
@@ -587,9 +696,15 @@
       "advanced.title": "Расширенные настройки",
       "assistant": "Ассистент по умолчанию",
       "assistant.model_params": "Параметры модели",
+      "assistant.show.icon": "Показывать модельный иконки",
       "assistant.title": "Ассистент по умолчанию",
       "data": {
         "app_data": "Данные приложения",
+        "app_knowledge": "База знаний",
+        "app_knowledge.button.delete": "Удалить файл",
+        "app_knowledge.remove_all": "Удалить файлы базы знаний",
+        "app_knowledge.remove_all_confirm": "Удаление файлов базы знаний не удалит саму базу знаний, что позволит уменьшить занимаемый объем памяти, продолжить?",
+        "app_knowledge.remove_all_success": "Файлы удалены успешно",
         "app_logs": "Логи приложения",
         "clear_cache": {
           "button": "Очистка кэша",
@@ -603,6 +718,13 @@
         "hour_interval_other": "{{count}} часов",
         "minute_interval_one": "{{count}} минута",
         "minute_interval_other": "{{count}} минут",
+        "markdown_export.title": "Экспорт в Markdown",
+        "markdown_export.path": "Путь экспорта по умолчанию",
+        "markdown_export.path_placeholder": "Путь экспорта",
+        "markdown_export.select": "Выбрать",
+        "markdown_export.help": "Если указано, файлы будут автоматически сохраняться в этот путь; в противном случае появится диалоговое окно сохранения.",
+        "markdown_export.force_dollar_math.title": "Принудительно использовать $$ для формул LaTeX",
+        "markdown_export.force_dollar_math.help": "Если включено, при экспорте в Markdown для обозначения формул LaTeX будет принудительно использоваться $$. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
         "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
@@ -662,9 +784,41 @@
           "title": "Настройка Yuque",
           "token": "Токен Yuque",
           "token_placeholder": "Введите токен Yuque"
+        },
+        "obsidian": {
+          "check": {
+            "button": "Проверить",
+            "empty_url": "Сначала введите URL REST API Obsidian",
+            "empty_api_key": "Сначала введите API Key Obsidian",
+            "fail": "Не удалось проверить подключение к Obsidian",
+            "success": "Подключение к Obsidian успешно проверено"
+          },
+          "help": "Сначала установите плагин Local REST API Obsidian, затем получите API Key Obsidian",
+          "url": "URL базы знаний Obsidian",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Настройка Obsidian",
+          "api_key": "API Key Obsidian",
+          "api_key_placeholder": "Введите API Key Obsidian"
+        },
+        "joplin": {
+          "check": {
+            "button": "Проверить",
+            "empty_url": "Сначала введите URL Joplin",
+            "empty_token": "Сначала введите токен Joplin",
+            "fail": "Не удалось проверить подключение к Joplin",
+            "success": "Подключение к Joplin успешно проверено"
+          },
+          "title": "Настройка Joplin",
+          "help": "Включите Joplin опцию, проверьте порт и скопируйте токен",
+          "url": "URL Joplin",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Токен Joplin",
+          "token_placeholder": "Введите токен Joplin"
         }
       },
+      "display.assistant.title": "Настройки ассистентов",
       "display.custom.css": "Пользовательский CSS",
+      "display.custom.css.cherrycss": "Получить из cherrycss.com",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
       "display.minApp.disabled": "скрытый апплет",
       "display.minApp.empty": "Перетащите апплет, который хотите скрыть, слева сюда",
@@ -684,9 +838,12 @@
       "display.topic.title": "Настройки топиков",
       "font_size.title": "Размер шрифта сообщений",
       "general": "Общие настройки",
+      "general.avatar.reset": "Сброс аватара",
       "general.backup.button": "Резервное копирование",
       "general.backup.title": "Резервное копирование и восстановление данных",
       "general.display.title": "Настройки отображения",
+      "general.emoji_picker": "Выбор эмодзи",
+      "general.image_upload": "Загрузка изображений",
       "general.manually_check_update.title": "Отключить проверку обновлений",
       "general.reset.button": "Сброс",
       "general.reset.title": "Сброс данных",
@@ -702,6 +859,66 @@
       "input.target_language.english": "Английский",
       "input.target_language.japanese": "Японский",
       "input.target_language.russian": "Русский",
+      "mcp": {
+        "actions": "Действия",
+        "active": "Активен",
+        "addServer": "Добавить сервер",
+        "addSuccess": "Сервер успешно добавлен",
+        "addError": "Ошибка добавления сервера",
+        "args": "Аргументы",
+        "argsTooltip": "Каждый аргумент с новой строки",
+        "baseUrlTooltip": "Адрес удаленного URL",
+        "command": "Команда",
+        "commandRequired": "Пожалуйста, введите команду",
+        "config_description": "Настройка серверов протокола контекста модели",
+        "confirmDelete": "Удалить сервер",
+        "confirmDeleteMessage": "Вы уверены, что хотите удалить этот сервер?",
+        "deleteError": "Не удалось удалить сервер",
+        "deleteSuccess": "Сервер успешно удален",
+        "description": "Описание",
+        "duplicateName": "Сервер с таким именем уже существует",
+        "editServer": "Редактировать сервер",
+        "env": "Переменные окружения",
+        "envTooltip": "Формат: KEY=value, по одной на строку",
+        "findMore": "Найти больше MCP серверов",
+        "name": "Имя",
+        "nameRequired": "Пожалуйста, введите имя сервера",
+        "noServers": "Серверы не настроены",
+        "serverPlural": "серверы",
+        "serverSingular": "сервер",
+        "title": "Серверы MCP",
+        "type": "Тип",
+        "updateSuccess": "Сервер успешно обновлен",
+        "updateError": "Ошибка обновления сервера",
+        "url": "URL",
+        "toggleError": "Переключение не удалось",
+        "dependenciesInstalling": "Установка зависимостей...",
+        "dependenciesInstall": "Установить зависимости",
+        "installSuccess": "Зависимости успешно установлены",
+        "installError": "Не удалось установить зависимости",
+        "missingDependencies": "отсутствует, пожалуйста, установите для продолжения.",
+        "install": "Установить",
+        "npx_list": {
+          "title": "Список пакетов NPX",
+          "desc": "Поиск и добавление npm пакетов в качестве MCP серверов",
+          "scope_placeholder": "Введите область npm (например, @your-org)",
+          "search": "Поиск",
+          "package_name": "Имя пакета",
+          "description": "Описание",
+          "usage": "Использование",
+          "npm": "NPM",
+          "version": "Версия",
+          "actions": "Действия",
+          "scope_required": "Пожалуйста, введите область npm",
+          "no_packages": "Ничего не найдено",
+          "search_error": "Ошибка поиска"
+        },
+        "editJson": "Редактировать JSON",
+        "jsonModeHint": "Редактируйте JSON-форматирование конфигурации сервера MCP. Перед сохранением убедитесь, что формат правильный.",
+        "jsonFormatError": "Ошибка форматирования JSON",
+        "jsonSaveSuccess": "JSON конфигурация сохранена",
+        "jsonSaveError": "Не удалось сохранить конфигурацию JSON"
+      },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
@@ -728,10 +945,28 @@
       "models.add.model_id.tooltip": "Пример: gpt-3.5-turbo",
       "models.add.model_name": "Имя модели",
       "models.add.model_name.placeholder": "Необязательно, например, GPT-4",
+      "models.check.all": "Все",
+      "models.check.all_models_passed": "Все модели прошли проверку",
+      "models.check.button_caption": "Проверка состояния",
+      "models.check.disabled": "Отключено",
+      "models.check.enable_concurrent": "Параллельная проверка",
+      "models.check.enabled": "Включено",
+      "models.check.failed": "Не прошло",
+      "models.check.keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} модели прошли все ключи, {{count_failed}} модели не прошли все ключи, {{count_partial}} модели не прошли некоторые ключи",
+      "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
+      "models.check.passed": "Прошло",
+      "models.check.select_api_key": "Выберите API ключ для использования:",
+      "models.check.single": "Один",
+      "models.check.start": "Начать",
+      "models.check.title": "Проверка состояния моделей",
+      "models.check.use_all_keys": "Использовать все ключи",
       "models.default_assistant_model": "Модель ассистента по умолчанию",
       "models.default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
       "models.empty": "Модели не найдены",
       "models.enable_topic_naming": "Автоматическое переименование топика",
+      "models.manage.add_whole_group": "Добавить всю группу",
+      "models.manage.remove_whole_group": "Удалить всю группу",
       "models.topic_naming_model": "Модель именования топика",
       "models.topic_naming_model_description": "Модель, используемая при автоматическом именовании нового топика",
       "models.topic_naming_model_setting_title": "Настройки модели именования топика",
@@ -740,6 +975,10 @@
       "models.translate_model_description": "Модель, используемая для сервиса перевода",
       "models.translate_model_prompt_message": "Введите модель перевода",
       "models.translate_model_prompt_title": "Модель перевода",
+      "moresetting": "Дополнительные настройки",
+      "moresetting.check.confirm": "Подтвердить выбор",
+      "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",
+      "moresetting.warn": "Предупреждение о риске",
       "provider": {
         "add.name": "Имя провайдера",
         "add.name.placeholder": "Пример: OpenAI",
@@ -765,8 +1004,34 @@
         "not_checked": "Не проверено",
         "remove_duplicate_keys": "Удалить дубликаты ключей",
         "remove_invalid_keys": "Удалить недействительные ключи",
+        "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
-        "title": "Провайдеры моделей"
+        "title": "Провайдеры моделей",
+        "is_not_support_array_content": "Включить совместимый режим",
+        "copilot": {
+          "tooltip": "Для использования Github Copilot необходимо сначала войти в Github.",
+          "description": "Ваша учетная запись Github должна подписаться на Copilot.",
+          "login": "Войти в Github",
+          "connect": "Подключить Github",
+          "logout": "Выйти из Github",
+          "auth_success_title": "Аутентификация успешна",
+          "code_generated_title": "Получить код устройства",
+          "code_generated_desc": "Пожалуйста, скопируйте код устройства в приведенную ниже ссылку браузера.",
+          "code_failed": "Получение кода устройства не удалось, пожалуйста, попробуйте еще раз.",
+          "auth_success": "Github Copilot认证成功",
+          "auth_failed": "Github Copilot认证失败",
+          "logout_success": "Успешно вышел",
+          "logout_failed": "Не удалось выйти, пожалуйста, повторите попытку.",
+          "confirm_title": "Предупреждение о рисках",
+          "confirm_login": "Чрезмерное использование может привести к блокировке вашего Github, будьте осторожны!!!!",
+          "rate_limit": "Ограничение скорости",
+          "custom_headers": "Пользовательские заголовки запроса",
+          "headers_description": "Пользовательские заголовки запроса (формат json)",
+          "expand": "развернуть",
+          "model_setting": "Настройки модели",
+          "invalid_json": "Ошибка формата JSON",
+          "open_verification_first": "Пожалуйста, сначала щелкните по ссылке выше, чтобы перейти на страницу проверки."
+        }
       },
       "proxy": {
         "mode": {
@@ -782,11 +1047,11 @@
         "click_tray_to_show": "Нажмите на иконку трея для запуска",
         "enable_quick_assistant": "Включить быстрый помощник",
         "title": "Быстрый помощник",
-        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска"
+        "use_shortcut_to_show": "Нажмите на иконку трея или используйте горячие клавиши для запуска",
+        "read_clipboard_at_startup": "Чтение буфера обмена при запуске"
       },
       "shortcuts": {
         "action": "Действие",
-        "alt_warning": "В Mac сочетания с клавишей Option работают только с пробелом",
         "clear_shortcut": "Очистить сочетание клавиш",
         "clear_topic": "Очистить все сообщения",
         "copy_last_message": "Копировать последнее сообщение",
@@ -822,20 +1087,28 @@
       "topic.show.time": "Показывать время топика",
       "tray.title": "Включить значок системного трея",
       "websearch": {
+        "blacklist": "Черный список",
+        "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
+        "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "check": "проверка",
+        "check_success": "Проверка успешна",
+        "check_failed": "Проверка не прошла",
         "get_api_key": "Получить ключ API",
+        "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
+        "search_max_result": "Количество результатов поиска",
+        "search_provider": "поиск сервисного провайдера",
+        "search_provider_placeholder": "Выберите поставщика поисковых услуг",
+        "search_result_default": "По умолчанию",
         "search_with_time": "Поиск, содержащий дату",
+        "enhance_mode": "Режим улучшения поиска",
+        "enhance_mode_tooltip": "Используйте модель по умолчанию для извлечения ключевых слов из проблемы и поиска",
         "tavily": {
           "api_key": "Ключ API Tavily",
           "api_key.placeholder": "Введите ключ API Tavily",
           "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
           "title": "Tavily"
         },
-        "title": "Поиск в Интернете",
-        "blacklist": "Черный список",
-        "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
-        "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
-        "search_max_result": "Количество результатов поиска",
-        "search_result_default": "По умолчанию"
+        "title": "Поиск в Интернете"
       }
     },
     "translate": {
@@ -858,6 +1131,8 @@
       "input.placeholder": "Введите текст для перевода",
       "output.placeholder": "Перевод",
       "processing": "Перевод в процессе...",
+      "scroll_sync.disable": "Отключить синхронизацию прокрутки",
+      "scroll_sync.enable": "Включить синхронизацию прокрутки",
       "title": "Перевод",
       "tooltip.newline": "Перевести"
     },

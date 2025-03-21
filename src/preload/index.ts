@@ -1,5 +1,6 @@
 import { electronAPI } from '@electron-toolkit/preload'
-import { FileType, KnowledgeBaseParams, KnowledgeItem, Shortcut, WebDavConfig } from '@types'
+import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
 
 // Custom APIs for renderer
@@ -8,6 +9,7 @@ const api = {
   reload: () => ipcRenderer.invoke('app:reload'),
   setProxy: (proxy: string) => ipcRenderer.invoke('app:proxy', proxy),
   checkForUpdate: () => ipcRenderer.invoke('app:check-for-update'),
+  showUpdateDialog: () => ipcRenderer.invoke('app:show-update-dialog'),
   setLanguage: (lang: string) => ipcRenderer.invoke('app:set-language', lang),
   setTray: (isActive: boolean) => ipcRenderer.invoke('app:set-tray', isActive),
   restartTray: () => ipcRenderer.invoke('app:restart-tray'),
@@ -62,9 +64,8 @@ const api = {
     update: (shortcuts: Shortcut[]) => ipcRenderer.invoke('shortcuts:update', shortcuts)
   },
   knowledgeBase: {
-    create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) =>
-      ipcRenderer.invoke('knowledge-base:create', { id, model, apiKey, baseURL }),
-    reset: ({ base }: { base: KnowledgeBaseParams }) => ipcRenderer.invoke('knowledge-base:reset', { base }),
+    create: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:create', base),
+    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke('knowledge-base:reset', base),
     delete: (id: string) => ipcRenderer.invoke('knowledge-base:delete', id),
     add: ({
       base,
@@ -78,7 +79,9 @@ const api = {
     remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
       ipcRenderer.invoke('knowledge-base:remove', { uniqueId, uniqueIds, base }),
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke('knowledge-base:search', { search, base })
+      ipcRenderer.invoke('knowledge-base:search', { search, base }),
+    rerank: ({ search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }) =>
+      ipcRenderer.invoke('knowledge-base:rerank', { search, base, results })
   },
   window: {
     setMinimumSize: (width: number, height: number) => ipcRenderer.invoke('window:set-minimum-size', width, height),
@@ -109,9 +112,35 @@ const api = {
     decrypt: (encryptedData: string, iv: string, secretKey: string) =>
       ipcRenderer.invoke('aes:decrypt', encryptedData, iv, secretKey)
   },
+  mcp: {
+    listServers: () => ipcRenderer.invoke('mcp:list-servers'),
+    addServer: (server: MCPServer) => ipcRenderer.invoke('mcp:add-server', server),
+    updateServer: (server: MCPServer) => ipcRenderer.invoke('mcp:update-server', server),
+    deleteServer: (serverName: string) => ipcRenderer.invoke('mcp:delete-server', serverName),
+    setServerActive: (name: string, isActive: boolean) =>
+      ipcRenderer.invoke('mcp:set-server-active', { name, isActive }),
+    listTools: (serverName?: string) => ipcRenderer.invoke('mcp:list-tools', serverName),
+    callTool: (params: { client: string; name: string; args: any }) => ipcRenderer.invoke('mcp:call-tool', params),
+    cleanup: () => ipcRenderer.invoke('mcp:cleanup')
+  },
   shell: {
     openExternal: shell.openExternal
-  }
+  },
+  copilot: {
+    getAuthMessage: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-auth-message', headers),
+    getCopilotToken: (device_code: string, headers?: Record<string, string>) =>
+      ipcRenderer.invoke('copilot:get-copilot-token', device_code, headers),
+    saveCopilotToken: (access_token: string) => ipcRenderer.invoke('copilot:save-copilot-token', access_token),
+    getToken: (headers?: Record<string, string>) => ipcRenderer.invoke('copilot:get-token', headers),
+    logout: () => ipcRenderer.invoke('copilot:logout'),
+    getUser: (token: string) => ipcRenderer.invoke('copilot:get-user', token)
+  },
+
+  // Binary related APIs
+  isBinaryExist: (name: string) => ipcRenderer.invoke('app:is-binary-exist', name),
+  getBinaryPath: (name: string) => ipcRenderer.invoke('app:get-binary-path', name),
+  installUVBinary: () => ipcRenderer.invoke('app:install-uv-binary'),
+  installBunBinary: () => ipcRenderer.invoke('app:install-bun-binary')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

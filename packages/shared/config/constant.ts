@@ -22,6 +22,7 @@ export const textExts = [
   '.org', // org-mode 文件
   '.wiki', // VimWiki 文件
   '.tex', // LaTeX 文件
+  '.bib', // BibTeX 文件
   '.srt', // 字幕文件
   '.xhtml', // XHTML 文件
   '.nfo', // 信息文件（主要用于场景发布）
@@ -102,7 +103,10 @@ export const textExts = [
   '.cxx', // C++ 源文件
   '.cppm', // C++20 模块接口文件
   '.ipp', // 模板实现文件
-  '.ixx' // C++20 模块实现文件
+  '.ixx', // C++20 模块实现文件
+  '.f90', // Fortran 90 源文件
+  '.f', // Fortran 固定格式源代码文件
+  '.f03' // Fortran 2003+ 源代码文件
 ]
 
 export const ZOOM_SHORTCUTS = [

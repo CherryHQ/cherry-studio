@@ -52,7 +52,7 @@
       "settings.reasoning_effort.low": "low",
       "settings.reasoning_effort.medium": "medium",
       "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supports reasoning models",
+      "settings.reasoning_effort.tip": "Only supports OpenAI o-series and Anthropic reasoning models",
       "title": "Assistants"
     },
     "auth": {
@@ -62,13 +62,28 @@
       "login": "Login",
       "oauth_button": "Auth with {{provider}}"
     },
+    "backup": {
+      "confirm": "Are you sure you want to backup data?",
+      "confirm.button": "Select Backup Location",
+      "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+      "progress": {
+        "completed": "Backup completed",
+        "compressing": "Compressing files...",
+        "copying_files": "Copying files... {{progress}}%",
+        "preparing": "Preparing backup...",
+        "title": "Backup Progress",
+        "writing_data": "Writing data..."
+      },
+      "title": "Data Backup"
+    },
     "button": {
       "add": "Add",
       "added": "Added",
       "collapse": "Collapse",
       "manage": "Manage",
       "select_model": "Select Model",
-      "show.all": "Show All"
+      "show.all": "Show All",
+      "update_available": "Update Available"
     },
     "chat": {
       "add.assistant.title": "Add Assistant",
@@ -81,11 +96,12 @@
       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
       "default.name": "Default Assistant",
       "default.topic.name": "Default Topic",
+      "input.auto_resize": "Auto resize height",
       "input.clear": "Clear {{Command}}",
       "input.clear.content": "Do you want to clear all messages of the current topic?",
       "input.clear.title": "Clear all messages?",
       "input.collapse": "Collapse",
-      "input.context_count.tip": "Context Count",
+      "input.context_count.tip": "Context / Max Context",
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
       "input.file_not_supported": "Model does not support this file type",
@@ -103,15 +119,17 @@
       "input.web_search": "Enable web search",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
-      "input.web_search.enable_content": "Enable web search in Settings",
+      "input.web_search.enable_content": "Need to check web search connectivity in settings first",
       "message.new.branch": "New Branch",
       "message.new.branch.created": "New Branch Created",
       "message.new.context": "New Context",
+      "message.quote": "Quote",
       "message.regenerate.model": "Switch Model",
       "message.useful": "Helpful",
       "resend": "Resend",
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
+      "settings.code_wrappable": "Code block wrappable",
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
@@ -144,6 +162,16 @@
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
       "topics.export.yuque": "Export to Yuque",
+      "topics.export.obsidian": "Export to Obsidian",
+      "topics.export.obsidian_not_configured": "Obsidian not configured",
+      "topics.export.obsidian_fetch_failed": "Failed to fetch Obsidian folder structure",
+      "topics.export.obsidian_select_folder": "Select Obsidian folder",
+      "topics.export.obsidian_select_folder.btn": "Confirm",
+      "topics.export.obsidian_export_success": "Export success",
+      "topics.export.obsidian_export_failed": "Export failed",
+      "topics.export.obsidian_show_md_files": "Show MD Files",
+      "topics.export.obsidian_selected_path": "Selected Path",
+      "topics.export.joplin": "Export to Joplin",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
       "topics.pinned": "Pinned Topics",
@@ -152,7 +180,20 @@
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "topics.new": "New Topic",
+      "translate": "Translate",
+      "navigation": {
+        "prev": "Previous Message",
+        "next": "Next Message",
+        "first": "Already at the first message",
+        "last": "Already at the last message"
+      }
+    },
+    "code_block": {
+      "collapse": "Collapse",
+      "disable_wrap": "Unwrap",
+      "enable_wrap": "Wrap",
+      "expand": "Expand"
     },
     "common": {
       "add": "Add",
@@ -192,7 +233,12 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "copied": "Copied",
+      "confirm": "Confirm",
+      "more": "More",
+      "advanced_settings": "Advanced Settings",
+      "expand": "Expand"
     },
     "docs": {
       "title": "Docs"
@@ -217,7 +263,8 @@
       "render": {
         "description": "Failed to render formula. Please check if the formula format is correct",
         "title": "Render Error"
-      }
+      },
+      "user_message_not_found": "Cannot find original user message to resend"
     },
     "export": {
       "assistant": "Assistant",
@@ -320,7 +367,11 @@
       "title": "Knowledge Base",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "topN": "Number of results returned",
+      "topN_placeholder": "Not set",
+      "topN__too_large_or_small": "The number of results returned cannot be greater than 100 or less than 1.",
+      "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed."
     },
     "languages": {
       "arabic": "Arabic",
@@ -358,6 +409,10 @@
       "title": "Mermaid Diagram"
     },
     "message": {
+      "attachments": {
+        "pasted_text": "Pasted Text",
+        "pasted_image": "Pasted Image"
+      },
       "api.check.model.title": "Select the model to use for detection",
       "api.connection.failed": "Connection failed",
       "api.connection.success": "Connection successful",
@@ -369,7 +424,9 @@
       "citations": "References",
       "copied": "Copied!",
       "copy.success": "Copied!",
+      "copy.failed": "Copy failed",
       "error.chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
+      "error.dimension_too_large": "Content size is too large",
       "error.enter.api.host": "Please enter your API host first",
       "error.enter.api.key": "Please enter your API key first",
       "error.enter.model": "Please select a model first",
@@ -380,10 +437,14 @@
       "error.invalid.enter.model": "Please select a model",
       "error.invalid.proxy.url": "Invalid proxy URL",
       "error.invalid.webdav": "Invalid WebDAV settings",
+      "error.markdown.export.preconf": "Failed to export the Markdown file to the preconfigured path",
+      "error.markdown.export.specified": "Failed to export the Markdown file",
       "error.notion.export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
       "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
+      "error.joplin.no_config": "Joplin Authorization Token or URL is not configured",
+      "error.joplin.export": "Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
       "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
@@ -392,29 +453,42 @@
       "message.code_style": "Code style",
       "message.delete.content": "Are you sure you want to delete this message?",
       "message.delete.title": "Delete Message",
-      "message.multi_model_style": "Group style",
-      "message.multi_model_style.fold": "Fold",
-      "message.multi_model_style.grid": "Grid",
-      "message.multi_model_style.horizontal": "Horizontal",
-      "message.multi_model_style.vertical": "Vertical",
+      "message.multi_model_style": "Multi-model response style",
+      "message.multi_model_style.fold": "Fold view",
+      "message.multi_model_style.fold.compress": "Switch to compact layout",
+      "message.multi_model_style.fold.expand": "Switch to expanded layout",
+      "message.multi_model_style.grid": "Grid layout",
+      "message.multi_model_style.horizontal": "Side by side",
+      "message.multi_model_style.vertical": "Stacked view",
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
+      "loading.notion.preparing": "Preparing to export to Notion...",
+      "loading.notion.exporting_progress": "Exporting to Notion ({{current}}/{{total}})...",
       "regenerate.confirm": "Regenerating will replace current message",
       "reset.confirm.content": "Are you sure you want to clear all data?",
       "reset.double.confirm.content": "All data will be lost, do you want to continue?",
       "reset.double.confirm.title": "DATA LOST !!!",
+      "restore.failed": "Restore failed",
       "restore.success": "Restored successfully",
       "save.success.title": "Saved successfully",
       "searching": "Searching the internet...",
+      "success.markdown.export.preconf": "Successfully exported the Markdown file to the preconfigured path",
+      "success.markdown.export.specified": "Successfully exported the Markdown file",
       "success.notion.export": "Successfully exported to Notion",
       "success.yuque.export": "Successfully exported to Yuque",
+      "success.joplin.export": "Successfully exported to Joplin",
       "switch.disabled": "Please wait for the current reply to complete",
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
-      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!"
+      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
+      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again.",
+      "tools": {
+        "invoking": "Invoking",
+        "completed": "Completed"
+      }
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -449,10 +523,12 @@
       "all": "All",
       "custom_parameters": "Custom Parameters",
       "dimensions": "Dimensions {{dimensions}}",
+      "edit": "Edit Model",
       "embedding": "Embedding",
       "embedding_model": "Embedding Model",
       "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
       "free": "Free",
+      "no_matches": "No models available",
       "parameter_name": "Parameter Name",
       "parameter_type": {
         "boolean": "Boolean",
@@ -464,16 +540,24 @@
       "reasoning": "Reasoning",
       "search": "Search models...",
       "stream_output": "Stream output",
+      "function_calling": "Function Calling",
       "type": {
         "embedding": "Embedding",
         "reasoning": "Reasoning",
         "select": "Select Model Types",
         "text": "Text",
-        "vision": "Vision"
+        "vision": "Vision",
+        "function_calling": "Function Calling"
       },
       "vision": "Vision",
       "websearch": "WebSearch",
-      "edit": "Edit Model"
+      "rerank_model": "Reordering Model",
+      "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add."
+    },
+    "navbar": {
+      "expand": "Expand Dialog",
+      "hide_sidebar": "Hide Sidebar",
+      "show_sidebar": "Show Sidebar"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -514,13 +598,18 @@
       },
       "title": "PlantUML Diagram"
     },
+    "gpustack": {
+      "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
+      "keep_alive_time.placeholder": "Minutes",
+      "keep_alive_time.title": "Keep Alive Time",
+      "title": "GPUStack"
+    },
     "prompts": {
       "explanation": "Explain this concept to me",
       "summarize": "Summarize this text",
       "title": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols."
     },
     "provider": {
-      "o3": "O3",
       "aihubmix": "AiHubMix",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -547,6 +636,7 @@
       "modelscope": "ModelScope",
       "moonshot": "Moonshot",
       "nvidia": "Nvidia",
+      "o3": "O3",
       "ocoolai": "ocoolAI",
       "ollama": "Ollama",
       "openai": "OpenAI",
@@ -556,10 +646,29 @@
       "qwenlm": "QwenLM",
       "silicon": "SiliconFlow",
       "stepfun": "StepFun",
+      "tencent-cloud-ti": "Tencent Cloud TI",
       "together": "Together",
+      "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "copilot": "GitHub Copilot",
+      "gpustack": "GPUStack",
+      "alayanew": "Alaya NeW"
+    },
+    "restore": {
+      "confirm": "Are you sure you want to restore data?",
+      "confirm.button": "Select Backup File",
+      "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+      "progress": {
+        "completed": "Restore completed",
+        "copying_files": "Copying files... {{progress}}%",
+        "extracting": "Extracting backup...",
+        "preparing": "Preparing restore...",
+        "reading_data": "Reading data...",
+        "title": "Restore Progress"
+      },
+      "title": "Data Restore"
     },
     "settings": {
       "about": "About & Feedback",
@@ -587,9 +696,15 @@
       "advanced.title": "Advanced Settings",
       "assistant": "Default Assistant",
       "assistant.model_params": "Model Parameters",
+      "assistant.show.icon": "Show model icon",
       "assistant.title": "Default Assistant",
       "data": {
         "app_data": "App Data",
+        "app_knowledge": "Knowledge Base Files",
+        "app_knowledge.button.delete": "Delete File",
+        "app_knowledge.remove_all": "Remove Knowledge Base Files",
+        "app_knowledge.remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
+        "app_knowledge.remove_all_success": "Files removed successfully",
         "app_logs": "App Logs",
         "clear_cache": {
           "button": "Clear Cache",
@@ -603,6 +718,13 @@
         "hour_interval_other": "{{count}} hours",
         "minute_interval_one": "{{count}} minute",
         "minute_interval_other": "{{count}} minutes",
+        "markdown_export.title": "Markdown Export",
+        "markdown_export.path": "Default Export Path",
+        "markdown_export.path_placeholder": "Export Path",
+        "markdown_export.select": "Select",
+        "markdown_export.help": "If provided, exports will be automatically saved to this path; otherwise, a save dialog will appear.",
+        "markdown_export.force_dollar_math.title": "Force $$ for LaTeX formulas",
+        "markdown_export.force_dollar_math.help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
         "notion.auto_split": "Auto split when exporting",
@@ -668,9 +790,41 @@
           "title": "Yuque Configuration",
           "token": "Yuque Token",
           "token_placeholder": "Please enter the Yuque Token"
+        },
+        "obsidian": {
+          "check": {
+            "button": "Check",
+            "empty_url": "Please enter the Obsidian REST API URL first",
+            "empty_api_key": "Please enter the Obsidian API Key first",
+            "fail": "Obsidian connection verification failed",
+            "success": "Obsidian connection verification successful"
+          },
+          "help": "Install the Obsidian plugin Local REST API first, then get the Obsidian API Key",
+          "url": "Obsidian Knowledge Base URL",
+          "url_placeholder": "http://127.0.0.1:27123/",
+          "title": "Obsidian Configuration",
+          "api_key": "Obsidian API Key",
+          "api_key_placeholder": "Please enter the Obsidian API Key"
+        },
+        "joplin": {
+          "check": {
+            "button": "Check",
+            "empty_url": "Please enter Joplin Clipper Service URL",
+            "empty_token": "Please enter Joplin Authorization Token",
+            "fail": "Joplin connection verification failed",
+            "success": "Joplin connection verification successful"
+          },
+          "title": "Joplin Configuration",
+          "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
+          "url": "Joplin Web Clipper Service URL",
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "token": "Joplin Authorization Token",
+          "token_placeholder": "Joplin Authorization Token"
         }
       },
+      "display.assistant.title": "Assistant Settings",
       "display.custom.css": "Custom CSS",
+      "display.custom.css.cherrycss": "Get from cherrycss.com",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
       "display.minApp.disabled": "Hidden MinApp",
       "display.minApp.empty": "Drag minApp from the left to hide them here",
@@ -690,9 +844,12 @@
       "display.topic.title": "Topic Settings",
       "font_size.title": "Message font size",
       "general": "General Settings",
+      "general.avatar.reset": "Reset Avatar",
       "general.backup.button": "Backup",
       "general.backup.title": "Data Backup and Recovery",
       "general.display.title": "Display Settings",
+      "general.emoji_picker": "Emoji Picker",
+      "general.image_upload": "Image Upload",
       "general.manually_check_update.title": "Turn off update checking",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
@@ -708,6 +865,66 @@
       "input.target_language.english": "English",
       "input.target_language.japanese": "Japanese",
       "input.target_language.russian": "Russian",
+      "mcp": {
+        "actions": "Actions",
+        "active": "Active",
+        "addServer": "Add Server",
+        "addSuccess": "Server added successfully",
+        "addError": "Failed to add server",
+        "args": "Arguments",
+        "argsTooltip": "Each argument on a new line",
+        "baseUrlTooltip": "Remote server base URL",
+        "command": "Command",
+        "commandRequired": "Please enter a command",
+        "config_description": "Configure Model Context Protocol servers",
+        "confirmDelete": "Delete Server",
+        "confirmDeleteMessage": "Are you sure you want to delete the server?",
+        "deleteSuccess": "Server deleted successfully",
+        "deleteError": "Failed to delete server",
+        "description": "Description",
+        "duplicateName": "A server with this name already exists",
+        "editServer": "Edit Server",
+        "env": "Environment Variables",
+        "envTooltip": "Format: KEY=value, one per line",
+        "findMore": "Find More MCP Servers",
+        "name": "Name",
+        "nameRequired": "Please enter a server name",
+        "noServers": "No servers configured",
+        "serverPlural": "servers",
+        "serverSingular": "server",
+        "title": "MCP Servers",
+        "type": "Type",
+        "updateSuccess": "Server updated successfully",
+        "updateError": "Failed to update server",
+        "url": "URL",
+        "toggleError": "Toggle failed",
+        "dependenciesInstalling": "Installing dependencies...",
+        "dependenciesInstall": "Install Dependencies",
+        "installSuccess": "Dependencies installed successfully",
+        "installError": "Failed to install dependencies",
+        "missingDependencies": "is Missing, please install it to continue.",
+        "install": "Install",
+        "npx_list": {
+          "title": "NPX Package List",
+          "desc": "Search and add npm packages as MCP servers",
+          "scope_placeholder": "Enter npm scope (e.g. @your-org)",
+          "search": "Search",
+          "package_name": "Package Name",
+          "description": "Description",
+          "usage": "Usage",
+          "npm": "NPM",
+          "version": "Version",
+          "actions": "Actions",
+          "scope_required": "Please enter npm scope",
+          "no_packages": "No packages found",
+          "search_error": "Search error"
+        },
+        "editJson": "Edit JSON",
+        "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
+        "jsonFormatError": "JSON formatting error",
+        "jsonSaveSuccess": "JSON configuration has been saved.",
+        "jsonSaveError": "Failed to save JSON configuration."
+      },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
@@ -734,10 +951,28 @@
       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
       "models.add.model_name": "Model Name",
       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
+      "models.check.all": "All",
+      "models.check.all_models_passed": "All models check passed",
+      "models.check.button_caption": "Health check",
+      "models.check.disabled": "Disabled",
+      "models.check.enable_concurrent": "Concurrent",
+      "models.check.enabled": "Enabled",
+      "models.check.failed": "Failed",
+      "models.check.keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} models passed all keys, {{count_failed}} models failed all keys, {{count_partial}} models failed some keys",
+      "models.check.no_api_keys": "No API keys found, please add API keys first.",
+      "models.check.passed": "Passed",
+      "models.check.select_api_key": "Select the API key to use:",
+      "models.check.single": "Single",
+      "models.check.start": "Start",
+      "models.check.title": "Model health check",
+      "models.check.use_all_keys": "Key(s)",
       "models.default_assistant_model": "Default Assistant Model",
       "models.default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "models.empty": "No models found",
       "models.enable_topic_naming": "Topic Auto Naming",
+      "models.manage.add_whole_group": "Add the whole group",
+      "models.manage.remove_whole_group": "Remove the whole group",
       "models.topic_naming_model": "Topic Naming Model",
       "models.topic_naming_model_description": "Model used when automatically naming a new topic",
       "models.topic_naming_model_setting_title": "Topic Naming Model Settings",
@@ -746,6 +981,10 @@
       "models.translate_model_description": "Model used for translation service",
       "models.translate_model_prompt_message": "Please enter the translate model prompt",
       "models.translate_model_prompt_title": "Translate Model Prompt",
+      "moresetting": "More Settings",
+      "moresetting.check.confirm": "Confirm Selection",
+      "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
+      "moresetting.warn": "Risk Warning",
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",
@@ -771,8 +1010,34 @@
         "not_checked": "Not Checked",
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",
+        "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "is_not_support_array_content": "Enable compatible mode",
+        "copilot": {
+          "tooltip": "You need to log in to Github before using Github Copilot",
+          "description": "Your GitHub account needs to subscribe to Copilot.",
+          "login": "Log in to Github",
+          "connect": "Connect to Github",
+          "logout": "Exit GitHub",
+          "auth_success_title": "Certification successful.",
+          "code_generated_title": "Obtain Device Code",
+          "code_generated_desc": "Please copy the device code into the browser link below.",
+          "code_failed": "Failed to obtain Device Code, please try again.",
+          "auth_success": "GitHub Copilot authentication successful.",
+          "auth_failed": "Github Copilot authentication failed.",
+          "logout_success": "Successfully logged out.",
+          "logout_failed": "Exit failed, please try again.",
+          "confirm_title": "Risk Warning",
+          "confirm_login": "Excessive use may lead to your Github account being banned, please use it cautiously!!!!",
+          "rate_limit": "Rate limiting",
+          "custom_headers": "Custom request header",
+          "headers_description": "Custom request headers (JSON format)",
+          "expand": "Expand",
+          "model_setting": "Model settings",
+          "invalid_json": "JSON format error",
+          "open_verification_first": "Please click the link above to access the verification page."
+        }
       },
       "proxy": {
         "mode": {
@@ -788,11 +1053,11 @@
         "click_tray_to_show": "Click the tray icon to start",
         "enable_quick_assistant": "Enable Quick Assistant",
         "title": "Quick Assistant",
-        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+        "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start",
+        "read_clipboard_at_startup": "Read clipboard at startup"
       },
       "shortcuts": {
         "action": "Action",
-        "alt_warning": "On Mac, Option key combinations only work with the Space key",
         "clear_shortcut": "Clear Shortcut",
         "clear_topic": "Clear Messages",
         "copy_last_message": "Copy Last Message",
@@ -828,20 +1093,28 @@
       "topic.show.time": "Show topic time",
       "tray.title": "Enable System Tray Icon",
       "websearch": {
+        "blacklist": "Blacklist",
+        "blacklist_description": "Results from the following websites will not appear in search results",
+        "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "check": "Check",
+        "check_success": "Verification successful",
+        "check_failed": "Verification failed",
         "get_api_key": "Get API Key",
+        "no_provider_selected": "Please select a search service provider before checking.",
+        "search_max_result": "Number of search results",
+        "search_provider": "Search service provider",
+        "search_provider_placeholder": "Choose a search service provider.",
+        "search_result_default": "Default",
         "search_with_time": "Search with dates included",
+        "enhance_mode": "Search enhance mode",
+        "enhance_mode_tooltip": "Use the default model to extract search keywords from the problem and search",
         "tavily": {
           "api_key": "Tavily API Key",
           "api_key.placeholder": "Enter Tavily API Key",
           "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
           "title": "Tavily"
         },
-        "title": "Web Search",
-        "blacklist": "Blacklist",
-        "blacklist_description": "Results from the following websites will not appear in search results",
-        "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
-        "search_max_result": "Number of search results",
-        "search_result_default": "Default"
+        "title": "Web Search"
       }
     },
     "translate": {
@@ -864,6 +1137,8 @@
       "input.placeholder": "Enter text to translate",
       "output.placeholder": "Translation",
       "processing": "Translation in progress...",
+      "scroll_sync.disable": "Disable synced scroll",
+      "scroll_sync.enable": "Enable synced scroll",
       "title": "Translation",
       "tooltip.newline": "Newline"
     },

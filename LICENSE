@@ -1,19 +1,16 @@
-## Cherry Studio 用户协议
-
-欢迎使用 Cherry Studio 桌面 AI 客户端工具。请仔细阅读以下协议条款，继续使用本软件即表示您同意本协议内容。
-
 **许可协议**
 
 本软件采用 Apache License 2.0 许可。除 Apache License 2.0 规定的条款外，您在使用 Cherry Studio 时还应遵守以下附加条款：
 
 **一. 商用许可**
 
-1. **免费商用**：用户在不修改代码的情况下，可以免费用于商业目的。
-2. **商业授权**：如果您满足以下任意条件之一，需取得商业授权：
-   1. 对本软件进行二次修改、开发（包括但不限于修改应用名称、logo、代码以及功能）。
-   2. 为企业客户提供多租户服务，且该服务支持 10 人或以上的使用。
-   3. 预装或集成到硬件设备或产品中进行捆绑销售。
-   4. 政府或教育机构的大规模采购项目，特别是涉及安全、数据隐私等敏感需求时。
+在以下任何一种情况下，您需要联系我们并获得明确的书面商业授权后，方可继续使用 Cherry Studio 材料：
+
+1. **修改与衍生**： 您对 Cherry Studio 材料进行修改或基于其进行衍生开发（包括但不限于修改应用名称、Logo、代码、功能、界面，数据等）。
+2. **企业服务**： 在您的企业内部，或为企业客户提供基于 CherryStudio 的服务，且该服务支持 10 人及以上累计用户使用。
+3. **硬件捆绑销售**： 您将 Cherry Studio 预装或集成到硬件设备或产品中进行捆绑销售。
+4. **政府或教育机构大规模采购**： 您的使用场景属于政府或教育机构的大规模采购项目，特别是涉及安全、数据隐私等敏感需求时。
+5. **面向公众的公有云服务**：基于 Cherry Studio，提供面向公众的公有云服务。
 
 **二. 贡献者协议**
 
@@ -33,47 +30,33 @@
 
 ---
 
-根据 Apache 许可证 2.0 版（“许可证”）进行许可；除非符合许可证，否则您不得使用此文件。您可以在以下网址获取许可证副本：
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-除非适用法律要求或书面同意，软件根据许可证分发的内容以“原样”分发，不附带任何明示或暗示的保证或条件。请参阅特定语言管理权限的许可证和许可证下的限制。
-
-## Cherry Studio User Agreement
-
-Welcome to Cherry Studio, a desktop AI client tool. Please read the following agreement carefully. By continuing to use this software, you agree to the terms outlined below.
 
 **License Agreement**
 
-This software is licensed under the **Apache License 2.0**. In addition to the terms of the Apache License 2.0, the following additional terms apply to the use of Cherry Studio:
+This software is licensed under the Apache License 2.0. In addition to the terms stipulated by the Apache License 2.0, you must comply with the following supplementary terms when using Cherry Studio:
 
-**I. Commercial Use License**
+**I. Commercial Licensing**
 
-1. **Free Commercial Use**: Users can use the software for commercial purposes without modifying the code.
-2. **Commercial License Required**: A commercial license is required if any of the following conditions are met:
-   1. You modify, develop, or alter the software, including but not limited to changes to the application name, logo, code, or functionality.
-   2. You provide multi-tenant services to enterprise customers with 10 or more users.
-   3. You pre-install or integrate the software into hardware devices or products and bundle it for sale.
-   4. You are engaging in large-scale procurement for government or educational institutions, especially involving security, data privacy, or other sensitive requirements.
+You must contact us and obtain explicit written commercial authorization to continue using Cherry Studio materials under any of the following circumstances:
+
+1. **Modifications and Derivatives:** You modify Cherry Studio materials or perform derivative development based on them (including but not limited to changing the application’s name, logo, code, functionality, user interface, data, etc.).
+2. **Enterprise Services:** You use Cherry Studio internally within your enterprise, or you provide Cherry Studio-based services for enterprise customers, and such services support cumulative usage by 10 or more users.
+3. **Hardware Bundling and Sales:** You pre-install or integrate Cherry Studio into hardware devices or products for bundled sale.
+4. **Large-scale Procurement by Government or Educational Institutions:** Your usage scenario involves large-scale procurement projects by government or educational institutions, especially in cases involving sensitive requirements such as security and data privacy.
+5. **Public Cloud Services:** You provide public cloud-based product services utilizing Cherry Studio.
 
 **II. Contributor Agreement**
 
-As a contributor to Cherry Studio, you agree to the following:
+As a contributor to Cherry Studio, you must agree to the following terms:
 
-1. **License Adjustment**: The producer reserves the right to adjust the open-source license as needed, making it stricter or more lenient.
-2. **Commercial Use**: Any code you contribute may be used for commercial purposes, including but not limited to cloud business operations.
+1. **License Adjustments:** The producer reserves the right to adjust the open-source license as necessary, making it more strict or permissive.
+2. **Commercial Usage:** Your contributed code may be used commercially, including but not limited to cloud business operations.
 
 **III. Other Terms**
 
-1. The interpretation of these terms is subject to the discretion of Cherry Studio developers.
-2. These terms may be updated, and users will be notified through the software when changes occur.
+1. Cherry Studio developers reserve the right of final interpretation of these agreement terms.
+2. This agreement may be updated according to practical circumstances, and users will be notified of updates through this software.
 
-For any questions or to request a commercial license, please contact the Cherry Studio development team.
+If you have any questions or need to apply for commercial authorization, please contact the Cherry Studio development team.
 
-Apart from the specific conditions mentioned above, all other rights and restrictions follow the Apache License 2.0. Detailed information about the Apache License 2.0 can be found at http://www.apache.org/licenses/LICENSE-2.0.
-
----
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+Other than these specific conditions, all remaining rights and restrictions follow the Apache License 2.0. For more detailed information regarding Apache License 2.0, please visit http://www.apache.org/licenses/LICENSE-2.0.

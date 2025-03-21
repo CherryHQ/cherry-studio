@@ -1,11 +1,10 @@
 <h1 align="center">
-  <a href="https://github.com/kangfenmao/cherry-studio/releases">
-    <img src="https://github.com/kangfenmao/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" />
+  <a href="https://github.com/CherryHQ/cherry-studio/releases">
+    <img src="https://github.com/CherryHQ/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" />
   </a>
 </h1>
-<div align="center">
-  中文 / <a href="https://github.com/kangfenmao/cherry-studio">English</a> / <a href="./README.ja.md">日本語</a>
-</div>
+<p align="center">
+  <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="./README.ja.md">日本語</a><br></p>
 <div align="center">
  <a href="https://trendshift.io/repositories/11772" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11772" alt="kangfenmao%2Fcherry-studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </div>
@@ -13,7 +12,7 @@
 
 Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客户端，兼容 Windows、Mac 和 Linux 系统。
 
-👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(1025067911)](https://qm.qq.com/q/RIBAO2pPKS)
+👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(472019156)](https://qm.qq.com/q/CbZiBWwCXu)
 
 ❤️ 喜欢 Cherry Studio? 点亮小星星 🌟 或 [赞助开发者](sponsor.md)! ❤️
 
@@ -29,41 +28,43 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 1. **多样化 LLM 服务支持**：
 
-   - ☁️ 支持主流 LLM 云服务：OpenAI、Gemini、Anthropic、硅基流动等
-   - 🔗 集成流行 AI Web 服务：Claude、Peplexity、Poe、腾讯元宝、知乎直答等
-   - 💻 支持 Ollama、LM Studio 本地模型部署
+- ☁️ 支持主流 LLM 云服务：OpenAI、Gemini、Anthropic、硅基流动等
+- 🔗 集成流行 AI Web 服务：Claude、Peplexity、Poe、腾讯元宝、知乎直答等
+- 💻 支持 Ollama、LM Studio 本地模型部署
 
 2. **智能助手与对话**：
 
-   - 📚 内置 300+ 预配置 AI 助手
-   - 🤖 支持自定义创建专属助手
-   - 💬 多模型同时对话，获得多样化观点
+- 📚 内置 300+ 预配置 AI 助手
+- 🤖 支持自定义创建专属助手
+- 💬 多模型同时对话，获得多样化观点
 
 3. **文档与数据处理**：
 
-   - 📄 支持文本、图片、Office、PDF 等多种格式
-   - ☁️ WebDAV 文件管理与数据备份
-   - 📊 Mermaid 图表可视化
-   - 💻 代码高亮显示
+- 📄 支持文本、图片、Office、PDF 等多种格式
+- ☁️ WebDAV 文件管理与数据备份
+- 📊 Mermaid 图表可视化
+- 💻 代码高亮显示
 
 4. **实用工具集成**：
 
-   - 🔍 全局搜索功能
-   - 📝 话题管理系统
-   - 🔤 AI 驱动的翻译功能
-   - 🎯 拖拽排序
-   - 🔌 小程序支持
+- 🔍 全局搜索功能
+- 📝 话题管理系统
+- 🔤 AI 驱动的翻译功能
+- 🎯 拖拽排序
+- 🔌 小程序支持
+- ⚙️ MCP(模型上下文协议) 服务
 
 5. **优质使用体验**：
-   - 🖥️ Windows、Mac、Linux 跨平台支持
-   - 📦 开箱即用，无需配置环境
-   - 🎨 支持明暗主题与透明窗口
-   - 📝 完整的 Markdown 渲染
-   - 🤲 便捷的内容分享功能
+
+- 🖥️ Windows、Mac、Linux 跨平台支持
+- 📦 开箱即用，无需配置环境
+- 🎨 支持明暗主题与透明窗口
+- 📝 完整的 Markdown 渲染
+- 🤲 便捷的内容分享功能
 
 # 📝 待辦事項
 
-- [x] 快捷弹窗 (读取剪贴板、快速提问、解释、翻译、总结）
+- [x] 快捷弹窗（读取剪贴板、快速提问、解释、翻译、总结）
 - [x] 多模型回答对比
 - [x] 支持使用服务供应商提供的 SSO 进行登入
 - [x] 全部模型支持连网（开发中...）
@@ -78,36 +79,7 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 # 🖥️ 开发
 
-## IDE 设置
-
-[Cursor](https://www.cursor.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-
-## 项目设置
-
-### 安装
-
-```bash
-$ yarn
-```
-
-### 开发
-
-```bash
-$ yarn dev
-```
-
-### 构建
-
-```bash
-# Windows
-$ yarn build:win
-
-# macOS
-$ yarn build:mac
-
-# Linux
-$ yarn build:linux
-```
+参考[开发文档](dev.md)
 
 # 🤝 贡献
 
@@ -128,17 +100,17 @@ $ yarn build:linux
 3. **提交更改**：提交并推送您的更改。
 4. **打开 Pull Request**：描述您的更改和原因。
 
-有关更详细的指南，请参阅我们的 [贡献指南](./CONTRIBUTING.md)。
+有关更详细的指南，请参阅我们的 [贡献指南](../CONTRIBUTING.md)。
 
 感谢您的支持和贡献！
 
 ## 相关项目
 
-- [one-api](https://github.com/songquanpeng/one-api):LLM API管理及分发系统，支持OpenAI、Azure、Anthropic等主流模型，统一API接口，可用于密钥管理与二次分发。
+- [one-api](https://github.com/songquanpeng/one-api)：LLM API 管理及分发系统，支持 OpenAI、Azure、Anthropic 等主流模型，统一 API 接口，可用于密钥管理与二次分发。
 
 # 🚀 贡献者
 
-<a href="https://github.com/kangfenmao/cherry-studio/graphs/contributors">
+<a href="https://github.com/CherryHQ/cherry-studio/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=kangfenmao/cherry-studio" />
 </a>
 <br /><br />

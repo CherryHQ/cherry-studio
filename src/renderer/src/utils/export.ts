@@ -5,11 +5,15 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import { Message, Topic } from '@renderer/types'
+import { convertMathFormula, removeSpecialCharactersForFileName } from '@renderer/utils/index'
+import { markdownToBlocks } from '@tryfabric/martian'
+import dayjs from 'dayjs'
 
 export const messageToMarkdown = (message: Message) => {
+  const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
   const titleSection = `### ${roleText}`
-  const contentSection = message.content
+  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(message.content) : message.content
 
   return [titleSection, '', contentSection].join('\n')
 }
@@ -30,17 +34,66 @@ export const topicToMarkdown = async (topic: Topic) => {
 }
 
 export const exportTopicAsMarkdown = async (topic: Topic) => {
-  const fileName = topic.name + '.md'
-  const markdown = await topicToMarkdown(topic)
-  window.api.file.save(fileName, markdown)
+  const { markdownExportPath } = store.getState().settings
+  if (!markdownExportPath) {
+    try {
+      const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
+      const markdown = await topicToMarkdown(topic)
+      const result = await window.api.file.save(fileName, markdown)
+      if (result) {
+        window.message.success({
+          content: i18n.t('message.success.markdown.export.specified'),
+          key: 'markdown-success'
+        })
+      }
+    } catch (error: any) {
+      window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown-error' })
+    }
+  } else {
+    try {
+      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
+      const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
+      const markdown = await topicToMarkdown(topic)
+      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
+    } catch (error: any) {
+      window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown-error' })
+    }
+  }
 }
 
 export const exportMessageAsMarkdown = async (message: Message) => {
-  const fileName = getMessageTitle(message) + '.md'
-  const markdown = messageToMarkdown(message)
-  window.api.file.save(fileName, markdown)
+  const { markdownExportPath } = store.getState().settings
+  if (!markdownExportPath) {
+    try {
+      const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + '.md'
+      const markdown = messageToMarkdown(message)
+      const result = await window.api.file.save(fileName, markdown)
+      if (result) {
+        window.message.success({
+          content: i18n.t('message.success.markdown.export.specified'),
+          key: 'markdown-success'
+        })
+      }
+    } catch (error: any) {
+      window.message.error({ content: i18n.t('message.error.markdown.export.specified'), key: 'markdown-error' })
+    }
+  } else {
+    try {
+      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
+      const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + ` ${timestamp}.md`
+      const markdown = messageToMarkdown(message)
+      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
+    } catch (error: any) {
+      window.message.error({ content: i18n.t('message.error.markdown.export.preconf'), key: 'markdown-error' })
+    }
+  }
 }
 
+const convertMarkdownToNotionBlocks = async (markdown: string) => {
+  return markdownToBlocks(markdown)
+}
 // 修改 splitNotionBlocks 函数
 const splitNotionBlocks = (blocks: any[]) => {
   const { notionAutoSplit, notionSplitSize } = store.getState().settings
@@ -69,26 +122,6 @@ const splitNotionBlocks = (blocks: any[]) => {
   return pages
 }
 
-// 创建页面标题块
-const createPageTitleBlocks = (title: string, pageNumber: number, totalPages: number) => {
-  return [
-    {
-      object: 'block',
-      type: 'heading_1',
-      heading_1: {
-        rich_text: [{ type: 'text', text: { content: `${title} (${pageNumber}/${totalPages})` } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: []
-      }
-    }
-  ]
-}
-
 export const exportTopicToNotion = async (topic: Topic) => {
   const { isExporting } = store.getState().runtime.export
   if (isExporting) {
@@ -107,18 +140,7 @@ export const exportTopicToNotion = async (topic: Topic) => {
   try {
     const notion = new Client({ auth: notionApiKey })
     const markdown = await topicToMarkdown(topic)
-    const requestBody = JSON.stringify({ md: markdown })
-
-    const res = await fetch('https://md2notion.hilars.dev', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: requestBody
-    })
-
-    const data = await res.json()
-    const allBlocks = data
+    const allBlocks = await convertMarkdownToNotionBlocks(markdown)
     const blockPages = splitNotionBlocks(allBlocks)
 
     if (blockPages.length === 0) {
@@ -127,33 +149,47 @@ export const exportTopicToNotion = async (topic: Topic) => {
 
     // 创建主页面和子页面
     let mainPageResponse: any = null
+    let parentBlockId: string | null = null
     for (let i = 0; i < blockPages.length; i++) {
-      const pageTitle = blockPages.length > 1 ? `${topic.name} (${i + 1}/${blockPages.length})` : topic.name
+      const pageTitle = topic.name
       const pageBlocks = blockPages[i]
 
-      const pageContent =
-        i === 0 ? pageBlocks : [...createPageTitleBlocks(topic.name, i + 1, blockPages.length), ...pageBlocks]
-
-      const response = await notion.pages.create({
-        parent: { database_id: notionDatabaseID },
-        properties: {
-          [store.getState().settings.notionPageNameKey || 'Name']: {
-            title: [{ text: { content: pageTitle } }]
-          }
-        },
-        children: pageContent
+      // 导出进度提示
+      window.message.loading({
+        content: i18n.t('message.loading.notion.exporting_progress', {
+          current: i + 1,
+          total: blockPages.length
+        }),
+        key: 'notion-export-progress'
       })
 
-      // 保存主页面响应
       if (i === 0) {
+        const response = await notion.pages.create({
+          parent: { database_id: notionDatabaseID },
+          properties: {
+            [store.getState().settings.notionPageNameKey || 'Name']: {
+              title: [{ text: { content: pageTitle } }]
+            }
+          },
+          children: pageBlocks
+        })
         mainPageResponse = response
+        parentBlockId = response.id
+      } else {
+        if (!parentBlockId) {
+          throw new Error('Parent block ID is null')
+        }
+        await notion.blocks.children.append({
+          block_id: parentBlockId,
+          children: pageBlocks
+        })
       }
     }
 
-    window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
+    window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-export-progress' })
     return mainPageResponse
   } catch (error: any) {
-    window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-error' })
+    window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-export-progress' })
     return null
   } finally {
     setExportState({
@@ -181,18 +217,11 @@ export const exportMarkdownToNotion = async (title: string, content: string) => 
 
   try {
     const notion = new Client({ auth: notionApiKey })
-    const requestBody = JSON.stringify({ md: content })
+    const notionBlocks = await convertMarkdownToNotionBlocks(content)
 
-    const res = await fetch('https://md2notion.hilars.dev', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: requestBody
-    })
-
-    const data = await res.json()
-    const notionBlocks = data
+    if (notionBlocks.length === 0) {
+      throw new Error('No content to export')
+    }
 
     const response = await notion.pages.create({
       parent: { database_id: notionDatabaseID },
@@ -201,7 +230,7 @@ export const exportMarkdownToNotion = async (title: string, content: string) => 
           title: [{ text: { content: title } }]
         }
       },
-      children: notionBlocks
+      children: notionBlocks as any[]
     })
 
     window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
@@ -286,5 +315,105 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
     return null
   } finally {
     setExportState({ isExporting: false })
+  }
+}
+
+/**
+ * 导出Markdown到Obsidian
+ */
+export const exportMarkdownToObsidian = async (
+  fileName: string,
+  markdown: string,
+  selectedPath: string,
+  isMdFile: boolean = false
+) => {
+  try {
+    const obsidianUrl = store.getState().settings.obsidianUrl
+    const obsidianApiKey = store.getState().settings.obsidianApiKey
+
+    if (!obsidianUrl || !obsidianApiKey) {
+      window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
+      return
+    }
+
+    // 如果是md文件，直接将内容追加到该文件
+    if (isMdFile) {
+      const response = await fetch(`${obsidianUrl}vault${selectedPath}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/markdown',
+          Authorization: `Bearer ${obsidianApiKey}`
+        },
+        body: `\n\n${markdown}` // 添加两个换行后追加内容
+      })
+
+      if (!response.ok) {
+        window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+        return
+      }
+    } else {
+      // 创建新文件
+      const sanitizedFileName = removeSpecialCharactersForFileName(fileName)
+      const path = selectedPath === '/' ? '' : selectedPath
+      const fullPath = path.endsWith('/') ? `${path}${sanitizedFileName}.md` : `${path}/${sanitizedFileName}.md`
+
+      const response = await fetch(`${obsidianUrl}vault${fullPath}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'text/markdown',
+          Authorization: `Bearer ${obsidianApiKey}`
+        },
+        body: markdown
+      })
+
+      if (!response.ok) {
+        window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+        return
+      }
+    }
+
+    window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
+  } catch (error) {
+    console.error('导出到Obsidian失败:', error)
+    window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+  }
+}
+
+export const exportMarkdownToJoplin = async (title: string, content: string) => {
+  const { joplinUrl, joplinToken } = store.getState().settings
+
+  if (!joplinUrl || !joplinToken) {
+    window.message.error(i18n.t('message.error.joplin.no_config'))
+    return
+  }
+
+  try {
+    const baseUrl = joplinUrl.endsWith('/') ? joplinUrl : `${joplinUrl}/`
+    const response = await fetch(`${baseUrl}notes?token=${joplinToken}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: title,
+        body: content,
+        source: 'Cherry Studio'
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('service not available')
+    }
+
+    const data = await response.json()
+    if (data?.error) {
+      throw new Error('response error')
+    }
+
+    window.message.success(i18n.t('message.success.joplin.export'))
+    return
+  } catch (error) {
+    window.message.error(i18n.t('message.error.joplin.export'))
+    return
   }
 }

@@ -1,4 +1,3 @@
-import type { TavilySearchResponse } from '@tavily/core'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
@@ -68,13 +67,16 @@ export type Message = {
   askId?: string
   useful?: boolean
   error?: Record<string, any>
+  enabledMCPs?: MCPServer[]
   metadata?: {
     // Gemini
     groundingMetadata?: any
     // Perplexity
     citations?: string[]
     // Web search
-    tavily?: TavilySearchResponse
+    webSearch?: WebSearchResponse
+    // MCP Tools
+    mcpTools?: MCPToolResponse[]
   }
 }
 
@@ -94,6 +96,7 @@ export type Topic = {
   messages: Message[]
   pinned?: boolean
   prompt?: string
+  isNameManuallyEdited?: boolean
 }
 
 export type User = {
@@ -113,11 +116,14 @@ export type Provider = {
   models: Model[]
   enabled?: boolean
   isSystem?: boolean
+  isAuthed?: boolean
+  rateLimit?: number
+  isNotSupportArrayContent?: boolean
 }
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
-export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning'
+export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling'
 
 export type Model = {
   id: string
@@ -166,7 +172,7 @@ export interface FileType {
   size: number
   ext: string
   type: FileTypes
-  created_at: Date
+  created_at: string
   count: number
   tokens?: number
 }
@@ -252,6 +258,8 @@ export interface KnowledgeBase {
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  rerankModel?: Model
+  topN?: number
 }
 
 export type KnowledgeBaseParams = {
@@ -263,6 +271,11 @@ export type KnowledgeBaseParams = {
   baseURL: string
   chunkSize?: number
   chunkOverlap?: number
+  rerankApiKey?: string
+  rerankBaseURL?: string
+  rerankModel?: string
+  rerankModelProvider?: string
+  topN?: number
 }
 
 export type GenerateImageParams = {
@@ -292,7 +305,20 @@ export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 
 export type WebSearchProvider = {
   id: string
   name: string
-  apiKey: string
+  apiKey?: string
+  apiHost?: string
+  engines?: string[]
+}
+
+export type WebSearchResponse = {
+  query?: string
+  results: WebSearchResult[]
+}
+
+export type WebSearchResult = {
+  title: string
+  content: string
+  url: string
 }
 
 export type KnowledgeReference = {
@@ -301,4 +327,52 @@ export type KnowledgeReference = {
   sourceUrl: string
   type: KnowledgeItemType
   file?: FileType
+}
+
+export type MCPArgType = 'string' | 'list' | 'number'
+export type MCPEnvType = 'string' | 'number'
+export type MCPArgParameter = { [key: string]: MCPArgType }
+export type MCPEnvParameter = { [key: string]: MCPEnvType }
+
+export interface MCPServerParameter {
+  name: string
+  type: MCPArgType | MCPEnvType
+  description: string
+}
+
+export interface MCPServer {
+  name: string
+  description?: string
+  baseUrl?: string
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+  isActive: boolean
+}
+
+export interface MCPToolInputSchema {
+  type: string
+  title: string
+  description?: string
+  required?: string[]
+  properties: Record<string, object>
+}
+
+export interface MCPTool {
+  id: string
+  serverName: string
+  name: string
+  description?: string
+  inputSchema: MCPToolInputSchema
+}
+
+export interface MCPConfig {
+  servers: MCPServer[]
+}
+
+export interface MCPToolResponse {
+  id: string // tool call id, it should be unique
+  tool: MCPTool // tool info
+  status: string // 'invoking' | 'done'
+  response?: any
 }
