@@ -14,6 +14,7 @@ import messagesReducer from './messages'
 import migrate from './migrate'
 import minapps from './minapps'
 import paintings from './paintings'
+import prompts from './prompts'
 import runtime from './runtime'
 import settings from './settings'
 import shortcuts from './shortcuts'
@@ -33,7 +34,8 @@ const rootReducer = combineReducers({
   websearch,
   mcp,
   copilot,
-  messages: messagesReducer
+  messages: messagesReducer,
+  prompts
 })
 
 const persistedReducer = persistReducer(

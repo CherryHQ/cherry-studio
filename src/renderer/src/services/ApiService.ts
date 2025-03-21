@@ -1,5 +1,4 @@
 import { getOpenAIWebSearchParams } from '@renderer/config/models'
-import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -10,9 +9,10 @@ import { cloneDeep, findLast, isEmpty } from 'lodash'
 import AiProvider from '../providers/AiProvider'
 import {
   getAssistantProvider,
-  getDefaultAssistant,
   getDefaultModel,
+  getDefaultSearchSummaryAssistant,
   getProviderByModel,
+  getSearchSummaryModel,
   getTopNamingModel,
   getTranslateModel
 } from './AssistantService'
@@ -62,19 +62,17 @@ export async function fetchChatCompletion({
           onResponse({ ...message, status: 'searching' })
 
           try {
-            // 等待关键词生成完成
-            const searchSummaryAssistant = getDefaultAssistant()
-            searchSummaryAssistant.model = assistant.model || getDefaultModel()
-            searchSummaryAssistant.prompt = SEARCH_SUMMARY_PROMPT
-
-            // 如果启用搜索增强模式，则使用搜索增强模式
             if (WebSearchService.isEnhanceModeEnabled()) {
+              // 等待关键词生成完成
               const keywords = await fetchSearchSummary({
                 messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
-                assistant: searchSummaryAssistant
+                assistant: getDefaultSearchSummaryAssistant()
               })
+
               if (keywords) {
                 query = keywords
+              } else {
+                query = lastMessage.content
               }
             } else {
               query = lastMessage.content
@@ -227,7 +225,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 }
 
 export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = assistant.model || getDefaultModel()
+  const model = getSearchSummaryModel() || assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {

@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { SEARCH_SUMMARY_PROMPT, TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter'
@@ -64,6 +64,7 @@ export interface SettingsState {
   enableTopicNaming: boolean
   customCss: string
   topicNamingPrompt: string
+  searchSummaryPrompt: string
   // Sidebar icons
   sidebarIcons: {
     visible: SidebarIcon[]
@@ -161,6 +162,7 @@ const initialState: SettingsState = {
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
+  searchSummaryPrompt: SEARCH_SUMMARY_PROMPT,
   obsidianApiKey: '',
   obsidianUrl: '',
   joplinToken: '',
@@ -310,9 +312,6 @@ const settingsSlice = createSlice({
     setCustomCss: (state, action: PayloadAction<string>) => {
       state.customCss = action.payload
     },
-    setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
-      state.topicNamingPrompt = action.payload
-    },
     setSidebarIcons: (state, action: PayloadAction<{ visible?: SidebarIcon[]; disabled?: SidebarIcon[] }>) => {
       if (action.payload.visible) {
         state.sidebarIcons.visible = action.payload.visible
@@ -429,12 +428,10 @@ export const {
   setGridPopoverTrigger,
   setMessageStyle,
   setCodeStyle,
-  setTranslateModelPrompt,
   setAutoTranslateWithSpace,
   setEnableTopicNaming,
   setPasteLongTextThreshold,
   setCustomCss,
-  setTopicNamingPrompt,
   setSidebarIcons,
   setNarrowMode,
   setClickTrayToShowQuickAssistant,

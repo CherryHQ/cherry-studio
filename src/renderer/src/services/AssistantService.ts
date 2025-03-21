@@ -36,6 +36,14 @@ export function getDefaultTranslateAssistant(targetLanguage: string, text: strin
   return assistant
 }
 
+export function getDefaultSearchSummaryAssistant(): Assistant {
+  const searchSummaryModel = getSearchSummaryModel()
+  const assistant: Assistant = getDefaultAssistant()
+  assistant.model = searchSummaryModel
+  assistant.prompt = store.getState().settings.searchSummaryPrompt
+  return assistant
+}
+
 export function getDefaultAssistantSettings() {
   return store.getState().assistants.defaultAssistant.settings
 }
@@ -62,6 +70,10 @@ export function getDefaultModel() {
 
 export function getTopNamingModel() {
   return store.getState().llm.topicNamingModel
+}
+
+export function getSearchSummaryModel() {
+  return store.getState().llm.searchSummaryModel
 }
 
 export function getTranslateModel() {
