@@ -501,6 +501,7 @@
       },
       "feature": {
         "chat": "الرد على هذا السؤال",
+        "explanation": "التفسير",
         "summary": "ملخص المحتوى",
         "translate": "ترجمة النص"
       },
@@ -761,6 +762,12 @@
           "password": "كلمة مرور WebDAV",
           "path": "مسار WebDAV",
           "path.placeholder": "/backup",
+          "backup.modal.title": "نسخ احتياطي إلى WebDAV",
+          "backup.modal.filename.placeholder": "يرجى إدخال اسم ملف النسخ الاحتياطي",
+          "restore.modal.title": "استعادة من WebDAV",
+          "restore.modal.select.placeholder": "يرجى اختيار ملف النسخ الاحتياطي للاستعادة",
+          "restore.confirm.title": "تأكيد الاستعادة",
+          "restore.confirm.content": "سيؤدي استعادة البيانات من WebDAV إلى استبدال البيانات الحالية، هل تريد المتابعة؟",
           "restore.button": "استعادة من WebDAV",
           "restore.content": "سيؤدي استعادة البيانات من WebDAV إلى استبدال البيانات الحالية، هل تريد المتابعة؟",
           "restore.title": "استعادة من WebDAV",
@@ -919,6 +926,10 @@
         "jsonSaveError": "فشل في حفظ تكوين JSON."
       },
       "messages.divider": "إظهار الفاصل بين الرسائل",
+      "messages.navigation": "تصفيح الرسائل",
+      "messages.navigation.none": "لا",
+      "messages.navigation.buttons": "أزرار التصفيح",
+      "messages.navigation.anchor": "رابط الرسالة",
       "messages.grid_columns": "أعمدة عرض الشبكة للرسائل",
       "messages.grid_popover_trigger": "مشغل تفاصيل الشبكة",
       "messages.grid_popover_trigger.click": "انقر للعرض",
@@ -1085,6 +1096,11 @@
       "topic.position.right": "اليمين",
       "topic.show.time": "عرض وقت الموضوع",
       "tray.title": "تمكين أيقونة صينية النظام",
+      "tray.show": "عرض أيقونة النظام",
+      "tray.onclose": "تصغير إلى أيقونة النظام عند إغلاق النافذة",
+      "launch.title": "التشغيل",
+      "launch.onboot": "التشغيل تلقائيًا عند بدء النظام",
+      "launch.totray": "تصغير إلى أيقونة النظام عند التشغيل",
       "websearch": {
         "blacklist": "القائمة السوداء",
         "blacklist_description": "لن تظهر نتائج من المواقع التالية في نتائج البحث",

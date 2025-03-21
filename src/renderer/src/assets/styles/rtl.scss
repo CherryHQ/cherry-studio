@@ -1,0 +1,151 @@
+// RTL-specific styles that need manual control
+[dir='rtl'] {
+  // Layout direction - needs manual control because it's a core layout change
+  #root {
+    flex-direction: row-reverse;
+  }
+
+  // Container styles
+  #content-container {
+    border-top-left-radius: 0;
+    border-top-right-radius: 10px;
+    border-left: none;
+    border-right: 0.5px solid var(--color-border);
+  }
+
+  // Sidebar and navigation
+  .sidebar {
+    border-right: none;
+    border-left: 0.5px solid var(--color-border);
+  }
+
+  // Text alignment
+  .text-nowrap {
+    text-align: right;
+  }
+
+  // Input fields and placeholders
+  input,
+  textarea,
+  .ant-input {
+    text-align: right;
+    direction: rtl;
+
+    &::placeholder {
+      text-align: right;
+      direction: rtl;
+    }
+  }
+
+  // Icons and buttons alignment
+  .toolbar-menu {
+    flex-direction: row-reverse;
+  }
+
+  .ant-btn > .anticon + span,
+  .ant-btn > span + .anticon {
+    margin-right: 8px;
+    margin-left: 0;
+  }
+
+  // Icons and arrows that need explicit flipping
+  .icon-arrow-left,
+  .icon-arrow-right,
+  .icon-back,
+  .icon-forward {
+    transform: scaleX(-1);
+  }
+
+  // Margins and paddings using logical properties
+  .message-content-container {
+    margin-inline: 0;
+  }
+
+  // Input bar
+  #inputbar {
+    margin: -5px 15px 15px 15px;
+    
+    .toolbar {
+      flex-direction: row-reverse;
+    }
+
+    .toolbar-menu {
+      &:first-child {
+        margin-right: 0;
+        margin-left: auto;
+      }
+      &:last-child {
+        margin-left: 0;
+        margin-right: auto;
+      }
+    }
+  }
+
+  // Search and filter inputs
+  .ant-input-search {
+    .ant-input {
+      padding-right: 12px;
+      padding-left: 36px;
+    }
+    .ant-input-suffix {
+      right: auto;
+      left: 12px;
+    }
+  }
+
+  // Dropdown and select components
+  .ant-select {
+    &-selection-item {
+      text-align: right;
+    }
+    &-arrow {
+      right: auto;
+      left: 11px;
+    }
+  }
+
+  // Animations and transitions that need explicit control
+  .slide-enter,
+  .slide-leave,
+  .slide-appear,
+  .slide-enter-active,
+  .slide-leave-active,
+  .slide-appear-active,
+  .fade-enter,
+  .fade-leave,
+  .fade-appear,
+  .fade-enter-active,
+  .fade-leave-active,
+  .fade-appear-active {
+    transform-origin: right !important;
+  }
+
+  // Any custom animations or transitions that need manual RTL handling
+  .ant-dropdown,
+  .ant-popover {
+    &.slide-up-enter,
+    &.slide-up-appear {
+      transform-origin: 100% 100%;
+    }
+  }
+
+  // Scrollbar position
+  ::-webkit-scrollbar {
+    margin-left: 0;
+    margin-right: 2px;
+  }
+
+  // Bubble chat styles
+  .bubble {
+    .message-content-container {
+      &.user {
+        margin-left: 0;
+        margin-right: auto;
+      }
+      &.assistant {
+        margin-right: 0;
+        margin-left: auto;
+      }
+    }
+  }
+} 

@@ -144,6 +144,7 @@
     "lodash": "^4.17.21",
     "mime": "^4.0.4",
     "openai": "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch",
+    "postcss-rtlcss": "^5.6.0",
     "prettier": "^3.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

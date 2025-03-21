@@ -3408,6 +3408,7 @@ __metadata:
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
     p-queue: "npm:^8.1.0"
+    postcss-rtlcss: "npm:^5.6.0"
     prettier: "npm:^3.5.3"
     proxy-agent: "npm:^6.5.0"
     react: "npm:^18.2.0"
@@ -11881,6 +11882,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"postcss-rtlcss@npm:^5.6.0":
+  version: 5.6.0
+  resolution: "postcss-rtlcss@npm:5.6.0"
+  dependencies:
+    rtlcss: "npm:4.3.0"
+  peerDependencies:
+    postcss: ^8.4.21
+  checksum: 10c0/b1ce761b953ac25a4c6614b7f912d71a9fcd3dac529c180892d057a0749678fd318692853776e56a0a3f561cbabd43bd77df7672ed2b29cde6423ab5ecd0671a
+  languageName: node
+  linkType: hard
+
 "postcss-value-parser@npm:^4.0.2":
   version: 4.2.0
   resolution: "postcss-value-parser@npm:4.2.0"
@@ -11899,7 +11911,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"postcss@npm:^8.4.43":
+"postcss@npm:^8.4.21, postcss@npm:^8.4.43":
   version: 8.5.3
   resolution: "postcss@npm:8.5.3"
   dependencies:
@@ -13532,6 +13544,20 @@ __metadata:
     parseurl: "npm:^1.3.3"
     path-to-regexp: "npm:^8.0.0"
   checksum: 10c0/df17c5c07210cb72922185ea9378b318676c1e1af9110c52cfa8339bff43004f240cb6660d3b23c932f7867ab6a3ed3fe9d8e8fb0d7ac7402d0b7e7a59f9ba07
+  languageName: node
+  linkType: hard
+
+"rtlcss@npm:4.3.0":
+  version: 4.3.0
+  resolution: "rtlcss@npm:4.3.0"
+  dependencies:
+    escalade: "npm:^3.1.1"
+    picocolors: "npm:^1.0.0"
+    postcss: "npm:^8.4.21"
+    strip-json-comments: "npm:^3.1.1"
+  bin:
+    rtlcss: bin/rtlcss.js
+  checksum: 10c0/ec59db839e1446b4cd6dcef618c8986f00d67e0ac3c2d40bd9041f1909aaacd668072c90849906ca692dea25cd993f46e9188b4c36adfa5bd3eebeb945fb28f2
   languageName: node
   linkType: hard
 
