@@ -306,7 +306,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <HStack gap={5}>
+          <HStack>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>

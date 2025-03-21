@@ -1,6 +1,6 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { app, ipcMain } from 'electron'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
+import { app, ipcMain } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'

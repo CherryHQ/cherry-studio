@@ -12,12 +12,13 @@ import {
   setWebdavSyncInterval as _setWebdavSyncInterval,
   setWebdavUser as _setWebdavUser
 } from '@renderer/store/settings'
-import { Button, Input, Modal, Select, Spin } from 'antd'
+import { Button, Input, Modal, Select, Spin, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { formatFileSize } from '@renderer/utils'
 
 interface BackupFile {
   fileName: string
@@ -170,7 +171,7 @@ const WebDavSettings: FC = () => {
 
   const formatFileOption = (file: BackupFile) => {
     const date = dayjs(file.modifiedTime).format('YYYY-MM-DD HH:mm:ss')
-    const size = `${(file.size / 1024).toFixed(2)} KB`
+    const size = formatFileSize(file.size)
     return {
       label: `${file.fileName} (${date}, ${size})`,
       value: file.fileName
@@ -262,46 +263,46 @@ const WebDavSettings: FC = () => {
           </SettingRow>
         </>
       )}
-  <>
-      <Modal
-        title={t('settings.data.webdav.backup.modal.title')}
-        open={isModalVisible}
-        onOk={handleBackup}
-        onCancel={handleCancel}
-        okButtonProps={{ loading: backuping }}>
-        <Input
-          value={customFileName}
-          onChange={(e) => setCustomFileName(e.target.value)}
-          placeholder={t('settings.data.webdav.backup.modal.filename.placeholder')}
-        />
-      </Modal>
-
-      <Modal
-        title={t('settings.data.webdav.restore.modal.title')}
-        open={isRestoreModalVisible}
-        onOk={handleRestore}
-        onCancel={() => setIsRestoreModalVisible(false)}
-        okButtonProps={{ loading: restoring }}
-        width={600}>
-        <div style={{ position: 'relative' }}>
-          <Select
-            style={{ width: '100%' }}
-            placeholder={t('settings.data.webdav.restore.modal.select.placeholder')}
-            value={selectedFile}
-            onChange={setSelectedFile}
-            options={backupFiles.map(formatFileOption)}
-            loading={loadingFiles}
-            showSearch
-            filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+      <>
+        <Modal
+          title={t('settings.data.webdav.backup.modal.title')}
+          open={isModalVisible}
+          onOk={handleBackup}
+          onCancel={handleCancel}
+          okButtonProps={{ loading: backuping }}>
+          <Input
+            value={customFileName}
+            onChange={(e) => setCustomFileName(e.target.value)}
+            placeholder={t('settings.data.webdav.backup.modal.filename.placeholder')}
           />
-          {loadingFiles && (
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-              <Spin />
-            </div>
-          )}
-        </div>
-      </Modal>
-    </>
+        </Modal>
+
+        <Modal
+          title={t('settings.data.webdav.restore.modal.title')}
+          open={isRestoreModalVisible}
+          onOk={handleRestore}
+          onCancel={() => setIsRestoreModalVisible(false)}
+          okButtonProps={{ loading: restoring }}
+          width={600}>
+          <div style={{ position: 'relative' }}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder={t('settings.data.webdav.restore.modal.select.placeholder')}
+              value={selectedFile}
+              onChange={setSelectedFile}
+              options={backupFiles.map(formatFileOption)}
+              loading={loadingFiles}
+              showSearch
+              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+            />
+            {loadingFiles && (
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+                <Spin />
+              </div>
+            )}
+          </div>
+        </Modal>
+      </>
     </SettingGroup>
   )
 }
