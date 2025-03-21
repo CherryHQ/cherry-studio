@@ -8,6 +8,7 @@ import { addRenamingTopicId, removeRenamingTopicId } from '@renderer/store/runti
 import { Assistant, Topic } from '@renderer/types'
 import { find, isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
+import { useAppSelector } from '@renderer/store'
 
 import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
@@ -38,6 +39,28 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
   return { activeTopic, setActiveTopic }
 }
 
+export function useRenamingTopics() {
+  const renamingTopicIds = useAppSelector((state) => state.runtime.renamingTopicIds)
+
+  const startRenamingTopic = (topicId: string) => {
+    store.dispatch(addRenamingTopicId(topicId))
+  }
+
+  const finishRenamingTopic = (topicId: string) => {
+    store.dispatch(removeRenamingTopicId(topicId))
+  }
+
+  const isRenamingTopic = (topicId: string) => {
+    return renamingTopicIds.includes(topicId)
+  }
+
+  return {
+    startRenamingTopic,
+    finishRenamingTopic,
+    isRenamingTopic
+  }
+}
+
 export function useTopic(assistant: Assistant, topicId?: string) {
   return assistant?.topics.find((topic) => topic.id === topicId)
 }
@@ -52,14 +75,6 @@ export async function getTopicById(topicId: string) {
   const topic = topics.find((topic) => topic.id === topicId)
   const messages = await TopicManager.getTopicMessages(topicId)
   return { ...topic, messages } as Topic
-}
-
-export function startRenamingTopic(topicId: string) {
-  store.dispatch(addRenamingTopicId(topicId))
-}
-
-export function finishRenamingTopic(topicId: string) {
-  store.dispatch(removeRenamingTopicId(topicId))
 }
 
 export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {

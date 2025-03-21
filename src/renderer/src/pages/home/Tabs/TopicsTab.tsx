@@ -17,10 +17,10 @@ import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { finishRenamingTopic, startRenamingTopic, TopicManager } from '@renderer/hooks/useTopic'
+import { useRenamingTopics, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import store, { useAppSelector } from '@renderer/store'
+import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { removeSpecialCharactersForFileName } from '@renderer/utils'
@@ -50,7 +50,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
   const { showTopicTime, topicPosition } = useSettings()
-  const renamingTopicIds = useAppSelector((state) => state.runtime.renamingTopicIds)
+  const { isRenamingTopic, startRenamingTopic, finishRenamingTopic } = useRenamingTopics()
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -135,10 +135,10 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           label: t('chat.topics.auto_rename'),
           key: 'auto-rename',
           icon: <i className="iconfont icon-business-smart-assistant" style={{ fontSize: '14px' }} />,
-          disabled: renamingTopicIds.includes(topic.id),
+          disabled: isRenamingTopic(topic.id),
           async onClick() {
             // lock the topic from being renamed
-            if (renamingTopicIds.includes(topic.id)) {
+            if (isRenamingTopic(topic.id)) {
               return
             }
             startRenamingTopic(topic.id)
@@ -159,10 +159,10 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           label: t('chat.topics.edit.title'),
           key: 'rename',
           icon: <EditOutlined />,
-          disabled: renamingTopicIds.includes(topic.id),
+          disabled: isRenamingTopic(topic.id),
           async onClick() {
             // lock the topic from being renamed
-            if (renamingTopicIds.includes(topic.id)) {
+            if (isRenamingTopic(topic.id)) {
               window.message.warning(t('chat.topics.rename.locked'))
               return
             }
@@ -336,7 +336,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       onMoveTopic,
       t,
       updateTopic,
-      renamingTopicIds,
+      isRenamingTopic,
       startRenamingTopic,
       finishRenamingTopic
     ]
@@ -350,7 +350,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           const topicName = topic.name.replace('`', '')
           const topicPrompt = topic.prompt
           const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
-          const isRenaming = renamingTopicIds.includes(topic.id)
+          const isRenaming = isRenamingTopic(topic.id)
           return (
             <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
               <TopicListItem
