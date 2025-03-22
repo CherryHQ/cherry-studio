@@ -86,8 +86,10 @@ export interface SettingsState {
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
-  obsidianApiKey: string | null
-  obsidianUrl: string | null
+  //obsidian settings   obsidianVault, obisidanFolder
+  obsidianValut: string | null
+  obsidianFolder: string | null
+  obsidianTages: string | null
   joplinToken: string | null
   joplinUrl: string | null
 }
@@ -161,10 +163,12 @@ const initialState: SettingsState = {
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
-  obsidianApiKey: '',
-  obsidianUrl: '',
+  obsidianValut: '',
+  obsidianFolder: '',
+  obsidianTages: '',
   joplinToken: '',
   joplinUrl: ''
+
 }
 
 const settingsSlice = createSlice({
@@ -369,11 +373,14 @@ const settingsSlice = createSlice({
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
     },
-    setObsidianApiKey: (state, action: PayloadAction<string>) => {
-      state.obsidianApiKey = action.payload
+    setObsidianValut: (state, action: PayloadAction<string>) => {
+      state.obsidianValut = action.payload
     },
-    setObsidianUrl: (state, action: PayloadAction<string>) => {
-      state.obsidianUrl = action.payload
+    setObsidianFolder: (state, action: PayloadAction<string>) => {
+      state.obsidianFolder = action.payload
+    },
+    setObsidianTages: (state, action: PayloadAction<string>) => {
+      state.obsidianTages = action.payload
     },
     setJoplinToken: (state, action: PayloadAction<string>) => {
       state.joplinToken = action.payload
@@ -452,8 +459,9 @@ export const {
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
-  setObsidianApiKey,
-  setObsidianUrl,
+  setObsidianValut,
+  setObsidianFolder,
+  setObsidianTages,
   setJoplinToken,
   setJoplinUrl,
   setMessageNavigation

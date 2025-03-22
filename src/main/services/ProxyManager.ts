@@ -73,7 +73,6 @@ export class ProxyManager {
       await this.setSessionsProxy({ mode: 'system' })
       const proxyString = await session.defaultSession.resolveProxy('https://dummy.com')
       const [protocol, address] = proxyString.split(';')[0].split(' ')
-      console.log('protocol', protocol)
       const url = protocol === 'PROXY' ? `http://${address}` : null
       if (url && url !== this.config.url) {
         this.config.url = url.toLowerCase()

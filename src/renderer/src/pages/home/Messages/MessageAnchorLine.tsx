@@ -135,7 +135,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
 
       messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
     },
-    [messages, setSelectedMessage]
+    [setSelectedMessage]
   )
 
   if (messages.length === 0) return null

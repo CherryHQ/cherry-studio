@@ -242,8 +242,8 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'obsidian',
             onClick: async () => {
               const markdown = messageToMarkdown(message)
-              const title = getMessageTitle(message)
-              await ObsidianExportPopup.show({ title, markdown })
+              const title = topic.name?.replace(/\//g, '_') || 'Untitled'
+              await ObsidianExportPopup.show({ title, markdown, processingMethod: '1' })
             }
           },
           {

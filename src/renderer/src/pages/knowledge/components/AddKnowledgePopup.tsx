@@ -1,7 +1,9 @@
 import { TopView } from '@renderer/components/TopView'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { SettingHelpText } from '@renderer/pages/settings'
 import AiProvider from '@renderer/providers/AiProvider'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -34,14 +36,17 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { addKnowledgeBase } = useKnowledgeBases()
+
   const allModels = providers
     .map((p) => p.models)
     .flat()
     .filter((model) => isEmbeddingModel(model))
+
   const rerankModels = providers
     .map((p) => p.models)
     .flat()
     .filter((model) => isRerankModel(model))
+
   const nameInputRef = useRef<any>(null)
 
   const selectOptions = providers
@@ -60,6 +65,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   const rerankSelectOptions = providers
     .filter((p) => p.models.length > 0)
+    .filter((p) => SUPPORTED_REANK_PROVIDERS.includes(p.id))
     .map((p) => ({
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
@@ -164,6 +170,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           tooltip={{ title: t('models.rerank_model_tooltip'), placement: 'right' }}
           rules={[{ required: false, message: t('message.error.enter.model') }]}>
           <Select style={{ width: '100%' }} options={rerankSelectOptions} placeholder={t('settings.models.empty')} />
+          <SettingHelpText style={{ marginTop: 10 }}>
+            {t('models.rerank_model_support_provider', {
+              provider: SUPPORTED_REANK_PROVIDERS.map((id) => t(`provider.${id}`))
+            })}
+          </SettingHelpText>
         </Form.Item>
       </Form>
     </Modal>

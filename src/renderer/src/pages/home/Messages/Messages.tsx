@@ -140,7 +140,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         const newTopic = getDefaultTopic(assistant.id)
         newTopic.name = topic.name
         const currentMessages = messagesRef.current
-        const branchMessages = take(currentMessages, currentMessages.length - index)
+
+        // 复制消息并且更新 topicId
+        const branchMessages = take(currentMessages, currentMessages.length - index).map((msg) => ({
+          ...msg,
+          topicId: newTopic.id
+        }))
 
         // 将分支的消息放入数据库
         await db.topics.add({ id: newTopic.id, messages: branchMessages })

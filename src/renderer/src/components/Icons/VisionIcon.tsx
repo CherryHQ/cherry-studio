@@ -9,7 +9,7 @@ const VisionIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, 
 
   return (
     <Container>
-      <Tooltip title={t('models.vision')} placement="top">
+      <Tooltip title={t('models.type.vision')} placement="top">
         <Icon {...(props as any)} />
       </Tooltip>
     </Container>
