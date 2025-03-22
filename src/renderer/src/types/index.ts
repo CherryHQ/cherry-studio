@@ -196,9 +196,9 @@ export enum ThemeMode {
   auto = 'auto'
 }
 
-export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US' | 'ru-RU' | 'ja-JP'
+export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'ar' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
 
-export type TranslateLanguageVarious = 'chinese' | 'chinese-traditional' | 'english' | 'japanese' | 'russian'
+export type TranslateLanguageVarious = 'chinese' | 'chinese-traditional' | 'arabic' | 'greek' | 'english' | 'spanish' | 'french' | 'japanese' | 'portuguese' | 'russian'
 
 export type CodeStyleVarious = BuiltinTheme | 'auto'
 
