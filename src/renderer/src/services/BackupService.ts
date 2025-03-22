@@ -298,3 +298,31 @@ async function clearDatabase() {
     }
   })
 }
+
+// Google Drive相关服务函数
+export const backupToGoogleDrive = async (options: { showMessage?: boolean; customFileName?: string }) => {
+  // 实现GoogleDrive备份功能
+}
+
+export const restoreFromGoogleDrive = async (fileName: string) => {
+  // 实现从GoogleDrive恢复功能
+}
+
+export const listGoogleDriveFiles = async () => {
+  // 实现获取GoogleDrive备份文件列表功能
+  return []
+}
+
+// OneDrive相关服务函数
+export const backupToOneDrive = async (options: { showMessage?: boolean; customFileName?: string }) => {
+  // 实现OneDrive备份功能
+}
+
+export const restoreFromOneDrive = async (fileName: string) => {
+  // 实现从OneDrive恢复功能
+}
+
+export const listOneDriveFiles = async () => {
+  // 实现获取OneDrive备份文件列表功能
+  return []
+}

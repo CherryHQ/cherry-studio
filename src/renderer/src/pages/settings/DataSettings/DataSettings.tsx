@@ -28,6 +28,8 @@ import NotionSettings from './NotionSettings'
 import ObsidianSettings from './ObsidianSettings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
+import GoogleDriveSettings from './GoogleDriveSettings'
+import OneDriveSettings from './OneDriveSettings'
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -46,6 +48,8 @@ const DataSettings: FC = () => {
   const menuItems = [
     { key: 'data', title: 'settings.data.data.title', icon: <DatabaseOutlined style={{ fontSize: 16 }} /> },
     { key: 'webdav', title: 'settings.data.webdav.title', icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
+    { key: 'googledrive', title: 'settings.data.googledrive.title', icon: <i className="iconfont icon-googledrive" /> },
+    { key: 'onedrive', title: 'settings.data.onedrive.title', icon: <i className="iconfont icon-onedrive" /> },
     {
       key: 'markdown_export',
       title: 'settings.data.markdown_export.title',
@@ -201,6 +205,8 @@ const DataSettings: FC = () => {
           </>
         )}
         {menu === 'webdav' && <WebDavSettings />}
+        {menu === 'googledrive' && <GoogleDriveSettings />}
+        {menu === 'onedrive' && <OneDriveSettings />}
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'notion' && <NotionSettings />}
         {menu === 'yuque' && <YuqueSettings />}

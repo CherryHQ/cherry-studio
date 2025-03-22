@@ -143,7 +143,21 @@ const api = {
   isBinaryExist: (name: string) => ipcRenderer.invoke('app:is-binary-exist', name),
   getBinaryPath: (name: string) => ipcRenderer.invoke('app:get-binary-path', name),
   installUVBinary: () => ipcRenderer.invoke('app:install-uv-binary'),
-  installBunBinary: () => ipcRenderer.invoke('app:install-bun-binary')
+  installBunBinary: () => ipcRenderer.invoke('app:install-bun-binary'),
+
+  // OAuth and environment variable APIs
+  oauth: {
+    open: (url: string, callback: (redirectUrl: string) => void) => 
+      ipcRenderer.invoke('oauth:open', url).then(callback),
+    getGoogleDriveToken: (code: string, clientId: string, redirectUri: string) =>
+      ipcRenderer.invoke('oauth:getGoogleDriveToken', code, clientId, redirectUri),
+    getOneDriveToken: (code: string, clientId: string, redirectUri: string) =>
+      ipcRenderer.invoke('oauth:getOneDriveToken', code, clientId, redirectUri)
+  },
+  
+  env: {
+    get: (key: string) => process.env[key] || ''
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
