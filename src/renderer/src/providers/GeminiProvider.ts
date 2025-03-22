@@ -37,6 +37,7 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+import { MB } from '@shared/config/constant'
 
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI
@@ -60,7 +61,7 @@ export default class GeminiProvider extends BaseProvider {
    * @returns The part
    */
   private async handlePdfFile(file: FileType): Promise<Part> {
-    const smallFileSize = 20 * 1024 * 1024
+    const smallFileSize = 20 * MB
     const isSmallFile = file.size < smallFileSize
 
     if (isSmallFile) {
