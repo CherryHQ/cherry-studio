@@ -93,6 +93,8 @@ export function getProviderLogo(providerId: string) {
   return PROVIDER_LOGO_MAP[providerId as keyof typeof PROVIDER_LOGO_MAP]
 }
 
+export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina']
+
 export const PROVIDER_CONFIG = {
   openai: {
     api: {

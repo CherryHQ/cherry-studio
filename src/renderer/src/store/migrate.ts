@@ -772,6 +772,29 @@ const migrateConfig = {
   '81': (state: RootState) => {
     addProvider(state, 'copilot')
     return state
+  },
+  '82': (state: RootState) => {
+    const runtimeState = state.runtime as any
+    if (runtimeState?.webdavSync) {
+      state.backup = state.backup || {}
+      state.backup = {
+        ...state.backup,
+        webdavSync: {
+          lastSyncTime: runtimeState.webdavSync.lastSyncTime || null,
+          syncing: runtimeState.webdavSync.syncing || false,
+          lastSyncError: runtimeState.webdavSync.lastSyncError || null
+        }
+      }
+      delete runtimeState.webdavSync
+    }
+    return state
+  },
+  '83': (state: RootState) => {
+    state.settings.messageNavigation = 'buttons'
+    state.settings.launchOnBoot = false
+    state.settings.launchToTray = false
+    state.settings.trayOnClose = true
+    return state
   }
 }
 

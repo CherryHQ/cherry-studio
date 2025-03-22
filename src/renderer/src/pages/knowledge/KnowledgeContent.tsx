@@ -61,6 +61,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   } = useKnowledge(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model.provider || '')
+  const rerankModelProviderName = getProviderName(base?.rerankModel?.provider || '')
   const disabled = !base?.version || !providerName
 
   if (!base) {
@@ -445,13 +446,34 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       </ContentSection>
 
       <Divider style={{ margin: '10px 0' }} />
-
       <ModelInfo>
-        <label htmlFor="model-info">{t('knowledge.model_info')}</label>
-        <Tag color="blue">{base.model.name}</Tag>
-        <Tag color="cyan">{t('models.dimensions', { dimensions: base.dimensions || 0 })}</Tag>
-        {providerName && <Tag color="purple">{providerName}</Tag>}
-        <Button icon={<SettingOutlined />} onClick={() => KnowledgeSettingsPopup.show({ base })} size="small" />
+        <div className="model-header">
+          <label>{t('knowledge.model_info')}</label>
+          <Button icon={<SettingOutlined />} onClick={() => KnowledgeSettingsPopup.show({ base })} size="small" />
+        </div>
+
+        <div className="model-row">
+          <div className="label-column">
+            <label>{t('models.embedding_model')}</label>
+          </div>
+          <div className="tag-column">
+            {providerName && <Tag color="purple">{providerName}</Tag>}
+            <Tag color="blue">{base.model.name}</Tag>
+            <Tag color="cyan">{t('models.dimensions', { dimensions: base.dimensions || 0 })}</Tag>
+          </div>
+        </div>
+
+        {base.rerankModel && (
+          <div className="model-row">
+            <div className="label-column">
+              <label>{t('models.rerank_model')}</label>
+            </div>
+            <div className="tag-column">
+              {rerankModelProviderName && <Tag color="purple">{rerankModelProviderName}</Tag>}
+              <Tag color="blue">{base.rerankModel?.name}</Tag>
+            </div>
+          </div>
+        )}
       </ModelInfo>
 
       <IndexSection>
@@ -547,15 +569,39 @@ const IndexSection = styled.div`
 
 const ModelInfo = styled.div`
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
   padding: 5px;
   color: var(--color-text-3);
+
+  .model-header {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .model-row {
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .label-column {
+    width: 80px;
+    flex-shrink: 0;
+  }
+
+  .tag-column {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+  }
+
   label {
-    margin-right: 8px;
     color: var(--color-text-2);
   }
 `
-
 const FlexColumn = styled.div`
   display: flex;
   flex-direction: column;

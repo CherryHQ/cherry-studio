@@ -13,7 +13,7 @@ export default abstract class BaseReranker {
 
   public defaultHeaders() {
     return {
-      Authorization: `Bearer ${this.base.apiKey}`,
+      Authorization: `Bearer ${this.base.rerankApiKey}`,
       'Content-Type': 'application/json'
     }
   }

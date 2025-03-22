@@ -10,7 +10,7 @@ import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/servic
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Button, Divider, Flex, Input, Space, Switch } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
 import { FC, useEffect, useState } from 'react'
@@ -32,6 +32,7 @@ import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
+import ModelListSearchBar from './ModelListSearchBar'
 import OllamSettings from './OllamaSettings'
 import ProviderSettingsPopup from './ProviderSettingsPopup'
 
@@ -44,6 +45,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
+  const [searchText, setSearchText] = useState('')
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -94,14 +96,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       keys = [apiKey]
     }
 
+    // Add an empty key to enable health checks for local models.
+    // Error messages will be shown for each model if a valid key is needed.
     if (keys.length === 0) {
-      window.message.error({
-        key: 'no-api-keys',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.models.check.no_api_keys')
-      })
-      return
+      keys.push('')
     }
 
     // Show configuration dialog to get health check parameters
@@ -111,7 +109,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       apiKeys: keys
     })
 
-    if (result.cancelled || result.apiKeys.length === 0) {
+    if (result.cancelled) {
       return
     }
 
@@ -161,9 +159,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       duration: 10,
       content: t('settings.models.check.model_status_summary', {
         provider: provider.name,
-        count_passed: successModels.length,
-        count_failed: failedModels.length,
-        count_partial: partialModels.length
+        count_passed: successModels.length + partialModels.length,
+        count_partial: partialModels.length,
+        count_failed: failedModels.length
       })
     })
 
@@ -212,9 +210,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             </Link>
           )}
           {!provider.isSystem && (
-            <Button type="text" style={{ width: 30 }} onClick={() => ProviderSettingsPopup.show({ provider })}>
-              <SettingOutlined />
-            </Button>
+            <SettingOutlined
+              type="text"
+              style={{ width: 30 }}
+              onClick={() => ProviderSettingsPopup.show({ provider })}
+            />
           )}
         </Flex>
         <Switch
@@ -244,7 +244,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="provider" />
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <HStack gap={5}>
+          <HStack>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>
@@ -300,22 +300,25 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-          <span>{t('common.models')}</span>
+        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
-            {!isEmpty(models) && (
+            <span>{t('common.models')}</span>
+            {!isEmpty(models) && <ModelListSearchBar onSearch={setSearchText} />}
+          </Space>
+          {!isEmpty(models) && (
+            <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
               <Button
                 type="text"
                 size="small"
                 icon={<HeartOutlined />}
                 onClick={onHealthCheck}
                 loading={isHealthChecking}
-                title={t('settings.models.check.button_caption')}></Button>
-            )}
-          </Space>
-        </Flex>
+              />
+            </Tooltip>
+          )}
+        </Space>
       </SettingSubtitle>
-      <ModelList provider={provider} modelStatuses={modelStatuses} />
+      <ModelList provider={provider} modelStatuses={modelStatuses} searchText={searchText} />
     </SettingContainer>
   )
 }

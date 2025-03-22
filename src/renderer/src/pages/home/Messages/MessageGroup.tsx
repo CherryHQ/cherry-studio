@@ -1,4 +1,5 @@
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Message, Topic } from '@renderer/types'
@@ -17,10 +18,12 @@ interface Props {
 }
 
 const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
+  const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
 
-  const [multiModelMessageStyle, setMultiModelMessageStyle] =
-    useState<MultiModelMessageStyle>(multiModelMessageStyleSetting)
+  const [multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
+    messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
+  )
 
   const messageLength = messages.length
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
@@ -32,6 +35,22 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
   useEffect(() => {
     setSelectedIndex(messageLength - 1)
   }, [messageLength])
+
+  const setSelectedMessage = useCallback(
+    (message: Message) => {
+      messages.forEach(async (m) => {
+        await editMessage(m.id, { foldSelected: m.id === message.id })
+      })
+
+      setTimeout(() => {
+        const messageElement = document.getElementById(`message-${message.id}`)
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    },
+    [editMessage, messages]
+  )
 
   const renderMessage = useCallback(
     (message: Message & { index: number }, index: number) => {
@@ -49,11 +68,16 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
 
       const messageWrapper = (
         <MessageWrapper
+          id={`message-${message.id}`}
           $layout={multiModelMessageStyle}
           $selected={index === selectedIndex}
           $isGrouped={isGrouped}
           key={message.id}
-          className={message.role === 'assistant' && isHorizontal && isGrouped ? 'group-message-wrapper' : ''}>
+          className={classNames({
+            'group-message-wrapper': message.role === 'assistant' && isHorizontal && isGrouped,
+            [multiModelMessageStyle]: true,
+            selected: 'foldSelected' in message ? message.foldSelected : index === 0
+          })}>
           <MessageStream {...messageProps} />
         </MessageWrapper>
       )
@@ -95,6 +119,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
 
   return (
     <GroupContainer
+      id={`message-group-${messages[0].askId}`}
       $isGrouped={isGrouped}
       $layout={multiModelMessageStyle}
       className={classNames([isGrouped && 'group-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
@@ -108,10 +133,14 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
       {isGrouped && (
         <MessageGroupMenuBar
           multiModelMessageStyle={multiModelMessageStyle}
-          setMultiModelMessageStyle={setMultiModelMessageStyle}
+          setMultiModelMessageStyle={(style) => {
+            setMultiModelMessageStyle(style)
+            messages.forEach((message) => {
+              editMessage(message.id, { multiModelMessageStyle: style })
+            })
+          }}
           messages={messages}
-          selectedIndex={selectedIndex}
-          setSelectedIndex={setSelectedIndex}
+          setSelectedMessage={setSelectedMessage}
           topic={topic}
         />
       )}
@@ -173,15 +202,18 @@ interface MessageWrapperProps {
 
 const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
   width: 100%;
-  display: ${(props) => {
-    if (props.$layout === 'fold') {
-      return props.$selected ? 'block' : 'none'
+  &.horizontal {
+    display: inline-block;
+  }
+  &.grid {
+    display: inline-block;
+  }
+  &.fold {
+    display: none;
+    &.selected {
+      display: inline-block;
     }
-    if (props.$layout === 'horizontal') {
-      return 'inline-block'
-    }
-    return 'block'
-  }};
+  }
 
   ${({ $layout, $isGrouped }) => {
     if ($layout === 'horizontal' && $isGrouped) {

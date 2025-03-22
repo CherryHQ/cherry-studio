@@ -1,10 +1,10 @@
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { KnowledgeBaseParams } from '@types'
 import axios from 'axios'
 
 import BaseReranker from './BaseReranker'
 
-export default class SiliconFlowReranker extends BaseReranker {
+export default class JinaReranker extends BaseReranker {
   constructor(base: KnowledgeBaseParams) {
     super(base)
   }
@@ -25,17 +25,15 @@ export default class SiliconFlowReranker extends BaseReranker {
       model: this.base.rerankModel,
       query,
       documents: searchResults.map((doc) => doc.pageContent),
-      top_n: this.base.topN,
-      max_chunks_per_doc: this.base.chunkSize,
-      overlap_tokens: this.base.chunkOverlap
+      top_n: this.base.topN
     }
 
     try {
       const { data } = await axios.post(url, requestBody, { headers: this.defaultHeaders() })
 
       const rerankResults = data.results
+      console.log(rerankResults)
       const resultMap = new Map(rerankResults.map((result: any) => [result.index, result.relevance_score || 0]))
-
       return searchResults
         .map((doc: ExtractChunkData, index: number) => {
           const score = resultMap.get(index)
@@ -49,7 +47,7 @@ export default class SiliconFlowReranker extends BaseReranker {
         .filter((doc): doc is ExtractChunkData => doc !== undefined)
         .sort((a, b) => b.score - a.score)
     } catch (error: any) {
-      console.error('SiliconFlow Reranker API 错误:', error.status)
+      console.error('Jina Reranker API 错误:', error.status)
       throw new Error(`${error} - BaseUrl: ${baseURL}`)
     }
   }

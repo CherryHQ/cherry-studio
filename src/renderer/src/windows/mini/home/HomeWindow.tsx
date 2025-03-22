@@ -29,7 +29,7 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const { defaultModel: model } = useDefaultModel()
-  const { language, readClipboardAtStartup } = useSettings()
+  const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
@@ -201,9 +201,24 @@ const HomeWindow: FC = () => {
     }
   }, [route])
 
+  const backgroundColor = () => {
+    // ONLY MAC: when transparent style + light theme: use vibrancy effect
+    // because the dark style under mac's vibrancy effect has not been implemented
+    if (
+      isMac &&
+      windowStyle === 'transparent' &&
+      theme === 'light' &&
+      !window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
+      return 'transparent'
+    }
+
+    return 'var(--color-background)'
+  }
+
   if (['chat', 'summary', 'explanation'].includes(route)) {
     return (
-      <Container>
+      <Container style={{ backgroundColor: backgroundColor() }}>
         {route === 'chat' && (
           <>
             <InputBar
@@ -232,7 +247,7 @@ const HomeWindow: FC = () => {
 
   if (route === 'translate') {
     return (
-      <Container>
+      <Container style={{ backgroundColor: backgroundColor() }}>
         <TranslateWindow text={referenceText} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
@@ -241,7 +256,7 @@ const HomeWindow: FC = () => {
   }
 
   return (
-    <Container>
+    <Container style={{ backgroundColor: backgroundColor() }}>
       <InputBar
         text={text}
         model={model}
@@ -280,7 +295,6 @@ const Container = styled.div`
   flex-direction: column;
   -webkit-app-region: drag;
   padding: 8px 10px;
-  background-color: ${isMac ? 'transparent' : 'var(--color-background)'};
 `
 
 const Main = styled.main`
