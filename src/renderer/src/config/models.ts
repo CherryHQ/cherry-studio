@@ -1897,14 +1897,15 @@ export function isEmbeddingModel(model: Model): boolean {
     return EMBEDDING_REGEX.test(model.name)
   }
 
+  if (isRerankModel(model)) {
+    return false
+  }
+
   return EMBEDDING_REGEX.test(model.id) || model.type?.includes('embedding') || false
 }
 
 export function isRerankModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-  return RERANKING_REGEX.test(model.id) || false
+  return model ? RERANKING_REGEX.test(model.id) || false : false
 }
 
 export function isVisionModel(model: Model): boolean {
