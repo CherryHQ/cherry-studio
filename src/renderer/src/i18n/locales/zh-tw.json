@@ -164,10 +164,24 @@
       "topics.export.yuque": "匯出到語雀",
       "topics.export.obsidian": "匯出到 Obsidian",
       "topics.export.obsidian_not_configured": "Obsidian 未配置",
-      "topics.export.obsidian_fetch_failed": "獲取 Obsidian 文件夾結構失敗",
-      "topics.export.obsidian_select_folder": "選擇 Obsidian 文件夾",
-      "topics.export.obsidian_select_folder.btn": "確定",
+      "topics.export.obsidian_title":"標題",
+      "topics.export.obsidian_title_placeholder": "請輸入標題",
+      "topics.export.obsidian_title_required": "標題不能為空",
+      "topics.export.obsidian_tags": "標籤",
+      "topics.export.obsidian_tags_placeholder": "請輸入標籤名稱，多個標籤用英文逗號分隔。Obsidian 不可用純數字。",
+      "topics.export.obsidian_created": "建立時間",
+      "topics.export.obsidian_created_placeholder": "請選擇建立時間",
+      "topics.export.obsidian_source": "來源",
+      "topics.export.obsidian_source_placeholder": "請輸入來源",
+      "topics.export.obsidian_operate": "處理方式",
+      "topics.export.obsidian_operate_placeholder": "請選擇處理方式",
+      "topics.export.obsidian_operate_append": "追加",
+      "topics.export.obsidian_operate_prepend": "前置",
+      "topics.export.obsidian_operate_new_or_overwrite": "新建（如果存在就覆蓋）",
+      "topics.export.obsidian_atributes": "配置筆記屬性",
+      "topics.export.obsidian_btn": "確定",
       "topics.export.obsidian_export_success": "匯出成功",
+      "topics.export.obsidian_export_failed": "匯出失败",
       "topics.export.obsidian_export_failed": "匯出失敗",
       "topics.export.obsidian_show_md_files": "顯示md文件",
       "topics.export.obsidian_selected_path": "已選擇路徑",
@@ -770,7 +784,13 @@
           "syncError": "備份錯誤",
           "syncStatus": "備份狀態",
           "title": "WebDAV",
-          "user": "WebDAV 使用者名稱"
+          "user": "WebDAV 使用者名稱",
+          "backup.modal.title": "備份到 WebDAV",
+          "backup.modal.filename.placeholder": "請輸入備份文件名",
+          "restore.modal.title": "從 WebDAV 恢復",
+          "restore.modal.select.placeholder": "請選擇要恢復的備份文件",
+          "restore.confirm.title": "復元確認",
+          "restore.confirm.content": "從 WebDAV 恢復將覆蓋目前資料，是否繼續？"
         },
         "yuque": {
           "check": {
@@ -788,19 +808,13 @@
           "token_placeholder": "請輸入語雀 Token"
         },
         "obsidian": {
-          "check": {
-            "button": "檢查",
-            "empty_url": "請先輸入 Obsidian REST API URL",
-            "empty_api_key": "請先輸入 Obsidian API Key",
-            "fail": "Obsidian 連接驗證失敗",
-            "success": "Obsidian 連接驗證成功"
-          },
-          "help": "先安裝 Obsidian 插件 Local REST API，然後獲取 Obsidian API Key",
-          "url": "Obsidian 知識庫 URL",
-          "url_placeholder": "http://127.0.0.1:27123/",
           "title": "Obsidian 設定",
-          "api_key": "Obsidian API Key",
-          "api_key_placeholder": "請輸入 Obsidian API Key"
+          "vault": "保險庫",
+          "vault_placeholder": "請輸入保險庫名稱",
+          "folder": "資料夾",
+          "folder_placeholder": "請輸入資料夾名稱",
+          "tags": "全域標籤",
+          "tags_placeholder": "請輸入標籤名稱，多個標籤用英文逗號分隔。Obsidian 不可用純數字。"
         },
         "joplin": {
           "check": {
@@ -922,6 +936,10 @@
         "jsonSaveError": "保存JSON配置失敗"
       },
       "messages.divider": "訊息間顯示分隔線",
+      "messages.navigation": "訊息導航",
+      "messages.navigation.none": "不顯示",
+      "messages.navigation.buttons": "上下按鈕",
+      "messages.navigation.anchor": "對話錨點",
       "messages.grid_columns": "訊息網格展示列數",
       "messages.grid_popover_trigger": "網格詳細資訊觸發",
       "messages.grid_popover_trigger.click": "點選顯示",
@@ -955,7 +973,7 @@
       "models.check.enabled": "開啟",
       "models.check.failed": "失敗",
       "models.check.keys_status_count": "通過：{{count_passed}}個密鑰，失敗：{{count_failed}}個密鑰",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}}個模型通過所有密鑰，{{count_failed}}個模型未通過所有密鑰，{{count_partial}}個模型未通過某些密鑰",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} 個模型完成健康檢查（其中 {{count_partial}} 個模型用某些密鑰無法訪問），{{count_failed}} 個模型完全無法訪問。",
       "models.check.no_api_keys": "未找到API密鑰，請先添加API密鑰。",
       "models.check.passed": "通過",
       "models.check.select_api_key": "選擇要使用的API密鑰：",
@@ -1087,7 +1105,12 @@
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
-      "tray.title": "啟用系統工具列圖示",
+      "tray.title": "系统匣",
+      "tray.show": "顯示系统匣圖示",
+      "tray.onclose": "關閉時最小化到系统匣",
+      "launch.title": "啟動",
+      "launch.onboot": "開機自動啟動",
+      "launch.totray": "啟動時最小化到系统匣",
       "websearch": {
         "blacklist": "黑名單",
         "blacklist_description": "以下網站不會出現在搜尋結果中",

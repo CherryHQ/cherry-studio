@@ -197,9 +197,7 @@ const TranslatePage: FC = () => {
 
     // Calculate scroll position by ratio
     const inputScrollRatio = inputEl.scrollTop / (inputEl.scrollHeight - inputEl.clientHeight || 1)
-    const outputScrollPosition = inputScrollRatio * (outputEl.scrollHeight - outputEl.clientHeight || 1)
-
-    outputEl.scrollTop = outputScrollPosition
+    outputEl.scrollTop = inputScrollRatio * (outputEl.scrollHeight - outputEl.clientHeight || 1)
 
     requestAnimationFrame(() => {
       isProgrammaticScroll.current = false
@@ -217,9 +215,7 @@ const TranslatePage: FC = () => {
 
     // Calculate scroll position by ratio
     const outputScrollRatio = outputEl.scrollTop / (outputEl.scrollHeight - outputEl.clientHeight || 1)
-    const inputScrollPosition = outputScrollRatio * (inputEl.scrollHeight - inputEl.clientHeight || 1)
-
-    inputEl.scrollTop = inputScrollPosition
+    inputEl.scrollTop = outputScrollRatio * (inputEl.scrollHeight - inputEl.clientHeight || 1)
 
     requestAnimationFrame(() => {
       isProgrammaticScroll.current = false
@@ -381,7 +377,7 @@ const TranslatePage: FC = () => {
             />
           </OperationBar>
 
-          <OutputText ref={outputTextRef} onScroll={handleOutputScroll}>
+          <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className="selectable">
             {result || t('translate.output.placeholder')}
           </OutputText>
         </OutputContainer>

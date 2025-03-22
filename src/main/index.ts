@@ -1,9 +1,10 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
-import { app } from 'electron'
+import { app, ipcMain } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
+import { configManager } from './services/ConfigManager'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
@@ -20,6 +21,12 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
+
+    // Mac: Hide dock icon before window creation when launch to tray is set
+    const isLaunchToTray = configManager.getLaunchToTray()
+    if (isLaunchToTray) {
+      app.dock?.hide()
+    }
 
     const mainWindow = windowService.createMainWindow()
     new TrayService()
@@ -44,6 +51,9 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
     }
+    ipcMain.handle('system:getDeviceType', () => {
+      return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
+    })
   })
 
   // Listen for second instance

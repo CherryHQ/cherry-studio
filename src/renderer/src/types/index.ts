@@ -81,6 +81,10 @@ export type Message = {
     // Generate Image
     generateImage?: GenerateImageResponse
   }
+  // 多模型消息样式
+  multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
+  // fold时是否选中
+  foldSelected?: boolean
 }
 
 export type Metrics = {
@@ -206,6 +210,7 @@ export type WebDavConfig = {
   webdavUser: string
   webdavPass: string
   webdavPath: string
+  fileName?: string
 }
 
 export type AppInfo = {

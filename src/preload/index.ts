@@ -11,12 +11,18 @@ const api = {
   checkForUpdate: () => ipcRenderer.invoke('app:check-for-update'),
   showUpdateDialog: () => ipcRenderer.invoke('app:show-update-dialog'),
   setLanguage: (lang: string) => ipcRenderer.invoke('app:set-language', lang),
+  setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke('app:set-launch-on-boot', isActive),
+  setLaunchToTray: (isActive: boolean) => ipcRenderer.invoke('app:set-launch-to-tray', isActive),
   setTray: (isActive: boolean) => ipcRenderer.invoke('app:set-tray', isActive),
+  setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke('app:set-tray-on-close', isActive),
   restartTray: () => ipcRenderer.invoke('app:restart-tray'),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('app:set-theme', theme),
   openWebsite: (url: string) => ipcRenderer.invoke('open:website', url),
   minApp: (url: string) => ipcRenderer.invoke('minapp', url),
   clearCache: () => ipcRenderer.invoke('app:clear-cache'),
+  system: {
+    getDeviceType: () => ipcRenderer.invoke('system:getDeviceType')
+  },
   zip: {
     compress: (text: string) => ipcRenderer.invoke('zip:compress', text),
     decompress: (text: Buffer) => ipcRenderer.invoke('zip:decompress', text)
@@ -27,7 +33,8 @@ const api = {
     restore: (backupPath: string) => ipcRenderer.invoke('backup:restore', backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke('backup:backupToWebdav', data, webdavConfig),
-    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig)
+    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig),
+    listWebdavFiles: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:listWebdavFiles', webdavConfig)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke('file:select', options),

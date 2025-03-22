@@ -17,7 +17,7 @@ import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/ut
 import { Avatar, Button, Empty, Flex, Modal, Popover, Radio, Tooltip } from 'antd'
 import Search from 'antd/es/input/Search'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -44,6 +44,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const [searchText, setSearchText] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
   const { t, i18n } = useTranslation()
+  const searchInputRef = useRef<any>(null)
 
   const systemModels = SYSTEM_MODELS[_provider.id] || []
   const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
@@ -127,6 +128,14 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (open && searchInputRef.current) {
+      setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 100)
+    }
+  }, [open])
+
   const ModalHeader = () => {
     return (
       <Flex>
@@ -167,6 +176,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
           </Radio.Group>
         </Center>
         <Search
+          ref={searchInputRef}
           placeholder={t('settings.provider.search_placeholder')}
           allowClear
           onChange={(e) => setSearchText(e.target.value)}
