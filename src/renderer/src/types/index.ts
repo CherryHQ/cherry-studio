@@ -210,6 +210,22 @@ export type WebDavConfig = {
   fileName?: string
 }
 
+export type GoogleDriveConfig = {
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+  folderId?: string
+  fileName?: string
+}
+
+export type OneDriveConfig = {
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+  folderId?: string
+  fileName?: string
+}
+
 export type AppInfo = {
   version: string
   isPackaged: boolean

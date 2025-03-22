@@ -59,6 +59,20 @@ export interface SettingsState {
   webdavPath: string
   webdavAutoSync: boolean
   webdavSyncInterval: number
+  // Google Drive 配置
+  googleDriveAccessToken: string
+  googleDriveRefreshToken: string
+  googleDriveExpiresAt: number
+  googleDriveFolderId: string
+  googleDriveAutoSync: boolean
+  googleDriveSyncInterval: number
+  // OneDrive 配置
+  oneDriveAccessToken: string
+  oneDriveRefreshToken: string
+  oneDriveExpiresAt: number
+  oneDriveFolderId: string
+  oneDriveAutoSync: boolean
+  oneDriveSyncInterval: number
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   enableTopicNaming: boolean
@@ -390,6 +404,42 @@ const settingsSlice = createSlice({
     },
     setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
       state.messageNavigation = action.payload
+    },
+    setGoogleDriveAccessToken: (state, action: PayloadAction<string>) => {
+      state.googleDriveAccessToken = action.payload
+    },
+    setGoogleDriveRefreshToken: (state, action: PayloadAction<string>) => {
+      state.googleDriveRefreshToken = action.payload
+    },
+    setGoogleDriveExpiresAt: (state, action: PayloadAction<number>) => {
+      state.googleDriveExpiresAt = action.payload
+    },
+    setGoogleDriveFolderId: (state, action: PayloadAction<string>) => {
+      state.googleDriveFolderId = action.payload
+    },
+    setGoogleDriveAutoSync: (state, action: PayloadAction<boolean>) => {
+      state.googleDriveAutoSync = action.payload
+    },
+    setGoogleDriveSyncInterval: (state, action: PayloadAction<number>) => {
+      state.googleDriveSyncInterval = action.payload
+    },
+    setOneDriveAccessToken: (state, action: PayloadAction<string>) => {
+      state.oneDriveAccessToken = action.payload
+    },
+    setOneDriveRefreshToken: (state, action: PayloadAction<string>) => {
+      state.oneDriveRefreshToken = action.payload
+    },
+    setOneDriveExpiresAt: (state, action: PayloadAction<number>) => {
+      state.oneDriveExpiresAt = action.payload
+    },
+    setOneDriveFolderId: (state, action: PayloadAction<string>) => {
+      state.oneDriveFolderId = action.payload
+    },
+    setOneDriveAutoSync: (state, action: PayloadAction<boolean>) => {
+      state.oneDriveAutoSync = action.payload
+    },
+    setOneDriveSyncInterval: (state, action: PayloadAction<number>) => {
+      state.oneDriveSyncInterval = action.payload
     }
   }
 })
