@@ -1,11 +1,4 @@
-import {
-  CheckOutlined,
-  ExportOutlined,
-  HeartOutlined,
-  LoadingOutlined,
-  SearchOutlined,
-  SettingOutlined
-} from '@ant-design/icons'
+import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
@@ -41,6 +34,7 @@ import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
+import ModelListSearchBar from './ModelListSearchBar'
 import OllamSettings from './OllamaSettings'
 import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
@@ -57,7 +51,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
   const [searchText, setSearchText] = useState('')
-  const [searchVisible, setSearchVisible] = useState(false)
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -368,49 +361,23 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-          <Flex align="center" gap={8}>
+        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Space>
             <span>{t('common.models')}</span>
-            {searchVisible ? ( // 显示模型搜索框
-              <Input
-                type="text"
-                placeholder={t('models.search')}
-                size="small"
-                style={{ width: '160px' }}
-                suffix={<SearchOutlined style={{ color: 'var(--color-text-3)' }} />}
-                onChange={(e) => setSearchText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setSearchText('')
-                    if (!searchText) setSearchVisible(false)
-                  }
-                }}
-                onBlur={() => {
-                  if (!searchText) setSearchVisible(false)
-                }}
-                autoFocus
-                allowClear
-                onClear={() => {
-                  setSearchText('')
-                  setSearchVisible(false)
-                }}
-              />
-            ) : (
-              <Tooltip title={t('models.search')} mouseEnterDelay={0.3}>
-                <SearchOutlined type="text" onClick={() => setSearchVisible(true)} />
-              </Tooltip>
-            )}
-          </Flex>
+            {!isEmpty(models) && <ModelListSearchBar onSearch={setSearchText} />}
+          </Space>
           {!isEmpty(models) && (
-            <Button
-              type="text"
-              size="small"
-              icon={<HeartOutlined />}
-              onClick={onHealthCheck}
-              loading={isHealthChecking}
-              title={t('settings.models.check.button_caption')}></Button>
+            <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
+              <Button
+                type="text"
+                size="small"
+                icon={<HeartOutlined />}
+                onClick={onHealthCheck}
+                loading={isHealthChecking}
+              />
+            </Tooltip>
           )}
-        </Flex>
+        </Space>
       </SettingSubtitle>
       <ModelList provider={provider} modelStatuses={modelStatuses} searchText={searchText} />
     </SettingContainer>
