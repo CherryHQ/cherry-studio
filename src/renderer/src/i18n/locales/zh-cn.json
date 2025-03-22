@@ -1009,7 +1009,6 @@
         "api.url.tip": "/结尾忽略v1版本，#结尾强制使用输入地址",
         "api_host": "API 地址",
         "api_key": "API 密钥",
-        "api_key.tip": "多个密钥使用逗号分隔",
         "api_version": "API 版本",
         "charge": "充值",
         "check": "检查",
@@ -1046,12 +1045,15 @@
         "get_api_key": "点击这里获取密钥",
         "is_not_support_array_content": "开启兼容模式",
         "no_models": "请先添加模型再检查 API 连接",
-        "not_checked": "未检查",
         "remove_duplicate_keys": "移除重复密钥",
         "remove_invalid_keys": "删除无效密钥",
+        "invalid_key": "无效的 API 密钥",
         "search": "搜索模型平台...",
         "search_placeholder": "搜索模型 ID 或名称",
-        "title": "模型服务"
+        "title": "模型服务",
+        "enter_new_api_key": "输入新的API密钥",
+        "key_already_exists": "API密钥已存在",
+        "check_tooltip.latency": "耗时"
       },
       "proxy": {
         "mode": {
