@@ -34,24 +34,12 @@ export enum IpcChannel {
   MiniWindow_SetPin = 'miniwindow:set-pin',
 
   // Mcp
-  Mcp_ServersFromRenderer = 'mcp:servers-from-renderer',
-  //'mcp:remove-server'
   Mcp_RemoveServer = 'mcp:remove-server',
-  // 'mcp:restart-server'
   Mcp_RestartServer = 'mcp:restart-server',
-  // 'mcp:stop-server'
   Mcp_StopServer = 'mcp:stop-server',
-  Mcp_ListServers = 'mcp:list-servers',
-  Mcp_AddServer = 'mcp:add-server',
-  Mcp_UpdateServer = 'mcp:update-server',
-  Mcp_DeleteServer = 'mcp:delete-server',
-  Mcp_SetServerActive = 'mcp:set-server-active',
-  Mcp_Cleanup = 'mcp:cleanup',
   Mcp_ListTools = 'mcp:list-tools',
   Mcp_CallTool = 'mcp:call-tool',
-  // 'mcp:get-install-info'
   Mcp_GetInstallInfo = 'mcp:get-install-info',
-  Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
 
   //copilot
@@ -62,16 +50,13 @@ export enum IpcChannel {
   Copilot_Logout = 'copilot:logout',
   Copilot_GetUser = 'copilot:get-user',
 
-  //'obsidian:get-vaults'
+  // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
-  // 'obsidian:get-files'
   Obsidian_GetFiles = 'obsidian:get-files',
 
-  // 'nutstore:get-sso-url'
+  // nutstore
   Nutstore_GetSsoUrl = 'nutstore:get-sso-url',
-  // 'nutstore:decrypt-token'
   Nutstore_DecryptToken = 'nutstore:decrypt-token',
-  // 'nutstore:get-directory-contents'
   Nutstore_GetDirectoryContents = 'nutstore:get-directory-contents',
 
   //aes
@@ -128,9 +113,7 @@ export enum IpcChannel {
   Backup_BackupToWebdav = 'backup:backupToWebdav',
   Backup_RestoreFromWebdav = 'backup:restoreFromWebdav',
   Backup_ListWebdavFiles = 'backup:listWebdavFiles',
-  // 'backup:checkConnection'
   Backup_CheckConnection = 'backup:checkConnection',
-  // 'backup:createDirectory'
   Backup_CreateDirectory = 'backup:createDirectory',
 
   // zip

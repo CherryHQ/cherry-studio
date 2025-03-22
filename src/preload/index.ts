@@ -178,9 +178,9 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
     contextBridge.exposeInMainWorld('obsidian', {
-      getVaults: () => ipcRenderer.invoke('obsidian:get-vaults'),
-      getFolders: (vaultName: string) => ipcRenderer.invoke('obsidian:get-files', vaultName),
-      getFiles: (vaultName: string) => ipcRenderer.invoke('obsidian:get-files', vaultName)
+      getVaults: () => ipcRenderer.invoke(IpcChannel.Obsidian_GetVaults),
+      getFolders: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName),
+      getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
     })
   } catch (error) {
     console.error(error)

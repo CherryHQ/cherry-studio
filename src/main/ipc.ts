@@ -252,10 +252,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Gemini_DeleteFile, GeminiService.deleteFile)
 
   // mini window
-  ipcMain.handle('miniwindow:show', () => windowService.showMiniWindow())
-  ipcMain.handle('miniwindow:hide', () => windowService.hideMiniWindow())
-  ipcMain.handle('miniwindow:close', () => windowService.closeMiniWindow())
-  ipcMain.handle('miniwindow:toggle', () => windowService.toggleMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_Show, () => windowService.showMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_Hide, () => windowService.hideMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_Close, () => windowService.closeMiniWindow())
