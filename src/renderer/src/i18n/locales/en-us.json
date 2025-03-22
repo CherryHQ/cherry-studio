@@ -563,7 +563,8 @@
       "vision": "Vision",
       "websearch": "WebSearch",
       "rerank_model": "Reordering Model",
-      "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add."
+      "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
+      "rerank_model_support_provider": "Currently, the reordering model only supports some providers ({{provider}})"
     },
     "navbar": {
       "expand": "Expand Dialog",

@@ -563,7 +563,8 @@
       "vision": "画像",
       "websearch": "ウェブ検索",
       "rerank_model": "再順序付けモデル",
-      "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。"
+      "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。",
+      "rerank_model_support_provider": "現在の再順序付けモデルは、{{provider}} のみサポートしています"
     },
     "navbar": {
       "expand": "ダイアログを展開",

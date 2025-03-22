@@ -164,7 +164,7 @@
       "topics.export.yuque": "匯出到語雀",
       "topics.export.obsidian": "匯出到 Obsidian",
       "topics.export.obsidian_not_configured": "Obsidian 未配置",
-      "topics.export.obsidian_title":"標題",
+      "topics.export.obsidian_title": "標題",
       "topics.export.obsidian_title_placeholder": "請輸入標題",
       "topics.export.obsidian_title_required": "標題不能為空",
       "topics.export.obsidian_tags": "標籤",
@@ -566,7 +566,8 @@
       "vision": "視覺",
       "websearch": "網路搜尋",
       "rerank_model": "重排序模型",
-      "rerank_model_tooltip": "在設定->模型服務中點擊管理按鈕添加"
+      "rerank_model_tooltip": "在設定->模型服務中點擊管理按鈕添加",
+      "rerank_model_support_provider": "目前重排序模型僅支持部分服務商 ({{provider}})"
     },
     "navbar": {
       "expand": "伸縮對話框",
