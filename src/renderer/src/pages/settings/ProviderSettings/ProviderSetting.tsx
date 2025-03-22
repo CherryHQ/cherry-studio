@@ -1,4 +1,11 @@
-import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
+import {
+  CheckOutlined,
+  ExportOutlined,
+  HeartOutlined,
+  LoadingOutlined,
+  SearchOutlined,
+  SettingOutlined
+} from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
@@ -12,7 +19,7 @@ import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/servic
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Button, Divider, Flex, Input, Space, Switch } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
 import { FC, useEffect, useState } from 'react'
@@ -49,6 +56,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
+  const [searchText, setSearchText] = useState('')
+  const [searchVisible, setSearchVisible] = useState(false)
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -360,21 +369,50 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-          <span>{t('common.models')}</span>
-          <Space>
-            {!isEmpty(models) && (
-              <Button
+          <Flex align="center" gap={8}>
+            <span>{t('common.models')}</span>
+            {searchVisible ? ( // 显示模型搜索框
+              <Input
                 type="text"
+                placeholder={t('models.search')}
                 size="small"
-                icon={<HeartOutlined />}
-                onClick={onHealthCheck}
-                loading={isHealthChecking}
-                title={t('settings.models.check.button_caption')}></Button>
+                style={{ width: '160px' }}
+                suffix={<SearchOutlined style={{ color: 'var(--color-text-3)' }} />}
+                onChange={(e) => setSearchText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearchText('')
+                    if (!searchText) setSearchVisible(false)
+                  }
+                }}
+                onBlur={() => {
+                  if (!searchText) setSearchVisible(false)
+                }}
+                autoFocus
+                allowClear
+                onClear={() => {
+                  setSearchText('')
+                  setSearchVisible(false)
+                }}
+              />
+            ) : (
+              <Tooltip title={t('models.search')} mouseEnterDelay={0.3}>
+                <SearchOutlined type="text" onClick={() => setSearchVisible(true)} />
+              </Tooltip>
             )}
-          </Space>
+          </Flex>
+          {!isEmpty(models) && (
+            <Button
+              type="text"
+              size="small"
+              icon={<HeartOutlined />}
+              onClick={onHealthCheck}
+              loading={isHealthChecking}
+              title={t('settings.models.check.button_caption')}></Button>
+          )}
         </Flex>
       </SettingSubtitle>
-      <ModelList provider={provider} modelStatuses={modelStatuses} />
+      <ModelList provider={provider} modelStatuses={modelStatuses} searchText={searchText} />
     </SettingContainer>
   )
 }
