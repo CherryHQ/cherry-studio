@@ -37,6 +37,11 @@ export const TranslateLanguageOptions = [
     emoji: '🇪🇸'
   },
   {
+    value: 'spanish-latam',
+    label: i18n.t('languages.spanish_latam'),
+    emoji: '🇲🇽'
+  },
+  {
     value: 'french',
     label: i18n.t('languages.french'),
     emoji: '🇫🇷'

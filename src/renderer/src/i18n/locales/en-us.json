@@ -404,7 +404,8 @@
       "korean": "Korean",
       "portuguese": "Portuguese",
       "russian": "Russian",
-      "spanish": "Spanish"
+      "spanish": "Spanish",
+      "spanish-latam": "Spanish Latin America"
     },
     "lmstudio": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",

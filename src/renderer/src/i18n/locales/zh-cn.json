@@ -404,7 +404,8 @@
       "korean": "韩文",
       "portuguese": "葡萄牙文",
       "russian": "俄文",
-      "spanish": "西班牙文"
+      "spanish": "西班牙文",
+      "spanish-latam": "拉丁美洲西班牙文"
     },
     "lmstudio": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
