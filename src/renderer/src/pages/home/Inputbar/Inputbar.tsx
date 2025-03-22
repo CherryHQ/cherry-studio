@@ -10,7 +10,6 @@ import {
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -51,6 +50,7 @@ import MentionModelsInput from './MentionModelsInput'
 import NewContextButton from './NewContextButton'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
+import { hasAnyFunctionCallingModel, hasAnyVisionModel, hasAnyWebSearchModel } from '@renderer/services/ModelService'
 interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
@@ -96,12 +96,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
   const currentMessageId = useRef<string>()
-  const isVision = useMemo(() => isVisionModel(model), [model])
-  const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
+
+  // Model capabilities
+  const visionCapable = useMemo(() => hasAnyVisionModel(model, mentionModels), [model, mentionModels])
+  const mcpToolsCapable = useMemo(() => hasAnyFunctionCallingModel(model, mentionModels), [model, mentionModels])
+  const webSearchCapable = useMemo(() => hasAnyWebSearchModel(model, mentionModels), [model, mentionModels])
+
+  const supportExts = useMemo(
+    () => [...textExts, ...documentExts, ...(visionCapable ? imageExts : [])],
+    [visionCapable]
+  )
   const navigate = useNavigate()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
-  const showMCPToolsIcon = isFunctionCallingModel(model)
 
   const [tokenCount, setTokenCount] = useState(0)
 
@@ -396,7 +403,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           event.preventDefault()
 
           if (file.path === '') {
-            if (file.type.startsWith('image/') && isVisionModel(model)) {
+            if (file.type.startsWith('image/') && visionCapable) {
               const tempFilePath = await window.api.file.create(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
@@ -627,7 +634,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onEnableWebSearch = () => {
     console.log(assistant)
-    if (!isWebSearchModel(model)) {
+    if (!webSearchCapable) {
       if (!WebSearchService.isWebSearchEnabled()) {
         window.modal.confirm({
           title: t('chat.input.web_search.enable'),
@@ -646,7 +653,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   useEffect(() => {
-    if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
+    if (!webSearchCapable && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
     }
   }, [assistant, model, updateAssistant])
@@ -715,7 +722,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   <FormOutlined />
                 </ToolbarButton>
               </Tooltip>
-              <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
+              <AttachmentButton visionCapable={visionCapable} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
                 <ToolbarButton type="text" onClick={onEnableWebSearch}>
                   <GlobalOutlined
@@ -731,7 +738,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   disabled={files.length > 0}
                 />
               )}
-              {showMCPToolsIcon && (
+              {mcpToolsCapable && (
                 <MCPToolsButton
                   enabledMCPs={enabledMCPs}
                   toggelEnableMCP={toggelEnableMCP}
