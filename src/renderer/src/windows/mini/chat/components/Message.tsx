@@ -38,7 +38,7 @@ const MessageItem: FC<Props> = ({ message: _message, index, total, route, onSetM
 
   const messageBackground = getMessageBackground(true, isAssistantMessage)
 
-  const maxWidth = isMiniWindow() ? '480px' : '100%'
+  const maxWidth = isMiniWindow() ? '800px' : '100%'
 
   useEffect(() => {
     if (onGetMessages && onSetMessages) {
@@ -93,6 +93,7 @@ const MessageItem: FC<Props> = ({ message: _message, index, total, route, onSetM
 
 const MessageContainer = styled.div`
   display: flex;
+  width: 100%;
   flex-direction: column;
   position: relative;
   transition: background-color 0.3s ease;

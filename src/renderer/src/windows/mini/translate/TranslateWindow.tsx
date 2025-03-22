@@ -74,6 +74,7 @@ const Translate: FC<Props> = ({ text }) => {
 
   useHotkeys('c', () => {
     navigator.clipboard.writeText(result)
+    window.message.success(t('message.copy.success'))
   })
 
   return (
@@ -82,7 +83,7 @@ const Translate: FC<Props> = ({ text }) => {
         <Select
           showSearch
           value="any"
-          style={{ width: 200 }}
+          style={{ maxWidth: 200, minWidth: 100, flex: 1 }}
           optionFilterProp="label"
           disabled
           options={[{ label: t('translate.any.language'), value: 'any' }]}
@@ -91,7 +92,7 @@ const Translate: FC<Props> = ({ text }) => {
         <Select
           showSearch
           value={targetLanguage}
-          style={{ width: 200 }}
+          style={{ maxWidth: 200, minWidth: 130, flex: 1 }}
           optionFilterProp="label"
           options={TranslateLanguageOptions}
           onChange={async (value) => {
@@ -126,7 +127,7 @@ const Container = styled.div`
   flex-direction: column;
   flex: 1;
   padding: 12px;
-  padding-right: 0;
+  /* padding-right: 0; */
   overflow: hidden;
   -webkit-app-region: none;
 `
@@ -151,8 +152,10 @@ const LoadingText = styled.div`
 
 const MenuContainer = styled.div`
   display: flex;
+  width: 100%;
   flex-direction: row;
   align-items: center;
+  justify-content: center;
   margin-bottom: 15px;
   gap: 20px;
 `
