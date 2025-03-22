@@ -21,6 +21,7 @@ import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
+import { hasAnyFunctionCallingModel, hasAnyVisionModel, hasAnyWebSearchModel } from '@renderer/services/ModelService'
 import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
@@ -51,7 +52,6 @@ import MentionModelsInput from './MentionModelsInput'
 import NewContextButton from './NewContextButton'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
-import { hasAnyFunctionCallingModel, hasAnyVisionModel, hasAnyWebSearchModel } from '@renderer/services/ModelService'
 interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
@@ -729,7 +729,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   <FormOutlined />
                 </ToolbarButton>
               </Tooltip>
-              <AttachmentButton visionCapable={visionCapable} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
+              <AttachmentButton
+                visionCapable={visionCapable}
+                files={files}
+                setFiles={setFiles}
+                ToolbarButton={ToolbarButton}
+              />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
                 <ToolbarButton type="text" onClick={onEnableWebSearch}>
                   <GlobalOutlined
