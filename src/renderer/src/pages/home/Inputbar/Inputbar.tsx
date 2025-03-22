@@ -49,6 +49,8 @@ import MCPToolsButton from './MCPToolsButton'
 import MentionModelsButton from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
 import NewContextButton from './NewContextButton'
+import SelectedKnowledgeBaseInput from './SelectedKnowledgeBaseInput'
+import SelectKnowledgePopup from './SelectKnowledgePopup'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 interface Props {
@@ -99,6 +101,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const navigate = useNavigate()
+  const [isKnowledgePopupOpen, setIsKnowledgePopupOpen] = useState(false)
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const showMCPToolsIcon = isFunctionCallingModel(model)
@@ -228,20 +231,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
 
-    if (event.key === '@') {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        const cursorPosition = textArea.selectionStart
-        const textBeforeCursor = text.substring(0, cursorPosition)
-        if (cursorPosition === 0 || textBeforeCursor.endsWith(' ')) {
-          setMentionFromKeyboard(true)
-          EventEmitter.emit(EVENT_NAMES.SHOW_MODEL_SELECTOR)
-          setIsMentionPopupOpen(true)
-          return
-        }
-      }
-    }
-
     if (event.key === 'Escape' && isMentionPopupOpen) {
       setIsMentionPopupOpen(false)
       return
@@ -368,19 +357,28 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onInput = () => !expended && resizeTextArea()
 
+  // 修改onChange函数
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value
     setText(newText)
-
-    // Check if @ was deleted
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
       const cursorPosition = textArea.selectionStart
       const textBeforeCursor = newText.substring(0, cursorPosition)
+      // 处理@符号
       const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-
+      const lastHashIndex = textBeforeCursor.lastIndexOf('#')
+      // 处理@符号
       if (lastAtIndex === -1 || textBeforeCursor.slice(lastAtIndex + 1).includes(' ')) {
         setIsMentionPopupOpen(false)
+      } else {
+        setIsMentionPopupOpen(true)
+      }
+      // 处理#符号
+      if (lastHashIndex === -1 || textBeforeCursor.slice(lastHashIndex + 1).includes(' ')) {
+        setIsKnowledgePopupOpen(false)
+      } else {
+        setIsKnowledgePopupOpen(true)
       }
     }
   }
@@ -587,6 +585,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(bases ?? [])
   }
 
+  const handleRemoveKnowledgeBase = (base: KnowledgeBase) => {
+    const newBases = selectedKnowledgeBases.filter((b) => b.id !== base.id)
+    handleKnowledgeBaseSelect(newBases)
+  }
+
   const onMentionModel = (model: Model, fromKeyboard: boolean = false) => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
@@ -623,6 +626,26 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         return [...prev, mcp]
       }
     })
+  }
+
+  const handleSelectKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
+    setSelectedKnowledgeBases((prev) => [...prev, knowledgeBase])
+    setIsKnowledgePopupOpen(false)
+    // 替换文本中的#标记
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (textArea) {
+      const cursorPosition = textArea.selectionStart
+      const textBeforeCursor = text.substring(0, cursorPosition)
+      const lastHashIndex = textBeforeCursor.lastIndexOf('#')
+      if (lastHashIndex !== -1) {
+        const newText = text.substring(0, lastHashIndex) + text.substring(cursorPosition)
+        setText(newText)
+      }
+    }
+    // 重新聚焦输入框
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 0)
   }
 
   const onEnableWebSearch = () => {
@@ -673,8 +696,27 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus')}
           ref={containerRef}>
+          {isKnowledgePopupOpen && (
+            <KnowledgePopupContainer>
+              <SelectKnowledgePopup
+                selectKnowledgeBase={handleSelectKnowledgeBase}
+                onClose={() => {
+                  setIsKnowledgePopupOpen(false) // 重新聚焦输入框
+                  setTimeout(() => {
+                    textareaRef.current?.focus()
+                  }, 0)
+                }}
+                selectedKnowledgeBase={selectedKnowledgeBases}
+              />
+            </KnowledgePopupContainer>
+          )}
+
           <AttachmentPreview files={files} setFiles={setFiles} />
           <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
+          <SelectedKnowledgeBaseInput
+            selectedKnowledgeBase={selectedKnowledgeBases}
+            onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
+          />
           <Textarea
             value={text}
             onChange={onChange}
@@ -912,6 +954,19 @@ const ToolbarButton = styled(Button)`
       background-color: var(--color-primary);
     }
   }
+`
+const KnowledgePopupContainer = styled.div`
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: auto%;
+  z-index: 1000;
+  background-color: var(--color-background-opacity);
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 5px;
 `
 
 export default Inputbar
