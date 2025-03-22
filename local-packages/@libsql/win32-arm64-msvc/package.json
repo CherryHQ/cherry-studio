@@ -1,0 +1,36 @@
+{
+  "name": "@libsql/win32-arm64-msvc",
+  "description": "Prebuilt binary package for `libsql` on `win32-arm64-msvc`.",
+  "version": "0.4.7",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "index.node",
+  "files": [
+    "index.node"
+  ],
+  "neon": {
+    "type": "binary",
+    "rust": "aarch64-pc-windows-msvc",
+    "node": "win32-arm64-msvc",
+    "platform": "win32",
+    "arch": "arm64",
+    "abi": "msvc"
+  },
+  "author": "Pekka Enberg <penberg@iki.fi>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tursodatabase/libsql-js.git"
+  },
+  "keywords": [
+    "libsql"
+  ],
+  "bugs": {
+    "url": "https://github.com/tursodatabase/libsql-js/issues"
+  },
+  "homepage": "https://github.com/tursodatabase/libsql-js",
+  "license": "MIT"
+}
