@@ -14,6 +14,7 @@ import useFullScreenNotice from './useFullScreenNotice'
 import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
+import { defaultLanguage } from '@renderer/types'
 
 import { defaultLanguage } from '@shared/config/constant'
 
