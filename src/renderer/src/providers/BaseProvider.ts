@@ -2,6 +2,8 @@ import { FOOTNOTE_PROMPT, REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import { getKnowledgeBaseReferences } from '@renderer/services/KnowledgeService'
+import store from '@renderer/store'
+import { updateMessage } from '@renderer/store/messages'
 import type {
   Assistant,
   GenerateImageParams,
@@ -106,6 +108,16 @@ export default abstract class BaseProvider {
     }
 
     const knowledgeReferences = await getKnowledgeBaseReferences(message)
+
+    if (!isEmpty(knowledgeReferences)) {
+      store.dispatch(
+        updateMessage({
+          topicId: message.topicId,
+          messageId: message.id,
+          updates: { knowledgeReferences }
+        })
+      )
+    }
 
     if (!isEmpty(message.knowledgeBaseIds) && isEmpty(knowledgeReferences)) {
       window.message.info({ content: t('knowledge.no_match'), key: 'knowledge-base-no-match-info' })

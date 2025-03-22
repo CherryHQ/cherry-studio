@@ -9,7 +9,7 @@ import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
-import { estimateHistoryTokens } from '@renderer/services/TokenService'
+import { estimateHistoryTokens, estimateKnowledgeTokens } from '@renderer/services/TokenService'
 import { useAppDispatch } from '@renderer/store'
 import type { Assistant, Message, Topic } from '@renderer/types'
 import {
@@ -172,7 +172,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     runAsyncFunction(async () => {
       EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, {
         tokensCount: await estimateHistoryTokens(assistant, messages),
-        contextCount: getContextCount(assistant, messages)
+        contextCount: getContextCount(assistant, messages),
+        knowledgeTokens: estimateKnowledgeTokens(messages)
       })
     })
   }, [assistant, messages])

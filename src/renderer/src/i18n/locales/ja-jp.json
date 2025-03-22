@@ -106,6 +106,7 @@
       "input.expand": "展開",
       "input.file_not_supported": "モデルはこのファイルタイプをサポートしません",
       "input.knowledge_base": "ナレッジベース",
+      "input.knowledge_tokens.tip": "ナレッジベースのトークン数",
       "input.new.context": "コンテキストをクリア {{Command}}",
       "input.new_topic": "新しいトピック {{Command}}",
       "input.pause": "一時停止",
@@ -994,6 +995,10 @@
       "moresetting.check.confirm": "選択を確認",
       "moresetting.check.warn": "このオプションを選択する際は慎重に行ってください。誤った選択はモデルの誤動作を引き起こす可能性があります！",
       "moresetting.warn": "リスク警告",
+      "models.add.model_name.tooltip": "例：GPT-3.5",
+      "models.max_tokens": "最大トークン数",
+      "models.max_tokens.placeholder": "最大トークン数",
+      "models.max_tokens.tooltip": "モデルの最大トークン数",
       "provider": {
         "add.name": "プロバイダー名",
         "add.name.placeholder": "例：OpenAI",

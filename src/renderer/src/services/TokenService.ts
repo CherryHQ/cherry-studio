@@ -52,6 +52,20 @@ export function estimateImageTokens(file: FileType) {
   return Math.floor(file.size / 100)
 }
 
+export function estimateKnowledgeTokens(messages: Message[]): number {
+  let knowledgeTokens = 0
+
+  for (const message of messages) {
+    if (message.knowledgeReferences && message.knowledgeReferences.length > 0) {
+      for (const reference of message.knowledgeReferences) {
+        knowledgeTokens += estimateTextTokens(reference.content)
+      }
+    }
+  }
+
+  return knowledgeTokens
+}
+
 export async function estimateMessageUsage(message: Message): Promise<CompletionUsage> {
   let imageTokens = 0
 

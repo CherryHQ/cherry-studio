@@ -1,8 +1,14 @@
 import { DownOutlined, UpOutlined } from '@ant-design/icons'
-import { isEmbeddingModel, isFunctionCallingModel, isReasoningModel, isVisionModel } from '@renderer/config/models'
+import {
+  getMaxContextTokens,
+  isEmbeddingModel,
+  isFunctionCallingModel,
+  isReasoningModel,
+  isVisionModel
+} from '@renderer/config/models'
 import { Model, ModelType } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
-import { Button, Checkbox, Divider, Flex, Form, Input, Modal } from 'antd'
+import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, Modal } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -23,7 +29,8 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
       ...model,
       id: values.id || model.id,
       name: values.name || model.name,
-      group: values.group || model.group
+      group: values.group || model.group,
+      maxTokens: values.maxTokens || model.maxTokens
     }
     onUpdateModel(updatedModel)
     setShowModelTypes(false)
@@ -57,7 +64,8 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
         initialValues={{
           id: model.id,
           name: model.name,
-          group: model.group
+          group: model.group,
+          maxTokens: model.maxTokens
         }}
         onFinish={onFinish}>
         <Form.Item
@@ -105,74 +113,91 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
           </Flex>
         </Form.Item>
         {showModelTypes && (
-          <div>
-            <Divider style={{ margin: '0 0 15px 0' }} />
-            <TypeTitle>{t('models.type.select')}:</TypeTitle>
-            {(() => {
-              const defaultTypes = [
-                ...(isVisionModel(model) ? ['vision'] : []),
-                ...(isEmbeddingModel(model) ? ['embedding'] : []),
-                ...(isReasoningModel(model) ? ['reasoning'] : []),
-                ...(isFunctionCallingModel(model) ? ['function_calling'] : [])
-              ] as ModelType[]
+          <>
+            <div>
+              <Divider style={{ margin: '0 0 15px 0' }} />
+              <TypeTitle>{t('models.type.select')}:</TypeTitle>
+              {(() => {
+                const defaultTypes = [
+                  ...(isVisionModel(model) ? ['vision'] : []),
+                  ...(isEmbeddingModel(model) ? ['embedding'] : []),
+                  ...(isReasoningModel(model) ? ['reasoning'] : []),
+                  ...(isFunctionCallingModel(model) ? ['function_calling'] : [])
+                ] as ModelType[]
 
-              // 合并现有选择和默认类型
-              const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
+                // 合并现有选择和默认类型
+                const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
 
-              const showTypeConfirmModal = (type: string) => {
-                window.modal.confirm({
-                  title: t('settings.moresetting.warn'),
-                  content: t('settings.moresetting.check.warn'),
-                  okText: t('settings.moresetting.check.confirm'),
-                  cancelText: t('common.cancel'),
-                  okButtonProps: { danger: true },
-                  cancelButtonProps: { type: 'primary' },
-                  onOk: () => onUpdateModel({ ...model, type: [...selectedTypes, type] as ModelType[] }),
-                  onCancel: () => {},
-                  centered: true
-                })
-              }
-
-              const handleTypeChange = (types: string[]) => {
-                const newType = types.find((type) => !selectedTypes.includes(type as ModelType))
-
-                if (newType) {
-                  showTypeConfirmModal(newType)
-                } else {
-                  onUpdateModel({ ...model, type: types as ModelType[] })
+                const showTypeConfirmModal = (type: string) => {
+                  window.modal.confirm({
+                    title: t('settings.moresetting.warn'),
+                    content: t('settings.moresetting.check.warn'),
+                    okText: t('settings.moresetting.check.confirm'),
+                    cancelText: t('common.cancel'),
+                    okButtonProps: { danger: true },
+                    cancelButtonProps: { type: 'primary' },
+                    onOk: () => onUpdateModel({ ...model, type: [...selectedTypes, type] as ModelType[] }),
+                    onCancel: () => {},
+                    centered: true
+                  })
                 }
-              }
 
-              return (
-                <Checkbox.Group
-                  value={selectedTypes}
-                  onChange={handleTypeChange}
-                  options={[
-                    {
-                      label: t('models.type.vision'),
-                      value: 'vision',
-                      disabled: isVisionModel(model) && !selectedTypes.includes('vision')
-                    },
-                    {
-                      label: t('models.type.embedding'),
-                      value: 'embedding',
-                      disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
-                    },
-                    {
-                      label: t('models.type.reasoning'),
-                      value: 'reasoning',
-                      disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
-                    },
-                    {
-                      label: t('models.type.function_calling'),
-                      value: 'function_calling',
-                      disabled: isFunctionCallingModel(model) && !selectedTypes.includes('function_calling')
-                    }
-                  ]}
-                />
-              )
-            })()}
-          </div>
+                const handleTypeChange = (types: string[]) => {
+                  const newType = types.find((type) => !selectedTypes.includes(type as ModelType))
+
+                  if (newType) {
+                    showTypeConfirmModal(newType)
+                  } else {
+                    onUpdateModel({ ...model, type: types as ModelType[] })
+                  }
+                }
+
+                return (
+                  <Checkbox.Group
+                    value={selectedTypes}
+                    onChange={handleTypeChange}
+                    options={[
+                      {
+                        label: t('models.type.vision'),
+                        value: 'vision',
+                        disabled: isVisionModel(model) && !selectedTypes.includes('vision')
+                      },
+                      {
+                        label: t('models.type.embedding'),
+                        value: 'embedding',
+                        disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
+                      },
+                      {
+                        label: t('models.type.reasoning'),
+                        value: 'reasoning',
+                        disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
+                      },
+                      {
+                        label: t('models.type.function_calling'),
+                        value: 'function_calling',
+                        disabled: isFunctionCallingModel(model) && !selectedTypes.includes('function_calling')
+                      }
+                    ]}
+                  />
+                )
+              })()}
+            </div>
+            {!isEmbeddingModel(model) && (
+              <div>
+                <Form.Item
+                  name="maxTokens"
+                  label={t('settings.models.max_tokens')}
+                  tooltip={t('settings.models.max_tokens.tooltip')}
+                  style={{ marginTop: 15 }}>
+                  <InputNumber
+                    placeholder={`${t('settings.models.max_tokens.placeholder')} (${getMaxContextTokens(model)})`}
+                    style={{ width: '100%' }}
+                    min={0}
+                  />
+                </Form.Item>
+              </div>
+            )}
+          </>
         )}
       </Form>
     </Modal>

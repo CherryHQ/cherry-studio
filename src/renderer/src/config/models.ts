@@ -202,6 +202,247 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
   `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
   'i'
 )
+
+// 模型最大上下文窗口大小默认值
+export const MAX_CONTEXT_TOKENS: Record<string, number> = {
+  // GPT系列
+  'gpt-3.5-turbo': 4000,
+  'gpt-3.5-turbo-0125': 16000,
+  'gpt-3.5-turbo-1106': 16000,
+  'gpt-3.5-turbo-0613': 16000,
+  'gpt-3.5-turbo-16k': 16000,
+  'gpt-3.5-turbo-16k-0613': 16000,
+  'gpt-3.5-turbo-instruct': 4000,
+  'gpt-4-turbo': 128000,
+  'gpt-4-turbo-2024-04-09': 128000,
+  'gpt-4-turbo-preview': 128000,
+  'gpt-4-0125-preview': 128000,
+  'gpt-4-1106-preview': 128000,
+  'gpt-4-vision-preview': 128000,
+  'gpt-4': 8000,
+  'gpt-4-0613': 8000,
+  'gpt-4-32k': 32000,
+  'gpt-4-32k-0613': 32000,
+  'search-gpts-chat': 4000,
+  'net-gpt-3.5-turbo': 16000,
+  'net-gpt-3.5-turbo-16k': 16000,
+  'net-gpt-4-0125-preview': 128000,
+  'net-gpt-4': 8000,
+  'net-gpt-4-turbo': 128000,
+  'net-gpt-4-32k': 32000,
+  'text-moderation-latest': 32000,
+  'text-moderation-stable': 32000,
+  'text-moderation-007': 32000,
+  'gpt-4o': 128000,
+  'gpt-4o-2024-05-13': 128000,
+  'gpt-4o-2024-08-06': 128000,
+  'n-gpt-4o': 128000,
+  'chatgpt-4o-latest': 128000,
+  'gpt-4o-mini': 128000,
+  'gpt-4o-mini-2024-07-18': 128000,
+  'gpt-4o-audio-preview': 128000,
+  'gpt-4o-audio-preview-2024-10-01': 128000,
+  'gpt-4o-2024-11-20': 128000,
+  'gpt-4o-canmore': 128000,
+  'gpt-4.5-preview': 128000,
+  'gpt-4.5-preview-2025-02-27': 128000,
+  'omni-moderation-2024-09-26': 32000,
+  'omni-moderation-latest': 32000,
+
+  // Claude系列
+  'claude-1': 100000,
+  'claude-1-100k': 100000,
+  'claude-2': 100000,
+  'claude-2.0': 100000,
+  'claude-2.1': 100000,
+  'claude-2-100k': 100000,
+  'claude-3-haiku-20240307': 200000,
+  'claude-3-sonnet-20240229': 200000,
+  'claude-3-opus-20240229': 200000,
+  'claude-3-5-sonnet-20240620': 200000,
+  'claude-3-5-sonnet-20241022': 200000,
+  'claude-3-5-haiku-20241022': 200000,
+  'claude-3-5-haiku-latest': 200000,
+  'claude-3-5-sonnet-latest': 200000,
+  'claude-3-opus-latest': 200000,
+  'claude-3-7-sonnet-20250219': 200000,
+  'claude-3-7-sonnet-20250219-thinking': 200000,
+  'claude-3-7-sonnet-thinking': 200000,
+  'cld-3-5-sonnet-20240620': 200000,
+  'cld-3-5-sonnet-20241022': 200000,
+  'cld-3-5-haiku-20240307': 200000,
+  'cld-3-5-haiku-20241022': 200000,
+  'cld-3-7-sonnet-20250219': 200000,
+  'cld-3-7-sonnet-20250219-thinking': 200000,
+
+  // GLM系列
+  'glm-4': 128000,
+  'glm-4v': 128000,
+  'glm-4-0520': 128000,
+  'glm-4-flash': 128000,
+  'glm-4-long': 1000000,
+  'glm-4-plus': 128000,
+  'glm-4-air': 128000,
+  'glm-4-airx': 8000,
+  'glm-4v-plus': 128000,
+
+  // Gemini系列
+  'gemini-1.5-flash-latest': 1000000,
+  'gemini-1.5-pro-latest': 2000000,
+  'gemini-1.5-pro': 2000000,
+  'gemini-1.5-flash': 1000000,
+  'gemini-1.5-pro-exp-0801': 2000000,
+  'gemini-1.5-flash-exp-0827': 1000000,
+  'gemini-1.5-flash-002': 1000000,
+  'gemini-1.5-pro-002': 2000000,
+  'gemini-1.5-pro-exp-0827': 2000000,
+  'gemini-exp-1114': 1000000,
+  'gemini-exp-1121': 1000000,
+  'gemini-exp-1206': 1000000,
+  'gemini-2.0-flash-exp': 1000000,
+  'gemini-2.0-flash-thinking-exp': 40000,
+  'gemini-2.0-flash-thinking-exp-1219': 40000,
+  'gemini-1.5-flash-8b': 1000000,
+  'gemini-1.5-pro-001': 1000000,
+  'gemini-2.0-flash-thinking-exp-01-21': 40000,
+  'gemini-2.0-pro-exp-02-05': 1000000,
+  'gemini-2.0-flash-lite-preview-02-05': 1000000,
+  'gemini-2.0-flash-001': 1000000,
+  'gemini-2.0-flash': 1000000,
+
+  // DeepSeek系列
+  'deepseek-chat': 64000,
+  'deepseek-coder': 64000,
+  'deepseek-reasoner': 64000,
+  'deepseek-r1': 64000,
+  'deepseek-v3': 64000,
+  'deepseek-coder-33B-instruct': 8000,
+  'DeepSeek-R1-Distill-Qwen-32B': 32000,
+  'DeepSeek-R1-Distill-Qwen-14B': 32000,
+  'DeepSeek-R1-Distill-Qwen-7B': 32000,
+  'DeepSeek-R1-Distill-Qwen-1.5B': 32000,
+  'deepseek-r1-search': 64000,
+  'deepseek-r1-think': 64000,
+  'deepseek-reasoner-think': 64000,
+  'deepseek-r1-search-lite': 64000,
+  'deepseek-v3-search': 64000,
+  'deepseek-r1-slow': 64000,
+  'deepseek-v3-slow': 64000,
+
+  // Moonshot系列
+  'moonshot-v1-8k': 8000,
+  'moonshot-v1-32k': 32000,
+  'moonshot-v1-128k': 128000,
+  moonshot: 32000,
+
+  // Yi系列
+  'yi-34b-chat-200k': 200000,
+  yi: 32000,
+
+  // Doubao系列
+  'doubao-lite-128k': 128000,
+  'doubao-lite-32k': 32000,
+  'doubao-lite-4k': 4000,
+  'doubao-pro-128k': 128000,
+  'doubao-pro-32k': 32000,
+  'doubao-pro-4k': 4000,
+  'doubao-1-5-lite-32k': 32000,
+  'doubao-1-5-pro-256k': 256000,
+  'doubao-1-5-pro-32k': 32000,
+  'doubao-1-5-vision-pro-32k': 32000,
+  'doubao-pro-256k': 256000,
+
+  // OpenAI O系列
+  'o1-mini': 128000,
+  'o1-preview': 128000,
+  'o1-mini-2024-09-12': 128000,
+  'o1-preview-2024-09-12': 128000,
+  o1: 128000,
+  'o1-pro': 200000,
+  'o1-2024-12-17': 128000,
+  'o3-mini': 200000,
+  'o3-mini-high': 200000,
+  'o3-mini-2025-01-31': 200000,
+
+  // Perplexity系列
+  sonar: 127000,
+  'sonar-pro': 200000,
+  'sonar-reasoning': 127000,
+  'sonar-reasoning-pro': 127000,
+  'sonar-deep-research': 200000,
+  'llama-3.1-sonar-huge-128k-online': 12000,
+  'llama-3.1-sonar-small-128k-online': 12000,
+  'llama-3.1-sonar-large-128k-online': 12000,
+
+  // Mistral系列
+  'mistral-medium': 32000,
+  mistral: 32000,
+  mixtral: 32000,
+
+  // 百度系列
+  'ERNIE-4.0-8K': 7000,
+  'ERNIE-Bot-4': 7000,
+
+  // 其他模型
+  'sora-1.0-turbo': 4000,
+  hunyuan: 8000,
+  'llama-3': 8000,
+  'llama-3.1': 8000,
+  'llama-3.2': 128000,
+  'llama-3.3': 128000,
+  baichuan: 4000
+}
+
+export function getMaxContextTokens(model: Model | undefined): number {
+  if (model?.maxTokens) {
+    return model.maxTokens
+  }
+
+  const defaultMaxTokens = 64000 // 默认值
+  if (!model || !model.id) {
+    return defaultMaxTokens
+  }
+
+  // 精确匹配
+  if (MAX_CONTEXT_TOKENS[model.id]) {
+    return MAX_CONTEXT_TOKENS[model.id]
+  }
+
+  // 前缀匹配
+  for (const key in MAX_CONTEXT_TOKENS) {
+    if (model.id.toLowerCase().includes(key.toLowerCase())) {
+      return MAX_CONTEXT_TOKENS[key]
+    }
+  }
+
+  // 根据提供商设置默认值
+  if (model.provider === 'anthropic') {
+    return 200000
+  } else if (model.provider === 'gemini' || model.provider.includes('google')) {
+    return 1000000
+  } else if (model.provider === 'openai' || model.provider.includes('gpt')) {
+    return 16000
+  } else if (model.provider === 'deepseek') {
+    return 64000
+  } else if (model.provider === 'zhipu') {
+    return 128000
+  } else if (model.provider === 'moonshot') {
+    return 32000
+  } else if (model.provider === 'baichuan') {
+    return 4000
+  } else if (model.provider === 'doubao') {
+    return 32000
+  } else if (model.provider === 'mistral') {
+    return 32000
+  } else if (model.provider === 'yi' || model.provider.includes('01-ai')) {
+    return 32000
+  } else if (model.provider === 'perplexity') {
+    return 127000
+  }
+
+  return defaultMaxTokens
+}
+
 export function isFunctionCallingModel(model: Model): boolean {
   if (model.type?.includes('function_calling')) {
     return true

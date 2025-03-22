@@ -10,7 +10,7 @@ import {
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { getMaxContextTokens, isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -76,6 +76,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
+  const [knowledgeTokenCount, setKnowledgeTokenCount] = useState(0)
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
@@ -535,9 +536,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         textareaRef.current?.focus()
         setTimeout(() => resizeTextArea(), 0)
       }),
-      EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount }) => {
+      EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount, knowledgeTokens }) => {
         _setEstimateTokenCount(tokensCount)
-        setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
+        setContextCount({ current: contextCount.current, max: contextCount.max })
+        setKnowledgeTokenCount(knowledgeTokens || 0)
       }),
       EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
       EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
@@ -773,8 +775,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
                 contextCount={contextCount}
+                knowledgeTokenCount={knowledgeTokenCount}
                 ToolbarButton={ToolbarButton}
-                onClick={onNewContext}
+                maxTokens={
+                  // 优先级：对话设置 -> 模型设置 -> 自动获取 -> 默认值
+                  assistant.settings?.enableMaxTokens && assistant.settings?.maxTokens
+                    ? assistant.settings?.maxTokens
+                    : getMaxContextTokens(assistant.model)
+                }
               />
             </ToolbarMenu>
             <ToolbarMenu>
