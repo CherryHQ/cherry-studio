@@ -267,9 +267,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             </Link>
           )}
           {!provider.isSystem && (
-            <Button type="text" style={{ width: 30 }} onClick={() => ProviderSettingsPopup.show({ provider })}>
-              <SettingOutlined />
-            </Button>
+            <SettingOutlined
+              type="text"
+              style={{ width: 30 }}
+              onClick={() => ProviderSettingsPopup.show({ provider })}
+            />
           )}
         </Flex>
         <Switch
