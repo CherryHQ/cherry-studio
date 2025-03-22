@@ -6,7 +6,8 @@ import jaJP from './locales/ja-jp.json'
 import ruRU from './locales/ru-ru.json'
 import zhCN from './locales/zh-cn.json'
 import zhTW from './locales/zh-tw.json'
-import { defaultLanguage } from '@renderer/types'
+
+import { defaultLanguage } from '@shared/config/constant'
 
 const resources = {
   'en-US': enUS,

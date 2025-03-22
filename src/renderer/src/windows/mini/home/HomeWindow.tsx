@@ -19,7 +19,8 @@ import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
 import { IpcChannel } from '@shared/IpcChannel'
-import { defaultLanguage } from '@renderer/types'
+
+import { defaultLanguage } from '@shared/config/constant'
 
 const HomeWindow: FC = () => {
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
