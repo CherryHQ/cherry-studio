@@ -20,6 +20,7 @@ export interface RuntimeState {
   resourcesPath: string
   update: UpdateState
   export: ExportState
+  renamingTopicIds: string[]
 }
 
 export interface ExportState {
@@ -43,7 +44,8 @@ const initialState: RuntimeState = {
   },
   export: {
     isExporting: false
-  }
+  },
+  renamingTopicIds: []
 }
 
 const runtimeSlice = createSlice({
@@ -73,6 +75,14 @@ const runtimeSlice = createSlice({
     },
     setExportState: (state, action: PayloadAction<Partial<ExportState>>) => {
       state.export = { ...state.export, ...action.payload }
+    },
+    addRenamingTopicId: (state, action: PayloadAction<string>) => {
+      if (!state.renamingTopicIds.includes(action.payload)) {
+        state.renamingTopicIds.push(action.payload)
+      }
+    },
+    removeRenamingTopicId: (state, action: PayloadAction<string>) => {
+      state.renamingTopicIds = state.renamingTopicIds.filter((id) => id !== action.payload)
     }
   }
 })
@@ -85,7 +95,9 @@ export const {
   setFilesPath,
   setResourcesPath,
   setUpdateState,
-  setExportState
+  setExportState,
+  addRenamingTopicId,
+  removeRenamingTopicId
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer
