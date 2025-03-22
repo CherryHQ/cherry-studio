@@ -10,7 +10,6 @@ import { HStack, VStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { TEXT_TO_IMAGES_MODELS } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
@@ -30,7 +29,7 @@ import TextArea from 'antd/es/input/TextArea'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
+import { isVisionModel } from '@renderer/config/models'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingTitle } from '../settings'
 import Artboard from './Artboard'
@@ -77,7 +76,6 @@ const PaintingsPage: FC = () => {
   const [painting, setPainting] = useState<Painting>(_painting || paintings[0])
   const { theme } = useTheme()
   const providers = useAllProviders()
-  const siliconProvider = providers.find((p) => p.id === 'silicon')!
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
@@ -85,10 +83,10 @@ const PaintingsPage: FC = () => {
   const dispatch = useAppDispatch()
   const { generating } = useRuntime()
 
-  const modelOptions = TEXT_TO_IMAGES_MODELS.map((model) => ({
-    label: model.name,
-    value: model.id
-  }))
+  const visionModels = providers.filter((p) => p.enabled)
+        .map((p) => p.models)
+        .flat()
+        .filter((model) => isVisionModel(model)).map(p=>({label: p.name, value: p.id}))
 
   const textareaRef = useRef<any>(null)
   _painting = painting
@@ -100,10 +98,7 @@ const PaintingsPage: FC = () => {
   }
 
   const onSelectModel = (modelId: string) => {
-    const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === modelId)
-    if (model) {
-      updatePaintingState({ model: modelId })
-    }
+    updatePaintingState({ model: modelId })    
   }
 
   const onGenerate = async () => {
@@ -124,7 +119,7 @@ const PaintingsPage: FC = () => {
 
     updatePaintingState({ prompt })
 
-    const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
+    const model = providers.filter((p) => p.enabled).map((p) => p.models).flat().find((m) => m.id === painting.model)
     const provider = getProviderByModel(model)
 
     if (!provider.enabled) {
@@ -307,14 +302,8 @@ const PaintingsPage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <LeftContainer>
-          <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-          <Select
-            value={siliconProvider.id}
-            disabled={true}
-            options={[{ label: t(`provider.${siliconProvider.id}`), value: siliconProvider.id }]}
-          />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
-          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
+          <Select value={painting.model} options={visionModels} onChange={onSelectModel} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
           <Radio.Group
             value={painting.imageSize}
@@ -322,10 +311,12 @@ const PaintingsPage: FC = () => {
             style={{ display: 'flex' }}>
             {IMAGE_SIZES.map((size) => (
               <RadioButton value={size.value} key={size.value}>
-                <VStack alignItems="center">
-                  <ImageSizeImage src={size.icon} theme={theme} />
-                  <span>{size.label}</span>
-                </VStack>
+                <Tooltip title={size.value}>
+                  <VStack alignItems="center">
+                    <ImageSizeImage src={size.icon} theme={theme} />
+                    <span>{size.label}</span>
+                  </VStack>     
+                </Tooltip>       
               </RadioButton>
             ))}
           </Radio.Group>
