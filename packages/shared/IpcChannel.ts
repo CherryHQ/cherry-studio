@@ -40,6 +40,7 @@ export enum IpcChannel {
   Mcp_ListTools = 'mcp:list-tools',
   Mcp_CallTool = 'mcp:call-tool',
   Mcp_GetInstallInfo = 'mcp:get-install-info',
+  Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
 
   //copilot
