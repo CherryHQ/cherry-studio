@@ -1,9 +1,9 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { Button, Input, Space, Spin, Table, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
-import { FC, useState } from 'react'
+import { type FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingTitle } from '..'
@@ -21,7 +21,7 @@ interface SearchResult {
 const NpxSearch: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { Paragraph, Text } = Typography
+  const { Paragraph, Text, Link } = Typography
 
   // Add new state variables for npm scope search
   const [npmScope, setNpmScope] = useState('@modelcontextprotocol')
@@ -59,8 +59,12 @@ const NpxSearch: FC = () => {
       if (formattedResults.length === 0) {
         window.message.info(t('settings.mcp.npx_list.no_packages'))
       }
-    } catch (error: any) {
-      window.message.error(`${t('settings.mcp.npx_list.search_error')}: ${error.message}`)
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        window.message.error(`${t('settings.mcp.npx_list.search_error')}: ${error.message}`)
+      } else {
+        window.message.error(t('settings.mcp.npx_list.search_error'))
+      }
     } finally {
       setSearchLoading(false)
     }
@@ -92,7 +96,7 @@ const NpxSearch: FC = () => {
             <Spin />
           </div>
         ) : searchResults.length > 0 ? (
-          <Table<SearchResult>
+          <Table
             dataSource={searchResults}
             columns={[
               {
@@ -104,15 +108,18 @@ const NpxSearch: FC = () => {
               {
                 title: t('settings.mcp.npx_list.description'),
                 key: 'description',
+                ellipsis: true,
                 render: (_, record: SearchResult) => (
-                  <Space direction="vertical" size="small">
-                    <Text>{record.description}</Text>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    <Text ellipsis={{ tooltip: true }}>{record.description}</Text>
+                    <Text ellipsis={{ tooltip: true }} type="secondary">
                       {t('settings.mcp.npx_list.usage')}: {record.usage}
                     </Text>
-                    <a href={record.npmLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px' }}>
-                      {record.npmLink}
-                    </a>
+                    <Paragraph ellipsis={{ tooltip: true }}>
+                      <Link href={record.npmLink} target="_blank" rel="noopener noreferrer">
+                        {record.npmLink}
+                      </Link>
+                    </Paragraph>
                   </Space>
                 )
               },
@@ -125,7 +132,7 @@ const NpxSearch: FC = () => {
               {
                 title: t('settings.mcp.npx_list.actions'),
                 key: 'actions',
-                width: '100px',
+                width: '120px',
                 render: (_, record: SearchResult) => (
                   <Button
                     type="primary"
@@ -149,7 +156,6 @@ const NpxSearch: FC = () => {
               }
             ]}
             pagination={false}
-            size="small"
             bordered
           />
         ) : null}

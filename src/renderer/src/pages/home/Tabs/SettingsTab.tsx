@@ -24,6 +24,7 @@ import {
   setFontSize,
   setMathEngine,
   setMessageFont,
+  setMessageNavigation,
   setMessageStyle,
   setMultiModelMessageStyle,
   setPasteLongTextAsFile,
@@ -31,7 +32,6 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
-  setMessageNavigation,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
 import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'

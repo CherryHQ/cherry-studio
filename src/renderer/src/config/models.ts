@@ -172,7 +172,7 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*)$/i
 
 // Embedding models
 export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings)/i
@@ -1103,6 +1103,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4v'
     },
     {
+      id: 'glm-4v-flash',
+      provider: 'zhipu',
+      name: 'GLM-4V-Flash',
+      group: 'GLM-4v'
+    },
+    {
       id: 'glm-4v-plus',
       provider: 'zhipu',
       name: 'GLM-4V-Plus',
@@ -1872,6 +1878,8 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
   'stabilityai/stable-diffusion-xl-base-1.0'
 ]
 
+export const GENERATE_IMAGE_MODELS = ['gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-exp']
+
 export function isTextToImageModel(model: Model): boolean {
   return TEXT_TO_IMAGE_REGEX.test(model.id)
 }
@@ -1889,14 +1897,15 @@ export function isEmbeddingModel(model: Model): boolean {
     return EMBEDDING_REGEX.test(model.name)
   }
 
+  if (isRerankModel(model)) {
+    return false
+  }
+
   return EMBEDDING_REGEX.test(model.id) || model.type?.includes('embedding') || false
 }
 
 export function isRerankModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-  return RERANKING_REGEX.test(model.id) || false
+  return model ? RERANKING_REGEX.test(model.id) || false : false
 }
 
 export function isVisionModel(model: Model): boolean {
@@ -1999,6 +2008,28 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
+  return false
+}
+
+export function isGenerateImageModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!provider) {
+    return false
+  }
+
+  const isEmbedding = isEmbeddingModel(model)
+
+  if (isEmbedding) {
+    return false
+  }
+  if (GENERATE_IMAGE_MODELS.includes(model.id)) {
+    return true
+  }
   return false
 }
 

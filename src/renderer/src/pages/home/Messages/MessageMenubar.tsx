@@ -15,8 +15,8 @@ import { UploadOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
-import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { isReasoningModel } from '@renderer/config/models'
+import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
@@ -24,7 +24,6 @@ import { translateText } from '@renderer/services/TranslateService'
 import { Message, Model } from '@renderer/types'
 import { Assistant, Topic } from '@renderer/types'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, removeTrailingDoubleSpaces } from '@renderer/utils'
-import { withMessageThought } from '@renderer/utils/formats'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToNotion,
@@ -32,12 +31,13 @@ import {
   exportMessageAsMarkdown,
   messageToMarkdown
 } from '@renderer/utils/export'
+import { withMessageThought } from '@renderer/utils/formats'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
+import { clone } from 'lodash'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { clone } from 'lodash'
 
 interface Props {
   message: Message
@@ -242,8 +242,8 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'obsidian',
             onClick: async () => {
               const markdown = messageToMarkdown(message)
-              const title = getMessageTitle(message)
-              await ObsidianExportPopup.show({ title, markdown })
+              const title = topic.name?.replace(/\//g, '_') || 'Untitled'
+              await ObsidianExportPopup.show({ title, markdown, processingMethod: '1' })
             }
           },
           {
@@ -258,7 +258,7 @@ const MessageMenubar: FC<Props> = (props) => {
         ]
       }
     ],
-    [message, messageContainerRef, onEdit, onNewBranch, t]
+    [message, messageContainerRef, onEdit, onNewBranch, t, topic.name]
   )
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {

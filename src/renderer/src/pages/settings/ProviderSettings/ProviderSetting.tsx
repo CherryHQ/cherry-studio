@@ -12,7 +12,7 @@ import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/servic
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Button, Divider, Flex, Input, Space, Switch } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
 import { FC, useEffect, useState } from 'react'
@@ -34,6 +34,7 @@ import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
+import ModelListSearchBar from './ModelListSearchBar'
 import OllamSettings from './OllamaSettings'
 import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
@@ -49,6 +50,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
+  const [searchText, setSearchText] = useState('')
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -267,9 +269,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             </Link>
           )}
           {!provider.isSystem && (
-            <Button type="text" style={{ width: 30 }} onClick={() => ProviderSettingsPopup.show({ provider })}>
-              <SettingOutlined />
-            </Button>
+            <SettingOutlined
+              type="text"
+              style={{ width: 30 }}
+              onClick={() => ProviderSettingsPopup.show({ provider })}
+            />
           )}
         </Flex>
         <Switch
@@ -359,22 +363,25 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-          <span>{t('common.models')}</span>
+        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
-            {!isEmpty(models) && (
+            <span>{t('common.models')}</span>
+            {!isEmpty(models) && <ModelListSearchBar onSearch={setSearchText} />}
+          </Space>
+          {!isEmpty(models) && (
+            <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
               <Button
                 type="text"
                 size="small"
                 icon={<HeartOutlined />}
                 onClick={onHealthCheck}
                 loading={isHealthChecking}
-                title={t('settings.models.check.button_caption')}></Button>
-            )}
-          </Space>
-        </Flex>
+              />
+            </Tooltip>
+          )}
+        </Space>
       </SettingSubtitle>
-      <ModelList provider={provider} modelStatuses={modelStatuses} />
+      <ModelList provider={provider} modelStatuses={modelStatuses} searchText={searchText} />
     </SettingContainer>
   )
 }

@@ -87,8 +87,9 @@ export interface SettingsState {
   yuqueUrl: string | null
   yuqueRepoId: string | null
   advancedMode: boolean
-  obsidianApiKey: string | null
-  obsidianUrl: string | null
+  obsidianValut: string | null
+  obsidianFolder: string | null
+  obsidianTages: string | null
   joplinToken: string | null
   joplinUrl: string | null
 }
@@ -163,8 +164,9 @@ const initialState: SettingsState = {
   yuqueUrl: '',
   yuqueRepoId: '',
   advancedMode: false,
-  obsidianApiKey: '',
-  obsidianUrl: '',
+  obsidianValut: '',
+  obsidianFolder: '',
+  obsidianTages: '',
   joplinToken: '',
   joplinUrl: ''
 }
@@ -374,11 +376,14 @@ const settingsSlice = createSlice({
     setAdvancedMode: (state, action: PayloadAction<boolean>) => {
       state.advancedMode = action.payload
     },
-    setObsidianApiKey: (state, action: PayloadAction<string>) => {
-      state.obsidianApiKey = action.payload
+    setObsidianValut: (state, action: PayloadAction<string>) => {
+      state.obsidianValut = action.payload
     },
-    setObsidianUrl: (state, action: PayloadAction<string>) => {
-      state.obsidianUrl = action.payload
+    setObsidianFolder: (state, action: PayloadAction<string>) => {
+      state.obsidianFolder = action.payload
+    },
+    setObsidianTages: (state, action: PayloadAction<string>) => {
+      state.obsidianTages = action.payload
     },
     setJoplinToken: (state, action: PayloadAction<string>) => {
       state.joplinToken = action.payload
@@ -458,8 +463,9 @@ export const {
   setYuqueRepoId,
   setYuqueUrl,
   setAdvancedMode,
-  setObsidianApiKey,
-  setObsidianUrl,
+  setObsidianValut,
+  setObsidianFolder,
+  setObsidianTages,
   setJoplinToken,
   setJoplinUrl,
   setMessageNavigation
