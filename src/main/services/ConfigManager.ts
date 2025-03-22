@@ -138,4 +138,3 @@ export class ConfigManager {
 }
 
 export const configManager = new ConfigManager()
-console.log('app.getLocale():', app.getLocale())
