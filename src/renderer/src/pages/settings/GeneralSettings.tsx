@@ -4,7 +4,7 @@ import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setLanguage } from '@renderer/store/settings'
 import { setProxyMode, setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
-import { LanguageVarious } from '@renderer/types'
+import { defaultLanguage, LanguageVarious } from '@renderer/types'
 import { isValidProxyUrl } from '@renderer/utils'
 import { Input, Select, Space, Switch } from 'antd'
 import { FC, useState } from 'react'
@@ -108,7 +108,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Select defaultValue={language || 'en-US'} style={{ width: 180 }} onChange={onSelectLanguage}>
+          <Select defaultValue={language || defaultLanguage} style={{ width: 180 }} onChange={onSelectLanguage}>
             {languagesOptions.map((lang) => (
               <Select.Option key={lang.value} value={lang.value}>
                 <Space.Compact direction="horizontal" block>

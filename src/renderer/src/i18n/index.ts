@@ -6,6 +6,7 @@ import jaJP from './locales/ja-jp.json'
 import ruRU from './locales/ru-ru.json'
 import zhCN from './locales/zh-cn.json'
 import zhTW from './locales/zh-tw.json'
+import { defaultLanguage } from '@renderer/types'
 
 const resources = {
   'en-US': enUS,
@@ -16,7 +17,7 @@ const resources = {
 }
 
 export const getLanguage = () => {
-  return localStorage.getItem('language') || navigator.language || 'en-US'
+  return localStorage.getItem('language') || navigator.language || defaultLanguage
 }
 
 export const getLanguageCode = () => {
@@ -26,7 +27,7 @@ export const getLanguageCode = () => {
 i18n.use(initReactI18next).init({
   resources,
   lng: getLanguage(),
-  fallbackLng: 'en-US',
+  fallbackLng: defaultLanguage,
   interpolation: {
     escapeValue: false
   }

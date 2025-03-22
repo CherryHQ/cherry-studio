@@ -19,6 +19,7 @@ import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
 import { IpcChannel } from '@shared/IpcChannel'
+import { defaultLanguage } from '@renderer/types'
 
 const HomeWindow: FC = () => {
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
@@ -69,7 +70,7 @@ const HomeWindow: FC = () => {
   }, [readClipboard])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || 'en-US')
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   const onCloseWindow = () => window.api.miniWindow.hide()
