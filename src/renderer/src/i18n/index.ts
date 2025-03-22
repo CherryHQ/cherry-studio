@@ -1,7 +1,5 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
-
-import ar   from './locales/ar.json'
 import elGR from './locales/el-gr.json'
 import enUS from './locales/en-us.json'
 import esES from './locales/es-es.json'
@@ -13,7 +11,6 @@ import zhCN from './locales/zh-cn.json'
 import zhTW from './locales/zh-tw.json'
 
 const resources = {
-  'ar'   : ar  ,
   'el-GR': elGR,
   'en-US': enUS,
   'es-ES': esES,

@@ -12,7 +12,6 @@ const INDEX = [
     {name: "France",     code: "fr-fr", model: "qwen2.5-32b-instruct"},
     {name: "Spanish",    code: "es-es", model: "qwen2.5-32b-instruct"},
     {name: "Portuguese", code: "pt-pt", model: "qwen2.5-72b-instruct"},
-    {name: "Arab(MSA)",  code: "ar"   , model: "qwen-max"            },
     {name: "Greek",      code: "el-gr", model: "qwen-turbo"          },
 ]
 
