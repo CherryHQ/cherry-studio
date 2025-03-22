@@ -383,8 +383,8 @@ const Container = styled(Scrollbar)`
 
 const TopicListItem = styled.div`
   padding: 7px 12px;
-  margin-left: 10px;
-  margin-right: 4px;
+  margin-inline-start: 10px;
+  margin-inline-end: 4px;
   border-radius: var(--list-item-border-radius);
   font-family: Ubuntu;
   font-size: 13px;
@@ -425,6 +425,8 @@ const TopicName = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+  text-align: start;
+  unicode-bidi: isolate;
 `
 
 const TopicPromptText = styled.div`
@@ -452,7 +454,7 @@ const MenuButton = styled.div`
   min-width: 22px;
   min-height: 22px;
   position: absolute;
-  right: 8px;
+  inset-inline-end: 8px;
   top: 6px;
   .anticon {
     font-size: 12px;

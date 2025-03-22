@@ -212,6 +212,10 @@ const Container = styled.div`
   height: ${isMac ? 'calc(100vh - var(--navbar-height))' : '100vh'};
   -webkit-app-region: drag !important;
   margin-top: ${isMac ? 'var(--navbar-height)' : 0};
+  [dir='rtl'] & {
+    margin-inline-start: 0;
+    margin-inline-end: auto;
+  }
 `
 
 const AvatarImg = styled(Avatar)`

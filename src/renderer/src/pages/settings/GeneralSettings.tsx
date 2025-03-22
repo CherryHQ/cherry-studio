@@ -98,7 +98,8 @@ const GeneralSettings: FC = () => {
     { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
     { value: 'en-US', label: 'English', flag: '🇺🇸' },
     { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-    { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' }
+    { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
+    { value: 'ar-EG', label: 'العربية', flag: '🇪🇬' }
   ]
 
   return (

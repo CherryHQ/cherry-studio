@@ -7,6 +7,7 @@ import {
   FileTextOutlined
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import ListItem from '@renderer/components/ListItem'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
@@ -16,7 +17,7 @@ import store from '@renderer/store'
 import { FileType, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import type { MenuProps } from 'antd'
-import { Button, Dropdown, Menu } from 'antd'
+import { Button, Dropdown } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { FC, useMemo, useState } from 'react'
@@ -179,25 +180,51 @@ const FilesPage: FC = () => {
   )
 
   const menuItems = [
-    { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FilePdfOutlined /> },
-    { key: FileTypes.IMAGE, label: t('files.image'), icon: <FileImageOutlined /> },
-    { key: FileTypes.TEXT, label: t('files.text'), icon: <FileTextOutlined /> },
+    {
+      key: FileTypes.DOCUMENT,
+      icon: <FilePdfOutlined />,
+      label: t('files.document')
+    },
+    {
+      key: FileTypes.IMAGE,
+      icon: <FileImageOutlined />,
+      label: t('files.image')
+    },
+    {
+      key: FileTypes.TEXT,
+      icon: <FileTextOutlined />,
+      label: t('files.text')
+    },
     ...geminiProviders.map((provider) => ({
       key: 'gemini_' + provider.id,
-      label: provider.name,
-      icon: <FilePdfOutlined />
+      icon: <FilePdfOutlined />,
+      label: provider.name
     })),
-    { key: 'all', label: t('files.all'), icon: <FileTextOutlined /> }
-  ].filter(Boolean) as MenuProps['items']
+    {
+      key: 'all',
+      icon: <FileTextOutlined />,
+      label: t('files.all')
+    }
+  ].filter(Boolean)
 
   return (
     <Container>
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('files.title')}</NavbarCenter>
+        <NavbarCenter style={{ borderBlockEnd: 'none' }}>{t('files.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
         <SideNav>
-          <Menu selectedKeys={[fileType]} items={menuItems} onSelect={({ key }) => setFileType(key as FileTypes)} />
+          <ScrollContainer>
+            {menuItems.map((item) => (
+              <ListItem
+                key={item?.key}
+                active={fileType === item?.key}
+                icon={item?.icon}
+                title={item?.label as string}
+                onClick={() => setFileType(item?.key as FileTypes)}
+              />
+            ))}
+          </ScrollContainer>
         </SideNav>
         <TableContainer right>
           <ContentView id={fileType} files={files} dataSource={dataSource} columns={columns} />
@@ -236,32 +263,28 @@ const FileNameText = styled.div`
 
 const SideNav = styled.div`
   width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-  padding: 7px 12px;
+  border-inline-end: 0.5px solid var(--color-border);
+  padding-block: 7px;
+  padding-inline: 12px;
+  display: flex;
+  flex-direction: column;
   user-select: none;
 
   .ant-menu {
     border-inline-end: none !important;
     background: transparent;
   }
+`
+const ScrollContainer = styled(Scrollbar)`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 
-  .ant-menu-item {
-    height: 36px;
-    line-height: 36px;
-    margin: 4px 0;
-    width: 100%;
-    border-radius: var(--list-item-border-radius);
-    border: 0.5px solid transparent;
+  > div {
+    margin-bottom: 8px;
 
-    &:hover {
-      background-color: var(--color-background-soft) !important;
-    }
-
-    &.ant-menu-item-selected {
-      background-color: var(--color-background-soft);
-      color: var(--color-primary);
-      border: 0.5px solid var(--color-border);
-      color: var(--color-text);
+    &:last-child {
+      margin-bottom: 0;
     }
   }
 `

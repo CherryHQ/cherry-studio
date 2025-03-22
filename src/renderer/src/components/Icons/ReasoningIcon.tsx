@@ -24,7 +24,7 @@ const Container = styled.div`
 const Icon = styled.i`
   color: var(--color-link);
   font-size: 16px;
-  margin-right: 6px;
+  margin-inline-end: 6px;
 `
 
 export default ReasoningIcon

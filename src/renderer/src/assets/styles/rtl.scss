@@ -1,0 +1,98 @@
+// RTL-specific styles that need manual control
+[dir='rtl'] {
+  // Custom root styles
+  #root {
+    &__text {
+      unicode-bidi: isolate;
+    }
+  }
+
+  // Custom layout adjustments
+  #content-container {
+    border-radius: 0 10px 0 0;
+    border-inline-start: 1px solid var(--border-color);
+  }
+
+  // Text alignment for RTL
+  body,
+  input,
+  textarea,
+  [contenteditable='true'],
+  .markdown,
+  #messages,
+  .selectable,
+  pre,
+  code,
+  p,
+  h1, h2, h3, h4, h5, h6,
+  span,
+  ul, ol, li,
+  .text-content {
+    text-align: start;
+    unicode-bidi: isolate;
+  }
+
+  // Container styles that need special handling
+  #content-container {
+    border-radius: 0 10px 0 0;
+  }
+
+  // Icons and arrows that need explicit flipping
+  .icon-arrow,
+  .icon-chevron {
+    transform: scaleX(-1);
+  }
+
+  // Animations and transitions that need explicit control
+  .slide-enter,
+  .slide-leave,
+  .slide-appear,
+  .slide-enter-active,
+  .slide-leave-active,
+  .slide-appear-active,
+  .fade-enter,
+  .fade-leave,
+  .fade-appear,
+  .fade-enter-active,
+  .fade-leave-active,
+  .fade-appear-active {
+    transform-origin: inline-end;
+  }
+
+  .code-block {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: left;
+  }
+
+  // Custom animations and transitions
+  .ant-dropdown,
+  .ant-popover {
+    &.slide-up-enter,
+    &.slide-up-appear {
+      transform-origin: 100% 100%;
+    }
+  }
+
+  // Custom scrollbar position
+  ::-webkit-scrollbar {
+    inset-inline-start: 0;
+    inset-inline-end: auto;
+  }
+
+  // Chat bubbles custom layout
+  .bubble {
+    .message-content-container {
+      &.user {
+        margin-inline-start: auto;
+        margin-inline-end: 0;
+        unicode-bidi: isolate;
+      }
+      &.assistant {
+        margin-inline-start: 0;
+        margin-inline-end: auto;
+        unicode-bidi: isolate;
+      }
+    }
+  }
+}
