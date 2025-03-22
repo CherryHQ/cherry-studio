@@ -40,7 +40,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const allModels = providers
     .map((p) => p.models)
     .flat()
-    .filter((model) => isEmbeddingModel(model))
+    .filter((model) => isEmbeddingModel(model) && !isRerankModel(model))
 
   const rerankModels = providers
     .map((p) => p.models)
@@ -55,7 +55,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
       options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model))
+        .filter((model) => isEmbeddingModel(model) && !isRerankModel(model))
         .map((m) => ({
           label: m.name,
           value: getModelUniqId(m)
