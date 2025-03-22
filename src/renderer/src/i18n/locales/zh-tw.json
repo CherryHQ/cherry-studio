@@ -200,7 +200,18 @@
         "prev": "上一條訊息",
         "next": "下一條訊息",
         "first": "已經是第一條訊息",
-        "last": "已經是最後一條訊息"
+        "last": "已經是最後一條訊息",
+        "history": "聊天歷史"
+      },
+      "history": {
+        "title": "聊天歷史",
+        "coming_soon": "聊天工作流圖表即將上線",
+        "no_messages": "沒有找到訊息",
+        "start_conversation": "開始對話以查看聊天流程圖",
+        "user_node": "用戶",
+        "assistant_node": "助手",
+        "view_full_content": "查看完整內容",
+        "click_to_navigate": "點擊跳轉到對應訊息"
       }
     },
     "code_block": {

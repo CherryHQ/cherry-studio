@@ -197,7 +197,18 @@
         "prev": "前のメッセージ",
         "next": "次のメッセージ",
         "first": "最初のメッセージです",
-        "last": "最後のメッセージです"
+        "last": "最後のメッセージです",
+        "history": "チャット履歴"
+      },
+      "history": {
+        "title": "チャット履歴",
+        "coming_soon": "チャットワークフロー図がすぐに登場します",
+        "no_messages": "メッセージが見つかりませんでした",
+        "start_conversation": "チャットを開始してチャットワークフロー図を確認してください",
+        "user_node": "ユーザー",
+        "assistant_node": "アシスタント",
+        "view_full_content": "完全な内容を表示",
+        "click_to_navigate": "メッセージに移動"
       }
     },
     "code_block": {
