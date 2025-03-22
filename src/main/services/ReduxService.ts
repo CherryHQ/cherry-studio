@@ -18,7 +18,7 @@ export class ReduxService extends EventEmitter {
 
   private setupIpcHandlers() {
     // 监听 store 就绪事件
-    ipcMain.handle('redux-store-ready', () => {
+    ipcMain.handle(IpcChannel.ReduxStoreReady, () => {
       this.isReady = true
       this.emit('ready')
     })
