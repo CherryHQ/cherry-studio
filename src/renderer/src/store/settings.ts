@@ -46,6 +46,7 @@ export interface SettingsState {
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
+  renderHtmlInMarkdown: boolean
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
@@ -126,6 +127,7 @@ const initialState: SettingsState = {
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
+  renderHtmlInMarkdown: true,
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',
@@ -283,6 +285,9 @@ const settingsSlice = createSlice({
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
     },
+    setRenderHtmlInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.renderHtmlInMarkdown = action.payload
+    },
     setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
       state.mathEngine = action.payload
     },
@@ -430,6 +435,7 @@ export const {
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
+  setRenderHtmlInMarkdown,
   setMathEngine,
   setGridColumns,
   setGridPopoverTrigger,
