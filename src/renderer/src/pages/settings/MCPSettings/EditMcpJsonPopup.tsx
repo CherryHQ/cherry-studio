@@ -6,7 +6,7 @@ import { Modal, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { IpcChannel } from '@main/enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 interface Props {
   resolve: (data: any) => void

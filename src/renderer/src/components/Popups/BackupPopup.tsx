@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
-import { IpcChannel } from '@main/enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 interface Props {
   resolve: (data: any) => void

@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { CacheService } from './CacheService'
 import { windowService } from './WindowService'
-import { IpcChannel } from '../enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 /**
  * Service for managing Model Context Protocol servers and tools

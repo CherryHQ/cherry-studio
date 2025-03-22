@@ -2,7 +2,7 @@ import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
 import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
-import { IpcChannel } from '@main/enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 interface ThemeContextType {
   theme: ThemeMode

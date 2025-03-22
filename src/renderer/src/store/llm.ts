@@ -3,7 +3,7 @@ import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { Model, Provider } from '@renderer/types'
 import { uniqBy } from 'lodash'
-import { IpcChannel } from '@main/enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 type LlmSettings = {
   ollama: {

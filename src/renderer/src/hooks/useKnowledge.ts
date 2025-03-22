@@ -27,7 +27,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { useAgents } from './useAgents'
 import { useAssistants } from './useAssistant'
-import { IpcChannel } from '@main/enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 export const useKnowledge = (baseId: string) => {
   const dispatch = useDispatch()

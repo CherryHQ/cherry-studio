@@ -4,7 +4,7 @@ import logger from 'electron-log'
 import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
 
 import icon from '../../../build/icon.png?asset'
-import { IpcChannel } from '../enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater

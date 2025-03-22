@@ -25,7 +25,7 @@ import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
-import { IpcChannel } from './enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()

@@ -1,7 +1,7 @@
 import { isWindows } from '@renderer/config/constant'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { IpcChannel } from '@main/enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 export function useFullScreenNotice() {
   const { t } = useTranslation()

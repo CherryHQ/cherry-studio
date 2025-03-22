@@ -2,7 +2,7 @@ import store, { useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { useEffect } from 'react'
-import { IpcChannel } from '@main/enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 const ipcRenderer = window.electron.ipcRenderer
 

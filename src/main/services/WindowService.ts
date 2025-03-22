@@ -10,7 +10,7 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
-import { IpcChannel } from '../enum/IpcChannel'
+import { IpcChannel } from '@shared/IpcChannel'
 
 export class WindowService {
   private static instance: WindowService | null = null
