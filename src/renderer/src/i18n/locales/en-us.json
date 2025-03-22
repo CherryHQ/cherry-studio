@@ -198,7 +198,16 @@
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "topics.new": "New Topic",
+      "translate": "Translate",
+      "navigation": {
+        "prev": "Previous Message",
+        "next": "Next Message",
+        "first": "Already at the first message",
+        "last": "Already at the last message"
+      },
+      "input.generate_image": "Generate image",
+      "input.generate_image_not_supported": "The model does not support generating images."
     },
     "code_block": {
       "collapse": "Collapse",

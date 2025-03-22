@@ -116,6 +116,8 @@
       "input.translate": "翻译成{{target_language}}",
       "input.upload": "上传图片或文档",
       "input.upload.document": "上传文档（模型不支持图片）",
+      "input.generate_image": "生成图片",
+      "input.generate_image_not_supported": "模型不支持生成图片",
       "input.web_search": "开启网络搜索",
       "input.web_search.button.ok": "去设置",
       "input.web_search.enable": "开启网络搜索",

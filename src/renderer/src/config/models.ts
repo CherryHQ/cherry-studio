@@ -1878,6 +1878,8 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
   'stabilityai/stable-diffusion-xl-base-1.0'
 ]
 
+export const GENERATE_IMAGE_MODELS = ['gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-exp']
+
 export function isTextToImageModel(model: Model): boolean {
   return TEXT_TO_IMAGE_REGEX.test(model.id)
 }
@@ -2006,6 +2008,28 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
+  return false
+}
+
+export function isGenerateImageModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!provider) {
+    return false
+  }
+
+  const isEmbedding = isEmbeddingModel(model)
+
+  if (isEmbedding) {
+    return false
+  }
+  if (GENERATE_IMAGE_MODELS.includes(model.id)) {
+    return true
+  }
   return false
 }
 

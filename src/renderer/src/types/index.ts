@@ -16,6 +16,7 @@ export type Assistant = {
   settings?: Partial<AssistantSettings>
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
+  enableGenerateImage?: boolean
 }
 
 export type AssistantMessage = {
@@ -77,6 +78,8 @@ export type Message = {
     webSearch?: WebSearchResponse
     // MCP Tools
     mcpTools?: MCPToolResponse[]
+    // Generate Image
+    generateImage?: GenerateImageResponse
   }
   // 多模型消息样式
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -293,6 +296,10 @@ export type GenerateImageParams = {
   guidanceScale: number
   signal?: AbortSignal
   promptEnhancement?: boolean
+}
+
+export type GenerateImageResponse = {
+  images: string[]
 }
 
 export interface TranslateHistory {

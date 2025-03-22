@@ -200,7 +200,16 @@
       "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
-      "translate": "翻譯"
+      "topics.new": "開始新對話",
+      "translate": "翻譯",
+      "navigation": {
+        "prev": "上一條訊息",
+        "next": "下一條訊息",
+        "first": "已經是第一條訊息",
+        "last": "已經是最後一條訊息"
+      },
+      "input.generate_image": "生成圖片",
+      "input.generate_image_not_supported": "模型不支援生成圖片"
     },
     "code_block": {
       "collapse": "折疊",
