@@ -361,7 +361,6 @@
       "rename": "重命名",
       "search": "搜索知识库",
       "search_placeholder": "输入查询内容",
-      "settings": "知识库设置",
       "sitemap_placeholder": "请输入站点地图 URL",
       "sitemaps": "网站",
       "source": "来源",
@@ -382,7 +381,18 @@
       "title": "知识库",
       "url_added": "网址已添加",
       "url_placeholder": "请输入网址, 多个网址用回车分隔",
-      "urls": "网址"
+      "urls": "网址",
+      "settings": {
+        "title": "知识库设置",
+        "preprocessing": "预处理",
+        "preprocessing_tooltip": "对上传的文件进行ocr预处理",
+        "general": "常规设置",
+        "ocr": "OCR 设置",
+        "advanced": "高级设置",
+        "doc2x_api_key": "Doc2X API Key",
+        "doc2x_api_key_placeholder": "请输入 Doc2X API Key",
+        "doc2x_api_key_tooltip": "使用doc2x进行文档预处理"
+      }
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -871,6 +881,13 @@
       "input.target_language.english": "英文",
       "input.target_language.japanese": "日文",
       "input.target_language.russian": "俄文",
+      "knowledge": {
+        "title": "知识库",
+        "ocr": {
+          "title": "OCR设置",
+          "provider": "OCR服务商"
+        }
+      },
       "mcp": {
         "actions": "操作",
         "active": "启用",

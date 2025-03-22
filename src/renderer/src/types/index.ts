@@ -264,6 +264,8 @@ export interface KnowledgeBase {
   threshold?: number
   rerankModel?: Model
   topN?: number
+  preprocessing?: boolean
+  ocrProvider?: OcrProvider
 }
 
 export type KnowledgeBaseParams = {
@@ -280,6 +282,15 @@ export type KnowledgeBaseParams = {
   rerankModel?: string
   rerankModelProvider?: string
   topN?: number
+  preprocessing?: boolean
+  ocrProvider?: OcrProvider
+}
+
+export interface OcrProvider {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
 }
 
 export type GenerateImageParams = {

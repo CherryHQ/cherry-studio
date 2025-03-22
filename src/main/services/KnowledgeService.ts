@@ -23,6 +23,7 @@ import { SitemapLoader } from '@llm-tools/embedjs-loader-sitemap'
 import { WebLoader } from '@llm-tools/embedjs-loader-web'
 import { AzureOpenAiEmbeddings, OpenAiEmbeddings } from '@llm-tools/embedjs-openai'
 import { addFileLoader } from '@main/loader'
+import OcrProvider from '@main/ocr/OcrProvider'
 import Reranker from '@main/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
 import { getInstanceName } from '@main/utils'
@@ -149,6 +150,7 @@ class KnowledgeService {
   }
 
   public delete = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+    console.log('id', id)
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
       fs.rmSync(dbPath, { recursive: true })
@@ -161,7 +163,6 @@ class KnowledgeService {
       this.workload >= KnowledgeService.MAXIMUM_WORKLOAD
     )
   }
-
   private fileTask(
     ragApplication: RAGApplication,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
@@ -173,8 +174,27 @@ class KnowledgeService {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
-          task: () =>
-            addFileLoader(ragApplication, file, base, forceReload)
+          task: async () => {
+            // 添加OCR预处理逻辑
+            let fileToProcess: FileType = file
+            if (base.preprocessing && file.ext.toLowerCase() === '.pdf') {
+              try {
+                const ocrProvider = new OcrProvider(base)
+                Logger.info(`Starting OCR processing for file: ${file.path}`)
+
+                const { processedFile } = await ocrProvider.parseFile(item.id, file)
+
+                fileToProcess = processedFile
+                Logger.info(`OCR processing completed: ${fileToProcess.path}`)
+              } catch (err) {
+                Logger.error(`OCR processing failed: ${err}`)
+                // 如果OCR失败，使用原始文件
+                fileToProcess = file
+              }
+            }
+
+            // 使用处理后的文件进行加载
+            return addFileLoader(ragApplication, fileToProcess, base, forceReload)
               .then((result) => {
                 loaderTask.loaderDoneReturn = result
                 return result
@@ -182,7 +202,8 @@ class KnowledgeService {
               .catch((err) => {
                 Logger.error(err)
                 return KnowledgeService.ERROR_LOADER_RETURN
-              }),
+              })
+          },
           evaluateTaskWorkload: { workload: file.size }
         }
       ],
@@ -423,7 +444,7 @@ class KnowledgeService {
     })
   }
 
-  public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
+  public add = async (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
     return new Promise((resolve) => {
       const { base, item, forceReload = false } = options
       const optionsNonNullableAttribute = { base, item, forceReload }

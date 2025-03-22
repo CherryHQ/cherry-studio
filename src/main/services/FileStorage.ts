@@ -211,6 +211,10 @@ class FileStorage {
     await fs.promises.unlink(path.join(this.storageDir, id))
   }
 
+  public deleteDir = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+    await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
+  }
+
   public readFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<string> => {
     const filePath = path.join(this.storageDir, id)
 

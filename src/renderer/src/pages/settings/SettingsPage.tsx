@@ -1,6 +1,7 @@
 import {
   CloudOutlined,
   CodeOutlined,
+  FileSearchOutlined,
   GlobalOutlined,
   InfoCircleOutlined,
   LayoutOutlined,
@@ -21,6 +22,7 @@ import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
+import KnowledgeSettings from './KnowledgeSettings'
 import MCPSettings from './MCPSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
@@ -68,6 +70,13 @@ const SettingsPage: FC = () => {
               {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/knowledge">
+            <MenuItem className={isRoute('/settings/knowledge')}>
+              <FileSearchOutlined />
+              {t('settings.knowledge.title')}
+            </MenuItem>
+          </MenuItemLink>
+
           <MenuItemLink to="/settings/general">
             <MenuItem className={isRoute('/settings/general')}>
               <SettingOutlined />
@@ -111,6 +120,7 @@ const SettingsPage: FC = () => {
             <Route path="model" element={<ModelSettings />} />
             <Route path="web-search" element={<WebSearchSettings />} />
             <Route path="mcp" element={<MCPSettings />} />
+            <Route path="knowledge" element={<KnowledgeSettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
             <Route path="data/*" element={<DataSettings />} />

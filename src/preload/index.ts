@@ -40,6 +40,7 @@ const api = {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke('file:select', options),
     upload: (filePath: string) => ipcRenderer.invoke('file:upload', filePath),
     delete: (fileId: string) => ipcRenderer.invoke('file:delete', fileId),
+    deleteDir: (dirPath: string) => ipcRenderer.invoke('file:deleteDir', dirPath),
     read: (fileId: string) => ipcRenderer.invoke('file:read', fileId),
     clear: () => ipcRenderer.invoke('file:clear'),
     get: (filePath: string) => ipcRenderer.invoke('file:get', filePath),

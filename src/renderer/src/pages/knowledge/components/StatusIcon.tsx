@@ -44,7 +44,7 @@ const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus, 
       )
 
     case 'processing': {
-      return type === 'directory' ? (
+      return type === 'directory' || type === 'file' ? (
         <Progress type="circle" size={14} percent={Number(percent?.toFixed(0))} />
       ) : (
         <Tooltip title={t('knowledge.status_processing')} placement="left">

@@ -182,6 +182,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('file:clear', fileManager.clear)
   ipcMain.handle('file:read', fileManager.readFile)
   ipcMain.handle('file:delete', fileManager.deleteFile)
+  ipcMain.handle('file:deleteDir', fileManager.deleteDir)
   ipcMain.handle('file:get', fileManager.getFile)
   ipcMain.handle('file:selectFolder', fileManager.selectFolder)
   ipcMain.handle('file:create', fileManager.createTempFile)

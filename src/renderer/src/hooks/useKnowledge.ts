@@ -17,9 +17,11 @@ import {
   updateBases,
   updateItem as updateItemAction,
   updateItemProcessingStatus,
-  updateNotes
+  updateNotes,
+  updateOcrProvider as _updateOcrProvider,
+  updateOcrProviders as _updateOcrProviders
 } from '@renderer/store/knowledge'
-import { FileType, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import { FileType, KnowledgeBase, KnowledgeItem, OcrProvider, ProcessingStatus } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -147,6 +149,7 @@ export const useKnowledge = (baseId: string) => {
     }
     if (item.type === 'file' && typeof item.content === 'object') {
       await FileManager.deleteFile(item.content.id)
+      await window.api.file.deleteDir(item.content.id)
     }
   }
   // 刷新项目
@@ -221,6 +224,27 @@ export const useKnowledge = (baseId: string) => {
     }, [itemId])
 
     return percent
+  }
+
+  // 获取文件ocr处理进度
+  const getFileOcrProgress = (itemId: string) => {
+    const [progress, setProgress] = useState<number>(0)
+    useEffect(() => {
+      const cleanup = window.electron.ipcRenderer.on(
+        'file-ocr-progress',
+        (_, { itemId: id, progress }: { itemId: string; progress: number }) => {
+          if (itemId === id) {
+            setProgress(progress)
+          }
+        }
+      )
+
+      return () => {
+        cleanup()
+      }
+    }, [itemId])
+
+    return progress
   }
 
   // 清除已完成的项目
@@ -306,6 +330,7 @@ export const useKnowledge = (baseId: string) => {
     getProcessingStatus,
     getProcessingItemsByType,
     getDirectoryProcessingPercent,
+    getFileOcrProgress,
     clearCompleted,
     clearAll,
     removeItem,
@@ -367,5 +392,33 @@ export const useKnowledgeBases = () => {
     renameKnowledgeBase,
     deleteKnowledgeBase,
     updateKnowledgeBases
+  }
+}
+
+export const useOcrProviders = () => {
+  const dispatch = useDispatch()
+  const ocrProviders = useSelector((state: RootState) => state.knowledge.ocrProviders)
+  const updateOcrProviders = (ocrProviders: OcrProvider[]) => {
+    dispatch(_updateOcrProviders(ocrProviders))
+  }
+  return {
+    ocrProviders,
+    updateOcrProviders
+  }
+}
+export const useOcrProvider = (id: string) => {
+  const dispatch = useDispatch()
+  const ocrProviders = useSelector((state: RootState) => state.knowledge.ocrProviders)
+  const ocrProvider = ocrProviders.find((provider) => provider.id === id)
+  if (!ocrProvider) {
+    throw new Error(`ocr provider with id ${id} not found`)
+  }
+
+  const updateOcrProvider = (ocrProvider: OcrProvider) => {
+    dispatch(_updateOcrProvider(ocrProvider))
+  }
+  return {
+    ocrProvider,
+    updateOcrProvider
   }
 }

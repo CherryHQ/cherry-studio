@@ -774,6 +774,15 @@ const migrateConfig = {
     return state
   },
   '82': (state: RootState) => {
+    if (!state.knowledge.ocrProviders) {
+      state.knowledge.ocrProviders = []
+    }
+    state.knowledge.ocrProviders.push({
+      id: 'doc2x',
+      name: 'Doc2x',
+      apiKey: '',
+      apiHost: 'https://v2.doc2x.noedgeai.com'
+    })
     const runtimeState = state.runtime as any
     if (runtimeState?.webdavSync) {
       state.backup = state.backup || {}

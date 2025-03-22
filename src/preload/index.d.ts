@@ -50,6 +50,7 @@ declare global {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
         upload: (file: FileType) => Promise<FileType>
         delete: (fileId: string) => Promise<void>
+        deleteDir: (dirPath: string) => Promise<void>
         read: (fileId: string) => Promise<string>
         clear: () => Promise<void>
         get: (filePath: string) => Promise<FileType | null>
