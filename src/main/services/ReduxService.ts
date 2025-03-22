@@ -11,6 +11,8 @@ export class ReduxService extends EventEmitter {
   private stateCache: any = {}
   private isReady = false
 
+  private readonly STATUS_CHANGE_EVENT = 'statusChange'
+
   constructor() {
     super()
     this.setupIpcHandlers()
@@ -26,7 +28,7 @@ export class ReduxService extends EventEmitter {
     // 监听 store 状态变化
     ipcMain.on(IpcChannel.ReduxStateChange, (_, newState) => {
       this.stateCache = newState
-      this.emit('stateChange', newState)
+      this.emit(this.STATUS_CHANGE_EVENT, newState)
     })
   }
 
@@ -123,19 +125,23 @@ export class ReduxService extends EventEmitter {
     await this.waitForStoreReady(mainWindow.webContents)
 
     // 在渲染进程中设置监听
-    await mainWindow.webContents.executeJavaScript(`
+    await mainWindow.webContents.executeJavaScript(
+      `
       if (!window._storeSubscriptions) {
         window._storeSubscriptions = new Set();
 
         // 设置全局状态变化监听
         const unsubscribe = window.store.subscribe(() => {
           const state = window.store.getState();
-          window.electron.ipcRenderer.send('redux-state-change', state);
+          window.electron.ipcRenderer.send('` +
+        IpcChannel.ReduxStateChange +
+        `', state);
         });
 
         window._storeSubscriptions.add(unsubscribe);
       }
-    `)
+    `
+    )
 
     // 在主进程中处理回调
     const handler = async () => {
@@ -147,9 +153,9 @@ export class ReduxService extends EventEmitter {
       }
     }
 
-    this.on('stateChange', handler)
+    this.on(this.STATUS_CHANGE_EVENT, handler)
     return () => {
-      this.off('stateChange', handler)
+      this.off(this.STATUS_CHANGE_EVENT, handler)
     }
   }
 
@@ -181,41 +187,41 @@ export class ReduxService extends EventEmitter {
 export const reduxService = new ReduxService()
 
 /** example
-async function example() {
-  try {
-    // 读取状态
-    const settings = await reduxService.select('state.settings')
-    console.log('settings', settings)
+ async function example() {
+ try {
+ // 读取状态
+ const settings = await reduxService.select('state.settings')
+ console.log('settings', settings)
 
-    // 派发 action
-    await reduxService.dispatch({
-      type: 'settings/updateApiKey',
-      payload: 'new-api-key'
-    })
+ // 派发 action
+ await reduxService.dispatch({
+ type: 'settings/updateApiKey',
+ payload: 'new-api-key'
+ })
 
-    // 订阅状态变化
-    const unsubscribe = await reduxService.subscribe('state.settings.apiKey', (newValue) => {
-      console.log('API key changed:', newValue)
-    })
+ // 订阅状态变化
+ const unsubscribe = await reduxService.subscribe('state.settings.apiKey', (newValue) => {
+ console.log('API key changed:', newValue)
+ })
 
-    // 批量执行 actions
-    await reduxService.batch([
-      { type: 'action1', payload: 'data1' },
-      { type: 'action2', payload: 'data2' }
-    ])
+ // 批量执行 actions
+ await reduxService.batch([
+ { type: 'action1', payload: 'data1' },
+ { type: 'action2', payload: 'data2' }
+ ])
 
-    // 同步方法虽然可能不是最新的数据，但响应更快
-    const apiKey = reduxService.selectSync('state.settings.apiKey')
-    console.log('apiKey', apiKey)
+ // 同步方法虽然可能不是最新的数据，但响应更快
+ const apiKey = reduxService.selectSync('state.settings.apiKey')
+ console.log('apiKey', apiKey)
 
-    // 处理保证是最新的数据
-    const apiKey1 = await reduxService.select('state.settings.apiKey')
-    console.log('apiKey1', apiKey1)
+ // 处理保证是最新的数据
+ const apiKey1 = await reduxService.select('state.settings.apiKey')
+ console.log('apiKey1', apiKey1)
 
-    // 取消订阅
-    unsubscribe()
-  } catch (error) {
-    console.error('Error:', error)
-  }
-}
-*/
+ // 取消订阅
+ unsubscribe()
+ } catch (error) {
+ console.error('Error:', error)
+ }
+ }
+ */
