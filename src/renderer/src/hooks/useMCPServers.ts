@@ -2,11 +2,12 @@ import store, { useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { useEffect } from 'react'
+import { IpcChannel } from '@main/enum/IpcChannel'
 
 const ipcRenderer = window.electron.ipcRenderer
 
 // Listen for server changes from main process
-ipcRenderer.on('mcp:servers-changed', (_event, servers) => {
+ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
   store.dispatch(setMCPServers(servers))
 })
 
@@ -75,7 +76,7 @@ export const useInitMCPServers = () => {
 
   // Send servers to main process when they change in Redux
   useEffect(() => {
-    ipcRenderer.send('mcp:servers-from-renderer', mcpServers)
+    ipcRenderer.send(IpcChannel.Mcp_ServersFromRenderer, mcpServers)
   }, [mcpServers])
 
   // Initial load of MCP servers from main process

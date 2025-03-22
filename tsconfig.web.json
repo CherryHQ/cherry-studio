@@ -4,6 +4,7 @@
     "src/renderer/src/**/*",
     "src/preload/*.d.ts",
     "local/src/renderer/**/*",
+    "src/main/**/*",
     "packages/shared/**/*"
   ],
   "compilerOptions": {
@@ -11,6 +12,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
+      "@main/*": ["src/main/*"],
       "@renderer/*": ["src/renderer/src/*"],
       "@shared/*": ["packages/shared/*"]
     }

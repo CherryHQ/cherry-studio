@@ -114,5 +114,28 @@ export enum IpcChannel {
   Zip_Decompress = 'zip:decompress',
 
   // system
-  System_GetDeviceType = 'system:getDeviceType'
+  System_GetDeviceType = 'system:getDeviceType',
+
+  // events
+  SelectionAction = 'selection-action',
+  BackupProgress = 'backup-progress',
+  ThemeChange = 'theme:change',
+  UpdateDownloadedCancelled = 'update-downloaded-cancelled',
+  RestoreProgress = 'restore-progress',
+  UpdateError = 'update-error',
+  UpdateAvailable = 'update-available',
+  UpdateNotAvailable = 'update-not-available',
+  DownloadProgress = 'download-progress',
+  UpdateDownloaded = 'update-downloaded',
+  DownloadUpdate = 'download-update',
+
+  DirectoryProcessingPercent = 'directory-processing-percent',
+
+  FullscreenStatusChanged = 'fullscreen-status-changed',
+
+  HideMiniWindow = 'hide-mini-window',
+  ShowMiniWindow = 'show-mini-window',
+  MiniWindowReload = 'miniwindow-reload',
+
+  ReduxStateChange = 'redux-state-change'
 }

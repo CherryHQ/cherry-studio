@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { EventEmitter } from 'events'
 
 import { windowService } from './WindowService'
+import { IpcChannel } from '@main/enum/IpcChannel'
 
 type StoreValue = any
 type Unsubscribe = () => void
@@ -23,7 +24,7 @@ export class ReduxService extends EventEmitter {
     })
 
     // 监听 store 状态变化
-    ipcMain.on('redux-state-change', (_, newState) => {
+    ipcMain.on(IpcChannel.ReduxStateChange, (_, newState) => {
       this.stateCache = newState
       this.emit('stateChange', newState)
     })

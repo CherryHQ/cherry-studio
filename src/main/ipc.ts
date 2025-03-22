@@ -124,7 +124,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     // 向其他窗口广播主题变化
     windows.forEach((win) => {
       if (win.webContents.id !== senderWindowId) {
-        win.webContents.send('theme:change', theme)
+        win.webContents.send(IpcChannel.ThemeChange, theme)
       }
     })
 

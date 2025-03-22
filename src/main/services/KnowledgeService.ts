@@ -32,6 +32,7 @@ import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
 import { v4 as uuidv4 } from 'uuid'
+import { IpcChannel } from '@main/enum/IpcChannel'
 
 export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBaseParams
@@ -204,7 +205,7 @@ class KnowledgeService {
 
     const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {
       const mainWindow = windowService.getMainWindow()
-      mainWindow?.webContents.send('directory-processing-percent', {
+      mainWindow?.webContents.send(IpcChannel.DirectoryProcessingPercent, {
         itemId: item.id,
         percent: (processedFiles / totalFiles) * 100
       })

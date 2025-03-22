@@ -6,6 +6,7 @@ import { Modal, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { IpcChannel } from '@main/enum/IpcChannel'
 
 interface Props {
   resolve: (data: any) => void
@@ -72,7 +73,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
 
       dispatch(setMCPServers(serversArray))
-      ipcRenderer.send('mcp:servers-from-renderer', mcpServers)
+      ipcRenderer.send(IpcChannel.Mcp_ServersFromRenderer, mcpServers)
 
       window.message.success(t('settings.mcp.jsonSaveSuccess'))
       setJsonError('')

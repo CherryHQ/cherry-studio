@@ -9,6 +9,7 @@ import { createClient, FileStat } from 'webdav'
 
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
+import { IpcChannel } from '@main/enum/IpcChannel'
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -78,7 +79,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('backup-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
       Logger.log('[BackupManager] backup progress', processData)
     }
 
@@ -131,7 +132,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('restore-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
       Logger.log('[BackupManager] restore progress', processData)
     }
 
