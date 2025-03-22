@@ -7,13 +7,14 @@ import styled from 'styled-components'
 
 interface ShowParams {
   chart: string
+  error?: string | null
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
+const PopupContainer: React.FC<Props> = ({ resolve, chart, error }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
   const mermaidId = `mermaid-popup-${Date.now()}`
@@ -153,8 +154,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
   }
 
   useEffect(() => {
-    window?.mermaid?.contentLoaded()
-  }, [])
+    if (!error && window?.mermaid) {
+      window.mermaid.contentLoaded()
+    }
+  }, [error])
 
   return (
     <Modal
@@ -168,7 +171,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
       footer={[
         <Space key="download-buttons">
           {activeTab === 'source' && <Button onClick={() => handleCopy()}>{t('common.copy')}</Button>}
-          {activeTab === 'preview' && (
+          {activeTab === 'preview' && !error && (
             <>
               <Button onClick={() => handleZoom(0.1)}>{t('mermaid.resize.zoom-in')}</Button>
               <Button onClick={() => handleZoom(-0.1)}>{t('mermaid.resize.zoom-out')}</Button>
@@ -186,7 +189,11 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
           {
             key: 'preview',
             label: t('mermaid.tabs.preview'),
-            children: (
+            children: error ? (
+              <StyledError>
+                <pre>{error}</pre>
+              </StyledError>
+            ) : (
               <StyledMermaid id={mermaidId} className="mermaid">
                 {chart}
               </StyledMermaid>
@@ -237,4 +244,25 @@ const StyledMermaid = styled.div`
   max-height: calc(80vh - 200px);
   text-align: center;
   overflow-y: auto;
+`
+
+const StyledError = styled.div`
+  max-height: calc(80vh - 200px);
+  overflow-y: auto;
+  padding: 16px;
+  background-color: #fff0f0;
+  color: #cc0000;
+  border-radius: 4px;
+
+  pre {
+    margin: 0;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 14px;
+  }
+
+  .dark-theme & {
+    background-color: #382222;
+    color: #ff8888;
+  }
 `

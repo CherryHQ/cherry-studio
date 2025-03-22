@@ -1,22 +1,25 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
 import { loadScript, runAsyncFunction } from '@renderer/utils'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useRuntime } from './useRuntime'
 
 export const useMermaid = () => {
   const { theme } = useTheme()
   const { generating } = useRuntime()
+  const [mermaidLoaded, setMermaidLoaded] = useState(!!window.mermaid)
 
   useEffect(() => {
     runAsyncFunction(async () => {
       if (!window.mermaid) {
         await loadScript('https://unpkg.com/mermaid@11.4.0/dist/mermaid.min.js')
+        setMermaidLoaded(true)
       }
       window.mermaid.initialize({
         startOnLoad: true,
-        theme: theme === ThemeMode.dark ? 'dark' : 'default'
+        theme: theme === ThemeMode.dark ? 'dark' : 'default',
+        securityLevel: 'loose'
       })
     })
   }, [theme])
@@ -26,16 +29,19 @@ export const useMermaid = () => {
 
     const renderMermaid = () => {
       const mermaidElements = document.querySelectorAll('.mermaid')
+      if (mermaidElements.length === 0) return
+
       mermaidElements.forEach((element) => {
         if (!element.querySelector('svg')) {
           element.removeAttribute('data-processed')
         }
       })
-      window.mermaid.contentLoaded()
+
+    window.mermaid.contentLoaded()
     }
 
     setTimeout(renderMermaid, 100)
-  }, [generating])
+  }, [generating, mermaidLoaded])
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
