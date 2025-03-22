@@ -1,6 +1,7 @@
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   SendMessageShortcut,
+  setAdvancedMode as _setAdvancedMode,
   setLaunchOnBoot,
   setLaunchToTray,
   setSendMessageShortcut as _setSendMessageShortcut,
@@ -72,6 +73,9 @@ export function useSettings() {
     },
     setShowAssistantIcon(showAssistantIcon: boolean) {
       dispatch(setShowAssistantIcon(showAssistantIcon))
+    },
+    setAdvancedMode(enabled: boolean) {
+      dispatch(_setAdvancedMode(enabled))
     }
   }
 }

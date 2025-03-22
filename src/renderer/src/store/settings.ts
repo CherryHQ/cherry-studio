@@ -86,7 +86,7 @@ export interface SettingsState {
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
-  //obsidian settings   obsidianVault, obisidanFolder
+  advancedMode: boolean
   obsidianValut: string | null
   obsidianFolder: string | null
   obsidianTages: string | null
@@ -163,6 +163,7 @@ const initialState: SettingsState = {
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
+  advancedMode: false,
   obsidianValut: '',
   obsidianFolder: '',
   obsidianTages: '',
@@ -372,6 +373,9 @@ const settingsSlice = createSlice({
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
     },
+    setAdvancedMode: (state, action: PayloadAction<boolean>) => {
+      state.advancedMode = action.payload
+    },
     setObsidianValut: (state, action: PayloadAction<string>) => {
       state.obsidianValut = action.payload
     },
@@ -458,6 +462,7 @@ export const {
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
+  setAdvancedMode,
   setObsidianValut,
   setObsidianFolder,
   setObsidianTages,
