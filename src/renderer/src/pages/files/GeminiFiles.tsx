@@ -2,6 +2,7 @@ import { DeleteOutlined } from '@ant-design/icons'
 import type { FileMetadataResponse } from '@google/generative-ai/server'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { runAsyncFunction } from '@renderer/utils'
+import { MB } from '@shared/config/constant'
 import { Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -38,7 +39,7 @@ const GeminiFiles: FC<GeminiFilesProps> = ({ id }) => {
       title: t('files.size'),
       dataIndex: 'sizeBytes',
       key: 'sizeBytes',
-      render: (size: string) => `${(parseInt(size) / 1024 / 1024).toFixed(2)} MB`
+      render: (size: string) => `${(parseInt(size) / MB).toFixed(2)} MB`
     },
     {
       title: t('files.created_at'),

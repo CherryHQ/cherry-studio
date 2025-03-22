@@ -10,6 +10,7 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
+import { IpcChannel } from '@shared/IpcChannel'
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -155,12 +156,12 @@ export class WindowService {
     // 处理全屏相关事件
     mainWindow.on('enter-full-screen', () => {
       this.wasFullScreen = true
-      mainWindow.webContents.send('fullscreen-status-changed', true)
+      mainWindow.webContents.send(IpcChannel.FullscreenStatusChanged, true)
     })
 
     mainWindow.on('leave-full-screen', () => {
       this.wasFullScreen = false
-      mainWindow.webContents.send('fullscreen-status-changed', false)
+      mainWindow.webContents.send(IpcChannel.FullscreenStatusChanged, false)
     })
 
     // 添加Escape键退出全屏的支持
@@ -367,14 +368,14 @@ export class WindowService {
     })
 
     this.miniWindow.on('hide', () => {
-      this.miniWindow?.webContents.send('hide-mini-window')
+      this.miniWindow?.webContents.send(IpcChannel.HideMiniWindow)
     })
 
     this.miniWindow.on('show', () => {
-      this.miniWindow?.webContents.send('show-mini-window')
+      this.miniWindow?.webContents.send(IpcChannel.ShowMiniWindow)
     })
 
-    ipcMain.on('miniwindow-reload', () => {
+    ipcMain.on(IpcChannel.MiniWindowReload, () => {
       this.miniWindow?.reload()
     })
 
@@ -436,7 +437,7 @@ export class WindowService {
     // 点击其他地方时隐藏窗口
     this.selectionMenuWindow.on('blur', () => {
       this.selectionMenuWindow?.hide()
-      this.miniWindow?.webContents.send('selection-action', {
+      this.miniWindow?.webContents.send(IpcChannel.SelectionAction, {
         action: 'home',
         selectedText: this.lastSelectedText
       })
@@ -454,12 +455,12 @@ export class WindowService {
   private setupSelectionMenuEvents() {
     if (!this.selectionMenuWindow) return
 
-    ipcMain.removeHandler('selection-menu:action')
-    ipcMain.handle('selection-menu:action', (_, action) => {
+    ipcMain.removeHandler(IpcChannel.SelectionMenu_Action)
+    ipcMain.handle(IpcChannel.SelectionMenu_Action, (_, action) => {
       this.selectionMenuWindow?.hide()
       this.showMiniWindow()
       setTimeout(() => {
-        this.miniWindow?.webContents.send('selection-action', {
+        this.miniWindow?.webContents.send(IpcChannel.SelectionAction, {
           action,
           selectedText: this.lastSelectedText
         })
