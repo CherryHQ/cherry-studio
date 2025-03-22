@@ -11,7 +11,7 @@ enum ConfigKeys {
   LaunchToTray = 'launchToTray',
   Tray = 'tray',
   TrayOnClose = 'trayOnClose',
-  zoomFactor = 'zoomFactor',
+  ZoomFactor = 'ZoomFactor',
   Shortcuts = 'shortcuts',
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant'
@@ -68,12 +68,12 @@ export class ConfigManager {
   }
 
   getZoomFactor(): number {
-    return this.get<number>(ConfigKeys.zoomFactor, 1)
+    return this.get<number>(ConfigKeys.ZoomFactor, 1)
   }
 
   setZoomFactor(factor: number) {
-    this.set(ConfigKeys.zoomFactor, factor)
-    this.notifySubscribers(ConfigKeys.zoomFactor, factor)
+    this.set(ConfigKeys.ZoomFactor, factor)
+    this.notifySubscribers(ConfigKeys.ZoomFactor, factor)
   }
 
   subscribe<T>(key: string, callback: (newValue: T) => void) {
