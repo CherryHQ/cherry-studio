@@ -99,7 +99,7 @@ const GeneralSettings: FC = () => {
     { value: 'en-US', label: 'English', flag: '🇺🇸' },
     { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
     { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
-    { value: 'ar-SA', label: 'العربية', flag: '🇸🇦' }
+    { value: 'ar-EG', label: 'العربية', flag: '🇪🇬' }
   ]
 
   return (

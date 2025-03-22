@@ -1,4 +1,4 @@
-import ArSa from '../../renderer/src/i18n/locales/ar-sa.json'
+import ArEg from '../../renderer/src/i18n/locales/ar-eg.json'
 import EnUs from '../../renderer/src/i18n/locales/en-us.json'
 import JaJP from '../../renderer/src/i18n/locales/ja-jp.json'
 import RuRu from '../../renderer/src/i18n/locales/ru-ru.json'
@@ -11,7 +11,7 @@ const locales = {
   'zh-TW': ZhTw,
   'ja-JP': JaJP,
   'ru-RU': RuRu,
-  'ar-SA': ArSa
+  'ar-EG': ArEg
 }
 
 export { locales }

@@ -42,81 +42,43 @@ const RTL_LANGUAGES = [
 
 interface LayoutDirectionContextType {
   isRTL: boolean
-  // Utility functions for RTL-aware operations
-  getStartDirection: () => 'left' | 'right'
-  getEndDirection: () => 'left' | 'right'
-  getInlineStartValue: (start: number | string, end: number | string) => number | string
-  getInlineEndValue: (start: number | string, end: number | string) => number | string
-  flipValue: (value: number | string) => number | string
-  mirrorTransform: (transform: string) => string
+  direction: 'ltr' | 'rtl'
+  startDirection: 'left' | 'right'
+  endDirection: 'left' | 'right'
 }
 
 const LayoutDirectionContext = createContext<LayoutDirectionContextType>({
   isRTL: false,
-  getStartDirection: () => 'left',
-  getEndDirection: () => 'right',
-  getInlineStartValue: (start) => start,
-  getInlineEndValue: (end) => end,
-  flipValue: (value) => value,
-  mirrorTransform: (transform) => transform
+  direction: 'ltr',
+  startDirection: 'left',
+  endDirection: 'right'
 })
 
-export const useLayoutDirection = () => {
+export function useLayoutDirection() {
   return useContext(LayoutDirectionContext)
 }
 
-export const LayoutDirectionProvider = ({ children }: { children: React.ReactNode }) => {
+interface LayoutDirectionProviderProps {
+  children: React.ReactNode
+}
+
+export function LayoutDirectionProvider({ children }: LayoutDirectionProviderProps) {
   const language = useAppSelector((state) => state.settings.language)
-  const isRTL = RTL_LANGUAGES.some((rtlLang) => language === rtlLang || language.startsWith(rtlLang + '-'))
-
-  // Utility functions for RTL-aware operations
-  const getStartDirection = () => (isRTL ? 'right' : 'left')
-  const getEndDirection = () => (isRTL ? 'left' : 'right')
-
-  const getInlineStartValue = (start: number | string, end: number | string) => (isRTL ? end : start)
-  const getInlineEndValue = (start: number | string, end: number | string) => (isRTL ? start : end)
-
-  const flipValue = (value: number | string) => {
-    if (typeof value === 'number') {
-      return -value
-    }
-    if (typeof value === 'string' && value.endsWith('px')) {
-      return `-${value}`
-    }
-    return value
-  }
-
-  const mirrorTransform = (transform: string) => {
-    return transform.replace(
-      /(translate|rotate|skew|perspective|matrix)(X|3d)?\(([^)]+)\)/g,
-      (_, name, dimension, params) => {
-        if (dimension === 'X' || (dimension === '3d' && name !== 'perspective')) {
-          const values = params.split(',').map((v: string) => -parseFloat(v))
-          return `${name}${dimension}(${values.join(',')})`
-        }
-        return `${name}${dimension || ''}(${params})`
-      }
-    )
-  }
+  const isRTL = RTL_LANGUAGES.includes(language)
+  const direction = isRTL ? 'rtl' : 'ltr'
+  const startDirection = isRTL ? 'right' : 'left'
+  const endDirection = isRTL ? 'left' : 'right'
 
   useEffect(() => {
-    // After the language direction changes, update the root HTML element
-    const rootHtml = document.getElementById('root-html')
-    if (rootHtml) {
-      rootHtml.setAttribute('dir', isRTL ? 'rtl' : 'ltr')
-      // Also set lang attribute for better accessibility
-      rootHtml.setAttribute('lang', language)
-    }
-  }, [isRTL, language])
+    document.documentElement.dir = direction
+    document.documentElement.lang = language
+  }, [direction, language])
 
   const value = {
     isRTL,
-    getStartDirection,
-    getEndDirection,
-    getInlineStartValue,
-    getInlineEndValue,
-    flipValue,
-    mirrorTransform
+    direction: direction as 'ltr' | 'rtl',
+    startDirection: startDirection as 'left' | 'right',
+    endDirection: endDirection as 'left' | 'right'
   }
 
   return <LayoutDirectionContext.Provider value={value}>{children}</LayoutDirectionContext.Provider>

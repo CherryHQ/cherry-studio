@@ -1125,42 +1125,42 @@
         },
         "title": "البحث على الويب"
       }
+    },
+    "translate": {
+      "any.language": "أي لغة",
+      "button.translate": "ترجمة",
+      "close": "إغلاق",
+      "confirm": {
+        "content": "الترجمة ستستبدل النص الأصلي، هل تريد المتابعة؟",
+        "title": "تأكيد الترجمة"
+      },
+      "error.failed": "فشلت الترجمة",
+      "error.not_configured": "لم يتم تكوين نموذج الترجمة",
+      "history": {
+        "clear": "مسح السجل",
+        "clear_description": "مسح السجل سيحذف كل سجل الترجمة، هل تريد المتابعة؟",
+        "delete": "حذف",
+        "empty": "لا يوجد سجل ترجمة",
+        "title": "سجل الترجمة"
+      },
+      "input.placeholder": "أدخل النص للترجمة",
+      "output.placeholder": "الترجمة",
+      "processing": "جاري الترجمة...",
+      "scroll_sync.disable": "تعطيل التمرير المتزامن",
+      "scroll_sync.enable": "تمكين التمرير المتزامن",
+      "title": "الترجمة",
+      "tooltip.newline": "سطر جديد"
+    },
+    "tray": {
+      "quit": "خروج",
+      "show_mini_window": "المساعد السريع",
+      "show_window": "عرض النافذة"
+    },
+    "words": {
+      "knowledgeGraph": "الرسم البياني المعرفي",
+      "quit": "خروج",
+      "show_window": "عرض النافذة",
+      "visualization": "تصور"
     }
-  },
-  "translate": {
-    "any.language": "أي لغة",
-    "button.translate": "ترجمة",
-    "close": "إغلاق",
-    "confirm": {
-      "content": "الترجمة ستستبدل النص الأصلي، هل تريد المتابعة؟",
-      "title": "تأكيد الترجمة"
-    },
-    "error.failed": "فشلت الترجمة",
-    "error.not_configured": "لم يتم تكوين نموذج الترجمة",
-    "history": {
-      "clear": "مسح السجل",
-      "clear_description": "مسح السجل سيحذف كل سجل الترجمة، هل تريد المتابعة؟",
-      "delete": "حذف",
-      "empty": "لا يوجد سجل ترجمة",
-      "title": "سجل الترجمة"
-    },
-    "input.placeholder": "أدخل النص للترجمة",
-    "output.placeholder": "الترجمة",
-    "processing": "جاري الترجمة...",
-    "scroll_sync.disable": "تعطيل التمرير المتزامن",
-    "scroll_sync.enable": "تمكين التمرير المتزامن",
-    "title": "الترجمة",
-    "tooltip.newline": "سطر جديد"
-  },
-  "tray": {
-    "quit": "خروج",
-    "show_mini_window": "المساعد السريع",
-    "show_window": "عرض النافذة"
-  },
-  "words": {
-    "knowledgeGraph": "الرسم البياني المعرفي",
-    "quit": "خروج",
-    "show_window": "عرض النافذة",
-    "visualization": "تصور"
   }
 }

@@ -33,8 +33,8 @@ const NavbarContainer = styled.div`
   flex-direction: row;
   min-height: var(--navbar-height);
   max-height: var(--navbar-height);
-  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
-  padding-left: ${isMac ? 'var(--sidebar-width)' : 0};
+  margin-inline-start: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
+  padding-inline-start: ${isMac ? 'var(--sidebar-width)' : 0};
   -webkit-app-region: drag;
 `
 

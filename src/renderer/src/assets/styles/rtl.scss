@@ -1,107 +1,46 @@
 // RTL-specific styles that need manual control
 [dir='rtl'] {
-  // Layout direction - needs manual control because it's a core layout change
+  // Custom root styles
   #root {
-    flex-direction: row-reverse;
-  }
-
-  // Container styles
-  #content-container {
-    border-top-left-radius: 0;
-    border-top-right-radius: 10px;
-    border-left: none;
-    border-right: 0.5px solid var(--color-border);
-  }
-
-  // Sidebar and navigation
-  .sidebar {
-    border-right: none;
-    border-left: 0.5px solid var(--color-border);
-  }
-
-  // Text alignment
-  .text-nowrap {
-    text-align: right;
-  }
-
-  // Input fields and placeholders
-  input,
-  textarea,
-  .ant-input {
-    text-align: right;
-    direction: rtl;
-
-    &::placeholder {
-      text-align: right;
-      direction: rtl;
+    &__text {
+      unicode-bidi: isolate;
     }
   }
 
-  // Icons and buttons alignment
-  .toolbar-menu {
-    flex-direction: row-reverse;
+  // Custom layout adjustments
+  #content-container {
+    border-radius: 0 10px 0 0;
+    border-inline-start: 1px solid var(--border-color);
   }
 
-  .ant-btn > .anticon + span,
-  .ant-btn > span + .anticon {
-    margin-right: 8px;
-    margin-left: 0;
+  // Text alignment for RTL
+  body,
+  input,
+  textarea,
+  [contenteditable='true'],
+  .markdown,
+  #messages,
+  .selectable,
+  pre,
+  code,
+  p,
+  h1, h2, h3, h4, h5, h6,
+  span,
+  ul, ol, li,
+  .text-content {
+    text-align: start;
+    unicode-bidi: isolate;
+  }
+
+  // Container styles that need special handling
+  #content-container {
+    border-radius: 0 10px 0 0;
   }
 
   // Icons and arrows that need explicit flipping
-  .icon-arrow-left,
-  .icon-arrow-right,
-  .icon-back,
-  .icon-forward {
+  .icon-arrow,
+  .icon-chevron {
     transform: scaleX(-1);
-  }
-
-  // Margins and paddings using logical properties
-  .message-content-container {
-    margin-inline: 0;
-  }
-
-  // Input bar
-  #inputbar {
-    margin: -5px 15px 15px 15px;
-    
-    .toolbar {
-      flex-direction: row-reverse;
-    }
-
-    .toolbar-menu {
-      &:first-child {
-        margin-right: 0;
-        margin-left: auto;
-      }
-      &:last-child {
-        margin-left: 0;
-        margin-right: auto;
-      }
-    }
-  }
-
-  // Search and filter inputs
-  .ant-input-search {
-    .ant-input {
-      padding-right: 12px;
-      padding-left: 36px;
-    }
-    .ant-input-suffix {
-      right: auto;
-      left: 12px;
-    }
-  }
-
-  // Dropdown and select components
-  .ant-select {
-    &-selection-item {
-      text-align: right;
-    }
-    &-arrow {
-      right: auto;
-      left: 11px;
-    }
   }
 
   // Animations and transitions that need explicit control
@@ -117,10 +56,16 @@
   .fade-enter-active,
   .fade-leave-active,
   .fade-appear-active {
-    transform-origin: right !important;
+    transform-origin: inline-end;
   }
 
-  // Any custom animations or transitions that need manual RTL handling
+  .code-block {
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: left;
+  }
+
+  // Custom animations and transitions
   .ant-dropdown,
   .ant-popover {
     &.slide-up-enter,
@@ -129,23 +74,25 @@
     }
   }
 
-  // Scrollbar position
+  // Custom scrollbar position
   ::-webkit-scrollbar {
-    margin-left: 0;
-    margin-right: 2px;
+    inset-inline-start: 0;
+    inset-inline-end: auto;
   }
 
-  // Bubble chat styles
+  // Chat bubbles custom layout
   .bubble {
     .message-content-container {
       &.user {
-        margin-left: 0;
-        margin-right: auto;
+        margin-inline-start: auto;
+        margin-inline-end: 0;
+        unicode-bidi: isolate;
       }
       &.assistant {
-        margin-right: 0;
-        margin-left: auto;
+        margin-inline-start: 0;
+        margin-inline-end: auto;
+        unicode-bidi: isolate;
       }
     }
   }
-} 
+}
