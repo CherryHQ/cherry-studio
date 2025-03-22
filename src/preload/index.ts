@@ -20,6 +20,16 @@ const api = {
   openWebsite: (url: string) => ipcRenderer.invoke('open:website', url),
   minApp: (url: string) => ipcRenderer.invoke('minapp', url),
   clearCache: () => ipcRenderer.invoke('app:clear-cache'),
+  cssEditor: {
+    open: () => ipcRenderer.invoke('css-editor:open'),
+    close: () => ipcRenderer.invoke('css-editor:close'),
+    togglePin: () => ipcRenderer.invoke('css-editor:pin'),
+    update: (css: string) => ipcRenderer.send('css-editor:update', css),
+    set: (callback: (css: string) => void) =>
+      ipcRenderer.on('css-editor:set', (_event, css: string) => {
+        callback(css)
+      }),
+  }
   system: {
     getDeviceType: () => ipcRenderer.invoke('system:getDeviceType')
   },

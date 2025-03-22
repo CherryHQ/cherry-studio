@@ -1,4 +1,4 @@
-import { SyncOutlined } from '@ant-design/icons'
+import { ExpandOutlined, ExportOutlined, SyncOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -47,6 +47,10 @@ const DisplaySettings: FC = () => {
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
 
+  const handleExpandClick = () => {
+    //setIsCssEditorExpanded(true)
+    window.api.cssEditor.open()
+  }
   // 使用useCallback优化回调函数
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
@@ -196,10 +200,25 @@ const DisplaySettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.display.custom.css')}
-          <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
-            {t('settings.display.custom.css.cherrycss')}
-          </TitleExtra>
+          <Button
+            icon={<ExpandOutlined />}
+            size="small"
+            onClick={handleExpandClick}
+          >
+          </Button>
         </SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            {t('settings.display.custom.css.cherrycss')}
+          </SettingRowTitle>
+          <Button
+            icon={<ExportOutlined />}
+            size="small"
+            onClick={() => window.api.openWebsite('https://cherrycss.com/')}
+          >
+          </Button>
+        </SettingRow>
         <SettingDivider />
         <Input.TextArea
           value={customCss}
@@ -215,12 +234,6 @@ const DisplaySettings: FC = () => {
   )
 }
 
-const TitleExtra = styled.div`
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-  opacity: 0.7;
-`
 const ResetButtonWrapper = styled.div`
   display: flex;
   align-items: center;
