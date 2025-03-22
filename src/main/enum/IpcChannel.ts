@@ -1,5 +1,4 @@
 export enum IpcChannel {
-  // 'app:clear-cache'
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetLanguage = 'app:set-language',

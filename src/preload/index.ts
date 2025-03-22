@@ -2,7 +2,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
-import { IpcChannel } from '@main/enum/IpcChannel'
+import { IpcChannel } from '../main/enum/IpcChannel'
 
 // Custom APIs for renderer
 const api = {
