@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { CacheService } from './CacheService'
 import { windowService } from './WindowService'
+import { IpcChannel } from '../enum/IpcChannel'
 
 /**
  * Service for managing Model Context Protocol servers and tools
@@ -300,7 +301,7 @@ export default class MCPService extends EventEmitter {
   private notifyReduxServersChanged(servers: MCPServer[]): void {
     const mainWindow = windowService.getMainWindow()
     if (mainWindow) {
-      mainWindow.webContents.send('mcp:servers-changed', servers)
+      mainWindow.webContents.send(IpcChannel.Mcp_ServersChanged, servers)
     }
   }
 

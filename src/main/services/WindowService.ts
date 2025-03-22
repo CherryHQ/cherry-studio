@@ -10,6 +10,7 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
+import { IpcChannel } from '../enum/IpcChannel'
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -144,7 +145,7 @@ export class WindowService {
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
-      
+
       // show window only when laucn to tray not set
       const isLaunchToTray = configManager.getLaunchToTray()
       if (!isLaunchToTray) {
@@ -454,8 +455,8 @@ export class WindowService {
   private setupSelectionMenuEvents() {
     if (!this.selectionMenuWindow) return
 
-    ipcMain.removeHandler('selection-menu:action')
-    ipcMain.handle('selection-menu:action', (_, action) => {
+    ipcMain.removeHandler(IpcChannel.SelectionMenu_Action)
+    ipcMain.handle(IpcChannel.SelectionMenu_Action, (_, action) => {
       this.selectionMenuWindow?.hide()
       this.showMiniWindow()
       setTimeout(() => {
