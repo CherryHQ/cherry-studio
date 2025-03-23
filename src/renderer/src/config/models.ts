@@ -122,6 +122,7 @@ import UpstageModelLogo from '@renderer/assets/images/models/upstage.png'
 import UpstageModelLogoDark from '@renderer/assets/images/models/upstage_dark.png'
 import ViduModelLogo from '@renderer/assets/images/models/vidu.png'
 import ViduModelLogoDark from '@renderer/assets/images/models/vidu_dark.png'
+import VoyageModelLogo from '@renderer/assets/images/models/voyageai.png'
 import WenxinModelLogo from '@renderer/assets/images/models/wenxin.png'
 import WenxinModelLogoDark from '@renderer/assets/images/models/wenxin_dark.png'
 import XirangModelLogo from '@renderer/assets/images/models/xirang.png'
@@ -157,7 +158,8 @@ const visionAllowedModels = [
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
-  'kimi-latest'
+  'kimi-latest',
+  'gemma-3(?:-[\\w-]+)'
 ]
 
 const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+']
@@ -171,21 +173,51 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*)$/i
 
 // Embedding models
-export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings)/i
-export const NOT_SUPPORTED_REGEX = /(?:^tts|rerank|whisper|speech)/i
+export const EMBEDDING_REGEX =
+  /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings|voyage-)/i
+
+// Rerank models
+export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
+
+export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 
 // Tool calling models
-export const TOOL_CALLING_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-4.5', 'claude', 'qwen']
-export const TOOL_CALLING_REGEX = new RegExp(`\\b(?:${TOOL_CALLING_MODELS.join('|')})\\b`, 'i')
-export function isToolCallingModel(model: Model): boolean {
-  if (['gemini', 'deepseek', 'anthropic'].includes(model.provider)) {
+export const FUNCTION_CALLING_MODELS = [
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4',
+  'gpt-4.5',
+  'claude',
+  'qwen',
+  'hunyuan',
+  'glm-4(?:-[\\w-]+)?',
+  'learnlm(?:-[\\w-]+)?',
+  'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
+]
+
+const FUNCTION_CALLING_EXCLUDED_MODELS = ['aqa(?:-[\\w-]+)?', 'imagen(?:-[\\w-]+)?']
+
+export const FUNCTION_CALLING_REGEX = new RegExp(
+  `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
+  'i'
+)
+export function isFunctionCallingModel(model: Model): boolean {
+  if (model.type?.includes('function_calling')) {
     return true
   }
 
-  return TOOL_CALLING_REGEX.test(model.id)
+  if (isEmbeddingModel(model)) {
+    return false
+  }
+
+  if (['deepseek', 'anthropic'].includes(model.provider)) {
+    return true
+  }
+
+  return FUNCTION_CALLING_REGEX.test(model.id)
 }
 
 export function getModelLogo(modelId: string) {
@@ -297,7 +329,8 @@ export function getModelLogo(modelId: string) {
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     sonar: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
-    'bge-': BgeModelLogo
+    'bge-': BgeModelLogo,
+    'voyage-': VoyageModelLogo
   }
 
   for (const key in logoMap) {
@@ -573,6 +606,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: '01-ai'
     }
   ],
+  alayanew: [],
   openai: [
     { id: 'gpt-4.5-preview', provider: 'openai', name: ' gpt-4.5-preview', group: 'gpt-4.5' },
     { id: 'gpt-4o', provider: 'openai', name: ' GPT-4o', group: 'GPT 4o' },
@@ -1004,6 +1038,14 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'OpenAI'
     }
   ],
+  copilot: [
+    {
+      id: 'gpt-4o-mini',
+      provider: 'copilot',
+      name: 'OpenAI GPT-4o-mini',
+      group: 'OpenAI'
+    }
+  ],
   yi: [
     { id: 'yi-lightning', name: 'Yi Lightning', provider: 'yi', group: 'yi-lightning', owned_by: '01.ai' },
     { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
@@ -1061,6 +1103,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       id: 'glm-4v',
       provider: 'zhipu',
       name: 'GLM 4V',
+      group: 'GLM-4v'
+    },
+    {
+      id: 'glm-4v-flash',
+      provider: 'zhipu',
+      name: 'GLM-4V-Flash',
       group: 'GLM-4v'
     },
     {
@@ -1741,21 +1789,7 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Jina'
     }
   ],
-  //加前缀是为了展示图标
-  xirang: [
-    {
-      id: 'xirang-4bd107bff85941239e27b1509eccfe98',
-      provider: 'xirang',
-      name: 'DeepSeek-R1',
-      group: 'xirang'
-    },
-    {
-      id: 'xirang-9dc913a037774fc0b248376905c85da5',
-      provider: 'xirang',
-      name: 'DeepSeek-V3',
-      group: 'xirang'
-    }
-  ],
+  xirang: [],
   'tencent-cloud-ti': [
     {
       id: 'deepseek-r1',
@@ -1768,6 +1802,63 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'tencent-cloud-ti',
       name: 'DeepSeek V3',
       group: 'DeepSeek'
+    }
+  ],
+  gpustack: [],
+  voyageai: [
+    {
+      id: 'voyage-3-large',
+      provider: 'voyageai',
+      name: 'voyage-3-large',
+      group: 'Voyage Embeddings V3'
+    },
+    {
+      id: 'voyage-3',
+      provider: 'voyageai',
+      name: 'voyage-3',
+      group: 'Voyage Embeddings V3'
+    },
+    {
+      id: 'voyage-3-lite',
+      provider: 'voyageai',
+      name: 'voyage-3-lite',
+      group: 'Voyage Embeddings V3'
+    },
+    {
+      id: 'voyage-code-3',
+      provider: 'voyageai',
+      name: 'voyage-code-3',
+      group: 'Voyage Embeddings V3'
+    },
+    {
+      id: 'voyage-finance-3',
+      provider: 'voyageai',
+      name: 'voyage-finance-3',
+      group: 'Voyage Embeddings V2'
+    },
+    {
+      id: 'voyage-law-2',
+      provider: 'voyageai',
+      name: 'voyage-law-2',
+      group: 'Voyage Embeddings V2'
+    },
+    {
+      id: 'voyage-code-2',
+      provider: 'voyageai',
+      name: 'voyage-code-2',
+      group: 'Voyage Embeddings V2'
+    },
+    {
+      id: 'rerank-2',
+      provider: 'voyageai',
+      name: 'rerank-2',
+      group: 'Voyage Rerank V2'
+    },
+    {
+      id: 'rerank-2-lite',
+      provider: 'voyageai',
+      name: 'rerank-2-lite',
+      group: 'Voyage Rerank V2'
     }
   ]
 }
@@ -1846,6 +1937,8 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
   'stabilityai/stable-diffusion-xl-base-1.0'
 ]
 
+export const GENERATE_IMAGE_MODELS = ['gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-exp']
+
 export function isTextToImageModel(model: Model): boolean {
   return TEXT_TO_IMAGE_REGEX.test(model.id)
 }
@@ -1863,11 +1956,22 @@ export function isEmbeddingModel(model: Model): boolean {
     return EMBEDDING_REGEX.test(model.name)
   }
 
+  if (isRerankModel(model)) {
+    return false
+  }
+
   return EMBEDDING_REGEX.test(model.id) || model.type?.includes('embedding') || false
+}
+
+export function isRerankModel(model: Model): boolean {
+  return model ? RERANKING_REGEX.test(model.id) || false : false
 }
 
 export function isVisionModel(model: Model): boolean {
   if (!model) {
+    return false
+  }
+  if (model.provider === 'copilot') {
     return false
   }
 
@@ -1966,6 +2070,28 @@ export function isWebSearchModel(model: Model): boolean {
   return false
 }
 
+export function isGenerateImageModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!provider) {
+    return false
+  }
+
+  const isEmbedding = isEmbeddingModel(model)
+
+  if (isEmbedding) {
+    return false
+  }
+  if (GENERATE_IMAGE_MODELS.includes(model.id)) {
+    return true
+  }
+  return false
+}
+
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
   if (isWebSearchModel(model)) {
     if (assistant.enableWebSearch) {
@@ -2001,4 +2127,12 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
   }
 
   return {}
+}
+
+export function isGemmaModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return model.id.includes('gemma-') || model.group === 'Gemma'
 }

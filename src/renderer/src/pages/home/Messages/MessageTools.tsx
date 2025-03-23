@@ -43,26 +43,24 @@ const MessageTools: FC<Props> = ({ message }) => {
   // Format tool responses for collapse items
   const getCollapseItems = () => {
     const items: { key: string; label: JSX.Element; children: React.ReactNode }[] = []
-
     // Add tool responses
     toolResponses.forEach((toolResponse: MCPToolResponse) => {
-      const { tool, status } = toolResponse
-      const toolId = tool.id
+      const { id, tool, status, response } = toolResponse
       const isInvoking = status === 'invoking'
       const isDone = status === 'done'
-      const response = {
+      const result = {
         params: tool.inputSchema,
         response: toolResponse.response
       }
 
       items.push({
-        key: toolId,
+        key: id,
         label: (
           <MessageTitleLabel>
             <TitleContent>
               <ToolName>{tool.name}</ToolName>
               <StatusIndicator $isInvoking={isInvoking}>
-                {isInvoking ? t('tools.invoking') : t('tools.completed')}
+                {isInvoking ? t('message.tools.invoking') : t('message.tools.completed')}
                 {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
                 {isDone && <CheckOutlined style={{ marginLeft: 6 }} />}
               </StatusIndicator>
@@ -89,11 +87,11 @@ const MessageTools: FC<Props> = ({ message }) => {
                       className="message-action-button"
                       onClick={(e) => {
                         e.stopPropagation()
-                        copyContent(JSON.stringify(response, null, 2), toolId)
+                        copyContent(JSON.stringify(result, null, 2), id)
                       }}
                       aria-label={t('common.copy')}>
-                      {!copiedMap[toolId] && <i className="iconfont icon-copy"></i>}
-                      {copiedMap[toolId] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+                      {!copiedMap[id] && <i className="iconfont icon-copy"></i>}
+                      {copiedMap[id] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
                     </ActionButton>
                   </Tooltip>
                 </>
@@ -101,9 +99,9 @@ const MessageTools: FC<Props> = ({ message }) => {
             </ActionButtonsContainer>
           </MessageTitleLabel>
         ),
-        children: isDone && response && (
+        children: isDone && result && (
           <ToolResponseContainer style={{ fontFamily, fontSize }}>
-            <pre>{JSON.stringify(response, null, 2)}</pre>
+            <pre>{JSON.stringify(result, null, 2)}</pre>
           </ToolResponseContainer>
         )
       })

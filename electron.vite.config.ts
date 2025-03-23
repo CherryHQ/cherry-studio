@@ -22,7 +22,8 @@ export default defineConfig({
           '@llm-tools/embedjs-loader-sitemap',
           '@llm-tools/embedjs-libsql',
           '@llm-tools/embedjs-loader-image',
-          'p-queue'
+          'p-queue',
+          'webdav'
         ]
       }),
       ...visualizerPlugin('main')
@@ -69,7 +70,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js']
+      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js', 'chunk-ALDIEZMG.js', 'chunk-4X6ZJEXY.js']
     }
   }
 })

@@ -1,15 +1,9 @@
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import store, { useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { useEffect } from 'react'
 
 const ipcRenderer = window.electron.ipcRenderer
-
-// Set up IPC listener for main process requests
-ipcRenderer.on('mcp:request-servers', () => {
-  const servers = store.getState().mcp.servers
-  ipcRenderer.send('mcp:servers-from-renderer', servers)
-})
 
 // Listen for server changes from main process
 ipcRenderer.on('mcp:servers-changed', (_event, servers) => {
@@ -18,26 +12,7 @@ ipcRenderer.on('mcp:servers-changed', (_event, servers) => {
 
 export const useMCPServers = () => {
   const mcpServers = useAppSelector((state) => state.mcp.servers)
-  const dispatch = useAppDispatch()
-
-  // Send servers to main process when they change in Redux
-  useEffect(() => {
-    ipcRenderer.send('mcp:servers-from-renderer', mcpServers)
-  }, [mcpServers])
-
-  // Initial load of MCP servers from main process
-  useEffect(() => {
-    const loadServers = async () => {
-      try {
-        const servers = await window.api.mcp.listServers()
-        dispatch(setMCPServers(servers))
-      } catch (error) {
-        console.error('Failed to load MCP servers:', error)
-      }
-    }
-
-    loadServers()
-  }, [dispatch])
+  const activedMcpServers = useAppSelector((state) => state.mcp.servers?.filter((server) => server.isActive))
 
   const addMCPServer = async (server: MCPServer) => {
     try {
@@ -85,10 +60,35 @@ export const useMCPServers = () => {
 
   return {
     mcpServers,
+    activedMcpServers,
     addMCPServer,
     updateMCPServer,
     deleteMCPServer,
     setMCPServerActive,
     getActiveMCPServers
   }
+}
+
+export const useInitMCPServers = () => {
+  const mcpServers = useAppSelector((state) => state.mcp.servers)
+  // const dispatch = useAppDispatch()
+
+  // Send servers to main process when they change in Redux
+  useEffect(() => {
+    ipcRenderer.send('mcp:servers-from-renderer', mcpServers)
+  }, [mcpServers])
+
+  // Initial load of MCP servers from main process
+  // useEffect(() => {
+  //   const loadServers = async () => {
+  //     try {
+  //       const servers = await window.api.mcp.listServers()
+  //       dispatch(setMCPServers(servers))
+  //     } catch (error) {
+  //       console.error('Failed to load MCP servers:', error)
+  //     }
+  //   }
+
+  //   loadServers()
+  // }, [dispatch])
 }
