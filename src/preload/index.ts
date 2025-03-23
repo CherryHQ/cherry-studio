@@ -26,7 +26,7 @@ const api = {
       ipcRenderer.on('css-editor:set', (_event, css: string) => {
         callback(css)
       }),
-  }
+  },
   system: {
     getDeviceType: () => ipcRenderer.invoke('system:getDeviceType')
   },
