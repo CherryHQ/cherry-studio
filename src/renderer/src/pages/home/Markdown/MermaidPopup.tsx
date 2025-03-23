@@ -4,6 +4,8 @@ import { Button, Modal, Space, Tabs } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import { ThemeMode } from '@renderer/types'
 
 interface ShowParams {
   chart: string
@@ -20,6 +22,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart, error }) => {
   const mermaidId = `mermaid-popup-${Date.now()}`
   const [activeTab, setActiveTab] = useState('preview')
   const [scale, setScale] = useState(1)
+  const { theme } = useTheme()
 
   const onOk = () => {
     setOpen(false)
@@ -190,9 +193,38 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart, error }) => {
             key: 'preview',
             label: t('mermaid.tabs.preview'),
             children: error ? (
-              <StyledError>
-                <pre>{error}</pre>
-              </StyledError>
+              <div>
+                <div
+                  style={{
+                    padding: '16px',
+                    backgroundColor: theme === ThemeMode.dark ? '#382222' : '#fff0f0',
+                    color: theme === ThemeMode.dark ? '#ff8888' : '#cc0000',
+                    borderRadius: '4px 4px 0 0',
+                    borderBottom: theme === ThemeMode.dark ? '1px solid #4d3333' : '1px solid #ffcccc',
+                    maxHeight: 'calc(40vh - 100px)',
+                    overflow: 'auto'
+                  }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>{'<Mermaid> - Render Error'}</div>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '14px' }}>
+                    {error}
+                  </pre>
+                </div>
+                <pre
+                  style={{
+                    margin: 0,
+                    padding: '16px',
+                    backgroundColor: theme === ThemeMode.dark ? '#1e1e1e' : '#f5f5f5',
+                    color: theme === ThemeMode.dark ? '#cccccc' : '#333333',
+                    borderRadius: '0 0 4px 4px',
+                    maxHeight: 'calc(40vh - 100px)',
+                    overflowY: 'auto',
+                    fontFamily: 'monospace',
+                    fontSize: '14px',
+                    whiteSpace: 'pre-wrap'
+                  }}>
+                  {chart}
+                </pre>
+              </div>
             ) : (
               <StyledMermaid id={mermaidId} className="mermaid">
                 {chart}
@@ -244,25 +276,4 @@ const StyledMermaid = styled.div`
   max-height: calc(80vh - 200px);
   text-align: center;
   overflow-y: auto;
-`
-
-const StyledError = styled.div`
-  max-height: calc(80vh - 200px);
-  overflow-y: auto;
-  padding: 16px;
-  background-color: #fff0f0;
-  color: #cc0000;
-  border-radius: 4px;
-
-  pre {
-    margin: 0;
-    white-space: pre-wrap;
-    font-family: monospace;
-    font-size: 14px;
-  }
-
-  .dark-theme & {
-    background-color: #382222;
-    color: #ff8888;
-  }
 `

@@ -73,20 +73,38 @@ const Mermaid: React.FC<Props> = ({ chart }) => {
   if (error) {
     return (
       <div onClick={onPreview} style={{ cursor: 'pointer' }}>
-        <pre
-          style={{
-            margin: 0,
-            padding: '10px',
-            backgroundColor: theme === ThemeMode.dark ? '#382222' : '#fff0f0',
-            color: theme === ThemeMode.dark ? '#ff8888' : '#cc0000',
-            borderRadius: '4px',
-            overflowX: 'auto',
-            fontSize: '14px',
-            fontFamily: 'monospace',
-            whiteSpace: 'pre-wrap'
-          }}>
-          {error}
-        </pre>
+        <div style={{ position: 'relative' }}>
+          <div
+            style={{
+              margin: 0,
+              padding: '10px',
+              backgroundColor: theme === ThemeMode.dark ? '#382222' : '#fff0f0',
+              color: theme === ThemeMode.dark ? '#ff8888' : '#cc0000',
+              borderRadius: '4px 4px 0 0',
+              overflowX: 'auto',
+              fontSize: '14px',
+              fontFamily: 'monospace',
+              whiteSpace: 'pre-wrap',
+              borderBottom: theme === ThemeMode.dark ? '1px solid #4d3333' : '1px solid #ffcccc'
+            }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>{'<Mermaid> - Render Error'}</div>
+            {error}
+          </div>
+          <pre
+            style={{
+              margin: 0,
+              padding: '10px',
+              backgroundColor: theme === ThemeMode.dark ? '#1e1e1e' : '#f5f5f5',
+              color: theme === ThemeMode.dark ? '#cccccc' : '#333333',
+              borderRadius: '0 0 4px 4px',
+              overflowX: 'auto',
+              fontSize: '14px',
+              fontFamily: 'monospace',
+              whiteSpace: 'pre-wrap'
+            }}>
+            {chart}
+          </pre>
+        </div>
       </div>
     )
   }
