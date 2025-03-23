@@ -117,7 +117,7 @@ const GeneralSettings: FC = () => {
               <Select.Option key={lang.value} value={lang.value}>
                 <Space.Compact direction="horizontal" block>
                   <Space.Compact block>{lang.label}</Space.Compact>
-                  <span role="img" aria-label={lang.flag}>
+                  <span role="img" aria-label={lang.flag} className='flag-emoji'>
                     {lang.flag}
                   </span>
                 </Space.Compact>

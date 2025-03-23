@@ -23,8 +23,8 @@ const AgentCard: FC<Props> = ({ agent, onClick, contextMenu, menuItems }) => {
   const prompt = (agent.description || agent.prompt).substring(0, 100).replace(/\\n/g, '')
   const content = (
     <Container onClick={onClick}>
-      {emoji && <BannerBackground className="banner-background">{emoji}</BannerBackground>}
-      <EmojiContainer className="emoji-container">{emoji}</EmojiContainer>
+      {emoji && <BannerBackground className="banner-background flag-emoji">{emoji}</BannerBackground>}
+      <EmojiContainer className="emoji-container flag-emoji">{emoji}</EmojiContainer>
       {menuItems && (
         <MenuContainer onClick={(e) => e.stopPropagation()}>
           <Dropdown

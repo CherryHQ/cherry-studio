@@ -363,7 +363,7 @@ const TranslatePage: FC = () => {
               }}
               optionRender={(option) => (
                 <Space>
-                  <span role="img" aria-label={option.data.label}>
+                  <span role="img" aria-label={option.data.label} className='flag-emoji'>
                     {option.data.emoji}
                   </span>
                   {option.label}

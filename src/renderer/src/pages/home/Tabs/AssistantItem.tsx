@@ -115,9 +115,9 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
   return (
     <Dropdown menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
       <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
-        <AssistantNameRow className="name" title={fullAssistantName}>
+        <AssistantNameRow className="name flag-emoji" title={fullAssistantName}>
           {showAssistantIcon && <ModelAvatar model={assistant.model || defaultModel} size={22} />}
-          <AssistantName className="text-nowrap">{showAssistantIcon ? assistantName : fullAssistantName}</AssistantName>
+          <AssistantName className="text-nowrap flag-emoji">{showAssistantIcon ? assistantName : fullAssistantName}</AssistantName>
         </AssistantNameRow>
         {isActive && (
           <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>

@@ -45,7 +45,7 @@ const PopupContainer: React.FC = () => {
           <DragableList list={agents} onUpdate={updateAgents}>
             {(item) => (
               <AgentItem>
-                <Box mr={8}>
+                <Box mr={8} className='flag-emoji'>
                   {item.emoji} {item.name}
                 </Box>
                 <HStack gap="15px">

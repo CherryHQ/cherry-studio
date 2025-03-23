@@ -335,6 +335,7 @@ const MessageMenubar: FC<Props> = (props) => {
       )}
       {!isUserMessage && (
         <Dropdown
+          className='flag-emoji'
           menu={{
             items: [
               ...TranslateLanguageOptions.map((item) => ({

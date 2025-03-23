@@ -83,7 +83,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
         ) : (
           <>
             {isEmoji(avatar) ? (
-              <EmojiAvatar onClick={() => UserPopup.show()}>{avatar}</EmojiAvatar>
+              <EmojiAvatar onClick={() => UserPopup.show()} className='flag-emoji'>{avatar}</EmojiAvatar>
             ) : (
               <Avatar
                 src={avatar}

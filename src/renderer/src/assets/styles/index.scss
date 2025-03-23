@@ -4,6 +4,7 @@
 @use './container.scss';
 @import '../fonts/icon-fonts/iconfont.css';
 @import '../fonts/ubuntu/ubuntu.css';
+@import '../fonts//emoji-font/emojifont.css';
 
 :root {
   --color-white: #ffffff;
@@ -279,4 +280,8 @@ body,
   code {
     color: var(--color-text);
   }
+}
+
+.flag-emoji{
+  font-family: 'flag-emojis' !important;
 }

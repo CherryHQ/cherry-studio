@@ -59,7 +59,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
       <HStack gap={8} alignItems="center">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
           <EmojiButtonWrapper>
-            <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
+            <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }} className='flag-emoji'>{emoji}</Button>
             {emoji && (
               <CloseCircleFilled
                 className="delete-icon"

@@ -205,7 +205,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               ) : (
                 <>
                   {isEmoji(avatar) ? (
-                    <EmojiAvatar size={size}>{avatar}</EmojiAvatar>
+                    <EmojiAvatar size={size} className='flag-emoji'>{avatar}</EmojiAvatar>
                   ) : (
                     <Avatar src={avatar} size={size} />
                   )}
