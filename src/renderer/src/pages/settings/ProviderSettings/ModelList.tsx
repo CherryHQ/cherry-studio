@@ -257,6 +257,7 @@ const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuse
           {sortedModelGroups[group].map((model) => {
             const modelStatus = modelStatuses.find((status) => status.model.id === model.id)
             const isChecking = modelStatus?.checking === true
+            console.log('model', model.id, getModelLogo(model.id))
 
             return (
               <ModelListItem key={model.id}>

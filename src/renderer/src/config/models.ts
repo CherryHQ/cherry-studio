@@ -122,6 +122,7 @@ import UpstageModelLogo from '@renderer/assets/images/models/upstage.png'
 import UpstageModelLogoDark from '@renderer/assets/images/models/upstage_dark.png'
 import ViduModelLogo from '@renderer/assets/images/models/vidu.png'
 import ViduModelLogoDark from '@renderer/assets/images/models/vidu_dark.png'
+import VoyageModelLogo from '@renderer/assets/images/models/voyageai.png'
 import WenxinModelLogo from '@renderer/assets/images/models/wenxin.png'
 import WenxinModelLogoDark from '@renderer/assets/images/models/wenxin_dark.png'
 import XirangModelLogo from '@renderer/assets/images/models/xirang.png'
@@ -175,7 +176,8 @@ export const REASONING_REGEX =
   /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*)$/i
 
 // Embedding models
-export const EMBEDDING_REGEX = /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings)/i
+export const EMBEDDING_REGEX =
+  /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings|voyage-)/i
 
 // Rerank models
 export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
@@ -327,7 +329,8 @@ export function getModelLogo(modelId: string) {
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     sonar: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
-    'bge-': BgeModelLogo
+    'bge-': BgeModelLogo,
+    'voyage-': VoyageModelLogo
   }
 
   for (const key in logoMap) {
@@ -1801,7 +1804,63 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     }
   ],
-  gpustack: []
+  gpustack: [],
+  voyageai: [
+    {
+      id: 'voyage-3-large',
+      provider: 'voyageai',
+      name: 'voyage-3-large',
+      group: 'Voyage Embeddings V3'
+    },
+    {
+      id: 'voyage-3',
+      provider: 'voyageai',
+      name: 'voyage-3',
+      group: 'Voyage Embeddings V3'
+    },
+    {
+      id: 'voyage-3-lite',
+      provider: 'voyageai',
+      name: 'voyage-3-lite',
+      group: 'Voyage Embeddings V3'
+    },
+    {
+      id: 'voyage-code-3',
+      provider: 'voyageai',
+      name: 'voyage-code-3',
+      group: 'Voyage Embeddings V3'
+    },
+    {
+      id: 'voyage-finance-3',
+      provider: 'voyageai',
+      name: 'voyage-finance-3',
+      group: 'Voyage Embeddings V2'
+    },
+    {
+      id: 'voyage-law-2',
+      provider: 'voyageai',
+      name: 'voyage-law-2',
+      group: 'Voyage Embeddings V2'
+    },
+    {
+      id: 'voyage-code-2',
+      provider: 'voyageai',
+      name: 'voyage-code-2',
+      group: 'Voyage Embeddings V2'
+    },
+    {
+      id: 'rerank-2',
+      provider: 'voyageai',
+      name: 'rerank-2',
+      group: 'Voyage Rerank V2'
+    },
+    {
+      id: 'rerank-2-lite',
+      provider: 'voyageai',
+      name: 'rerank-2-lite',
+      group: 'Voyage Rerank V2'
+    }
+  ]
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
