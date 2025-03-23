@@ -223,7 +223,8 @@
       "topics": "Топики",
       "warning": "Предупреждение",
       "you": "Вы",
-      "more": "Ещё"
+      "more": "Ещё",
+      "ok": "Определить"
     },
     "docs": {
       "title": "Документация"
@@ -351,7 +352,29 @@
       "title": "База знаний",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "directory_confirmation": "Подтверждение директории",
+      "configure_directory": "Настройка директории",
+      "selected_directory": "Выбранная директория",
+      "ignore_patterns_type": "Тип шаблона фильтрации",
+      "ignore_type_tooltip": "Выберите метод соответствия для шаблонов фильтрации",
+      "ignore_type_glob": "Glob-шаблон",
+      "ignore_type_regex": "Регулярное выражение",
+      "ignore_type_static": "Статический путь",
+      "ignore_patterns": "Шаблоны фильтрации",
+      "ignore_patterns_tooltip": "Укажите файлы или директории для исключения из векторизации",
+      "ignore_patterns_placeholder": "Введите один шаблон в строку",
+      "ignore_patterns_help": "Введите шаблоны для фильтрации файлов или директорий, по одному в строке",
+      "examples": "Примеры",
+      "sitemap_added": "Карта сайта добавлена",
+      "view_ignore_patterns": "Просмотр шаблонов фильтрации",
+      "reconfigure_directory": "Перенастроить директорию",
+      "has_ignore_patterns": "Шаблоны фильтрации настроены",
+      "processing_file": "Обработка файла",
+      "filter_direction": "Направление фильтрации",
+      "filter_direction_tooltip": "Выберите, включать или исключать файлы, соответствующие шаблонам",
+      "filter_direction_include": "Включить (обрабатывать только соответствующие файлы)",
+      "filter_direction_exclude": "Исключить (пропустить соответствующие файлы)"
     },
     "languages": {
       "arabic": "Арабский",

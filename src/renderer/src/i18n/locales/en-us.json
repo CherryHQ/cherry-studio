@@ -223,7 +223,8 @@
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
-      "more": "More"
+      "more": "More",
+      "ok": "Confirm"
     },
     "docs": {
       "title": "Docs"
@@ -372,7 +373,8 @@
       "filter_direction": "Filter Direction",
       "filter_direction_tooltip": "Choose whether to include or exclude files matching the patterns",
       "filter_direction_include": "Include (Only process matching files)",
-      "filter_direction_exclude": "Exclude (Skip matching files)"
+      "filter_direction_exclude": "Exclude (Skip matching files)",
+      "title": "Knowledge Base"
     },
     "languages": {
       "arabic": "Arabic",

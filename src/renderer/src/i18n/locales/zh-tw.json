@@ -223,7 +223,8 @@
       "topics": "話題",
       "warning": "警告",
       "you": "您",
-      "more": "更多"
+      "more": "更多",
+      "ok": "確定"
     },
     "docs": {
       "title": "說明文件"
@@ -351,7 +352,29 @@
       "title": "知識庫",
       "url_added": "網址已新增",
       "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "directory_confirmation": "目錄確認",
+      "configure_directory": "配置目錄",
+      "selected_directory": "選中的目錄",
+      "ignore_patterns_type": "過濾規則類型",
+      "ignore_type_tooltip": "選擇過濾規則的匹配方式",
+      "ignore_type_glob": "萬用字元",
+      "ignore_type_regex": "正則表達式",
+      "ignore_type_static": "靜態路徑",
+      "ignore_patterns": "過濾規則",
+      "ignore_patterns_tooltip": "指定不進行向量化的檔案或目錄",
+      "ignore_patterns_placeholder": "每行輸入一個過濾規則",
+      "ignore_patterns_help": "輸入要過濾的檔案或目錄規則，每行一個",
+      "examples": "示例",
+      "sitemap_added": "網站地圖已添加",
+      "view_ignore_patterns": "查看過濾規則",
+      "reconfigure_directory": "重新配置目錄",
+      "has_ignore_patterns": "已配置過濾規則",
+      "processing_file": "正在處理檔案",
+      "filter_direction": "過濾方向",
+      "filter_direction_tooltip": "選擇是否包含或排除匹配模式的檔案",
+      "filter_direction_include": "包含（僅處理匹配的檔案）",
+      "filter_direction_exclude": "排除（跳過匹配的檔案）"
     },
     "languages": {
       "arabic": "阿拉伯文",

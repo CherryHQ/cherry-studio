@@ -223,7 +223,8 @@
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
-      "more": "もっと"
+      "more": "もっと",
+      "ok": "確認"
     },
     "docs": {
       "title": "ドキュメント"
@@ -351,7 +352,29 @@
       "title": "ナレッジベース",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "directory_confirmation": "ディレクトリの確認",
+      "configure_directory": "ディレクトリの設定",
+      "selected_directory": "選択されたディレクトリ",
+      "ignore_patterns_type": "フィルターパターンタイプ",
+      "ignore_type_tooltip": "フィルターパターンの一致方法を選択",
+      "ignore_type_glob": "グロブパターン",
+      "ignore_type_regex": "正規表現",
+      "ignore_type_static": "静的パス",
+      "ignore_patterns": "フィルターパターン",
+      "ignore_patterns_tooltip": "ベクトル化から除外するファイルやディレクトリを指定",
+      "ignore_patterns_placeholder": "一行に一つのパターンを入力",
+      "ignore_patterns_help": "フィルタリングするファイルやディレクトリのパターンを一行に一つ入力",
+      "examples": "例",
+      "sitemap_added": "サイトマップが追加されました",
+      "view_ignore_patterns": "フィルターパターンを表示",
+      "reconfigure_directory": "ディレクトリの再設定",
+      "has_ignore_patterns": "フィルターパターンが設定済み",
+      "processing_file": "ファイル処理中",
+      "filter_direction": "フィルター方向",
+      "filter_direction_tooltip": "パターンに一致するファイルを含めるか除外するかを選択",
+      "filter_direction_include": "含める（一致するファイルのみ処理）",
+      "filter_direction_exclude": "除外する（一致するファイルをスキップ）"
     },
     "languages": {
       "arabic": "アラビア語",
