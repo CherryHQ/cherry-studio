@@ -27,6 +27,7 @@ import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
+  exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
   exportTopicToNotion,
@@ -271,6 +272,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
                 exportMarkdownToJoplin(topic.name, markdown)
+              }
+            },
+            {
+              label: t('chat.topics.export.siyuan'),
+              key: 'siyuan',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToSiyuan(topic.name, markdown)
               }
             }
           ]

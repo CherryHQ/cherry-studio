@@ -211,7 +211,8 @@
       "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
-      "translate": "Перевести"
+      "translate": "Перевести",
+      "topics.export.siyuan": "Экспорт в Siyuan Note"
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -288,7 +289,8 @@
         "description": "Не удалось рендерить формулу. Пожалуйста, проверьте, правильно ли формат формулы",
         "title": "Ошибка рендеринга"
       },
-      "user_message_not_found": "Не удалось найти исходное сообщение пользователя"
+      "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
+      "unknown": "Неизвестная ошибка"
     },
     "export": {
       "assistant": "Ассистент",
@@ -518,7 +520,12 @@
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
       "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
-      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова."
+      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова.",
+      "error.siyuan.export": "Ошибка экспорта в Siyuan, пожалуйста, проверьте состояние подключения и настройки в документации",
+      "error.siyuan.no_config": "Не настроен API адрес или токен Siyuan",
+      "success.siyuan.export": "Успешный экспорт в Siyuan",
+      "warn.yuque.exporting": "Экспортируется в Yuque, пожалуйста, не отправляйте повторные запросы!",
+      "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!"
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
@@ -839,6 +846,26 @@
           "title": "Настройка Yuque",
           "token": "Токен Yuque",
           "token_placeholder": "Введите токен Yuque"
+        },
+        "siyuan": {
+          "title": "Конфигурация SiYuan Note",
+          "api_url": "API адрес",
+          "api_url_placeholder": "Например: http://127.0.0.1:6806",
+          "token": "API токен",
+          "token.help": "Получите в SiYuan Note -> Настройки -> О программе",
+          "token_placeholder": "Введите токен SiYuan Note",
+          "box_id": "ID блокнота",
+          "box_id_placeholder": "Введите ID блокнота",
+          "root_path": "Корневой путь документа",
+          "root_path_placeholder": "Например: /CherryStudio",
+          "check": {
+            "title": "Проверка соединения",
+            "button": "Проверить",
+            "empty_config": "Пожалуйста, заполните API адрес и токен",
+            "success": "Соединение успешно",
+            "fail": "Не удалось подключиться, проверьте API адрес и токен",
+            "error": "Ошибка соединения, проверьте сетевое подключение"
+          }
         }
       },
       "display.assistant.title": "Настройки ассистентов",

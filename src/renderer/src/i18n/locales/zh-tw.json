@@ -211,7 +211,8 @@
       "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
-      "translate": "翻譯"
+      "translate": "翻譯",
+      "topics.export.siyuan": "匯出到思源筆記"
     },
     "code_block": {
       "collapse": "折疊",
@@ -288,7 +289,8 @@
         "description": "渲染公式失敗，請檢查公式格式是否正確",
         "title": "渲染錯誤"
       },
-      "user_message_not_found": "無法找到原始用戶訊息"
+      "user_message_not_found": "無法找到原始用戶訊息",
+      "unknown": "未知錯誤"
     },
     "export": {
       "assistant": "助手",
@@ -518,7 +520,12 @@
       "upgrade.success.content": "請重新啟動程式以完成升級",
       "upgrade.success.title": "升級成功",
       "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！",
-      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試"
+      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試",
+      "error.siyuan.export": "導出思源筆記失敗，請檢查連接狀態並對照文檔檢查配置",
+      "error.siyuan.no_config": "未配置思源筆記API地址或令牌",
+      "success.siyuan.export": "導出到思源筆記成功",
+      "warn.yuque.exporting": "正在導出語雀，請勿重複請求導出！",
+      "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！"
     },
     "minapp": {
       "sidebar.add.title": "新增到側邊欄",
@@ -839,6 +846,26 @@
           "title": "語雀設定",
           "token": "語雀 Token",
           "token_placeholder": "請輸入語雀 Token"
+        },
+        "siyuan": {
+          "title": "思源筆記配置",
+          "api_url": "API地址",
+          "api_url_placeholder": "例如：http://127.0.0.1:6806",
+          "token": "API令牌",
+          "token.help": "在思源筆記->設置->關於中獲取",
+          "token_placeholder": "請輸入思源筆記令牌",
+          "box_id": "筆記本ID",
+          "box_id_placeholder": "請輸入筆記本ID",
+          "root_path": "文檔根路徑",
+          "root_path_placeholder": "例如：/CherryStudio",
+          "check": {
+            "title": "連接檢查",
+            "button": "檢查",
+            "empty_config": "請填寫API地址和令牌",
+            "success": "連接成功",
+            "fail": "連接失敗，請檢查API地址和令牌",
+            "error": "連接異常，請檢查網絡連接"
+          }
         }
       },
       "display.assistant.title": "助手設定",

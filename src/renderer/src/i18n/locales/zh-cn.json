@@ -211,7 +211,8 @@
       "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词",
       "topics.title": "话题",
       "topics.unpinned": "取消固定",
-      "translate": "翻译"
+      "translate": "翻译",
+      "topics.export.siyuan": "导出到思源笔记"
     },
     "code_block": {
       "collapse": "收起",
@@ -288,7 +289,8 @@
         "description": "渲染公式失败，请检查公式格式是否正确",
         "title": "渲染错误"
       },
-      "user_message_not_found": "无法找到原始用户消息"
+      "user_message_not_found": "无法找到原始用户消息",
+      "unknown": "未知错误"
     },
     "export": {
       "assistant": "助手",
@@ -518,7 +520,12 @@
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
       "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!",
-      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
+      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试",
+      "error.siyuan.export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
+      "error.siyuan.no_config": "未配置思源笔记API地址或令牌",
+      "success.siyuan.export": "导出到思源笔记成功",
+      "warn.yuque.exporting": "正在导出语雀, 请勿重复请求导出!",
+      "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
@@ -679,7 +686,7 @@
       "yi": "零一万物",
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
-      "voyageai":"Voyage AI"
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -839,6 +846,26 @@
           "title": "语雀配置",
           "token": "语雀 Token",
           "token_placeholder": "请输入语雀Token"
+        },
+        "siyuan": {
+          "title": "思源笔记配置",
+          "api_url": "API地址",
+          "api_url_placeholder": "例如：http://127.0.0.1:6806",
+          "token": "API令牌",
+          "token.help": "在思源笔记->设置->关于中获取",
+          "token_placeholder": "请输入思源笔记令牌",
+          "box_id": "笔记本ID",
+          "box_id_placeholder": "请输入笔记本ID",
+          "root_path": "文档根路径",
+          "root_path_placeholder": "例如：/CherryStudio",
+          "check": {
+            "title": "连接检查",
+            "button": "检查",
+            "empty_config": "请填写API地址和令牌",
+            "success": "连接成功",
+            "fail": "连接失败，请检查API地址和令牌",
+            "error": "连接异常，请检查网络连接"
+          }
         }
       },
       "display.assistant.title": "助手设置",
