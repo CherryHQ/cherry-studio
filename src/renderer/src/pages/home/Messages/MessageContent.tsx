@@ -16,6 +16,7 @@ import styled from 'styled-components'
 import Markdown from '../Markdown/Markdown'
 import MessageAttachments from './MessageAttachments'
 import MessageError from './MessageError'
+import MessageImage from './MessageImage'
 import MessageSearchResults from './MessageSearchResults'
 import MessageThought from './MessageThought'
 import MessageTools from './MessageTools'
@@ -150,6 +151,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       <MessageThought message={message} />
       <MessageTools message={message} />
       <Markdown message={{ ...message, content: processedContent }} citationsData={citationsData} />
+      {message.metadata?.generateImage && <MessageImage message={message} />}
       {message.translatedContent && (
         <Fragment>
           <Divider style={{ margin: 0, marginBottom: 10 }}>

@@ -182,7 +182,6 @@ const initialState: SettingsState = {
   obsidianTages: '',
   joplinToken: '',
   joplinUrl: ''
-
 }
 
 const settingsSlice = createSlice({

@@ -70,19 +70,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // launch on boot
-  ipcMain.handle('app:set-launch-on-boot', (_, isActive: boolean) => {
+  ipcMain.handle('app:set-launch-on-boot', (_, openAtLogin: boolean) => {
     // Set login item settings for windows and mac
     // linux is not supported because it requires more file operations
     if (isWin || isMac) {
-      if (isActive) {
-        app.setLoginItemSettings({
-          openAtLogin: true
-        })
-      } else {
-        app.setLoginItemSettings({
-          openAtLogin: false
-        })
-      }
+      app.setLoginItemSettings({ openAtLogin })
     }
   })
 

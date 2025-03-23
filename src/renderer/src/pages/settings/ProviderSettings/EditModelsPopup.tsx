@@ -6,6 +6,7 @@ import {
   isEmbeddingModel,
   isFunctionCallingModel,
   isReasoningModel,
+  isRerankModel,
   isVisionModel,
   isWebSearchModel,
   SYSTEM_MODELS
@@ -71,6 +72,8 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         return isEmbeddingModel(model)
       case 'function_calling':
         return isFunctionCallingModel(model)
+      case 'rerank':
+        return isRerankModel(model)
       default:
         return true
     }
@@ -157,7 +160,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       footer={null}
-      width="600px"
+      width="680px"
       styles={{
         content: { padding: 0 },
         header: { padding: 22, paddingBottom: 15 }
@@ -165,14 +168,19 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       centered>
       <SearchContainer>
         <Center>
-          <Radio.Group value={filterType} onChange={(e) => setFilterType(e.target.value)} buttonStyle="solid">
+          <Radio.Group
+            size={i18n.language.startsWith('zh') ? 'middle' : 'small'}
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            buttonStyle="solid">
             <Radio.Button value="all">{t('models.all')}</Radio.Button>
-            <Radio.Button value="reasoning">{t('models.reasoning')}</Radio.Button>
-            <Radio.Button value="vision">{t('models.vision')}</Radio.Button>
-            <Radio.Button value="websearch">{t('models.websearch')}</Radio.Button>
-            <Radio.Button value="free">{t('models.free')}</Radio.Button>
-            <Radio.Button value="embedding">{t('models.embedding')}</Radio.Button>
-            <Radio.Button value="function_calling">{t('models.function_calling')}</Radio.Button>
+            <Radio.Button value="reasoning">{t('models.type.reasoning')}</Radio.Button>
+            <Radio.Button value="vision">{t('models.type.vision')}</Radio.Button>
+            <Radio.Button value="websearch">{t('models.type.websearch')}</Radio.Button>
+            <Radio.Button value="free">{t('models.type.free')}</Radio.Button>
+            <Radio.Button value="embedding">{t('models.type.embedding')}</Radio.Button>
+            <Radio.Button value="rerank">{t('models.type.rerank')}</Radio.Button>
+            <Radio.Button value="function_calling">{t('models.type.function_calling')}</Radio.Button>
           </Radio.Group>
         </Center>
         <Search

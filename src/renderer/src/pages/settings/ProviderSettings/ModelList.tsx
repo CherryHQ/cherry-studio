@@ -20,7 +20,7 @@ import { Model, Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Card, Flex, Space, Tooltip, Typography } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -38,6 +38,7 @@ const STATUS_COLORS = {
 interface ModelListProps {
   provider: Provider
   modelStatuses?: ModelStatus[]
+  searchText?: string
 }
 
 export interface ModelStatus {
@@ -165,7 +166,7 @@ function useModelStatusRendering() {
   return { renderStatusIndicator, renderLatencyText }
 }
 
-const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuses = [] }) => {
+const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuses = [], searchText = '' }) => {
   const { t } = useTranslation()
   const { provider } = useProvider(_provider.id)
   const { updateProvider, models, removeModel } = useProvider(_provider.id)
@@ -179,7 +180,21 @@ const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuse
   const modelsWebsite = providerConfig?.websites?.models
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
-  const modelGroups = groupBy(models, 'group')
+  const [debouncedSearchText, setDebouncedSearchText] = useState(searchText)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchText(searchText)
+    }, 50)
+
+    return () => clearTimeout(timer)
+  }, [searchText])
+
+  const filteredModels = debouncedSearchText
+    ? models.filter((model) => model.name.toLowerCase().includes(debouncedSearchText.toLowerCase()))
+    : models
+
+  const modelGroups = groupBy(filteredModels, 'group')
   const sortedModelGroups = sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
     acc[key] = value
     return acc
