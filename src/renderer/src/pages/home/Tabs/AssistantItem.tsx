@@ -69,7 +69,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
         key: 'save-to-agent',
         icon: <SaveOutlined />,
         onClick: async () => {
-          const agent = omit(assistant, ['model', 'emoji'])
+          const agent = omit(assistant, ['model'])
           agent.id = uuid()
           agent.type = 'agent'
           addAgent(agent)
