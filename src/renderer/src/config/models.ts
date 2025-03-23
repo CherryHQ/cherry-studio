@@ -1986,6 +1986,18 @@ export function isOpenAIoSeries(model: Model): boolean {
   return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
 }
 
+export function isSupportedResoningEffortModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
+    return true
+  }
+
+  return false
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
