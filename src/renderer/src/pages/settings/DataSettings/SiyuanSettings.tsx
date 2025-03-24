@@ -1,5 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import MinApp from '@renderer/components/MinApp'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setSiyuanApiUrl, setSiyuanBoxId, setSiyuanRootPath, setSiyuanToken } from '@renderer/store/settings'
@@ -38,12 +39,11 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    // Todo 需要一个文档
-    // MinApp.start({
-    //   id: 'siyuan-help',
-    //   name: 'Siyuan Help',
-    //   url: 'https://docs.cherry-ai.com/advanced-basic/siyuan'
-    // })
+    MinApp.start({
+      id: 'siyuan-help',
+      name: 'Siyuan Help',
+      url: 'https://docs.cherry-ai.com/advanced-basic/siyuan'
+    })
   }
 
   const handleCheckConnection = async () => {
