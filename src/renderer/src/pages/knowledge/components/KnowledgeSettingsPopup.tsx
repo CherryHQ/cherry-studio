@@ -3,8 +3,10 @@ import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { SettingHelpText } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase } from '@renderer/types'
 import { Alert, Form, Input, InputNumber, Modal, Select, Slider } from 'antd'
@@ -55,7 +57,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
       options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model))
+        .filter((model) => isEmbeddingModel(model) && !isRerankModel(model))
         .map((m) => ({
           label: m.name,
           value: getModelUniqId(m)
@@ -65,6 +67,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
   const rerankSelectOptions = providers
     .filter((p) => p.models.length > 0)
+    .filter((p) => SUPPORTED_REANK_PROVIDERS.includes(p.id))
     .map((p) => ({
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
@@ -94,7 +97,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       }
       updateKnowledgeBase(newBase)
       setOpen(false)
-      resolve(newBase)
+      setTimeout(() => resolve(newBase), 350)
     } catch (error) {
       console.error('Validation failed:', error)
     }
@@ -151,6 +154,11 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             allowClear
           />
         </Form.Item>
+        <SettingHelpText style={{ marginTop: -15, marginBottom: 20 }}>
+          {t('models.rerank_model_support_provider', {
+            provider: SUPPORTED_REANK_PROVIDERS.map((id) => t(`provider.${id}`))
+          })}
+        </SettingHelpText>
 
         <Form.Item
           name="documentCount"

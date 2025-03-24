@@ -8,6 +8,7 @@
 </p>
 <div align="center">
  <a href="https://trendshift.io/repositories/11772" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11772" alt="kangfenmao%2Fcherry-studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+ <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 </div>
 # 🍒 Cherry Studio
 
@@ -16,6 +17,10 @@ Cherry Studio は、複数の LLM プロバイダーをサポートするデス�
 👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(472019156)](https://qm.qq.com/q/CbZiBWwCXu)
 
 ❤️ Cherry Studio をお気に入りにしましたか？小さな星をつけてください 🌟 または [スポンサー](sponsor.md) をして開発をサポートしてください！❤️
+
+# 📖 ガイド
+
+https://docs.cherry-ai.com
 
 # 🌠 スクリーンショット
 
@@ -78,6 +83,13 @@ Cherry Studio は、複数の LLM プロバイダーをサポートするデス�
 - [ ] 音声入出力（AI コール）
 - [ ] データバックアップはカスタムバックアップコンテンツをサポート
 
+# 🌈 テーマ
+
+テーマギャラリー: https://cherrycss.com  
+Aero テーマ: https://github.com/hakadao/CherryStudio-Aero
+
+より多くのテーマのPRを歓迎します
+
 # 🖥️ 開発
 
 参考[開発ドキュメント](dev.md)
@@ -117,11 +129,7 @@ Cherry Studio への貢献を歓迎します！以下の方法で貢献できま
 
 # コミュニティ
 
-[Telegram](https://t.me/CherryStudioAI) | [Email](mailto:kangfenmao@gmail.com) | [Twitter](https://x.com/kangfenmao)
-
-# 📣 プロダクトハント
-
-<a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+[Telegram](https://t.me/CherryStudioAI) | [Email](mailto:support@cherry-ai.com) | [Twitter](https://x.com/kangfenmao)
 
 # スポンサー
 
@@ -130,6 +138,10 @@ Cherry Studio への貢献を歓迎します！以下の方法で貢献できま
 # 📃 ライセンス
 
 [LICENSE](../LICENSE)
+
+# ✉️ お問い合わせ
+
+yinsenho@cherry-ai.com
 
 # ⭐️ スター履歴
 

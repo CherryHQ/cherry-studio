@@ -788,6 +788,17 @@ const migrateConfig = {
       delete runtimeState.webdavSync
     }
     return state
+  },
+  '83': (state: RootState) => {
+    state.settings.messageNavigation = 'buttons'
+    state.settings.launchOnBoot = false
+    state.settings.launchToTray = false
+    state.settings.trayOnClose = true
+    return state
+  },
+  '84': (state: RootState) => {
+    addProvider(state, 'voyageai')
+    return state
   }
 }
 

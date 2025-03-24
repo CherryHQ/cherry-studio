@@ -10,9 +10,15 @@ export default class SiliconFlowReranker extends BaseReranker {
   }
 
   public rerank = async (query: string, searchResults: ExtractChunkData[]): Promise<ExtractChunkData[]> => {
-    const baseURL = this.base?.rerankBaseURL?.endsWith('/')
+    let baseURL = this.base?.rerankBaseURL?.endsWith('/')
       ? this.base.rerankBaseURL.slice(0, -1)
       : this.base.rerankBaseURL
+
+    // 必须携带/v1，否则会404
+    if (baseURL && !baseURL.endsWith('/v1')) {
+      baseURL = `${baseURL}/v1`
+    }
+
     const url = `${baseURL}/rerank`
 
     const requestBody = {
@@ -42,9 +48,9 @@ export default class SiliconFlowReranker extends BaseReranker {
         })
         .filter((doc): doc is ExtractChunkData => doc !== undefined)
         .sort((a, b) => b.score - a.score)
-    } catch (error) {
-      console.error('SiliconFlow Reranker API 错误:', error)
-      throw error
+    } catch (error: any) {
+      console.error('SiliconFlow Reranker API 错误:', error.status)
+      throw new Error(`${error} - BaseUrl: ${baseURL}`)
     }
   }
 }

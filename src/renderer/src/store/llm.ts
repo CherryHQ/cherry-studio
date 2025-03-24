@@ -456,6 +456,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     models: SYSTEM_MODELS.gpustack,
     isSystem: true,
     enabled: false
+  },
+  {
+    id: 'voyageai',
+    name: 'VoyageAI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.voyageai.com',
+    models: SYSTEM_MODELS.voyageai,
+    isSystem: true,
+    enabled: false
   }
 ]
 

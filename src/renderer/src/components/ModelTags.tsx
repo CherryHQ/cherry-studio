@@ -2,6 +2,7 @@ import {
   isEmbeddingModel,
   isFunctionCallingModel,
   isReasoningModel,
+  isRerankModel,
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
@@ -32,8 +33,9 @@ const ModelTags: FC<ModelTagsProps> = ({ model, showFree = true, showReasoning =
       {isWebSearchModel(model) && <WebSearchIcon />}
       {showReasoning && isReasoningModel(model) && <ReasoningIcon />}
       {showToolsCalling && isFunctionCallingModel(model) && <ToolsCallingIcon />}
-      {isEmbeddingModel(model) && <Tag color="orange">{t('models.embedding')}</Tag>}
-      {showFree && isFreeModel(model) && <Tag color="green">{t('models.free')}</Tag>}
+      {isEmbeddingModel(model) && <Tag color="orange">{t('models.type.embedding')}</Tag>}
+      {showFree && isFreeModel(model) && <Tag color="green">{t('models.type.free')}</Tag>}
+      {isRerankModel(model) && <Tag color="geekblue">{t('models.type.rerank')}</Tag>}
     </Container>
   )
 }

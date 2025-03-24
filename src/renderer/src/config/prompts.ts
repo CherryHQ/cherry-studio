@@ -93,7 +93,7 @@ export const REFERENCE_PROMPT = `Please answer the question based on the referen
 Please respond in the same language as the user's question.
 `
 
-export const FOOTNOTE_PROMPT = `Please answer the question based on the reference materials and use footnote format to cite your sources. Please ignore irrelevant reference materials.
+export const FOOTNOTE_PROMPT = `Please answer the question based on the reference materials and use footnote format to cite your sources. Please ignore irrelevant reference materials. If the reference material is not relevant to the question, please answer the question based on your knowledge. The answer should be clearly structured and complete.
 
 ## Footnote Format:
 

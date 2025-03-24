@@ -26,6 +26,7 @@ import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import ChatNavigation from './ChatNavigation'
+import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import NewTopicButton from './NewTopicButton'
@@ -39,7 +40,7 @@ interface MessagesProps {
 
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
   const { t } = useTranslation()
-  const { showTopics, topicPosition, showAssistants } = useSettings()
+  const { showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -138,7 +139,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       EventEmitter.on(EVENT_NAMES.NEW_BRANCH, async (index: number) => {
         const newTopic = getDefaultTopic(assistant.id)
         newTopic.name = topic.name
-        const branchMessages = take(messages, messages.length - index)
+        const currentMessages = messagesRef.current
+
+        // 复制消息并且更新 topicId
+        const branchMessages = take(currentMessages, currentMessages.length - index).map((msg) => ({
+          ...msg,
+          topicId: newTopic.id
+        }))
 
         // 将分支的消息放入数据库
         await db.topics.add({ id: newTopic.id, messages: branchMessages })
@@ -225,7 +232,10 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         </InfiniteScroll>
         <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
       </NarrowLayout>
-      <ChatNavigation containerId="messages" />
+
+      {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
+
+      {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
     </Container>
   )
 }

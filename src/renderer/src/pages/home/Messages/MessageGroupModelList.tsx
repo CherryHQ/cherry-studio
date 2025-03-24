@@ -1,7 +1,6 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Message, Model } from '@renderer/types'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
 import { FC, useState } from 'react'
@@ -10,13 +9,12 @@ import styled from 'styled-components'
 
 interface MessageGroupModelListProps {
   messages: Message[]
-  selectedIndex: number
-  setSelectedIndex: (index: number) => void
+  setSelectedMessage: (message: Message) => void
 }
 
 type DisplayMode = 'compact' | 'expanded'
 
-const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectedIndex, setSelectedIndex }) => {
+const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, setSelectedMessage }) => {
   const { t } = useTranslation()
   const [displayMode, setDisplayMode] = useState<DisplayMode>('expanded')
   const isCompact = displayMode === 'compact'
@@ -43,10 +41,9 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
               <Tooltip key={index} title={message.model?.name} placement="top" mouseEnterDelay={0.2}>
                 <AvatarWrapper
                   className="avatar-wrapper"
-                  isSelected={selectedIndex === index}
+                  isSelected={'foldSelected' in message ? message.foldSelected! : index === 0}
                   onClick={() => {
-                    setSelectedIndex(index)
-                    EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messages[index].id, false)
+                    setSelectedMessage(message)
                   }}>
                   <ModelAvatar model={message.model as Model} size={28} />
                 </AvatarWrapper>
@@ -56,19 +53,19 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
         ) : (
           /* Expanded style display */
           <Segmented
-            value={selectedIndex.toString()}
+            value={messages.find((message) => message.foldSelected)?.id || messages[0].id}
             onChange={(value) => {
-              setSelectedIndex(Number(value))
-              EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messages[Number(value)].id, false)
+              const message = messages.find((message) => message.id === value) as Message
+              setSelectedMessage(message)
             }}
-            options={messages.map((message, index) => ({
+            options={messages.map((message) => ({
               label: (
                 <SegmentedLabel>
                   <ModelAvatar model={message.model as Model} size={20} />
                   <ModelName>{message.model?.name}</ModelName>
                 </SegmentedLabel>
               ),
-              value: index.toString()
+              value: message.id
             }))}
             size="small"
           />

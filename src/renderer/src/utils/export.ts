@@ -320,58 +320,46 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
 
 /**
  * 导出Markdown到Obsidian
+ * @param attributes 文档属性
+ * @param attributes.title 标题
+ * @param attributes.created 创建时间
+ * @param attributes.source 来源
+ * @param attributes.tags 标签
+ * @param attributes.processingMethod 处理方式
  */
-export const exportMarkdownToObsidian = async (
-  fileName: string,
-  markdown: string,
-  selectedPath: string,
-  isMdFile: boolean = false
-) => {
+export const exportMarkdownToObsidian = async (attributes: any) => {
   try {
-    const obsidianUrl = store.getState().settings.obsidianUrl
-    const obsidianApiKey = store.getState().settings.obsidianApiKey
+    const obsidianValut = store.getState().settings.obsidianValut
+    const obsidianFolder = store.getState().settings.obsidianFolder
 
-    if (!obsidianUrl || !obsidianApiKey) {
+    if (!obsidianValut || !obsidianFolder) {
       window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
       return
     }
+    let path = ''
 
-    // 如果是md文件，直接将内容追加到该文件
-    if (isMdFile) {
-      const response = await fetch(`${obsidianUrl}vault${selectedPath}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/markdown',
-          Authorization: `Bearer ${obsidianApiKey}`
-        },
-        body: `\n\n${markdown}` // 添加两个换行后追加内容
-      })
-
-      if (!response.ok) {
-        window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
-        return
-      }
-    } else {
-      // 创建新文件
-      const sanitizedFileName = removeSpecialCharactersForFileName(fileName)
-      const path = selectedPath === '/' ? '' : selectedPath
-      const fullPath = path.endsWith('/') ? `${path}${sanitizedFileName}.md` : `${path}/${sanitizedFileName}.md`
-
-      const response = await fetch(`${obsidianUrl}vault${fullPath}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'text/markdown',
-          Authorization: `Bearer ${obsidianApiKey}`
-        },
-        body: markdown
-      })
-
-      if (!response.ok) {
-        window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
-        return
-      }
+    if (!attributes.title) {
+      window.message.error(i18n.t('chat.topics.export.obsidian_title_required'))
+      return
     }
 
+    //构建保存路径添加以 / 结尾
+    if (!obsidianFolder.endsWith('/')) {
+      path = obsidianFolder + '/'
+    }
+    //构建文件名
+    const fileName = transformObsidianFileName(attributes.title)
+
+    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(path + fileName)}&vault=${encodeURIComponent(obsidianValut)}&clipboard`
+
+    if (attributes.processingMethod === '3') {
+      obsidianUrl += '&overwrite=true'
+    } else if (attributes.processingMethod === '2') {
+      obsidianUrl += '&prepend=true'
+    } else if (attributes.processingMethod === '1') {
+      obsidianUrl += '&append=true'
+    }
+    window.open(obsidianUrl)
     window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
   } catch (error) {
     console.error('导出到Obsidian失败:', error)
@@ -379,6 +367,51 @@ export const exportMarkdownToObsidian = async (
   }
 }
 
+/**
+ * 生成Obsidian文件名,源自 Obsidian  Web Clipper 官方实现,修改了一些细节
+ * @param fileName
+ * @returns
+ */
+
+function transformObsidianFileName(fileName: string): string {
+  const platform = window.navigator.userAgent
+  const isWindows = /win/i.test(platform)
+  const isMac = /mac/i.test(platform)
+
+  // 删除Obsidian 全平台无效字符
+  let sanitized = fileName.replace(/[#|\\^\\[\]]/g, '')
+
+  if (isWindows) {
+    // Windows 的清理
+    sanitized = sanitized
+      .replace(/[<>:"\\/\\|?*]/g, '') // 移除无效字符
+      .replace(/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i, '_$1$2') // 避免保留名称
+      .replace(/[\s.]+$/, '') // 移除结尾的空格和句点
+  } else if (isMac) {
+    // Mac 的清理
+    sanitized = sanitized
+      .replace(/[/:\u0020-\u007E]/g, '') // 移除无效字符
+      .replace(/^\./, '_') // 避免以句点开头
+  } else {
+    // Linux 或其他系统
+    sanitized = sanitized
+      .replace(/[<>:"\\/\\|?*]/g, '') // 移除无效字符
+      .replace(/^\./, '_') // 避免以句点开头
+  }
+
+  // 所有平台的通用操作
+  sanitized = sanitized
+    .replace(/^\.+/, '') // 移除开头的句点
+    .trim() // 移除前后空格
+    .slice(0, 245) // 截断为 245 个字符，留出空间以追加 ' 1.md'
+
+  // 确保文件名不为空
+  if (sanitized.length === 0) {
+    sanitized = 'Untitled'
+  }
+
+  return sanitized
+}
 export const exportMarkdownToJoplin = async (title: string, content: string) => {
   const { joplinUrl, joplinToken } = store.getState().settings
 

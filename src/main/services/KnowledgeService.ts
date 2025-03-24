@@ -21,12 +21,10 @@ import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { LibSqlDb } from '@llm-tools/embedjs-libsql'
 import { SitemapLoader } from '@llm-tools/embedjs-loader-sitemap'
 import { WebLoader } from '@llm-tools/embedjs-loader-web'
-import { AzureOpenAiEmbeddings, OpenAiEmbeddings } from '@llm-tools/embedjs-openai'
+import Embeddings from '@main/embeddings/Embeddings'
 import { addFileLoader } from '@main/loader'
 import Reranker from '@main/reranker/Reranker'
-import { proxyManager } from '@main/services/ProxyManager'
 import { windowService } from '@main/services/WindowService'
-import { getInstanceName } from '@main/utils'
 import { getAllFiles } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
 import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
@@ -115,30 +113,20 @@ class KnowledgeService {
     baseURL,
     dimensions
   }: KnowledgeBaseParams): Promise<RAGApplication> => {
-    const batchSize = 10
-    return new RAGApplicationBuilder()
-      .setModel('NO_MODEL')
-      .setEmbeddingModel(
-        apiVersion
-          ? new AzureOpenAiEmbeddings({
-              azureOpenAIApiKey: apiKey,
-              azureOpenAIApiVersion: apiVersion,
-              azureOpenAIApiDeploymentName: model,
-              azureOpenAIApiInstanceName: getInstanceName(baseURL),
-              configuration: { httpAgent: proxyManager.getProxyAgent() },
-              dimensions,
-              batchSize
-            })
-          : new OpenAiEmbeddings({
-              model,
-              apiKey,
-              configuration: { baseURL, httpAgent: proxyManager.getProxyAgent() },
-              dimensions,
-              batchSize
-            })
-      )
-      .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
-      .build()
+    let ragApplication: RAGApplication
+    const embeddings = new Embeddings({ model, apiKey, apiVersion, baseURL, dimensions } as KnowledgeBaseParams)
+    try {
+      ragApplication = await new RAGApplicationBuilder()
+        .setModel('NO_MODEL')
+        .setEmbeddingModel(embeddings)
+        .setVectorDatabase(new LibSqlDb({ path: path.join(this.storageDir, id) }))
+        .build()
+    } catch (e) {
+      Logger.error(e)
+      throw new Error(`Failed to create RAGApplication: ${e}`)
+    }
+
+    return ragApplication
   }
 
   public create = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
@@ -426,7 +414,6 @@ class KnowledgeService {
   }
 
   public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
-    proxyManager.setGlobalProxy()
     return new Promise((resolve) => {
       const { base, item, forceReload = false } = options
       const optionsNonNullableAttribute = { base, item, forceReload }

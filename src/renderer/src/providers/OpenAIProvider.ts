@@ -474,7 +474,7 @@ export default class OpenAIProvider extends BaseProvider {
 
         const finishReason = chunk.choices[0]?.finish_reason
 
-        if (delta?.tool_calls) {
+        if (delta?.tool_calls?.length) {
           const chunkToolCalls = delta.tool_calls
           for (const t of chunkToolCalls) {
             const { index, id, function: fn, type } = t

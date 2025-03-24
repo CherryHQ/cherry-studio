@@ -13,13 +13,47 @@ import { useTranslation } from 'react-i18next'
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const GeneralSettings: FC = () => {
-  const { language, proxyUrl: storeProxyUrl, theme, setTray, tray, proxyMode: storeProxyMode } = useSettings()
+  const {
+    language,
+    proxyUrl: storeProxyUrl,
+    theme,
+    setLaunch,
+    setTray,
+    launchOnBoot,
+    launchToTray,
+    trayOnClose,
+    tray,
+    proxyMode: storeProxyMode
+  } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme: themeMode } = useTheme()
 
-  const updateTray = (value: boolean) => {
-    setTray(value)
-    window.api.setTray(value)
+  const updateTray = (isShowTray: boolean) => {
+    setTray(isShowTray)
+    //only set tray on close/launch to tray when tray is enabled
+    if (!isShowTray) {
+      updateTrayOnClose(false)
+      updateLaunchToTray(false)
+    }
+  }
+
+  const updateTrayOnClose = (isTrayOnClose: boolean) => {
+    setTray(undefined, isTrayOnClose)
+    //in case tray is not enabled, enable it
+    if (isTrayOnClose && !tray) {
+      updateTray(true)
+    }
+  }
+
+  const updateLaunchOnBoot = (isLaunchOnBoot: boolean) => {
+    setLaunch(isLaunchOnBoot)
+  }
+
+  const updateLaunchToTray = (isLaunchToTray: boolean) => {
+    setLaunch(undefined, isLaunchToTray)
+    if (isLaunchToTray && !tray) {
+      updateTray(true)
+    }
   }
 
   const dispatch = useAppDispatch()
@@ -52,8 +86,10 @@ const GeneralSettings: FC = () => {
     dispatch(setProxyMode(mode))
     if (mode === 'system') {
       window.api.setProxy('system')
+      dispatch(_setProxyUrl(undefined))
     } else if (mode === 'none') {
       window.api.setProxy(undefined)
+      dispatch(_setProxyUrl(undefined))
     }
   }
 
@@ -62,7 +98,11 @@ const GeneralSettings: FC = () => {
     { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
     { value: 'en-US', label: 'English', flag: '🇺🇸' },
     { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-    { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' }
+    { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
+    { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
+    { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
+    { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
+    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' }
   ]
 
   return (
@@ -111,10 +151,31 @@ const GeneralSettings: FC = () => {
             </SettingRow>
           </>
         )}
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.launch.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.tray.title')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
+          <Switch checked={launchOnBoot} onChange={(checked) => updateLaunchOnBoot(checked)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
+          <Switch checked={launchToTray} onChange={(checked) => updateLaunchToTray(checked)} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.tray.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
           <Switch checked={tray} onChange={(checked) => updateTray(checked)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
+          <Switch checked={trayOnClose} onChange={(checked) => updateTrayOnClose(checked)} disabled={!tray} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

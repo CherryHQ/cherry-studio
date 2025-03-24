@@ -262,7 +262,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               key: 'obsidian',
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
-                await ObsidianExportPopup.show({ title: topic.name, markdown })
+                await ObsidianExportPopup.show({ title: topic.name, markdown, processingMethod: '3' })
               }
             },
             {

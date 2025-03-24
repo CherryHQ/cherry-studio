@@ -242,6 +242,58 @@ export const EMBEDDING_MODELS = [
   {
     id: 'mistral-embed',
     max_context: 8000
+  },
+  {
+    id: 'voyage-3-large',
+    max_context: 1024
+  },
+  {
+    id: 'voyage-3-large',
+    max_context: 256
+  },
+  {
+    id: 'voyage-3-large',
+    max_context: 512
+  },
+  {
+    id: 'voyage-3-large',
+    max_context: 2048
+  },
+  {
+    id: 'voyage-3',
+    max_context: 1024
+  },
+  {
+    id: 'voyage-3-lite',
+    max_context: 512
+  },
+  {
+    id: 'voyage-code-3',
+    max_context: 1024
+  },
+  {
+    id: 'voyage-code-3',
+    max_context: 256
+  },
+  {
+    id: 'voyage-code-3',
+    max_context: 512
+  },
+  {
+    id: 'voyage-code-3',
+    max_context: 2048
+  },
+  {
+    id: 'voyage-finance-2',
+    max_context: 1024
+  },
+  {
+    id: 'voyage-law-2',
+    max_context: 1024
+  },
+  {
+    id: 'voyage-code-2',
+    max_context: 1536
   }
 ]
 

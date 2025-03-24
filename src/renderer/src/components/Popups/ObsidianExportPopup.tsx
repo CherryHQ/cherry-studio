@@ -1,68 +1,52 @@
-import ObsidianFolderSelector from '@renderer/components/ObsidianFolderSelector'
+import ObsidianExportDialog from '@renderer/components/ObsidianExportDialog'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { exportMarkdownToObsidian } from '@renderer/utils/export'
+import { createRoot } from 'react-dom/client'
 
 interface ObsidianExportOptions {
   title: string
   markdown: string
+  processingMethod: string | '3' // 默认新增（存在就覆盖）
 }
 
-// 用于显示 Obsidian 导出对话框
+/**
+ * 配置Obsidian 笔记属性弹窗
+ * @param options.title 标题
+ * @param options.markdown markdown内容
+ * @param options.processingMethod 处理方式
+ * @returns
+ */
 const showObsidianExportDialog = async (options: ObsidianExportOptions): Promise<boolean> => {
-  const { title, markdown } = options
-  const obsidianUrl = store.getState().settings.obsidianUrl
-  const obsidianApiKey = store.getState().settings.obsidianApiKey
+  const obsidianValut = store.getState().settings.obsidianValut
+  const obsidianFolder = store.getState().settings.obsidianFolder
 
-  if (!obsidianUrl || !obsidianApiKey) {
+  if (!obsidianValut || !obsidianFolder) {
     window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
     return false
   }
 
-  try {
-    // 创建一个状态变量来存储选择的路径
-    let selectedPath = '/'
-    let selectedIsMdFile = false
+  return new Promise<boolean>((resolve) => {
+    const div = document.createElement('div')
+    document.body.appendChild(div)
+    const root = createRoot(div)
 
-    // 显示文件夹选择对话框
-    return new Promise<boolean>((resolve) => {
-      window.modal.confirm({
-        title: i18n.t('chat.topics.export.obsidian_select_folder'),
-        content: (
-          <ObsidianFolderSelector
-            defaultPath={selectedPath}
-            obsidianUrl={obsidianUrl}
-            obsidianApiKey={obsidianApiKey}
-            onPathChange={(path, isMdFile) => {
-              selectedPath = path
-              selectedIsMdFile = isMdFile
-            }}
-          />
-        ),
-        width: 600,
-        icon: null,
-        closable: true,
-        maskClosable: true,
-        centered: true,
-        okButtonProps: { type: 'primary' },
-        okText: i18n.t('chat.topics.export.obsidian_select_folder.btn'),
-        onOk: () => {
-          // 如果选择的是md文件，则使用选择的文件名而不是传入的标题
-          const fileName = selectedIsMdFile ? selectedPath.split('/').pop()?.replace('.md', '') : title
-
-          exportMarkdownToObsidian(fileName as string, markdown, selectedPath, selectedIsMdFile)
-          resolve(true)
-        },
-        onCancel: () => {
-          resolve(false)
-        }
-      })
-    })
-  } catch (error) {
-    window.message.error(i18n.t('chat.topics.export.obsidian_fetch_failed'))
-    console.error(error)
-    return false
-  }
+    const handleClose = (success: boolean) => {
+      root.unmount()
+      document.body.removeChild(div)
+      resolve(success)
+    }
+    const obsidianTags = store.getState().settings.obsidianTages
+    root.render(
+      <ObsidianExportDialog
+        title={options.title}
+        markdown={options.markdown}
+        obsidianTags={obsidianTags}
+        processingMethod={options.processingMethod}
+        open={true}
+        onClose={handleClose}
+      />
+    )
+  })
 }
 
 const ObsidianExportPopup = {

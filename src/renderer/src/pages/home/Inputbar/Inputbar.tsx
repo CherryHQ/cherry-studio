@@ -10,7 +10,7 @@ import {
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -44,6 +44,7 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
+import GenerateImageButton from './GenerateImageButton'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
 import MCPToolsButton from './MCPToolsButton'
 import MentionModelsButton from './MentionModelsButton'
@@ -626,7 +627,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const onEnableWebSearch = () => {
-    console.log(assistant)
     if (!isWebSearchModel(model)) {
       if (!WebSearchService.isWebSearchEnabled()) {
         window.modal.confirm({
@@ -645,9 +645,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
   }
 
+  const onEnableGenerateImage = () => {
+    updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
+  }
+
   useEffect(() => {
     if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
+    }
+    if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
+      updateAssistant({ ...assistant, enableGenerateImage: false })
     }
   }, [assistant, model, updateAssistant])
 
@@ -716,11 +723,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 </ToolbarButton>
               </Tooltip>
               <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
-              <MentionModelsButton
-                mentionModels={mentionModels}
-                onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
-                ToolbarButton={ToolbarButton}
-              />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
                 <ToolbarButton type="text" onClick={onEnableWebSearch}>
                   <GlobalOutlined
@@ -743,6 +745,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   ToolbarButton={ToolbarButton}
                 />
               )}
+              <GenerateImageButton
+                model={model}
+                assistant={assistant}
+                onEnableGenerateImage={onEnableGenerateImage}
+                ToolbarButton={ToolbarButton}
+              />
+              <MentionModelsButton
+                mentionModels={mentionModels}
+                onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
+                ToolbarButton={ToolbarButton}
+              />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}

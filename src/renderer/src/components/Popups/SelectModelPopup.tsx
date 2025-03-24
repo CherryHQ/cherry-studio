@@ -1,6 +1,6 @@
 import { PushpinOutlined, SearchOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
-import { getModelLogo, isEmbeddingModel } from '@renderer/config/models'
+import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -76,7 +76,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   // 根据输入的文本筛选模型
   const getFilteredModels = useCallback(
     (provider) => {
-      let models = provider.models.filter((m) => !isEmbeddingModel(m))
+      let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
 
       if (searchText.trim()) {
         const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)

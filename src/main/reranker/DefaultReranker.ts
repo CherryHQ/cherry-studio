@@ -7,6 +7,7 @@ export default class DefaultReranker extends BaseReranker {
   constructor(base: KnowledgeBaseParams) {
     super(base)
   }
+
   async rerank(): Promise<ExtractChunkData[]> {
     throw new Error('Method not implemented.')
   }

@@ -1,7 +1,5 @@
-import { proxyManager } from '@main/services/ProxyManager'
 import { WebDavConfig } from '@types'
 import Logger from 'electron-log'
-import { HttpProxyAgent } from 'http-proxy-agent'
 import Stream from 'stream'
 import { BufferLike, createClient, GetFileContentsOptions, PutFileContentsOptions, WebDAVClient } from 'webdav'
 export default class WebDav {
@@ -10,15 +8,12 @@ export default class WebDav {
 
   constructor(params: WebDavConfig) {
     this.webdavPath = params.webdavPath
-    const url = proxyManager.getProxyUrl()
 
     this.instance = createClient(params.webdavHost, {
       username: params.webdavUser,
       password: params.webdavPass,
       maxBodyLength: Infinity,
-      maxContentLength: Infinity,
-      httpAgent: url ? new HttpProxyAgent(url) : undefined,
-      httpsAgent: proxyManager.getProxyAgent()
+      maxContentLength: Infinity
     })
 
     this.putFileContents = this.putFileContents.bind(this)

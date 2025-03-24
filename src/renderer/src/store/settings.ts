@@ -28,6 +28,9 @@ export interface SettingsState {
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
+  launchOnBoot: boolean
+  launchToTray: boolean
+  trayOnClose: boolean
   tray: boolean
   theme: ThemeMode
   windowStyle: 'transparent' | 'opaque'
@@ -48,6 +51,7 @@ export interface SettingsState {
   codeStyle: CodeStyleVarious
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
+  messageNavigation: 'none' | 'buttons' | 'anchor'
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -82,8 +86,10 @@ export interface SettingsState {
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
-  obsidianApiKey: string | null
-  obsidianUrl: string | null
+  //obsidian settings   obsidianVault, obisidanFolder
+  obsidianValut: string | null
+  obsidianFolder: string | null
+  obsidianTages: string | null
   joplinToken: string | null
   joplinUrl: string | null
 }
@@ -102,6 +108,9 @@ const initialState: SettingsState = {
   showMessageDivider: true,
   messageFont: 'system',
   showInputEstimatedTokens: false,
+  launchOnBoot: false,
+  launchToTray: false,
+  trayOnClose: true,
   tray: true,
   theme: ThemeMode.auto,
   windowStyle: 'transparent',
@@ -122,6 +131,7 @@ const initialState: SettingsState = {
   codeStyle: 'auto',
   gridColumns: 2,
   gridPopoverTrigger: 'hover',
+  messageNavigation: 'none',
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -153,8 +163,9 @@ const initialState: SettingsState = {
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
-  obsidianApiKey: '',
-  obsidianUrl: '',
+  obsidianValut: '',
+  obsidianFolder: '',
+  obsidianTages: '',
   joplinToken: '',
   joplinUrl: ''
 }
@@ -203,8 +214,17 @@ const settingsSlice = createSlice({
     setShowInputEstimatedTokens: (state, action: PayloadAction<boolean>) => {
       state.showInputEstimatedTokens = action.payload
     },
+    setLaunchOnBoot: (state, action: PayloadAction<boolean>) => {
+      state.launchOnBoot = action.payload
+    },
+    setLaunchToTray: (state, action: PayloadAction<boolean>) => {
+      state.launchToTray = action.payload
+    },
     setTray: (state, action: PayloadAction<boolean>) => {
       state.tray = action.payload
+    },
+    setTrayOnClose: (state, action: PayloadAction<boolean>) => {
+      state.trayOnClose = action.payload
     },
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
       state.theme = action.payload
@@ -352,17 +372,23 @@ const settingsSlice = createSlice({
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
     },
-    setObsidianApiKey: (state, action: PayloadAction<string>) => {
-      state.obsidianApiKey = action.payload
+    setObsidianValut: (state, action: PayloadAction<string>) => {
+      state.obsidianValut = action.payload
     },
-    setObsidianUrl: (state, action: PayloadAction<string>) => {
-      state.obsidianUrl = action.payload
+    setObsidianFolder: (state, action: PayloadAction<string>) => {
+      state.obsidianFolder = action.payload
+    },
+    setObsidianTages: (state, action: PayloadAction<string>) => {
+      state.obsidianTages = action.payload
     },
     setJoplinToken: (state, action: PayloadAction<string>) => {
       state.joplinToken = action.payload
     },
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
+    },
+    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
+      state.messageNavigation = action.payload
     }
   }
 })
@@ -381,6 +407,9 @@ export const {
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
+  setLaunchOnBoot,
+  setLaunchToTray,
+  setTrayOnClose,
   setTray,
   setTheme,
   setFontSize,
@@ -429,10 +458,12 @@ export const {
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
-  setObsidianApiKey,
-  setObsidianUrl,
+  setObsidianValut,
+  setObsidianFolder,
+  setObsidianTages,
   setJoplinToken,
-  setJoplinUrl
+  setJoplinUrl,
+  setMessageNavigation
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
