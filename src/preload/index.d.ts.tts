@@ -1,0 +1,26 @@
+// TTS预加载类型声明
+// 将这些类型声明合并到src/preload/index.d.ts中
+
+/*
+在src/preload/index.d.ts中，找到api接口定义，添加tts相关类型：
+
+// API接口类型定义中添加
+interface API {
+  // 现有的API定义
+  ...
+
+  // TTS API
+  tts: {
+    speak: (text: string) => Promise<{ success: boolean; error?: string }>
+    stop: () => Promise<void>
+    getVoices: () => Promise<string[]>
+    isAvailable: () => Promise<boolean>
+    fetchAvailableOptions: () => Promise<{ 
+      success: boolean
+      models?: string[]
+      voices?: string[]
+      error?: string
+    }>
+  }
+}
+*/
