@@ -96,6 +96,16 @@
       "default.description": "你好，我是預設助手。你可以立即開始與我聊天。",
       "default.name": "預設助手",
       "default.topic.name": "預設話題",
+      "history": {
+        "assistant_node": "助手",
+        "click_to_navigate": "點擊跳轉到對應訊息",
+        "coming_soon": "聊天工作流圖表即將上線",
+        "no_messages": "沒有找到訊息",
+        "start_conversation": "開始對話以查看聊天流程圖",
+        "title": "聊天歷史",
+        "user_node": "用戶",
+        "view_full_content": "查看完整內容"
+      },
       "input.auto_resize": "自動調整高度",
       "input.clear": "清除 {{Command}}",
       "input.clear.content": "您想要清除目前話題的所有訊息嗎？",
@@ -130,6 +140,7 @@
       "message.useful": "有用",
       "navigation": {
         "first": "已經是第一條訊息",
+        "history": "聊天歷史",
         "last": "已經是最後一條訊息",
         "next": "下一條訊息",
         "prev": "上一條訊息"
@@ -670,7 +681,8 @@
       "xirang": "天翼雲息壤",
       "yi": "零一萬物",
       "zhinao": "360 智腦",
-      "zhipu": "智譜 AI"
+      "zhipu": "智譜 AI",
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",

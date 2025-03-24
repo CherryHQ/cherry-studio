@@ -227,7 +227,9 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const AI = new AiProvider(provider)
 
   try {
-    return await AI.summaries(filterMessages(messages), assistant)
+    const text = await AI.summaries(filterMessages(messages), assistant)
+    // Remove all quotes from the text
+    return text?.replace(/["']/g, '') || null
   } catch (error: any) {
     return null
   }

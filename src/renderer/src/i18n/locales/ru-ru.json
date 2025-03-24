@@ -96,6 +96,16 @@
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
       "default.name": "Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
+      "history": {
+        "assistant_node": "Ассистент",
+        "click_to_navigate": "Перейти к сообщению",
+        "coming_soon": "График работы чата скоро появится",
+        "no_messages": "Сообщения не найдены",
+        "start_conversation": "Начните диалог, чтобы просмотреть график работы чата",
+        "title": "История чата",
+        "user_node": "Пользователь",
+        "view_full_content": "Показать полное содержимое"
+      },
       "input.auto_resize": "Автоматическая высота",
       "input.clear": "Очистить {{Command}}",
       "input.clear.content": "Хотите очистить все сообщения текущего топика?",
@@ -130,6 +140,7 @@
       "message.useful": "Полезно",
       "navigation": {
         "first": "Уже первое сообщение",
+        "history": "История чата",
         "last": "Уже последнее сообщение",
         "next": "Следующее сообщение",
         "prev": "Предыдущее сообщение"
@@ -670,7 +681,8 @@
       "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",

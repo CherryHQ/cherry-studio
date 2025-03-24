@@ -96,6 +96,16 @@
       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
       "default.name": "Default Assistant",
       "default.topic.name": "Default Topic",
+      "history": {
+        "assistant_node": "Assistant",
+        "click_to_navigate": "Click to navigate to the message",
+        "coming_soon": "Chat workflow diagram coming soon",
+        "no_messages": "No Messages Found",
+        "start_conversation": "Start a conversation to see the chat flow diagram",
+        "title": "Chat History",
+        "user_node": "User",
+        "view_full_content": "View Full Content"
+      },
       "input.auto_resize": "Auto resize height",
       "input.clear": "Clear {{Command}}",
       "input.clear.content": "Do you want to clear all messages of the current topic?",
@@ -130,6 +140,7 @@
       "message.useful": "Helpful",
       "navigation": {
         "first": "Already at the first message",
+        "history": "Chat History",
         "last": "Already at the last message",
         "next": "Next Message",
         "prev": "Previous Message"
@@ -670,7 +681,8 @@
       "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",

@@ -261,6 +261,7 @@ export class WindowService {
       // 托盘及关闭行为设置
       const isShowTray = configManager.getTray()
       const isTrayOnClose = configManager.getTrayOnClose()
+
       // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
       if (!isShowTray || (isShowTray && !isTrayOnClose)) {
         // 如果是Windows或Linux，直接退出
@@ -269,8 +270,8 @@ export class WindowService {
           return app.quit()
         }
       }
-      //上述逻辑以下，是“开启托盘+设置关闭时最小化到托盘”的情况
 
+      //上述逻辑以下，是“开启托盘+设置关闭时最小化到托盘”的情况
       // 如果是Windows或Linux，且处于全屏状态，则退出应用
       if (this.wasFullScreen) {
         if (isWin || isLinux) {
@@ -281,9 +282,13 @@ export class WindowService {
           return
         }
       }
+
       event.preventDefault()
       mainWindow.hide()
-      app.dock?.hide() //for mac to hide to tray
+
+      if (isMac && isTrayOnClose) {
+        app.dock?.hide() //for mac to hide to tray
+      }
     })
 
     mainWindow.on('closed', () => {
@@ -312,6 +317,7 @@ export class WindowService {
       this.mainWindow = this.createMainWindow()
       this.mainWindow.focus()
     }
+
     //for mac users, when window is shown, should show dock icon (dock may be set to hide when launch)
     app.dock?.show()
   }

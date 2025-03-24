@@ -96,6 +96,16 @@
       "default.description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
       "default.name": "デフォルトアシスタント",
       "default.topic.name": "デフォルトトピック",
+      "history": {
+        "assistant_node": "アシスタント",
+        "click_to_navigate": "メッセージに移動",
+        "coming_soon": "チャットワークフロー図がすぐに登場します",
+        "no_messages": "メッセージが見つかりませんでした",
+        "start_conversation": "チャットを開始してチャットワークフロー図を確認してください",
+        "title": "チャット履歴",
+        "user_node": "ユーザー",
+        "view_full_content": "完全な内容を表示"
+      },
       "input.auto_resize": "高さを自動調整",
       "input.clear": "クリア {{Command}}",
       "input.clear.content": "現在のトピックのすべてのメッセージをクリアしますか？",
@@ -130,6 +140,7 @@
       "message.useful": "役立つ",
       "navigation": {
         "first": "最初のメッセージです",
+        "history": "チャット履歴",
         "last": "最後のメッセージです",
         "next": "次のメッセージ",
         "prev": "前のメッセージ"
@@ -670,7 +681,8 @@
       "xirang": "天翼クラウド 息壤",
       "yi": "零一万物",
       "zhinao": "360智脳",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "データを復元しますか？",
