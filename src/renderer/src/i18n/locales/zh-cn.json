@@ -518,7 +518,9 @@
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
       "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!",
-      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
+      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试",
+      "download.success": "下载成功",
+      "download.failed": "下载失败"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
@@ -679,7 +681,7 @@
       "yi": "零一万物",
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
-      "voyageai":"Voyage AI"
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",

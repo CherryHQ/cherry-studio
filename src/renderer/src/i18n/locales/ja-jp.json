@@ -518,7 +518,9 @@
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
       "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
-      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"
+      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。",
+      "download.success": "ダウンロード成功",
+      "download.failed": "ダウンロードに失敗しました"
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",

@@ -518,7 +518,9 @@
       "upgrade.success.content": "請重新啟動程式以完成升級",
       "upgrade.success.title": "升級成功",
       "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！",
-      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試"
+      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試",
+      "download.success": "下載成功",
+      "download.failed": "下載失敗"
     },
     "minapp": {
       "sidebar.add.title": "新增到側邊欄",
