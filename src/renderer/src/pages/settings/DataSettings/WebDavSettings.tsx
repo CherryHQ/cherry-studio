@@ -12,13 +12,13 @@ import {
   setWebdavSyncInterval as _setWebdavSyncInterval,
   setWebdavUser as _setWebdavUser
 } from '@renderer/store/settings'
+import { formatFileSize } from '@renderer/utils'
 import { Button, Input, Modal, Select, Spin, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-import { formatFileSize } from '@renderer/utils'
 
 interface BackupFile {
   fileName: string

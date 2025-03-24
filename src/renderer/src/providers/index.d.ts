@@ -9,6 +9,7 @@ interface ChunkCallbackData {
   search?: GroundingMetadata
   citations?: string[]
   mcpToolResponse?: MCPToolResponse[]
+  generateImage?: GenerateImageResponse
 }
 
 interface CompletionsParams {

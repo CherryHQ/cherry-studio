@@ -7,6 +7,7 @@
   <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="./README.ja.md">日本語</a><br></p>
 <div align="center">
  <a href="https://trendshift.io/repositories/11772" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11772" alt="kangfenmao%2Fcherry-studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+ <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 </div>
 # 🍒 Cherry Studio
 
@@ -119,10 +120,6 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 [Telegram](https://t.me/CherryStudioAI) | [Email](mailto:kangfenmao@gmail.com) | [Twitter](https://x.com/kangfenmao)
 
-# 📣 产品猎人
-
-<a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
-
 # ☕ 赞助
 
 [微信赞赏码](sponsor.md)
@@ -130,6 +127,10 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 # 📃 许可证
 
 [LICENSE](../LICENSE)
+
+# ✉️ 联系我们
+
+yinsenho@cherry-ai.com
 
 # ⭐️ Star 记录
 

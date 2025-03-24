@@ -1,6 +1,7 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Message, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
@@ -36,6 +37,38 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
     setSelectedIndex(messageLength - 1)
   }, [messageLength])
 
+  // 添加对流程图节点点击事件的监听
+  useEffect(() => {
+    // 只在组件挂载和消息数组变化时添加监听器
+    if (!isGrouped || messageLength <= 1) return
+
+    const handleFlowNavigate = (event: CustomEvent) => {
+      const { messageId } = event.detail
+
+      // 查找对应的消息在当前消息组中的索引
+      const targetIndex = messages.findIndex((msg) => msg.id === messageId)
+
+      // 如果找到消息且不是当前选中的索引，则切换标签
+      if (targetIndex !== -1 && targetIndex !== selectedIndex) {
+        setSelectedIndex(targetIndex)
+
+        // 使用setSelectedMessage函数来切换标签，这是处理foldSelected的关键
+        const targetMessage = messages[targetIndex]
+        if (targetMessage) {
+          setSelectedMessage(targetMessage)
+        }
+      }
+    }
+
+    // 添加事件监听器
+    document.addEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
+
+    // 清理函数
+    return () => {
+      document.removeEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
+    }
+  }, [messages, selectedIndex, isGrouped, messageLength])
+
   const setSelectedMessage = useCallback(
     (message: Message) => {
       messages.forEach(async (m) => {
@@ -47,10 +80,46 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
         if (messageElement) {
           messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
-      }, 100)
+      }, 200)
     },
     [editMessage, messages]
   )
+
+  // 添加对LOCATE_MESSAGE事件的监听
+  useEffect(() => {
+    // 为每个消息注册一个定位事件监听器
+    const eventHandlers: { [key: string]: () => void } = {}
+
+    messages.forEach((message) => {
+      const eventName = EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id
+      const handler = () => {
+        // 检查消息是否处于可见状态
+        const element = document.getElementById(`message-${message.id}`)
+        if (element) {
+          const display = window.getComputedStyle(element).display
+
+          if (display === 'none') {
+            // 如果消息隐藏，先切换标签
+            setSelectedMessage(message)
+          } else {
+            // 直接滚动
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        }
+      }
+
+      eventHandlers[eventName] = handler
+      EventEmitter.on(eventName, handler)
+    })
+
+    // 清理函数
+    return () => {
+      // 移除所有事件监听器
+      Object.entries(eventHandlers).forEach(([eventName, handler]) => {
+        EventEmitter.off(eventName, handler)
+      })
+    }
+  }, [messages, setSelectedMessage])
 
   const renderMessage = useCallback(
     (message: Message & { index: number }, index: number) => {
