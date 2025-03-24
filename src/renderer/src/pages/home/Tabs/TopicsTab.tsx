@@ -345,7 +345,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 className={isActive ? 'active' : ''}
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
-                {!isActive && isPending(topic.id) && <PendingIndicator />}
+                {isPending(topic.id) && !isActive && <PendingIndicator />}
                 <TopicName className="name" title={topicName}>
                   {topicName}
                 </TopicName>

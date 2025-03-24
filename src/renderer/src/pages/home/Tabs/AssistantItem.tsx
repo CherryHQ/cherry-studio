@@ -132,7 +132,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
             <ModelAvatar
               model={assistant.model || defaultModel}
               size={22}
-              className={isPending ? 'animation-pulse' : ''}
+              className={isPending && !isActive ? 'animation-pulse' : ''}
             />
           )}
           <AssistantName className="text-nowrap">{showAssistantIcon ? assistantName : fullAssistantName}</AssistantName>
