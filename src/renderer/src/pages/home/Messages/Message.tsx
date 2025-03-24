@@ -8,7 +8,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Assistant, Message, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Divider, Dropdown } from 'antd'
-import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

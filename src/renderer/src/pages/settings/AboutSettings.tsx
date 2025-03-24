@@ -70,7 +70,7 @@ const AboutSettings: FC = () => {
 
   const showLicense = async () => {
     const { appPath } = await window.api.getAppInfo()
-    MinApp.start({
+    await MinApp.start({
       name: t('settings.about.license.title'),
       url: `file://${appPath}/resources/cherry-studio/license.html`,
       logo: AppLogo
@@ -79,7 +79,7 @@ const AboutSettings: FC = () => {
 
   const showReleases = async () => {
     const { appPath } = await window.api.getAppInfo()
-    MinApp.start({
+    await MinApp.start({
       name: t('settings.about.releases.title'),
       url: `file://${appPath}/resources/cherry-studio/releases.html?theme=${theme === ThemeMode.dark ? 'dark' : 'light'}`,
       logo: AppLogo

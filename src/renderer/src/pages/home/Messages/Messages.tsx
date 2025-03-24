@@ -19,7 +19,7 @@ import {
   runAsyncFunction
 } from '@renderer/utils'
 import { flatten, last, take } from 'lodash'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -151,7 +151,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         await db.topics.add({ id: newTopic.id, messages: branchMessages })
         addTopic(newTopic)
         setActiveTopic(newTopic)
-        autoRenameTopic(assistant, newTopic.id)
+        await autoRenameTopic(assistant, newTopic.id)
 
         // 由于复制了消息，消息中附带的文件的总数变了，需要更新
         const filesArr = branchMessages.map((m) => m.files)
@@ -170,7 +170,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
 
   useEffect(() => {
     runAsyncFunction(async () => {
-      EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, {
+      await EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, {
         tokensCount: await estimateHistoryTokens(assistant, messages),
         contextCount: getContextCount(assistant, messages)
       })

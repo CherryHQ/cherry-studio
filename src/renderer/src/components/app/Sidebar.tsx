@@ -99,7 +99,7 @@ const Sidebar: FC = () => {
         <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
           <StyledLink
             onClick={async () => {
-              minappShow && (await MinApp.close())
+              minappShow && MinApp.close()
               await modelGenerating()
               await to('/settings/provider')
             }}>
