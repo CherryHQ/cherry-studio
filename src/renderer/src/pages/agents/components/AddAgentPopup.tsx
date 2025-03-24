@@ -158,7 +158,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         }}>
         <Form.Item name="name" label="Emoji">
           <Popover content={<EmojiPicker onEmojiClick={setEmoji} />} arrow>
-            <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
+            <Button icon={emoji && <span style={{ fontSize: 20 }} className='flag-emoji'>{emoji}</span>}>{t('common.select')}</Button>
           </Popover>
         </Form.Item>
         <Form.Item name="name" label={t('agents.add.name')} rules={[{ required: true }]}>

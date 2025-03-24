@@ -61,7 +61,7 @@ const Sidebar: FC = () => {
   return (
     <Container id="app-sidebar" style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
       {isEmoji(avatar) ? (
-        <EmojiAvatar onClick={onEditUser}>{avatar}</EmojiAvatar>
+        <EmojiAvatar onClick={onEditUser} className='flag-emoji'>{avatar}</EmojiAvatar>
       ) : (
         <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
       )}

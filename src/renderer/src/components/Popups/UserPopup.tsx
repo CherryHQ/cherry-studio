@@ -154,7 +154,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                 }
               }}
               placement="bottom">
-              {isEmoji(avatar) ? <EmojiAvatar>{avatar}</EmojiAvatar> : <UserAvatar src={avatar} />}
+              {isEmoji(avatar) ? <EmojiAvatar className='flag-emoji'>{avatar}</EmojiAvatar> : <UserAvatar src={avatar} />}
             </Popover>
           </Dropdown>
         </VStack>

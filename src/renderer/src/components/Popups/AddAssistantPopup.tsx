@@ -131,7 +131,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               alignItems="center"
               gap={5}
               style={{ overflow: 'hidden', maxWidth: '100%' }}
-              className="text-nowrap">
+              className="text-nowrap flag-emoji">
               {agent.emoji} {agent.name}
             </HStack>
             {agent.id === 'default' && <Tag color="green">{t('agents.tag.system')}</Tag>}
