@@ -523,6 +523,7 @@
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
       "sidebar.remove.title": "从侧边栏移除",
+      "sidebar.hide.title": "隐藏小程序",
       "title": "小程序"
     },
     "miniwindow": {
@@ -679,7 +680,7 @@
       "yi": "零一万物",
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
-      "voyageai":"Voyage AI"
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",

@@ -523,6 +523,7 @@
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
       "sidebar.remove.title": "サイドバーから削除",
+      "sidebar.hide.title": "ミニアプリを隠す",
       "title": "ミニアプリ"
     },
     "miniwindow": {

@@ -523,6 +523,7 @@
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
       "sidebar.remove.title": "Удалить из боковой панели",
+      "sidebar.hide.title": "Скрыть приложение",
       "title": "Встроенные приложения"
     },
     "miniwindow": {

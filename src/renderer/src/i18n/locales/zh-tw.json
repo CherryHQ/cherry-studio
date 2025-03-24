@@ -523,6 +523,7 @@
     "minapp": {
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
+      "sidebar.hide.title": "隱藏小工具",
       "title": "小工具"
     },
     "miniwindow": {
