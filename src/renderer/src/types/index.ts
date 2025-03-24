@@ -201,7 +201,16 @@ export enum ThemeMode {
 
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
 
-export type TranslateLanguageVarious = 'chinese' | 'chinese-traditional' | 'greek' | 'english' | 'spanish' | 'french' | 'japanese' | 'portuguese' | 'russian'
+export type TranslateLanguageVarious =
+  | 'chinese'
+  | 'chinese-traditional'
+  | 'greek'
+  | 'english'
+  | 'spanish'
+  | 'french'
+  | 'japanese'
+  | 'portuguese'
+  | 'russian'
 
 export type CodeStyleVarious = BuiltinTheme | 'auto'
 

@@ -96,6 +96,16 @@
       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
       "default.name": "Default Assistant",
       "default.topic.name": "Default Topic",
+      "history": {
+        "assistant_node": "Assistant",
+        "click_to_navigate": "Click to navigate to the message",
+        "coming_soon": "Chat workflow diagram coming soon",
+        "no_messages": "No Messages Found",
+        "start_conversation": "Start a conversation to see the chat flow diagram",
+        "title": "Chat History",
+        "user_node": "User",
+        "view_full_content": "View Full Content"
+      },
       "input.auto_resize": "Auto resize height",
       "input.clear": "Clear {{Command}}",
       "input.clear.content": "Do you want to clear all messages of the current topic?",
@@ -105,6 +115,8 @@
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
       "input.file_not_supported": "Model does not support this file type",
+      "input.generate_image": "Generate image",
+      "input.generate_image_not_supported": "The model does not support generating images.",
       "input.knowledge_base": "Knowledge Base",
       "input.new.context": "Clear Context {{Command}}",
       "input.new_topic": "New Topic {{Command}}",
@@ -128,6 +140,7 @@
       "message.useful": "Helpful",
       "navigation": {
         "first": "Already at the first message",
+        "history": "Chat History",
         "last": "Already at the last message",
         "next": "Next Message",
         "prev": "Previous Message"
@@ -198,16 +211,7 @@
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "topics.new": "New Topic",
-      "translate": "Translate",
-      "navigation": {
-        "prev": "Previous Message",
-        "next": "Next Message",
-        "first": "Already at the first message",
-        "last": "Already at the last message"
-      },
-      "input.generate_image": "Generate image",
-      "input.generate_image_not_supported": "The model does not support generating images."
+      "translate": "Translate"
     },
     "code_block": {
       "collapse": "Collapse",
@@ -674,7 +678,8 @@
       "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",

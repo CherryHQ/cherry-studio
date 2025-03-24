@@ -144,7 +144,7 @@ export function registerShortcuts(window: BrowserWindow) {
         if (!shortcut.enabled) {
           return
         }
-        
+
         // only register universal shortcuts when needed
         if (onlyUniversalShortcuts && !['show_app', 'mini_window'].includes(shortcut.key)) {
           return

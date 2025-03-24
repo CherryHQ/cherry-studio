@@ -96,6 +96,16 @@
       "default.description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
       "default.name": "デフォルトアシスタント",
       "default.topic.name": "デフォルトトピック",
+      "history": {
+        "assistant_node": "アシスタント",
+        "click_to_navigate": "メッセージに移動",
+        "coming_soon": "チャットワークフロー図がすぐに登場します",
+        "no_messages": "メッセージが見つかりませんでした",
+        "start_conversation": "チャットを開始してチャットワークフロー図を確認してください",
+        "title": "チャット履歴",
+        "user_node": "ユーザー",
+        "view_full_content": "完全な内容を表示"
+      },
       "input.auto_resize": "高さを自動調整",
       "input.clear": "クリア {{Command}}",
       "input.clear.content": "現在のトピックのすべてのメッセージをクリアしますか？",
@@ -105,6 +115,8 @@
       "input.estimated_tokens.tip": "推定トークン数",
       "input.expand": "展開",
       "input.file_not_supported": "モデルはこのファイルタイプをサポートしません",
+      "input.generate_image": "画像を生成する",
+      "input.generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "input.knowledge_base": "ナレッジベース",
       "input.new.context": "コンテキストをクリア {{Command}}",
       "input.new_topic": "新しいトピック {{Command}}",
@@ -128,6 +140,7 @@
       "message.useful": "役立つ",
       "navigation": {
         "first": "最初のメッセージです",
+        "history": "チャット履歴",
         "last": "最後のメッセージです",
         "next": "次のメッセージ",
         "prev": "前のメッセージ"
@@ -198,16 +211,7 @@
       "topics.prompt.tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供",
       "topics.title": "トピック",
       "topics.unpinned": "固定解除",
-      "topics.new": "新しいトピック",
-      "translate": "翻訳",
-      "navigation": {
-        "prev": "前のメッセージ",
-        "next": "次のメッセージ",
-        "first": "最初のメッセージです",
-        "last": "最後のメッセージです"
-      },
-      "input.generate_image": "画像を生成する",
-      "input.generate_image_not_supported": "モデルは画像の生成をサポートしていません。"
+      "translate": "翻訳"
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -674,7 +678,8 @@
       "xirang": "天翼クラウド 息壤",
       "yi": "零一万物",
       "zhinao": "360智脳",
-      "zhipu": "智譜AI"
+      "zhipu": "智譜AI",
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "データを復元しますか？",

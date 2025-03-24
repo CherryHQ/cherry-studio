@@ -7,7 +7,6 @@ import {
   GlobalOutlined,
   HolderOutlined,
   PauseCircleOutlined,
-  PictureOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -45,6 +44,7 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
+import GenerateImageButton from './GenerateImageButton'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
 import MCPToolsButton from './MCPToolsButton'
 import MentionModelsButton from './MentionModelsButton'
@@ -745,20 +745,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   ToolbarButton={ToolbarButton}
                 />
               )}
-              <Tooltip
-                placement="top"
-                title={
-                  !isGenerateImageModel(model)
-                    ? t('chat.input.generate_image_not_supported')
-                    : t('chat.input.generate_image')
-                }
-                arrow>
-                <ToolbarButton type="text" disabled={!isGenerateImageModel(model)} onClick={onEnableGenerateImage}>
-                  <PictureOutlined
-                    style={{ color: assistant.enableGenerateImage ? 'var(--color-link)' : 'var(--color-icon)' }}
-                  />
-                </ToolbarButton>
-              </Tooltip>
+              <GenerateImageButton
+                model={model}
+                assistant={assistant}
+                onEnableGenerateImage={onEnableGenerateImage}
+                ToolbarButton={ToolbarButton}
+              />
               <MentionModelsButton
                 mentionModels={mentionModels}
                 onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}

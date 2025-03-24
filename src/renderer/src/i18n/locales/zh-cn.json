@@ -96,6 +96,16 @@
       "default.description": "你好，我是默认助手。你可以立刻开始跟我聊天。",
       "default.name": "默认助手",
       "default.topic.name": "默认话题",
+      "history": {
+        "assistant_node": "助手",
+        "click_to_navigate": "点击跳转到对应消息",
+        "coming_soon": "聊天工作流图表即将上线",
+        "no_messages": "没有找到消息",
+        "start_conversation": "开始对话以查看聊天流程图",
+        "title": "聊天历史",
+        "user_node": "用户",
+        "view_full_content": "查看完整内容"
+      },
       "input.auto_resize": "自动调整高度",
       "input.clear": "清空消息 {{Command}}",
       "input.clear.content": "确定要清除当前会话所有消息吗?",
@@ -105,6 +115,8 @@
       "input.estimated_tokens.tip": "预估 token 数",
       "input.expand": "展开",
       "input.file_not_supported": "模型不支持此文件类型",
+      "input.generate_image": "生成图片",
+      "input.generate_image_not_supported": "模型不支持生成图片",
       "input.knowledge_base": "知识库",
       "input.new.context": "清除上下文 {{Command}}",
       "input.new_topic": "新话题 {{Command}}",
@@ -116,8 +128,6 @@
       "input.translate": "翻译成{{target_language}}",
       "input.upload": "上传图片或文档",
       "input.upload.document": "上传文档（模型不支持图片）",
-      "input.generate_image": "生成图片",
-      "input.generate_image_not_supported": "模型不支持生成图片",
       "input.web_search": "开启网络搜索",
       "input.web_search.button.ok": "去设置",
       "input.web_search.enable": "开启网络搜索",
@@ -130,6 +140,7 @@
       "message.useful": "有用",
       "navigation": {
         "first": "已经是第一条消息",
+        "history": "聊天历史",
         "last": "已经是最后一条消息",
         "next": "下一条消息",
         "prev": "上一条消息"
@@ -556,7 +567,7 @@
         "string": "文本"
       },
       "pinned": "已固定",
-      "rerank_model": "重排序模型",
+      "rerank_model": "重排模型",
       "rerank_model_support_provider": "目前重排序模型仅支持部分服务商 ({{provider}})",
       "rerank_model_tooltip": "在设置->模型服务中点击管理按钮添加",
       "search": "搜索模型...",
@@ -667,7 +678,8 @@
       "xirang": "天翼云息壤",
       "yi": "零一万物",
       "zhinao": "360智脑",
-      "zhipu": "智谱AI"
+      "zhipu": "智谱AI",
+      "voyageai":"Voyage AI"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",

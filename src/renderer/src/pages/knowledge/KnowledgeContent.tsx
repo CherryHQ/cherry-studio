@@ -584,10 +584,10 @@ const ModelInfo = styled.div`
   .model-row {
     display: flex;
     align-items: flex-start;
+    gap: 10px;
   }
 
   .label-column {
-    width: 80px;
     flex-shrink: 0;
   }
 

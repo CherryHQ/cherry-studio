@@ -795,6 +795,10 @@ const migrateConfig = {
     state.settings.launchToTray = false
     state.settings.trayOnClose = true
     return state
+  },
+  '84': (state: RootState) => {
+    addProvider(state, 'voyageai')
+    return state
   }
 }
 
