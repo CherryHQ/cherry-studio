@@ -148,40 +148,40 @@ const MessageMenubar: FC<Props> = (props) => {
   const handleSpeakText = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      
+
       if (isSpeaking) {
-        console.log('停止TTS播放');
+        console.log('停止TTS播放')
         ttsService.stop()
         setIsSpeaking(false)
         return
       }
-      
-      console.log('开始TTS播放流程');
-      
+
+      console.log('开始TTS播放流程')
+
       // 先检查TTS服务是否可用（通过主进程IPC调用）
       try {
-        // @ts-ignore
-        const isAvailable = await window.api.tts.isAvailable();
-        console.log('TTS服务可用性检查结果:', isAvailable);
-        
+        // @ts-ignore - window.api.tts 类型定义中缺少 isAvailable 方法
+        const isAvailable = await window.api.tts.isAvailable()
+        console.log('TTS服务可用性检查结果:', isAvailable)
+
         if (!isAvailable) {
-          window.message.error({ 
-            content: '语音合成服务未启用或配置不正确，请在设置中启用并配置API密钥', 
-            key: 'tts-message' 
-          });
-          return;
+          window.message.error({
+            content: '语音合成服务未启用或配置不正确，请在设置中启用并配置API密钥',
+            key: 'tts-message'
+          })
+          return
         }
       } catch (error) {
-        console.error('TTS可用性检查失败:', error);
-        window.message.error({ 
+        console.error('TTS可用性检查失败:', error)
+        window.message.error({
           content: '语音合成服务检查失败，请确保已在设置中正确配置',
-          key: 'tts-message' 
-        });
-        return;
+          key: 'tts-message'
+        })
+        return
       }
-      
+
       setIsSpeaking(true)
-      
+
       try {
         // 获取要朗读的文本
         let textToSpeak = message.content
@@ -189,15 +189,15 @@ const MessageMenubar: FC<Props> = (props) => {
           const processedMessage = withMessageThought(clone(message))
           textToSpeak = processedMessage.content
         }
-        
-        const processedText = removeTrailingDoubleSpaces(textToSpeak.trimStart());
-        console.log('准备朗读文本(前50个字符):', processedText.substring(0, 50) + '...');
-        
+
+        const processedText = removeTrailingDoubleSpaces(textToSpeak.trimStart())
+        console.log('准备朗读文本(前50个字符):', processedText.substring(0, 50) + '...')
+
         // 使用TTS服务朗读文本
-        console.log('调用TTS服务speak方法');
-        const success = await ttsService.speak(processedText);
-        console.log('TTS播放结果:', success ? '成功' : '失败');
-        
+        console.log('调用TTS服务speak方法')
+        const success = await ttsService.speak(processedText)
+        console.log('TTS播放结果:', success ? '成功' : '失败')
+
         if (!success) {
           window.message.error({ content: t('settings.tts.check_failed'), key: 'tts-message' })
         }
@@ -414,9 +414,7 @@ const MessageMenubar: FC<Props> = (props) => {
       )}
       {!isUserMessage && (
         <Tooltip title={t('settings.tts.title')} mouseEnterDelay={0.8}>
-          <ActionButton 
-            className={`message-action-button ${isSpeaking ? 'speaking' : ''}`} 
-            onClick={handleSpeakText}>
+          <ActionButton className={`message-action-button ${isSpeaking ? 'speaking' : ''}`} onClick={handleSpeakText}>
             <SoundOutlined style={isSpeaking ? { color: 'var(--color-primary)' } : undefined} />
           </ActionButton>
         </Tooltip>
