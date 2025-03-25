@@ -1,4 +1,10 @@
-import { isEmbeddingModel, isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import {
+  isEmbeddingModel,
+  isFunctionCallingModel,
+  isGenerateImageModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
 import { Model, Provider } from '@renderer/types'
@@ -39,6 +45,10 @@ export function hasAnyVisionModel(model: Model, models?: Model[]) {
 
 export function hasAnyFunctionCallingModel(model: Model, models?: Model[]) {
   return Boolean(isFunctionCallingModel(model)) || Boolean(models?.some((model) => isFunctionCallingModel(model)))
+}
+
+export function hasAnyImageGenerationModel(model: Model, models?: Model[]) {
+  return Boolean(isGenerateImageModel(model)) || Boolean(models?.some((model) => isGenerateImageModel(model)))
 }
 
 export function hasAnyWebSearchModel(model: Model, models?: Model[]) {

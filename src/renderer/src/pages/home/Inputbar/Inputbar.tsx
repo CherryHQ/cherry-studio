@@ -21,7 +21,12 @@ import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
-import { hasAnyFunctionCallingModel, hasAnyVisionModel, hasAnyWebSearchModel } from '@renderer/services/ModelService'
+import {
+  hasAnyFunctionCallingModel,
+  hasAnyImageGenerationModel,
+  hasAnyVisionModel,
+  hasAnyWebSearchModel
+} from '@renderer/services/ModelService'
 import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
@@ -101,6 +106,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   // Model capabilities
   const visionCapable = useMemo(() => hasAnyVisionModel(model, mentionModels), [model, mentionModels])
   const mcpToolsCapable = useMemo(() => hasAnyFunctionCallingModel(model, mentionModels), [model, mentionModels])
+  const imageGenerationCapable = useMemo(() => hasAnyImageGenerationModel(model, mentionModels), [model, mentionModels])
   const webSearchCapable = useMemo(() => hasAnyWebSearchModel(model, mentionModels), [model, mentionModels])
 
   const supportExts = useMemo(
@@ -450,7 +456,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
     },
-    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
+    [pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text, visionCapable]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -660,10 +666,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (!webSearchCapable && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
     }
-    if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
+    if (!imageGenerationCapable && assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
     }
-  }, [assistant, model, updateAssistant])
+  }, [assistant, imageGenerationCapable, updateAssistant, webSearchCapable])
 
   const resetHeight = () => {
     if (expended) {
