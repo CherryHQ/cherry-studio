@@ -164,13 +164,8 @@
       "topics.export.yuque": "تصدير إلى Yuque",
       "topics.export.obsidian": "تصدير إلى Obsidian",
       "topics.export.obsidian_not_configured": "Obsidian غير مهيأ",
-      "topics.export.obsidian_fetch_failed": "فشل في جلب بنية مجلد Obsidian",
-      "topics.export.obsidian_select_folder": "اختر مجلد Obsidian",
-      "topics.export.obsidian_select_folder.btn": "تأكيد",
       "topics.export.obsidian_export_success": "تم التصدير بنجاح",
       "topics.export.obsidian_export_failed": "فشل التصدير",
-      "topics.export.obsidian_show_md_files": "عرض ملفات MD",
-      "topics.export.obsidian_selected_path": "المسار المختار",
       "topics.export.joplin": "تصدير إلى Joplin",
       "topics.list": "قائمة الموضوعات",
       "topics.move_to": "نقل إلى",
@@ -186,8 +181,38 @@
         "prev": "الرسالة السابقة",
         "next": "الرسالة التالية",
         "first": "أنت بالفعل في الرسالة الأولى",
-        "last": "أنت بالفعل في الرسالة الأخيرة"
-      }
+        "last": "أنت بالفعل في الرسالة الأخيرة",
+        "history": "التاريخ"
+      },
+      "history": {
+        "assistant_node": "المساعد",
+        "click_to_navigate": "اضغط للانتقال إلى الرسالة المقابلة",
+        "coming_soon": "الرسائل المحادثات سيتم إضافتها قريبًا",
+        "no_messages": "لم يتم العثور على رسائل",
+        "start_conversation": "ابدأ المحادثة لعرض الرسائل المحادثات",
+        "title": "التاريخ",
+        "user_node": "المستخدم",
+        "view_full_content": "عرض المحتوى بالكامل"
+      },
+      "input.generate_image": "توليد الصورة",
+      "input.generate_image_not_supported": "النموذج لا يدعم توليد الصورة",
+      "topics.export.obsidian_atributes": "تكوين خصائص الملاحظة",
+      "topics.export.obsidian_btn": "تأكيد",
+      "topics.export.obsidian_created": "الوقت الإنشاء",
+      "topics.export.obsidian_created_placeholder": "اختر الوقت الإنشاء",
+      "topics.export.obsidian_operate": "الإجراء",
+      "topics.export.obsidian_operate_append": "الإضافة",
+      "topics.export.obsidian_operate_new_or_overwrite": "الإنشاء (إذا كان موجودًا فسيتم التعويض)",
+      "topics.export.obsidian_operate_placeholder": "اختر الإجراء",
+      "topics.export.obsidian_operate_prepend": "المسبق",
+      "topics.export.obsidian_source": "المصدر",
+      "topics.export.obsidian_source_placeholder": "أدخل المصدر",
+      "topics.export.obsidian_tags": "التصنيفات",
+      "topics.export.obsidian_tags_placeholder": "أدخل التصنيفات، التصنيفات بالفصل بعلامة الفاصلة العلمية",
+      "topics.export.obsidian_title": "العنوان",
+      "topics.export.obsidian_title_placeholder": "أدخل العنوان",
+      "topics.export.obsidian_title_required": "العنوان لا يمكن أن يكون فارغًا",
+      "topics.export.siyuan": "تصدير إلى SiYuan"
     },
     "code_block": {
       "collapse": "طي",
@@ -264,7 +289,8 @@
         "description": "فشل في عرض الصيغة. يرجى التحقق مما إذا كان تنسيق الصيغة صحيحًا",
         "title": "خطأ في العرض"
       },
-      "user_message_not_found": "تعذر العثور على رسالة المستخدم الأصلية لإعادة الإرسال"
+      "user_message_not_found": "تعذر العثور على رسالة المستخدم الأصلية لإعادة الإرسال",
+      "unknown": "[to be translated]:未知错误"
     },
     "export": {
       "assistant": "المساعد",
@@ -488,12 +514,20 @@
       "tools": {
         "invoking": "يتم الاستدعاء",
         "completed": "تم الاستدعاء"
-      }
+      },
+      "error.invalid.nutstore": "[to be translated]:无效的坚果云设置",
+      "error.invalid.nutstore_token": "[to be translated]:无效的坚果云 Token",
+      "error.siyuan.export": "[to be translated]:导出思源笔记失败，请检查连接状态并对照文档检查配置",
+      "error.siyuan.no_config": "[to be translated]:未配置思源笔记API地址或令牌",
+      "success.siyuan.export": "[to be translated]:导出到思源笔记成功",
+      "warn.yuque.exporting": "[to be translated]:正在导出语雀, 请勿重复请求导出!",
+      "warn.siyuan.exporting": "[to be translated]:正在导出到思源笔记，请勿重复请求导出!"
     },
     "minapp": {
       "sidebar.add.title": "إضافة إلى الشريط الجانبي",
       "sidebar.remove.title": "إزالة من الشريط الجانبي",
-      "title": "MinApp"
+      "title": "MinApp",
+      "sidebar.hide.title": "[to be translated]:隐藏小程序"
     },
     "miniwindow": {
       "clipboard": {
@@ -527,7 +561,6 @@
       "embedding": "التضمين",
       "embedding_model": "نموذج التضمين",
       "embedding_model_tooltip": "أضف في الإعدادات -> مزود النموذج -> إدارة",
-      "free": "مجاني",
       "no_matches": "لا توجد نماذج متاحة",
       "parameter_name": "اسم المعلمة",
       "parameter_type": {
@@ -537,7 +570,6 @@
         "string": "نص"
       },
       "pinned": "مثبت",
-      "reasoning": "الاستدلال",
       "search": "بحث عن النماذج...",
       "stream_output": "إخراج تدفقي",
       "function_calling": "استدعاء الوظيفة",
@@ -547,12 +579,14 @@
         "select": "اختر أنواع النماذج",
         "text": "نص",
         "vision": "رؤية",
-        "function_calling": "استدعاء الوظيفة"
+        "function_calling": "استدعاء الوظيفة",
+        "free": "[to be translated]:免费",
+        "rerank": "[to be translated]:重排",
+        "websearch": "[to be translated]:联网"
       },
-      "vision": "رؤية",
-      "websearch": "بحث الويب",
       "rerank_model": "نموذج إعادة الترتيب",
-      "rerank_model_tooltip": "انقر على زر الإدارة في الإعدادات -> خدمات النموذج لإضافة."
+      "rerank_model_tooltip": "انقر على زر الإدارة في الإعدادات -> خدمات النموذج لإضافة.",
+      "rerank_model_support_provider": "[to be translated]:目前重排序模型仅支持部分服务商 ({{provider}})"
     },
     "navbar": {
       "expand": "توسيع الحوار",
@@ -654,7 +688,8 @@
       "zhipu": "ZHIPU AI",
       "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
-      "alayanew": "Alaya NeW"
+      "alayanew": "Alaya NeW",
+      "voyageai": "[to be translated]:Voyage AI"
     },
     "restore": {
       "confirm": "هل أنت متأكد أنك تريد استعادة البيانات؟",
@@ -792,19 +827,13 @@
           "token_placeholder": "يرجى إدخال رمز Yuque"
         },
         "obsidian": {
-          "check": {
-            "button": "تحقق",
-            "empty_url": "يرجى إدخال رابط REST API لـ Obsidian أولاً",
-            "empty_api_key": "يرجى إدخال مفتاح API لـ Obsidian أولاً",
-            "fail": "فشل التحقق من اتصال Obsidian",
-            "success": "تم التحقق من اتصال Obsidian بنجاح"
-          },
-          "help": "قم بتثبيت البرنامج المساعد Local REST API لـ Obsidian أولاً، ثم احصل على مفتاح API لـ Obsidian",
-          "url": "رابط قاعدة المعرفة لـ Obsidian",
-          "url_placeholder": "http://127.0.0.1:27123/",
           "title": "تكوين Obsidian",
-          "api_key": "مفتاح API لـ Obsidian",
-          "api_key_placeholder": "يرجى إدخال مفتاح API لـ Obsidian"
+          "folder": "[to be translated]:文件夹",
+          "folder_placeholder": "[to be translated]:请输入文件夹名称",
+          "tags": "[to be translated]:全局标签",
+          "tags_placeholder": "[to be translated]:请输入标签名称, 多个标签用英文逗号分隔",
+          "vault": "[to be translated]:保管库",
+          "vault_placeholder": "[to be translated]:请输入保管库名称"
         },
         "joplin": {
           "check": {
@@ -820,6 +849,48 @@
           "url_placeholder": "http://127.0.0.1:41184/",
           "token": "رمز تفويض Joplin",
           "token_placeholder": "رمز تفويض Joplin"
+        },
+        "siyuan": {
+          "title": "[to be translated]:思源笔记配置",
+          "api_url": "[to be translated]:API地址",
+          "api_url_placeholder": "[to be translated]:例如：http://127.0.0.1:6806",
+          "token": "[to be translated]:API令牌",
+          "token.help": "[to be translated]:在思源笔记->设置->关于中获取",
+          "token_placeholder": "[to be translated]:请输入思源笔记令牌",
+          "box_id": "[to be translated]:笔记本ID",
+          "box_id_placeholder": "[to be translated]:请输入笔记本ID",
+          "root_path": "[to be translated]:文档根路径",
+          "root_path_placeholder": "[to be translated]:例如：/CherryStudio",
+          "check": {
+            "title": "[to be translated]:连接检查",
+            "button": "[to be translated]:检查",
+            "empty_config": "[to be translated]:请填写API地址和令牌",
+            "success": "[to be translated]:连接成功",
+            "fail": "[to be translated]:连接失败，请检查API地址和令牌",
+            "error": "[to be translated]:连接异常，请检查网络连接"
+          }
+        },
+        "nutstore": {
+          "title": "[to be translated]:坚果云配置",
+          "isLogin": "[to be translated]:已登录",
+          "notLogin": "[to be translated]:未登录",
+          "login.button": "[to be translated]:登录",
+          "logout.button": "[to be translated]:退出登录",
+          "logout.title": "[to be translated]:确定要退出坚果云登录？",
+          "logout.content": "[to be translated]:退出后将无法备份至坚果云和从坚果云恢复",
+          "checkConnection.name": "[to be translated]:检查连接",
+          "checkConnection.success": "[to be translated]:已连接坚果云",
+          "checkConnection.fail": "[to be translated]:坚果云连接失败",
+          "username": "[to be translated]:坚果云用户名",
+          "path": "[to be translated]:坚果云存储路径",
+          "path.placeholder": "[to be translated]:请输入坚果云的存储路径",
+          "backup.button": "[to be translated]:备份到坚果云",
+          "restore.button": "[to be translated]:从坚果云恢复",
+          "pathSelector.title": "[to be translated]:坚果云存储路径",
+          "pathSelector.return": "[to be translated]:返回",
+          "pathSelector.currentPath": "[to be translated]:当前路径",
+          "new_folder.button.confirm": "[to be translated]:确定",
+          "new_folder.button.cancel": "[to be translated]:取消"
         }
       },
       "display.assistant.title": "إعدادات المساعد",
@@ -850,7 +921,6 @@
       "general.display.title": "إعدادات العرض",
       "general.emoji_picker": "منتقي الرموز التعبيرية",
       "general.image_upload": "تحميل الصور",
-      "general.manually_check_update.title": "إيقاف التحقق من التحديثات",
       "general.reset.button": "إعادة تعيين",
       "general.reset.title": "إعادة تعيين البيانات",
       "general.restore.button": "استعادة",
@@ -1124,7 +1194,8 @@
           "title": "Tavily"
         },
         "title": "البحث على الويب"
-      }
+      },
+      "general.auto_check_update.title": "[to be translated]:自动检测更新"
     },
     "translate": {
       "any.language": "أي لغة",
