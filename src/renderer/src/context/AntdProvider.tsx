@@ -1,8 +1,8 @@
 import { useSettings } from '@renderer/hooks/useSettings'
 import { LanguageVarious } from '@renderer/types'
 import { ConfigProvider, theme } from 'antd'
-import elGR from 'antd/locale/el_GR'
 import arEG from 'antd/locale/ar_EG'
+import elGR from 'antd/locale/el_GR'
 import enUS from 'antd/locale/en_US'
 import esES from 'antd/locale/es_ES'
 import frFR from 'antd/locale/fr_FR'
@@ -68,7 +68,8 @@ function getAntdLocale(language: LanguageVarious) {
     case 'fr-FR':
       return frFR
     case 'pt-PT':
-      return ptPT    case 'ar-EG':
+      return ptPT
+    case 'ar-EG':
       return arEG
 
     default:
