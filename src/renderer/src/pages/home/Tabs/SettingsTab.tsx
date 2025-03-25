@@ -8,11 +8,12 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
-import { isReasoningModel } from '@renderer/config/models'
+import { isSupportedResoningEffortModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
@@ -243,7 +244,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Col>
           </Row>
         )}
-        {isReasoningModel(assistant?.model) && (
+        {isSupportedResoningEffortModel(assistant?.model || getDefaultModel()) && (
           <>
             <SettingDivider />
             <Row align="middle">

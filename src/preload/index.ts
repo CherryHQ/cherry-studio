@@ -2,6 +2,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
+import { CreateDirectoryOptions } from 'webdav'
 
 // Custom APIs for renderer
 const api = {
@@ -34,7 +35,18 @@ const api = {
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke('backup:backupToWebdav', data, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:restoreFromWebdav', webdavConfig),
-    listWebdavFiles: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:listWebdavFiles', webdavConfig)
+    listWebdavFiles: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:listWebdavFiles', webdavConfig),
+    checkConnection: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:checkConnection', webdavConfig),
+    createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
+      ipcRenderer.invoke('backup:createDirectory', webdavConfig, path, options),
+    backupToGoogleDrive: (options: { showMessage?: boolean; customFileName?: string }) =>
+      ipcRenderer.invoke('backup:backupToGoogleDrive', options),
+    restoreFromGoogleDrive: (fileName: string) => ipcRenderer.invoke('backup:restoreFromGoogleDrive', fileName),
+    listGoogleDriveFiles: () => ipcRenderer.invoke('backup:listGoogleDriveFiles'),
+    backupToOneDrive: (options: { showMessage?: boolean; customFileName?: string }) =>
+      ipcRenderer.invoke('backup:backupToOneDrive', options),
+    restoreFromOneDrive: (fileName: string) => ipcRenderer.invoke('backup:restoreFromOneDrive', fileName),
+    listOneDriveFiles: () => ipcRenderer.invoke('backup:listOneDriveFiles')
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke('file:select', options),
@@ -144,20 +156,37 @@ const api = {
   getBinaryPath: (name: string) => ipcRenderer.invoke('app:get-binary-path', name),
   installUVBinary: () => ipcRenderer.invoke('app:install-uv-binary'),
   installBunBinary: () => ipcRenderer.invoke('app:install-bun-binary'),
-
-  // OAuth and environment variable APIs
-  oauth: {
-    open: (url: string, callback: (redirectUrl: string) => void) => 
-      ipcRenderer.invoke('oauth:open', url).then(callback),
-    getGoogleDriveToken: (code: string, clientId: string, redirectUri: string) =>
-      ipcRenderer.invoke('oauth:getGoogleDriveToken', code, clientId, redirectUri),
-    getOneDriveToken: (code: string, clientId: string, redirectUri: string) =>
-      ipcRenderer.invoke('oauth:getOneDriveToken', code, clientId, redirectUri)
+  protocol: {
+    onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {
+        callback(data)
+      }
+      ipcRenderer.on('protocol-data', listener)
+      return () => {
+        ipcRenderer.off('protocol-data', listener)
+      }
+    }
   },
-  
-  env: {
-    get: (key: string) => process.env[key] || ''
+  nutstore: {
+    getSSOUrl: () => ipcRenderer.invoke('nutstore:get-sso-url'),
+    decryptToken: (token: string) => ipcRenderer.invoke('nutstore:decrypt-token', token),
+    getDirectoryContents: (token: string, path: string) =>
+      ipcRenderer.invoke('nutstore:get-directory-contents', token, path)
   }
+}
+
+// OAuth and environment variable APIs
+const oauth = {
+  open: (url: string, callback: (redirectUrl: string) => void) => 
+    ipcRenderer.invoke('oauth:open', url).then(callback),
+  getGoogleDriveToken: (code: string, clientId: string, redirectUri: string) =>
+    ipcRenderer.invoke('oauth:getGoogleDriveToken', code, clientId, redirectUri),
+  getOneDriveToken: (code: string, clientId: string, redirectUri: string) =>
+    ipcRenderer.invoke('oauth:getOneDriveToken', code, clientId, redirectUri)
+}
+
+const env = {
+  get: (key: string) => process.env[key] || ''
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
@@ -167,6 +196,8 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('oauth', oauth)
+    contextBridge.exposeInMainWorld('env', env)
   } catch (error) {
     console.error(error)
   }
@@ -175,4 +206,8 @@ if (process.contextIsolated) {
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
+  // @ts-ignore (define in dts)
+  window.oauth = oauth
+  // @ts-ignore (define in dts)
+  window.env = env
 }

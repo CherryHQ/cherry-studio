@@ -229,7 +229,7 @@ export function stopAutoSync() {
   autoSyncStarted = false
 }
 
-async function getBackupData() {
+export async function getBackupData() {
   return JSON.stringify({
     time: new Date().getTime(),
     version: 3,
@@ -239,7 +239,7 @@ async function getBackupData() {
 }
 
 /************************************* Backup Utils ************************************** */
-async function handleData(data: Record<string, any>) {
+export async function handleData(data: Record<string, any>) {
   if (data.version === 1) {
     await clearDatabase()
 

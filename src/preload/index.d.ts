@@ -41,9 +41,11 @@ interface ElectronAPIs {
     backup: {
       backup: (fileName: string, data: string, destinationPath?: string) => Promise<Readable>
       restore: (backupPath: string) => Promise<string>
-      backupToWebdav: (config: WebDavConfig & { fileName?: string }) => Promise<void>
-      restoreFromWebdav: (fileName: string) => Promise<void>
-      listWebdavFiles: (config: WebDavConfig) => Promise<{ fileName: string; modifiedTime: string; size: number }[]>
+      backupToWebdav: (data: string, webdavConfig: WebDavConfig) => Promise<boolean>
+      restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
+      listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
+      checkConnection: (webdavConfig: WebDavConfig) => Promise<boolean>
+      createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) => Promise<void>
       backupToGoogleDrive: (options: { showMessage?: boolean; customFileName?: string }) => Promise<void>
       restoreFromGoogleDrive: (fileName: string) => Promise<void>
       listGoogleDriveFiles: () => Promise<{ fileName: string; modifiedTime: string; size: number }[]>
@@ -175,6 +177,14 @@ interface ElectronAPIs {
     getBinaryPath: (name: string) => Promise<string>
     installUVBinary: () => Promise<void>
     installBunBinary: () => Promise<void>
+    protocol: {
+      onReceiveData: (callback: (data: { url: string; params: any }) => void) => () => void
+    }
+    nutstore: {
+      getSSOUrl: () => Promise<string>
+      decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
+      getDirectoryContents: (token: string, path: string) => Promise<any>
+    }
   }
   oauth: {
     open: (url: string, callback: (redirectUrl: string) => void) => void;
@@ -235,9 +245,11 @@ declare global {
       backup: {
         backup: (fileName: string, data: string, destinationPath?: string) => Promise<Readable>
         restore: (backupPath: string) => Promise<string>
-        backupToWebdav: (config: WebDavConfig & { fileName?: string }) => Promise<void>
-        restoreFromWebdav: (fileName: string) => Promise<void>
-        listWebdavFiles: (config: WebDavConfig) => Promise<{ fileName: string; modifiedTime: string; size: number }[]>
+        backupToWebdav: (data: string, webdavConfig: WebDavConfig) => Promise<boolean>
+        restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
+        listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
+        checkConnection: (webdavConfig: WebDavConfig) => Promise<boolean>
+        createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) => Promise<void>
         backupToGoogleDrive: (options: { showMessage?: boolean; customFileName?: string }) => Promise<void>
         restoreFromGoogleDrive: (fileName: string) => Promise<void>
         listGoogleDriveFiles: () => Promise<{ fileName: string; modifiedTime: string; size: number }[]>
@@ -369,6 +381,14 @@ declare global {
       getBinaryPath: (name: string) => Promise<string>
       installUVBinary: () => Promise<void>
       installBunBinary: () => Promise<void>
+      protocol: {
+        onReceiveData: (callback: (data: { url: string; params: any }) => void) => () => void
+      }
+      nutstore: {
+        getSSOUrl: () => Promise<string>
+        decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
+        getDirectoryContents: (token: string, path: string) => Promise<any>
+      }
     }
     oauth: {
       open: (url: string, callback: (redirectUrl: string) => void) => void;
