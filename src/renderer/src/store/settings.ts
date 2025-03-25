@@ -2,6 +2,8 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 
+import { WebDAVSyncState } from './backup'
+
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter'
 
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
@@ -15,6 +17,8 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'knowledge',
   'files'
 ]
+
+export interface NutstoreSyncRuntime extends WebDAVSyncState {}
 
 export interface SettingsState {
   showAssistants: boolean
@@ -41,7 +45,7 @@ export interface SettingsState {
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
-  manualUpdateCheck: boolean
+  autoCheckUpdate: boolean
   renderInputMessageAsMarkdown: boolean
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
@@ -139,7 +143,7 @@ const initialState: SettingsState = {
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: false,
-  manualUpdateCheck: false,
+  autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
   codeShowLineNumbers: false,
   codeCollapsible: false,
@@ -198,11 +202,11 @@ const initialState: SettingsState = {
   obsidianTages: '',
   joplinToken: '',
   joplinUrl: '',
-  // 思源笔记配置
-  siyuanApiUrl: '',
-  siyuanToken: '',
-  siyuanBoxId: '',
-  siyuanRootPath: ''
+// 思源笔记配置初始值
+  siyuanApiUrl: null,
+  siyuanToken: null,
+  siyuanBoxId: null,
+  siyuanRootPath: null
 }
 
 const settingsSlice = createSlice({
@@ -282,14 +286,14 @@ const settingsSlice = createSlice({
     setPasteLongTextAsFile: (state, action: PayloadAction<boolean>) => {
       state.pasteLongTextAsFile = action.payload
     },
+    setAutoCheckUpdate: (state, action: PayloadAction<boolean>) => {
+      state.autoCheckUpdate = action.payload
+    },
     setRenderInputMessageAsMarkdown: (state, action: PayloadAction<boolean>) => {
       state.renderInputMessageAsMarkdown = action.payload
     },
     setClickAssistantToShowTopic: (state, action: PayloadAction<boolean>) => {
       state.clickAssistantToShowTopic = action.payload
-    },
-    setManualUpdateCheck: (state, action: PayloadAction<boolean>) => {
-      state.manualUpdateCheck = action.payload
     },
     setWebdavHost: (state, action: PayloadAction<string>) => {
       state.webdavHost = action.payload
@@ -499,9 +503,9 @@ export const {
   setShowTopicTime,
   setShowAssistantIcon,
   setPasteLongTextAsFile,
+  setAutoCheckUpdate,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
-  setManualUpdateCheck,
   setWebdavHost,
   setWebdavUser,
   setWebdavPass,

@@ -173,7 +173,7 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*)$/i
 
 // Embedding models
 export const EMBEDDING_REGEX =
@@ -1541,15 +1541,15 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Llama3'
     },
     {
-      id: 'mixtral-8x7b-32768',
+      id: 'mistral-saba-24b',
       provider: 'groq',
-      name: 'Mixtral 8x7B',
-      group: 'Mixtral'
+      name: 'Mistral Saba 24B',
+      group: 'Mistral'
     },
     {
-      id: 'gemma-7b-it',
+      id: 'gemma-9b-it',
       provider: 'groq',
-      name: 'Gemma 7B',
+      name: 'Gemma 9B',
       group: 'Gemma'
     }
   ],

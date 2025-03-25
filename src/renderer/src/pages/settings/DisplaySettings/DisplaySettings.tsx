@@ -108,7 +108,7 @@ const DisplaySettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <Segmented value={theme} onChange={setTheme} options={themeOptions} />
+          <Segmented value={theme} shape="round" onChange={setTheme} options={themeOptions} />
         </SettingRow>
         {isMac && (
           <>

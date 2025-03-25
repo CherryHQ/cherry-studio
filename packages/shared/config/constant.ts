@@ -88,7 +88,7 @@ export const textExts = [
   '.ctp', // CakePHP 视图文件
   '.cfm', // ColdFusion 标记语言文件
   '.cfc', // ColdFusion 组件文件
-  '.m', // Objective-C 源文件
+  '.m', // Objective-C 或 MATLAB 源文件
   '.mm', // Objective-C++ 源文件
   '.gradle', // Gradle 构建文件
   '.groovy', // Gradle 构建文件
@@ -106,7 +106,32 @@ export const textExts = [
   '.ixx', // C++20 模块实现文件
   '.f90', // Fortran 90 源文件
   '.f', // Fortran 固定格式源代码文件
-  '.f03' // Fortran 2003+ 源代码文件
+  '.f03', // Fortran 2003+ 源代码文件
+  '.ahk', // AutoHotKey 语言文件
+  '.tcl', // Tcl 脚本
+  '.do', // Questa 或 Modelsim Tcl 脚本
+  '.v', // Verilog 源文件
+  '.sv', // SystemVerilog 源文件
+  '.svh', // SystemVerilog 头文件
+  '.vhd', // VHDL 源文件
+  '.vhdl', // VHDL 源文件
+  '.lef', // Library Exchange Format
+  '.def', // Design Exchange Format
+  '.edif', // Electronic Design Interchange Format
+  '.sdf', // Standard Delay Format
+  '.sdc', // Synopsys Design Constraints
+  '.xdc', // Xilinx Design Constraints
+  '.rpt', // 报告文件
+  '.lisp', // Lisp 脚本
+  '.il', // Cadence SKILL 脚本
+  '.ils', // Cadence SKILL++ 脚本
+  '.sp', // SPICE netlist 文件
+  '.spi', // SPICE netlist 文件
+  '.cir', // SPICE netlist 文件
+  '.net', // SPICE netlist 文件
+  '.scs', // Spectre netlist 文件
+  '.asc', // LTspice netlist schematic 文件
+  '.tf' // Technology File
 ]
 
 export const ZOOM_SHORTCUTS = [
