@@ -5,6 +5,7 @@ import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
+import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } from './services/ProtocolClient'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
@@ -56,9 +57,30 @@ if (!app.requestSingleInstanceLock()) {
     })
   })
 
+  registerProtocolClient(app)
+
+  // macOS specific: handle protocol when app is already running
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    handleProtocolUrl(url)
+  })
+
+  registerProtocolClient(app)
+
+  // macOS specific: handle protocol when app is already running
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    handleProtocolUrl(url)
+  })
+
   // Listen for second instance
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     windowService.showMainWindow()
+
+    // Protocol handler for Windows/Linux
+    // The commandLine is an array of strings where the last item might be the URL
+    const url = argv.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+    if (url) handleProtocolUrl(url)
   })
 
   app.on('browser-window-created', (_, window) => {

@@ -221,9 +221,13 @@ export function registerShortcuts(window: BrowserWindow) {
 
   // only register the event handlers once
   if (undefined === windowOnHandlers.get(window)) {
-    window.on('focus', register)
+    // pass register() directly to listener, the func will receive Event as argument, it's not expected
+    const registerHandler = () => {
+      register()
+    }
+    window.on('focus', registerHandler)
     window.on('blur', unregister)
-    windowOnHandlers.set(window, { onFocusHandler: register, onBlurHandler: unregister })
+    windowOnHandlers.set(window, { onFocusHandler: registerHandler, onBlurHandler: unregister })
   }
 
   if (!window.isDestroyed() && window.isFocused()) {

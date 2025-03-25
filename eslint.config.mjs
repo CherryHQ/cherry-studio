@@ -53,6 +53,13 @@ export default defineConfig([
     }
   ],
   {
-    ignores: ['node_modules/**', 'dist/**', 'out/**', 'local/**', '.gitignore', 'scripts/cloudflare-worker.js']
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'out/**',
+      '.gitignore',
+      'scripts/cloudflare-worker.js',
+      'src/renderer/src/integration/nutstore/sso/lib/**'
+    ]
   }
 ])

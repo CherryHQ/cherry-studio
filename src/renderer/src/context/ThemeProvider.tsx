@@ -1,18 +1,20 @@
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { ThemeMode } from '@renderer/types'
-import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
 import store from '@renderer/store'
 import { setCustomCss } from '@renderer/store/settings'
+import { ThemeMode } from '@renderer/types'
+import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
 
 interface ThemeContextType {
   theme: ThemeMode
+  settingTheme: ThemeMode
   toggleTheme: () => void
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: ThemeMode.light,
-  toggleTheme: () => { }
+  settingTheme: ThemeMode.light,
+  toggleTheme: () => {}
 })
 
 interface ThemeProviderProps extends PropsWithChildren {
@@ -63,8 +65,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
       store.dispatch(setCustomCss(css))
     })
   }, [])
-
-  return <ThemeContext.Provider value={{ theme: _theme, toggleTheme }}>{children}</ThemeContext.Provider>
+  return (
+    <ThemeContext.Provider value={{ theme: _theme, settingTheme: theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  )
 }
 
 export const useTheme = () => useContext(ThemeContext)

@@ -469,6 +469,8 @@
       "error.invalid.webdav": "Invalid WebDAV settings",
       "error.joplin.export": "Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
       "error.joplin.no_config": "Joplin Authorization Token or URL is not configured",
+      "error.invalid.nutstore": "Invalid Nutstore settings",
+      "error.invalid.nutstore_token": "Invalid Nutstore Token",
       "error.markdown.export.preconf": "Failed to export the Markdown file to the preconfigured path",
       "error.markdown.export.specified": "Failed to export the Markdown file",
       "error.notion.export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
@@ -518,7 +520,9 @@
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
       "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
-      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
+      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again.",
+      "download.success": "Download successful",
+      "download.failed": "Download failed"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
@@ -839,6 +843,29 @@
           "title": "Yuque Configuration",
           "token": "Yuque Token",
           "token_placeholder": "Please enter the Yuque Token"
+        },
+        "nutstore": {
+          "title": "Nutstore Configuration",
+          "isLogin": "Logged in",
+          "notLogin": "Not logged in",
+          "login.button": "Login",
+          "logout.button": "Logout",
+          "logout.title": "Are you sure you want to logout from Nutstore?",
+          "logout.content": "After logout, you will not be able to backup to Nutstore or restore from Nutstore.",
+          "checkConnection.name": "Check Connection",
+          "checkConnection.success": "Connected to Nutstore",
+          "checkConnection.fail": "Nutstore connection failed",
+          "username": "Nutstore Username",
+          "path": "Nutstore Storage Path",
+          "path.placeholder": "Enter Nutstore storage path",
+          "backup.button": "Backup to Nutstore",
+          "restore.button": "Restore from Nutstore",
+          "pathSelector.title": "Nutstore Storage Path",
+          "pathSelector.return": "Return",
+          "pathSelector.currentPath": "Current Path",
+          "new_folder.button.confirm": "Confirm",
+          "new_folder.button.cancel": "Cancel",
+          "new_folder.button": "New Folder"
         }
       },
       "display.assistant.title": "Assistant Settings",

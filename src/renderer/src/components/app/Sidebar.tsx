@@ -35,7 +35,7 @@ const Sidebar: FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { sidebarIcons } = useSettings()
-  const { theme, toggleTheme } = useTheme()
+  const { theme, settingTheme, toggleTheme } = useTheme()
   const { pinned } = useMinapps()
 
   const onEditUser = () => UserPopup.show()
@@ -87,7 +87,10 @@ const Sidebar: FC = () => {
             <QuestionCircleOutlined />
           </Icon>
         </Tooltip>
-        <Tooltip title={t('settings.theme.title')} mouseEnterDelay={0.8} placement="right">
+        <Tooltip
+          title={t('settings.theme.title') + ': ' + t(`settings.theme.${settingTheme}`)}
+          mouseEnterDelay={0.8}
+          placement="right">
           <Icon theme={theme} onClick={() => toggleTheme()}>
             {theme === 'dark' ? (
               <i className="iconfont icon-theme icon-dark1" />

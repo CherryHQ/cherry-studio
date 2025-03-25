@@ -512,6 +512,7 @@
     "minapp": {
       "sidebar.add.title": "Ajouter à la barre latérale",
       "sidebar.remove.title": "Supprimer de la barre latérale",
+      "sidebar.hide.title": "Masquer le mini-programme",
       "title": "Mini-programme"
     },
     "miniwindow": {

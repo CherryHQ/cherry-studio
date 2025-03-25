@@ -512,6 +512,7 @@
     "minapp": {
       "sidebar.add.title": "Προσθήκη στην πλευρή",
       "sidebar.remove.title": "Αφαίρεση από την πλευρή",
+      "sidebar.hide.title": "Απόκρυψη μικροπρογράμματος",
       "title": "Μικρόπρογραμμα"
     },
     "miniwindow": {

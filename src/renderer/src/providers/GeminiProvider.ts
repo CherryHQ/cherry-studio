@@ -580,7 +580,7 @@ export default class GeminiProvider extends BaseProvider {
   private async generateImageExp({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount } = getAssistantSettings(assistant)
+    const { contextCount, streamOutput, maxTokens } = getAssistantSettings(assistant)
 
     const userMessages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
     onFilterMessages(userMessages)
@@ -603,16 +603,22 @@ export default class GeminiProvider extends BaseProvider {
 
     contents = await this.addImageFileToContents(userLastMessage, contents)
 
-    const response = await this.callGeminiGenerateContent(model.id, contents)
+    if (!streamOutput) {
+      const response = await this.callGeminiGenerateContent(model.id, contents, maxTokens)
 
-    console.log('response', response)
+      const { isValid, message } = this.isValidGeminiResponse(response)
+      if (!isValid) {
+        throw new Error(`Gemini API error: ${message}`)
+      }
 
-    const { isValid, message } = this.isValidGeminiResponse(response)
-    if (!isValid) {
-      throw new Error(`Gemini API error: ${message}`)
+      this.processGeminiImageResponse(response, onChunk)
+      return
     }
+    const response = await this.callGeminiGenerateContentStream(model.id, contents, maxTokens)
 
-    this.processGeminiImageResponse(response, onChunk)
+    for await (const chunk of response) {
+      this.processGeminiImageResponse(chunk, onChunk)
+    }
   }
 
   /**
@@ -642,7 +648,8 @@ export default class GeminiProvider extends BaseProvider {
    */
   private async callGeminiGenerateContent(
     modelId: string,
-    contents: ContentListUnion
+    contents: ContentListUnion,
+    maxTokens?: number
   ): Promise<GenerateContentResponse> {
     try {
       return await this.imageSdk.models.generateContent({
@@ -650,7 +657,29 @@ export default class GeminiProvider extends BaseProvider {
         contents: contents,
         config: {
           responseModalities: ['Text', 'Image'],
-          responseMimeType: 'text/plain'
+          responseMimeType: 'text/plain',
+          maxOutputTokens: maxTokens
+        }
+      })
+    } catch (error) {
+      console.error('Gemini API error:', error)
+      throw error
+    }
+  }
+
+  private async callGeminiGenerateContentStream(
+    modelId: string,
+    contents: ContentListUnion,
+    maxTokens?: number
+  ): Promise<AsyncGenerator<GenerateContentResponse>> {
+    try {
+      return await this.imageSdk.models.generateContentStream({
+        model: modelId,
+        contents: contents,
+        config: {
+          responseModalities: ['Text', 'Image'],
+          responseMimeType: 'text/plain',
+          maxOutputTokens: maxTokens
         }
       })
     } catch (error) {
@@ -678,7 +707,9 @@ export default class GeminiProvider extends BaseProvider {
    */
   private processGeminiImageResponse(response: any, onChunk: (chunk: ChunkCallbackData) => void): void {
     const parts = response.candidates[0].content.parts
-
+    if (!parts) {
+      return
+    }
     // 提取图像数据
     const images = parts
       .filter((part: Part) => part.inlineData)

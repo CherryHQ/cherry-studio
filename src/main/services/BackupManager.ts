@@ -5,7 +5,7 @@ import { app } from 'electron'
 import Logger from 'electron-log'
 import * as fs from 'fs-extra'
 import * as path from 'path'
-import { createClient, FileStat } from 'webdav'
+import { createClient, FileStat, CreateDirectoryOptions } from 'webdav'
 
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -15,6 +15,7 @@ class BackupManager {
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
 
   constructor() {
+    this.checkConnection = this.checkConnection.bind(this)
     this.backup = this.backup.bind(this)
     this.restore = this.restore.bind(this)
     this.backupToWebdav = this.backupToWebdav.bind(this)
@@ -277,6 +278,21 @@ class BackupManager {
         onProgress(stats.size)
       }
     }
+  }
+
+  async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
+    const webdavClient = new WebDav(webdavConfig)
+    return await webdavClient.checkConnection()
+  }
+
+  async createDirectory(
+    _: Electron.IpcMainInvokeEvent,
+    webdavConfig: WebDavConfig,
+    path: string,
+    options?: CreateDirectoryOptions
+  ) {
+    const webdavClient = new WebDav(webdavConfig)
+    return await webdavClient.createDirectory(path, options)
   }
 }
 
