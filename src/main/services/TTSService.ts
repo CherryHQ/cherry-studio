@@ -3,7 +3,6 @@ import { EventEmitter } from 'events'
 import fetch from 'node-fetch'
 import * as fs from 'fs'
 import * as path from 'path'
-import { spawn } from 'child_process'
 import { configManager } from './ConfigManager'
 
 /**
