@@ -3,72 +3,61 @@ import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
-import { 
-  setTtsEnabled, 
-  setTtsType,
-  setTtsApiUrl, 
-  setTtsApiKey, 
-  setTtsModel, 
-  setTtsVoice,
-  setTtsPlayerType,
+import {
+  setTtsApiKey,
+  setTtsApiUrl,
+  setTtsCustomModels,
+  setTtsCustomVoices,
   setTtsEdgeRate,
   setTtsEdgeVolume,
-  setTtsCustomModels,
-  setTtsCustomVoices
+  setTtsEnabled,
+  setTtsModel,
+  setTtsPlayerType,
+  setTtsType,
+  setTtsVoice
 } from '@renderer/store/settings'
-import { 
-  Button, 
-  Input, 
-  Select, 
-  Switch, 
-  Tooltip,
-  message,
-  Modal,
-  Form
-} from 'antd'
+import { Button, Form, Input, message, Modal, Select, Switch } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { 
-  SettingContainer, 
-  SettingDescription, 
-  SettingDivider, 
-  SettingGroup, 
-  SettingHelpLink, 
-  SettingHelpText, 
-  SettingHelpTextRow, 
-  SettingRow, 
-  SettingRowTitle, 
-  SettingSubtitle, 
-  SettingTitle 
+import {
+  SettingContainer,
+  SettingDescription,
+  SettingDivider,
+  SettingGroup,
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingRow,
+  SettingRowTitle,
+  SettingSubtitle,
+  SettingTitle
 } from '.'
 
 // 定义选项类型
 interface OptionType {
-  label: string;
-  value: string;
+  label: string
+  value: string
 }
 
 // 将自定义选项转换为Select组件需要的格式
-const formatOptions = (
-  customOptions: Array<{label?: string, value: string}> | undefined
-): OptionType[] => {
-  return (customOptions || []).map(item => ({ 
-    label: item.label || item.value, 
-    value: item.value 
-  }));
-};
+const formatOptions = (customOptions: Array<{ label?: string; value: string }> | undefined): OptionType[] => {
+  return (customOptions || []).map((item) => ({
+    label: item.label || item.value,
+    value: item.value
+  }))
+}
 
 const TTSSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const { 
-    ttsEnabled, 
+  const {
+    ttsEnabled,
     ttsType,
-    ttsApiUrl, 
-    ttsApiKey, 
-    ttsModel, 
+    ttsApiUrl,
+    ttsApiKey,
+    ttsModel,
     ttsVoice,
     ttsPlayerType,
     ttsEdgeRate,
@@ -79,101 +68,101 @@ const TTSSettings: FC = () => {
 
   const [apiChecking, setApiChecking] = useState(false)
   const [testText, setTestText] = useState('这是一段测试文本。')
-  
+
   // 获取自定义选项
-  const modelOptions = formatOptions(ttsCustomModels);
-  const voiceOptions = formatOptions(ttsCustomVoices);
-  
+  const modelOptions = formatOptions(ttsCustomModels)
+  const voiceOptions = formatOptions(ttsCustomVoices)
+
   // 添加自定义模型对话框
   const [modelModalVisible, setModelModalVisible] = useState(false)
   const [modelForm] = Form.useForm()
-  
+
   // 添加自定义音色对话框
   const [voiceModalVisible, setVoiceModalVisible] = useState(false)
   const [voiceForm] = Form.useForm()
 
   // 同步TTS设置到主进程的ConfigManager
   // 获取API支持的模型和音色
-  const [isFetchingOptions, setIsFetchingOptions] = useState(false);
-  
+  const [isFetchingOptions, setIsFetchingOptions] = useState(false)
+
   // 尝试获取可用选项
   const fetchAvailableOptions = async () => {
-    if (!ttsApiUrl || !ttsApiKey) return;
-    
-    setIsFetchingOptions(true);
+    if (!ttsApiUrl || !ttsApiKey) return
+
+    setIsFetchingOptions(true)
     try {
-      const result = await window.api.tts.fetchAvailableOptions();
+      const result = await window.api.tts.fetchAvailableOptions()
       if (result?.success) {
         // 处理模型列表
         if (result.models && result.models.length > 0) {
           // 将获取到的模型转换为选项格式
-          const newModels = result.models.map(modelId => ({
+          const newModels = result.models.map((modelId) => ({
             label: modelId,
             value: modelId
-          }));
-          
+          }))
+
           // 保存到自定义模型列表
-          dispatch(setTtsCustomModels(newModels));
-          message.success('已获取到' + newModels.length + '个TTS模型');
-          
+          dispatch(setTtsCustomModels(newModels))
+          message.success('已获取到' + newModels.length + '个TTS模型')
+
           // 如果当前选择的模型不在获取到的模型列表中，选择第一个可用模型
-          if (newModels.length > 0 && !newModels.some(m => m.value === ttsModel)) {
-            handleModelChange(newModels[0].value);
+          if (newModels.length > 0 && !newModels.some((m) => m.value === ttsModel)) {
+            handleModelChange(newModels[0].value)
           }
         }
-        
+
         // 处理音色列表
         if (result.voices && result.voices.length > 0) {
           // 将获取到的音色转换为选项格式
-          const newVoices = result.voices.map(voiceId => ({
+          const newVoices = result.voices.map((voiceId) => ({
             label: voiceId,
             value: voiceId
-          }));
-          
+          }))
+
           // 保存到自定义音色列表
-          dispatch(setTtsCustomVoices(newVoices));
-          message.success('已获取到' + newVoices.length + '个音色');
-          
+          dispatch(setTtsCustomVoices(newVoices))
+          message.success('已获取到' + newVoices.length + '个音色')
+
           // 如果当前选择的音色不在获取到的音色列表中，选择第一个可用音色
-          if (newVoices.length > 0 && !newVoices.some(v => v.value === ttsVoice)) {
-            handleVoiceChange(newVoices[0].value);
+          if (newVoices.length > 0 && !newVoices.some((v) => v.value === ttsVoice)) {
+            handleVoiceChange(newVoices[0].value)
           }
-          
-          console.log('获取到音色列表:', result.voices);
+
+          console.log('获取到音色列表:', result.voices)
         }
       } else if (result?.error) {
-        message.warning('获取API选项失败: ' + result.error);
+        message.warning('获取API选项失败: ' + result.error)
       }
     } catch (error: any) {
-      console.error('获取可用选项错误:', error);
+      console.error('获取可用选项错误:', error)
     } finally {
-      setIsFetchingOptions(false);
+      setIsFetchingOptions(false)
     }
-  };
+  }
 
   useEffect(() => {
     // 将设置同步到主进程
-    window.api.config.set('ttsEnabled', ttsEnabled);
-    window.api.config.set('ttsType', ttsType);
-    window.api.config.set('ttsApiUrl', ttsApiUrl);
-    window.api.config.set('ttsApiKey', ttsApiKey);
-    window.api.config.set('ttsModel', ttsModel);
-    window.api.config.set('ttsVoice', ttsVoice);
-    window.api.config.set('ttsEdgeRate', ttsEdgeRate);
-    window.api.config.set('ttsEdgeVolume', ttsEdgeVolume);
-    console.log('TTS设置已同步到主进程:', { ttsEnabled, ttsType, ttsApiUrl, ttsModel, ttsVoice });
+    window.api.config.set('ttsEnabled', ttsEnabled)
+    window.api.config.set('ttsType', ttsType)
+    window.api.config.set('ttsApiUrl', ttsApiUrl)
+    window.api.config.set('ttsApiKey', ttsApiKey)
+    window.api.config.set('ttsModel', ttsModel)
+    window.api.config.set('ttsVoice', ttsVoice)
+    window.api.config.set('ttsEdgeRate', ttsEdgeRate)
+    window.api.config.set('ttsEdgeVolume', ttsEdgeVolume)
+    console.log('TTS设置已同步到主进程:', { ttsEnabled, ttsType, ttsApiUrl, ttsModel, ttsVoice })
 
     // 当TTS启用后，根据类型决定是否需要获取API选项
     if (ttsEnabled) {
       if (ttsType === 'openai' && ttsApiUrl && ttsApiKey) {
         // OpenAI TTS需要API信息
-        fetchAvailableOptions();
+        fetchAvailableOptions()
       } else if (ttsType === 'edge') {
         // Edge TTS不需要API信息，直接获取可用选项
-        fetchAvailableOptions();
+        fetchAvailableOptions()
       }
     }
-  }, [ttsEnabled, ttsType, ttsApiUrl, ttsApiKey, ttsModel, ttsVoice, ttsEdgeRate, ttsEdgeVolume]);
+  }, [ttsEnabled, ttsType, ttsApiUrl, ttsApiKey, ttsModel, ttsVoice, ttsEdgeRate, ttsEdgeVolume])
 
   // 检查 TTS 是否可用
   const checkApi = async () => {
@@ -186,17 +175,17 @@ const TTSSettings: FC = () => {
     setApiChecking(true)
     try {
       // 使用主进程的TTS服务播放测试语音
-      const result = await window.electron.ipcRenderer.invoke('tts:speak', testText);
-      
+      const result = await window.electron.ipcRenderer.invoke('tts:speak', testText)
+
       if (result?.success) {
-        message.success(t('settings.tts.check_success'));
+        message.success(t('settings.tts.check_success'))
       } else {
-        message.error(`${t('settings.tts.check_failed')}: ${result?.error || '未知错误'}`);
+        message.error(`${t('settings.tts.check_failed')}: ${result?.error || '未知错误'}`)
       }
     } catch (error: any) {
-      message.error(`${t('settings.tts.check_failed')}: ${error.message}`);
+      message.error(`${t('settings.tts.check_failed')}: ${error.message}`)
     } finally {
-      setApiChecking(false);
+      setApiChecking(false)
     }
   }
 
@@ -205,64 +194,64 @@ const TTSSettings: FC = () => {
   }
 
   const handleEnableTTS = (checked: boolean) => {
-    dispatch(setTtsEnabled(checked));
+    dispatch(setTtsEnabled(checked))
     // 即时同步到主进程，确保立即生效
-    window.api.config.set('ttsEnabled', checked);
+    window.api.config.set('ttsEnabled', checked)
   }
 
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    dispatch(setTtsApiKey(value));
+    const value = e.target.value
+    dispatch(setTtsApiKey(value))
     // 即时同步到主进程，确保立即生效
-    window.api.config.set('ttsApiKey', value);
+    window.api.config.set('ttsApiKey', value)
   }
 
   const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    dispatch(setTtsApiUrl(value));
+    const value = e.target.value
+    dispatch(setTtsApiUrl(value))
     // 即时同步到主进程，确保立即生效
-    window.api.config.set('ttsApiUrl', value);
+    window.api.config.set('ttsApiUrl', value)
   }
 
   const handleModelChange = (value: string) => {
-    dispatch(setTtsModel(value));
+    dispatch(setTtsModel(value))
     // 即时同步到主进程，确保立即生效
-    window.api.config.set('ttsModel', value);
+    window.api.config.set('ttsModel', value)
   }
 
   const handleVoiceChange = (value: string) => {
-    dispatch(setTtsVoice(value));
+    dispatch(setTtsVoice(value))
     // 即时同步到主进程，确保立即生效
-    window.api.config.set('ttsVoice', value);
+    window.api.config.set('ttsVoice', value)
   }
 
   const handleTtsTypeChange = (value: string) => {
-    dispatch(setTtsType(value as 'openai' | 'edge'));
+    dispatch(setTtsType(value as 'openai' | 'edge'))
     // 即时同步到主进程，确保立即生效
-    window.api.config.set('ttsType', value);
-    
+    window.api.config.set('ttsType', value)
+
     // 切换TTS类型时，可能需要重新获取可用选项
     if (ttsEnabled) {
-      fetchAvailableOptions();
+      fetchAvailableOptions()
     }
   }
 
   const handlePlayerTypeChange = (value: string) => {
-    dispatch(setTtsPlayerType(value as 'auto' | 'ffmpeg' | 'system'));
+    dispatch(setTtsPlayerType(value as 'auto' | 'ffmpeg' | 'system'))
     // 即时同步到主进程，确保立即生效
-    window.api.config.set('ttsPlayerType', value);
+    window.api.config.set('ttsPlayerType', value)
   }
-  
+
   const handleEdgeRateChange = (value: string) => {
-    dispatch(setTtsEdgeRate(value));
+    dispatch(setTtsEdgeRate(value))
     // 即时同步到主进程，确保立即生效
-    window.api.config.set('ttsEdgeRate', value);
+    window.api.config.set('ttsEdgeRate', value)
   }
-  
+
   const handleEdgeVolumeChange = (value: string) => {
-    dispatch(setTtsEdgeVolume(value));
+    dispatch(setTtsEdgeVolume(value))
     // 即时同步到主进程，确保立即生效
-    window.api.config.set('ttsEdgeVolume', value);
+    window.api.config.set('ttsEdgeVolume', value)
   }
 
   return (
@@ -273,15 +262,12 @@ const TTSSettings: FC = () => {
           {t('settings.tts.title')}
         </SettingTitle>
         <SettingDivider />
-        
+
         <SettingRow>
           <SettingRowTitle>{t('settings.tts.enable')}</SettingRowTitle>
-          <Switch 
-            checked={ttsEnabled} 
-            onChange={handleEnableTTS} 
-          />
+          <Switch checked={ttsEnabled} onChange={handleEnableTTS} />
         </SettingRow>
-        
+
         <SettingSubtitle style={{ marginTop: 10 }}>TTS引擎类型</SettingSubtitle>
         <Select
           value={ttsType}
@@ -299,12 +285,12 @@ const TTSSettings: FC = () => {
         </SettingHelpTextRow>
 
         <SettingDivider />
-        
+
         {/* OpenAI TTS 相关设置 */}
         {ttsType === 'openai' && (
           <>
             <SettingSubtitle>{t('settings.tts.api_key')}</SettingSubtitle>
-            <Input.Password 
+            <Input.Password
               value={ttsApiKey}
               onChange={handleApiKeyChange}
               placeholder={t('settings.tts.api_key_placeholder')}
@@ -313,17 +299,14 @@ const TTSSettings: FC = () => {
             {isFetchingOptions && <div style={{ marginTop: 5 }}>正在获取可用的模型和音色...</div>}
             <SettingHelpTextRow>
               <SettingHelpText>{t('settings.tts.api_key_tip')}</SettingHelpText>
-              <SettingHelpLink 
-                href="https://platform.openai.com/api-keys" 
-                target="_blank"
-              >
+              <SettingHelpLink href="https://platform.openai.com/api-keys" target="_blank">
                 {t('settings.tts.get_api_key')}
               </SettingHelpLink>
             </SettingHelpTextRow>
 
             <SettingSubtitle>{t('settings.tts.api_url')}</SettingSubtitle>
             <HStack gap={8}>
-              <Input 
+              <Input
                 value={ttsApiUrl}
                 onChange={handleApiUrlChange}
                 placeholder={t('settings.tts.api_url_placeholder')}
@@ -338,7 +321,7 @@ const TTSSettings: FC = () => {
             </SettingHelpTextRow>
           </>
         )}
-        
+
         {/* Edge TTS 相关设置 */}
         {ttsType === 'edge' && (
           <>
@@ -358,7 +341,7 @@ const TTSSettings: FC = () => {
             <SettingHelpTextRow>
               <SettingHelpText>调整Edge TTS语音的速度（需要安装edge-tts软件包才能完全支持）</SettingHelpText>
             </SettingHelpTextRow>
-            
+
             <SettingSubtitle>音量调整</SettingSubtitle>
             <Select
               value={ttsEdgeVolume}
@@ -389,11 +372,7 @@ const TTSSettings: FC = () => {
             style={{ flex: 1 }}
             loading={isFetchingOptions}
           />
-          <Button 
-            icon={<PlusOutlined />} 
-            onClick={() => setModelModalVisible(true)}
-            title="添加自定义模型"
-          />
+          <Button icon={<PlusOutlined />} onClick={() => setModelModalVisible(true)} title="添加自定义模型" />
         </HStack>
         <SettingHelpTextRow>
           <SettingHelpText>{t('settings.tts.model_tip')}</SettingHelpText>
@@ -401,17 +380,8 @@ const TTSSettings: FC = () => {
 
         <SettingSubtitle>{t('settings.tts.voice')}</SettingSubtitle>
         <HStack gap={8} style={{ marginTop: 5, marginBottom: 10 }}>
-          <Select
-            value={ttsVoice}
-            onChange={handleVoiceChange}
-            options={voiceOptions}
-            style={{ flex: 1 }}
-          />
-          <Button 
-            icon={<PlusOutlined />} 
-            onClick={() => setVoiceModalVisible(true)}
-            title="添加自定义音色"
-          />
+          <Select value={ttsVoice} onChange={handleVoiceChange} options={voiceOptions} style={{ flex: 1 }} />
+          <Button icon={<PlusOutlined />} onClick={() => setVoiceModalVisible(true)} title="添加自定义音色" />
         </HStack>
         <SettingHelpTextRow>
           <SettingHelpText>{t('settings.tts.voice_tip')}</SettingHelpText>
@@ -436,41 +406,34 @@ const TTSSettings: FC = () => {
         </SettingHelpTextRow>
 
         <SettingDivider />
-        
+
         <SettingSubtitle>{t('settings.tts.test')}</SettingSubtitle>
-        <Input 
+        <Input
           value={testText}
           onChange={(e) => setTestText(e.target.value)}
           placeholder={t('settings.tts.test_placeholder')}
           style={{ marginTop: 5, marginBottom: 10 }}
         />
-        <Button 
-          type="primary" 
-          onClick={checkApi}
-          loading={apiChecking}
-          disabled={!ttsApiKey || !ttsEnabled}
-        >
+        <Button type="primary" onClick={checkApi} loading={apiChecking} disabled={!ttsApiKey || !ttsEnabled}>
           {t('settings.tts.test_button')}
         </Button>
-        <SettingDescription>
-          {t('settings.tts.test_description')}
-        </SettingDescription>
+        <SettingDescription>{t('settings.tts.test_description')}</SettingDescription>
       </SettingGroup>
-      
+
       {/* 添加自定义模型对话框 */}
       <Modal
         title="添加自定义模型"
         open={modelModalVisible}
         onOk={() => {
-          modelForm.validateFields().then(values => {
+          modelForm.validateFields().then((values) => {
             // 添加新的自定义模型
             const newModel = {
               label: values.label || values.value,
               value: values.value
             }
-            
+
             // 检查是否已存在相同的模型
-            const existingIndex = (ttsCustomModels || []).findIndex(model => model.value === values.value)
+            const existingIndex = (ttsCustomModels || []).findIndex((model) => model.value === values.value)
             if (existingIndex >= 0) {
               // 更新现有模型
               const newCustomModels = [...(ttsCustomModels || [])]
@@ -481,7 +444,7 @@ const TTSSettings: FC = () => {
               const newCustomModels = [...(ttsCustomModels || []), newModel]
               dispatch(setTtsCustomModels(newCustomModels))
             }
-            
+
             setModelModalVisible(false)
             modelForm.resetFields()
             message.success('自定义模型添加成功')
@@ -490,40 +453,31 @@ const TTSSettings: FC = () => {
         onCancel={() => {
           setModelModalVisible(false)
           modelForm.resetFields()
-        }}
-      >
+        }}>
         <Form form={modelForm} layout="vertical">
-          <Form.Item
-            name="value"
-            label="模型ID"
-            rules={[{ required: true, message: '请输入模型ID' }]}
-          >
+          <Form.Item name="value" label="模型ID" rules={[{ required: true, message: '请输入模型ID' }]}>
             <Input placeholder="例如: tts-1-turbo" />
           </Form.Item>
-          <Form.Item
-            name="label"
-            label="模型名称"
-            help="可选，如不填写将使用模型ID作为显示名称"
-          >
+          <Form.Item name="label" label="模型名称" help="可选，如不填写将使用模型ID作为显示名称">
             <Input placeholder="例如: TTS-1 Turbo" />
           </Form.Item>
         </Form>
       </Modal>
-      
+
       {/* 添加自定义音色对话框 */}
       <Modal
         title="添加自定义音色"
         open={voiceModalVisible}
         onOk={() => {
-          voiceForm.validateFields().then(values => {
+          voiceForm.validateFields().then((values) => {
             // 添加新的自定义音色
             const newVoice = {
               label: values.label || values.value,
               value: values.value
             }
-            
+
             // 检查是否已存在相同的音色
-            const existingIndex = (ttsCustomVoices || []).findIndex(voice => voice.value === values.value)
+            const existingIndex = (ttsCustomVoices || []).findIndex((voice) => voice.value === values.value)
             if (existingIndex >= 0) {
               // 更新现有音色
               const newCustomVoices = [...(ttsCustomVoices || [])]
@@ -534,7 +488,7 @@ const TTSSettings: FC = () => {
               const newCustomVoices = [...(ttsCustomVoices || []), newVoice]
               dispatch(setTtsCustomVoices(newCustomVoices))
             }
-            
+
             setVoiceModalVisible(false)
             voiceForm.resetFields()
             message.success('自定义音色添加成功')
@@ -543,21 +497,12 @@ const TTSSettings: FC = () => {
         onCancel={() => {
           setVoiceModalVisible(false)
           voiceForm.resetFields()
-        }}
-      >
+        }}>
         <Form form={voiceForm} layout="vertical">
-          <Form.Item
-            name="value"
-            label="音色ID"
-            rules={[{ required: true, message: '请输入音色ID' }]}
-          >
+          <Form.Item name="value" label="音色ID" rules={[{ required: true, message: '请输入音色ID' }]}>
             <Input placeholder="例如: custom-voice" />
           </Form.Item>
-          <Form.Item
-            name="label"
-            label="音色名称"
-            help="可选，如不填写将使用音色ID作为显示名称"
-          >
+          <Form.Item name="label" label="音色名称" help="可选，如不填写将使用音色ID作为显示名称">
             <Input placeholder="例如: 自定义音色" />
           </Form.Item>
         </Form>
