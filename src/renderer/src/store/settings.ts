@@ -54,17 +54,17 @@ export interface SettingsState {
   messageNavigation: 'none' | 'buttons' | 'anchor'
   // TTS 设置
   ttsEnabled: boolean
-  ttsType: 'openai' | 'edge'  // TTS类型，新增：openai或edge
+  ttsType: 'openai' | 'edge' // TTS类型，新增：openai或edge
   ttsApiUrl: string
   ttsApiKey: string
   ttsModel: string
   ttsVoice: string
   ttsPlayerType: 'auto' | 'ffmpeg' | 'system'
-  ttsEdgeRate: string     // Edge TTS语速设置，新增
-  ttsEdgeVolume: string   // Edge TTS音量设置，新增
+  ttsEdgeRate: string // Edge TTS语速设置，新增
+  ttsEdgeVolume: string // Edge TTS音量设置，新增
   // 注：系统会自动清理1小时前创建的临时音频文件
-  ttsCustomModels: Array<{label?: string, value: string}>
-  ttsCustomVoices: Array<{label?: string, value: string}>
+  ttsCustomModels: Array<{ label?: string; value: string }>
+  ttsCustomVoices: Array<{ label?: string; value: string }>
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -104,6 +104,12 @@ export interface SettingsState {
   obsidianFolder: string | null
   obsidianTages: string | null
   joplinToken: string | null
+  joplinUrl: string | null
+  // 思源笔记配置
+  siyuanApiUrl: string | null
+  siyuanToken: string | null
+  siyuanBoxId: string | null
+  siyuanRootPath: string | null
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -145,7 +151,7 @@ const initialState: SettingsState = {
   gridPopoverTrigger: 'hover',
   messageNavigation: 'none',
   // TTS 设置
-  ttsEnabled: false, 
+  ttsEnabled: false,
   ttsType: 'openai', // 默认使用OpenAI TTS
   ttsApiUrl: 'https://api.openai.com/v1/audio/speech',
   ttsApiKey: '',
@@ -191,7 +197,12 @@ const initialState: SettingsState = {
   obsidianFolder: '',
   obsidianTages: '',
   joplinToken: '',
-  joplinUrl: ''
+  joplinUrl: '',
+  // 思源笔记配置
+  siyuanApiUrl: '',
+  siyuanToken: '',
+  siyuanBoxId: '',
+  siyuanRootPath: ''
 }
 
 const settingsSlice = createSlice({
@@ -411,43 +422,55 @@ const settingsSlice = createSlice({
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
     },
+    setSiyuanApiUrl: (state, action: PayloadAction<string>) => {
+      state.siyuanApiUrl = action.payload
+    },
+    setSiyuanToken: (state, action: PayloadAction<string>) => {
+      state.siyuanToken = action.payload
+    },
+    setSiyuanBoxId: (state, action: PayloadAction<string>) => {
+      state.siyuanBoxId = action.payload
+    },
+    setSiyuanRootPath: (state, action: PayloadAction<string>) => {
+      state.siyuanRootPath = action.payload
+    },
     setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
       state.messageNavigation = action.payload
     },
-  // TTS相关设置
-  setTtsEnabled: (state, action: PayloadAction<boolean>) => {
-    state.ttsEnabled = action.payload
-  },
-  setTtsType: (state, action: PayloadAction<'openai' | 'edge'>) => {
-    state.ttsType = action.payload
-  },
-  setTtsApiUrl: (state, action: PayloadAction<string>) => {
-    state.ttsApiUrl = action.payload
-  },
-  setTtsApiKey: (state, action: PayloadAction<string>) => {
-    state.ttsApiKey = action.payload
-  },
-  setTtsModel: (state, action: PayloadAction<string>) => {
-    state.ttsModel = action.payload
-  },
-  setTtsVoice: (state, action: PayloadAction<string>) => {
-    state.ttsVoice = action.payload
-  },
-  setTtsPlayerType: (state, action: PayloadAction<'auto' | 'ffmpeg' | 'system'>) => {
-    state.ttsPlayerType = action.payload
-  },
-  setTtsEdgeRate: (state, action: PayloadAction<string>) => {
-    state.ttsEdgeRate = action.payload
-  },
-  setTtsEdgeVolume: (state, action: PayloadAction<string>) => {
-    state.ttsEdgeVolume = action.payload
-  },
-  setTtsCustomModels: (state, action: PayloadAction<Array<{label?: string, value: string}>>) => {
-    state.ttsCustomModels = action.payload
-  },
-  setTtsCustomVoices: (state, action: PayloadAction<Array<{label?: string, value: string}>>) => {
-    state.ttsCustomVoices = action.payload
-  }
+    // TTS相关设置
+    setTtsEnabled: (state, action: PayloadAction<boolean>) => {
+      state.ttsEnabled = action.payload
+    },
+    setTtsType: (state, action: PayloadAction<'openai' | 'edge'>) => {
+      state.ttsType = action.payload
+    },
+    setTtsApiUrl: (state, action: PayloadAction<string>) => {
+      state.ttsApiUrl = action.payload
+    },
+    setTtsApiKey: (state, action: PayloadAction<string>) => {
+      state.ttsApiKey = action.payload
+    },
+    setTtsModel: (state, action: PayloadAction<string>) => {
+      state.ttsModel = action.payload
+    },
+    setTtsVoice: (state, action: PayloadAction<string>) => {
+      state.ttsVoice = action.payload
+    },
+    setTtsPlayerType: (state, action: PayloadAction<'auto' | 'ffmpeg' | 'system'>) => {
+      state.ttsPlayerType = action.payload
+    },
+    setTtsEdgeRate: (state, action: PayloadAction<string>) => {
+      state.ttsEdgeRate = action.payload
+    },
+    setTtsEdgeVolume: (state, action: PayloadAction<string>) => {
+      state.ttsEdgeVolume = action.payload
+    },
+    setTtsCustomModels: (state, action: PayloadAction<Array<{ label?: string; value: string }>>) => {
+      state.ttsCustomModels = action.payload
+    },
+    setTtsCustomVoices: (state, action: PayloadAction<Array<{ label?: string; value: string }>>) => {
+      state.ttsCustomVoices = action.payload
+    }
   }
 })
 
@@ -521,6 +544,10 @@ export const {
   setObsidianTages,
   setJoplinToken,
   setJoplinUrl,
+  setSiyuanApiUrl,
+  setSiyuanToken,
+  setSiyuanBoxId,
+  setSiyuanRootPath,
   setMessageNavigation,
   // TTS actions
   setTtsEnabled,
