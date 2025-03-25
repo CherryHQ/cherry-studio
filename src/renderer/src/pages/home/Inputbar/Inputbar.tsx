@@ -764,8 +764,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 />
               )}
               <GenerateImageButton
-                model={model}
-                assistant={assistant}
+                imageGenerationCapable={imageGenerationCapable}
                 onEnableGenerateImage={onEnableGenerateImage}
                 ToolbarButton={ToolbarButton}
               />
