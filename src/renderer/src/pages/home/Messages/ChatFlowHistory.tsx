@@ -429,6 +429,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
     }
 
     return { nodes: flowNodes, edges: flowEdges }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicId, messages, userMessages, assistantMessages, t])
 
   useEffect(() => {

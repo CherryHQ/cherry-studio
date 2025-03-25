@@ -67,6 +67,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
     return () => {
       document.removeEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, selectedIndex, isGrouped, messageLength])
 
   const setSelectedMessage = useCallback(
