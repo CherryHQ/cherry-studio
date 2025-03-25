@@ -45,6 +45,8 @@ declare global {
         backupToWebdav: (data: string, webdavConfig: WebDavConfig) => Promise<boolean>
         restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
         listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
+        checkConnection: (webdavConfig: WebDavConfig) => Promise<boolean>
+        createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) => Promise<void>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
@@ -170,6 +172,14 @@ declare global {
       getBinaryPath: (name: string) => Promise<string>
       installUVBinary: () => Promise<void>
       installBunBinary: () => Promise<void>
+      protocol: {
+        onReceiveData: (callback: (data: { url: string; params: any }) => void) => () => void
+      }
+      nutstore: {
+        getSSOUrl: () => Promise<string>
+        decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
+        getDirectoryContents: (token: string, path: string) => Promise<any>
+      }
     }
   }
 }

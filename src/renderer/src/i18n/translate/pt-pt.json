@@ -512,6 +512,7 @@
     "minapp": {
       "sidebar.add.title": "Adicionar à barra lateral",
       "sidebar.remove.title": "Remover da barra lateral",
+      "sidebar.hide.title": "Ocultar aplicativo",
       "title": "Pequeno aplicativo"
     },
     "miniwindow": {

@@ -173,7 +173,7 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*)$/i
 
 // Embedding models
 export const EMBEDDING_REGEX =
@@ -1984,6 +1984,18 @@ export function isVisionModel(model: Model): boolean {
 
 export function isOpenAIoSeries(model: Model): boolean {
   return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
+}
+
+export function isSupportedResoningEffortModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
+    return true
+  }
+
+  return false
 }
 
 export function isReasoningModel(model?: Model): boolean {

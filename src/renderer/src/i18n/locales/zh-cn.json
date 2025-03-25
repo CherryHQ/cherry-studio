@@ -471,6 +471,8 @@
       "error.invalid.webdav": "无效的 WebDAV 设置",
       "error.joplin.export": "导出 Joplin 失败，请保持 Joplin 已运行并检查连接状态或检查配置",
       "error.joplin.no_config": "未配置 Joplin 授权令牌 或 URL",
+      "error.invalid.nutstore": "无效的坚果云设置",
+      "error.invalid.nutstore_token": "无效的坚果云 Token",
       "error.markdown.export.preconf": "导出Markdown文件到预先设定的路径失败",
       "error.markdown.export.specified": "导出Markdown文件失败",
       "error.notion.export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
@@ -530,6 +532,7 @@
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
       "sidebar.remove.title": "从侧边栏移除",
+      "sidebar.hide.title": "隐藏小程序",
       "title": "小程序"
     },
     "miniwindow": {
@@ -866,6 +869,28 @@
             "fail": "连接失败，请检查API地址和令牌",
             "error": "连接异常，请检查网络连接"
           }
+        },
+        "nutstore": {
+          "title": "坚果云配置",
+          "isLogin": "已登录",
+          "notLogin": "未登录",
+          "login.button": "登录",
+          "logout.button": "退出登录",
+          "logout.title": "确定要退出坚果云登录？",
+          "logout.content": "退出后将无法备份至坚果云和从坚果云恢复",
+          "checkConnection.name": "检查连接",
+          "checkConnection.success": "已连接坚果云",
+          "checkConnection.fail": "坚果云连接失败",
+          "username": "坚果云用户名",
+          "path": "坚果云存储路径",
+          "path.placeholder": "请输入坚果云的存储路径",
+          "backup.button": "备份到坚果云",
+          "restore.button": "从坚果云恢复",
+          "pathSelector.title": "坚果云存储路径",
+          "pathSelector.return": "返回",
+          "pathSelector.currentPath": "当前路径",
+          "new_folder.button.confirm": "确定",
+          "new_folder.button.cancel": "取消",
         }
       },
       "display.assistant.title": "助手设置",

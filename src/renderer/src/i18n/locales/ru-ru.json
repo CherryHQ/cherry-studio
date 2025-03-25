@@ -471,6 +471,8 @@
       "error.invalid.webdav": "Неверные настройки WebDAV",
       "error.joplin.export": "Не удалось экспортировать в Joplin, пожалуйста, убедитесь, что Joplin запущен и проверьте состояние подключения или настройки",
       "error.joplin.no_config": "Joplin Authorization Token или URL не настроен",
+      "error.invalid.nutstore": "Неверные настройки Nutstore",
+      "error.invalid.nutstore_token": "Неверный Nutstore токен",
       "error.markdown.export.preconf": "Не удалось экспортировать файл Markdown в предуказанный путь",
       "error.markdown.export.specified": "Не удалось экспортировать файл Markdown",
       "error.notion.export": "Ошибка экспорта в Notion, пожалуйста, проверьте состояние подключения и настройки в документации",
@@ -530,6 +532,7 @@
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
       "sidebar.remove.title": "Удалить из боковой панели",
+      "sidebar.hide.title": "Скрыть приложение",
       "title": "Встроенные приложения"
     },
     "miniwindow": {
@@ -866,6 +869,29 @@
             "fail": "Не удалось подключиться, проверьте API адрес и токен",
             "error": "Ошибка соединения, проверьте сетевое подключение"
           }
+        },
+        "nutstore": {
+          "title": "Настройки Nutstore",
+          "isLogin": "Выполнен вход",
+          "notLogin": "Вход не выполнен",
+          "login.button": "Войти",
+          "logout.button": "Выйти",
+          "logout.title": "Вы уверены, что хотите выйти из Nutstore?",
+          "logout.content": "После выхода вы не сможете создавать резервные копии в Nutstore или восстанавливать данные из Nutstore.",
+          "checkConnection.name": "Проверить соединение",
+          "checkConnection.success": "Подключение к Nutstore установлено",
+          "checkConnection.fail": "Ошибка подключения к Nutstore",
+          "username": "Имя пользователя Nutstore",
+          "path": "Путь хранения Nutstore",
+          "path.placeholder": "Введите путь хранения Nutstore",
+          "backup.button": "Резервное копирование в Nutstore",
+          "restore.button": "Восстановление из Nutstore",
+          "pathSelector.title": "Путь хранения Nutstore",
+          "pathSelector.return": "Назад",
+          "pathSelector.currentPath": "Текущий путь",
+          "new_folder.button.confirm": "Подтвердить",
+          "new_folder.button.cancel": "Отмена",
+          "new_folder.button": "Новая папка"
         }
       },
       "display.assistant.title": "Настройки ассистентов",

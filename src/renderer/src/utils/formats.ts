@@ -1,4 +1,5 @@
 import { isReasoningModel } from '@renderer/config/models'
+import { getAssistantById } from '@renderer/services/AssistantService'
 import { Message } from '@renderer/types'
 
 export function escapeDollarNumber(text: string) {
@@ -91,11 +92,8 @@ const glmZeroPreviewProcessor: ThoughtProcessor = {
   canProcess: (content: string, message?: Message) => {
     if (!message) return false
 
-    const model = message.model
-    if (!model || !isReasoningModel(model)) return false
-
     const modelId = message.modelId || ''
-    const modelName = model.name || ''
+    const modelName = message.model?.name || ''
     const isGLMZeroPreview =
       modelId.toLowerCase().includes('glm-zero-preview') || modelName.toLowerCase().includes('glm-zero-preview')
 
@@ -116,9 +114,6 @@ const glmZeroPreviewProcessor: ThoughtProcessor = {
 const thinkTagProcessor: ThoughtProcessor = {
   canProcess: (content: string, message?: Message) => {
     if (!message) return false
-
-    const model = message.model
-    if (!model || !isReasoningModel(model)) return false
 
     return content.startsWith('<think>') || content.includes('</think>')
   },
@@ -160,6 +155,15 @@ const thinkTagProcessor: ThoughtProcessor = {
 export function withMessageThought(message: Message) {
   if (message.role !== 'assistant') {
     return message
+  }
+
+  const model = message.model
+  if (!model || !isReasoningModel(model)) return message
+
+  const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
+  if (isClaude37Sonnet) {
+    const assistant = getAssistantById(message.assistantId)
+    if (!assistant?.settings?.reasoning_effort) return message
   }
 
   const content = message.content.trim()

@@ -471,6 +471,8 @@
       "error.invalid.webdav": "無効なWebDAV設定",
       "error.joplin.export": "Joplin へのエクスポートに失敗しました。Joplin が実行中であることを確認してください",
       "error.joplin.no_config": "Joplin 認証トークン または URL が設定されていません",
+      "error.invalid.nutstore": "無効なNutstore設定です",
+      "error.invalid.nutstore_token": "無効なNutstoreトークンです",
       "error.markdown.export.preconf": "Markdown ファイルを事前設定されたパスにエクスポートできませんでした",
       "error.markdown.export.specified": "Markdown ファイルのエクスポートに失敗しました",
       "error.notion.export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
@@ -529,6 +531,7 @@
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
       "sidebar.remove.title": "サイドバーから削除",
+      "sidebar.hide.title": "ミニアプリを隠す",
       "title": "ミニアプリ"
     },
     "miniwindow": {
@@ -865,6 +868,29 @@
             "fail": "接続失敗、APIアドレスとトークンを確認してください",
             "error": "接続エラー、ネットワーク接続を確認してください"
           }
+        },
+        "nutstore": {
+          "title": "Nutstore設定",
+          "isLogin": "ログイン済み",
+          "notLogin": "未ログイン",
+          "login.button": "ログイン",
+          "logout.button": "ログアウト",
+          "logout.title": "Nutstoreからログアウトしますか？",
+          "logout.content": "ログアウト後、Nutstoreへのバックアップや復元ができなくなります。",
+          "checkConnection.name": "接続確認",
+          "checkConnection.success": "Nutstoreに接続しました",
+          "checkConnection.fail": "Nutstore接続に失敗しました",
+          "username": "Nutstoreユーザー名",
+          "path": "Nutstoreストレージパス",
+          "path.placeholder": "Nutstoreストレージパスを入力",
+          "backup.button": "Nutstoreにバックアップ",
+          "restore.button": "Nutstoreから復元",
+          "pathSelector.title": "Nutstoreストレージパス",
+          "pathSelector.return": "戻る",
+          "pathSelector.currentPath": "現在のパス",
+          "new_folder.button.confirm": "確認",
+          "new_folder.button.cancel": "キャンセル",
+          "new_folder.button": "新しいフォルダ"
         }
       },
       "display.assistant.title": "アシスタント設定",

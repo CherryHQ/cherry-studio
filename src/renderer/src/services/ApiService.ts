@@ -127,7 +127,10 @@ export async function fetchChatCompletion({
         if (mcpToolResponse) {
           message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
         }
-        if (generateImage) {
+        if (generateImage && generateImage.images.length > 0) {
+          const existingImages = message.metadata?.generateImage?.images || []
+          generateImage.images = [...existingImages, ...generateImage.images]
+          console.log('generateImage', generateImage)
           message.metadata = {
             ...message.metadata,
             generateImage: generateImage

@@ -2,6 +2,8 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 
+import { WebDAVSyncState } from './backup'
+
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter'
 
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
@@ -15,6 +17,8 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'knowledge',
   'files'
 ]
+
+export interface NutstoreSyncRuntime extends WebDAVSyncState {}
 
 export interface SettingsState {
   showAssistants: boolean

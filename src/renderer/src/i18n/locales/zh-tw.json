@@ -471,6 +471,8 @@
       "error.invalid.webdav": "無效的 WebDAV 設定",
       "error.joplin.export": "匯出 Joplin 失敗，請保持 Joplin 已運行並檢查連接狀態或檢查設定",
       "error.joplin.no_config": "未設定 Joplin 授權Token 或 URL",
+      "error.invalid.nutstore": "無效的坚果云設定",
+      "error.invalid.nutstore_token": "無效的坚果云 Token",
       "error.markdown.export.preconf": "導出 Markdown 文件到預先設定的路徑失敗",
       "error.markdown.export.specified": "導出 Markdown 文件失敗",
       "error.notion.export": "匯出 Notion 錯誤，請檢查連接狀態並對照文件檢查設定",
@@ -530,6 +532,7 @@
     "minapp": {
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
+      "sidebar.hide.title": "隱藏小工具",
       "title": "小工具"
     },
     "miniwindow": {
@@ -866,6 +869,29 @@
             "fail": "連接失敗，請檢查API地址和令牌",
             "error": "連接異常，請檢查網絡連接"
           }
+        },
+        "nutstore": {
+          "title": "堅果雲設定",
+          "isLogin": "已登入",
+          "notLogin": "未登入",
+          "login.button": "登入",
+          "logout.button": "退出登入",
+          "logout.title": "確定要退出堅果雲登入？",
+          "logout.content": "退出後將無法備份至堅果雲和從堅果雲恢復",
+          "checkConnection.name": "檢查連接",
+          "checkConnection.success": "已連接堅果雲",
+          "checkConnection.fail": "堅果雲連接失敗",
+          "username": "堅果雲用戶名",
+          "path": "堅果雲存儲路徑",
+          "path.placeholder": "請輸入堅果雲的存儲路徑",
+          "backup.button": "備份到堅果雲",
+          "restore.button": "從堅果雲恢復",
+          "pathSelector.title": "堅果雲存儲路徑",
+          "pathSelector.return": "返回",
+          "pathSelector.currentPath": "當前路徑",
+          "new_folder.button.confirm": "確定",
+          "new_folder.button.cancel": "取消",
+          "new_folder.button": "新建文件夾"
         }
       },
       "display.assistant.title": "助手設定",
