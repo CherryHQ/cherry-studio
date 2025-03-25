@@ -5,11 +5,13 @@ import React, { createContext, PropsWithChildren, useContext, useEffect, useStat
 
 interface ThemeContextType {
   theme: ThemeMode
+  settingTheme: ThemeMode
   toggleTheme: () => void
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: ThemeMode.light,
+  settingTheme: ThemeMode.light,
   toggleTheme: () => {}
 })
 
@@ -45,9 +47,21 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
 
   useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
-  }, [])
 
-  return <ThemeContext.Provider value={{ theme: _theme, toggleTheme }}>{children}</ThemeContext.Provider>
+    // listen theme change from main process from other windows
+    const themeChangeListenerRemover = window.electron.ipcRenderer.on('theme:change', (_, newTheme) => {
+      setTheme(newTheme)
+    })
+    return () => {
+      themeChangeListenerRemover()
+    }
+  })
+
+  return (
+    <ThemeContext.Provider value={{ theme: _theme, settingTheme: theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  )
 }
 
 export const useTheme = () => useContext(ThemeContext)

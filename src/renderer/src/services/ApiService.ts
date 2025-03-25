@@ -134,7 +134,8 @@ export async function fetchChatCompletion({
         search,
         annotations,
         citations,
-        mcpToolResponse
+        mcpToolResponse,
+        generateImage
       }) => {
         if (assistant.model) {
           if (isOpenAIWebSearch(assistant.model)) {
@@ -162,6 +163,15 @@ export async function fetchChatCompletion({
 
         if (mcpToolResponse) {
           message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
+        }
+        if (generateImage && generateImage.images.length > 0) {
+          const existingImages = message.metadata?.generateImage?.images || []
+          generateImage.images = [...existingImages, ...generateImage.images]
+          console.log('generateImage', generateImage)
+          message.metadata = {
+            ...message.metadata,
+            generateImage: generateImage
+          }
         }
 
         // Handle citations from Perplexity API
@@ -235,6 +245,7 @@ export async function fetchChatCompletion({
         }
       }
     }
+    console.log('message', message)
   } catch (error: any) {
     if (isAbortError(error)) {
       message.status = 'paused'
@@ -293,7 +304,9 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const AI = new AiProvider(provider)
 
   try {
-    return await AI.summaries(filterMessages(messages), assistant)
+    const text = await AI.summaries(filterMessages(messages), assistant)
+    // Remove all quotes from the text
+    return text?.replace(/["']/g, '') || null
   } catch (error: any) {
     return null
   }

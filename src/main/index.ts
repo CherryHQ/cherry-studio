@@ -1,9 +1,11 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
-import { app } from 'electron'
+import { app, ipcMain } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
+import { configManager } from './services/ConfigManager'
+import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } from './services/ProtocolClient'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
@@ -20,6 +22,12 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
+
+    // Mac: Hide dock icon before window creation when launch to tray is set
+    const isLaunchToTray = configManager.getLaunchToTray()
+    if (isLaunchToTray) {
+      app.dock?.hide()
+    }
 
     const mainWindow = windowService.createMainWindow()
     new TrayService()
@@ -44,11 +52,35 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
     }
+    ipcMain.handle('system:getDeviceType', () => {
+      return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
+    })
+  })
+
+  registerProtocolClient(app)
+
+  // macOS specific: handle protocol when app is already running
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    handleProtocolUrl(url)
+  })
+
+  registerProtocolClient(app)
+
+  // macOS specific: handle protocol when app is already running
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    handleProtocolUrl(url)
   })
 
   // Listen for second instance
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     windowService.showMainWindow()
+
+    // Protocol handler for Windows/Linux
+    // The commandLine is an array of strings where the last item might be the URL
+    const url = argv.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+    if (url) handleProtocolUrl(url)
   })
 
   app.on('browser-window-created', (_, window) => {

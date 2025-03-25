@@ -1,5 +1,5 @@
 import { is } from '@electron-toolkit/utils'
-import { isDev, isLinux, isWin } from '@main/constant'
+import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
 import Logger from 'electron-log'
@@ -39,8 +39,6 @@ export class WindowService {
     })
 
     const theme = configManager.getTheme()
-    const isMac = process.platform === 'darwin'
-    const isLinux = process.platform === 'linux'
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
@@ -146,7 +144,12 @@ export class WindowService {
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
-      mainWindow.show()
+
+      // show window only when laucn to tray not set
+      const isLaunchToTray = configManager.getLaunchToTray()
+      if (!isLaunchToTray) {
+        mainWindow.show()
+      }
     })
 
     // 处理全屏相关事件
@@ -255,12 +258,20 @@ export class WindowService {
         return app.quit()
       }
 
-      // 没有开启托盘，且是Windows或Linux系统，直接退出
-      const notInTray = !configManager.getTray()
-      if ((isWin || isLinux) && notInTray) {
-        return app.quit()
+      // 托盘及关闭行为设置
+      const isShowTray = configManager.getTray()
+      const isTrayOnClose = configManager.getTrayOnClose()
+
+      // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
+      if (!isShowTray || (isShowTray && !isTrayOnClose)) {
+        // 如果是Windows或Linux，直接退出
+        // mac按照系统默认行为，不退出
+        if (isWin || isLinux) {
+          return app.quit()
+        }
       }
 
+      //上述逻辑以下，是“开启托盘+设置关闭时最小化到托盘”的情况
       // 如果是Windows或Linux，且处于全屏状态，则退出应用
       if (this.wasFullScreen) {
         if (isWin || isLinux) {
@@ -271,8 +282,13 @@ export class WindowService {
           return
         }
       }
+
       event.preventDefault()
       mainWindow.hide()
+
+      if (isMac && isTrayOnClose) {
+        app.dock?.hide() //for mac to hide to tray
+      }
     })
 
     mainWindow.on('closed', () => {
@@ -301,6 +317,9 @@ export class WindowService {
       this.mainWindow = this.createMainWindow()
       this.mainWindow.focus()
     }
+
+    //for mac users, when window is shown, should show dock icon (dock may be set to hide when launch)
+    app.dock?.show()
   }
 
   public showMiniWindow() {
@@ -310,9 +329,6 @@ export class WindowService {
       return
     }
 
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.hide()
-    }
     if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
       this.selectionMenuWindow.hide()
     }
@@ -326,8 +342,6 @@ export class WindowService {
       this.miniWindow.focus()
       return
     }
-
-    const isMac = process.platform === 'darwin'
 
     this.miniWindow = new BrowserWindow({
       width: 500,
@@ -403,7 +417,6 @@ export class WindowService {
     }
 
     const theme = configManager.getTheme()
-    const isMac = process.platform === 'darwin'
 
     this.selectionMenuWindow = new BrowserWindow({
       width: 280,

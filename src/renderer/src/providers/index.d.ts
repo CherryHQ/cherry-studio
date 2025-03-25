@@ -15,6 +15,7 @@ interface ChunkCallbackData {
   // Openrouter web search or Knowledge base
   citations?: string[]
   mcpToolResponse?: MCPToolResponse[]
+  generateImage?: GenerateImageResponse
 }
 
 interface CompletionsParams {
@@ -29,7 +30,8 @@ interface CompletionsParams {
     search,
     annotations,
     citations,
-    mcpToolResponse
+    mcpToolResponse,
+    generateImage
   }: ChunkCallbackData) => void
   onFilterMessages: (messages: Message[]) => void
   mcpTools?: MCPTool[]
