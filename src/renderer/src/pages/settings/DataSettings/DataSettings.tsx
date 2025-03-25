@@ -37,7 +37,7 @@ const DataSettings: FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
-  const [menu, setMenu] = useState<string>('data')
+  const [menu, setMenu] = useState<string>('common')
 
   //joplin icon needs to be updated into iconfont
   const JoplinIcon = () => (
@@ -78,15 +78,15 @@ const DataSettings: FC = () => {
       icon: <YuqueOutlined style={{ fontSize: 16 }} />
     },
     {
-      key: 'obsidian',
-      title: 'settings.data.obsidian.title',
-      icon: <i className="iconfont icon-obsidian" />
-    },
-    {
       key: 'joplin',
       title: 'settings.data.joplin.title',
       //joplin icon needs to be updated into iconfont
       icon: <JoplinIcon />
+    },
+    {
+      key: 'obsidian',
+      title: 'settings.data.obsidian.title',
+      icon: <i className="iconfont icon-obsidian" />
     },
     {
       key: 'siyuan',
@@ -230,8 +230,8 @@ const DataSettings: FC = () => {
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'notion' && <NotionSettings />}
         {menu === 'yuque' && <YuqueSettings />}
-        {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'joplin' && <JoplinSettings />}
+        {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
       </SettingContainer>
     </Container>

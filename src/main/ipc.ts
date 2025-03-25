@@ -17,6 +17,7 @@ import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
 import MCPService from './services/MCPService'
+import ObsidianVaultService from './services/ObsidianVaultService'
 import * as NutstoreService from './services/NutstoreService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
@@ -33,6 +34,7 @@ const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
 const mcpService = new MCPService()
 const ttsService = new TTSService()
+const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
@@ -327,6 +329,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // 不再需要事件监听，现在直接在主进程打开音频文件
+  
+  // Obsidian service
+  ipcMain.handle('obsidian:get-vaults', () => {
+    return obsidianVaultService.getVaults()
+  })
+
+  ipcMain.handle('obsidian:get-files', (_event, vaultName) => {
+    return obsidianVaultService.getFilesByVaultName(vaultName)
+  })
   
   // nutstore
   ipcMain.handle('nutstore:get-sso-url', NutstoreService.getNutstoreSSOUrl)

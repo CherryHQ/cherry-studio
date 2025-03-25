@@ -326,31 +326,49 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
  * @param attributes.source 来源
  * @param attributes.tags 标签
  * @param attributes.processingMethod 处理方式
+ * @param attributes.folder 选择的文件夹路径或文件路径
+ * @param attributes.vault 选择的Vault名称
  */
 export const exportMarkdownToObsidian = async (attributes: any) => {
   try {
-    const obsidianValut = store.getState().settings.obsidianValut
-    const obsidianFolder = store.getState().settings.obsidianFolder
+    // 从参数获取Vault名称
+    const obsidianValut = attributes.vault
+    let obsidianFolder = attributes.folder || ''
+    let isMarkdownFile = false
 
-    if (!obsidianValut || !obsidianFolder) {
+    if (!obsidianValut) {
       window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
       return
     }
-    let path = ''
 
     if (!attributes.title) {
       window.message.error(i18n.t('chat.topics.export.obsidian_title_required'))
       return
     }
 
-    //构建保存路径添加以 / 结尾
-    if (!obsidianFolder.endsWith('/')) {
-      path = obsidianFolder + '/'
+    // 检查是否选择了.md文件
+    if (obsidianFolder && obsidianFolder.endsWith('.md')) {
+      isMarkdownFile = true
     }
-    //构建文件名
-    const fileName = transformObsidianFileName(attributes.title)
 
-    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(path + fileName)}&vault=${encodeURIComponent(obsidianValut)}&clipboard`
+    let filePath = ''
+
+    // 如果是.md文件，直接使用该文件路径
+    if (isMarkdownFile) {
+      filePath = obsidianFolder
+    } else {
+      // 否则构建路径
+      //构建保存路径添加以 / 结尾
+      if (obsidianFolder && !obsidianFolder.endsWith('/')) {
+        obsidianFolder = obsidianFolder + '/'
+      }
+
+      //构建文件名
+      const fileName = transformObsidianFileName(attributes.title)
+      filePath = obsidianFolder + fileName + '.md'
+    }
+
+    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(filePath)}&vault=${encodeURIComponent(obsidianValut)}&clipboard`
 
     if (attributes.processingMethod === '3') {
       obsidianUrl += '&overwrite=true'
@@ -359,6 +377,7 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
     } else if (attributes.processingMethod === '1') {
       obsidianUrl += '&append=true'
     }
+
     window.open(obsidianUrl)
     window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
   } catch (error) {
