@@ -98,7 +98,8 @@ const FeatureMenus = forwardRef<FeatureMenusRef, FeatureMenusProps>(({ text, set
 FeatureMenus.displayName = 'FeatureMenus'
 
 const FeatureList = styled(Scrollbar)`
-  flex: 1;
+  flex-shrink: 0;
+  height: auto;
   -webkit-app-region: none;
 `
 

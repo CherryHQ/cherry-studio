@@ -137,6 +137,7 @@ declare global {
         hide: () => Promise<void>
         close: () => Promise<void>
         toggle: () => Promise<void>
+        setPin: (isPinned: boolean) => Promise<void>
       }
       aes: {
         encrypt: (text: string, secretKey: string, iv: string) => Promise<{ iv: string; encryptedData: string }>
