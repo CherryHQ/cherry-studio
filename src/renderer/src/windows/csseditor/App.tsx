@@ -1,11 +1,12 @@
-import { CloseOutlined, PushpinOutlined } from '@ant-design/icons'
+import { PushpinOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import AntdProvider from '@renderer/context/AntdProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
+import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import store from '@renderer/store'
 import { Input } from 'antd'
-import { useState } from 'react'
+import { type FC, type PropsWithChildren, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Provider } from 'react-redux'
 import styled from 'styled-components'
@@ -36,10 +37,6 @@ function APP(): JSX.Element {
     window.api.cssEditor.update(value)
   }
 
-  const handleClose = () => {
-    window.api.cssEditor.close()
-  }
-
   const handlePinClick = async () => {
     const newPinnedState = await window.api.cssEditor.togglePin()
     setIsPinned(newPinnedState)
@@ -47,19 +44,14 @@ function APP(): JSX.Element {
 
   return (
     <Container>
-      <NavbarContainer>
-        <HeaderTitle>{t('settings.display.custom.css')}</HeaderTitle>
-        <Controls>
+      <Navbar>
+        <NavbarLeft>
+          <HeaderTitle>{t('settings.display.custom.css')}</HeaderTitle>
           <PinButton onClick={handlePinClick} $isPinned={isPinned}>
             <PushpinOutlined />
           </PinButton>
-          {!isMac && (
-            <CloseButton onClick={handleClose}>
-              <CloseOutlined />
-            </CloseButton>
-          )}
-        </Controls>
-      </NavbarContainer>
+        </NavbarLeft>
+      </Navbar>
       <Content>
         <Input.TextArea
           value={css}
@@ -76,23 +68,49 @@ function APP(): JSX.Element {
   )
 }
 
+type Props = PropsWithChildren & JSX.IntrinsicElements['div']
+export const Navbar: FC<Props> = ({ children, ...props }) => {
+  const backgroundColor = useNavBackgroundColor()
+
+  return (
+    <NavbarContainer {...props} style={{ backgroundColor }}>
+      {children}
+    </NavbarContainer>
+  )
+}
+
+export const NavbarLeft: FC<Props> = ({ children, ...props }) => {
+  return <NavbarLeftContainer {...props}>{children}</NavbarLeftContainer>
+}
+
+const NavbarContainer = styled.div`
+  min-width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: ${isMac ? 'flex-end' : 'flex-start'};
+  min-height: var(--navbar-height);
+  max-height: var(--navbar-height);
+  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
+  padding-left: ${isMac ? 'var(--sidebar-width)' : 0};
+  -webkit-app-region: drag;
+`
+
+const NavbarLeftContainer = styled.div`
+  min-width: var(--assistants-width);
+  padding: 0 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  font-weight: bold;
+  color: var(--color-text-1);
+`
+
 const Container = styled.div`
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--color-background);
-`
-
-const NavbarContainer = styled.div`
-  min-width: 100%;
-  display: flex;
-  flex-direction: row;
-  min-height: var(--navbar-height);
-  max-height: var(--navbar-height);
-  padding-left: ${isMac ? 'calc(20px + var(--sidebar-width))' : '8px'};
-  background-color: var(--background-color);
-  -webkit-app-region: drag;
 `
 
 const HeaderTitle = styled.div`
@@ -103,12 +121,6 @@ const HeaderTitle = styled.div`
   display: flex;
   align-items: center;
   justify-content: left;
-`
-
-const Controls = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
 `
 
 const Content = styled.div`
@@ -128,20 +140,6 @@ const PinButton = styled.div<{ $isPinned: boolean }>`
   color: var(--color-text);
   opacity: ${(props) => (props.$isPinned ? 1 : 0.6)};
   transform: ${(props) => (props.$isPinned ? 'rotate(-45deg)' : 'none')};
-`
-const CloseButton = styled.div`
-  -webkit-app-region: no-drag;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  color: var(--color-text);
-
-  &:hover {
-    background: var(--color-hover);
-  }
 `
 
 export default AppWrapper
