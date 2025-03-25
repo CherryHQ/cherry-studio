@@ -38,7 +38,15 @@ const api = {
     listWebdavFiles: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:listWebdavFiles', webdavConfig),
     checkConnection: (webdavConfig: WebDavConfig) => ipcRenderer.invoke('backup:checkConnection', webdavConfig),
     createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
-      ipcRenderer.invoke('backup:createDirectory', webdavConfig, path, options)
+      ipcRenderer.invoke('backup:createDirectory', webdavConfig, path, options),
+    backupToGoogleDrive: (options: { showMessage?: boolean; customFileName?: string }) =>
+      ipcRenderer.invoke('backup:backupToGoogleDrive', options),
+    restoreFromGoogleDrive: (fileName: string) => ipcRenderer.invoke('backup:restoreFromGoogleDrive', fileName),
+    listGoogleDriveFiles: () => ipcRenderer.invoke('backup:listGoogleDriveFiles'),
+    backupToOneDrive: (options: { showMessage?: boolean; customFileName?: string }) =>
+      ipcRenderer.invoke('backup:backupToOneDrive', options),
+    restoreFromOneDrive: (fileName: string) => ipcRenderer.invoke('backup:restoreFromOneDrive', fileName),
+    listOneDriveFiles: () => ipcRenderer.invoke('backup:listOneDriveFiles')
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke('file:select', options),
@@ -167,6 +175,20 @@ const api = {
   }
 }
 
+// OAuth and environment variable APIs
+const oauth = {
+  open: (url: string, callback: (redirectUrl: string) => void) => 
+    ipcRenderer.invoke('oauth:open', url).then(callback),
+  getGoogleDriveToken: (code: string, clientId: string, redirectUri: string) =>
+    ipcRenderer.invoke('oauth:getGoogleDriveToken', code, clientId, redirectUri),
+  getOneDriveToken: (code: string, clientId: string, redirectUri: string) =>
+    ipcRenderer.invoke('oauth:getOneDriveToken', code, clientId, redirectUri)
+}
+
+const env = {
+  get: (key: string) => process.env[key] || ''
+}
+
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
 // just add to the DOM global.
@@ -174,6 +196,8 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('oauth', oauth)
+    contextBridge.exposeInMainWorld('env', env)
   } catch (error) {
     console.error(error)
   }
@@ -182,4 +206,8 @@ if (process.contextIsolated) {
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
+  // @ts-ignore (define in dts)
+  window.oauth = oauth
+  // @ts-ignore (define in dts)
+  window.env = env
 }
