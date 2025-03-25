@@ -9,7 +9,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
-import { setManualUpdateCheck } from '@renderer/store/settings'
+import { setAutoCheckUpdate } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
 import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
@@ -25,7 +25,7 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitl
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const { t } = useTranslation()
-  const { manualUpdateCheck } = useSettings()
+  const { autoCheckUpdate } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -101,7 +101,7 @@ const AboutSettings: FC = () => {
         <SettingTitle>
           {t('settings.about.title')}
           <HStack alignItems="center">
-            <Link to="https://github.com/kangfenmao/cherry-studio">
+            <Link to="https://github.com/CherryHQ/cherry-studio">
               <GithubOutlined style={{ marginRight: 4, color: 'var(--color-text)', fontSize: 20 }} />
             </Link>
           </HStack>
@@ -109,7 +109,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <AboutHeader>
           <Row align="middle">
-            <AvatarWrapper onClick={() => onOpenWebsite('https://github.com/kangfenmao/cherry-studio')}>
+            <AvatarWrapper onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}>
               {update.downloadProgress > 0 && (
                 <ProgressCircle
                   type="circle"
@@ -126,7 +126,7 @@ const AboutSettings: FC = () => {
               <Title>{APP_NAME}</Title>
               <Description>{t('settings.about.description')}</Description>
               <Tag
-                onClick={() => onOpenWebsite('https://github.com/kangfenmao/cherry-studio/releases')}
+                onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
                 color="cyan"
                 style={{ marginTop: 8, cursor: 'pointer' }}>
                 v{version}
@@ -146,8 +146,8 @@ const AboutSettings: FC = () => {
         </AboutHeader>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.manually_check_update.title')}</SettingRowTitle>
-          <Switch value={manualUpdateCheck} onChange={(v) => dispatch(setManualUpdateCheck(v))} />
+          <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
+          <Switch value={autoCheckUpdate} onChange={(v) => dispatch(setAutoCheckUpdate(v))} />
         </SettingRow>
       </SettingGroup>
       {hasNewVersion && update.info && (
@@ -161,7 +161,7 @@ const AboutSettings: FC = () => {
           <UpdateNotesWrapper>
             <Markdown>
               {typeof update.info.releaseNotes === 'string'
-                ? update.info.releaseNotes.replaceAll('\n', '\n\n')
+                ? update.info.releaseNotes.replace(/\n/g, '\n\n')
                 : update.info.releaseNotes?.map((note) => note.note).join('\n')}
             </Markdown>
           </UpdateNotesWrapper>
@@ -189,7 +189,7 @@ const AboutSettings: FC = () => {
             <GithubOutlined />
             {t('settings.about.feedback.title')}
           </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://github.com/kangfenmao/cherry-studio/issues/new/choose')}>
+          <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
             {t('settings.about.feedback.button')}
           </Button>
         </SettingRow>

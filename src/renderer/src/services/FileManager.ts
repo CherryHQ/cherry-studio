@@ -1,7 +1,9 @@
 import db from '@renderer/databases'
+import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { FileType } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
+import dayjs from 'dayjs'
 
 class FileManager {
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileType[] | null> {
@@ -26,8 +28,12 @@ class FileManager {
     return Promise.all(files.map((file) => this.addFile(file)))
   }
 
+  static async readFile(file: FileType): Promise<Buffer> {
+    return (await window.api.file.binaryFile(file.id + file.ext)).data
+  }
+
   static async uploadFile(file: FileType): Promise<FileType> {
-    console.debug(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
+    console.log(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
 
     const uploadFile = await window.api.file.upload(file)
     const fileRecord = await db.files.get(uploadFile.id)
@@ -60,7 +66,7 @@ class FileManager {
   static async deleteFile(id: string, force: boolean = false): Promise<void> {
     const file = await this.getFile(id)
 
-    console.debug('[FileManager] Deleting file:', file)
+    console.log('[FileManager] Deleting file:', file)
 
     if (!file) {
       return
@@ -109,6 +115,24 @@ class FileManager {
     }
 
     await db.files.update(file.id, file)
+  }
+
+  static formatFileName(file: FileType) {
+    if (!file || !file.origin_name) {
+      return ''
+    }
+
+    const date = dayjs(file.created_at).format('YYYY-MM-DD')
+
+    if (file.origin_name.includes('pasted_text')) {
+      return date + ' ' + i18n.t('message.attachments.pasted_text') + file.ext
+    }
+
+    if (file.origin_name.startsWith('temp_file') && file.origin_name.includes('image')) {
+      return date + ' ' + i18n.t('message.attachments.pasted_image') + file.ext
+    }
+
+    return file.origin_name
   }
 }
 

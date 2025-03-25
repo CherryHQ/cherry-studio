@@ -10,7 +10,6 @@ import { isReasoningModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
-import { EVENT_NAMES } from '@renderer/services/EventService'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -21,7 +20,6 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   anthropicToolUseToMcpTool,
   callMCPTool,
-  filterMCPTools,
   mcpToolsToAnthropicTools,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
@@ -54,6 +52,11 @@ export default class AnthropicProvider extends BaseProvider {
     return this.provider.apiHost
   }
 
+  /**
+   * Get the message parameter
+   * @param message - The message
+   * @returns The message parameter
+   */
   private async getMessageParam(message: Message): Promise<MessageParam> {
     const parts: MessageParam['content'] = [
       {
@@ -74,6 +77,7 @@ export default class AnthropicProvider extends BaseProvider {
           }
         })
       }
+
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
         parts.push({
@@ -89,18 +93,32 @@ export default class AnthropicProvider extends BaseProvider {
     }
   }
 
+  /**
+   * Get the temperature
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The temperature
+   */
   private getTemperature(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model)) return undefined
-
-    return assistant?.settings?.temperature
+    return isReasoningModel(model) ? undefined : assistant?.settings?.temperature
   }
 
+  /**
+   * Get the top P
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The top P
+   */
   private getTopP(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model)) return undefined
-
-    return assistant?.settings?.topP
+    return isReasoningModel(model) ? undefined : assistant?.settings?.topP
   }
 
+  /**
+   * Get the reasoning effort
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The reasoning effort
+   */
   private getReasoningEffort(assistant: Assistant, model: Model): ReasoningConfig | undefined {
     if (!isReasoningModel(model)) {
       return undefined
@@ -134,7 +152,15 @@ export default class AnthropicProvider extends BaseProvider {
     }
   }
 
-  public async completions({ messages, assistant, onChunk, onFilterMessages, mcpTools }: CompletionsParams) {
+  /**
+   * Generate completions
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @param mcpTools - The MCP tools
+   * @param onChunk - The onChunk callback
+   * @param onFilterMessages - The onFilterMessages callback
+   */
+  public async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
@@ -153,7 +179,6 @@ export default class AnthropicProvider extends BaseProvider {
 
     const userMessages = flatten(userMessagesParams)
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-    mcpTools = filterMCPTools(mcpTools, lastUserMessage?.enabledMCPs)
     const tools = mcpTools ? mcpToolsToAnthropicTools(mcpTools) : undefined
 
     const body: MessageCreateParamsNonStreaming = {
@@ -192,6 +217,7 @@ export default class AnthropicProvider extends BaseProvider {
           text = textBlock.text
         }
       }
+
       return onChunk({
         text,
         reasoning_content,
@@ -208,17 +234,17 @@ export default class AnthropicProvider extends BaseProvider {
     const { signal } = abortController
     const toolResponses: MCPToolResponse[] = []
 
-    const processStream = (body: MessageCreateParamsNonStreaming) => {
+    const processStream = (body: MessageCreateParamsNonStreaming, idx: number) => {
       return new Promise<void>((resolve, reject) => {
         const toolCalls: ToolUseBlock[] = []
         let hasThinkingContent = false
-        const stream = this.sdk.messages
+        this.sdk.messages
           .stream({ ...body, stream: true }, { signal })
           .on('text', (text) => {
-            if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-              stream.controller.abort()
-              return resolve()
-            }
+            // if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+            //   stream.controller.abort()
+            //   return resolve()
+            // }
 
             if (time_first_token_millsec == 0) {
               time_first_token_millsec = new Date().getTime() - start_time_millsec
@@ -271,13 +297,18 @@ export default class AnthropicProvider extends BaseProvider {
           .on('finalMessage', async (message) => {
             if (toolCalls.length > 0) {
               const toolCallResults: ToolResultBlockParam[] = []
+
               for (const toolCall of toolCalls) {
                 const mcpTool = anthropicToolUseToMcpTool(mcpTools, toolCall)
                 if (mcpTool) {
-                  upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking' }, onChunk)
+                  upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking', id: toolCall.id }, onChunk)
                   const resp = await callMCPTool(mcpTool)
                   toolCallResults.push({ type: 'tool_result', tool_use_id: toolCall.id, content: resp.content })
-                  upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'done', response: resp }, onChunk)
+                  upsertMCPToolResponse(
+                    toolResponses,
+                    { tool: mcpTool, status: 'done', response: resp, id: toolCall.id },
+                    onChunk
+                  )
                 }
               }
 
@@ -295,7 +326,7 @@ export default class AnthropicProvider extends BaseProvider {
                 const newBody = body
                 body.messages = userMessages
 
-                await processStream(newBody)
+                await processStream(newBody, idx + 1)
               }
             }
 
@@ -323,17 +354,22 @@ export default class AnthropicProvider extends BaseProvider {
             resolve()
           })
           .on('error', (error) => reject(error))
+          .on('abort', () => {
+            reject(new Error('Request was aborted.'))
+          })
       })
     }
 
-    await processStream(body)
-      .catch((error) => {
-        // 不加这个错误抛不出来
-        throw error
-      })
-      .finally(cleanup)
+    await processStream(body, 0).finally(cleanup)
   }
 
+  /**
+   * Translate a message
+   * @param message - The message
+   * @param assistant - The assistant
+   * @param onResponse - The onResponse callback
+   * @returns The translated message
+   */
   public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
@@ -371,6 +407,12 @@ export default class AnthropicProvider extends BaseProvider {
     })
   }
 
+  /**
+   * Summarize a message
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The summary
+   */
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
@@ -413,6 +455,49 @@ export default class AnthropicProvider extends BaseProvider {
     return removeSpecialCharactersForTopicName(content)
   }
 
+  /**
+   * Summarize a message for search
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The summary
+   */
+  public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
+    const model = assistant.model || getDefaultModel()
+    //这里只有上一条回答和当前的搜索消息
+    const systemMessage = {
+      role: 'system',
+      content: assistant.prompt
+    }
+
+    const userMessage = {
+      role: 'user',
+      content: messages.map((m) => m.content).join('\n')
+    }
+
+    const response = await this.sdk.messages.create(
+      {
+        messages: [userMessage] as Anthropic.Messages.MessageParam[],
+        model: model.id,
+        system: systemMessage.content,
+        stream: false,
+        max_tokens: 4096
+      },
+      {
+        timeout: 20 * 1000
+      }
+    )
+
+    const content = response.content[0].type === 'text' ? response.content[0].text : ''
+
+    return content
+  }
+
+  /**
+   * Generate text
+   * @param prompt - The prompt
+   * @param content - The content
+   * @returns The generated text
+   */
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
     const model = getDefaultModel()
 
@@ -432,14 +517,27 @@ export default class AnthropicProvider extends BaseProvider {
     return message.content[0].type === 'text' ? message.content[0].text : ''
   }
 
+  /**
+   * Generate an image
+   * @returns The generated image
+   */
   public async generateImage(): Promise<string[]> {
     return []
   }
 
+  /**
+   * Generate suggestions
+   * @returns The suggestions
+   */
   public async suggestions(): Promise<Suggestion[]> {
     return []
   }
 
+  /**
+   * Check if the model is valid
+   * @param model - The model
+   * @returns The validity of the model
+   */
   public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
@@ -466,6 +564,10 @@ export default class AnthropicProvider extends BaseProvider {
     }
   }
 
+  /**
+   * Get the models
+   * @returns The models
+   */
   public async models(): Promise<OpenAI.Models.Model[]> {
     return []
   }

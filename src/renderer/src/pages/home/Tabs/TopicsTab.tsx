@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
@@ -25,15 +26,18 @@ import { Assistant, Topic } from '@renderer/types'
 import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
-  exportMarkdownToNotion,
+  exportMarkdownToJoplin,
+  exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
+  exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
+import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -53,6 +57,28 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>()
+
+  const pendingTopics = useMemo(() => {
+    return new Set<string>()
+  }, [])
+  const isPending = useCallback(
+    (topicId: string) => {
+      const hasPending = hasTopicPendingRequests(topicId)
+      if (topicId === activeTopic.id && !hasPending) {
+        pendingTopics.delete(topicId)
+        return false
+      }
+      if (pendingTopics.has(topicId)) {
+        return true
+      }
+      if (hasPending) {
+        pendingTopics.add(topicId)
+        return true
+      }
+      return false
+    },
+    [activeTopic.id, pendingTopics]
+  )
 
   const handleDeleteClick = useCallback((topicId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -137,7 +163,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             if (messages.length >= 2) {
               const summaryText = await fetchMessagesSummary({ messages, assistant })
               if (summaryText) {
-                updateTopic({ ...topic, name: summaryText })
+                updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
               }
             }
           }
@@ -153,7 +179,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               defaultValue: topic?.name || ''
             })
             if (name && topic?.name !== name) {
-              updateTopic({ ...topic, name })
+              updateTopic({ ...topic, name, isNameManuallyEdited: true })
             }
           }
         },
@@ -244,8 +270,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               label: t('chat.topics.export.notion'),
               key: 'notion',
               onClick: async () => {
-                const markdown = await topicToMarkdown(topic)
-                exportMarkdownToNotion(topic.name, markdown)
+                exportTopicToNotion(topic)
               }
             },
             {
@@ -254,6 +279,30 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
                 exportMarkdownToYuque(topic.name, markdown)
+              }
+            },
+            {
+              label: t('chat.topics.export.obsidian'),
+              key: 'obsidian',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                await ObsidianExportPopup.show({ title: topic.name, markdown, processingMethod: '3' })
+              }
+            },
+            {
+              label: t('chat.topics.export.joplin'),
+              key: 'joplin',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToJoplin(topic.name, markdown)
+              }
+            },
+            {
+              label: t('chat.topics.export.siyuan'),
+              key: 'siyuan',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToSiyuan(topic.name, markdown)
               }
             }
           ]
@@ -305,6 +354,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 className={isActive ? 'active' : ''}
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
+                {isPending(topic.id) && !isActive && <PendingIndicator />}
                 <TopicName className="name" title={topicName}>
                   {topicName}
                 </TopicName>
@@ -378,6 +428,7 @@ const TopicListItem = styled.div`
   font-family: Ubuntu;
   cursor: pointer;
   border: 0.5px solid transparent;
+  position: relative;
   .menu {
     opacity: 0;
     color: var(--color-text-3);
@@ -408,6 +459,19 @@ const TopicName = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+`
+
+const PendingIndicator = styled.div.attrs({
+  className: 'animation-pulse'
+})`
+  --pulse-size: 5px;
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
 `
 
 const TopicPromptText = styled.div`

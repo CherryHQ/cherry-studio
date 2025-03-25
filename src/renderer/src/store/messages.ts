@@ -1,13 +1,14 @@
 import { createAsyncThunk, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import db from '@renderer/databases'
 import { autoRenameTopic, TopicManager } from '@renderer/hooks/useTopic'
+import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getAssistantMessage, resetAssistantMessage } from '@renderer/services/MessagesService'
 import type { AppDispatch, RootState } from '@renderer/store'
 import type { Assistant, Message, Topic } from '@renderer/types'
+import { Model } from '@renderer/types'
 import { clearTopicQueue, getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
-import { throttle } from 'lodash'
+import { cloneDeep, isEmpty, throttle } from 'lodash'
 
 export interface MessagesState {
   messagesByTopic: Record<string, Message[]>
@@ -26,31 +27,6 @@ const initialState: MessagesState = {
   displayCount: 20,
   error: null
 }
-
-// const MAX_RECENT_TOPICS = 10
-
-// // 只初始化最近的会话消息
-// export const initializeMessagesState = createAsyncThunk('messages/initialize', async () => {
-//   try {
-//     // 获取所有会话的基本信息
-//     const recentTopics = await TopicManager.getTopicLimit(MAX_RECENT_TOPICS)
-//     console.log('recentTopics', recentTopics)
-//     const messagesByTopic: Record<string, Message[]> = {}
-
-//     // 只加载最近会话的消息
-//     for (const topic of recentTopics) {
-//       if (topic.messages && topic.messages.length > 0) {
-//         const messages = topic.messages.map((msg) => ({ ...msg }))
-//         messagesByTopic[topic.id] = messages
-//       }
-//     }
-
-//     return messagesByTopic
-//   } catch (error) {
-//     console.error('Failed to initialize recent messages:', error)
-//     return {}
-//   }
-// })
 
 // 新增准备会话消息的函数，实现懒加载机制
 export const prepareTopicMessages = createAsyncThunk(
@@ -93,9 +69,11 @@ const messagesSlice = createSlice({
     },
     addMessage: (state, action: PayloadAction<{ topicId: string; messages: Message | Message[] }>) => {
       const { topicId, messages } = action.payload
+
       if (!state.messagesByTopic[topicId]) {
         state.messagesByTopic[topicId] = []
       }
+
       if (Array.isArray(messages)) {
         // 为了兼容多模型新发消息,一次性添加多个助手消息
         // 不是什么好主意,不符合语义
@@ -105,16 +83,44 @@ const messagesSlice = createSlice({
         state.messagesByTopic[topicId].push(messages)
       }
     },
+    appendMessage: (
+      state,
+      action: PayloadAction<{ topicId: string; messages: Message | Message[]; position?: number }>
+    ) => {
+      const { topicId, messages, position } = action.payload
+
+      if (!state.messagesByTopic[topicId]) {
+        state.messagesByTopic[topicId] = []
+      }
+
+      // 确保消息数组存在并且拿到引用
+      const messagesList = state.messagesByTopic[topicId]
+
+      // 要插入的消息
+      const messagesToInsert = Array.isArray(messages) ? messages : [messages]
+
+      if (position !== undefined && position >= 0 && position <= messagesList.length) {
+        // 如果指定了位置，在特定位置插入消息
+        messagesList.splice(position, 0, ...messagesToInsert)
+      } else {
+        // 否则默认添加到末尾
+        messagesList.push(...messagesToInsert)
+      }
+    },
     updateMessage: (
       state,
       action: PayloadAction<{ topicId: string; messageId: string; updates: Partial<Message> }>
     ) => {
       const { topicId, messageId, updates } = action.payload
       const topicMessages = state.messagesByTopic[topicId]
+
       if (topicMessages) {
         const message = topicMessages.find((msg) => msg.id === messageId)
         if (message) {
           Object.assign(message, updates)
+          db.topics.update(topicId, {
+            messages: topicMessages.map((m) => (m.id === message.id ? cloneDeep(message) : cloneDeep(m)))
+          })
         }
       }
     },
@@ -132,9 +138,11 @@ const messagesSlice = createSlice({
     },
     setStreamMessage: (state, action: PayloadAction<{ topicId: string; message: Message | null }>) => {
       const { topicId, message } = action.payload
+
       if (!state.streamMessagesByTopic[topicId]) {
         state.streamMessagesByTopic[topicId] = {}
       }
+
       if (message) {
         const messageWithHistoryList = { ...message, historyList: message?.historyList?.concat(message) ?? [message] }
         state.streamMessagesByTopic[topicId][message.id] = messageWithHistoryList
@@ -166,29 +174,18 @@ const messagesSlice = createSlice({
         // 添加新消息
         state.messagesByTopic[topicId].push(streamMessage)
       }
+
       // 删除流状态
       delete state.streamMessagesByTopic[topicId][messageId]
     },
     clearStreamMessage: (state, action: PayloadAction<{ topicId: string; messageId: string }>) => {
       const { topicId, messageId } = action.payload
+
       if (state.streamMessagesByTopic[topicId]) {
         delete state.streamMessagesByTopic[topicId][messageId]
       }
     }
   }
-  // extraReducers: (builder) => {
-  //   builder
-  //     .addCase(initializeMessagesState.pending, (state) => {
-  //       state.error = null
-  //     })
-  //     .addCase(initializeMessagesState.fulfilled, (state, action) => {
-  //       console.log('initializeMessagesState.fulfilled', action.payload)
-  //       state.messagesByTopic = action.payload
-  //     })
-  //     .addCase(initializeMessagesState.rejected, (state, action) => {
-  //       state.error = action.error.message || 'Failed to load messages'
-  //     })
-  // }
 })
 
 const handleResponseMessageUpdate = (
@@ -204,6 +201,7 @@ const handleResponseMessageUpdate = (
     if (message.status === 'success') {
       autoRenameTopic(assistant, topicId)
     }
+
     if (message.status !== 'sending') {
       dispatch(commitStreamMessage({ topicId, messageId: message.id }))
       const state = getState()
@@ -219,9 +217,7 @@ const handleResponseMessageUpdate = (
 const syncMessagesWithDB = async (topicId: string, messages: Message[]) => {
   const topic = await db.topics.get(topicId)
   if (topic) {
-    await db.topics.update(topicId, {
-      messages
-    })
+    await db.topics.update(topicId, { messages })
   } else {
     await db.topics.add({ id: topicId, messages })
   }
@@ -234,8 +230,9 @@ export const sendMessage =
     assistant: Assistant,
     topic: Topic,
     options?: {
-      resendAssistantMessage?: Message
+      resendAssistantMessage?: Message | Message[]
       isMentionModel?: boolean
+      mentions?: Model[]
     }
   ) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
@@ -244,28 +241,37 @@ export const sendMessage =
 
       // Initialize topic messages if not exists
       const initialState = getState()
+
       if (!initialState.messages.messagesByTopic[topic.id]) {
         dispatch(clearTopicMessages(topic.id))
       }
 
-      EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
-
       // 处理助手消息
       let assistantMessages: Message[] = []
-      if (options?.resendAssistantMessage) {
+      if (!isEmpty(options?.resendAssistantMessage)) {
         // 直接使用传入的助手消息，进行重置
         const messageToReset = options.resendAssistantMessage
-        const { model, id } = messageToReset
-        const resetMessage = resetAssistantMessage(messageToReset, model)
-        // 更新状态
-        dispatch(updateMessage({ topicId: topic.id, messageId: id, updates: resetMessage }))
-        // 使用重置后的消息
-        assistantMessages.push(resetMessage)
+        if (Array.isArray(messageToReset)) {
+          assistantMessages = messageToReset.map((m) => {
+            const isGroupedMessage = messageToReset.length > 1
+            const resetMessage = resetAssistantMessage(m, isGroupedMessage ? m.model : assistant.model)
+            // 更新状态
+            dispatch(updateMessage({ topicId: topic.id, messageId: m.id, updates: resetMessage }))
+            // 使用重置后的消息
+            return resetMessage
+          })
+        } else {
+          const { model, id } = messageToReset
+          const resetMessage = resetAssistantMessage(messageToReset, model)
+          // 更新状态
+          dispatch(updateMessage({ topicId: topic.id, messageId: id, updates: resetMessage }))
+          // 使用重置后的消息
+          assistantMessages.push(resetMessage)
+        }
       } else {
-        // 不是重发情况
-        if (userMessage.mentions?.length) {
-          // 为每个被 mention 的模型创建一个助手消息
-          assistantMessages = userMessage.mentions.map((m) => {
+        // 为每个被 mention 的模型创建一个助手消息
+        if (options?.mentions?.length) {
+          assistantMessages = options?.mentions.map((m) => {
             const assistantMessage = getAssistantMessage({ assistant: { ...assistant, model: m }, topic })
             assistantMessage.model = m
             assistantMessage.askId = userMessage.id
@@ -279,18 +285,48 @@ export const sendMessage =
           assistantMessage.status = 'sending'
           assistantMessages.push(assistantMessage)
         }
+
+        // 获取当前消息列表
+        const currentMessages = getState().messages.messagesByTopic[topic.id]
+
+        // 最后一个具有相同askId的助手消息，在其后插入
+        let position: number | undefined
+        if (options?.isMentionModel) {
+          // 寻找用户提问对应的助手回答消息位置
+          const lastAssistantIndex = currentMessages.findLastIndex(
+            (m) => m.role === 'assistant' && m.askId === userMessage.id
+          )
+
+          // 如果找到了助手消息，在助手消息后插入
+          if (lastAssistantIndex !== -1) {
+            position = lastAssistantIndex + 1
+          } else {
+            // 如果找不到助手消息，则在用户消息后插入
+            const userMessageIndex = currentMessages.findIndex((m) => m.role === 'user' && m.id === userMessage.id)
+            if (userMessageIndex !== -1) {
+              position = userMessageIndex + 1
+            }
+          }
+        }
+
         dispatch(
-          addMessage({
+          appendMessage({
             topicId: topic.id,
-            messages: !options?.isMentionModel ? [userMessage, ...assistantMessages] : assistantMessages
+            messages: options?.isMentionModel ? assistantMessages : [userMessage, ...assistantMessages],
+            position
           })
         )
       }
 
+      for (const assistantMessage of assistantMessages) {
+        // for of会收到await 影响,在暂停的时候会因为异步的原因有概率拿不到数据
+        dispatch(setStreamMessage({ topicId: topic.id, message: assistantMessage }))
+      }
+
       const queue = getTopicQueue(topic.id)
+
       for (const assistantMessage of assistantMessages) {
         // Set as stream message instead of adding to messages
-        dispatch(setStreamMessage({ topicId: topic.id, message: assistantMessage }))
 
         // Sync user message with database
         const state = getState()
@@ -299,8 +335,9 @@ export const sendMessage =
         if (currentTopicMessages) {
           await syncMessagesWithDB(topic.id, currentTopicMessages)
         }
+
         // 保证请求有序，防止请求静态，限制并发数量
-        await queue.add(async () => {
+        queue.add(async () => {
           try {
             const messages = getState().messages.messagesByTopic[topic.id]
             if (!messages) {
@@ -321,13 +358,25 @@ export const sendMessage =
 
             // 节流
             const throttledDispatch = throttle(handleResponseMessageUpdate, 100, { trailing: true }) // 100ms的节流时间应足够平衡用户体验和性能
+            // 寻找当前正在处理的消息在消息列表中的位置
+            // const messageIndex = messages.findIndex((m) => m.id === assistantMessage.id)
+            const handleMessages = (): Message[] => {
+              // 找到对应的用户消息位置
+              const userMessageIndex = messages.findIndex((m) => m.id === assistantMessage.askId)
 
-            const messageIndex = messages.findIndex((m) => m.id === assistantMessage.id)
+              if (userMessageIndex !== -1) {
+                // 先截取到用户消息为止的所有消息，再进行过滤
+                const messagesUpToUser = messages.slice(0, userMessageIndex + 1)
+                return messagesUpToUser.filter((m) => !m.status?.includes('ing'))
+              }
+
+              // 没有找到消息索引的情况，过滤所有消息
+              return messages.filter((m) => !m.status?.includes('ing'))
+            }
+
             await fetchChatCompletion({
               message: { ...assistantMessage },
-              messages: messages
-                .filter((m) => !m.status?.includes('ing'))
-                .slice(0, messageIndex !== -1 ? messageIndex : undefined),
+              messages: handleMessages(),
               assistant: assistantWithModel,
               onResponse: async (msg) => {
                 // 允许在回调外维护一个最新的消息状态，每次都更新这个对象，但只通过节流函数分发到Redux
@@ -359,12 +408,13 @@ export const sendMessage =
           }
         })
       }
-      // 等待所有请求完成,设置loading
-      await queue.onIdle()
-      dispatch(setTopicLoading({ topicId: topic.id, loading: false }))
     } catch (error: any) {
       console.error('Error in sendMessage:', error)
       dispatch(setError(error.message))
+      dispatch(setTopicLoading({ topicId: topic.id, loading: false }))
+    } finally {
+      // 等待所有请求完成,设置loading
+      await waitForTopicQueue(topic.id)
       dispatch(setTopicLoading({ topicId: topic.id, loading: false }))
     }
   }
@@ -382,13 +432,15 @@ export const resendMessage =
       // 如果是用户消息，直接重发
       if (message.role === 'user') {
         // 查找此用户消息对应的助手消息
-        const assistantMessage = topicMessages.find((m) => m.role === 'assistant' && m.askId === message.id)
+        const assistantMessage = topicMessages.filter((m) => m.role === 'assistant' && m.askId === message.id)
+
         return dispatch(
           sendMessage(message, assistant, topic, {
             resendAssistantMessage: assistantMessage,
             // 用户可能把助手消息删了,然后重新发送用户消息
-            // 如果isMentionModel为false,则只会发送add助手消息
-            isMentionModel: !assistantMessage
+            // 如果 isMentionModel 为 false, 则只会发送 add 助手消息
+            isMentionModel: isEmpty(assistantMessage),
+            mentions: message.mentions
           })
         )
       }
@@ -396,8 +448,15 @@ export const resendMessage =
       // 如果是助手消息，找到对应的用户消息
       const userMessage = topicMessages.find((m) => m.id === message.askId && m.role === 'user')
       if (!userMessage) {
-        console.error('Cannot find original user message to resend')
-        return dispatch(setError('Cannot find original user message to resend'))
+        dispatch(
+          updateMessage({
+            topicId: topic.id,
+            messageId: message.id,
+            updates: { status: 'error', error: { message: i18n.t('error.user_message_not_found') } }
+          })
+        )
+        console.error(i18n.t('error.user_message_not_found'))
+        return dispatch(setError(i18n.t('error.user_message_not_found')))
       }
 
       if (isMentionModel) {
@@ -405,6 +464,7 @@ export const resendMessage =
         return dispatch(sendMessage(userMessage, assistant, topic, { isMentionModel }))
       }
 
+      console.log('assistantMessage', message)
       dispatch(
         sendMessage(userMessage, assistant, topic, {
           resendAssistantMessage: message
@@ -435,6 +495,7 @@ export const loadTopicMessagesThunk = (topic: Topic) => async (dispatch: AppDisp
     dispatch(setTopicLoading({ topicId: topic.id, loading: false }))
   }
 }
+
 // Modified clearMessages thunk
 export const clearTopicMessagesThunk = (topic: Topic) => async (dispatch: AppDispatch) => {
   try {
@@ -518,7 +579,8 @@ export const {
   loadTopicMessages,
   setStreamMessage,
   commitStreamMessage,
-  clearStreamMessage
+  clearStreamMessage,
+  appendMessage
 } = messagesSlice.actions
 
 export default messagesSlice.reducer

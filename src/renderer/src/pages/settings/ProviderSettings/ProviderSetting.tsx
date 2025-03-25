@@ -1,4 +1,4 @@
-import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined } from '@ant-design/icons'
+import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
@@ -6,16 +6,16 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
-import { checkApi } from '@renderer/services/ApiService'
+import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Button, Divider, Flex, Input, Space, Switch } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { isEmpty } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { debounce, isEmpty } from 'lodash'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -28,11 +28,15 @@ import {
   SettingTitle
 } from '..'
 import ApiCheckPopup from './ApiCheckPopup'
+import GithubCopilotSettings from './GithubCopilotSettings'
+import GPUStackSettings from './GPUStackSettings'
 import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
+import ModelListSearchBar from './ModelListSearchBar'
 import OllamSettings from './OllamaSettings'
+import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
 interface Props {
@@ -46,9 +50,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
+  const [searchText, setSearchText] = useState('')
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const [inputValue, setInputValue] = useState(apiKey)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -59,6 +65,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedSetApiKey = useCallback(
+    debounce((value) => {
+      setApiKey(formatApiKeys(value))
+    }, 100),
+    []
+  )
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
@@ -92,14 +106,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       .map((k) => k.trim())
       .filter((k) => k)
 
+    // Add an empty key to enable health checks for local models.
+    // Error messages will be shown for each model if a valid key is needed.
     if (keys.length === 0) {
-      window.message.error({
-        key: 'no-api-keys',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.models.check.no_api_keys')
-      })
-      return
+      keys.push('')
     }
 
     // Show configuration dialog to get health check parameters
@@ -109,7 +119,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       apiKeys: keys
     })
 
-    if (result.cancelled || result.apiKeys.length === 0) {
+    if (result.cancelled) {
       return
     }
 
@@ -159,9 +169,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       duration: 10,
       content: t('settings.models.check.model_status_summary', {
         provider: provider.name,
-        count_passed: successModels.length,
-        count_failed: failedModels.length,
-        count_partial: partialModels.length
+        count_passed: successModels.length + partialModels.length,
+        count_partial: partialModels.length,
+        count_failed: failedModels.length
       })
     })
 
@@ -197,7 +207,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         title: t('settings.provider.check_multiple_keys'),
         provider: { ...provider, apiHost },
         model,
-        apiKeys: keys
+        apiKeys: keys,
+        type: 'provider'
       })
 
       if (result?.validKeys) {
@@ -239,14 +250,13 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     return formatApiHost(apiHost) + 'chat/completions'
   }
 
-  const formatApiKeys = (value: string) => {
-    return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
-  }
-
   useEffect(() => {
+    if (provider.id === 'copilot') {
+      return
+    }
     setApiKey(provider.apiKey)
     setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost])
+  }, [provider.apiKey, provider.apiHost, provider.id])
 
   // Save apiKey to provider when unmount
   useEffect(() => {
@@ -267,6 +277,13 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
               <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
             </Link>
           )}
+          {!provider.isSystem && (
+            <SettingOutlined
+              type="text"
+              style={{ width: 30 }}
+              onClick={() => ProviderSettingsPopup.show({ provider })}
+            />
+          )}
         </Flex>
         <Switch
           value={provider.enabled}
@@ -278,13 +295,21 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
-          value={apiKey}
+          value={inputValue}
           placeholder={t('settings.provider.api_key')}
-          onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
-          onBlur={onUpdateApiKey}
+          onChange={(e) => {
+            setInputValue(e.target.value)
+            debouncedSetApiKey(e.target.value)
+          }}
+          onBlur={() => {
+            const formattedValue = formatApiKeys(inputValue)
+            setInputValue(formattedValue)
+            setApiKey(formattedValue)
+            onUpdateApiKey()
+          }}
           spellCheck={false}
-          type="password"
           autoFocus={provider.enabled && apiKey === ''}
+          disabled={provider.id === 'copilot'}
         />
         {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
         <Button
@@ -297,7 +322,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <HStack gap={5}>
+          <HStack>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>
@@ -326,8 +351,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {isOpenAIProvider(provider) && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <SettingHelpText style={{ marginLeft: 6 }}>{hostPreview()}</SettingHelpText>
-          <SettingHelpText>{t('settings.provider.api.url.tip')}</SettingHelpText>
+          <SettingHelpText
+            style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+            {hostPreview()}
+          </SettingHelpText>
+          <SettingHelpText style={{ minWidth: 'fit-content' }}>{t('settings.provider.api.url.tip')}</SettingHelpText>
         </SettingHelpTextRow>
       )}
       {isAzureOpenAI && (
@@ -345,26 +373,31 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'ollama' && <OllamSettings />}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
+      {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
         <GraphRAGSettings provider={provider} />
       )}
+      {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-          <span>{t('common.models')}</span>
+        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
-            {!isEmpty(models) && (
+            <span>{t('common.models')}</span>
+            {!isEmpty(models) && <ModelListSearchBar onSearch={setSearchText} />}
+          </Space>
+          {!isEmpty(models) && (
+            <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
               <Button
                 type="text"
                 size="small"
                 icon={<HeartOutlined />}
                 onClick={onHealthCheck}
                 loading={isHealthChecking}
-                title={t('settings.models.check.button_caption')}></Button>
-            )}
-          </Space>
-        </Flex>
+              />
+            </Tooltip>
+          )}
+        </Space>
       </SettingSubtitle>
-      <ModelList provider={provider} modelStatuses={modelStatuses} />
+      <ModelList provider={provider} modelStatuses={modelStatuses} searchText={searchText} />
     </SettingContainer>
   )
 }
