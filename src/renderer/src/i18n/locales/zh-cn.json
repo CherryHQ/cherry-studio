@@ -880,6 +880,11 @@
             "error": "连接异常，请检查网络连接"
           }
         },
+        "default_aides": {
+          "repo_url": "助手URL",
+          "repo_url_placeholder": "助手URL",
+          "title": "助手配置"
+        },
         "nutstore": {
           "title": "坚果云配置",
           "isLogin": "已登录",
