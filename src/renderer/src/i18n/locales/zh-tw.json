@@ -96,6 +96,16 @@
       "default.description": "你好，我是預設助手。你可以立即開始與我聊天。",
       "default.name": "預設助手",
       "default.topic.name": "預設話題",
+      "history": {
+        "assistant_node": "助手",
+        "click_to_navigate": "點擊跳轉到對應訊息",
+        "coming_soon": "聊天工作流圖表即將上線",
+        "no_messages": "沒有找到訊息",
+        "start_conversation": "開始對話以查看聊天流程圖",
+        "title": "聊天歷史",
+        "user_node": "用戶",
+        "view_full_content": "查看完整內容"
+      },
       "input.auto_resize": "自動調整高度",
       "input.clear": "清除 {{Command}}",
       "input.clear.content": "您想要清除目前話題的所有訊息嗎？",
@@ -105,6 +115,8 @@
       "input.estimated_tokens.tip": "預估 Token 數",
       "input.expand": "展開",
       "input.file_not_supported": "模型不支援此檔案類型",
+      "input.generate_image": "生成圖片",
+      "input.generate_image_not_supported": "模型不支援生成圖片",
       "input.knowledge_base": "知識庫",
       "input.new.context": "清除上下文 {{Command}}",
       "input.new_topic": "新話題 {{Command}}",
@@ -128,6 +140,7 @@
       "message.useful": "有用",
       "navigation": {
         "first": "已經是第一條訊息",
+        "history": "聊天歷史",
         "last": "已經是最後一條訊息",
         "next": "下一條訊息",
         "prev": "上一條訊息"
@@ -179,12 +192,10 @@
       "topics.export.obsidian_operate_new_or_overwrite": "新建（如果存在就覆蓋）",
       "topics.export.obsidian_operate_placeholder": "請選擇處理方式",
       "topics.export.obsidian_operate_prepend": "前置",
-      "topics.export.obsidian_selected_path": "已選擇路徑",
-      "topics.export.obsidian_show_md_files": "顯示md文件",
       "topics.export.obsidian_source": "來源",
       "topics.export.obsidian_source_placeholder": "請輸入來源",
       "topics.export.obsidian_tags": "標籤",
-      "topics.export.obsidian_tags_placeholder": "請輸入標籤名稱，多個標籤用英文逗號分隔。Obsidian 不可用純數字。",
+      "topics.export.obsidian_tags_placeholder": "請輸入標籤名稱，多個標籤用英文逗號分隔",
       "topics.export.obsidian_title": "標題",
       "topics.export.obsidian_title_placeholder": "請輸入標題",
       "topics.export.obsidian_title_required": "標題不能為空",
@@ -200,7 +211,8 @@
       "topics.prompt.tips": "話題提示詞：針對目前話題提供額外的補充提示詞",
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
-      "translate": "翻譯"
+      "translate": "翻譯",
+      "topics.export.siyuan": "匯出到思源筆記"
     },
     "code_block": {
       "collapse": "折疊",
@@ -277,7 +289,8 @@
         "description": "渲染公式失敗，請檢查公式格式是否正確",
         "title": "渲染錯誤"
       },
-      "user_message_not_found": "無法找到原始用戶訊息"
+      "user_message_not_found": "無法找到原始用戶訊息",
+      "unknown": "未知錯誤"
     },
     "export": {
       "assistant": "助手",
@@ -458,6 +471,8 @@
       "error.invalid.webdav": "無效的 WebDAV 設定",
       "error.joplin.export": "匯出 Joplin 失敗，請保持 Joplin 已運行並檢查連接狀態或檢查設定",
       "error.joplin.no_config": "未設定 Joplin 授權Token 或 URL",
+      "error.invalid.nutstore": "無效的坚果云設定",
+      "error.invalid.nutstore_token": "無效的坚果云 Token",
       "error.markdown.export.preconf": "導出 Markdown 文件到預先設定的路徑失敗",
       "error.markdown.export.specified": "導出 Markdown 文件失敗",
       "error.notion.export": "匯出 Notion 錯誤，請檢查連接狀態並對照文件檢查設定",
@@ -507,11 +522,17 @@
       "upgrade.success.content": "請重新啟動程式以完成升級",
       "upgrade.success.title": "升級成功",
       "warn.notion.exporting": "正在匯出到 Notion，請勿重複請求匯出！",
-      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試"
+      "warning.rate.limit": "發送過於頻繁，請在 {{seconds}} 秒後再嘗試",
+      "error.siyuan.export": "導出思源筆記失敗，請檢查連接狀態並對照文檔檢查配置",
+      "error.siyuan.no_config": "未配置思源筆記API地址或令牌",
+      "success.siyuan.export": "導出到思源筆記成功",
+      "warn.yuque.exporting": "正在導出語雀，請勿重複請求導出！",
+      "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！"
     },
     "minapp": {
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
+      "sidebar.hide.title": "隱藏小工具",
       "title": "小工具"
     },
     "miniwindow": {
@@ -556,7 +577,7 @@
         "string": "文字"
       },
       "pinned": "已固定",
-      "rerank_model": "重排序模型",
+      "rerank_model": "重排模型",
       "rerank_model_support_provider": "目前重排序模型僅支持部分服務商 ({{provider}})",
       "rerank_model_tooltip": "在設定->模型服務中點擊管理按鈕添加",
       "search": "搜尋模型...",
@@ -667,7 +688,8 @@
       "xirang": "天翼雲息壤",
       "yi": "零一萬物",
       "zhinao": "360 智腦",
-      "zhipu": "智譜 AI"
+      "zhipu": "智譜 AI",
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -827,6 +849,48 @@
           "title": "語雀設定",
           "token": "語雀 Token",
           "token_placeholder": "請輸入語雀 Token"
+        },
+        "siyuan": {
+          "title": "思源筆記配置",
+          "api_url": "API地址",
+          "api_url_placeholder": "例如：http://127.0.0.1:6806",
+          "token": "API令牌",
+          "token.help": "在思源筆記->設置->關於中獲取",
+          "token_placeholder": "請輸入思源筆記令牌",
+          "box_id": "筆記本ID",
+          "box_id_placeholder": "請輸入筆記本ID",
+          "root_path": "文檔根路徑",
+          "root_path_placeholder": "例如：/CherryStudio",
+          "check": {
+            "title": "連接檢查",
+            "button": "檢查",
+            "empty_config": "請填寫API地址和令牌",
+            "success": "連接成功",
+            "fail": "連接失敗，請檢查API地址和令牌",
+            "error": "連接異常，請檢查網絡連接"
+          }
+        },
+        "nutstore": {
+          "title": "堅果雲設定",
+          "isLogin": "已登入",
+          "notLogin": "未登入",
+          "login.button": "登入",
+          "logout.button": "退出登入",
+          "logout.title": "確定要退出堅果雲登入？",
+          "logout.content": "退出後將無法備份至堅果雲和從堅果雲恢復",
+          "checkConnection.name": "檢查連接",
+          "checkConnection.success": "已連接堅果雲",
+          "checkConnection.fail": "堅果雲連接失敗",
+          "username": "堅果雲用戶名",
+          "path": "堅果雲存儲路徑",
+          "path.placeholder": "請輸入堅果雲的存儲路徑",
+          "backup.button": "備份到堅果雲",
+          "restore.button": "從堅果雲恢復",
+          "pathSelector.title": "堅果雲存儲路徑",
+          "pathSelector.return": "返回",
+          "pathSelector.currentPath": "當前路徑",
+          "new_folder.button.confirm": "確定",
+          "new_folder.button.cancel": "取消"
         }
       },
       "display.assistant.title": "助手設定",
@@ -857,7 +921,6 @@
       "general.display.title": "顯示設定",
       "general.emoji_picker": "表情選擇器",
       "general.image_upload": "圖片上傳",
-      "general.manually_check_update.title": "關閉更新檢查",
       "general.reset.button": "重設",
       "general.reset.title": "資料重設",
       "general.restore.button": "復原",
@@ -1131,7 +1194,8 @@
           "title": "Tavily"
         },
         "title": "網路搜尋"
-      }
+      },
+      "general.auto_check_update.title": "啟用自動更新檢查"
     },
     "translate": {
       "any.language": "任意語言",

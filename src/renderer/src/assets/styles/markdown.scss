@@ -307,3 +307,11 @@
 emoji-picker {
   --border-size: 0;
 }
+
+.katex-display{
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+mjx-container{
+  overflow-x: auto;
+}

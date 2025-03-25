@@ -9,7 +9,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
-import { setManualUpdateCheck } from '@renderer/store/settings'
+import { setAutoCheckUpdate } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
 import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
@@ -25,7 +25,7 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitl
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const { t } = useTranslation()
-  const { manualUpdateCheck } = useSettings()
+  const { autoCheckUpdate } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -146,8 +146,8 @@ const AboutSettings: FC = () => {
         </AboutHeader>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.manually_check_update.title')}</SettingRowTitle>
-          <Switch value={manualUpdateCheck} onChange={(v) => dispatch(setManualUpdateCheck(v))} />
+          <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
+          <Switch value={autoCheckUpdate} onChange={(v) => dispatch(setAutoCheckUpdate(v))} />
         </SettingRow>
       </SettingGroup>
       {hasNewVersion && update.info && (
@@ -161,7 +161,7 @@ const AboutSettings: FC = () => {
           <UpdateNotesWrapper>
             <Markdown>
               {typeof update.info.releaseNotes === 'string'
-                ? update.info.releaseNotes.replaceAll('\n', '\n\n')
+                ? update.info.releaseNotes.replace(/\n/g, '\n\n')
                 : update.info.releaseNotes?.map((note) => note.note).join('\n')}
             </Markdown>
           </UpdateNotesWrapper>

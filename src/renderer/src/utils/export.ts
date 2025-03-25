@@ -450,3 +450,99 @@ export const exportMarkdownToJoplin = async (title: string, content: string) => 
     return
   }
 }
+
+/**
+ * 导出Markdown到思源笔记
+ * @param title 笔记标题
+ * @param content 笔记内容
+ */
+export const exportMarkdownToSiyuan = async (title: string, content: string) => {
+  const { isExporting } = store.getState().runtime.export
+  const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = store.getState().settings
+
+  if (isExporting) {
+    window.message.warning({ content: i18n.t('message.warn.siyuan.exporting'), key: 'siyuan-exporting' })
+    return
+  }
+
+  if (!siyuanApiUrl || !siyuanToken || !siyuanBoxId) {
+    window.message.error({ content: i18n.t('message.error.siyuan.no_config'), key: 'siyuan-no-config-error' })
+    return
+  }
+
+  setExportState({ isExporting: true })
+
+  try {
+    // test connection
+    const testResponse = await fetch(`${siyuanApiUrl}/api/notebook/lsNotebooks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Token ${siyuanToken}`
+      }
+    })
+
+    if (!testResponse.ok) {
+      throw new Error('API请求失败')
+    }
+
+    const testData = await testResponse.json()
+    if (testData.code !== 0) {
+      throw new Error(`${testData.msg || i18n.t('message.error.unknown')}`)
+    }
+
+    // 确保根路径以/开头
+    const rootPath = siyuanRootPath?.startsWith('/') ? siyuanRootPath : `/${siyuanRootPath || 'CherryStudio'}`
+
+    // 创建文档
+    const docTitle = `${title.replace(/[#|\\^\\[\]]/g, '')}`
+    const docPath = `${rootPath}/${docTitle}`
+
+    // 创建文档
+    await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, content)
+
+    window.message.success({
+      content: i18n.t('message.success.siyuan.export'),
+      key: 'siyuan-success'
+    })
+  } catch (error) {
+    console.error('导出到思源笔记失败:', error)
+    window.message.error({
+      content: i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''),
+      key: 'siyuan-error'
+    })
+  } finally {
+    setExportState({ isExporting: false })
+  }
+}
+
+/**
+ * 创建思源笔记文档
+ */
+async function createSiyuanDoc(
+  apiUrl: string,
+  token: string,
+  boxId: string,
+  path: string,
+  markdown: string
+): Promise<string> {
+  const response = await fetch(`${apiUrl}/api/filetree/createDocWithMd`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Token ${token}`
+    },
+    body: JSON.stringify({
+      notebook: boxId,
+      path: path,
+      markdown: markdown
+    })
+  })
+
+  const data = await response.json()
+  if (data.code !== 0) {
+    throw new Error(`${data.msg || i18n.t('message.error.unknown')}`)
+  }
+
+  return data.data
+}

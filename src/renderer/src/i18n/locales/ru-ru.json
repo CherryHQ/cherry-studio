@@ -96,6 +96,16 @@
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
       "default.name": "Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
+      "history": {
+        "assistant_node": "Ассистент",
+        "click_to_navigate": "Перейти к сообщению",
+        "coming_soon": "График работы чата скоро появится",
+        "no_messages": "Сообщения не найдены",
+        "start_conversation": "Начните диалог, чтобы просмотреть график работы чата",
+        "title": "История чата",
+        "user_node": "Пользователь",
+        "view_full_content": "Показать полное содержимое"
+      },
       "input.auto_resize": "Автоматическая высота",
       "input.clear": "Очистить {{Command}}",
       "input.clear.content": "Хотите очистить все сообщения текущего топика?",
@@ -105,6 +115,8 @@
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
       "input.file_not_supported": "Модель не поддерживает этот тип файла",
+      "input.generate_image": "Сгенерировать изображение",
+      "input.generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
       "input.knowledge_base": "База знаний",
       "input.new.context": "Очистить контекст {{Command}}",
       "input.new_topic": "Новый топик {{Command}}",
@@ -128,6 +140,7 @@
       "message.useful": "Полезно",
       "navigation": {
         "first": "Уже первое сообщение",
+        "history": "История чата",
         "last": "Уже последнее сообщение",
         "next": "Следующее сообщение",
         "prev": "Предыдущее сообщение"
@@ -182,7 +195,7 @@
       "topics.export.obsidian_source": "Источник",
       "topics.export.obsidian_source_placeholder": "Пожалуйста, введите источник",
       "topics.export.obsidian_tags": "Тэги",
-      "topics.export.obsidian_tags_placeholder": "Пожалуйста, введите имена тегов. Разделяйте несколько тегов запятыми на английском языке. В Obsidian нельзя использовать только цифры.",
+      "topics.export.obsidian_tags_placeholder": "Пожалуйста, введите имена тегов. Разделяйте несколько тегов запятыми на английском языке",
       "topics.export.obsidian_title": "Заголовок",
       "topics.export.obsidian_title_placeholder": "Пожалуйста, введите заголовок",
       "topics.export.obsidian_title_required": "Заголовок не может быть пустым",
@@ -198,7 +211,8 @@
       "topics.prompt.tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы",
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
-      "translate": "Перевести"
+      "translate": "Перевести",
+      "topics.export.siyuan": "Экспорт в Siyuan Note"
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -275,7 +289,8 @@
         "description": "Не удалось рендерить формулу. Пожалуйста, проверьте, правильно ли формат формулы",
         "title": "Ошибка рендеринга"
       },
-      "user_message_not_found": "Не удалось найти исходное сообщение пользователя"
+      "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
+      "unknown": "Неизвестная ошибка"
     },
     "export": {
       "assistant": "Ассистент",
@@ -456,6 +471,8 @@
       "error.invalid.webdav": "Неверные настройки WebDAV",
       "error.joplin.export": "Не удалось экспортировать в Joplin, пожалуйста, убедитесь, что Joplin запущен и проверьте состояние подключения или настройки",
       "error.joplin.no_config": "Joplin Authorization Token или URL не настроен",
+      "error.invalid.nutstore": "Неверные настройки Nutstore",
+      "error.invalid.nutstore_token": "Неверный Nutstore токен",
       "error.markdown.export.preconf": "Не удалось экспортировать файл Markdown в предуказанный путь",
       "error.markdown.export.specified": "Не удалось экспортировать файл Markdown",
       "error.notion.export": "Ошибка экспорта в Notion, пожалуйста, проверьте состояние подключения и настройки в документации",
@@ -505,11 +522,17 @@
       "upgrade.success.content": "Пожалуйста, перезапустите приложение для завершения обновления",
       "upgrade.success.title": "Обновление успешно",
       "warn.notion.exporting": "Экспортируется в Notion, пожалуйста, не отправляйте повторные запросы!",
-      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова."
+      "warning.rate.limit": "Отправка слишком частая, пожалуйста, подождите {{seconds}} секунд, прежде чем попробовать снова.",
+      "error.siyuan.export": "Ошибка экспорта в Siyuan, пожалуйста, проверьте состояние подключения и настройки в документации",
+      "error.siyuan.no_config": "Не настроен API адрес или токен Siyuan",
+      "success.siyuan.export": "Успешный экспорт в Siyuan",
+      "warn.yuque.exporting": "Экспортируется в Yuque, пожалуйста, не отправляйте повторные запросы!",
+      "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!"
     },
     "minapp": {
       "sidebar.add.title": "Добавить в боковую панель",
       "sidebar.remove.title": "Удалить из боковой панели",
+      "sidebar.hide.title": "Скрыть приложение",
       "title": "Встроенные приложения"
     },
     "miniwindow": {
@@ -665,7 +688,8 @@
       "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI"
+      "zhipu": "ZHIPU AI",
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
@@ -825,6 +849,48 @@
           "title": "Настройка Yuque",
           "token": "Токен Yuque",
           "token_placeholder": "Введите токен Yuque"
+        },
+        "siyuan": {
+          "title": "Конфигурация SiYuan Note",
+          "api_url": "API адрес",
+          "api_url_placeholder": "Например: http://127.0.0.1:6806",
+          "token": "API токен",
+          "token.help": "Получите в SiYuan Note -> Настройки -> О программе",
+          "token_placeholder": "Введите токен SiYuan Note",
+          "box_id": "ID блокнота",
+          "box_id_placeholder": "Введите ID блокнота",
+          "root_path": "Корневой путь документа",
+          "root_path_placeholder": "Например: /CherryStudio",
+          "check": {
+            "title": "Проверка соединения",
+            "button": "Проверить",
+            "empty_config": "Пожалуйста, заполните API адрес и токен",
+            "success": "Соединение успешно",
+            "fail": "Не удалось подключиться, проверьте API адрес и токен",
+            "error": "Ошибка соединения, проверьте сетевое подключение"
+          }
+        },
+        "nutstore": {
+          "title": "Настройки Nutstore",
+          "isLogin": "Выполнен вход",
+          "notLogin": "Вход не выполнен",
+          "login.button": "Войти",
+          "logout.button": "Выйти",
+          "logout.title": "Вы уверены, что хотите выйти из Nutstore?",
+          "logout.content": "После выхода вы не сможете создавать резервные копии в Nutstore или восстанавливать данные из Nutstore.",
+          "checkConnection.name": "Проверить соединение",
+          "checkConnection.success": "Подключение к Nutstore установлено",
+          "checkConnection.fail": "Ошибка подключения к Nutstore",
+          "username": "Имя пользователя Nutstore",
+          "path": "Путь хранения Nutstore",
+          "path.placeholder": "Введите путь хранения Nutstore",
+          "backup.button": "Резервное копирование в Nutstore",
+          "restore.button": "Восстановление из Nutstore",
+          "pathSelector.title": "Путь хранения Nutstore",
+          "pathSelector.return": "Назад",
+          "pathSelector.currentPath": "Текущий путь",
+          "new_folder.button.confirm": "Подтвердить",
+          "new_folder.button.cancel": "Отмена"
         }
       },
       "display.assistant.title": "Настройки ассистентов",
@@ -855,7 +921,6 @@
       "general.display.title": "Настройки отображения",
       "general.emoji_picker": "Выбор эмодзи",
       "general.image_upload": "Загрузка изображений",
-      "general.manually_check_update.title": "Отключить проверку обновлений",
       "general.reset.button": "Сброс",
       "general.reset.title": "Сброс данных",
       "general.restore.button": "Восстановление",
@@ -1129,7 +1194,8 @@
           "title": "Tavily"
         },
         "title": "Поиск в Интернете"
-      }
+      },
+      "general.auto_check_update.title": "Включить автоматическую проверку обновлений"
     },
     "translate": {
       "any.language": "Любой язык",
