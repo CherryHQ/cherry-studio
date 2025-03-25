@@ -290,7 +290,7 @@
         "title": "خطأ في العرض"
       },
       "user_message_not_found": "تعذر العثور على رسالة المستخدم الأصلية لإعادة الإرسال",
-      "unknown": "[to be translated]:未知错误"
+      "unknown": "خطأ غير معروف"
     },
     "export": {
       "assistant": "المساعد",
@@ -515,19 +515,19 @@
         "invoking": "يتم الاستدعاء",
         "completed": "تم الاستدعاء"
       },
-      "error.invalid.nutstore": "[to be translated]:无效的坚果云设置",
-      "error.invalid.nutstore_token": "[to be translated]:无效的坚果云 Token",
-      "error.siyuan.export": "[to be translated]:导出思源笔记失败，请检查连接状态并对照文档检查配置",
-      "error.siyuan.no_config": "[to be translated]:未配置思源笔记API地址或令牌",
-      "success.siyuan.export": "[to be translated]:导出到思源笔记成功",
-      "warn.yuque.exporting": "[to be translated]:正在导出语雀, 请勿重复请求导出!",
-      "warn.siyuan.exporting": "[to be translated]:正在导出到思源笔记，请勿重复请求导出!"
+      "error.invalid.nutstore": "إعدادات JianguoCloud غير صالحة",
+      "error.invalid.nutstore_token": "مفتاح JianguoCloud غير صالح",
+      "error.siyuan.export": "فشل تصدير Siyuan. يرجى التحقق من حالة الاتصال والتكوين وفقًا للتوثيق",
+      "error.siyuan.no_config": "لم يتم تكوين عنوان URL أو مفتاح Siyuan API",
+      "success.siyuan.export": "تم تصدير Siyuan بنجاح",
+      "warn.yuque.exporting": "جارٍ التصدير إلى Yuque، يرجى عدم طلب التصدير بشكل متكرر!",
+      "warn.siyuan.exporting": "جارٍ التصدير إلى Siyuan، يرجى عدم طلب التصدير بشكل متكرر!"
     },
     "minapp": {
       "sidebar.add.title": "إضافة إلى الشريط الجانبي",
       "sidebar.remove.title": "إزالة من الشريط الجانبي",
       "title": "MinApp",
-      "sidebar.hide.title": "[to be translated]:隐藏小程序"
+      "sidebar.hide.title": "إخفاء التطبيق"
     },
     "miniwindow": {
       "clipboard": {
@@ -580,13 +580,13 @@
         "text": "نص",
         "vision": "رؤية",
         "function_calling": "استدعاء الوظيفة",
-        "free": "[to be translated]:免费",
-        "rerank": "[to be translated]:重排",
-        "websearch": "[to be translated]:联网"
+        "free": "مجاني",
+        "rerank": "إعادة الترتيب",
+        "websearch": "الاتصال بالإنترنت"
       },
       "rerank_model": "نموذج إعادة الترتيب",
       "rerank_model_tooltip": "انقر على زر الإدارة في الإعدادات -> خدمات النموذج لإضافة.",
-      "rerank_model_support_provider": "[to be translated]:目前重排序模型仅支持部分服务商 ({{provider}})"
+      "rerank_model_support_provider": "الآن يدعم نموذج إعادة الترتيب فقط المقدمين التاليين ({{provider}})"
     },
     "navbar": {
       "expand": "توسيع الحوار",
@@ -689,7 +689,7 @@
       "copilot": "GitHub Copilot",
       "gpustack": "GPUStack",
       "alayanew": "Alaya NeW",
-      "voyageai": "[to be translated]:Voyage AI"
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "هل أنت متأكد أنك تريد استعادة البيانات؟",
@@ -828,12 +828,12 @@
         },
         "obsidian": {
           "title": "تكوين Obsidian",
-          "folder": "[to be translated]:文件夹",
-          "folder_placeholder": "[to be translated]:请输入文件夹名称",
-          "tags": "[to be translated]:全局标签",
-          "tags_placeholder": "[to be translated]:请输入标签名称, 多个标签用英文逗号分隔",
-          "vault": "[to be translated]:保管库",
-          "vault_placeholder": "[to be translated]:请输入保管库名称"
+          "folder": "المجلد",
+          "folder_placeholder": "الرجاء إدخال اسم المجلد",
+          "tags": "التصنيفات العامة",
+          "tags_placeholder": "الرجاء إدخال أسماء التصنيفات، مفصولة بفواصل",
+          "vault": "المخزن",
+          "vault_placeholder": "الرجاء إدخال اسم المخزن"
         },
         "joplin": {
           "check": {
@@ -851,46 +851,46 @@
           "token_placeholder": "رمز تفويض Joplin"
         },
         "siyuan": {
-          "title": "[to be translated]:思源笔记配置",
-          "api_url": "[to be translated]:API地址",
-          "api_url_placeholder": "[to be translated]:例如：http://127.0.0.1:6806",
-          "token": "[to be translated]:API令牌",
-          "token.help": "[to be translated]:在思源笔记->设置->关于中获取",
-          "token_placeholder": "[to be translated]:请输入思源笔记令牌",
-          "box_id": "[to be translated]:笔记本ID",
-          "box_id_placeholder": "[to be translated]:请输入笔记本ID",
-          "root_path": "[to be translated]:文档根路径",
-          "root_path_placeholder": "[to be translated]:例如：/CherryStudio",
+          "title": "تكوين SiYuan",
+          "api_url": "عنوان API",
+          "api_url_placeholder": "مثال: http://127.0.0.1:6806",
+          "token": "رمز API",
+          "token.help": "احصل عليه من SiYuan -> الإعدادات -> حول",
+          "token_placeholder": "الرجاء إدخال رمز SiYuan",
+          "box_id": "معرف دفتر الملاحظات",
+          "box_id_placeholder": "الرجاء إدخال معرف دفتر الملاحظات",
+          "root_path": "المسار الجذر للمستند",
+          "root_path_placeholder": "مثال: /CherryStudio",
           "check": {
-            "title": "[to be translated]:连接检查",
-            "button": "[to be translated]:检查",
-            "empty_config": "[to be translated]:请填写API地址和令牌",
-            "success": "[to be translated]:连接成功",
-            "fail": "[to be translated]:连接失败，请检查API地址和令牌",
-            "error": "[to be translated]:连接异常，请检查网络连接"
+            "title": "فحص الاتصال",
+            "button": "فحص",
+            "empty_config": "الرجاء إدخال عنوان API والرمز",
+            "success": "تم الاتصال بنجاح",
+            "fail": "فشل الاتصال، يرجى التحقق من عنوان API والرمز",
+            "error": "خطأ في الاتصال، يرجى التحقق من اتصال الشبكة"
           }
         },
         "nutstore": {
-          "title": "[to be translated]:坚果云配置",
-          "isLogin": "[to be translated]:已登录",
-          "notLogin": "[to be translated]:未登录",
-          "login.button": "[to be translated]:登录",
-          "logout.button": "[to be translated]:退出登录",
-          "logout.title": "[to be translated]:确定要退出坚果云登录？",
-          "logout.content": "[to be translated]:退出后将无法备份至坚果云和从坚果云恢复",
-          "checkConnection.name": "[to be translated]:检查连接",
-          "checkConnection.success": "[to be translated]:已连接坚果云",
-          "checkConnection.fail": "[to be translated]:坚果云连接失败",
-          "username": "[to be translated]:坚果云用户名",
-          "path": "[to be translated]:坚果云存储路径",
-          "path.placeholder": "[to be translated]:请输入坚果云的存储路径",
-          "backup.button": "[to be translated]:备份到坚果云",
-          "restore.button": "[to be translated]:从坚果云恢复",
-          "pathSelector.title": "[to be translated]:坚果云存储路径",
-          "pathSelector.return": "[to be translated]:返回",
-          "pathSelector.currentPath": "[to be translated]:当前路径",
-          "new_folder.button.confirm": "[to be translated]:确定",
-          "new_folder.button.cancel": "[to be translated]:取消"
+          "title": "تكوين JianguoCloud",
+          "isLogin": "مسجل",
+          "notLogin": "لم يسجل",
+          "login.button": "تسجيل",
+          "logout.button": "تسجيل الخروج",
+          "logout.title": "تأكيد تسجيل الخروج من JianguoCloud؟",
+          "logout.content": "ستصبح غير قادر على الاحتفاظ بالنسخ الاحتياطي لـ JianguoCloud واستعادتها",
+          "checkConnection.name": "تحقق الاتصال",
+          "checkConnection.success": "تم الاتصال بنجاح بـ JianguoCloud",
+          "checkConnection.fail": "فشل الاتصال بـ JianguoCloud",
+          "username": "اسم المستخدم لـ JianguoCloud",
+          "path": "مسار التخزين لـ JianguoCloud",
+          "path.placeholder": "أدخل مسار التخزين لـ JianguoCloud",
+          "backup.button": "نسخ احتياطي إلى JianguoCloud",
+          "restore.button": "استعادة من JianguoCloud",
+          "pathSelector.title": "مسار التخزين لـ JianguoCloud",
+          "pathSelector.return": "العودة",
+          "pathSelector.currentPath": "المسار الحالي",
+          "new_folder.button.confirm": "تأكيد",
+          "new_folder.button.cancel": "إلغاء"
         }
       },
       "display.assistant.title": "إعدادات المساعد",
@@ -1195,7 +1195,7 @@
         },
         "title": "البحث على الويب"
       },
-      "general.auto_check_update.title": "[to be translated]:自动检测更新"
+      "general.auto_check_update.title": "التحقق التلقائي من التحديثات"
     },
     "translate": {
       "any.language": "أي لغة",
