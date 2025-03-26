@@ -180,13 +180,16 @@
       "topics.export.md": "Markdownとしてエクスポート",
       "topics.export.notion": "Notion にエクスポート",
       "topics.export.obsidian": "Obsidian にエクスポート",
+      "topics.export.obsidian_vault": "保管庫",
+      "topics.export.obsidian_vault_placeholder": "保管庫名を選択してください",
+      "topics.export.obsidian_path": "パス",
+      "topics.export.obsidian_path_placeholder": "パスを選択してください",
       "topics.export.obsidian_atributes": "ノートの属性を設定",
       "topics.export.obsidian_btn": "確定",
       "topics.export.obsidian_created": "作成日時",
       "topics.export.obsidian_created_placeholder": "作成日時を選択してください",
       "topics.export.obsidian_export_failed": "エクスポート失敗",
       "topics.export.obsidian_export_success": "エクスポート成功",
-      "topics.export.obsidian_not_configured": "Obsidian 未設定",
       "topics.export.obsidian_operate": "処理方法",
       "topics.export.obsidian_operate_append": "追加",
       "topics.export.obsidian_operate_new_or_overwrite": "新規作成（既に存在する場合は上書き）",
@@ -199,6 +202,13 @@
       "topics.export.obsidian_title": "タイトル",
       "topics.export.obsidian_title_placeholder": "タイトルを入力してください",
       "topics.export.obsidian_title_required": "タイトルは空白にできません",
+      "topics.export.obsidian_no_vaults": "Obsidianの保管庫が見つかりません",
+      "topics.export.obsidian_loading": "読み込み中...",
+      "topics.export.obsidian_fetch_error": "Obsidianの保管庫の取得に失敗しました",
+      "topics.export.obsidian_fetch_folders_error": "フォルダ構造の取得に失敗しました",
+      "topics.export.obsidian_no_vault_selected": "保管庫を選択してください",
+      "topics.export.obsidian_select_vault_first": "最初に保管庫を選択してください",
+      "topics.export.obsidian_root_directory": "ルートディレクトリ",
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
       "topics.export.yuque": "語雀にエクスポート",
@@ -211,7 +221,8 @@
       "topics.prompt.tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供",
       "topics.title": "トピック",
       "topics.unpinned": "固定解除",
-      "translate": "翻訳"
+      "translate": "翻訳",
+      "topics.export.siyuan": "思源笔记にエクスポート"
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -288,7 +299,8 @@
         "description": "数式のレンダリングに失敗しました。数式の形式が正しいか確認してください",
         "title": "レンダリングエラー"
       },
-      "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした"
+      "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
+      "unknown": "不明なエラー"
     },
     "export": {
       "assistant": "アシスタント",
@@ -469,12 +481,13 @@
       "error.invalid.webdav": "無効なWebDAV設定",
       "error.joplin.export": "Joplin へのエクスポートに失敗しました。Joplin が実行中であることを確認してください",
       "error.joplin.no_config": "Joplin 認証トークン または URL が設定されていません",
+      "error.invalid.nutstore": "無効なNutstore設定です",
+      "error.invalid.nutstore_token": "無効なNutstoreトークンです",
       "error.markdown.export.preconf": "Markdown ファイルを事前設定されたパスにエクスポートできませんでした",
       "error.markdown.export.specified": "Markdown ファイルのエクスポートに失敗しました",
       "error.notion.export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
       "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
-      "error.yuque.no_config": "語雀Token または 知識ベースID が設定されていません",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
       "ignore.knowledge.base": "インターネットモードが有効になっています。ナレッジベースを無視します",
@@ -518,11 +531,18 @@
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
       "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
-      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"
+      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。",
+      "error.siyuan.export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
+      "error.siyuan.no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません",
+      "success.siyuan.export": "思源ノートへのエクスポートに成功しました",
+      "warn.yuque.exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!",
+      "warn.siyuan.exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!",
+      "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません"
     },
     "minapp": {
       "sidebar.add.title": "サイドバーに追加",
       "sidebar.remove.title": "サイドバーから削除",
+      "sidebar.hide.title": "ミニアプリを隠す",
       "title": "ミニアプリ"
     },
     "miniwindow": {
@@ -786,15 +806,6 @@
         "notion.split_size_help": "Notion無料版ユーザーは90、有料版ユーザーは24990、デフォルトは90",
         "notion.split_size_placeholder": "ページごとのブロック数制限を入力してください(デフォルト90)",
         "notion.title": "Notion 設定",
-        "obsidian": {
-          "folder": "フォルダー",
-          "folder_placeholder": "フォルダーの名前を入力してください",
-          "tags": "グローバルタグ",
-          "tags_placeholder": "タグの名前を入力してください。複数のタグは英語のコンマで区切ってください",
-          "title": "Obsidian の設定",
-          "vault": "ヴォールト（保管庫）",
-          "vault_placeholder": "保管庫の名前を入力してください"
-        },
         "title": "データ設定",
         "webdav": {
           "autoSync": "自動バックアップ",
@@ -839,6 +850,57 @@
           "title": "Yuque設定",
           "token": "Yuqueトークン",
           "token_placeholder": "Yuqueトークンを入力してください"
+        },
+        "obsidian": {
+          "title": "Obsidian 設定",
+          "default_vault": "デフォルトの Obsidian 保管庫",
+          "default_vault_placeholder": "デフォルトの Obsidian 保管庫を選択してください",
+          "default_vault_loading": "Obsidian 保管庫を取得中...",
+          "default_vault_no_vaults": "Obsidian 保管庫が見つかりません",
+          "default_vault_fetch_error": "Obsidian 保管庫の取得に失敗しました",
+          "default_vault_export_failed": "エクスポートに失敗しました"
+        },
+        "siyuan": {
+          "title": "思源ノート設定",
+          "api_url": "APIアドレス",
+          "api_url_placeholder": "例：http://127.0.0.1:6806",
+          "token": "APIトークン",
+          "token.help": "思源ノート->設定->について で取得",
+          "token_placeholder": "思源ノートトークンを入力してください",
+          "box_id": "ノートブックID",
+          "box_id_placeholder": "ノートブックIDを入力してください",
+          "root_path": "ドキュメントルートパス",
+          "root_path_placeholder": "例：/CherryStudio",
+          "check": {
+            "title": "接続チェック",
+            "button": "チェック",
+            "empty_config": "APIアドレスとトークンを入力してください",
+            "success": "接続成功",
+            "fail": "接続失敗、APIアドレスとトークンを確認してください",
+            "error": "接続エラー、ネットワーク接続を確認してください"
+          }
+        },
+        "nutstore": {
+          "title": "Nutstore設定",
+          "isLogin": "ログイン済み",
+          "notLogin": "未ログイン",
+          "login.button": "ログイン",
+          "logout.button": "ログアウト",
+          "logout.title": "Nutstoreからログアウトしますか？",
+          "logout.content": "ログアウト後、Nutstoreへのバックアップや復元ができなくなります。",
+          "checkConnection.name": "接続確認",
+          "checkConnection.success": "Nutstoreに接続しました",
+          "checkConnection.fail": "Nutstore接続に失敗しました",
+          "username": "Nutstoreユーザー名",
+          "path": "Nutstoreストレージパス",
+          "path.placeholder": "Nutstoreストレージパスを入力",
+          "backup.button": "Nutstoreにバックアップ",
+          "restore.button": "Nutstoreから復元",
+          "pathSelector.title": "Nutstoreストレージパス",
+          "pathSelector.return": "戻る",
+          "pathSelector.currentPath": "現在のパス",
+          "new_folder.button.confirm": "確認",
+          "new_folder.button.cancel": "キャンセル"
         }
       },
       "display.assistant.title": "アシスタント設定",
@@ -869,7 +931,6 @@
       "general.display.title": "表示設定",
       "general.emoji_picker": "絵文字ピッカー",
       "general.image_upload": "画像アップロード",
-      "general.manually_check_update.title": "更新チェックを無効にする",
       "general.reset.button": "リセット",
       "general.reset.title": "データをリセット",
       "general.restore.button": "復元",
@@ -1145,7 +1206,8 @@
           "title": "Tavily"
         },
         "title": "ウェブ検索"
-      }
+      },
+      "general.auto_check_update.title": "自動更新チェックを有効にする"
     },
     "translate": {
       "any.language": "任意の言語",

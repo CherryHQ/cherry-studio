@@ -180,13 +180,16 @@
       "topics.export.md": "导出为 Markdown",
       "topics.export.notion": "导出到 Notion",
       "topics.export.obsidian": "导出到 Obsidian",
+      "topics.export.obsidian_vault": "保管库",
+      "topics.export.obsidian_vault_placeholder": "请选择保管库名称",
+      "topics.export.obsidian_path": "路径",
+      "topics.export.obsidian_path_placeholder": "请选择路径",
       "topics.export.obsidian_atributes": "配置笔记属性",
       "topics.export.obsidian_btn": "确定",
       "topics.export.obsidian_created": "创建时间",
       "topics.export.obsidian_created_placeholder": "请选择创建时间",
-      "topics.export.obsidian_export_failed": "导出失败",
-      "topics.export.obsidian_export_success": "导出成功",
-      "topics.export.obsidian_not_configured": "Obsidian 未配置",
+      "topics.export.obsidian_export_failed": "导出到Obsidian失败",
+      "topics.export.obsidian_export_success": "导出到Obsidian成功",
       "topics.export.obsidian_operate": "处理方式",
       "topics.export.obsidian_operate_append": "追加",
       "topics.export.obsidian_operate_new_or_overwrite": "新建（如果存在就覆盖）",
@@ -199,6 +202,13 @@
       "topics.export.obsidian_title": "标题",
       "topics.export.obsidian_title_placeholder": "请输入标题",
       "topics.export.obsidian_title_required": "标题不能为空",
+      "topics.export.obsidian_no_vaults": "未找到Obsidian保管库",
+      "topics.export.obsidian_loading": "加载中...",
+      "topics.export.obsidian_fetch_error": "获取Obsidian保管库失败",
+      "topics.export.obsidian_fetch_folders_error": "获取文件夹结构失败",
+      "topics.export.obsidian_no_vault_selected": "请先选择一个保管库",
+      "topics.export.obsidian_select_vault_first": "请先选择保管库",
+      "topics.export.obsidian_root_directory": "根目录",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
       "topics.export.yuque": "导出到语雀",
@@ -211,7 +221,8 @@
       "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词",
       "topics.title": "话题",
       "topics.unpinned": "取消固定",
-      "translate": "翻译"
+      "translate": "翻译",
+      "topics.export.siyuan": "导出到思源笔记"
     },
     "code_block": {
       "collapse": "收起",
@@ -288,7 +299,8 @@
         "description": "渲染公式失败，请检查公式格式是否正确",
         "title": "渲染错误"
       },
-      "user_message_not_found": "无法找到原始用户消息"
+      "user_message_not_found": "无法找到原始用户消息",
+      "unknown": "未知错误"
     },
     "export": {
       "assistant": "助手",
@@ -469,6 +481,8 @@
       "error.invalid.webdav": "无效的 WebDAV 设置",
       "error.joplin.export": "导出 Joplin 失败，请保持 Joplin 已运行并检查连接状态或检查配置",
       "error.joplin.no_config": "未配置 Joplin 授权令牌 或 URL",
+      "error.invalid.nutstore": "无效的坚果云设置",
+      "error.invalid.nutstore_token": "无效的坚果云 Token",
       "error.markdown.export.preconf": "导出Markdown文件到预先设定的路径失败",
       "error.markdown.export.specified": "导出Markdown文件失败",
       "error.notion.export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
@@ -518,11 +532,17 @@
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
       "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!",
-      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
+      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试",
+      "error.siyuan.export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
+      "error.siyuan.no_config": "未配置思源笔记API地址或令牌",
+      "success.siyuan.export": "导出到思源笔记成功",
+      "warn.yuque.exporting": "正在导出语雀, 请勿重复请求导出!",
+      "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!"
     },
     "minapp": {
       "sidebar.add.title": "添加到侧边栏",
       "sidebar.remove.title": "从侧边栏移除",
+      "sidebar.hide.title": "隐藏小程序",
       "title": "小程序"
     },
     "miniwindow": {
@@ -679,7 +699,7 @@
       "yi": "零一万物",
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
-      "voyageai":"Voyage AI"
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -786,15 +806,6 @@
         "notion.split_size_help": "Notion免费版用户建议设置为90，高级版用户建议设置为24990，默认值为90",
         "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
         "notion.title": "Notion 配置",
-        "obsidian": {
-          "folder": "文件夹",
-          "folder_placeholder": "请输入文件夹名称",
-          "tags": "全局标签",
-          "tags_placeholder": "请输入标签名称, 多个标签用英文逗号分隔",
-          "title": "Obsidian 配置",
-          "vault": "保管库",
-          "vault_placeholder": "请输入保管库名称"
-        },
         "title": "数据设置",
         "webdav": {
           "autoSync": "自动备份",
@@ -839,6 +850,57 @@
           "title": "语雀配置",
           "token": "语雀 Token",
           "token_placeholder": "请输入语雀Token"
+        },
+        "obsidian": {
+          "title": "Obsidian 配置",
+          "default_vault": "默认 Obsidian 仓库",
+          "default_vault_placeholder": "请选择默认 Obsidian 仓库",
+          "default_vault_loading": "正在获取 Obsidian 仓库...",
+          "default_vault_no_vaults": "未找到 Obsidian 仓库",
+          "default_vault_fetch_error": "获取 Obsidian 仓库失败",
+          "default_vault_export_failed": "导出失败"
+        },
+        "siyuan": {
+          "title": "思源笔记配置",
+          "api_url": "API地址",
+          "api_url_placeholder": "例如：http://127.0.0.1:6806",
+          "token": "API令牌",
+          "token.help": "在思源笔记->设置->关于中获取",
+          "token_placeholder": "请输入思源笔记令牌",
+          "box_id": "笔记本ID",
+          "box_id_placeholder": "请输入笔记本ID",
+          "root_path": "文档根路径",
+          "root_path_placeholder": "例如：/CherryStudio",
+          "check": {
+            "title": "连接检查",
+            "button": "检查",
+            "empty_config": "请填写API地址和令牌",
+            "success": "连接成功",
+            "fail": "连接失败，请检查API地址和令牌",
+            "error": "连接异常，请检查网络连接"
+          }
+        },
+        "nutstore": {
+          "title": "坚果云配置",
+          "isLogin": "已登录",
+          "notLogin": "未登录",
+          "login.button": "登录",
+          "logout.button": "退出登录",
+          "logout.title": "确定要退出坚果云登录？",
+          "logout.content": "退出后将无法备份至坚果云和从坚果云恢复",
+          "checkConnection.name": "检查连接",
+          "checkConnection.success": "已连接坚果云",
+          "checkConnection.fail": "坚果云连接失败",
+          "username": "坚果云用户名",
+          "path": "坚果云存储路径",
+          "path.placeholder": "请输入坚果云的存储路径",
+          "backup.button": "备份到坚果云",
+          "restore.button": "从坚果云恢复",
+          "pathSelector.title": "坚果云存储路径",
+          "pathSelector.return": "返回",
+          "pathSelector.currentPath": "当前路径",
+          "new_folder.button.confirm": "确定",
+          "new_folder.button.cancel": "取消"
         }
       },
       "display.assistant.title": "助手设置",
@@ -869,7 +931,7 @@
       "general.display.title": "显示设置",
       "general.emoji_picker": "表情选择器",
       "general.image_upload": "图片上传",
-      "general.manually_check_update.title": "关闭更新检测",
+      "general.auto_check_update.title": "自动检测更新",
       "general.reset.button": "重置",
       "general.reset.title": "重置数据",
       "general.restore.button": "恢复",

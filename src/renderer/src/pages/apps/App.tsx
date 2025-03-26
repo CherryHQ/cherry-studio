@@ -16,7 +16,7 @@ interface Props {
 
 const App: FC<Props> = ({ app, onClick, size = 60 }) => {
   const { t } = useTranslation()
-  const { minapps, pinned, updatePinnedMinapps } = useMinapps()
+  const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
 
@@ -31,6 +31,18 @@ const App: FC<Props> = ({ app, onClick, size = 60 }) => {
       label: isPinned ? t('minapp.sidebar.remove.title') : t('minapp.sidebar.add.title'),
       onClick: () => {
         const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...(pinned || []), app]
+        updatePinnedMinapps(newPinned)
+      }
+    },
+    {
+      key: 'hide',
+      label: t('minapp.sidebar.hide.title'),
+      onClick: () => {
+        const newMinapps = minapps.filter((item) => item.id !== app.id)
+        updateMinapps(newMinapps)
+        const newDisabled = [...(disabled || []), app]
+        updateDisabledMinapps(newDisabled)
+        const newPinned = pinned.filter((item) => item.id !== app.id)
         updatePinnedMinapps(newPinned)
       }
     }

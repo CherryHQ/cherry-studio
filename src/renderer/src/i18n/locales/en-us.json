@@ -180,13 +180,16 @@
       "topics.export.md": "Export as markdown",
       "topics.export.notion": "Export to Notion",
       "topics.export.obsidian": "Export to Obsidian",
+      "topics.export.obsidian_vault": "Vault",
+      "topics.export.obsidian_vault_placeholder": "Please select the vault name",
+      "topics.export.obsidian_path": "Path",
+      "topics.export.obsidian_path_placeholder": "Please select the path",
       "topics.export.obsidian_atributes": "Configure Note Attributes",
       "topics.export.obsidian_btn": "Confirm",
       "topics.export.obsidian_created": "Creation Time",
       "topics.export.obsidian_created_placeholder": "Please select the creation time",
       "topics.export.obsidian_export_failed": "Export failed",
       "topics.export.obsidian_export_success": "Export success",
-      "topics.export.obsidian_not_configured": "Obsidian not configured",
       "topics.export.obsidian_operate": "Operation Method",
       "topics.export.obsidian_operate_append": "Append",
       "topics.export.obsidian_operate_new_or_overwrite": "Create New (Overwrite if it exists)",
@@ -199,6 +202,13 @@
       "topics.export.obsidian_title": "Title",
       "topics.export.obsidian_title_placeholder": "Please enter the title",
       "topics.export.obsidian_title_required": "The title cannot be empty",
+      "topics.export.obsidian_no_vaults": "No Obsidian vaults found",
+      "topics.export.obsidian_loading": "Loading...",
+      "topics.export.obsidian_fetch_error": "Failed to fetch Obsidian vaults",
+      "topics.export.obsidian_fetch_folders_error": "Failed to fetch folder structure",
+      "topics.export.obsidian_no_vault_selected": "Please select a vault first",
+      "topics.export.obsidian_select_vault_first": "Please select a vault first",
+      "topics.export.obsidian_root_directory": "Root Directory",
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
       "topics.export.yuque": "Export to Yuque",
@@ -211,7 +221,8 @@
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "translate": "Translate",
+      "topics.export.siyuan": "Export to Siyuan Note"
     },
     "code_block": {
       "collapse": "Collapse",
@@ -288,7 +299,8 @@
         "description": "Failed to render formula. Please check if the formula format is correct",
         "title": "Render Error"
       },
-      "user_message_not_found": "Cannot find original user message to resend"
+      "user_message_not_found": "Cannot find original user message to resend",
+      "unknown": "Unknown error"
     },
     "export": {
       "assistant": "Assistant",
@@ -469,6 +481,8 @@
       "error.invalid.webdav": "Invalid WebDAV settings",
       "error.joplin.export": "Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
       "error.joplin.no_config": "Joplin Authorization Token or URL is not configured",
+      "error.invalid.nutstore": "Invalid Nutstore settings",
+      "error.invalid.nutstore_token": "Invalid Nutstore Token",
       "error.markdown.export.preconf": "Failed to export the Markdown file to the preconfigured path",
       "error.markdown.export.specified": "Failed to export the Markdown file",
       "error.notion.export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
@@ -518,12 +532,18 @@
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
       "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
-      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
+      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again.",
+      "error.siyuan.export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
+      "error.siyuan.no_config": "Siyuan Note API address or token is not configured",
+      "success.siyuan.export": "Successfully exported to Siyuan Note",
+      "warn.yuque.exporting": "Exporting to Yuque, please do not request export repeatedly!",
+      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
     },
     "minapp": {
       "sidebar.add.title": "Add to sidebar",
       "sidebar.remove.title": "Remove from sidebar",
-      "title": "MinApp"
+      "title": "MinApp",
+      "sidebar.hide.title": "Hide MinApp"
     },
     "miniwindow": {
       "clipboard": {
@@ -786,15 +806,6 @@
         "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
         "notion.split_size_placeholder": "Enter block limit per page (default 90)",
         "notion.title": "Notion Configuration",
-        "obsidian": {
-          "folder": "Folder",
-          "folder_placeholder": "Please enter the folder name",
-          "tags": "Global Tags",
-          "tags_placeholder": "Please enter the tag name, separate multiple tags with commas",
-          "title": "Obsidian Configuration",
-          "vault": "Vault",
-          "vault_placeholder": "Please enter the vault name"
-        },
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",
@@ -839,6 +850,57 @@
           "title": "Yuque Configuration",
           "token": "Yuque Token",
           "token_placeholder": "Please enter the Yuque Token"
+        },
+        "obsidian": {
+          "title": "Obsidian Configuration",
+          "default_vault": "Default Obsidian Vault",
+          "default_vault_placeholder": "Please select the default Obsidian vault",
+          "default_vault_loading": "Loading Obsidian vault...",
+          "default_vault_no_vaults": "No Obsidian vaults found",
+          "default_vault_fetch_error": "Failed to fetch Obsidian vault",
+          "default_vault_export_failed": "Export failed"
+        },
+        "siyuan": {
+          "title": "Siyuan Note Configuration",
+          "api_url": "Siyuan Note API URL",
+          "api_url_placeholder": "e.g.: http://127.0.0.1:6806",
+          "token": "Siyuan Note Token",
+          "token.help": "Get Siyuan Note Token",
+          "token_placeholder": "Please enter Siyuan Note Token",
+          "box_id": "Siyuan Note Box ID",
+          "box_id_placeholder": "Please enter Siyuan Note Box ID",
+          "root_path": "Siyuan Note Root Path",
+          "root_path_placeholder": "e.g.: /CherryStudio",
+          "check": {
+            "title": "Connection Check",
+            "button": "Check",
+            "empty_config": "Please fill in the API address and token",
+            "success": "Connection successful",
+            "fail": "Connection failed, please check API address and token",
+            "error": "Connection error, please check network connection"
+          }
+        },
+        "nutstore": {
+          "title": "Nutstore Configuration",
+          "isLogin": "Logged in",
+          "notLogin": "Not logged in",
+          "login.button": "Login",
+          "logout.button": "Logout",
+          "logout.title": "Are you sure you want to logout from Nutstore?",
+          "logout.content": "After logout, you will not be able to backup to Nutstore or restore from Nutstore.",
+          "checkConnection.name": "Check Connection",
+          "checkConnection.success": "Connected to Nutstore",
+          "checkConnection.fail": "Nutstore connection failed",
+          "username": "Nutstore Username",
+          "path": "Nutstore Storage Path",
+          "path.placeholder": "Enter Nutstore storage path",
+          "backup.button": "Backup to Nutstore",
+          "restore.button": "Restore from Nutstore",
+          "pathSelector.title": "Nutstore Storage Path",
+          "pathSelector.return": "Return",
+          "pathSelector.currentPath": "Current Path",
+          "new_folder.button.confirm": "Confirm",
+          "new_folder.button.cancel": "Cancel"
         }
       },
       "display.assistant.title": "Assistant Settings",
@@ -869,7 +931,7 @@
       "general.display.title": "Display Settings",
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
-      "general.manually_check_update.title": "Turn off update checking",
+      "general.auto_check_update.title": "Auto update checking",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
