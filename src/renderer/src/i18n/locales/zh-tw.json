@@ -1118,7 +1118,7 @@
         "docs_more_details": "檢視更多細節",
         "get_api_key": "點選這裡取得金鑰",
         "is_not_support_array_content": "開啟相容模式",
-        "no_models": "請先新增模型再檢查 API 連接",
+        "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",
         "not_checked": "未檢查",
         "remove_duplicate_keys": "移除重複金鑰",
         "remove_invalid_keys": "刪除無效金鑰",

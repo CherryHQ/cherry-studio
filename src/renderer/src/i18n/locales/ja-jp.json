@@ -1118,7 +1118,7 @@
         "docs_more_details": "詳細を確認",
         "get_api_key": "APIキーを取得",
         "is_not_support_array_content": "互換モードを有効にする",
-        "no_models": "API接続をチェックする前に、モデルを追加してください",
+        "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
         "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
         "remove_invalid_keys": "無効なキーを削除",

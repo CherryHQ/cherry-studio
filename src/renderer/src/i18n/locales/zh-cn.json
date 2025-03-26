@@ -1119,7 +1119,7 @@
         "docs_more_details": "获取更多详情",
         "get_api_key": "点击这里获取密钥",
         "is_not_support_array_content": "开启兼容模式",
-        "no_models": "请先添加模型再检查 API 连接",
+        "no_models_for_check": "没有可以被检查的模型（例如对话模型）",
         "not_checked": "未检查",
         "remove_duplicate_keys": "移除重复密钥",
         "remove_invalid_keys": "删除无效密钥",
