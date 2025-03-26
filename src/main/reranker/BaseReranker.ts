@@ -1,4 +1,4 @@
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { KnowledgeBaseParams } from '@types'
 
 export default abstract class BaseReranker {

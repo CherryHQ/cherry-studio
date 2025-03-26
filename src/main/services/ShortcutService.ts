@@ -144,7 +144,7 @@ export function registerShortcuts(window: BrowserWindow) {
         if (!shortcut.enabled) {
           return
         }
-        
+
         // only register universal shortcuts when needed
         if (onlyUniversalShortcuts && !['show_app', 'mini_window'].includes(shortcut.key)) {
           return
@@ -221,9 +221,13 @@ export function registerShortcuts(window: BrowserWindow) {
 
   // only register the event handlers once
   if (undefined === windowOnHandlers.get(window)) {
-    window.on('focus', register)
+    // pass register() directly to listener, the func will receive Event as argument, it's not expected
+    const registerHandler = () => {
+      register()
+    }
+    window.on('focus', registerHandler)
     window.on('blur', unregister)
-    windowOnHandlers.set(window, { onFocusHandler: register, onBlurHandler: unregister })
+    windowOnHandlers.set(window, { onFocusHandler: registerHandler, onBlurHandler: unregister })
   }
 
   if (!window.isDestroyed() && window.isFocused()) {
