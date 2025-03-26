@@ -397,9 +397,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                     {topicName}
                   </TopicName>
                 )}
-                <TopicName className="name" title={topicName}>
-                  {topicName}
-                </TopicName>
                 {topicPrompt && (
                   <TopicPromptText className="prompt" title={fullTopicPrompt}>
                     {fullTopicPrompt}
