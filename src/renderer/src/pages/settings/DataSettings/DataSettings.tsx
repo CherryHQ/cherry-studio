@@ -37,7 +37,7 @@ const DataSettings: FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
-  const [menu, setMenu] = useState<string>('common')
+  const [menu, setMenu] = useState<string>('data')
 
   //joplin icon needs to be updated into iconfont
   const JoplinIcon = () => (
