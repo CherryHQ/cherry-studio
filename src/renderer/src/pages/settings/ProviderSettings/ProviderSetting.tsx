@@ -1,7 +1,7 @@
 import { ApiOutlined, ExportOutlined, HeartOutlined, SettingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'

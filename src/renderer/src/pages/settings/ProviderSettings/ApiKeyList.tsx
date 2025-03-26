@@ -9,11 +9,13 @@ import {
   RedoOutlined
 } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, Card, Flex, Input, List, message, Space, Tooltip, Typography } from 'antd'
+import { isEmpty } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -120,6 +122,36 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     setNewApiKey('')
   }
 
+  const getModelForCheck = async (selectedModel?: Model): Promise<Model | null> => {
+    if (type !== 'provider') return null
+
+    const modelsToCheck = (provider as Provider).models.filter(
+      (model) => !isEmbeddingModel(model) && !isRerankModel(model)
+    )
+
+    if (isEmpty(modelsToCheck)) {
+      window.message.error({
+        key: 'no-models',
+        style: { marginTop: '3vh' },
+        duration: 5,
+        content: t('settings.provider.no_models_for_check')
+      })
+      return null
+    }
+
+    try {
+      return (
+        selectedModel ||
+        (await SelectProviderModelPopup.show({
+          provider: provider as Provider
+        }))
+      )
+    } catch (err) {
+      // User canceled the popup
+      return null
+    }
+  }
+
   const checkSingleKey = async (keyIndex: number, selectedModel?: Model) => {
     if (isChecking || keyStatuses[keyIndex].checking) {
       return
@@ -131,23 +163,18 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     try {
       let latency: number
       let result: { valid: boolean; error?: any }
-      let model: Model
+      let model: Model | undefined
 
       if (type === 'provider') {
-        try {
-          model =
-            selectedModel ||
-            (await SelectProviderModelPopup.show({
-              provider: provider as Provider
-            }))
-        } catch (err) {
-          // User canceled the popup, just stop checking without marking as failed
+        const selectedModelForCheck = await getModelForCheck(selectedModel)
+        if (!selectedModelForCheck) {
           setKeyStatuses((prev) =>
             prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false } : status))
           )
           setIsCheckingSingle(false)
           return
         }
+        model = selectedModelForCheck
 
         const startTime = Date.now()
         result = await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
@@ -208,14 +235,8 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     try {
       let selectedModel
       if (type === 'provider') {
-        try {
-          selectedModel = await SelectProviderModelPopup.show({ provider: provider as Provider })
-          if (!selectedModel) {
-            window.message.error({ content: t('message.error.enter.model'), key: 'api-check' })
-            return
-          }
-        } catch (err) {
-          // User canceled the popup, just stop checking
+        selectedModel = await getModelForCheck()
+        if (!selectedModel) {
           return
         }
       }
