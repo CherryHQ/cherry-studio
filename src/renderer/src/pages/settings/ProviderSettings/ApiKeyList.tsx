@@ -389,20 +389,22 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
               <Button key="add" type="primary" onClick={handleAddNewKey} icon={<PlusOutlined />} disabled={isAddingNew}>
                 {t('common.add')}
               </Button>
-              <Button key="check" type="default" onClick={checkAllKeys} disabled={isChecking || isCheckingSingle}>
-                {t('settings.provider.check_all_keys')}
-              </Button>
             </Space>
-            <Space>
-              <Button
-                key="remove"
-                type="default"
-                danger
-                onClick={removeInvalidKeys}
-                disabled={isChecking || isCheckingSingle}>
-                {t('settings.provider.remove_invalid_keys')}
-              </Button>
-            </Space>
+            {keyStatuses.length > 1 && (
+              <Space>
+                <Button key="check" type="default" onClick={checkAllKeys} disabled={isChecking || isCheckingSingle}>
+                  {t('settings.provider.check_all_keys')}
+                </Button>
+                <Button
+                  key="remove"
+                  type="default"
+                  danger
+                  onClick={removeInvalidKeys}
+                  disabled={isChecking || isCheckingSingle}>
+                  {t('settings.provider.remove_invalid_keys')}
+                </Button>
+              </Space>
+            )}
           </>
         )}
       </Flex>
