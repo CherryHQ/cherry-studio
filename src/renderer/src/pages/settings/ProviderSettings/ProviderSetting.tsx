@@ -1,6 +1,7 @@
 import { ApiOutlined, ExportOutlined, HeartOutlined, SettingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -76,12 +77,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
 
   const onHealthCheck = async () => {
-    if (isEmpty(models)) {
+    const modelsToCheck = models.filter((model) => !isRerankModel(model))
+
+    if (isEmpty(modelsToCheck)) {
       window.message.error({
         key: 'no-models',
         style: { marginTop: '3vh' },
         duration: 5,
-        content: t('settings.provider.no_models')
+        content: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -114,7 +117,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
 
     // Prepare the list of models to be checked
-    const initialStatuses = models.map((model) => ({
+    const initialStatuses = modelsToCheck.map((model) => ({
       model,
       checking: true,
       status: undefined
@@ -125,7 +128,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     const checkResults = await checkModelsHealth(
       {
         provider: { ...provider, apiHost },
-        models,
+        models: modelsToCheck,
         apiKeys: result.apiKeys,
         isConcurrent: result.isConcurrent
       },

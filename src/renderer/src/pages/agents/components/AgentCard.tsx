@@ -1,14 +1,20 @@
 import { EllipsisOutlined } from '@ant-design/icons'
-import { Agent } from '@renderer/types'
+import type { Agent } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Dropdown } from 'antd'
-import { FC, memo } from 'react'
+import { type FC, memo } from 'react'
 import styled from 'styled-components'
 
 interface Props {
   agent: Agent
   onClick: () => void
-  contextMenu?: { label: string; onClick: () => void }[]
+  contextMenu?: {
+    key: string
+    label: string
+    icon?: React.ReactNode
+    danger?: boolean
+    onClick: () => void
+  }[]
   menuItems?: {
     key: string
     label: string
@@ -58,9 +64,14 @@ const AgentCard: FC<Props> = ({ agent, onClick, contextMenu, menuItems }) => {
       <Dropdown
         menu={{
           items: contextMenu.map((item) => ({
-            key: item.label,
-            label: item.label,
-            onClick: () => item.onClick()
+            ...item,
+            onClick: (e) => {
+              e.domEvent.stopPropagation()
+              e.domEvent.preventDefault()
+              setTimeout(() => {
+                item.onClick()
+              }, 0)
+            }
           }))
         }}
         trigger={['contextMenu']}>

@@ -53,6 +53,7 @@ export interface SettingsState {
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
+  foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
   messageNavigation: 'none' | 'buttons' | 'anchor'
@@ -135,6 +136,7 @@ const initialState: SettingsState = {
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',
+  foldDisplayMode: 'expanded',
   gridColumns: 2,
   gridPopoverTrigger: 'hover',
   messageNavigation: 'none',
@@ -295,6 +297,9 @@ const settingsSlice = createSlice({
     setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
       state.mathEngine = action.payload
     },
+    setFoldDisplayMode: (state, action: PayloadAction<'expanded' | 'compact'>) => {
+      state.foldDisplayMode = action.payload
+    },
     setGridColumns: (state, action: PayloadAction<number>) => {
       state.gridColumns = action.payload
     },
@@ -446,6 +451,7 @@ export const {
   setCodeCollapsible,
   setCodeWrappable,
   setMathEngine,
+  setFoldDisplayMode,
   setGridColumns,
   setGridPopoverTrigger,
   setMessageStyle,

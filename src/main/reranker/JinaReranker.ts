@@ -1,4 +1,4 @@
-import { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { KnowledgeBaseParams } from '@types'
 import axios from 'axios'
 

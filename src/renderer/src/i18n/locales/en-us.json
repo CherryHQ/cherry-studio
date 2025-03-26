@@ -1118,7 +1118,7 @@
         "docs_more_details": "for more details",
         "get_api_key": "Get API Key",
         "is_not_support_array_content": "Enable compatible mode",
-        "no_models": "Please add models first before checking the API connection",
+        "no_models_for_check": "No models available for checking (e.g. chat models)",
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",
         "invalid_key": "Invalid API key",

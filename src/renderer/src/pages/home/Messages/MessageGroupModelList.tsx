@@ -1,9 +1,12 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { useAppDispatch } from '@renderer/store'
+import { setFoldDisplayMode } from '@renderer/store/settings'
 import { Message, Model } from '@renderer/types'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
-import { FC, useState } from 'react'
+import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -15,26 +18,27 @@ interface MessageGroupModelListProps {
 type DisplayMode = 'compact' | 'expanded'
 
 const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, setSelectedMessage }) => {
+  const dispatch = useAppDispatch()
   const { t } = useTranslation()
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('expanded')
-  const isCompact = displayMode === 'compact'
+  const { foldDisplayMode } = useSettings()
+  const isCompact = foldDisplayMode === 'compact'
 
   return (
     <ModelsWrapper>
-      <DisplayModeToggle displayMode={displayMode} onClick={() => setDisplayMode(isCompact ? 'expanded' : 'compact')}>
+      <DisplayModeToggle displayMode={foldDisplayMode} onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
         <Tooltip
           title={
-            displayMode === 'compact'
+            foldDisplayMode === 'compact'
               ? t(`message.message.multi_model_style.fold.expand`)
               : t('message.message.multi_model_style.fold.compress')
           }
           placement="top">
-          {displayMode === 'compact' ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
+          {foldDisplayMode === 'compact' ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
         </Tooltip>
       </DisplayModeToggle>
 
-      <ModelsContainer $displayMode={displayMode}>
-        {displayMode === 'compact' ? (
+      <ModelsContainer $displayMode={foldDisplayMode}>
+        {foldDisplayMode === 'compact' ? (
           /* Compact style display */
           <Avatar.Group className="avatar-group">
             {messages.map((message, index) => (
