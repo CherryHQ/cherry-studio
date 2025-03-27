@@ -33,12 +33,35 @@
     },
     "assistants": {
       "abbr": "Assistant",
+      "add": "Add Assistant",
+      "add.title": "Add Assistant",
+      "add.name": "Assistant Name",
+      "add.name.placeholder": "Enter assistant name",
+      "add.description": "Assistant Description",
+      "add.description.placeholder": "Enter assistant description",
+      "add.prompt": "Assistant Prompt",
+      "add.prompt.placeholder": "Enter assistant prompt",
       "clear.content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
       "clear.title": "Clear topics",
       "copy.title": "Copy Assistant",
       "delete.content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
       "delete.title": "Delete Assistant",
       "edit.title": "Edit Assistant",
+      "group": {
+        "add": "Add Group",
+        "add.title": "Add Group",
+        "delete.content": "Deleting the group will move all assistants in the group to the ungrouped area. Are you sure?",
+        "delete.title": "Delete Group",
+        "description": "Group Description",
+        "description.placeholder": "Enter group description (optional)",
+        "edit.title": "Edit Group",
+        "empty": "No assistants in this group",
+        "name": "Group Name",
+        "name.placeholder": "Enter group name",
+        "validation.name": "Group name cannot be empty"
+      },
+      "move_to_group": "Move to Group",
+      "no_group": "No Group",
       "save.success": "Saved successfully",
       "save.title": "Save to agent",
       "search": "Search assistants...",
@@ -53,7 +76,8 @@
       "settings.reasoning_effort.medium": "medium",
       "settings.reasoning_effort.off": "off",
       "settings.reasoning_effort.tip": "Only supports OpenAI o-series and Anthropic reasoning models",
-      "title": "Assistants"
+      "title": "Assistants",
+      "ungrouped": "Ungrouped Assistants"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -222,7 +246,11 @@
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
       "translate": "Translate",
+<<<<<<< HEAD
+      "topics.duplicate_to": "Duplicate to"
+=======
       "topics.export.siyuan": "Export to Siyuan Note"
+>>>>>>> upstream/main
     },
     "code_block": {
       "collapse": "Collapse",
@@ -256,6 +284,7 @@
       "footnote": "Reference content",
       "footnotes": "References",
       "fullscreen": "Entered fullscreen mode. Press F11 to exit",
+      "generate_emoji": "Auto Generate",
       "knowledge_base": "Knowledge Base",
       "language": "Language",
       "model": "Model",
@@ -698,8 +727,7 @@
       "xirang": "State Cloud Xirang",
       "yi": "Yi",
       "zhinao": "360AI",
-      "zhipu": "ZHIPU AI",
-      "voyageai": "Voyage AI"
+      "zhipu": "ZHIPU AI"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -1205,7 +1233,10 @@
           "title": "Tavily"
         },
         "title": "Web Search"
-      }
+      },
+      "display.group.title": "Group Settings",
+      "advanced.assistantGroup": "Enable Assistants Grouping",
+      "advanced.topicsGroup": "Enable Topics Grouping"
     },
     "translate": {
       "any.language": "Any language",
@@ -1242,6 +1273,26 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "topics": {
+      "add": "New Topic",
+      "delete": "Delete Topic",
+      "duplicate_to": "Duplicate to",
+      "move_to_group": "Move to Group",
+      "no_group": "No Group",
+      "new": "New Topic",
+      "group": {
+        "add": "Add Group",
+        "delete": "Delete Group",
+        "description": "Group Description",
+        "description.placeholder": "Enter group description (optional)",
+        "edit": "Edit Group",
+        "empty": "No topics in this group",
+        "name": "Group Name",
+        "name.placeholder": "Enter group name",
+        "name.required": "Group name cannot be empty"
+      },
+      "ungrouped": "Ungrouped Topics"
     }
   }
 }

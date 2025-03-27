@@ -2,17 +2,74 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
 import { prepareTopicMessages } from '@renderer/store/messages'
-import { Assistant, Topic } from '@renderer/types'
+import { Assistant, Topic, TopicGroup } from '@renderer/types'
 import { find, isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
+import { v4 as uuid } from 'uuid'
 
 import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
 
 let _activeTopic: Topic
 let _setActiveTopic: (topic: Topic) => void
+
+export function useTopicGroups(assistantId?: string) {
+  const dispatch = useAppDispatch()
+  const topics = useAppSelector((state) => state.topics)
+
+  // 确保有默认值，防止null/undefined对象遍历错误
+  const groups = topics?.groups || []
+  const isLoading = topics?.isLoading || false
+  const loadingError = topics?.loadingError || null
+
+  const topicGroups = assistantId ? groups.filter((group) => group.assistantId === assistantId) : groups
+
+  const addGroup = (name: string, description?: string) => {
+    const newGroup: TopicGroup = {
+      id: uuid(),
+      name,
+      description,
+      assistantId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+
+    dispatch({ type: 'topics/addGroup', payload: newGroup })
+    return newGroup
+  }
+
+  const updateGroup = (group: TopicGroup) => {
+    dispatch({ type: 'topics/updateGroup', payload: group })
+  }
+
+  const removeGroup = (groupId: string) => {
+    dispatch({ type: 'topics/removeGroup', payload: { id: groupId } })
+  }
+
+  const updateTopicGroup = (topicId: string, groupId?: string) => {
+    if (assistantId) {
+      dispatch({ type: 'assistants/updateTopicGroup', payload: { assistantId, topicId, groupId } })
+    }
+  }
+
+  const updateGroupsOrder = (groups: TopicGroup[]) => {
+    dispatch({ type: 'topics/updateGroupsOrder', payload: groups })
+  }
+
+  return {
+    groups: topicGroups,
+    isLoading,
+    loadingError,
+    addGroup,
+    updateGroup,
+    removeGroup,
+    updateTopicGroup,
+    updateGroupsOrder
+  }
+}
 
 export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
   const { assistant } = useAssistant(_assistant.id)

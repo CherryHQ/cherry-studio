@@ -35,7 +35,11 @@ const DisplaySettings: FC = () => {
     customCss,
     sidebarIcons,
     showAssistantIcon,
-    setShowAssistantIcon
+    setShowAssistantIcon,
+    enableAssistantGroup,
+    setEnableAssistantGroup,
+    enableTopicsGroup,
+    setEnableTopicsGroup
   } = useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
   const { theme: themeMode } = useTheme()
@@ -121,6 +125,14 @@ const DisplaySettings: FC = () => {
         )}
       </SettingGroup>
       <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.assistant.show.icon')}</SettingRowTitle>
+          <Switch checked={showAssistantIcon} onChange={(checked) => setShowAssistantIcon(checked)} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -154,11 +166,16 @@ const DisplaySettings: FC = () => {
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
+        <SettingTitle>{t('settings.display.group.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.show.icon')}</SettingRowTitle>
-          <Switch checked={showAssistantIcon} onChange={(checked) => setShowAssistantIcon(checked)} />
+          <SettingRowTitle>{t('settings.advanced.assistantGroup')}</SettingRowTitle>
+          <Switch checked={enableAssistantGroup} onChange={(checked) => setEnableAssistantGroup(checked)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.advanced.topicsGroup')}</SettingRowTitle>
+          <Switch checked={enableTopicsGroup} onChange={(checked) => setEnableTopicsGroup(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

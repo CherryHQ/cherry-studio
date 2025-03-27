@@ -23,6 +23,8 @@ export interface NutstoreSyncRuntime extends WebDAVSyncState {}
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
+  enableAssistantGroup: boolean
+  enableTopicsGroup: boolean
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
   targetLanguage: TranslateLanguageVarious
@@ -32,9 +34,6 @@ export interface SettingsState {
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
-  launchOnBoot: boolean
-  launchToTray: boolean
-  trayOnClose: boolean
   tray: boolean
   theme: ThemeMode
   windowStyle: 'transparent' | 'opaque'
@@ -56,7 +55,7 @@ export interface SettingsState {
   foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
-  messageNavigation: 'none' | 'buttons' | 'anchor'
+  // 是否显示助手图标
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -75,24 +74,27 @@ export interface SettingsState {
     disabled: SidebarIcon[]
   }
   narrowMode: boolean
-  // QuickAssistant
   enableQuickAssistant: boolean
   clickTrayToShowQuickAssistant: boolean
   multiModelMessageStyle: MultiModelMessageStyle
-  readClipboardAtStartup: boolean
   notionDatabaseID: string | null
   notionApiKey: string | null
   notionPageNameKey: string | null
-  markdownExportPath: string | null
-  forceDollarMathInMarkdown: boolean
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
+  messageNavigation: boolean
   joplinToken: string | null
   joplinUrl: string | null
+  forceDollarMathInMarkdown: boolean
+  markdownExportPath: string
+  obsidianFolder: string
+  obsidianValut: string
+  obsidianTages: string
+  readClipboardAtStartup: boolean
   defaultObsidianVault: string | null
   // 思源笔记配置
   siyuanApiUrl: string | null
@@ -106,6 +108,8 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 const initialState: SettingsState = {
   showAssistants: true,
   showTopics: true,
+  enableAssistantGroup: false,
+  enableTopicsGroup: false,
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
   targetLanguage: 'english' as TranslateLanguageVarious,
@@ -115,9 +119,6 @@ const initialState: SettingsState = {
   showMessageDivider: true,
   messageFont: 'system',
   showInputEstimatedTokens: false,
-  launchOnBoot: false,
-  launchToTray: false,
-  trayOnClose: true,
   tray: true,
   theme: ThemeMode.auto,
   windowStyle: 'transparent',
@@ -139,7 +140,6 @@ const initialState: SettingsState = {
   foldDisplayMode: 'expanded',
   gridColumns: 2,
   gridPopoverTrigger: 'hover',
-  messageNavigation: 'none',
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -158,23 +158,27 @@ const initialState: SettingsState = {
   narrowMode: false,
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
-  readClipboardAtStartup: true,
   multiModelMessageStyle: 'fold',
   notionDatabaseID: '',
   notionApiKey: '',
   notionPageNameKey: 'Name',
-  markdownExportPath: null,
-  forceDollarMathInMarkdown: false,
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
   notionSplitSize: 90,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
+  messageNavigation: false,
   joplinToken: '',
   joplinUrl: '',
+  forceDollarMathInMarkdown: false,
+  markdownExportPath: '',
+  obsidianFolder: '',
+  obsidianValut: '',
+  obsidianTages: '',
+  readClipboardAtStartup: false,
   defaultObsidianVault: null,
-  // 思源笔记配置初始值
+  // 思源笔记配置
   siyuanApiUrl: null,
   siyuanToken: null,
   siyuanBoxId: null,
@@ -225,17 +229,8 @@ const settingsSlice = createSlice({
     setShowInputEstimatedTokens: (state, action: PayloadAction<boolean>) => {
       state.showInputEstimatedTokens = action.payload
     },
-    setLaunchOnBoot: (state, action: PayloadAction<boolean>) => {
-      state.launchOnBoot = action.payload
-    },
-    setLaunchToTray: (state, action: PayloadAction<boolean>) => {
-      state.launchToTray = action.payload
-    },
     setTray: (state, action: PayloadAction<boolean>) => {
       state.tray = action.payload
-    },
-    setTrayOnClose: (state, action: PayloadAction<boolean>) => {
-      state.trayOnClose = action.payload
     },
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
       state.theme = action.payload
@@ -347,9 +342,6 @@ const settingsSlice = createSlice({
     setEnableQuickAssistant: (state, action: PayloadAction<boolean>) => {
       state.enableQuickAssistant = action.payload
     },
-    setReadClipboardAtStartup: (state, action: PayloadAction<boolean>) => {
-      state.readClipboardAtStartup = action.payload
-    },
     setMultiModelMessageStyle: (state, action: PayloadAction<'horizontal' | 'vertical' | 'fold' | 'grid'>) => {
       state.multiModelMessageStyle = action.payload
     },
@@ -361,12 +353,6 @@ const settingsSlice = createSlice({
     },
     setNotionPageNameKey: (state, action: PayloadAction<string>) => {
       state.notionPageNameKey = action.payload
-    },
-    setmarkdownExportPath: (state, action: PayloadAction<string | null>) => {
-      state.markdownExportPath = action.payload
-    },
-    setForceDollarMathInMarkdown: (state, action: PayloadAction<boolean>) => {
-      state.forceDollarMathInMarkdown = action.payload
     },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
@@ -386,11 +372,38 @@ const settingsSlice = createSlice({
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
     },
+    setEnableAssistantGroup: (state, action: PayloadAction<boolean>) => {
+      state.enableAssistantGroup = action.payload
+    },
+    setEnableTopicsGroup: (state, action: PayloadAction<boolean>) => {
+      state.enableTopicsGroup = action.payload
+    },
+    setMessageNavigation: (state, action: PayloadAction<boolean>) => {
+      state.messageNavigation = action.payload
+    },
     setJoplinToken: (state, action: PayloadAction<string>) => {
       state.joplinToken = action.payload
     },
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
+    },
+    setForceDollarMathInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.forceDollarMathInMarkdown = action.payload
+    },
+    setmarkdownExportPath: (state, action: PayloadAction<string>) => {
+      state.markdownExportPath = action.payload
+    },
+    setObsidianFolder: (state, action: PayloadAction<string>) => {
+      state.obsidianFolder = action.payload
+    },
+    setObsidianValut: (state, action: PayloadAction<string>) => {
+      state.obsidianValut = action.payload
+    },
+    setObsidianTages: (state, action: PayloadAction<string>) => {
+      state.obsidianTages = action.payload
+    },
+    setReadClipboardAtStartup: (state, action: PayloadAction<boolean>) => {
+      state.readClipboardAtStartup = action.payload
     },
     setSiyuanApiUrl: (state, action: PayloadAction<string>) => {
       state.siyuanApiUrl = action.payload
@@ -404,9 +417,6 @@ const settingsSlice = createSlice({
     setSiyuanRootPath: (state, action: PayloadAction<string>) => {
       state.siyuanRootPath = action.payload
     },
-    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
-      state.messageNavigation = action.payload
-    },
     setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
       state.defaultObsidianVault = action.payload
     }
@@ -415,11 +425,14 @@ const settingsSlice = createSlice({
 
 export const {
   setShowAssistants,
+  setEnableAssistantGroup,
+  setEnableTopicsGroup,
   toggleShowAssistants,
   setShowTopics,
   toggleShowTopics,
   setSendMessageShortcut,
   setLanguage,
+  setShowAssistantIcon,
   setTargetLanguage,
   setProxyMode,
   setProxyUrl,
@@ -427,16 +440,12 @@ export const {
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
-  setLaunchOnBoot,
-  setLaunchToTray,
-  setTrayOnClose,
   setTray,
   setTheme,
   setFontSize,
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
-  setShowAssistantIcon,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
   setRenderInputMessageAsMarkdown,
@@ -466,27 +475,30 @@ export const {
   setNarrowMode,
   setClickTrayToShowQuickAssistant,
   setEnableQuickAssistant,
-  setReadClipboardAtStartup,
   setMultiModelMessageStyle,
   setNotionDatabaseID,
   setNotionApiKey,
   setNotionPageNameKey,
-  setmarkdownExportPath,
-  setForceDollarMathInMarkdown,
   setThoughtAutoCollapse,
   setNotionAutoSplit,
   setNotionSplitSize,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
+  setMessageNavigation,
   setJoplinToken,
   setJoplinUrl,
-  setMessageNavigation,
-  setDefaultObsidianVault,
+  setForceDollarMathInMarkdown,
+  setmarkdownExportPath,
+  setObsidianFolder,
+  setObsidianValut,
+  setObsidianTages,
+  setReadClipboardAtStartup,
   setSiyuanApiUrl,
   setSiyuanToken,
   setSiyuanBoxId,
-  setSiyuanRootPath
+  setSiyuanRootPath,
+  setDefaultObsidianVault
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

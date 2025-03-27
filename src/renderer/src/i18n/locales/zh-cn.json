@@ -33,12 +33,33 @@
     },
     "assistants": {
       "abbr": "助手",
+      "add": "添加助手",
+      "add.title": "添加助手",
+      "add.name": "助手名称",
+      "add.name.placeholder": "请输入助手名称",
+      "add.description": "助手描述",
+      "add.description.placeholder": "请输入助手描述",
+      "add.prompt": "助手提示词",
+      "add.prompt.placeholder": "请输入助手提示词",
       "clear.content": "清空话题会删除助手下所有话题和文件，确定要继续吗？",
       "clear.title": "清空话题",
       "copy.title": "复制助手",
       "delete.content": "删除助手会删除所有该助手下的话题和文件，确定要继续吗？",
       "delete.title": "删除助手",
       "edit.title": "编辑助手",
+      "group": {
+        "add": "添加分组",
+        "add.title": "添加分组",
+        "delete.content": "删除分组将会把分组内的助手移至未分组区域，确定要删除吗？",
+        "delete.title": "删除分组",
+        "description": "分组描述",
+        "description.placeholder": "请输入分组描述（选填）",
+        "edit.title": "编辑分组",
+        "empty": "分组内暂无助手",
+        "name": "分组名称",
+        "name.placeholder": "请输入分组名称",
+        "validation.name": "分组名称不能为空"
+      },
       "save.success": "保存成功",
       "save.title": "保存到智能体",
       "search": "搜索助手",
@@ -53,7 +74,10 @@
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "关",
       "settings.reasoning_effort.tip": "仅支持 OpenAI o-series 和 Anthropic 推理模型",
-      "title": "助手"
+      "title": "助手",
+      "ungrouped": "未分组助手",
+      "move_to_group": "移动到分组",
+      "no_group": "无分组"
     },
     "auth": {
       "error": "自动获取密钥失败，请手动获取",
@@ -222,7 +246,11 @@
       "topics.title": "话题",
       "topics.unpinned": "取消固定",
       "translate": "翻译",
+<<<<<<< HEAD
+      "topics.duplicate_to": "复制到"
+=======
       "topics.export.siyuan": "导出到思源笔记"
+>>>>>>> upstream/main
     },
     "code_block": {
       "collapse": "收起",
@@ -256,6 +284,7 @@
       "footnote": "引用内容",
       "footnotes": "引用内容",
       "fullscreen": "已进入全屏模式，按 F11 退出",
+      "generate_emoji": "自动生成",
       "knowledge_base": "知识库",
       "language": "语言",
       "model": "模型",
@@ -1205,7 +1234,10 @@
           "title": "Tavily"
         },
         "title": "网络搜索"
-      }
+      },
+      "display.group.title": "分组设置",
+      "advanced.assistantGroup": "启用助手分组功能",
+      "advanced.topicsGroup": "启用话题分组功能"
     },
     "translate": {
       "any.language": "任意语言",
@@ -1242,6 +1274,26 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "topics": {
+      "add": "新建话题",
+      "delete": "删除话题",
+      "duplicate_to": "复制到",
+      "move_to_group": "移动到分组",
+      "no_group": "无分组",
+      "new": "新建话题",
+      "group": {
+        "add": "添加分组",
+        "delete": "删除分组",
+        "description": "分组描述",
+        "description.placeholder": "请输入分组描述（选填）",
+        "edit": "编辑分组",
+        "empty": "分组内暂无话题",
+        "name": "分组名称",
+        "name.placeholder": "请输入分组名称",
+        "name.required": "分组名称不能为空"
+      },
+      "ungrouped": "未分组话题"
     }
   }
 }

@@ -2,6 +2,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app, ipcMain } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
+import log from './utils/logger'
 
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
@@ -20,41 +21,46 @@ if (!app.requestSingleInstanceLock()) {
   // Some APIs can only be used after this event occurs.
 
   app.whenReady().then(async () => {
-    // Set app user model id for windows
-    electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
+    try {
+      // Set app user model id for windows
+      electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
-    // Mac: Hide dock icon before window creation when launch to tray is set
-    const isLaunchToTray = configManager.getLaunchToTray()
-    if (isLaunchToTray) {
-      app.dock?.hide()
-    }
-
-    const mainWindow = windowService.createMainWindow()
-    new TrayService()
-
-    app.on('activate', function () {
-      const mainWindow = windowService.getMainWindow()
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        windowService.createMainWindow()
-      } else {
-        windowService.showMainWindow()
+      // Mac: Hide dock icon before window creation when launch to tray is set
+      const isLaunchToTray = configManager.getLaunchToTray()
+      if (isLaunchToTray) {
+        app.dock?.hide()
       }
-    })
 
-    registerShortcuts(mainWindow)
+      const mainWindow = windowService.createMainWindow()
+      new TrayService()
 
-    registerIpc(mainWindow, app)
+      app.on('activate', function () {
+        const mainWindow = windowService.getMainWindow()
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          windowService.createMainWindow()
+        } else {
+          windowService.showMainWindow()
+        }
+      })
 
-    replaceDevtoolsFont(mainWindow)
+      registerShortcuts(mainWindow)
 
-    if (process.env.NODE_ENV === 'development') {
-      installExtension(REDUX_DEVTOOLS)
-        .then((name) => console.log(`Added Extension:  ${name}`))
-        .catch((err) => console.log('An error occurred: ', err))
+      registerIpc(mainWindow, app)
+
+      replaceDevtoolsFont(mainWindow)
+
+      if (process.env.NODE_ENV === 'development') {
+        installExtension(REDUX_DEVTOOLS)
+          .then((name) => log.info(`Added Extension: ${name}`))
+          .catch((err) => log.error('An error occurred: ', err))
+      }
+      ipcMain.handle('system:getDeviceType', () => {
+        return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
+      })
+    } catch (error) {
+      log.error('Error during app initialization:', error)
+      app.quit()
     }
-    ipcMain.handle('system:getDeviceType', () => {
-      return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
-    })
   })
 
   registerProtocolClient(app)

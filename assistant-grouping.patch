@@ -1,0 +1,2764 @@
+From 5a7222b777fc4b4cd209f8965f76162f921db3f4 Mon Sep 17 00:00:00 2001
+From: SiinXu <31815270+SiinXu@users.noreply.github.com>
+Date: Sun, 23 Mar 2025 21:37:49 +0800
+Subject: [PATCH] assistant and topic group feature related changes
+
+---
+ src/renderer/src/assets/styles/index.scss     |  48 +-
+ src/renderer/src/hooks/useAssistant.ts        | 124 +---
+ src/renderer/src/i18n/locales/en-us.json      | 540 +++++++++++-------
+ src/renderer/src/i18n/locales/zh-cn.json      | 471 ++++++++++-----
+ .../src/pages/home/Tabs/AssistantItem.tsx     | 208 +++----
+ src/renderer/src/utils/index.ts               | 215 +------
+ src/renderer/src/utils/safeArrayUtils.ts      | 136 -----
+ 7 files changed, 804 insertions(+), 938 deletions(-)
+ delete mode 100644 src/renderer/src/utils/safeArrayUtils.ts
+
+diff --git a/src/renderer/src/assets/styles/index.scss b/src/renderer/src/assets/styles/index.scss
+index eeacb10d..5531ec5a 100644
+--- a/src/renderer/src/assets/styles/index.scss
++++ b/src/renderer/src/assets/styles/index.scss
+@@ -10,7 +10,7 @@
+   --color-white-soft: rgba(255, 255, 255, 0.8);
+   --color-white-mute: rgba(255, 255, 255, 0.94);
+ 
+-  --color-black: #151515;
++  --color-black: #181818;
+   --color-black-soft: #222222;
+   --color-black-mute: #333333;
+ 
+@@ -35,9 +35,9 @@
+   --color-text: var(--color-text-1);
+   --color-icon: #ffffff99;
+   --color-icon-white: #ffffff;
+-  --color-border: #ffffff22;
+-  --color-border-soft: #ffffff11;
+-  --color-border-mute: #ffffff11;
++  --color-border: #ffffff15;
++  --color-border-soft: #ffffff10;
++  --color-border-mute: #ffffff05;
+   --color-error: #f44336;
+   --color-link: #1677ff;
+   --color-code-background: #323232;
+@@ -50,8 +50,8 @@
+   --color-reference-text: #ffffff;
+   --color-reference-background: #0b0e12;
+ 
+-  --navbar-background-mac: rgba(30, 30, 30, 0.6);
+-  --navbar-background: rgba(30, 30, 30);
++  --navbar-background-mac: rgba(20, 20, 20, 0.55);
++  --navbar-background: #1f1f1f;
+ 
+   --navbar-height: 40px;
+   --sidebar-width: 50px;
+@@ -70,6 +70,13 @@
+   --list-item-border-radius: 16px;
+ }
+ 
++body {
++  -webkit-user-select: none;
++  -moz-user-select: none;
++  -ms-user-select: none;
++  user-select: none;
++}
++
+ body[theme-mode='light'] {
+   --color-white: #ffffff;
+   --color-white-soft: #f2f2f2;
+@@ -100,9 +107,9 @@ body[theme-mode='light'] {
+   --color-text: var(--color-text-1);
+   --color-icon: #00000099;
+   --color-icon-white: #000000;
+-  --color-border: #00000028;
+-  --color-border-soft: #00000020;
+-  --color-border-mute: #00000010;
++  --color-border: #00000015;
++  --color-border-soft: #00000010;
++  --color-border-mute: #00000005;
+   --color-error: #f44336;
+   --color-link: #1677ff;
+   --color-code-background: #e3e3e3;
+@@ -115,8 +122,8 @@ body[theme-mode='light'] {
+   --color-reference-text: #000000;
+   --color-reference-background: #f1f7ff;
+ 
+-  --navbar-background-mac: rgba(255, 255, 255, 0.6);
+-  --navbar-background: rgba(255, 255, 255);
++  --navbar-background-mac: rgba(255, 255, 255, 0.55);
++  --navbar-background: rgba(244, 244, 244);
+ 
+   --chat-background: #f3f3f3;
+   --chat-background-user: #95ec69;
+@@ -151,14 +158,29 @@ body {
+   font-size: 14px;
+   line-height: 1.6;
+   overflow: hidden;
+-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
+-    'Helvetica Neue', sans-serif;
++  font-family:
++    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue',
++    sans-serif;
+   text-rendering: optimizeLegibility;
+   -webkit-font-smoothing: antialiased;
+   -moz-osx-font-smoothing: grayscale;
+   transition: background-color 0.3s linear;
+ }
+ 
++input,
++textarea,
++[contenteditable='true'],
++.markdown,
++#messages,
++.selectable,
++pre,
++code {
++  -webkit-user-select: text !important;
++  -moz-user-select: text !important;
++  -ms-user-select: text !important;
++  user-select: text !important;
++}
++
+ a {
+   -webkit-user-drag: none;
+ }
+diff --git a/src/renderer/src/hooks/useAssistant.ts b/src/renderer/src/hooks/useAssistant.ts
+index 7f53fbfd..c89c1dd3 100644
+--- a/src/renderer/src/hooks/useAssistant.ts
++++ b/src/renderer/src/hooks/useAssistant.ts
+@@ -3,91 +3,54 @@ import { getDefaultTopic } from '@renderer/services/AssistantService'
+ import { useAppDispatch, useAppSelector } from '@renderer/store'
+ import {
+   addAssistant,
+-  addGroup,
+   addTopic,
+   removeAllTopics,
+   removeAssistant,
+-  removeGroup,
+   removeTopic,
+   setModel,
+   updateAssistant,
+-  updateAssistantGroup,
+   updateAssistants,
+   updateAssistantSettings,
+   updateDefaultAssistant,
+-  updateGroup,
+-  updateGroupsOrder,
+   updateTopic,
+   updateTopics
+ } from '@renderer/store/assistants'
+ import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
+-import { Assistant, AssistantGroup, AssistantSettings, Model, Topic } from '@renderer/types'
+-import { safeFilter } from '@renderer/utils/safeArrayUtils'
+-import { v4 as uuid } from 'uuid'
++import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
+ 
+ import { TopicManager } from './useTopic'
+ 
+ export function useAssistants() {
+-  const assistantsState = useAppSelector((state) => state.assistants)
++  const { assistants } = useAppSelector((state) => state.assistants)
+   const dispatch = useAppDispatch()
+ 
+-  // 确保返回的数组始终是有效的，即使Redux状态为空
+-  const safeAssistants = assistantsState?.assistants || []
+-  const safeGroups = assistantsState?.groups || []
+-
+   return {
+-    assistants: safeAssistants,
+-    groups: safeGroups,
++    assistants,
+     updateAssistants: (assistants: Assistant[]) => dispatch(updateAssistants(assistants)),
+     addAssistant: (assistant: Assistant) => dispatch(addAssistant(assistant)),
+     removeAssistant: (id: string) => {
+       dispatch(removeAssistant({ id }))
+-      const assistant = safeFilter(safeAssistants, (a) => a.id === id)[0]
++      const assistant = assistants.find((a) => a.id === id)
+       const topics = assistant?.topics || []
+       topics.forEach(({ id }) => TopicManager.removeTopic(id))
+-    },
+-    addGroup: (group: AssistantGroup) => dispatch(addGroup(group)),
+-    updateGroup: (group: AssistantGroup) => dispatch(updateGroup(group)),
+-    removeGroup: (id: string) => dispatch(removeGroup({ id })),
+-    updateAssistantGroup: (assistantId: string, groupId?: string) =>
+-      dispatch(updateAssistantGroup({ assistantId, groupId })),
+-    updateGroupsOrder: (groups: AssistantGroup[]) => dispatch(updateGroupsOrder(groups))
++    }
+   }
+ }
+ 
+ export function useAssistant(id: string) {
+-  const assistantsState = useAppSelector((state) => state.assistants)
++  const assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id) as Assistant)
+   const dispatch = useAppDispatch()
+   const { defaultModel } = useDefaultModel()
+ 
+-  // 安全地获取助手对象，如果不存在返回一个带有默认值的对象
+-  const safeAssistants = assistantsState?.assistants || []
+-  const assistant =
+-    safeFilter(safeAssistants, (a) => a.id === id)[0] ||
+-    ({
+-      id: '',
+-      name: '默认助手',
+-      prompt: '',
+-      type: 'default',
+-      topics: [],
+-      model: defaultModel,
+-      defaultModel: defaultModel
+-    } as Assistant)
+-
+   return {
+     assistant,
+     model: assistant?.model ?? assistant?.defaultModel ?? defaultModel,
+-    addTopic: (topic: Topic) => {
+-      if (!assistant || !assistant.id) return
+-      dispatch(addTopic({ assistantId: assistant.id, topic }))
+-    },
++    addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
+     removeTopic: (topic: Topic) => {
+-      if (!assistant || !assistant.id) return
+       TopicManager.removeTopic(topic.id)
+       dispatch(removeTopic({ assistantId: assistant.id, topic }))
+     },
+     moveTopic: (topic: Topic, toAssistant: Assistant) => {
+-      if (!assistant || !assistant.id || !toAssistant || !toAssistant.id) return
+       dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
+       dispatch(removeTopic({ assistantId: assistant.id, topic }))
+       // update topic messages in database
+@@ -103,68 +66,12 @@ export function useAssistant(id: string) {
+           }
+         })
+     },
+-    duplicateTopic: async (topic: Topic, toAssistant: Assistant) => {
+-      if (!assistant || !assistant.id || !toAssistant || !toAssistant.id) return
+-
+-      // 创建新的话题ID
+-      const newTopicId = uuid()
+-
+-      // 复制话题基本信息，但使用新ID
+-      const newTopic: Topic = {
+-        ...topic,
+-        id: newTopicId,
+-        assistantId: toAssistant.id,
+-        groupId: undefined, // 复制到目标助手时，默认不分组
+-        updatedAt: new Date().toISOString(),
+-        messages: [] // 先设为空数组，稍后从数据库复制消息
+-      }
+-
+-      // 添加到目标助手
+-      dispatch(addTopic({ assistantId: toAssistant.id, topic: newTopic }))
+-
+-      // 从数据库复制消息
+-      try {
+-        const originalMessages = await TopicManager.getTopicMessages(topic.id)
+-        if (originalMessages && originalMessages.length > 0) {
+-          // 为每条消息创建新ID并更新助手ID
+-          const newMessages = originalMessages.map((message) => ({
+-            ...message,
+-            id: uuid(),
+-            topicId: newTopicId,
+-            assistantId: toAssistant.id
+-          }))
+-
+-          // 保存新消息到数据库
+-          await TopicManager.saveTopicMessages(newTopicId, newMessages)
+-        }
+-      } catch (error) {
+-        console.error('复制话题消息失败:', error)
+-      }
+-
+-      return newTopic
+-    },
+-    updateTopic: (topic: Topic) => {
+-      if (!assistant || !assistant.id) return
+-      dispatch(updateTopic({ assistantId: assistant.id, topic }))
+-    },
+-    updateTopics: (topics: Topic[]) => {
+-      if (!assistant || !assistant.id) return
+-      dispatch(updateTopics({ assistantId: assistant.id, topics }))
+-    },
+-    removeAllTopics: () => {
+-      if (!assistant || !assistant.id) return
+-      dispatch(removeAllTopics({ assistantId: assistant.id }))
+-    },
+-    setModel: (model: Model) => {
+-      if (!assistant || !assistant.id) return
+-      dispatch(setModel({ assistantId: assistant.id, model }))
+-    },
+-    updateAssistant: (assistant: Assistant) => {
+-      if (!assistant || !assistant.id) return
+-      dispatch(updateAssistant(assistant))
+-    },
++    updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
++    updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
++    removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
++    setModel: (model: Model) => dispatch(setModel({ assistantId: assistant.id, model })),
++    updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
+     updateAssistantSettings: (settings: Partial<AssistantSettings>) => {
+-      if (!assistant || !assistant.id) return
+       dispatch(updateAssistantSettings({ assistantId: assistant.id, settings }))
+     }
+   }
+@@ -187,16 +94,11 @@ export function useDefaultModel() {
+   const { defaultModel, topicNamingModel, translateModel } = useAppSelector((state) => state.llm)
+   const dispatch = useAppDispatch()
+ 
+-  console.debug('[useDefaultModel] current state:', { defaultModel, topicNamingModel, translateModel })
+-
+   return {
+     defaultModel,
+     topicNamingModel,
+     translateModel,
+-    setDefaultModel: (model: Model) => {
+-      console.debug('[setDefaultModel] setting model:', model)
+-      dispatch(setDefaultModel({ model }))
+-    },
++    setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
+     setTopicNamingModel: (model: Model) => dispatch(setTopicNamingModel({ model })),
+     setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model }))
+   }
+diff --git a/src/renderer/src/i18n/locales/en-us.json b/src/renderer/src/i18n/locales/en-us.json
+index abd9f00e..9952bd6f 100644
+--- a/src/renderer/src/i18n/locales/en-us.json
++++ b/src/renderer/src/i18n/locales/en-us.json
+@@ -32,31 +32,13 @@
+       "title": "Agents"
+     },
+     "assistants": {
+-      "abbr": "Assistants",
+-      "clear.content": "Clearing topics will delete all topics and files under this assistant, do you want to continue?",
+-      "clear.title": "Clear Topics",
++      "abbr": "Assistant",
++      "clear.content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
++      "clear.title": "Clear topics",
+       "copy.title": "Copy Assistant",
+-      "delete.content": "Deleting assistant will delete all topics and files under this assistant, do you want to continue?",
++      "delete.content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
+       "delete.title": "Delete Assistant",
+       "edit.title": "Edit Assistant",
+-      "ungrouped": "Ungrouped",
+-      "group": {
+-        "add": "Create Group",
+-        "edit": "Edit Group",
+-        "delete": {
+-          "title": "Delete Group",
+-          "content": "Are you sure you want to delete this group? All assistants in this group will be moved to ungrouped."
+-        },
+-        "name": "Group Name",
+-        "name.required": "Please enter a group name",
+-        "name.placeholder": "Please enter a group name",
+-        "description": "Group Description",
+-        "description.placeholder": "Please enter a group description (optional)"
+-      },
+-      "move_to_group": "Move to Group",
+-      "move_to_no_group": "Remove from Group",
+-      "moved_to_group": "Moved to group: {group}",
+-      "moved_to_no_group": "Removed from group",
+       "save.success": "Saved successfully",
+       "save.title": "Save to agent",
+       "search": "Search assistants...",
+@@ -80,6 +62,20 @@
+       "login": "Login",
+       "oauth_button": "Auth with {{provider}}"
+     },
++    "backup": {
++      "confirm": "Are you sure you want to backup data?",
++      "confirm.button": "Select Backup Location",
++      "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
++      "progress": {
++        "completed": "Backup completed",
++        "compressing": "Compressing files...",
++        "copying_files": "Copying files... {{progress}}%",
++        "preparing": "Preparing backup...",
++        "title": "Backup Progress",
++        "writing_data": "Writing data..."
++      },
++      "title": "Data Backup"
++    },
+     "button": {
+       "add": "Add",
+       "added": "Added",
+@@ -100,14 +96,27 @@
+       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
+       "default.name": "Default Assistant",
+       "default.topic.name": "Default Topic",
++      "history": {
++        "assistant_node": "Assistant",
++        "click_to_navigate": "Click to navigate to the message",
++        "coming_soon": "Chat workflow diagram coming soon",
++        "no_messages": "No Messages Found",
++        "start_conversation": "Start a conversation to see the chat flow diagram",
++        "title": "Chat History",
++        "user_node": "User",
++        "view_full_content": "View Full Content"
++      },
++      "input.auto_resize": "Auto resize height",
+       "input.clear": "Clear {{Command}}",
+       "input.clear.content": "Do you want to clear all messages of the current topic?",
+       "input.clear.title": "Clear all messages?",
+       "input.collapse": "Collapse",
+-      "input.context_count.tip": "Context Count",
++      "input.context_count.tip": "Context / Max Context",
+       "input.estimated_tokens.tip": "Estimated tokens",
+       "input.expand": "Expand",
+       "input.file_not_supported": "Model does not support this file type",
++      "input.generate_image": "Generate image",
++      "input.generate_image_not_supported": "The model does not support generating images.",
+       "input.knowledge_base": "Knowledge Base",
+       "input.new.context": "Clear Context {{Command}}",
+       "input.new_topic": "New Topic {{Command}}",
+@@ -123,13 +132,19 @@
+       "input.web_search.button.ok": "Go to Settings",
+       "input.web_search.enable": "Enable web search",
+       "input.web_search.enable_content": "Need to check web search connectivity in settings first",
+-      "input.auto_resize": "Auto resize height",
+       "message.new.branch": "New Branch",
+       "message.new.branch.created": "New Branch Created",
+       "message.new.context": "New Context",
++      "message.quote": "Quote",
+       "message.regenerate.model": "Switch Model",
+       "message.useful": "Helpful",
+-      "message.quote": "Quote",
++      "navigation": {
++        "first": "Already at the first message",
++        "history": "Chat History",
++        "last": "Already at the last message",
++        "next": "Next Message",
++        "prev": "Previous Message"
++      },
+       "resend": "Resend",
+       "save": "Save",
+       "settings.code_collapsible": "Code block collapsible",
+@@ -152,47 +167,61 @@
+       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
+       "suggestions.title": "Suggested Questions",
+       "thinking": "Thinking",
+-      "topics": {
+-        "auto_rename": "Auto Rename",
+-        "clear": {
+-          "title": "Clear Messages"
+-        },
+-        "copy": {
+-          "image": "Copy as image",
+-          "md": "Copy as markdown",
+-          "title": "Copy"
+-        },
+-        "delete": {
+-          "shortcut": "Hold {{key}} to delete directly",
+-          "title": "Delete Topic"
+-        },
+-        "duplicate_to": "Duplicate to",
+-        "edit": {
+-          "title": "Edit Topic"
+-        },
+-        "export": {
+-          "image": "Export as image",
+-          "md": "Export as markdown",
+-          "notion": "Export to Notion",
+-          "title": "Export",
+-          "word": "Export as Word",
+-          "yuque": "Export to Yuque"
+-        },
+-        "list": "Topic List",
+-
+-        "move_to": "Move to",
+-        "pinned": "Pinned Topics",
+-        "prompt": "Topic Prompts",
+-        "prompt.edit.title": "Edit Topic Prompts",
+-        "prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
+-        "title": "Topics",
+-
+-        "unpinned": "Unpinned Topics"
+-      },
++      "topics.auto_rename": "Auto Rename",
++      "topics.clear.title": "Clear Messages",
++      "topics.copy.image": "Copy as image",
++      "topics.copy.md": "Copy as markdown",
++      "topics.copy.title": "Copy",
++      "topics.delete.shortcut": "Hold {{key}} to delete directly",
++      "topics.edit.placeholder": "Enter new name",
++      "topics.edit.title": "Edit Name",
++      "topics.export.image": "Export as image",
++      "topics.export.joplin": "Export to Joplin",
++      "topics.export.md": "Export as markdown",
++      "topics.export.notion": "Export to Notion",
++      "topics.export.obsidian": "Export to Obsidian",
++      "topics.export.obsidian_atributes": "Configure Note Attributes",
++      "topics.export.obsidian_btn": "Confirm",
++      "topics.export.obsidian_created": "Creation Time",
++      "topics.export.obsidian_created_placeholder": "Please select the creation time",
++      "topics.export.obsidian_export_failed": "Export failed",
++      "topics.export.obsidian_export_success": "Export success",
++      "topics.export.obsidian_not_configured": "Obsidian not configured",
++      "topics.export.obsidian_operate": "Operation Method",
++      "topics.export.obsidian_operate_append": "Append",
++      "topics.export.obsidian_operate_new_or_overwrite": "Create New (Overwrite if it exists)",
++      "topics.export.obsidian_operate_placeholder": "Please select the operation method",
++      "topics.export.obsidian_operate_prepend": "Prepend",
++      "topics.export.obsidian_source": "Source",
++      "topics.export.obsidian_source_placeholder": "Please enter the source",
++      "topics.export.obsidian_tags": "Tags",
++      "topics.export.obsidian_tags_placeholder": "Please enter tags, separate multiple tags with commas",
++      "topics.export.obsidian_title": "Title",
++      "topics.export.obsidian_title_placeholder": "Please enter the title",
++      "topics.export.obsidian_title_required": "The title cannot be empty",
++      "topics.export.title": "Export",
++      "topics.export.word": "Export as Word",
++      "topics.export.yuque": "Export to Yuque",
++      "topics.list": "Topic List",
++      "topics.move_to": "Move to",
++      "topics.new": "New Topic",
++      "topics.pinned": "Pinned Topics",
++      "topics.prompt": "Topic Prompts",
++      "topics.prompt.edit.title": "Edit Topic Prompts",
++      "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
++      "topics.title": "Topics",
++      "topics.unpinned": "Unpinned Topics",
+       "translate": "Translate"
+     },
++    "code_block": {
++      "collapse": "Collapse",
++      "disable_wrap": "Unwrap",
++      "enable_wrap": "Wrap",
++      "expand": "Expand"
++    },
+     "common": {
+       "add": "Add",
++      "advanced_settings": "Advanced Settings",
+       "and": "and",
+       "assistant": "Assistant",
+       "avatar": "Avatar",
+@@ -201,7 +230,8 @@
+       "chat": "Chat",
+       "clear": "Clear",
+       "close": "Close",
+-      "confirm": "OK",
++      "confirm": "Confirm",
++      "copied": "Copied",
+       "copy": "Copy",
+       "cut": "Cut",
+       "default": "Default",
+@@ -211,6 +241,7 @@
+       "download": "Download",
+       "duplicate": "Duplicate",
+       "edit": "Edit",
++      "expand": "Expand",
+       "footnote": "Reference content",
+       "footnotes": "References",
+       "fullscreen": "Entered fullscreen mode. Press F11 to exit",
+@@ -218,6 +249,7 @@
+       "language": "Language",
+       "model": "Model",
+       "models": "Models",
++      "more": "More",
+       "name": "Name",
+       "paste": "Paste",
+       "prompt": "Prompt",
+@@ -255,7 +287,8 @@
+       "render": {
+         "description": "Failed to render formula. Please check if the formula format is correct",
+         "title": "Render Error"
+-      }
++      },
++      "user_message_not_found": "Cannot find original user message to resend"
+     },
+     "export": {
+       "assistant": "Assistant",
+@@ -287,6 +320,12 @@
+       "title": "Files",
+       "type": "Type"
+     },
++    "gpustack": {
++      "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
++      "keep_alive_time.placeholder": "Minutes",
++      "keep_alive_time.title": "Keep Alive Time",
++      "title": "GPUStack"
++    },
+     "history": {
+       "continue_chat": "Continue Chatting",
+       "locate.message": "Locate the message",
+@@ -356,6 +395,10 @@
+       "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
+       "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
+       "title": "Knowledge Base",
++      "topN": "Number of results returned",
++      "topN__too_large_or_small": "The number of results returned cannot be greater than 100 or less than 1.",
++      "topN_placeholder": "Not set",
++      "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
+       "url_added": "URL added",
+       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
+       "urls": "URLs"
+@@ -400,14 +443,20 @@
+       "api.connection.failed": "Connection failed",
+       "api.connection.success": "Connection successful",
+       "assistant.added.content": "Assistant added successfully",
++      "attachments": {
++        "pasted_image": "Pasted Image",
++        "pasted_text": "Pasted Text"
++      },
+       "backup.failed": "Backup failed",
+       "backup.start.success": "Backup started",
+       "backup.success": "Backup successful",
+       "chat.completion.paused": "Chat completion paused",
+       "citations": "References",
+       "copied": "Copied!",
++      "copy.failed": "Copy failed",
+       "copy.success": "Copied!",
+       "error.chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
++      "error.dimension_too_large": "Content size is too large",
+       "error.enter.api.host": "Please enter your API host first",
+       "error.enter.api.key": "Please enter your API key first",
+       "error.enter.model": "Please select a model first",
+@@ -418,21 +467,28 @@
+       "error.invalid.enter.model": "Please select a model",
+       "error.invalid.proxy.url": "Invalid proxy URL",
+       "error.invalid.webdav": "Invalid WebDAV settings",
++      "error.joplin.export": "Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
++      "error.joplin.no_config": "Joplin Authorization Token or URL is not configured",
++      "error.markdown.export.preconf": "Failed to export the Markdown file to the preconfigured path",
++      "error.markdown.export.specified": "Failed to export the Markdown file",
+       "error.notion.export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
+       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
+       "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
+       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
+-      "error.dimension_too_large": "Content size is too large",
+       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
+       "group.delete.title": "Delete Group Message",
+       "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",
+       "info.notion.block_reach_limit": "Dialogue too long, exporting to Notion in pages",
++      "loading.notion.exporting_progress": "Exporting to Notion ({{current}}/{{total}})...",
++      "loading.notion.preparing": "Preparing to export to Notion...",
+       "mention.title": "Switch model answer",
+       "message.code_style": "Code style",
+       "message.delete.content": "Are you sure you want to delete this message?",
+       "message.delete.title": "Delete Message",
+       "message.multi_model_style": "Multi-model response style",
+       "message.multi_model_style.fold": "Fold view",
++      "message.multi_model_style.fold.compress": "Switch to compact layout",
++      "message.multi_model_style.fold.expand": "Switch to expanded layout",
+       "message.multi_model_style.grid": "Grid layout",
+       "message.multi_model_style.horizontal": "Side by side",
+       "message.multi_model_style.vertical": "Stacked view",
+@@ -443,18 +499,26 @@
+       "reset.confirm.content": "Are you sure you want to clear all data?",
+       "reset.double.confirm.content": "All data will be lost, do you want to continue?",
+       "reset.double.confirm.title": "DATA LOST !!!",
+-      "restore.success": "Restored successfully",
+       "restore.failed": "Restore failed",
++      "restore.success": "Restored successfully",
+       "save.success.title": "Saved successfully",
+       "searching": "Searching the internet...",
++      "success.joplin.export": "Successfully exported to Joplin",
++      "success.markdown.export.preconf": "Successfully exported the Markdown file to the preconfigured path",
++      "success.markdown.export.specified": "Successfully exported the Markdown file",
+       "success.notion.export": "Successfully exported to Notion",
+       "success.yuque.export": "Successfully exported to Yuque",
+       "switch.disabled": "Please wait for the current reply to complete",
++      "tools": {
++        "completed": "Completed",
++        "invoking": "Invoking"
++      },
+       "topic.added": "New topic added",
+       "upgrade.success.button": "Restart",
+       "upgrade.success.content": "Please restart the application to complete the upgrade",
+       "upgrade.success.title": "Upgrade successfully",
+-      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!"
++      "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
++      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
+     },
+     "minapp": {
+       "sidebar.add.title": "Add to sidebar",
+@@ -489,10 +553,11 @@
+       "all": "All",
+       "custom_parameters": "Custom Parameters",
+       "dimensions": "Dimensions {{dimensions}}",
++      "edit": "Edit Model",
+       "embedding": "Embedding",
+       "embedding_model": "Embedding Model",
+       "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
+-      "free": "Free",
++      "function_calling": "Function Calling",
+       "no_matches": "No models available",
+       "parameter_name": "Parameter Name",
+       "parameter_type": {
+@@ -502,24 +567,27 @@
+         "string": "Text"
+       },
+       "pinned": "Pinned",
+-      "reasoning": "Reasoning",
++      "rerank_model": "Reordering Model",
++      "rerank_model_support_provider": "Currently, the reordering model only supports some providers ({{provider}})",
++      "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
+       "search": "Search models...",
+       "stream_output": "Stream output",
+       "type": {
+         "embedding": "Embedding",
++        "free": "Free",
++        "function_calling": "Tool",
+         "reasoning": "Reasoning",
++        "rerank": "Reordering",
+         "select": "Select Model Types",
+         "text": "Text",
+-        "vision": "Vision"
+-      },
+-      "vision": "Vision",
+-      "websearch": "WebSearch",
+-      "edit": "Edit Model"
++        "vision": "Vision",
++        "websearch": "WebSearch"
++      }
+     },
+     "navbar": {
+       "expand": "Expand Dialog",
+-      "show_sidebar": "Show Sidebar",
+-      "hide_sidebar": "Hide Sidebar"
++      "hide_sidebar": "Hide Sidebar",
++      "show_sidebar": "Show Sidebar"
+     },
+     "ollama": {
+       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
+@@ -566,12 +634,13 @@
+       "title": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols."
+     },
+     "provider": {
+-      "o3": "O3",
+       "aihubmix": "AiHubMix",
++      "alayanew": "Alaya NeW",
+       "anthropic": "Anthropic",
+       "azure-openai": "Azure OpenAI",
+       "baichuan": "Baichuan",
+       "baidu-cloud": "Baidu Cloud",
++      "copilot": "GitHub Copilot",
+       "dashscope": "Alibaba Cloud",
+       "deepseek": "DeepSeek",
+       "dmxapi": "DMXAPI",
+@@ -580,6 +649,7 @@
+       "gemini": "Gemini",
+       "gitee-ai": "Gitee AI",
+       "github": "GitHub Models",
++      "gpustack": "GPUStack",
+       "graphrag-kylin-mountain": "GraphRAG",
+       "grok": "Grok",
+       "groq": "Groq",
+@@ -593,6 +663,7 @@
+       "modelscope": "ModelScope",
+       "moonshot": "Moonshot",
+       "nvidia": "Nvidia",
++      "o3": "O3",
+       "ocoolai": "ocoolAI",
+       "ollama": "Ollama",
+       "openai": "OpenAI",
+@@ -602,12 +673,26 @@
+       "qwenlm": "QwenLM",
+       "silicon": "SiliconFlow",
+       "stepfun": "StepFun",
++      "tencent-cloud-ti": "Tencent Cloud TI",
+       "together": "Together",
++      "xirang": "State Cloud Xirang",
+       "yi": "Yi",
+       "zhinao": "360AI",
+-      "zhipu": "ZHIPU AI",
+-      "xirang": "State Cloud Xirang",
+-      "tencent-cloud-ti": "Tencent Cloud TI"
++      "zhipu": "ZHIPU AI"
++    },
++    "restore": {
++      "confirm": "Are you sure you want to restore data?",
++      "confirm.button": "Select Backup File",
++      "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
++      "progress": {
++        "completed": "Restore completed",
++        "copying_files": "Copying files... {{progress}}%",
++        "extracting": "Extracting backup...",
++        "preparing": "Preparing restore...",
++        "reading_data": "Reading data...",
++        "title": "Restore Progress"
++      },
++      "title": "Data Restore"
+     },
+     "settings": {
+       "about": "About & Feedback",
+@@ -631,17 +716,20 @@
+       "about.updateNotAvailable": "You are using the latest version",
+       "about.website.button": "Website",
+       "about.website.title": "Official Website",
++      "advanced.auto_switch_to_topics": "Auto switch to topic",
++      "advanced.title": "Advanced Settings",
+       "assistant": "Default Assistant",
+       "assistant.model_params": "Model Parameters",
++      "assistant.show.icon": "Show model icon",
+       "assistant.title": "Default Assistant",
+       "data": {
+         "app_data": "App Data",
+-        "app_logs": "App Logs",
+         "app_knowledge": "Knowledge Base Files",
+         "app_knowledge.button.delete": "Delete File",
+         "app_knowledge.remove_all": "Remove Knowledge Base Files",
+         "app_knowledge.remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
+         "app_knowledge.remove_all_success": "Files removed successfully",
++        "app_logs": "App Logs",
+         "clear_cache": {
+           "button": "Clear Cache",
+           "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
+@@ -652,6 +740,28 @@
+         "data.title": "Data Directory",
+         "hour_interval_one": "{{count}} hour",
+         "hour_interval_other": "{{count}} hours",
++        "joplin": {
++          "check": {
++            "button": "Check",
++            "empty_token": "Please enter Joplin Authorization Token",
++            "empty_url": "Please enter Joplin Clipper Service URL",
++            "fail": "Joplin connection verification failed",
++            "success": "Joplin connection verification successful"
++          },
++          "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
++          "title": "Joplin Configuration",
++          "token": "Joplin Authorization Token",
++          "token_placeholder": "Joplin Authorization Token",
++          "url": "Joplin Web Clipper Service URL",
++          "url_placeholder": "http://127.0.0.1:41184/"
++        },
++        "markdown_export.force_dollar_math.help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
++        "markdown_export.force_dollar_math.title": "Force $$ for LaTeX formulas",
++        "markdown_export.help": "If provided, exports will be automatically saved to this path; otherwise, a save dialog will appear.",
++        "markdown_export.path": "Default Export Path",
++        "markdown_export.path_placeholder": "Export Path",
++        "markdown_export.select": "Select",
++        "markdown_export.title": "Markdown Export",
+         "minute_interval_one": "{{count}} minute",
+         "minute_interval_other": "{{count}} minutes",
+         "notion.api_key": "Notion API Key",
+@@ -675,11 +785,22 @@
+         "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
+         "notion.split_size_placeholder": "Enter block limit per page (default 90)",
+         "notion.title": "Notion Configuration",
++        "obsidian": {
++          "folder": "Folder",
++          "folder_placeholder": "Please enter the folder name",
++          "tags": "Global Tags",
++          "tags_placeholder": "Please enter the tag name, separate multiple tags with commas",
++          "title": "Obsidian Configuration",
++          "vault": "Vault",
++          "vault_placeholder": "Please enter the vault name"
++        },
+         "title": "Data Settings",
+         "webdav": {
+           "autoSync": "Auto Backup",
+           "autoSync.off": "Off",
+           "backup.button": "Backup to WebDAV",
++          "backup.modal.filename.placeholder": "Please enter backup filename",
++          "backup.modal.title": "Backup to WebDAV",
+           "host": "WebDAV Host",
+           "host.placeholder": "http://localhost:8080",
+           "hour_interval_one": "{{count}} hour",
+@@ -692,7 +813,11 @@
+           "path": "WebDAV Path",
+           "path.placeholder": "/backup",
+           "restore.button": "Restore from WebDAV",
++          "restore.confirm.content": "Restoring from WebDAV will overwrite current data. Do you want to continue?",
++          "restore.confirm.title": "Confirm Restore",
+           "restore.content": "Restore from WebDAV will overwrite the current data, continue?",
++          "restore.modal.select.placeholder": "Please select a backup file to restore",
++          "restore.modal.title": "Restore from WebDAV",
+           "restore.title": "Restore from WebDAV",
+           "syncError": "Backup Error",
+           "syncStatus": "Backup Status",
+@@ -715,9 +840,10 @@
+           "token_placeholder": "Please enter the Yuque Token"
+         }
+       },
++      "display.assistant.title": "Assistant Settings",
+       "display.custom.css": "Custom CSS",
+-      "display.custom.css.placeholder": "/* Put custom CSS here */",
+       "display.custom.css.cherrycss": "Get from cherrycss.com",
++      "display.custom.css.placeholder": "/* Put custom CSS here */",
+       "display.minApp.disabled": "Hidden MinApp",
+       "display.minApp.empty": "Drag minApp from the left to hide them here",
+       "display.minApp.title": "MinApp  Settings",
+@@ -733,14 +859,15 @@
+       "display.sidebar.translate.icon": "Show Translate icon",
+       "display.sidebar.visible": "Show icons",
+       "display.title": "Display Settings",
+-      "display.group.title": "Group Settings",
+       "display.topic.title": "Topic Settings",
+-      "display.assistant.title": "Assistant Settings",
+       "font_size.title": "Message font size",
+       "general": "General Settings",
++      "general.avatar.reset": "Reset Avatar",
+       "general.backup.button": "Backup",
+       "general.backup.title": "Data Backup and Recovery",
+       "general.display.title": "Display Settings",
++      "general.emoji_picker": "Emoji Picker",
++      "general.image_upload": "Image Upload",
+       "general.manually_check_update.title": "Turn off update checking",
+       "general.reset.button": "Reset",
+       "general.reset.title": "Data Reset",
+@@ -748,9 +875,6 @@
+       "general.title": "General Settings",
+       "general.user_name": "User Name",
+       "general.user_name.placeholder": "Enter your name",
+-      "general.image_upload": "Image Upload",
+-      "general.emoji_picker": "Emoji Picker",
+-      "general.avatar.reset": "Reset Avatar",
+       "general.view_webdav_settings": "View WebDAV settings",
+       "input.auto_translate_with_space": "Quickly translate with 3 spaces",
+       "input.target_language": "Target language",
+@@ -759,6 +883,69 @@
+       "input.target_language.english": "English",
+       "input.target_language.japanese": "Japanese",
+       "input.target_language.russian": "Russian",
++      "launch.onboot": "Start Automatically on Boot",
++      "launch.title": "Launch",
++      "launch.totray": "Minimize to Tray on Launch",
++      "mcp": {
++        "actions": "Actions",
++        "active": "Active",
++        "addError": "Failed to add server",
++        "addServer": "Add Server",
++        "addSuccess": "Server added successfully",
++        "args": "Arguments",
++        "argsTooltip": "Each argument on a new line",
++        "baseUrlTooltip": "Remote server base URL",
++        "command": "Command",
++        "commandRequired": "Please enter a command",
++        "config_description": "Configure Model Context Protocol servers",
++        "confirmDelete": "Delete Server",
++        "confirmDeleteMessage": "Are you sure you want to delete the server?",
++        "deleteError": "Failed to delete server",
++        "deleteSuccess": "Server deleted successfully",
++        "dependenciesInstall": "Install Dependencies",
++        "dependenciesInstalling": "Installing dependencies...",
++        "description": "Description",
++        "duplicateName": "A server with this name already exists",
++        "editJson": "Edit JSON",
++        "editServer": "Edit Server",
++        "env": "Environment Variables",
++        "envTooltip": "Format: KEY=value, one per line",
++        "findMore": "Find More MCP Servers",
++        "install": "Install",
++        "installError": "Failed to install dependencies",
++        "installSuccess": "Dependencies installed successfully",
++        "jsonFormatError": "JSON formatting error",
++        "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
++        "jsonSaveError": "Failed to save JSON configuration.",
++        "jsonSaveSuccess": "JSON configuration has been saved.",
++        "missingDependencies": "is Missing, please install it to continue.",
++        "name": "Name",
++        "nameRequired": "Please enter a server name",
++        "noServers": "No servers configured",
++        "npx_list": {
++          "actions": "Actions",
++          "desc": "Search and add npm packages as MCP servers",
++          "description": "Description",
++          "no_packages": "No packages found",
++          "npm": "NPM",
++          "package_name": "Package Name",
++          "scope_placeholder": "Enter npm scope (e.g. @your-org)",
++          "scope_required": "Please enter npm scope",
++          "search": "Search",
++          "search_error": "Search error",
++          "title": "NPX Package List",
++          "usage": "Usage",
++          "version": "Version"
++        },
++        "serverPlural": "servers",
++        "serverSingular": "server",
++        "title": "MCP Servers",
++        "toggleError": "Toggle failed",
++        "type": "Type",
++        "updateError": "Failed to update server",
++        "updateSuccess": "Server updated successfully",
++        "url": "URL"
++      },
+       "messages.divider": "Show divider between messages",
+       "messages.grid_columns": "Message grid display columns",
+       "messages.grid_popover_trigger": "Grid detail trigger",
+@@ -773,6 +960,10 @@
+       "messages.math_engine": "Math engine",
+       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
+       "messages.model.title": "Model Settings",
++      "messages.navigation": "Message Navigation",
++      "messages.navigation.anchor": "Message Anchor",
++      "messages.navigation.buttons": "Navigation Buttons",
++      "messages.navigation.none": "None",
+       "messages.title": "Message Settings",
+       "messages.use_serif_font": "Use serif font",
+       "model": "Default Model",
+@@ -785,12 +976,28 @@
+       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
+       "models.add.model_name": "Model Name",
+       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
+-      "models.manage.add_whole_group": "Add the whole group",
+-      "models.manage.remove_whole_group": "Remove the whole group",
++      "models.check.all": "All",
++      "models.check.all_models_passed": "All models check passed",
++      "models.check.button_caption": "Health check",
++      "models.check.disabled": "Disabled",
++      "models.check.enable_concurrent": "Concurrent",
++      "models.check.enabled": "Enabled",
++      "models.check.failed": "Failed",
++      "models.check.keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
++      "models.check.model_status_summary": "{{provider}}: {{count_passed}} models passed health checks ({{count_partial}} models had inaccessible keys), {{count_failed}} models completely inaccessible.",
++      "models.check.no_api_keys": "No API keys found, please add API keys first.",
++      "models.check.passed": "Passed",
++      "models.check.select_api_key": "Select the API key to use:",
++      "models.check.single": "Single",
++      "models.check.start": "Start",
++      "models.check.title": "Model health check",
++      "models.check.use_all_keys": "Key(s)",
+       "models.default_assistant_model": "Default Assistant Model",
+       "models.default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
+       "models.empty": "No models found",
+       "models.enable_topic_naming": "Topic Auto Naming",
++      "models.manage.add_whole_group": "Add the whole group",
++      "models.manage.remove_whole_group": "Remove the whole group",
+       "models.topic_naming_model": "Topic Naming Model",
+       "models.topic_naming_model_description": "Model used when automatically naming a new topic",
+       "models.topic_naming_model_setting_title": "Topic Naming Model Settings",
+@@ -800,9 +1007,9 @@
+       "models.translate_model_prompt_message": "Please enter the translate model prompt",
+       "models.translate_model_prompt_title": "Translate Model Prompt",
+       "moresetting": "More Settings",
+-      "moresetting.warn": "Risk Warning",
+-      "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
+       "moresetting.check.confirm": "Confirm Selection",
++      "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
++      "moresetting.warn": "Risk Warning",
+       "provider": {
+         "add.name": "Provider Name",
+         "add.name.placeholder": "Example: OpenAI",
+@@ -819,18 +1026,43 @@
+         "check": "Check",
+         "check_all_keys": "Check All Keys",
+         "check_multiple_keys": "Check Multiple API Keys",
++        "copilot": {
++          "auth_failed": "Github Copilot authentication failed.",
++          "auth_success": "GitHub Copilot authentication successful.",
++          "auth_success_title": "Certification successful.",
++          "code_failed": "Failed to obtain Device Code, please try again.",
++          "code_generated_desc": "Please copy the device code into the browser link below.",
++          "code_generated_title": "Obtain Device Code",
++          "confirm_login": "Excessive use may lead to your Github account being banned, please use it cautiously!!!!",
++          "confirm_title": "Risk Warning",
++          "connect": "Connect to Github",
++          "custom_headers": "Custom request header",
++          "description": "Your GitHub account needs to subscribe to Copilot.",
++          "expand": "Expand",
++          "headers_description": "Custom request headers (JSON format)",
++          "invalid_json": "JSON format error",
++          "login": "Log in to Github",
++          "logout": "Exit GitHub",
++          "logout_failed": "Exit failed, please try again.",
++          "logout_success": "Successfully logged out.",
++          "model_setting": "Model settings",
++          "open_verification_first": "Please click the link above to access the verification page.",
++          "rate_limit": "Rate limiting",
++          "tooltip": "You need to log in to Github before using Github Copilot"
++        },
+         "delete.content": "Are you sure you want to delete this provider?",
+         "delete.title": "Delete Provider",
+         "docs_check": "Check",
+         "docs_more_details": "for more details",
+         "get_api_key": "Get API Key",
++        "is_not_support_array_content": "Enable compatible mode",
+         "no_models": "Please add models first before checking the API connection",
+         "not_checked": "Not Checked",
+         "remove_duplicate_keys": "Remove Duplicate Keys",
+         "remove_invalid_keys": "Remove Invalid Keys",
++        "search": "Search Providers...",
+         "search_placeholder": "Search model id or name",
+-        "title": "Model Provider",
+-        "search": "Search Providers..."
++        "title": "Model Provider"
+       },
+       "proxy": {
+         "mode": {
+@@ -845,15 +1077,10 @@
+       "quickAssistant": {
+         "click_tray_to_show": "Click the tray icon to start",
+         "enable_quick_assistant": "Enable Quick Assistant",
++        "read_clipboard_at_startup": "Read clipboard at startup",
+         "title": "Quick Assistant",
+         "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+       },
+-      "advanced": {
+-        "title": "Advanced Settings",
+-        "assistantGroup": "Assistant Group",
+-        "topicsGroup": "Topics Group",
+-        "auto_switch_to_topics": "Auto switch to topic"
+-      },
+       "shortcuts": {
+         "action": "Action",
+         "clear_shortcut": "Clear Shortcut",
+@@ -875,8 +1102,7 @@
+         "toggle_show_topics": "Toggle Topics",
+         "zoom_in": "Zoom In",
+         "zoom_out": "Zoom Out",
+-        "zoom_reset": "Reset Zoom",
+-        "lock_topic": "Lock/Unlock Topic"
++        "zoom_reset": "Reset Zoom"
+       },
+       "theme.auto": "Auto",
+       "theme.dark": "Dark",
+@@ -890,10 +1116,24 @@
+       "topic.position.left": "Left",
+       "topic.position.right": "Right",
+       "topic.show.time": "Show topic time",
+-      "assistant.show.icon": "Show model icon",
+-      "tray.title": "Enable System Tray Icon",
++      "tray.onclose": "Minimize to Tray on Close",
++      "tray.show": "Show Tray Icon",
++      "tray.title": "Tray",
+       "websearch": {
++        "blacklist": "Blacklist",
++        "blacklist_description": "Results from the following websites will not appear in search results",
++        "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
++        "check": "Check",
++        "check_failed": "Verification failed",
++        "check_success": "Verification successful",
++        "enhance_mode": "Search enhance mode",
++        "enhance_mode_tooltip": "Use the default model to extract search keywords from the problem and search",
+         "get_api_key": "Get API Key",
++        "no_provider_selected": "Please select a search service provider before checking.",
++        "search_max_result": "Number of search results",
++        "search_provider": "Search service provider",
++        "search_provider_placeholder": "Choose a search service provider.",
++        "search_result_default": "Default",
+         "search_with_time": "Search with dates included",
+         "tavily": {
+           "api_key": "Tavily API Key",
+@@ -901,65 +1141,9 @@
+           "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+           "title": "Tavily"
+         },
+-        "title": "Web Search",
+-        "blacklist": "Blacklist",
+-        "blacklist_description": "Results from the following websites will not appear in search results",
+-        "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+-        "search_max_result": "Number of search results",
+-        "search_result_default": "Default",
+-        "check": "Check",
+-        "search_provider": "Search service provider",
+-        "search_provider_placeholder": "Choose a search service provider.",
+-        "no_provider_selected": "Please select a search service provider before checking.",
+-        "check_failed": "Verification failed"
+-      },
+-      "mcp": {
+-        "title": "MCP Servers",
+-        "config_description": "Configure Model Context Protocol servers",
+-        "description": "Description",
+-        "addServer": "Add Server",
+-        "editServer": "Edit Server",
+-        "name": "Name",
+-        "type": "Type",
+-        "url": "URL",
+-        "command": "Command",
+-        "args": "Arguments",
+-        "argsTooltip": "Each argument on a new line",
+-        "env": "Environment Variables",
+-        "envTooltip": "Format: KEY=value, one per line",
+-        "active": "Active",
+-        "actions": "Actions",
+-        "noServers": "No servers configured",
+-        "nameRequired": "Please enter a server name",
+-        "commandRequired": "Please enter a command",
+-        "confirmDelete": "Delete Server",
+-        "confirmDeleteMessage": "Are you sure you want to delete the server?",
+-        "addSuccess": "Server added successfully",
+-        "updateSuccess": "Server updated successfully",
+-        "deleteSuccess": "Server deleted successfully",
+-        "duplicateName": "A server with this name already exists",
+-        "serverSingular": "server",
+-        "serverPlural": "servers"
++        "title": "Web Search"
+       }
+     },
+-    "topics": {
+-      "add": "Add Topic",
+-      "group": {
+-        "add": "Add Group",
+-        "edit": "Edit Group",
+-        "name": "Group Name",
+-        "name.required": "Please enter group name",
+-        "name.placeholder": "Enter group name",
+-        "description": "Group Description",
+-        "description.placeholder": "Enter group description (optional)"
+-      },
+-      
+-      "move_to_group": "Move to Group",
+-      "no_group": "No Group",
+-      "new": "New Topic",
+-      
+-      "ungrouped": "Ungrouped"
+-    },
+     "translate": {
+       "any.language": "Any language",
+       "button.translate": "Translate",
+@@ -980,6 +1164,8 @@
+       "input.placeholder": "Enter text to translate",
+       "output.placeholder": "Translation",
+       "processing": "Translation in progress...",
++      "scroll_sync.disable": "Disable synced scroll",
++      "scroll_sync.enable": "Enable synced scroll",
+       "title": "Translation",
+       "tooltip.newline": "Newline"
+     },
+@@ -993,40 +1179,6 @@
+       "quit": "Quit",
+       "show_window": "Show Window",
+       "visualization": "Visualization"
+-    },
+-    "code_block": {
+-      "enable_wrap": "Wrap",
+-      "disable_wrap": "Unwrap",
+-      "expand": "Expand",
+-      "collapse": "Collapse"
+-    },
+-    "backup": {
+-      "title": "Data Backup",
+-      "confirm": "Are you sure you want to backup data?",
+-      "confirm.button": "Select Backup Location",
+-      "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+-      "progress": {
+-        "title": "Backup Progress",
+-        "preparing": "Preparing backup...",
+-        "writing_data": "Writing data...",
+-        "copying_files": "Copying files... {{progress}}%",
+-        "compressing": "Compressing files...",
+-        "completed": "Backup completed"
+-      }
+-    },
+-    "restore": {
+-      "title": "Data Restore",
+-      "confirm": "Are you sure you want to restore data?",
+-      "confirm.button": "Select Backup File",
+-      "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+-      "progress": {
+-        "title": "Restore Progress",
+-        "preparing": "Preparing restore...",
+-        "extracting": "Extracting backup...",
+-        "reading_data": "Reading data...",
+-        "copying_files": "Copying files... {{progress}}%",
+-        "completed": "Restore completed"
+-      }
+     }
+   }
+ }
+diff --git a/src/renderer/src/i18n/locales/zh-cn.json b/src/renderer/src/i18n/locales/zh-cn.json
+index 6e42539c..12457f23 100644
+--- a/src/renderer/src/i18n/locales/zh-cn.json
++++ b/src/renderer/src/i18n/locales/zh-cn.json
+@@ -39,24 +39,6 @@
+       "delete.content": "删除助手会删除所有该助手下的话题和文件，确定要继续吗？",
+       "delete.title": "删除助手",
+       "edit.title": "编辑助手",
+-      "ungrouped": "未分组",
+-      "group": {
+-        "add": "创建分组",
+-        "edit": "编辑分组",
+-        "delete": {
+-          "title": "删除分组",
+-          "content": "确定要删除此分组吗？该分组中的所有助手将被移至未分组。"
+-        },
+-        "name": "分组名称",
+-        "name.required": "请输入分组名称",
+-        "name.placeholder": "请输入分组名称",
+-        "description": "分组描述",
+-        "description.placeholder": "请输入分组描述（可选）"
+-      },
+-      "move_to_group": "移动到分组",
+-      "move_to_no_group": "移出分组",
+-      "moved_to_group": "已移动到分组：{group}",
+-      "moved_to_no_group": "已移出分组",
+       "save.success": "保存成功",
+       "save.title": "保存到智能体",
+       "search": "搜索助手",
+@@ -80,6 +62,20 @@
+       "login": "登录",
+       "oauth_button": "使用{{provider}}登录"
+     },
++    "backup": {
++      "confirm": "确定要备份数据吗？",
++      "confirm.button": "选择备份位置",
++      "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
++      "progress": {
++        "completed": "备份完成",
++        "compressing": "压缩文件...",
++        "copying_files": "复制文件... {{progress}}%",
++        "preparing": "准备备份...",
++        "title": "备份进度",
++        "writing_data": "写入数据..."
++      },
++      "title": "数据备份"
++    },
+     "button": {
+       "add": "添加",
+       "added": "已添加",
+@@ -100,14 +96,27 @@
+       "default.description": "你好，我是默认助手。你可以立刻开始跟我聊天。",
+       "default.name": "默认助手",
+       "default.topic.name": "默认话题",
++      "history": {
++        "assistant_node": "助手",
++        "click_to_navigate": "点击跳转到对应消息",
++        "coming_soon": "聊天工作流图表即将上线",
++        "no_messages": "没有找到消息",
++        "start_conversation": "开始对话以查看聊天流程图",
++        "title": "聊天历史",
++        "user_node": "用户",
++        "view_full_content": "查看完整内容"
++      },
++      "input.auto_resize": "自动调整高度",
+       "input.clear": "清空消息 {{Command}}",
+       "input.clear.content": "确定要清除当前会话所有消息吗?",
+       "input.clear.title": "清空消息",
+       "input.collapse": "收起",
+-      "input.context_count.tip": "上下文数",
++      "input.context_count.tip": "上下文数 / 最大上下文数",
+       "input.estimated_tokens.tip": "预估 token 数",
+       "input.expand": "展开",
+       "input.file_not_supported": "模型不支持此文件类型",
++      "input.generate_image": "生成图片",
++      "input.generate_image_not_supported": "模型不支持生成图片",
+       "input.knowledge_base": "知识库",
+       "input.new.context": "清除上下文 {{Command}}",
+       "input.new_topic": "新话题 {{Command}}",
+@@ -123,13 +132,19 @@
+       "input.web_search.button.ok": "去设置",
+       "input.web_search.enable": "开启网络搜索",
+       "input.web_search.enable_content": "需要先在设置中检查网络搜索连通性",
+-      "input.auto_resize": "自动调整高度",
+       "message.new.branch": "分支",
+       "message.new.branch.created": "新分支已创建",
+       "message.new.context": "清除上下文",
++      "message.quote": "引用",
+       "message.regenerate.model": "切换模型",
+       "message.useful": "有用",
+-      "message.quote": "引用",
++      "navigation": {
++        "first": "已经是第一条消息",
++        "history": "聊天历史",
++        "last": "已经是最后一条消息",
++        "next": "下一条消息",
++        "prev": "上一条消息"
++      },
+       "resend": "重新发送",
+       "save": "保存",
+       "settings.code_collapsible": "代码块可折叠",
+@@ -161,26 +176,52 @@
+       "topics.edit.placeholder": "输入新名称",
+       "topics.edit.title": "编辑话题名",
+       "topics.export.image": "导出为图片",
++      "topics.export.joplin": "导出到 Joplin",
+       "topics.export.md": "导出为 Markdown",
+       "topics.export.notion": "导出到 Notion",
++      "topics.export.obsidian": "导出到 Obsidian",
++      "topics.export.obsidian_atributes": "配置笔记属性",
++      "topics.export.obsidian_btn": "确定",
++      "topics.export.obsidian_created": "创建时间",
++      "topics.export.obsidian_created_placeholder": "请选择创建时间",
++      "topics.export.obsidian_export_failed": "导出失败",
++      "topics.export.obsidian_export_success": "导出成功",
++      "topics.export.obsidian_not_configured": "Obsidian 未配置",
++      "topics.export.obsidian_operate": "处理方式",
++      "topics.export.obsidian_operate_append": "追加",
++      "topics.export.obsidian_operate_new_or_overwrite": "新建（如果存在就覆盖）",
++      "topics.export.obsidian_operate_placeholder": "请选择处理方式",
++      "topics.export.obsidian_operate_prepend": "前置",
++      "topics.export.obsidian_source": "来源",
++      "topics.export.obsidian_source_placeholder": "请输入来源",
++      "topics.export.obsidian_tags": "标签",
++      "topics.export.obsidian_tags_placeholder": "请输入标签，多个标签用英文逗号分隔",
++      "topics.export.obsidian_title": "标题",
++      "topics.export.obsidian_title_placeholder": "请输入标题",
++      "topics.export.obsidian_title_required": "标题不能为空",
+       "topics.export.title": "导出",
+       "topics.export.word": "导出为 Word",
+       "topics.export.yuque": "导出到语雀",
+       "topics.list": "话题列表",
+-    
+       "topics.move_to": "移动到",
++      "topics.new": "开始新对话",
+       "topics.pinned": "固定话题",
+       "topics.prompt": "话题提示词",
+       "topics.prompt.edit.title": "编辑话题提示词",
+       "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词",
+       "topics.title": "话题",
+-
+       "topics.unpinned": "取消固定",
+-      "translate": "翻译",
+-      "topics.duplicate_to": "复制到"
++      "translate": "翻译"
++    },
++    "code_block": {
++      "collapse": "收起",
++      "disable_wrap": "取消换行",
++      "enable_wrap": "换行",
++      "expand": "展开"
+     },
+     "common": {
+       "add": "添加",
++      "advanced_settings": "高级设置",
+       "and": "和",
+       "assistant": "智能体",
+       "avatar": "头像",
+@@ -189,7 +230,8 @@
+       "chat": "聊天",
+       "clear": "清除",
+       "close": "关闭",
+-      "confirm": "OK",
++      "confirm": "确认",
++      "copied": "已复制",
+       "copy": "复制",
+       "cut": "剪切",
+       "default": "默认",
+@@ -199,6 +241,7 @@
+       "download": "下载",
+       "duplicate": "复制",
+       "edit": "编辑",
++      "expand": "展开",
+       "footnote": "引用内容",
+       "footnotes": "引用内容",
+       "fullscreen": "已进入全屏模式，按 F11 退出",
+@@ -206,6 +249,7 @@
+       "language": "语言",
+       "model": "模型",
+       "models": "模型",
++      "more": "更多",
+       "name": "名称",
+       "paste": "粘贴",
+       "prompt": "提示词",
+@@ -243,7 +287,8 @@
+       "render": {
+         "description": "渲染公式失败，请检查公式格式是否正确",
+         "title": "渲染错误"
+-      }
++      },
++      "user_message_not_found": "无法找到原始用户消息"
+     },
+     "export": {
+       "assistant": "助手",
+@@ -275,6 +320,12 @@
+       "title": "文件",
+       "type": "类型"
+     },
++    "gpustack": {
++      "keep_alive_time.description": "模型在内存中保持的时间（默认：5分钟）",
++      "keep_alive_time.placeholder": "分钟",
++      "keep_alive_time.title": "保持活跃时间",
++      "title": "GPUStack"
++    },
+     "history": {
+       "continue_chat": "继续聊天",
+       "locate.message": "定位到消息",
+@@ -306,9 +357,9 @@
+       "delete_confirm": "确定要删除此知识库吗?",
+       "directories": "目录",
+       "directory_placeholder": "请输入目录路径",
+-      "document_count": "请求文档分段数量",
++      "document_count": "请求文档片段数量",
+       "document_count_default": "默认",
+-      "document_count_help": "请求文档分段数量越多，附带的信息越多，但需要消耗的 Token 也越多",
++      "document_count_help": "请求文档片段数量越多，附带的信息越多，但需要消耗的 Token 也越多",
+       "drag_file": "拖拽文件到这里",
+       "edit_remark": "修改备注",
+       "edit_remark_placeholder": "请输入备注内容",
+@@ -344,6 +395,10 @@
+       "threshold_too_large_or_small": "阈值不能大于1或小于0",
+       "threshold_tooltip": "用于衡量用户问题与知识库内容之间的相关性（0-1）",
+       "title": "知识库",
++      "topN": "返回结果数量",
++      "topN__too_large_or_small": "返回结果数量不能大于100或小于1",
++      "topN_placeholder": "未设置",
++      "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
+       "url_added": "网址已添加",
+       "url_placeholder": "请输入网址, 多个网址用回车分隔",
+       "urls": "网址"
+@@ -388,14 +443,20 @@
+       "api.connection.failed": "连接失败",
+       "api.connection.success": "连接成功",
+       "assistant.added.content": "智能体添加成功",
++      "attachments": {
++        "pasted_image": "剪切板图片",
++        "pasted_text": "剪切板文件"
++      },
+       "backup.failed": "备份失败",
+       "backup.start.success": "开始备份",
+       "backup.success": "备份成功",
+       "chat.completion.paused": "会话已停止",
+       "citations": "引用内容",
+       "copied": "已复制",
++      "copy.failed": "复制失败",
+       "copy.success": "复制成功",
+       "error.chunk_overlap_too_large": "分段重叠不能大于分段大小",
++      "error.dimension_too_large": "内容尺寸过大",
+       "error.enter.api.host": "请输入您的 API 地址",
+       "error.enter.api.key": "请输入您的 API 密钥",
+       "error.enter.model": "请选择一个模型",
+@@ -406,21 +467,28 @@
+       "error.invalid.enter.model": "请选择一个模型",
+       "error.invalid.proxy.url": "无效的代理地址",
+       "error.invalid.webdav": "无效的 WebDAV 设置",
++      "error.joplin.export": "导出 Joplin 失败，请保持 Joplin 已运行并检查连接状态或检查配置",
++      "error.joplin.no_config": "未配置 Joplin 授权令牌 或 URL",
++      "error.markdown.export.preconf": "导出Markdown文件到预先设定的路径失败",
++      "error.markdown.export.specified": "导出Markdown文件失败",
+       "error.notion.export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
+       "error.notion.no_api_key": "未配置 Notion API Key 或 Notion Database ID",
+       "error.yuque.export": "导出语雀错误，请检查连接状态并对照文档检查配置",
+       "error.yuque.no_config": "未配置语雀 Token 或 知识库 URL",
+-      "error.dimension_too_large": "内容尺寸过大",
+       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
+       "group.delete.title": "删除分组消息",
+       "ignore.knowledge.base": "联网模式开启，忽略知识库",
+       "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion",
++      "loading.notion.exporting_progress": "正在导出到Notion ({{current}}/{{total}})...",
++      "loading.notion.preparing": "正在准备导出到Notion...",
+       "mention.title": "切换模型回答",
+       "message.code_style": "代码风格",
+       "message.delete.content": "确定要删除此消息吗?",
+       "message.delete.title": "删除消息",
+       "message.multi_model_style": "多模型回答样式",
+       "message.multi_model_style.fold": "标签模式",
++      "message.multi_model_style.fold.compress": "切换到紧凑排列",
++      "message.multi_model_style.fold.expand": "切换到展开排列",
+       "message.multi_model_style.grid": "卡片布局",
+       "message.multi_model_style.horizontal": "横向排列",
+       "message.multi_model_style.vertical": "纵向堆叠",
+@@ -431,18 +499,26 @@
+       "reset.confirm.content": "确定要重置所有数据吗？",
+       "reset.double.confirm.content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
+       "reset.double.confirm.title": "数据丢失！！！",
+-      "restore.success": "恢复成功",
+       "restore.failed": "恢复失败",
++      "restore.success": "恢复成功",
+       "save.success.title": "保存成功",
+       "searching": "正在联网搜索...",
+-      "success.notion.export": "成功导出到Notion",
++      "success.joplin.export": "成功导出到 Joplin",
++      "success.markdown.export.preconf": "成功导出 Markdown 文件到预先设定的路径",
++      "success.markdown.export.specified": "成功导出 Markdown 文件",
++      "success.notion.export": "成功导出到 Notion",
+       "success.yuque.export": "成功导出到语雀",
+       "switch.disabled": "请等待当前回复完成后操作",
++      "tools": {
++        "completed": "已完成",
++        "invoking": "调用中"
++      },
+       "topic.added": "话题添加成功",
+       "upgrade.success.button": "重启",
+       "upgrade.success.content": "重启用以完成升级",
+       "upgrade.success.title": "升级成功",
+-      "warn.notion.exporting": "正在导出到Notion, 请勿重复请求导出!"
++      "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!",
++      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
+     },
+     "minapp": {
+       "sidebar.add.title": "添加到侧边栏",
+@@ -477,10 +553,12 @@
+       "all": "全部",
+       "custom_parameters": "自定义参数",
+       "dimensions": "{{dimensions}} 维",
++      "edit": "编辑模型",
+       "embedding": "嵌入",
+       "embedding_model": "嵌入模型",
+       "embedding_model_tooltip": "在设置->模型服务中点击管理按钮添加",
+-      "free": "免费",
++      "function_calling": "函数调用",
++      "no_matches": "无可用模型",
+       "parameter_name": "参数名称",
+       "parameter_type": {
+         "boolean": "布尔值",
+@@ -489,25 +567,27 @@
+         "string": "文本"
+       },
+       "pinned": "已固定",
+-      "reasoning": "推理",
++      "rerank_model": "重排模型",
++      "rerank_model_support_provider": "目前重排序模型仅支持部分服务商 ({{provider}})",
++      "rerank_model_tooltip": "在设置->模型服务中点击管理按钮添加",
+       "search": "搜索模型...",
+       "stream_output": "流式输出",
+       "type": {
+         "embedding": "嵌入",
++        "free": "免费",
++        "function_calling": "工具",
+         "reasoning": "推理",
++        "rerank": "重排",
+         "select": "选择模型类型",
+         "text": "文本",
+-        "vision": "图像"
+-      },
+-      "vision": "视觉",
+-      "websearch": "联网",
+-      "edit": "编辑模型", 
+-      "no_matches": "无可用模型"
++        "vision": "视觉",
++        "websearch": "联网"
++      }
+     },
+     "navbar": {
+       "expand": "伸缩对话框",
+-      "show_sidebar": "显示侧边栏",
+-      "hide_sidebar": "隐藏侧边栏"
++      "hide_sidebar": "隐藏侧边栏",
++      "show_sidebar": "显示侧边栏"
+     },
+     "ollama": {
+       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
+@@ -554,12 +634,13 @@
+       "title": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号"
+     },
+     "provider": {
+-      "o3": "O3",
+       "aihubmix": "AiHubMix",
++      "alayanew": "Alaya NeW",
+       "anthropic": "Anthropic",
+       "azure-openai": "Azure OpenAI",
+       "baichuan": "百川",
+       "baidu-cloud": "百度云千帆",
++      "copilot": "GitHub Copilot",
+       "dashscope": "阿里云百炼",
+       "deepseek": "深度求索",
+       "dmxapi": "DMXAPI",
+@@ -568,6 +649,7 @@
+       "gemini": "Gemini",
+       "gitee-ai": "Gitee AI",
+       "github": "GitHub Models",
++      "gpustack": "GPUStack",
+       "graphrag-kylin-mountain": "GraphRAG",
+       "grok": "Grok",
+       "groq": "Groq",
+@@ -581,6 +663,7 @@
+       "modelscope": "ModelScope 魔搭",
+       "moonshot": "月之暗面",
+       "nvidia": "英伟达",
++      "o3": "O3",
+       "ocoolai": "ocoolAI",
+       "ollama": "Ollama",
+       "openai": "OpenAI",
+@@ -590,12 +673,26 @@
+       "qwenlm": "QwenLM",
+       "silicon": "硅基流动",
+       "stepfun": "阶跃星辰",
++      "tencent-cloud-ti": "腾讯云TI",
+       "together": "Together",
++      "xirang": "天翼云息壤",
+       "yi": "零一万物",
+       "zhinao": "360智脑",
+-      "zhipu": "智谱AI",
+-      "xirang": "天翼云息壤",
+-      "tencent-cloud-ti": "腾讯云TI"
++      "zhipu": "智谱AI"
++    },
++    "restore": {
++      "confirm": "确定要恢复数据吗？",
++      "confirm.button": "选择备份文件",
++      "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待。",
++      "progress": {
++        "completed": "恢复完成",
++        "copying_files": "复制文件... {{progress}}%",
++        "extracting": "解压备份...",
++        "preparing": "准备恢复...",
++        "reading_data": "读取数据...",
++        "title": "恢复进度"
++      },
++      "title": "数据恢复"
+     },
+     "settings": {
+       "about": "关于我们",
+@@ -619,23 +716,20 @@
+       "about.updateNotAvailable": "你的软件已是最新版本",
+       "about.website.button": "查看",
+       "about.website.title": "官方网站",
+-      "advanced": {
+-        "title": "高级设置",
+-        "assistantGroup": "助手分组",
+-        "topicsGroup": "话题分组",
+-        "auto_switch_to_topics": "自动切换到话题"
+-      },
++      "advanced.auto_switch_to_topics": "自动切换到话题",
++      "advanced.title": "高级设置",
+       "assistant": "默认助手",
+       "assistant.model_params": "模型参数",
++      "assistant.show.icon": "显示模型图标",
+       "assistant.title": "默认助手",
+       "data": {
+         "app_data": "应用数据",
+-        "app_logs": "应用日志",
+         "app_knowledge": "知识库文件",
+         "app_knowledge.button.delete": "删除文件",
+         "app_knowledge.remove_all": "删除知识库文件",
+         "app_knowledge.remove_all_confirm": "删除知识库文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
+         "app_knowledge.remove_all_success": "文件删除成功",
++        "app_logs": "应用日志",
+         "clear_cache": {
+           "button": "清除缓存",
+           "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
+@@ -646,6 +740,28 @@
+         "data.title": "数据目录",
+         "hour_interval_one": "{{count}} 小时",
+         "hour_interval_other": "{{count}} 小时",
++        "joplin": {
++          "check": {
++            "button": "检查",
++            "empty_token": "请先输入 Joplin 授权令牌",
++            "empty_url": "请先输入 Joplin 剪裁服务监听 URL",
++            "fail": "Joplin 连接验证失败",
++            "success": "Joplin 连接验证成功"
++          },
++          "help": "在 Joplin 选项中，启用网页剪裁服务（无需安装浏览器插件），确认端口号，并复制授权令牌",
++          "title": "Joplin 配置",
++          "token": "Joplin 授权令牌",
++          "token_placeholder": "请输入 Joplin 授权令牌",
++          "url": "Joplin 剪裁服务监听 URL",
++          "url_placeholder": "http://127.0.0.1:41184/"
++        },
++        "markdown_export.force_dollar_math.help": "开启后，导出Markdown时会将强制使用$$来标记LaTeX公式。注意：该项也会影响所有通过Markdown导出的方式，如Notion、语雀等。",
++        "markdown_export.force_dollar_math.title": "强制使用$$来标记LaTeX公式",
++        "markdown_export.help": "若填入，则每次导出时将自动保存到该路径；否则，将弹出保存对话框",
++        "markdown_export.path": "默认导出路径",
++        "markdown_export.path_placeholder": "导出路径",
++        "markdown_export.select": "选择",
++        "markdown_export.title": "Markdown 导出",
+         "minute_interval_one": "{{count}} 分钟",
+         "minute_interval_other": "{{count}} 分钟",
+         "notion.api_key": "Notion 密钥",
+@@ -669,11 +785,22 @@
+         "notion.split_size_help": "Notion免费版用户建议设置为90，高级版用户建议设置为24990，默认值为90",
+         "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
+         "notion.title": "Notion 配置",
++        "obsidian": {
++          "folder": "文件夹",
++          "folder_placeholder": "请输入文件夹名称",
++          "tags": "全局标签",
++          "tags_placeholder": "请输入标签名称, 多个标签用英文逗号分隔",
++          "title": "Obsidian 配置",
++          "vault": "保管库",
++          "vault_placeholder": "请输入保管库名称"
++        },
+         "title": "数据设置",
+         "webdav": {
+           "autoSync": "自动备份",
+           "autoSync.off": "关闭",
+           "backup.button": "备份到 WebDAV",
++          "backup.modal.filename.placeholder": "请输入备份文件名",
++          "backup.modal.title": "备份到 WebDAV",
+           "host": "WebDAV 地址",
+           "host.placeholder": "http://localhost:8080",
+           "hour_interval_one": "{{count}} 小时",
+@@ -686,7 +813,11 @@
+           "path": "WebDAV 路径",
+           "path.placeholder": "/backup",
+           "restore.button": "从 WebDAV 恢复",
++          "restore.confirm.content": "从 WebDAV 恢复将会覆盖当前数据，是否继续？",
++          "restore.confirm.title": "确认恢复",
+           "restore.content": "从 WebDAV 恢复将覆盖当前数据，是否继续？",
++          "restore.modal.select.placeholder": "请选择要恢复的备份文件",
++          "restore.modal.title": "从 WebDAV 恢复",
+           "restore.title": "从 WebDAV 恢复",
+           "syncError": "备份错误",
+           "syncStatus": "备份状态",
+@@ -709,9 +840,10 @@
+           "token_placeholder": "请输入语雀Token"
+         }
+       },
++      "display.assistant.title": "助手设置",
+       "display.custom.css": "自定义 CSS",
+-      "display.custom.css.placeholder": "/* 这里写自定义CSS */",
+       "display.custom.css.cherrycss": "从 cherrycss.com 获取",
++      "display.custom.css.placeholder": "/* 这里写自定义CSS */",
+       "display.minApp.disabled": "隐藏的小程序",
+       "display.minApp.empty": "把要隐藏的小程序从左侧拖拽到这里",
+       "display.minApp.title": "小程序显示设置",
+@@ -727,14 +859,15 @@
+       "display.sidebar.translate.icon": "显示翻译图标",
+       "display.sidebar.visible": "显示的图标",
+       "display.title": "显示设置",
+-      "display.group.title": "分组设置",
+       "display.topic.title": "话题设置",
+-      "display.assistant.title": "助手设置",
+       "font_size.title": "消息字体大小",
+       "general": "常规设置",
++      "general.avatar.reset": "重置头像",
+       "general.backup.button": "备份",
+       "general.backup.title": "数据备份与恢复",
+       "general.display.title": "显示设置",
++      "general.emoji_picker": "表情选择器",
++      "general.image_upload": "图片上传",
+       "general.manually_check_update.title": "关闭更新检测",
+       "general.reset.button": "重置",
+       "general.reset.title": "重置数据",
+@@ -742,9 +875,6 @@
+       "general.title": "常规设置",
+       "general.user_name": "用户名",
+       "general.user_name.placeholder": "请输入用户名",
+-      "general.image_upload": "图片上传",
+-      "general.emoji_picker": "表情选择器",
+-      "general.avatar.reset": "重置头像",
+       "general.view_webdav_settings": "查看 WebDAV 设置",
+       "input.auto_translate_with_space": "快速敲击3次空格翻译",
+       "input.target_language": "目标语言",
+@@ -753,6 +883,69 @@
+       "input.target_language.english": "英文",
+       "input.target_language.japanese": "日文",
+       "input.target_language.russian": "俄文",
++      "launch.onboot": "开机自动启动",
++      "launch.title": "启动",
++      "launch.totray": "启动时最小化到托盘",
++      "mcp": {
++        "actions": "操作",
++        "active": "启用",
++        "addError": "添加服务器失败",
++        "addServer": "添加服务器",
++        "addSuccess": "服务器添加成功",
++        "args": "参数",
++        "argsTooltip": "每个参数占一行",
++        "baseUrlTooltip": "远程 URL 地址",
++        "command": "命令",
++        "commandRequired": "请输入命令",
++        "config_description": "配置模型上下文协议服务器",
++        "confirmDelete": "删除服务器",
++        "confirmDeleteMessage": "您确定要删除该服务器吗？",
++        "deleteError": "删除服务器失败",
++        "deleteSuccess": "服务器删除成功",
++        "dependenciesInstall": "安装依赖项",
++        "dependenciesInstalling": "正在安装依赖项...",
++        "description": "描述",
++        "duplicateName": "已存在同名服务器",
++        "editJson": "编辑JSON",
++        "editServer": "编辑服务器",
++        "env": "环境变量",
++        "envTooltip": "格式：KEY=value，每行一个",
++        "findMore": "更多 MCP 服务器",
++        "install": "安装",
++        "installError": "安装依赖项失败",
++        "installSuccess": "依赖项安装成功",
++        "jsonFormatError": "JSON格式化错误",
++        "jsonModeHint": "编辑MCP服务器配置的JSON表示。保存前请确保格式正确。",
++        "jsonSaveError": "保存JSON配置失败",
++        "jsonSaveSuccess": "JSON配置已保存",
++        "missingDependencies": "缺失，请安装它以继续",
++        "name": "名称",
++        "nameRequired": "请输入服务器名称",
++        "noServers": "未配置服务器",
++        "npx_list": {
++          "actions": "操作",
++          "desc": "搜索并添加 npm 包作为 MCP 服务",
++          "description": "描述",
++          "no_packages": "未找到包",
++          "npm": "NPM",
++          "package_name": "包名称",
++          "scope_placeholder": "输入 npm 作用域 (例如 @your-org)",
++          "scope_required": "请输入 npm 作用域",
++          "search": "搜索",
++          "search_error": "搜索失败",
++          "title": "NPX 包列表",
++          "usage": "用法",
++          "version": "版本"
++        },
++        "serverPlural": "服务器",
++        "serverSingular": "服务器",
++        "title": "MCP 服务器",
++        "toggleError": "切换失败",
++        "type": "类型",
++        "updateError": "更新服务器失败",
++        "updateSuccess": "服务器更新成功",
++        "url": "URL"
++      },
+       "messages.divider": "消息分割线",
+       "messages.grid_columns": "消息网格展示列数",
+       "messages.grid_popover_trigger": "网格详情触发",
+@@ -767,6 +960,10 @@
+       "messages.math_engine": "数学公式引擎",
+       "messages.metrics": "首字时延 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
+       "messages.model.title": "模型设置",
++      "messages.navigation": "对话导航按钮",
++      "messages.navigation.anchor": "对话锚点",
++      "messages.navigation.buttons": "上下按钮",
++      "messages.navigation.none": "不显示",
+       "messages.title": "消息设置",
+       "messages.use_serif_font": "使用衬线字体",
+       "model": "默认模型",
+@@ -779,12 +976,28 @@
+       "models.add.model_id.tooltip": "例如 gpt-3.5-turbo",
+       "models.add.model_name": "模型名称",
+       "models.add.model_name.placeholder": "例如 GPT-3.5",
+-      "models.manage.add_whole_group": "添加整个分组",
+-      "models.manage.remove_whole_group": "移除整个分组",
++      "models.check.all": "所有",
++      "models.check.all_models_passed": "所有模型检查通过",
++      "models.check.button_caption": "健康检查",
++      "models.check.disabled": "关闭",
++      "models.check.enable_concurrent": "并发检查",
++      "models.check.enabled": "开启",
++      "models.check.failed": "失败",
++      "models.check.keys_status_count": "通过：{{count_passed}}个密钥，失败：{{count_failed}}个密钥",
++      "models.check.model_status_summary": "{{provider}}: {{count_passed}} 个模型完成健康检查（其中 {{count_partial}} 个模型用某些密钥无法访问），{{count_failed}} 个模型完全无法访问。",
++      "models.check.no_api_keys": "未找到API密钥，请先添加API密钥。",
++      "models.check.passed": "通过",
++      "models.check.select_api_key": "选择要使用的API密钥：",
++      "models.check.single": "单个",
++      "models.check.start": "开始",
++      "models.check.title": "模型健康检查",
++      "models.check.use_all_keys": "使用密钥",
+       "models.default_assistant_model": "默认助手模型",
+       "models.default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
+       "models.empty": "没有模型",
+       "models.enable_topic_naming": "话题自动重命名",
++      "models.manage.add_whole_group": "添加整个分组",
++      "models.manage.remove_whole_group": "移除整个分组",
+       "models.topic_naming_model": "话题命名模型",
+       "models.topic_naming_model_description": "自动命名新话题时使用的模型",
+       "models.topic_naming_model_setting_title": "话题命名模型设置",
+@@ -794,9 +1007,9 @@
+       "models.translate_model_prompt_message": "请输入翻译模型提示词",
+       "models.translate_model_prompt_title": "翻译模型提示词",
+       "moresetting": "更多设置",
+-      "moresetting.warn": "风险警告",
+-      "moresetting.check.warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！",
+       "moresetting.check.confirm": "确认勾选",
++      "moresetting.check.warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！",
++      "moresetting.warn": "风险警告",
+       "provider": {
+         "add.name": "提供商名称",
+         "add.name.placeholder": "例如 OpenAI",
+@@ -813,18 +1026,43 @@
+         "check": "检查",
+         "check_all_keys": "检查所有密钥",
+         "check_multiple_keys": "检查多个 API 密钥",
++        "copilot": {
++          "auth_failed": "Github Copilot 认证失败",
++          "auth_success": "Github Copilot 认证成功",
++          "auth_success_title": "认证成功",
++          "code_failed": "获取 Device Code 失败，请重试",
++          "code_generated_desc": "请将 Device Code 复制到下面的浏览器链接中",
++          "code_generated_title": "获取 Device Code",
++          "confirm_login": "过度使用可能会导致您的 Github 账号遭到封号，请谨慎使用!!!!",
++          "confirm_title": "风险警告",
++          "connect": "连接 Github",
++          "custom_headers": "自定义请求头",
++          "description": "您的 Github 账号需要订阅 Copilot",
++          "expand": "展开",
++          "headers_description": "自定义请求头(json格式)",
++          "invalid_json": "JSON 格式错误",
++          "login": "登录 Github",
++          "logout": "退出 Github",
++          "logout_failed": "退出失败，请重试",
++          "logout_success": "已成功退出",
++          "model_setting": "模型设置",
++          "open_verification_first": "请先点击上方链接访问验证页面",
++          "rate_limit": "速率限制",
++          "tooltip": "使用 Github Copilot 需要先登录 Github"
++        },
+         "delete.content": "确定要删除此模型提供商吗?",
+         "delete.title": "删除提供商",
+         "docs_check": "查看",
+         "docs_more_details": "获取更多详情",
+         "get_api_key": "点击这里获取密钥",
++        "is_not_support_array_content": "开启兼容模式",
+         "no_models": "请先添加模型再检查 API 连接",
+         "not_checked": "未检查",
+         "remove_duplicate_keys": "移除重复密钥",
+         "remove_invalid_keys": "删除无效密钥",
++        "search": "搜索模型平台...",
+         "search_placeholder": "搜索模型 ID 或名称",
+-        "title": "模型服务",
+-        "search": "搜索模型平台..."
++        "title": "模型服务"
+       },
+       "proxy": {
+         "mode": {
+@@ -839,6 +1077,7 @@
+       "quickAssistant": {
+         "click_tray_to_show": "点击托盘图标启动",
+         "enable_quick_assistant": "启用快捷助手",
++        "read_clipboard_at_startup": "启动时读取剪贴板",
+         "title": "快捷助手",
+         "use_shortcut_to_show": "右键点击托盘图标或使用快捷键启动"
+       },
+@@ -877,21 +1116,25 @@
+       "topic.position.left": "左侧",
+       "topic.position.right": "右侧",
+       "topic.show.time": "显示话题时间",
+-      "assistant.show.icon": "显示模型图标",
+-      "tray.title": "启用系统托盘图标",
++      "tray.onclose": "关闭时最小化到托盘",
++      "tray.show": "显示托盘图标",
++      "tray.title": "托盘",
+       "websearch": {
+-        "check": "检查",
+-        "check_failed": "验证失败",
+         "blacklist": "黑名单",
+         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+         "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
++        "check": "检查",
++        "check_failed": "验证失败",
++        "check_success": "验证成功",
++        "enhance_mode": "搜索增强模式",
++        "enhance_mode_tooltip": "使用默认模型提取关键词后搜索",
+         "get_api_key": "点击这里获取密钥",
++        "no_provider_selected": "请选择搜索服务商后再检查",
+         "search_max_result": "搜索结果个数",
+-        "search_result_default": "默认",
+-        "search_with_time": "搜索包含日期",
+         "search_provider": "搜索服务商",
+         "search_provider_placeholder": "选择一个搜索服务商",
+-        "no_provider_selected": "请选择搜索服务商后再检查",
++        "search_result_default": "默认",
++        "search_with_time": "搜索包含日期",
+         "tavily": {
+           "api_key": "Tavily API 密钥",
+           "api_key.placeholder": "请输入 Tavily API 密钥",
+@@ -899,54 +1142,8 @@
+           "title": "Tavily"
+         },
+         "title": "网络搜索"
+-      },
+-      "mcp": {
+-        "title": "MCP 服务器",
+-        "config_description": "配置模型上下文协议服务器",
+-        "description": "描述",
+-        "addServer": "添加服务器",
+-        "editServer": "编辑服务器",
+-        "name": "名称",
+-        "type": "类型",
+-        "url": "URL",
+-        "command": "命令",
+-        "args": "参数",
+-        "argsTooltip": "每个参数占一行",
+-        "env": "环境变量",
+-        "envTooltip": "格式：KEY=value，每行一个",
+-        "active": "启用",
+-        "actions": "操作",
+-        "noServers": "未配置服务器",
+-        "nameRequired": "请输入服务器名称",
+-        "commandRequired": "请输入命令",
+-        "confirmDelete": "删除服务器",
+-        "confirmDeleteMessage": "您确定要删除该服务器吗？",
+-        "addSuccess": "服务器添加成功",
+-        "updateSuccess": "服务器更新成功",
+-        "deleteSuccess": "服务器删除成功",
+-        "duplicateName": "已存在同名服务器",
+-        "serverSingular": "服务器",
+-        "serverPlural": "服务器"
+       }
+     },
+-    "topics": {
+-      "add": "添加话题",
+-      "group": {
+-        "add": "添加分组",
+-        "edit": "编辑分组",
+-        "name": "分组名称",
+-        "name.required": "请输入分组名称",
+-        "name.placeholder": "输入分组名称",
+-        "description": "分组描述",
+-        "description.placeholder": "输入分组描述（可选）"
+-      },
+-     
+-      "move_to_group": "移动到分组",
+-      "no_group": "无分组",
+-      "new": "新话题",
+-     
+-      "ungrouped": "未分组"
+-    },
+     "translate": {
+       "any.language": "任意语言",
+       "button.translate": "翻译",
+@@ -967,6 +1164,8 @@
+       "input.placeholder": "输入文本进行翻译",
+       "output.placeholder": "翻译",
+       "processing": "翻译中...",
++      "scroll_sync.disable": "关闭滚动同步",
++      "scroll_sync.enable": "开启滚动同步",
+       "title": "翻译",
+       "tooltip.newline": "换行"
+     },
+@@ -980,40 +1179,6 @@
+       "quit": "退出",
+       "show_window": "显示窗口",
+       "visualization": "可视化"
+-    },
+-    "code_block": {
+-      "enable_wrap": "换行",
+-      "disable_wrap": "取消换行",
+-      "expand": "展开",
+-      "collapse": "收起"
+-    },
+-    "backup": {
+-      "title": "数据备份",
+-      "confirm": "确定要备份数据吗？",
+-      "confirm.button": "选择备份位置",
+-      "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+-      "progress": {
+-        "title": "备份进度",
+-        "preparing": "准备备份...",
+-        "writing_data": "写入数据...",
+-        "copying_files": "复制文件... {{progress}}%",
+-        "compressing": "压缩文件...",
+-        "completed": "备份完成"
+-      }
+-    },
+-    "restore": {
+-      "title": "数据恢复",
+-      "confirm": "确定要恢复数据吗？",
+-      "confirm.button": "选择备份文件",
+-      "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待。",
+-      "progress": {
+-        "title": "恢复进度",
+-        "preparing": "准备恢复...",
+-        "extracting": "解压备份...",
+-        "reading_data": "读取数据...",
+-        "copying_files": "复制文件... {{progress}}%",
+-        "completed": "恢复完成"
+-      }
+     }
+   }
+ }
+diff --git a/src/renderer/src/pages/home/Tabs/AssistantItem.tsx b/src/renderer/src/pages/home/Tabs/AssistantItem.tsx
+index 62870ef5..e7e5b8dd 100644
+--- a/src/renderer/src/pages/home/Tabs/AssistantItem.tsx
++++ b/src/renderer/src/pages/home/Tabs/AssistantItem.tsx
+@@ -1,14 +1,13 @@
+-import { DeleteOutlined, EditOutlined, FolderOutlined, MinusCircleOutlined, SaveOutlined } from '@ant-design/icons'
++import { DeleteOutlined, EditOutlined, MinusCircleOutlined, SaveOutlined } from '@ant-design/icons'
+ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+ import CopyIcon from '@renderer/components/Icons/CopyIcon'
+ import { useAssistant } from '@renderer/hooks/useAssistant'
+-import { useAssistants } from '@renderer/hooks/useAssistant'
+ import { modelGenerating } from '@renderer/hooks/useRuntime'
+ import { useSettings } from '@renderer/hooks/useSettings'
+ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+ import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
+ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+-import { Assistant, AssistantGroup } from '@renderer/types'
++import { Assistant } from '@renderer/types'
+ import { uuid } from '@renderer/utils'
+ import { Dropdown } from 'antd'
+ import { ItemType } from 'antd/es/menu/interface'
+@@ -18,145 +17,86 @@ import { useTranslation } from 'react-i18next'
+ import styled from 'styled-components'
+ 
+ interface AssistantItemProps {
+-  /** 助手信息 */
+   assistant: Assistant
+-  /** 是否激活 */
+-  isActive?: boolean
+-  /** 切换助手的回调 */
++  isActive: boolean
+   onSwitch: (assistant: Assistant) => void
+-  /** 添加代理的回调 */
++  onDelete: (assistant: Assistant) => void
++  onCreateDefaultAssistant: () => void
+   addAgent: (agent: any) => void
+-  /** 添加助手的回调 */
+   addAssistant: (assistant: Assistant) => void
+-  /** 创建默认助手的回调，用于空状态显示 */
+-  onCreateDefaultAssistant?: () => void
+-  /** 移动到分组的回调 */
+-  onMoveToGroup?: (assistantId: string, groupId?: string) => void
+-  /** 所有分组列表 */
+-  groups?: AssistantGroup[]
+ }
+ 
+-const AssistantItem: FC<AssistantItemProps> = ({
+-  assistant,
+-  isActive,
+-  onSwitch,
+-  addAgent,
+-  addAssistant,
+-  onMoveToGroup,
+-  groups = []
+-}) => {
++const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, onDelete, addAgent, addAssistant }) => {
+   const { t } = useTranslation()
+   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
+-  const { clickAssistantToShowTopic, topicPosition, showAssistantIcon, enableAssistantGroup } = useSettings()
++  const { clickAssistantToShowTopic, topicPosition, showAssistantIcon } = useSettings()
+   const defaultModel = getDefaultModel()
+-  const { removeAssistant } = useAssistants()
+ 
+   const getMenuItems = useCallback(
+-    (assistant: Assistant): ItemType[] => {
+-      const baseItems: ItemType[] = [
+-        {
+-          label: t('assistants.edit.title'),
+-          key: 'edit',
+-          icon: <EditOutlined />,
+-          onClick: () => AssistantSettingsPopup.show({ assistant })
+-        },
+-        {
+-          label: t('assistants.copy.title'),
+-          key: 'duplicate',
+-          icon: <CopyIcon />,
+-          onClick: async () => {
+-            const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
+-            addAssistant(_assistant)
+-            onSwitch(_assistant)
+-          }
+-        },
+-        {
+-          label: t('assistants.clear.title'),
+-          key: 'clear',
+-          icon: <MinusCircleOutlined />,
+-          onClick: () => {
+-            window.modal.confirm({
+-              title: t('assistants.clear.title'),
+-              content: t('assistants.clear.content'),
+-              centered: true,
+-              okButtonProps: { danger: true },
+-              onOk: () => removeAllTopics() // 使用当前助手的removeAllTopics
+-            })
+-          }
+-        },
+-        {
+-          label: t('assistants.save.title'),
+-          key: 'save-to-agent',
+-          icon: <SaveOutlined />,
+-          onClick: async () => {
+-            const agent = omit(assistant, ['model', 'emoji'])
+-            agent.id = uuid()
+-            agent.type = 'agent'
+-            addAgent(agent)
+-            window.message.success({
+-              content: t('assistants.save.success'),
+-              key: 'save-to-agent'
+-            })
+-          }
++    (assistant: Assistant): ItemType[] => [
++      {
++        label: t('assistants.edit.title'),
++        key: 'edit',
++        icon: <EditOutlined />,
++        onClick: () => AssistantSettingsPopup.show({ assistant })
++      },
++      {
++        label: t('assistants.copy.title'),
++        key: 'duplicate',
++        icon: <CopyIcon />,
++        onClick: async () => {
++          const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
++          addAssistant(_assistant)
++          onSwitch(_assistant)
+         }
+-      ]
+-
+-      // 添加移至分组菜单 - 只在启用分组功能时显示
+-      if (enableAssistantGroup && onMoveToGroup && groups.length > 0) {
+-        const groupItems: ItemType[] = [
+-          {
+-            type: 'divider'
+-          },
+-          {
+-            label: t('assistants.move_to_group'),
+-            key: 'move-to-group',
+-            icon: <FolderOutlined />,
+-            children: [
+-              // 只有当助手已经在某个分组中时，才显示"移出分组"选项
+-              ...(assistant.groupId
+-                ? [
+-                    {
+-                      label: t('assistants.move_to_no_group'),
+-                      key: 'move-to-no-group',
+-                      onClick: () => onMoveToGroup(assistant.id, undefined)
+-                    }
+-                  ]
+-                : []),
+-              ...groups.map((group) => ({
+-                label: group.name,
+-                key: `move-to-group-${group.id}`,
+-                onClick: () => onMoveToGroup(assistant.id, group.id),
+-                disabled: assistant.groupId === group.id // 如果已经在这个组里，禁用该选项
+-              }))
+-            ]
+-          }
+-        ]
+-
+-        baseItems.push(...groupItems)
+-      }
+-
+-      baseItems.push(
+-        { type: 'divider' },
+-        {
+-          label: t('common.delete'),
+-          key: 'delete',
+-          icon: <DeleteOutlined />,
+-          danger: true,
+-          onClick: () => {
+-            window.modal.confirm({
+-              title: t('assistants.delete.title'),
+-              content: t('assistants.delete.content'),
+-              centered: true,
+-              okButtonProps: { danger: true },
+-              onOk: () => removeAssistant(assistant.id)
+-            })
+-          }
++      },
++      {
++        label: t('assistants.clear.title'),
++        key: 'clear',
++        icon: <MinusCircleOutlined />,
++        onClick: () => {
++          window.modal.confirm({
++            title: t('assistants.clear.title'),
++            content: t('assistants.clear.content'),
++            centered: true,
++            okButtonProps: { danger: true },
++            onOk: () => removeAllTopics() // 使用当前助手的removeAllTopics
++          })
+         }
+-      )
+-
+-      return baseItems
+-    },
+-    [addAgent, addAssistant, onSwitch, removeAllTopics, removeAssistant, t, onMoveToGroup, groups, enableAssistantGroup]
++      },
++      {
++        label: t('assistants.save.title'),
++        key: 'save-to-agent',
++        icon: <SaveOutlined />,
++        onClick: async () => {
++          const agent = omit(assistant, ['model', 'emoji'])
++          agent.id = uuid()
++          agent.type = 'agent'
++          addAgent(agent)
++          window.message.success({
++            content: t('assistants.save.success'),
++            key: 'save-to-agent'
++          })
++        }
++      },
++      { type: 'divider' },
++      {
++        label: t('common.delete'),
++        key: 'delete',
++        icon: <DeleteOutlined />,
++        danger: true,
++        onClick: () => {
++          window.modal.confirm({
++            title: t('assistants.delete.title'),
++            content: t('assistants.delete.content'),
++            centered: true,
++            okButtonProps: { danger: true },
++            onOk: () => onDelete(assistant)
++          })
++        }
++      }
++    ],
++    [addAgent, addAssistant, onSwitch, removeAllTopics, t, onDelete]
+   )
+ 
+   const handleSwitch = useCallback(async () => {
+@@ -193,16 +133,14 @@ const Container = styled.div`
+   display: flex;
+   flex-direction: row;
+   justify-content: space-between;
+-  padding: 7px 12px;
+-  margin-left: 10px;
+-  margin-right: 4px;
++  padding: 7px 10px;
+   position: relative;
+-  border-radius: var(--list-item-border-radius);
++  margin: 0 10px;
+   font-family: Ubuntu;
+-  font-size: 13px;
++  border-radius: var(--list-item-border-radius);
+   border: 0.5px solid transparent;
++  width: calc(var(--assistants-width) - 20px);
+   cursor: pointer;
+-
+   .iconfont {
+     opacity: 0;
+     color: var(--color-text-3);
+diff --git a/src/renderer/src/utils/index.ts b/src/renderer/src/utils/index.ts
+index 4b74b99d..7684c78b 100644
+--- a/src/renderer/src/utils/index.ts
++++ b/src/renderer/src/utils/index.ts
+@@ -151,198 +151,6 @@ export async function isDev() {
+   return !isProd
+ }
+ 
+-// 根据提示词生成匹配的 emoji (只返回单个emoji)
+-export async function generateEmojiFromPrompt(prompt: string): Promise<string> {
+-  // 如果没有提示词，返回默认的emoji
+-  if (!prompt || prompt.trim() === '') {
+-    const defaultEmojis = ['🤖', '💡', '✨', '🧠', '📚']
+-    return defaultEmojis[Math.floor(Math.random() * defaultEmojis.length)]
+-  }
+-
+-  // 将提示词转为小写并去除特殊字符以便匹配
+-  const normalizedPrompt = prompt.toLowerCase().replace(/[^\w\s\u4e00-\u9fa5]/g, '')
+-
+-  // 常用关键词与单个emoji的映射，扩展更多关键词和emoji组合
+-  const keywordEmojiMap: Record<string, string[]> = {
+-    // 智能助手相关
+-    助手: ['🤖', '🧠', '💡', '🔍', '📚', '🦾', '🧿'],
+-    助理: ['🤖', '📋', '💼', '🗂️', '📎'],
+-    机器人: ['🤖', '🦾', '🦿', '⚙️', '🔧'],
+-    智能: ['🧠', '💡', '⚡', '✨', '🔮'],
+-    gpt: ['🤖', '🧠', '💬', '📝', '💭'],
+-    ai: ['🤖', '🧠', '🔮', '⚙️', '📡'],
+-
+-    // 语言和交流
+-    翻译: ['🌐', '🔄', '📝', '🈴', '🗣️', '🧩', '🔠'],
+-    语言: ['🗣️', '💬', '🌐', '📚', '🔤', '📢', '👄'],
+-    聊天: ['💬', '🗨️', '👥', '📱', '💭', '🔊', '👄'],
+-    沟通: ['🗣️', '📞', '💬', '🤝', '📨', '📢', '🔊'],
+-    对话: ['💬', '🗨️', '🔊', '👄', '🧠', '👥', '🗣️'],
+-
+-    // 专业领域
+-    编程: ['💻', '🔧', '⌨️', '🖥️', '📱', '🌐', '🧮', '📊'],
+-    代码: ['💻', '⌨️', '📝', '🔧', '🧩', '⚙️', '🔢'],
+-    开发: ['💻', '⚙️', '🛠', '🔧', '📱', '🖥️', '🌐'],
+-    写作: ['✍️', '📝', '📄', '📰', '📑', '📚', '✒️'],
+-    数据: ['📊', '📈', '📉', '🧮', '💾', '🔢', '📋'],
+-    分析: ['📊', '🔍', '🧐', '🔬', '📈', '📉', '📋'],
+-    教育: ['🎓', '📚', '🏫', '👩‍🏫', '📖', '✏️', '🧠'],
+-    医疗: ['🏥', '⚕️', '💊', '🩺', '🧪', '💉', '🧬'],
+-    艺术: ['🎨', '🖼️', '🎭', '🎬', '🎻', '🎵', '🎭'],
+-    音乐: ['🎵', '🎼', '🎧', '🎷', '🎸', '🎹', '🎻'],
+-    游戏: ['🎮', '🎲', '🎯', '🎪', '🎭', '🎨', '🎪'],
+-    运动: ['⚽', '🏀', '🏈', '⚾', '🎾', '🏋️', '🏊'],
+-    旅游: ['✈️', '🌍', '🗺️', '🧳', '🏖️', '🚆', '🏞️'],
+-    美食: ['🍲', '🍳', '🍽️', '👩‍🍳', '🍷', '🍕', '🍰'],
+-    商业: ['💼', '📊', '💰', '📈', '🏢', '🤝', '💹'],
+-    法律: ['⚖️', '📜', '👨‍⚖️', '📋', '🔍', '🏛️', '📝'],
+-    心理: ['🧠', '💭', '😊', '🔄', '💆', '🛌️', '❤️'],
+-    历史: ['📜', '⏳', '🏛️', '🗿', '🔍', '🏺', '🗼️'],
+-    科学: ['🔬', '🧪', '🔭', '⚗️', '🧬', '🔋', '📡'],
+-    设计: ['🎨', '✏️', '📐', '📱', '💻', '🎭', '🧩'],
+-    时尚: ['👗', '👠', '👜', '💄', '👚', '👔', '👓'],
+-    摄影: ['📷', '📸', '🎞️', '📹', '🖼️', '🌆', '👁️'],
+-    电影: ['🎬', '🎥', '🍿', '🎭', '🎞️', '📽️', '🎦'],
+-
+-    // 生活相关
+-    宠物: ['🐱', '🐶', '🐰', '🐦', '🐠', '🦜', '🐢'],
+-    猫: ['🐱', '😺', '😻', '🐾', '🧶', '🐈', '😾'],
+-    狗: ['🐶', '🐕', '🦮', '🐾', '🦴', '🐩', '🐺'],
+-    家居: ['🏠', '🛌️', '🛋', '🛏', '🚪', '🧹', '🧹'],
+-    健康: ['💪', '🧘', '🥗', '💓', '🩺', '🍎', '🌱'],
+-    财务: ['💰', '💵', '💳', '📊', '💹', '💸', '🏦'],
+-
+-    // 情感和心理
+-    快乐: ['😄', '😊', '🎉', '✨', '🌟', '🎊', '💫'],
+-    悲伤: ['😢', '😭', '💔', '🌧️', '😿', '☁️', '💧'],
+-    爱情: ['❤️', '💕', '💘', '💏', '💑', '💖', '💗'],
+-    友谊: ['🤝', '👥', '💖', '🫂', '🤗', '🎭', '☕'],
+-    恐惧: ['😱', '👻', '😨', '😰', '🌑', '⚡', '💀'],
+-    愤怒: ['😡', '🔥', '💢', '👊', '😠', '💥', '👿'],
+-    平静: ['😌', '🧘', '☮️', '🌊', '🌈', '🌷', '🌸'],
+-
+-    // 季节和天气
+-    春天: ['🌸', '🌱', '🌷', '🌺', '🐝', '🐣', '🌧️'],
+-    夏天: ['☀️', '🏖️', '🍦', '🌊', '🏊', '🍹', '🌴'],
+-    秋天: ['🍂', '🍁', '🍄', '🌰', '🦊', '🍎', '🍇'],
+-    冬天: ['❄️', '☃️', '🧣', '🧤', '🎄', '🏂', '☕'],
+-
+-    // 中文特定关键词
+-    学习: ['📚', '🎓', '✏️', '📝', '🧠', '🔍', '📖'],
+-    工作: ['💼', '🖥️', '📊', '⏰', '📝', '📈', '🗂️'],
+-    生活: ['🏠', '🌞', '🍽️', '👪', '🛏', '🌳', '☕'],
+-    娱乐: ['🎮', '🎬', '🎵', '🎪', '🎭', '🎨', '🎯']
+-  }
+-
+-  // 添加英文关键词与emoji的映射
+-  const englishKeywords: Record<string, string[]> = {
+-    // 智能助手相关
+-    assistant: ['🤖', '🧠', '💡', '🔍', '📚', '🦾', '🧿'],
+-    helper: ['🤖', '📋', '💼', '🗂️', '📎'],
+-    robot: ['🤖', '🦾', '🦿', '⚙️', '🔧'],
+-    smart: ['🧠', '💡', '⚡', '✨', '🔮'],
+-    intelligence: ['🧠', '💡', '💭', '🔮', '⚡'],
+-    ai: ['🤖', '🧠', '🔮', '⚙️', '📡'],
+-
+-    // 语言和交流
+-    translator: ['🌐', '🔄', '📝', '🈴', '🗣️', '🧩', '🔠'],
+-    language: ['🗣️', '💬', '🌐', '📚', '🔤', '📢', '👄'],
+-    chat: ['💬', '🗨️', '👥', '📱', '💭', '🔊', '👄'],
+-    communication: ['🗣️', '📞', '💬', '🤝', '📨', '📢', '🔊'],
+-    dialogue: ['💬', '🗨️', '🔊', '👄', '🗣️', '👥', '🗣️'],
+-
+-    // 专业领域
+-    programming: ['💻', '🔧', '⌨️', '🖥️', '📱', '🌐', '🧮', '📊'],
+-    code: ['💻', '⌨️', '📝', '🔧', '🧩', '⚙️', '🔢'],
+-    development: ['💻', '⚙️', '🛠', '🔨', '📱', '🖥️', '🌐'],
+-    writing: ['✍️', '📝', '📄', '📰', '📑', '📚', '✒️'],
+-    data: ['📊', '📈', '📉', '🧮', '💾', '🔢', '📋'],
+-    analysis: ['📊', '🔍', '🧐', '🔬', '📈', '📉', '📋'],
+-    education: ['🎓', '📚', '🏫', '👩‍🏫', '📖', '✏️', '🧠'],
+-    medical: ['🏥', '⚕️', '💊', '🩺', '🧬', '💉', '🧬'],
+-    art: ['🎨', '🖼️', '🎭', '🎬', '🎻', '🎵', '🎭'],
+-    music: ['🎵', '🎼', '🎧', '🎷', '🎸', '🎹', '🎻'],
+-    game: ['🎮', '🎲', '🎯', '🎪', '🎭', '🎨', '🎪'],
+-    sports: ['⚽', '🏀', '🏈', '⚾', '🎾', '🏋️', '🏊'],
+-    travel: ['✈️', '🌍', '🗺️', '🧳', '🏖️', '🚆', '🏞️'],
+-    food: ['🍲', '🍳', '🍽️', '👩‍🍳', '🍷', '🍕', '🍰'],
+-    business: ['💼', '📊', '💰', '📈', '📑', '🤝', '💹'],
+-    legal: ['⚖️', '📜', '👨‍⚖️', '📋', '🔍', '🏛️', '📝'],
+-    psychology: ['🧠', '💭', '😊', '🔄', '💆', '🛌️', '❤️'],
+-    history: ['📜', '⏳', '🏛️', '🗿', '🔍', '🏺', '🗼️'],
+-    science: ['🔬', '🧪', '🔭', '⚗️', '🧬', '🔋', '📡'],
+-    design: ['🎨', '✏️', '📐', '📱', '💻', '🎭', '🧩'],
+-    fashion: ['👗', '👠', '👜', '💄', '👚', '👔', '👓'],
+-    photography: ['📷', '📸', '🎞️', '📹', '🖼️', '🌆', '👁️'],
+-    movie: ['🎬', '🎥', '🍿', '🎭', '🎞️', '📽️', '🎦'],
+-
+-    // 宠物和动物相关
+-    pet: ['🐱', '🐶', '🐰', '🐦', '🐠', '🦜', '🐢'],
+-    cat: ['🐱', '😺', '😻', '🐾', '🧶', '🐈', '😾'],
+-    dog: ['🐶', '🐕', '🦮', '🐾', '🦴', '🐩', '🐺'],
+-    rabbit: ['🐰', '🐇', '🧟', '🐾', '🌼', '🐚', '🍀'],
+-    bird: ['🐦', '🐤', '🦅', '🐥', '🦚', '🦜', '🐣'],
+-    fish: ['🐟', '🐠', '🐡', '🐙', '🦐', '🧬', '🐬'],
+-    hamster: ['🐹', '🥔', '🛍️', '🐰', '🐾', '🧶', '🌰'],
+-    horse: ['🐎', '🐴', '🦄', '🐺', '🎽', '🐚', '👸'],
+-    tiger: ['🐯', '🐅', '🐆', '🐺', '💭', '🌝', '🐾'],
+-    panda: ['🐼', '🐨', '🐻', '😺', '🌿', '🍝', '🌱'],
+-    bear: ['🐻', '😻', '🌲', '🌲', '🧸', '🍫', '🌰'],
+-    monkey: ['🐒', '🐵', '🐼', '🌴', '🌾', '🍌', '🍎'],
+-    penguin: ['🐧', '🦯', '🐼', '❄️', '🌊', '🌬️', '🐘'],
+-    animal: ['🐻', '🐱', '🦖', '🐳', '🐒', '🐘', '🐨']
+-  }
+-
+-  // 合并中英文关键词映射
+-  const allKeywords = { ...keywordEmojiMap, ...englishKeywords }
+-
+-  // 将提示词分割为单词和中文字符
+-  const words: string[] = normalizedPrompt.match(/[\w]+|[\u4e00-\u9fa5]+/g) || []
+-
+-  // 匹配所有可能的关键词，收集相关的emoji
+-  const matchedEmojis: string[] = []
+-  words.forEach((word) => {
+-    // 检查每个完整词
+-    for (const [keyword, emojis] of Object.entries(allKeywords)) {
+-      if (keyword === word || (typeof keyword === 'string' && keyword.includes(word)) || word.includes(keyword)) {
+-        matchedEmojis.push(...emojis)
+-      }
+-    }
+-  })
+-
+-  // 如果有匹配到emoji，从匹配的emoji中随机选择一个
+-  if (matchedEmojis.length > 0) {
+-    // 移除重复的emoji
+-    const uniqueEmojis = [...new Set(matchedEmojis)]
+-    return uniqueEmojis[Math.floor(Math.random() * uniqueEmojis.length)]
+-  }
+-
+-  // 扩展通用的emoji选择，如果没有特定匹配
+-  const categoryBasedEmojis: Record<string, string[]> = {
+-    // 如果包含某些通用词，使用这些emoji
+-    工具类: ['🛠️', '🔧', '⚙️', '🔨', '🛠', '📎', '🔌'],
+-    创意类: ['💡', '✨', '🎨', '🌟', '💫', '🔮', '🎭'],
+-    知识类: ['📚', '🧠', '🔍', '📝', '📊', '🎓', '💭'],
+-    情感类: ['❤️', '😊', '🤗', '💖', '🌈', '🌸', '☀️'],
+-    人物类: ['👤', '👥', '🧑‍💼', '👩‍💻', '👨‍🔬', '👩‍🏫', '🧙'],
+-    自然类: ['🌱', '🌳', '🌊', '🏞️', '🌄', '🐝', '🌻']
+-  }
+-
+-  // 为不同长度的提示词选择不同类别的emoji
+-  let categoryEmojis: string[] = []
+-  if (prompt.length < 10) {
+-    categoryEmojis = [...categoryBasedEmojis.知识类, ...categoryBasedEmojis.创意类]
+-  } else if (prompt.length < 20) {
+-    categoryEmojis = [...categoryBasedEmojis.创意类, ...categoryBasedEmojis.情感类]
+-  } else {
+-    // 根据提示词长度的模数选择不同类别
+-    const category = Object.values(categoryBasedEmojis)[prompt.length % Object.keys(categoryBasedEmojis).length]
+-    categoryEmojis = category
+-  }
+-
+-  return categoryEmojis[Math.floor(Math.random() * categoryEmojis.length)]
+-}
+-
+ export function getErrorMessage(error: any) {
+   if (!error) {
+     return ''
+@@ -369,7 +177,18 @@ export function removeQuotes(str) {
+ 
+ export function removeSpecialCharacters(str: string) {
+   // First remove newlines and quotes, then remove other special characters
+-  return str.replace(/[\n"]/g, '').replace(/[\p{M}\p{N}\p{P}\p{S}]/gu, '')
++  return str.replace(/[\n"]/g, '').replace(/[\p{M}\p{P}]/gu, '')
++}
++
++export function removeSpecialCharactersForTopicName(str: string) {
++  return str.replace(/[\r\n]+/g, ' ').trim()
++}
++
++export function removeSpecialCharactersForFileName(str: string) {
++  return str
++    .replace(/[<>:"/\\|?*.]/g, '_')
++    .replace(/[\r\n]+/g, ' ')
++    .trim()
+ }
+ 
+ export function generateColorFromChar(char: string) {
+@@ -427,8 +246,12 @@ export function loadScript(url: string) {
+ }
+ 
+ export function convertMathFormula(input) {
+-  // 使用正则表达式匹配并替换公式格式
+-  return input.replaceAll(/\\\[/g, '$$$$').replaceAll(/\\\]/g, '$$$$')
++  if (!input) return input
++
++  let result = input
++  result = result.replaceAll('\\[', '$$$$').replaceAll('\\]', '$$$$')
++  result = result.replaceAll('\\(', '$$').replaceAll('\\)', '$$')
++  return result
+ }
+ 
+ export function getBriefInfo(text: string, maxLength: number = 50): string {
+@@ -465,7 +288,7 @@ export function getFileDirectory(filePath: string) {
+ 
+ export function getFileExtension(filePath: string) {
+   const parts = filePath.split('.')
+-  const extension = parts.slice(-1)[0]
++  const extension = parts.slice(-1)[0].toLowerCase()
+   return '.' + extension
+ }
+ 
+diff --git a/src/renderer/src/utils/safeArrayUtils.ts b/src/renderer/src/utils/safeArrayUtils.ts
+deleted file mode 100644
+index 030fad39..00000000
+--- a/src/renderer/src/utils/safeArrayUtils.ts
++++ /dev/null
+@@ -1,136 +0,0 @@
+-/**
+- * 安全数组工具函数
+- * 提供一系列用于安全操作数组的函数，防止出现"Cannot read properties of undefined"类型的错误
+- */
+-
+-/**
+- * 安全地对数组使用map方法
+- * 如果数组为null或undefined，返回空数组
+- */
+-export const safeMap = <T, U>(arr: T[] | undefined | null, fn: (item: T, index: number, array: T[]) => U): U[] => {
+-  if (!arr) return []
+-  return arr.map(fn)
+-}
+-
+-/**
+- * 类型安全版的map函数
+- * 提供额外的类型检查，确保只处理符合预期类型的元素
+- */
+-export const safeTypedMap = <T, U>(
+-  arr: any[] | undefined | null,
+-  typeGuard: (item: any) => item is T,
+-  fn: (item: T, index: number, array: T[]) => U
+-): U[] => {
+-  if (!arr) return []
+-  return arr.filter(typeGuard).map(fn)
+-}
+-
+-/**
+- * 安全地对数组使用filter方法
+- * 如果数组为null或undefined，返回空数组
+- */
+-export const safeFilter = <T>(
+-  arr: T[] | undefined | null,
+-  fn: (value: T, index: number, array: T[]) => boolean
+-): T[] => {
+-  if (!arr) return []
+-  return arr.filter(fn)
+-}
+-
+-/**
+- * 安全地获取数组的第一个元素
+- * 如果数组为空、null或undefined，返回undefined
+- */
+-export const safeFirst = <T>(arr: T[] | undefined | null): T | undefined => {
+-  if (!arr || arr.length === 0) return undefined
+-  return arr[0]
+-}
+-
+-/**
+- * 安全地访问数组的特定索引元素
+- * 如果数组为null或undefined，或索引超出范围，返回undefined
+- */
+-export const safeAt = <T>(arr: T[] | undefined | null, index: number): T | undefined => {
+-  if (!arr || index < 0 || index >= arr.length) return undefined
+-  return arr[index]
+-}
+-
+-/**
+- * 安全地扁平化嵌套数组
+- * 如果数组为null或undefined，返回空数组
+- */
+-export const safeFlat = <T>(arr: (T[] | undefined | null)[] | undefined | null): T[] => {
+-  if (!arr) return []
+-  return arr.flatMap((subArr) => subArr || [])
+-}
+-
+-/**
+- * 安全地使用reduce方法
+- * 如果数组为null或undefined，返回初始值
+- */
+-export const safeReduce = <T, U>(
+-  arr: T[] | undefined | null,
+-  fn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U,
+-  initialValue: U
+-): U => {
+-  if (!arr) return initialValue
+-  return arr.reduce(fn, initialValue)
+-}
+-
+-/**
+- * 安全地检查数组中是否包含某个元素
+- * 如果数组为null或undefined，返回false
+- */
+-export const safeIncludes = <T>(arr: T[] | undefined | null, value: T): boolean => {
+-  if (!arr) return false
+-  return arr.includes(value)
+-}
+-
+-/**
+- * 安全地使用find方法
+- * 如果数组为null或undefined，返回undefined
+- */
+-export const safeFind = <T>(
+-  arr: T[] | undefined | null,
+-  fn: (value: T, index: number, array: T[]) => boolean
+-): T | undefined => {
+-  if (!arr) return undefined
+-  return arr.find(fn)
+-}
+-
+-/**
+- * 安全地使用findIndex方法
+- * 如果数组为null或undefined，返回-1
+- */
+-export const safeFindIndex = <T>(
+-  arr: T[] | undefined | null,
+-  fn: (value: T, index: number, array: T[]) => boolean
+-): number => {
+-  if (!arr) return -1
+-  return arr.findIndex(fn)
+-}
+-
+-/**
+- * 安全地获取数组长度
+- * 如果数组为null或undefined，返回0
+- */
+-export const safeLength = <T>(arr: T[] | undefined | null): number => {
+-  if (!arr) return 0
+-  return arr.length
+-}
+-
+-/**
+- * 安全地检查数组是否为空
+- * 如果数组为null或undefined，返回true
+- */
+-export const safeIsEmpty = <T>(arr: T[] | undefined | null): boolean => {
+-  return !arr || arr.length === 0
+-}
+-
+-/**
+- * 安全地确保返回一个数组
+- * 如果输入为null或undefined，返回空数组
+- */
+-export const safeArray = <T>(arr: T[] | undefined | null): T[] => {
+-  return arr || []
+-}
+-- 
+2.39.5 (Apple Git-154)
+

@@ -17,6 +17,15 @@ export type Assistant = {
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
   enableGenerateImage?: boolean
+  groupId?: string
+}
+
+export type AssistantGroup = {
+  id: string
+  name: string
+  description?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export type AssistantMessage = {
@@ -104,6 +113,16 @@ export type Topic = {
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
+  groupId?: string
+}
+
+export type TopicGroup = {
+  id: string
+  name: string
+  description?: string
+  createdAt: string
+  updatedAt: string
+  assistantId?: string
 }
 
 export type User = {
