@@ -3,6 +3,7 @@
 @use './scrollbar.scss';
 @use './container.scss';
 @use './animation.scss';
+@use './rtl.scss';
 @import '../fonts/icon-fonts/iconfont.css';
 @import '../fonts/ubuntu/ubuntu.css';
 
@@ -166,6 +167,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s linear;
+  text-align: start;
 }
 
 input,
@@ -180,6 +182,7 @@ code {
   -moz-user-select: text !important;
   -ms-user-select: text !important;
   user-select: text !important;
+  text-align: start;
 }
 
 a {
@@ -195,11 +198,19 @@ body,
 }
 
 #root {
-  width: 100%;
-  height: 100%;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
   display: flex;
   flex-direction: row;
   flex: 1;
+}
+
+#content-container {
+  background-color: var(--color-background);
+  border-block-start: 0.5px solid var(--color-border);
+  border-start-start-radius: 10px;
+  border-inline-start: 0.5px solid var(--color-border);
 }
 
 .loader {
@@ -230,6 +241,7 @@ body,
   text-overflow: ellipsis;
   white-space: normal;
   word-wrap: break-word;
+  text-align: start;
 }
 
 .bubble {
@@ -241,19 +253,21 @@ body,
     background-color: var(--chat-background);
   }
   #inputbar {
-    margin: -5px 15px 15px 15px;
+    margin-block: -5px 15px;
+    margin-inline: 15px;
     background: var(--color-background);
   }
   .system-prompt {
     background-color: var(--chat-background-assistant);
   }
   .message-content-container {
-    margin: 5px 0;
+    margin-inline: 5px;
     border-radius: 8px;
-    padding: 10px 15px 0 15px;
+    padding-block-start: 10px;
+    padding-inline: 15px;
   }
   .message-thought-container {
-    margin-top: 8px;
+    margin-block-start: 8px;
   }
   .message-user {
     color: var(--chat-text-user);
@@ -280,4 +294,10 @@ body,
   code {
     color: var(--color-text);
   }
+}
+
+.slide-enter,
+.slide-leave,
+.slide-appear {
+  transform-origin: start;
 }

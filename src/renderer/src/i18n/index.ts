@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 // Original translation
+import arEG from './locales/ar-eg.json'
 import enUS from './locales/en-us.json'
 import jaJP from './locales/ja-jp.json'
 import ruRU from './locales/ru-ru.json'
@@ -22,7 +23,8 @@ const resources = {
   'pt-PT': ptPT,
   'ru-RU': ruRU,
   'zh-CN': zhCN,
-  'zh-TW': zhTW
+  'zh-TW': zhTW,
+  'ar-EG': arEG
 }
 
 export const getLanguage = () => {

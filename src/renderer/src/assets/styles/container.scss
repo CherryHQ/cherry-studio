@@ -1,6 +1,13 @@
 #content-container {
   background-color: var(--color-background);
-  border-top: 0.5px solid var(--color-border);
-  border-top-left-radius: 10px;
-  border-left: 0.5px solid var(--color-border);
+  border-block-start: 0.5px solid var(--color-border);
+  border-start-start-radius: 10px;
+  border-inline-start: 0.5px solid var(--color-border);
+
+  [dir='rtl'] & {
+    border-start-start-radius: 0;
+    border-start-end-radius: 10px;
+    border-inline-start: none;
+    border-inline-end: 0.5px solid var(--color-border);
+  }
 }

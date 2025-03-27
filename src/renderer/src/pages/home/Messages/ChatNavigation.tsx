@@ -1,4 +1,5 @@
 import { DownOutlined, HistoryOutlined, UpOutlined } from '@ant-design/icons'
+import { useLayoutDirection } from '@renderer/context/LayoutDirection'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { RootState } from '@renderer/store'
 import { selectCurrentTopicId } from '@renderer/store/messages'
@@ -24,7 +25,9 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const lastMoveTime = useRef(0)
   const { topicPosition, showTopics } = useSettings()
   const showRightTopics = topicPosition === 'right' && showTopics
-  const right = showRightTopics ? 'calc(var(--topic-list-width) + 16px)' : '16px'
+  const { isRTL } = useLayoutDirection()
+  const sidePosition = isRTL ? 'left' : 'right'
+  const sideOffset = showRightTopics ? 'calc(var(--topic-list-width) + 16px)' : '16px'
 
   // Reset hide timer and make buttons visible
   const resetHideTimer = useCallback(() => {
@@ -263,26 +266,18 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         clearTimeout(hideTimer)
       }
     }
-  }, [
-    containerId,
-    hideTimer,
-    resetHideTimer,
-    isNearButtons,
-    handleMouseEnter,
-    handleMouseLeave,
-    right,
-    showRightTopics
-  ])
+  }, [containerId, hideTimer, resetHideTimer, isNearButtons, handleMouseEnter, handleMouseLeave, showRightTopics])
 
   return (
     <>
       <NavigationContainer
         $isVisible={isVisible}
-        $right={right}
+        $sidePosition={sidePosition}
+        $sideOffset={sideOffset}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
-          <Tooltip title={t('chat.navigation.prev')} placement="left">
+          <Tooltip title={t('chat.navigation.prev')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
               icon={<UpOutlined />}
@@ -291,7 +286,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.next')} placement="left">
+          <Tooltip title={t('chat.navigation.next')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
               icon={<DownOutlined />}
@@ -300,7 +295,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.history')} placement="left">
+          <Tooltip title={t('chat.navigation.history')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
               icon={<HistoryOutlined />}
@@ -313,7 +308,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
       <Drawer
         title={t('chat.history.title')}
-        placement="right"
+        placement={isRTL ? 'right' : 'left'}
         onClose={handleDrawerClose}
         open={showChatHistory}
         width={680}
@@ -332,14 +327,16 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
 interface NavigationContainerProps {
   $isVisible: boolean
-  $right: string
+  $sidePosition: 'left' | 'right'
+  $sideOffset: string
 }
 
 const NavigationContainer = styled.div<NavigationContainerProps>`
   position: fixed;
-  right: ${(props) => props.$right};
+  ${(props) => props.$sidePosition}: ${(props) => props.$sideOffset};
   top: 50%;
-  transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? 0 : '100%')});
+  transform: translateY(-50%)
+    translateX(${(props) => (props.$isVisible ? 0 : props.$sidePosition === 'right' ? '100%' : '-100%')});
   z-index: 999;
   opacity: ${(props) => (props.$isVisible ? 1 : 0)};
   transition:

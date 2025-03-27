@@ -176,7 +176,9 @@ const ProvidersList: FC = () => {
                                   {provider.isSystem ? t(`provider.${provider.id}`) : provider.name}
                                 </ProviderItemName>
                                 {provider.enabled && (
-                                  <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
+                                  <Tag
+                                    color="green"
+                                    style={{ marginInlineStart: 'auto', marginInlineEnd: 0, borderRadius: 16 }}>
                                     ON
                                   </Tag>
                                 )}
@@ -256,7 +258,7 @@ const ProviderLogo = styled(Avatar)`
 `
 
 const ProviderItemName = styled.div`
-  margin-left: 10px;
+  margin-inline-start: 10px;
   font-weight: 500;
   font-family: Ubuntu;
 `

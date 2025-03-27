@@ -13,9 +13,21 @@ export class ConfigManager {
     this.store = new Store()
   }
 
+  private getSystemLocale(): LanguageVarious {
+    const systemLocale = app.getLocale() as LanguageVarious
+    console.log('System locale:', systemLocale)
+    return Object.keys(locales).includes(systemLocale) ? systemLocale : 'en-US'
+  }
+
   getLanguage(): LanguageVarious {
-    const locale = Object.keys(locales).includes(app.getLocale()) ? app.getLocale() : 'en-US'
-    return this.store.get('language', locale) as LanguageVarious
+    // 如果存储中已有语言设置，则使用存储的设置
+    const storedLanguage = this.store.get('language')
+    if (storedLanguage) {
+      return storedLanguage as LanguageVarious
+    }
+
+    // 否则获取系统语言
+    return this.getSystemLocale()
   }
 
   setLanguage(theme: LanguageVarious) {

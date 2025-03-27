@@ -1,8 +1,12 @@
 .markdown {
   color: var(--color-text);
   line-height: 1.6;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
   user-select: text;
   word-break: break-word;
+  text-align: start;
 
   h1:first-child,
   h2:first-child,
@@ -11,6 +15,7 @@
   h5:first-child,
   h6:first-child {
     margin-top: 0;
+    text-align: start;
   }
 
   h1,
@@ -23,6 +28,7 @@
     font-weight: 800;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
       'Helvetica Neue', sans-serif;
+    text-align: start;
   }
 
   h1 {
@@ -56,6 +62,8 @@
   p {
     margin: 1em 0;
     white-space: pre-wrap;
+    text-align: start;
+    unicode-bidi: isolate;
 
     &:last-child {
       margin-bottom: 5px;
@@ -76,12 +84,12 @@
 
   ul,
   ol {
-    padding-left: 1.5em;
+    padding-inline-start: 1.5em;
     margin: 1em 0;
   }
 
   li {
-    margin-bottom: 0.5em;
+    margin-block-end: 0.5em;
     pre {
       margin: 1.5em 0;
     }
@@ -117,6 +125,7 @@
 
   code {
     font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    direction: ltr;
   }
 
   pre {
@@ -124,6 +133,7 @@
     overflow-x: auto;
     font-family: 'Fira Code', 'Courier New', Courier, monospace;
     background-color: var(--color-background-mute);
+    direction: ltr;
     &:has(> .mermaid) {
       background-color: transparent;
     }
@@ -153,12 +163,15 @@
     color: var(--color-text-light);
     border-left: 4px solid var(--color-border);
     font-family: Georgia, 'Times New Roman', Times, serif;
+    unicode-bidi: isolate;
   }
 
   table {
     border-collapse: collapse;
     margin: 1em 0;
     width: 100%;
+    direction: inherit;
+    unicode-bidi: isolate;
   }
 
   th,
