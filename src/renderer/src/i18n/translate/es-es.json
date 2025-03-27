@@ -130,7 +130,10 @@
         "first": "Ya es el primer mensaje",
         "last": "Ya es el último mensaje",
         "next": "Siguiente mensaje",
-        "prev": "Mensaje anterior"
+        "prev": "Mensaje anterior",
+        "top": "Volver arriba",
+        "bottom": "Volver abajo",
+        "close": "Cerrar"
       },
       "resend": "Reenviar",
       "save": "Guardar",
