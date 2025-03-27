@@ -27,6 +27,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [isNearButtons, setIsNearButtons] = useState(false)
   const [hideTimer, setHideTimer] = useState<NodeJS.Timeout | null>(null)
   const [showChatHistory, setShowChatHistory] = useState(false)
+  const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
   const currentTopicId = useSelector((state: RootState) => selectCurrentTopicId(state))
   const lastMoveTime = useRef(0)
   const { topicPosition, showTopics } = useSettings()
@@ -52,6 +53,10 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
   // Handle mouse entering button area
   const handleMouseEnter = useCallback(() => {
+    if (manuallyClosedUntil && Date.now() < manuallyClosedUntil) {
+      return
+    }
+
     setIsNearButtons(true)
     setIsVisible(true)
 
@@ -60,7 +65,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       clearTimeout(hideTimer)
       setHideTimer(null)
     }
-  }, [hideTimer])
+  }, [hideTimer, manuallyClosedUntil])
 
   // Handle mouse leaving button area
   const handleMouseLeave = useCallback(() => {
@@ -156,8 +161,11 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     return -1
   }
 
+  // 修改 handleChatNavigationClick 函数
   const handleChatNavigationClick = () => {
     setIsVisible(false)
+    // 设置手动关闭状态，1分钟内不响应鼠标靠近事件
+    setManuallyClosedUntil(Date.now() + 60000) // 60000毫秒 = 1分钟
   }
 
   const handleNextMessage = () => {
@@ -228,6 +236,11 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
     // Throttled mouse move handler to improve performance
     const handleMouseMove = (e: MouseEvent) => {
+      // 如果在手动关闭期间，不响应鼠标移动事件
+      if (manuallyClosedUntil && Date.now() < manuallyClosedUntil) {
+        return
+      }
+
       // Throttle mouse move to every 50ms for performance
       const now = Date.now()
       if (now - lastMoveTime.current < 50) return
@@ -282,7 +295,8 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     handleMouseEnter,
     handleMouseLeave,
     right,
-    showRightTopics
+    showRightTopics,
+    manuallyClosedUntil // 添加新的依赖项
   ])
 
   return (
