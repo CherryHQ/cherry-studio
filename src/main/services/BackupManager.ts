@@ -5,7 +5,7 @@ import { app } from 'electron'
 import Logger from 'electron-log'
 import * as fs from 'fs-extra'
 import * as path from 'path'
-import { createClient, FileStat, CreateDirectoryOptions } from 'webdav'
+import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
 
 import WebDav from './WebDav'
 import { windowService } from './WindowService'

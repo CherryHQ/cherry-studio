@@ -17,16 +17,17 @@ import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { isReasoningModel } from '@renderer/config/models'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import { Message, Model } from '@renderer/types'
-import { Assistant, Topic } from '@renderer/types'
+import type { Message, Model } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, removeTrailingDoubleSpaces } from '@renderer/utils'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToNotion,
+  exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
   messageToMarkdown
@@ -61,15 +62,9 @@ const MessageMenubar: FC<Props> = (props) => {
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const assistantModel = assistant?.model
-  const {
-    loading,
-    editMessage,
-    setStreamMessage,
-    deleteMessage,
-    resendMessage,
-    commitStreamMessage,
-    clearStreamMessage
-  } = useMessageOperations(topic)
+  const { editMessage, setStreamMessage, deleteMessage, resendMessage, commitStreamMessage, clearStreamMessage } =
+    useMessageOperations(topic)
+  const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
 
@@ -254,6 +249,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const markdown = messageToMarkdown(message)
               exportMarkdownToJoplin(title, markdown)
             }
+          },
+          {
+            label: t('chat.topics.export.siyuan'),
+            key: 'siyuan',
+            onClick: async () => {
+              const title = getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMarkdownToSiyuan(title, markdown)
+            }
           }
         ]
       }
@@ -372,7 +376,7 @@ const MessageMenubar: FC<Props> = (props) => {
         okButtonProps={{ danger: true }}
         icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
         onOpenChange={(open) => open && setShowDeleteTooltip(false)}
-        onConfirm={() => deleteMessage(message)}>
+        onConfirm={() => deleteMessage(message.id)}>
         <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
           <Tooltip
             title={t('common.delete')}

@@ -1,4 +1,4 @@
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getFileFromUrl, getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'

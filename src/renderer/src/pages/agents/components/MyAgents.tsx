@@ -2,7 +2,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, SortAscendingOutlined } fro
 import { useAgents } from '@renderer/hooks/useAgents'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
-import { Agent } from '@renderer/types'
+import type { Agent } from '@renderer/types'
 import { Col, Row } from 'antd'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,7 +45,7 @@ const MyAgents: React.FC<Props> = ({ onClick, search }) => {
   return (
     <Row gutter={[20, 20]}>
       {filteredAgents.map((agent) => {
-        const dropdownMenuItems = [
+        const menuItems = [
           {
             key: 'edit',
             label: t('agents.edit.title'),
@@ -73,29 +73,9 @@ const MyAgents: React.FC<Props> = ({ onClick, search }) => {
           }
         ]
 
-        const contextMenuItems = [
-          {
-            label: t('agents.edit.title'),
-            onClick: () => AssistantSettingsPopup.show({ assistant: agent })
-          },
-          {
-            label: t('agents.add.button'),
-            onClick: () => createAssistantFromAgent(agent)
-          },
-          {
-            label: t('common.delete'),
-            onClick: () => handleDelete(agent)
-          }
-        ]
-
         return (
           <Col span={6} key={agent.id}>
-            <AgentCard
-              agent={agent}
-              onClick={() => onClick?.(agent)}
-              contextMenu={contextMenuItems}
-              menuItems={dropdownMenuItems}
-            />
+            <AgentCard agent={agent} onClick={() => onClick?.(agent)} contextMenu={menuItems} menuItems={menuItems} />
           </Col>
         )
       })}

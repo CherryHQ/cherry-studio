@@ -2,7 +2,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations, useTopicLoading, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
@@ -38,6 +38,42 @@ interface MessagesProps {
   setActiveTopic: (topic: Topic) => void
 }
 
+const computeDisplayMessages = (messages: Message[], startIndex: number, displayCount: number) => {
+  const reversedMessages = [...messages].reverse()
+
+  // 如果剩余消息数量小于 displayCount，直接返回所有剩余消息
+  if (reversedMessages.length - startIndex <= displayCount) {
+    return reversedMessages.slice(startIndex)
+  }
+
+  const userIdSet = new Set() // 用户消息 id 集合
+  const assistantIdSet = new Set() // 助手消息 askId 集合
+  const displayMessages: Message[] = []
+
+  // 处理单条消息的函数
+  const processMessage = (message: Message) => {
+    if (!message) return
+
+    const idSet = message.role === 'user' ? userIdSet : assistantIdSet
+    const messageId = message.role === 'user' ? message.id : message.askId
+
+    if (!idSet.has(messageId)) {
+      idSet.add(messageId)
+      displayMessages.push(message)
+      return
+    }
+    // 如果是相同 askId 的助手消息，也要显示
+    displayMessages.push(message)
+  }
+
+  // 遍历消息直到满足显示数量要求
+  for (let i = startIndex; i < reversedMessages.length && userIdSet.size + assistantIdSet.size < displayCount; i++) {
+    processMessage(reversedMessages[i])
+  }
+
+  return displayMessages
+}
+
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
   const { t } = useTranslation()
   const { showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
@@ -48,9 +84,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
-  const { messages, displayCount, loading, updateMessages, clearTopicMessages, deleteMessage } =
-    useMessageOperations(topic)
-
+  const messages = useTopicMessages(topic)
+  const { displayCount, updateMessages, clearTopicMessages, deleteMessage } = useMessageOperations(topic)
+  const loading = useTopicLoading(topic)
   const messagesRef = useRef<Message[]>(messages)
 
   useEffect(() => {
@@ -58,9 +94,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   }, [messages])
 
   useEffect(() => {
-    const reversedMessages = [...messages].reverse()
-    const newDisplayMessages = reversedMessages.slice(0, displayCount)
-
+    const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
     setDisplayMessages(newDisplayMessages)
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
@@ -73,7 +107,15 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   }, [showAssistants, showTopics, topicPosition])
 
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'auto' }), 50)
+    if (containerRef.current) {
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTo({
+            top: containerRef.current.scrollHeight
+          })
+        }
+      })
+    }
   }, [])
 
   useEffect(() => {
@@ -122,7 +164,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           const lastMessage = last(messages)
 
           if (lastMessage?.type === 'clear') {
-            await deleteMessage(lastMessage)
+            await deleteMessage(lastMessage.id)
             scrollToBottom()
             return
           }
@@ -183,10 +225,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     setIsLoadingMore(true)
     setTimeout(() => {
       const currentLength = displayMessages.length
-      const reversedMessages = [...messages].reverse()
-      const moreMessages = reversedMessages.slice(currentLength, currentLength + LOAD_MORE_COUNT)
+      const newMessages = computeDisplayMessages(messages, currentLength, LOAD_MORE_COUNT)
 
-      setDisplayMessages((prev) => [...prev, ...moreMessages])
+      setDisplayMessages((prev) => [...prev, ...newMessages])
       setHasMore(currentLength + LOAD_MORE_COUNT < messages.length)
       setIsLoadingMore(false)
     }, 300)
@@ -214,8 +255,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           next={loadMoreMessages}
           hasMore={hasMore}
           loader={null}
-          inverse={true}
-          scrollableTarget="messages">
+          scrollableTarget="messages"
+          inverse>
           <ScrollContainer>
             <LoaderContainer $loading={isLoadingMore}>
               <BeatLoader size={8} color="var(--color-text-2)" />
@@ -232,9 +273,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         </InfiniteScroll>
         <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
       </NarrowLayout>
-
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
-
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
     </Container>
   )

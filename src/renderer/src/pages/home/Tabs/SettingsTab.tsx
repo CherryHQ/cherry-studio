@@ -1,4 +1,4 @@
-import { CheckOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { CheckOutlined, QuestionCircleOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
@@ -13,6 +13,7 @@ import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
+import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
 import {
@@ -37,7 +38,7 @@ import {
 } from '@renderer/store/settings'
 import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -145,11 +146,19 @@ const SettingsTab: FC<Props> = (props) => {
   return (
     <Container className="settings-tab">
       <SettingGroup style={{ marginTop: 10 }}>
-        <SettingSubtitle style={{ marginTop: 0 }}>
-          {t('settings.messages.model.title')}{' '}
-          <Tooltip title={t('chat.settings.reset')}>
-            <ReloadOutlined onClick={onReset} style={{ cursor: 'pointer', fontSize: 12, padding: '0 3px' }} />
-          </Tooltip>
+        <SettingSubtitle style={{ marginTop: 0, display: 'flex', justifyContent: 'space-between' }}>
+          <HStack alignItems="center">
+            {t('assistants.settings.title')}{' '}
+            <Tooltip title={t('chat.settings.reset')}>
+              <ReloadOutlined onClick={onReset} style={{ cursor: 'pointer', fontSize: 12, padding: '0 3px' }} />
+            </Tooltip>
+          </HStack>
+          <Button
+            type="text"
+            size="small"
+            icon={<SettingOutlined />}
+            onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
+          />
         </SettingSubtitle>
         <SettingDivider />
         <Row align="middle">

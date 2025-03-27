@@ -78,8 +78,7 @@ const Assistants: FC<AssistantsTabProps> = ({
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
-  padding-top: 11px;
-  user-select: none;
+  padding: 10px;
 `
 
 const AssistantAddItem = styled.div`
@@ -88,7 +87,6 @@ const AssistantAddItem = styled.div`
   justify-content: space-between;
   padding: 7px 12px;
   position: relative;
-  margin: 0 10px;
   padding-right: 35px;
   font-family: Ubuntu;
   border-radius: var(--list-item-border-radius);

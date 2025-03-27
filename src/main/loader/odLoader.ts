@@ -1,6 +1,6 @@
+import { BaseLoader } from '@cherrystudio/embedjs-interfaces'
+import { cleanString } from '@cherrystudio/embedjs-utils'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
-import { BaseLoader } from '@llm-tools/embedjs-interfaces'
-import { cleanString } from '@llm-tools/embedjs-utils'
 import md5 from 'md5'
 import { OfficeParserConfig, parseOfficeAsync } from 'officeparser'
 

@@ -280,7 +280,11 @@ const ShortcutSettings: FC = () => {
             <HStack alignItems="center" style={{ position: 'relative' }}>
               {isEditing ? (
                 <ShortcutInput
-                  ref={(el) => el && (inputRefs.current[record.key] = el)}
+                  ref={(el) => {
+                    if (el) {
+                      inputRefs.current[record.key] = el
+                    }
+                  }}
                   value={formatShortcut(shortcut)}
                   placeholder={t('settings.shortcuts.press_shortcut')}
                   onKeyDown={(e) => handleKeyDown(e, record)}

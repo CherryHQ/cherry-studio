@@ -152,7 +152,12 @@ const PopupContainer: React.FC<Props> = ({ server, create, resolve }) => {
       width={600}
       transitionName="ant-move-down"
       centered
-      bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}>
+      styles={{
+        body: {
+          maxHeight: '70vh',
+          overflowY: 'auto'
+        }
+      }}>
       <Form form={form} layout="vertical">
         <Form.Item
           name="name"

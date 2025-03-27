@@ -3,7 +3,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
 import { setCustomCss } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
+import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
 
 interface ThemeContextType {
   theme: ThemeMode
@@ -65,11 +65,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
       store.dispatch(setCustomCss(css))
     })
   }, [])
-  return (
-    <ThemeContext.Provider value={{ theme: _theme, settingTheme: theme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  )
+
+  return <ThemeContext value={{ theme: _theme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
 }
 
-export const useTheme = () => useContext(ThemeContext)
+export const useTheme = () => use(ThemeContext)

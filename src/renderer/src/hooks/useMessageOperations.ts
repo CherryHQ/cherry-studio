@@ -1,17 +1,19 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { estimateMessageUsage } from '@renderer/services/TokenService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   clearStreamMessage,
   clearTopicMessages,
   commitStreamMessage,
+  deleteMessageAction,
   resendMessage,
   selectDisplayCount,
   selectTopicLoading,
   selectTopicMessages,
   setStreamMessage,
   setTopicLoading,
-  updateMessage,
-  updateMessages
+  updateMessages,
+  updateMessageThunk
 } from '@renderer/store/messages'
 import type { Assistant, Message, Topic } from '@renderer/types'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -26,17 +28,15 @@ import { TopicManager } from './useTopic'
  */
 export function useMessageOperations(topic: Topic) {
   const dispatch = useAppDispatch()
-  const messages = useAppSelector((state) => selectTopicMessages(state, topic.id))
 
   /**
    * 删除单个消息
    */
   const deleteMessage = useCallback(
-    async (message: Message) => {
-      const newMessages = messages.filter((m) => m.id !== message.id)
-      await dispatch(updateMessages(topic, newMessages))
+    async (id: string) => {
+      await dispatch(deleteMessageAction(topic, id))
     },
-    [dispatch, topic, messages]
+    [dispatch, topic]
   )
 
   /**
@@ -44,10 +44,9 @@ export function useMessageOperations(topic: Topic) {
    */
   const deleteGroupMessages = useCallback(
     async (askId: string) => {
-      const newMessages = messages.filter((m) => m.askId !== askId)
-      await dispatch(updateMessages(topic, newMessages))
+      await dispatch(deleteMessageAction(topic, askId, 'askId'))
     },
-    [dispatch, topic, messages]
+    [dispatch, topic]
   )
 
   /**
@@ -55,13 +54,17 @@ export function useMessageOperations(topic: Topic) {
    */
   const editMessage = useCallback(
     async (messageId: string, updates: Partial<Message>) => {
-      await dispatch(
-        updateMessage({
-          topicId: topic.id,
-          messageId,
-          updates
-        })
-      )
+      // 如果更新包含内容变更，重新计算 token
+      if ('content' in updates) {
+        const messages = store.getState().messages.messagesByTopic[topic.id]
+        const message = messages?.find((m) => m.id === messageId)
+        if (message) {
+          const updatedMessage = { ...message, ...updates }
+          const usage = await estimateMessageUsage(updatedMessage)
+          updates.usage = usage
+        }
+      }
+      await dispatch(updateMessageThunk(topic.id, messageId, updates))
     },
     [dispatch, topic.id]
   )
@@ -148,7 +151,6 @@ export function useMessageOperations(topic: Topic) {
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [])
 
-  const loading = useAppSelector((state) => selectTopicLoading(state, topic.id))
   const displayCount = useAppSelector(selectDisplayCount)
   // /**
   //  * 获取当前消息列表
@@ -200,8 +202,6 @@ export function useMessageOperations(topic: Topic) {
   )
 
   return {
-    messages,
-    loading,
     displayCount,
     updateMessages: updateMessagesAction,
     deleteMessage,
@@ -218,4 +218,14 @@ export function useMessageOperations(topic: Topic) {
     pauseMessages,
     resumeMessage
   }
+}
+
+export const useTopicMessages = (topic: Topic) => {
+  const messages = useAppSelector((state) => selectTopicMessages(state, topic.id))
+  return messages
+}
+
+export const useTopicLoading = (topic: Topic) => {
+  const loading = useAppSelector((state) => selectTopicLoading(state, topic.id))
+  return loading
 }

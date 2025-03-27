@@ -6,11 +6,11 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
-import { updateMessage } from '@renderer/store/messages'
-import { Message } from '@renderer/types'
+import { updateMessageThunk } from '@renderer/store/messages'
+import type { Message } from '@renderer/types'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { Avatar } from 'antd'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 interface MessageLineProps {
@@ -100,15 +100,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
     (message: Message) => {
       const groupMessages = messages.filter((m) => m.askId === message.askId)
       if (groupMessages.length > 1) {
-        groupMessages.forEach((m) => {
-          dispatch(
-            updateMessage({
-              topicId: m.topicId,
-              messageId: m.id,
-              updates: { foldSelected: m.id === message.id }
-            })
-          )
-        })
+        for (const m of groupMessages) {
+          dispatch(updateMessageThunk(m.topicId, m.id, { foldSelected: m.id === message.id }))
+        }
 
         setTimeout(() => {
           const messageElement = document.getElementById(`message-${message.id}`)

@@ -1,6 +1,6 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { MCPToolResponse, Message } from '@renderer/types'
+import { Message } from '@renderer/types'
 import { Collapse, message as antdMessage, Modal, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useMemo, useState } from 'react'
@@ -42,9 +42,9 @@ const MessageTools: FC<Props> = ({ message }) => {
 
   // Format tool responses for collapse items
   const getCollapseItems = () => {
-    const items: { key: string; label: JSX.Element; children: React.ReactNode }[] = []
+    const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
     // Add tool responses
-    toolResponses.forEach((toolResponse: MCPToolResponse) => {
+    for (const toolResponse of toolResponses) {
       const { id, tool, status, response } = toolResponse
       const isInvoking = status === 'invoking'
       const isDone = status === 'done'
@@ -105,7 +105,7 @@ const MessageTools: FC<Props> = ({ message }) => {
           </ToolResponseContainer>
         )
       })
-    })
+    }
 
     return items
   }
@@ -129,7 +129,9 @@ const MessageTools: FC<Props> = ({ message }) => {
         onCancel={() => setExpandedResponse(null)}
         footer={null}
         width="80%"
-        bodyStyle={{ maxHeight: '80vh', overflow: 'auto' }}>
+        styles={{
+          body: { maxHeight: '80vh', overflow: 'auto' }
+        }}>
         {expandedResponse && (
           <ExpandedResponseContainer style={{ fontFamily, fontSize }}>
             <ActionButton

@@ -175,6 +175,7 @@ export function getAssistantMessage({ assistant, topic }: { assistant: Assistant
 
 export function getGroupedMessages(messages: Message[]): { [key: string]: (Message & { index: number })[] } {
   const groups: { [key: string]: (Message & { index: number })[] } = {}
+
   messages.forEach((message, index) => {
     const key = message.askId ? 'assistant' + message.askId : 'user' + message.id
     if (key && !groups[key]) {
@@ -182,6 +183,7 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
     }
     groups[key].unshift({ ...message, index })
   })
+
   return groups
 }
 

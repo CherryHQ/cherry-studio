@@ -1,7 +1,7 @@
 import { BulbOutlined, EnterOutlined, FileTextOutlined, MessageOutlined, TranslationOutlined } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Col } from 'antd'
-import { Dispatch, forwardRef, SetStateAction, useImperativeHandle, useMemo, useState } from 'react'
+import { Dispatch, SetStateAction, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -18,7 +18,12 @@ export interface FeatureMenusRef {
   resetSelectedIndex: () => void
 }
 
-const FeatureMenus = forwardRef<FeatureMenusRef, FeatureMenusProps>(({ text, setRoute, onSendMessage }, ref) => {
+const FeatureMenus = ({
+  ref,
+  text,
+  setRoute,
+  onSendMessage
+}: FeatureMenusProps & { ref?: React.RefObject<FeatureMenusRef | null> }) => {
   const { t } = useTranslation()
   const [selectedIndex, setSelectedIndex] = useState(0)
 
@@ -94,7 +99,7 @@ const FeatureMenus = forwardRef<FeatureMenusRef, FeatureMenusProps>(({ text, set
       </FeatureListWrapper>
     </FeatureList>
   )
-})
+}
 FeatureMenus.displayName = 'FeatureMenus'
 
 const FeatureList = styled(Scrollbar)`

@@ -1,9 +1,10 @@
 import { isMac } from '@renderer/config/constant'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
-import { FC, PropsWithChildren } from 'react'
+import type { FC, PropsWithChildren } from 'react'
+import type { HTMLAttributes } from 'react'
 import styled from 'styled-components'
 
-type Props = PropsWithChildren & JSX.IntrinsicElements['div']
+type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()

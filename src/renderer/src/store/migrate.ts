@@ -799,6 +799,14 @@ const migrateConfig = {
   '84': (state: RootState) => {
     addProvider(state, 'voyageai')
     return state
+  },
+  '85': (state: RootState) => {
+    // @ts-ignore eslint-disable-next-line
+    state.settings.autoCheckUpdate = !state.settings.manualUpdateCheck
+    // @ts-ignore eslint-disable-next-line
+    delete state.settings.manualUpdateCheck
+    state.settings.gridPopoverTrigger = 'click'
+    return state
   }
 }
 

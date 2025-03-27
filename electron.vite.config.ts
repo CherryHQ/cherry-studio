@@ -12,16 +12,16 @@ export default defineConfig({
     plugins: [
       externalizeDepsPlugin({
         exclude: [
-          '@llm-tools/embedjs',
-          '@llm-tools/embedjs-openai',
-          '@llm-tools/embedjs-loader-web',
-          '@llm-tools/embedjs-loader-markdown',
-          '@llm-tools/embedjs-loader-msoffice',
-          '@llm-tools/embedjs-loader-xml',
-          '@llm-tools/embedjs-loader-pdf',
-          '@llm-tools/embedjs-loader-sitemap',
-          '@llm-tools/embedjs-libsql',
-          '@llm-tools/embedjs-loader-image',
+          '@cherrystudio/embedjs',
+          '@cherrystudio/embedjs-openai',
+          '@cherrystudio/embedjs-loader-web',
+          '@cherrystudio/embedjs-loader-markdown',
+          '@cherrystudio/embedjs-loader-msoffice',
+          '@cherrystudio/embedjs-loader-xml',
+          '@cherrystudio/embedjs-loader-pdf',
+          '@cherrystudio/embedjs-loader-sitemap',
+          '@cherrystudio/embedjs-libsql',
+          '@cherrystudio/embedjs-loader-image',
           'p-queue',
           'webdav'
         ]

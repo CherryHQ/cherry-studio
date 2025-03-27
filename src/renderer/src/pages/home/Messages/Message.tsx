@@ -163,7 +163,7 @@ const MessageItem: FC<Props> = ({
               isLastMessage={isLastMessage}
               isAssistantMessage={isAssistantMessage}
               isGrouped={isGrouped}
-              messageContainerRef={messageContainerRef}
+              messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
               setModel={setModel}
             />
           </MessageFooter>

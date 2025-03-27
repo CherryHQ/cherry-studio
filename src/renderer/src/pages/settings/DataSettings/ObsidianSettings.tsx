@@ -1,95 +1,90 @@
 import { HStack } from '@renderer/components/Layout'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { RootState, useAppDispatch } from '@renderer/store'
-import { setObsidianFolder, setObsidianTages, setObsidianValut } from '@renderer/store/settings'
-import Input from 'antd/es/input/Input'
-import { FC } from 'react'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { useAppDispatch } from '@renderer/store'
+import { setDefaultObsidianVault } from '@renderer/store/settings'
+import { Empty, Select, Spin } from 'antd'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
+const { Option } = Select
+
 const ObsidianSettings: FC = () => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
+  const { defaultObsidianVault } = useSettings()
   const dispatch = useAppDispatch()
 
-  // const obsidianApiKey = useSelector((state: RootState) => state.settings.obsidianApiKey)
-  // const obsidianUrl = useSelector((state: RootState) => state.settings.obsidianUrl)
+  const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const obsidianVault = useSelector((state: RootState) => state.settings.obsidianValut)
-  const obsidianFolder = useSelector((state: RootState) => state.settings.obsidianFolder)
-  const obsidianTags = useSelector((state: RootState) => state.settings.obsidianTages)
+  // 组件加载时获取Vault列表
+  useEffect(() => {
+    const fetchVaults = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const vaultsData = await window.obsidian.getVaults()
 
-  const handleObsidianVaultChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setObsidianValut(e.target.value))
-  }
+        if (vaultsData.length === 0) {
+          setError(t('settings.data.obsidian.default_vault_no_vaults'))
+          setLoading(false)
+          return
+        }
 
-  const handleObsidianFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setObsidianFolder(e.target.value))
-  }
+        setVaults(vaultsData)
 
-  const handleObsidianVaultBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    dispatch(setObsidianValut(e.target.value))
-  }
+        // 如果没有设置默认vault，则选择第一个
+        if (!defaultObsidianVault && vaultsData.length > 0) {
+          dispatch(setDefaultObsidianVault(vaultsData[0].name))
+        }
+      } catch (error) {
+        console.error('获取Obsidian Vault失败:', error)
+        setError(t('settings.data.obsidian.default_vault_fetch_error'))
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const handleObsidianFolderBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    dispatch(setObsidianFolder(e.target.value))
-  }
+    fetchVaults()
+  }, [dispatch, defaultObsidianVault, t])
 
-  const handleObsidianTagsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setObsidianTages(e.target.value))
-  }
-
-  const handleObsidianTagsBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    dispatch(setObsidianTages(e.target.value))
+  const handleChange = (value: string) => {
+    dispatch(setDefaultObsidianVault(value))
   }
 
   return (
-    <SettingGroup theme={theme}>
+    <SettingGroup>
       <SettingTitle>{t('settings.data.obsidian.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.obsidian.vault')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
-          <Input
-            type="text"
-            value={obsidianVault || ''}
-            onChange={handleObsidianVaultChange}
-            onBlur={handleObsidianVaultBlur}
-            style={{ width: 315 }}
-            placeholder={t('settings.data.obsidian.vault_placeholder')}
-          />
-        </HStack>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
-          <span>{t('settings.data.obsidian.folder')}</span>
-        </SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
-          <Input
-            value={obsidianFolder || ''}
-            onChange={handleObsidianFolderChange}
-            onBlur={handleObsidianFolderBlur}
-            style={{ width: 315 }}
-            placeholder={t('settings.data.obsidian.folder_placeholder')}
-          />
-        </HStack>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
-          <span>{t('settings.data.obsidian.tags')}</span>
-        </SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
-          <Input
-            value={obsidianTags || ''}
-            onChange={handleObsidianTagsChange}
-            onBlur={handleObsidianTagsBlur}
-            style={{ width: 315 }}
-            placeholder={t('settings.data.obsidian.tags_placeholder')}
-          />
+        <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
+        <HStack gap="5px">
+          <Spin spinning={loading} size="small">
+            {vaults.length > 0 ? (
+              <Select
+                value={defaultObsidianVault || undefined}
+                onChange={handleChange}
+                placeholder={t('settings.data.obsidian.default_vault_placeholder')}
+                style={{ width: 300 }}>
+                {vaults.map((vault) => (
+                  <Option key={vault.name} value={vault.name}>
+                    {vault.name}
+                  </Option>
+                ))}
+              </Select>
+            ) : (
+              <Empty
+                description={
+                  loading
+                    ? t('settings.data.obsidian.default_vault_loading')
+                    : error || t('settings.data.obsidian.default_vault_no_vaults')
+                }
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            )}
+          </Spin>
         </HStack>
       </SettingRow>
     </SettingGroup>

@@ -1,6 +1,6 @@
-import type { BaseEmbeddings } from '@llm-tools/embedjs-interfaces'
-import { OpenAiEmbeddings } from '@llm-tools/embedjs-openai'
-import { AzureOpenAiEmbeddings } from '@llm-tools/embedjs-openai/src/azure-openai-embeddings'
+import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
+import { OpenAiEmbeddings } from '@cherrystudio/embedjs-openai'
+import { AzureOpenAiEmbeddings } from '@cherrystudio/embedjs-openai/src/azure-openai-embeddings'
 import { getInstanceName } from '@main/utils'
 import { KnowledgeBaseParams } from '@types'
 

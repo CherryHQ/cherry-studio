@@ -1,8 +1,8 @@
 import * as fs from 'node:fs'
 
-import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@llm-tools/embedjs'
-import type { AddLoaderReturn } from '@llm-tools/embedjs-interfaces'
-import { WebLoader } from '@llm-tools/embedjs-loader-web'
+import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherrystudio/embedjs'
+import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
+import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { LoaderReturn } from '@shared/config/types'
 import { FileType, KnowledgeBaseParams } from '@types'
 import Logger from 'electron-log'

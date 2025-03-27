@@ -1,6 +1,6 @@
 import { PushpinOutlined } from '@ant-design/icons'
 import ModelTags from '@renderer/components/ModelTags'
-import { getModelLogo, isEmbeddingModel } from '@renderer/config/models'
+import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -67,6 +67,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
       .map((p) => {
         const filteredModels = sortBy(p.models, ['group', 'name'])
           .filter((m) => !isEmbeddingModel(m))
+          .filter((m) => !isRerankModel(m))
           // Filter out pinned models from regular groups
           .filter((m) => !pinnedModels.includes(getModelUniqId(m)))
           // Filter by search text

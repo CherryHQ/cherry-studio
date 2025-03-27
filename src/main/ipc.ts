@@ -18,6 +18,7 @@ import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
 import MCPService from './services/MCPService'
 import * as NutstoreService from './services/NutstoreService'
+import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
@@ -31,6 +32,7 @@ const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
 const mcpService = new MCPService()
+const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
@@ -316,6 +318,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('copilot:get-token', CopilotService.getToken)
   ipcMain.handle('copilot:logout', CopilotService.logout)
   ipcMain.handle('copilot:get-user', CopilotService.getUser)
+
+  // Obsidian service
+  ipcMain.handle('obsidian:get-vaults', () => {
+    return obsidianVaultService.getVaults()
+  })
+
+  ipcMain.handle('obsidian:get-files', (_event, vaultName) => {
+    return obsidianVaultService.getFilesByVaultName(vaultName)
+  })
 
   // nutstore
   ipcMain.handle('nutstore:get-sso-url', NutstoreService.getNutstoreSSOUrl)

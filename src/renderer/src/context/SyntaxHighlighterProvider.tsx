@@ -1,16 +1,11 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { CodeStyleVarious, ThemeMode } from '@renderer/types'
-import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react'
-import {
-  BundledLanguage,
-  bundledLanguages,
-  BundledTheme,
-  bundledThemes,
-  createHighlighter,
-  HighlighterGeneric
-} from 'shiki'
+import { type CodeStyleVarious, ThemeMode } from '@renderer/types'
+import type React from 'react'
+import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo, useState } from 'react'
+import type { BundledLanguage, BundledTheme, HighlighterGeneric } from 'shiki'
+import { bundledLanguages, bundledThemes, createHighlighter } from 'shiki'
 
 interface SyntaxHighlighterContextType {
   codeToHtml: (code: string, language: string) => Promise<string>
@@ -51,42 +46,47 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
     initHighlighter()
   }, [highlighterTheme])
 
-  const codeToHtml = async (code: string, language: string) => {
-    if (!highlighter) return ''
+  const codeToHtml = useCallback(
+    async (_code: string, language: string) => {
+      {
+        if (!highlighter) return ''
 
-    const languageMap: Record<string, string> = {
-      vab: 'vb'
-    }
+        const languageMap: Record<string, string> = {
+          vab: 'vb'
+        }
 
-    const mappedLanguage = languageMap[language] || language
+        const mappedLanguage = languageMap[language] || language
 
-    code = code?.trimEnd() ?? ''
-    const escapedCode = code?.replace(/[<>]/g, (char) => ({ '<': '&lt;', '>': '&gt;' })[char]!)
+        const code = _code?.trimEnd() ?? ''
+        const escapedCode = code?.replace(/[<>]/g, (char) => ({ '<': '&lt;', '>': '&gt;' })[char]!)
 
-    try {
-      if (!highlighter.getLoadedLanguages().includes(mappedLanguage as BundledLanguage)) {
-        if (mappedLanguage in bundledLanguages || mappedLanguage === 'text') {
-          await highlighter.loadLanguage(mappedLanguage as BundledLanguage)
-        } else {
+        try {
+          if (!highlighter.getLoadedLanguages().includes(mappedLanguage as BundledLanguage)) {
+            if (mappedLanguage in bundledLanguages || mappedLanguage === 'text') {
+              await highlighter.loadLanguage(mappedLanguage as BundledLanguage)
+            } else {
+              return `<pre style="padding: 10px"><code>${escapedCode}</code></pre>`
+            }
+          }
+
+          return highlighter.codeToHtml(code, {
+            lang: mappedLanguage,
+            theme: highlighterTheme
+          })
+        } catch (error) {
+          console.warn(`Error highlighting code for language '${mappedLanguage}':`, error)
           return `<pre style="padding: 10px"><code>${escapedCode}</code></pre>`
         }
       }
+    },
+    [highlighter, highlighterTheme]
+  )
 
-      return highlighter.codeToHtml(code, {
-        lang: mappedLanguage,
-        theme: highlighterTheme
-      })
-    } catch (error) {
-      console.warn(`Error highlighting code for language '${mappedLanguage}':`, error)
-      return `<pre style="padding: 10px"><code>${escapedCode}</code></pre>`
-    }
-  }
-
-  return <SyntaxHighlighterContext.Provider value={{ codeToHtml }}>{children}</SyntaxHighlighterContext.Provider>
+  return <SyntaxHighlighterContext value={{ codeToHtml }}>{children}</SyntaxHighlighterContext>
 }
 
 export const useSyntaxHighlighter = () => {
-  const context = useContext(SyntaxHighlighterContext)
+  const context = use(SyntaxHighlighterContext)
   if (!context) {
     throw new Error('useSyntaxHighlighter must be used within a SyntaxHighlighterProvider')
   }

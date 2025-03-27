@@ -1,5 +1,5 @@
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
 import { CreateDirectoryOptions } from 'webdav'
@@ -184,6 +184,11 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('obsidian', {
+      getVaults: () => ipcRenderer.invoke('obsidian:get-vaults'),
+      getFolders: (vaultName: string) => ipcRenderer.invoke('obsidian:get-files', vaultName),
+      getFiles: (vaultName: string) => ipcRenderer.invoke('obsidian:get-files', vaultName)
+    })
   } catch (error) {
     console.error(error)
   }

@@ -67,6 +67,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
     return () => {
       document.removeEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, selectedIndex, isGrouped, messageLength])
 
   const setSelectedMessage = useCallback(
@@ -144,7 +145,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
           key={message.id}
           className={classNames({
             'group-message-wrapper': message.role === 'assistant' && isHorizontal && isGrouped,
-            [multiModelMessageStyle]: true,
+            [multiModelMessageStyle]: isGrouped,
             selected: 'foldSelected' in message ? message.foldSelected : index === 0
           })}>
           <MessageStream {...messageProps} />
