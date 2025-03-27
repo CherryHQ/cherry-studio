@@ -110,7 +110,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
   const scrollToTop = () => {
     const container = document.getElementById(containerId)
-    container && container.scrollTo({ top: 0, behavior: 'smooth' })
+    container && container.scrollTo({ top: -container.scrollHeight, behavior: 'smooth' })
   }
 
   const scrollToBottom = () => {
