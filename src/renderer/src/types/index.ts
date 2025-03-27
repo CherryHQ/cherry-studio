@@ -162,7 +162,7 @@ export interface Painting {
 }
 
 export type MinAppType = {
-  id?: string | number
+  id: string
   name: string
   logo?: string
   url: string
