@@ -8,6 +8,7 @@ import {
   MenuOutlined,
   QuestionCircleOutlined,
   SaveOutlined,
+  SoundOutlined,
   SyncOutlined,
   TranslationOutlined
 } from '@ant-design/icons'
@@ -21,6 +22,7 @@ import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
+import { ttsService } from '@renderer/services/TTSService'
 import { Message, Model } from '@renderer/types'
 import { Assistant, Topic } from '@renderer/types'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, removeTrailingDoubleSpaces } from '@renderer/utils'
@@ -59,6 +61,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const assistantModel = assistant?.model
@@ -141,6 +144,72 @@ const MessageMenubar: FC<Props> = (props) => {
       resendMessage && handleResendUserMessage({ ...message, content: editedText })
     }
   }, [message, editMessage, handleResendUserMessage, t])
+
+  const handleSpeakText = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+
+      if (isSpeaking) {
+        console.log('停止TTS播放')
+        ttsService.stop()
+        setIsSpeaking(false)
+        return
+      }
+
+      console.log('开始TTS播放流程')
+
+      // 先检查TTS服务是否可用（通过主进程IPC调用）
+      try {
+        // @ts-ignore - window.api.tts 类型定义中缺少 isAvailable 方法
+        const isAvailable = await window.api.tts.isAvailable()
+        console.log('TTS服务可用性检查结果:', isAvailable)
+
+        if (!isAvailable) {
+          window.message.error({
+            content: '语音合成服务未启用或配置不正确，请在设置中启用并配置API密钥',
+            key: 'tts-message'
+          })
+          return
+        }
+      } catch (error) {
+        console.error('TTS可用性检查失败:', error)
+        window.message.error({
+          content: '语音合成服务检查失败，请确保已在设置中正确配置',
+          key: 'tts-message'
+        })
+        return
+      }
+
+      setIsSpeaking(true)
+
+      try {
+        // 获取要朗读的文本
+        let textToSpeak = message.content
+        if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
+          const processedMessage = withMessageThought(clone(message))
+          textToSpeak = processedMessage.content
+        }
+
+        const processedText = removeTrailingDoubleSpaces(textToSpeak.trimStart())
+        console.log('准备朗读文本(前50个字符):', processedText.substring(0, 50) + '...')
+
+        // 使用TTS服务朗读文本
+        console.log('调用TTS服务speak方法')
+        const success = await ttsService.speak(processedText)
+        console.log('TTS播放结果:', success ? '成功' : '失败')
+
+        if (!success) {
+          window.message.error({ content: t('settings.tts.check_failed'), key: 'tts-message' })
+        }
+      } catch (error) {
+        console.error('TTS播放过程中出错:', error)
+        window.message.error({ content: t('settings.tts.check_failed'), key: 'tts-message' })
+      } finally {
+        setIsSpeaking(false)
+      }
+    },
+    [isSpeaking, message, t]
+  )
 
   const handleTranslate = useCallback(
     async (language: string) => {
@@ -340,6 +409,13 @@ const MessageMenubar: FC<Props> = (props) => {
         <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onMentionModel}>
             <i className="iconfont icon-at" style={{ fontSize: 16 }}></i>
+          </ActionButton>
+        </Tooltip>
+      )}
+      {!isUserMessage && (
+        <Tooltip title={t('settings.tts.title')} mouseEnterDelay={0.8}>
+          <ActionButton className={`message-action-button ${isSpeaking ? 'speaking' : ''}`} onClick={handleSpeakText}>
+            <SoundOutlined style={isSpeaking ? { color: 'var(--color-primary)' } : undefined} />
           </ActionButton>
         </Tooltip>
       )}

@@ -7,7 +7,8 @@ import {
   MacCommandOutlined,
   RocketOutlined,
   SaveOutlined,
-  SettingOutlined
+  SettingOutlined,
+  SoundOutlined
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { isLocalAi } from '@renderer/config/env'
@@ -25,6 +26,7 @@ import MCPSettings from './MCPSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
+import TTSSettings from './TTSSettings'
 import WebSearchSettings from './WebSearchSettings'
 
 const SettingsPage: FC = () => {
@@ -86,6 +88,13 @@ const SettingsPage: FC = () => {
               {t('settings.shortcuts.title')}
             </MenuItem>
           </MenuItemLink>
+          
+          <MenuItemLink to="/settings/tts">
+            <MenuItem className={isRoute('/settings/tts')}>
+              <SoundOutlined />
+              {t('settings.tts.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/quickAssistant">
             <MenuItem className={isRoute('/settings/quickAssistant')}>
               <RocketOutlined />
@@ -116,6 +125,7 @@ const SettingsPage: FC = () => {
             <Route path="data/*" element={<DataSettings />} />
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
             <Route path="shortcut" element={<ShortcutSettings />} />
+            <Route path="tts" element={<TTSSettings />} />
             <Route path="about" element={<AboutSettings />} />
           </Routes>
         </SettingContent>

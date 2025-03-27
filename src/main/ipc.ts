@@ -1,4 +1,4 @@
-import fs from 'node:fs'
+import * as fs from 'node:fs'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
@@ -22,6 +22,7 @@ import * as NutstoreService from './services/NutstoreService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
+import TTSService from './services/TTSService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
@@ -32,6 +33,7 @@ const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
 const mcpService = new MCPService()
+const ttsService = new TTSService()
 const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
@@ -302,6 +304,32 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('copilot:logout', CopilotService.logout)
   ipcMain.handle('copilot:get-user', CopilotService.getUser)
 
+  // TTS
+  ipcMain.handle('tts:speak', (_, text: string) => {
+    console.log('主进程接收到TTS请求:', text.substring(0, 50) + '...')
+    const result = ttsService.speak(text)
+    return result
+  })
+  ipcMain.handle('tts:stop', () => ttsService.stop())
+  ipcMain.handle('tts:getVoices', () => ttsService.getVoices())
+  ipcMain.handle('tts:isAvailable', () => {
+    const available = ttsService.isAvailable()
+    console.log('TTS服务可用性检查:', available)
+    return available
+  })
+  ipcMain.handle('tts:fetchAvailableOptions', async () => {
+    console.log('主进程尝试获取TTS可用选项')
+    const result = await ttsService.fetchAvailableOptions()
+    console.log(
+      '获取TTS可用选项结果:',
+      result.success ? '成功' : '失败',
+      result.models ? `获取到${result.models.length}个模型` : ''
+    )
+    return result
+  })
+
+  // 不再需要事件监听，现在直接在主进程打开音频文件
+  
   // Obsidian service
   ipcMain.handle('obsidian:get-vaults', () => {
     return obsidianVaultService.getVaults()
@@ -310,7 +338,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('obsidian:get-files', (_event, vaultName) => {
     return obsidianVaultService.getFilesByVaultName(vaultName)
   })
-
+  
   // nutstore
   ipcMain.handle('nutstore:get-sso-url', NutstoreService.getNutstoreSSOUrl)
   ipcMain.handle('nutstore:decrypt-token', (_, token: string) => NutstoreService.decryptToken(token))

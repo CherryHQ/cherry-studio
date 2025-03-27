@@ -142,6 +142,13 @@ const api = {
     logout: () => ipcRenderer.invoke('copilot:logout'),
     getUser: (token: string) => ipcRenderer.invoke('copilot:get-user', token)
   },
+  tts: {
+    speak: (text: string) => ipcRenderer.invoke('tts:speak', text),
+    stop: () => ipcRenderer.invoke('tts:stop'),
+    getVoices: () => ipcRenderer.invoke('tts:getVoices'),
+    isAvailable: () => ipcRenderer.invoke('tts:isAvailable'),
+    fetchAvailableOptions: () => ipcRenderer.invoke('tts:fetchAvailableOptions')
+  },
 
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke('app:is-binary-exist', name),

@@ -57,6 +57,19 @@ export interface SettingsState {
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
   messageNavigation: 'none' | 'buttons' | 'anchor'
+  // TTS 设置
+  ttsEnabled: boolean
+  ttsType: 'openai' | 'edge' // TTS类型，新增：openai或edge
+  ttsApiUrl: string
+  ttsApiKey: string
+  ttsModel: string
+  ttsVoice: string
+  ttsPlayerType: 'auto' | 'ffmpeg' | 'system'
+  ttsEdgeRate: string // Edge TTS语速设置，新增
+  ttsEdgeVolume: string // Edge TTS音量设置，新增
+  // 注：系统会自动清理1小时前创建的临时音频文件
+  ttsCustomModels: Array<{ label?: string; value: string }>
+  ttsCustomVoices: Array<{ label?: string; value: string }>
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -140,6 +153,18 @@ const initialState: SettingsState = {
   gridColumns: 2,
   gridPopoverTrigger: 'hover',
   messageNavigation: 'none',
+  // TTS 设置
+  ttsEnabled: false,
+  ttsType: 'openai', // 默认使用OpenAI TTS
+  ttsApiUrl: 'https://api.openai.com/v1/audio/speech',
+  ttsApiKey: '',
+  ttsModel: 'tts-1',
+  ttsVoice: 'alloy',
+  ttsPlayerType: 'auto', // 'auto', 'ffmpeg', 'system'
+  ttsEdgeRate: '+0%', // Edge TTS默认语速
+  ttsEdgeVolume: '+0%', // Edge TTS默认音量
+  ttsCustomModels: [],
+  ttsCustomVoices: [],
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -407,6 +432,40 @@ const settingsSlice = createSlice({
     setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
       state.messageNavigation = action.payload
     },
+    // TTS相关设置
+    setTtsEnabled: (state, action: PayloadAction<boolean>) => {
+      state.ttsEnabled = action.payload
+    },
+    setTtsType: (state, action: PayloadAction<'openai' | 'edge'>) => {
+      state.ttsType = action.payload
+    },
+    setTtsApiUrl: (state, action: PayloadAction<string>) => {
+      state.ttsApiUrl = action.payload
+    },
+    setTtsApiKey: (state, action: PayloadAction<string>) => {
+      state.ttsApiKey = action.payload
+    },
+    setTtsModel: (state, action: PayloadAction<string>) => {
+      state.ttsModel = action.payload
+    },
+    setTtsVoice: (state, action: PayloadAction<string>) => {
+      state.ttsVoice = action.payload
+    },
+    setTtsPlayerType: (state, action: PayloadAction<'auto' | 'ffmpeg' | 'system'>) => {
+      state.ttsPlayerType = action.payload
+    },
+    setTtsEdgeRate: (state, action: PayloadAction<string>) => {
+      state.ttsEdgeRate = action.payload
+    },
+    setTtsEdgeVolume: (state, action: PayloadAction<string>) => {
+      state.ttsEdgeVolume = action.payload
+    },
+    setTtsCustomModels: (state, action: PayloadAction<Array<{ label?: string; value: string }>>) => {
+      state.ttsCustomModels = action.payload
+    },
+    setTtsCustomVoices: (state, action: PayloadAction<Array<{ label?: string; value: string }>>) => {
+      state.ttsCustomVoices = action.payload
+    },
     setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
       state.defaultObsidianVault = action.payload
     }
@@ -486,7 +545,19 @@ export const {
   setSiyuanApiUrl,
   setSiyuanToken,
   setSiyuanBoxId,
-  setSiyuanRootPath
+  setSiyuanRootPath,
+  // TTS actions
+  setTtsEnabled,
+  setTtsType,
+  setTtsApiUrl,
+  setTtsApiKey,
+  setTtsModel,
+  setTtsVoice,
+  setTtsPlayerType,
+  setTtsEdgeRate,
+  setTtsEdgeVolume,
+  setTtsCustomModels,
+  setTtsCustomVoices
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

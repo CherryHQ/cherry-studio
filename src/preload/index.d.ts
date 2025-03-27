@@ -168,6 +168,18 @@ declare global {
         logout: () => Promise<void>
         getUser: (token: string) => Promise<{ login: string; avatar: string }>
       }
+      tts: {
+        speak: (text: string) => Promise<{ success: boolean; error?: string }>
+        stop: () => Promise<void>
+        getVoices: () => Promise<string[]>
+        isAvailable: () => Promise<boolean>
+        fetchAvailableOptions: () => Promise<{ 
+          success: boolean; 
+          models?: string[]; 
+          voices?: string[];
+          error?: string;
+        }>
+      }
       isBinaryExist: (name: string) => Promise<boolean>
       getBinaryPath: (name: string) => Promise<string>
       installUVBinary: () => Promise<void>
