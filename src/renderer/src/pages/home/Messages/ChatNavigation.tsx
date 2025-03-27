@@ -161,11 +161,21 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     return -1
   }
 
-  // 修改 handleChatNavigationClick 函数
-  const handleChatNavigationClick = () => {
+  // 修改 handleCloseChatNavigation 函数
+  const handleCloseChatNavigation = () => {
     setIsVisible(false)
     // 设置手动关闭状态，1分钟内不响应鼠标靠近事件
     setManuallyClosedUntil(Date.now() + 60000) // 60000毫秒 = 1分钟
+  }
+
+  const handleScrollToTop = () => {
+    resetHideTimer()
+    scrollToTop()
+  }
+
+  const handleScrollToBottom = () => {
+    resetHideTimer()
+    scrollToBottom()
   }
 
   const handleNextMessage = () => {
@@ -311,7 +321,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             <NavigationButton
               type="text"
               icon={<CloseOutlined />}
-              onClick={handleChatNavigationClick}
+              onClick={handleCloseChatNavigation}
               aria-label={t('chat.navigation.close')}
             />
           </Tooltip>
@@ -320,7 +330,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             <NavigationButton
               type="text"
               icon={<VerticalAlignTopOutlined />}
-              onClick={scrollToTop}
+              onClick={handleScrollToTop}
               aria-label={t('chat.navigation.top')}
             />
           </Tooltip>
@@ -347,7 +357,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             <NavigationButton
               type="text"
               icon={<VerticalAlignBottomOutlined />}
-              onClick={scrollToBottom}
+              onClick={handleScrollToBottom}
               aria-label={t('chat.navigation.bottom')}
             />
           </Tooltip>
