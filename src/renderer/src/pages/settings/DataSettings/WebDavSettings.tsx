@@ -1,9 +1,15 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import { useRuntime } from '@renderer/hooks/useRuntime'
+import {
+  useWebdavBackupModal,
+  useWebdavRestoreModal,
+  WebdavBackupModal,
+  WebdavRestoreModal
+} from '@renderer/components/WebdavModals'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { backupToWebdav, restoreFromWebdav, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppDispatch } from '@renderer/store'
+import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setWebdavAutoSync,
   setWebdavHost as _setWebdavHost,
@@ -12,12 +18,12 @@ import {
   setWebdavSyncInterval as _setWebdavSyncInterval,
   setWebdavUser as _setWebdavUser
 } from '@renderer/store/settings'
-import { Button, Input, Select } from 'antd'
+import { Button, Input, Select, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const WebDavSettings: FC = () => {
   const {
@@ -35,45 +41,14 @@ const WebDavSettings: FC = () => {
 
   const [syncInterval, setSyncInterval] = useState<number>(webDAVSyncInterval)
 
-  const [backuping, setBackuping] = useState(false)
-  const [restoring, setRestoring] = useState(false)
-
   const dispatch = useAppDispatch()
+  const { theme } = useTheme()
 
   const { t } = useTranslation()
 
-  const { webdavSync } = useRuntime()
+  const { webdavSync } = useAppSelector((state) => state.backup)
 
   // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
-
-  const onBackup = async () => {
-    if (!webdavHost) {
-      window.message.error({ content: t('message.error.invalid.webdav'), key: 'webdav-error' })
-      return
-    }
-    setBackuping(true)
-    await backupToWebdav({ showMessage: true })
-    setBackuping(false)
-  }
-
-  const onRestore = async () => {
-    if (!webdavHost) {
-      window.message.error({ content: t('message.error.invalid.webdav'), key: 'webdav-error' })
-      return
-    }
-    setRestoring(true)
-    await restoreFromWebdav()
-    setRestoring(false)
-  }
-
-  const onPressRestore = () => {
-    window.modal.confirm({
-      title: t('settings.data.webdav.restore.title'),
-      content: t('settings.data.webdav.restore.content'),
-      centered: true,
-      onOk: onRestore
-    })
-  }
 
   const onSyncIntervalChange = (value: number) => {
     setSyncInterval(value)
@@ -97,22 +72,37 @@ const WebDavSettings: FC = () => {
     return (
       <HStack gap="5px" alignItems="center">
         {webdavSync.syncing && <SyncOutlined spin />}
+        {!webdavSync.syncing && webdavSync.lastSyncError && (
+          <Tooltip title={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}>
+            <WarningOutlined style={{ color: 'red' }} />
+          </Tooltip>
+        )}
         {webdavSync.lastSyncTime && (
           <span style={{ color: 'var(--text-secondary)' }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
-          </span>
-        )}
-        {webdavSync.lastSyncError && (
-          <span style={{ color: 'var(--error-color)' }}>
-            {t('settings.data.webdav.syncError')}: {webdavSync.lastSyncError}
           </span>
         )}
       </HStack>
     )
   }
 
+  const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
+    useWebdavBackupModal()
+
+  const {
+    isRestoreModalVisible,
+    handleRestore,
+    handleCancel: handleCancelRestore,
+    restoring,
+    selectedFile,
+    setSelectedFile,
+    loadingFiles,
+    backupFiles,
+    showRestoreModal
+  } = useWebdavRestoreModal({ webdavHost, webdavUser, webdavPass, webdavPath })
+
   return (
-    <>
+    <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
@@ -163,10 +153,10 @@ const WebDavSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <HStack gap="5px" justifyContent="space-between">
-          <Button onClick={onBackup} icon={<SaveOutlined />} loading={backuping}>
+          <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button onClick={onPressRestore} icon={<FolderOpenOutlined />} loading={restoring}>
+          <Button onClick={showRestoreModal} icon={<FolderOpenOutlined />} loading={restoring}>
             {t('settings.data.webdav.restore.button')}
           </Button>
         </HStack>
@@ -196,7 +186,28 @@ const WebDavSettings: FC = () => {
           </SettingRow>
         </>
       )}
-    </>
+      <>
+        <WebdavBackupModal
+          isModalVisible={isModalVisible}
+          handleBackup={handleBackup}
+          handleCancel={handleCancel}
+          backuping={backuping}
+          customFileName={customFileName}
+          setCustomFileName={setCustomFileName}
+        />
+
+        <WebdavRestoreModal
+          isRestoreModalVisible={isRestoreModalVisible}
+          handleRestore={handleRestore}
+          handleCancel={handleCancelRestore}
+          restoring={restoring}
+          selectedFile={selectedFile}
+          setSelectedFile={setSelectedFile}
+          loadingFiles={loadingFiles}
+          backupFiles={backupFiles}
+        />
+      </>
+    </SettingGroup>
   )
 }
 

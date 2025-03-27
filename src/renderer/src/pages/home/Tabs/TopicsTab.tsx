@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
@@ -22,17 +23,21 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
+import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
-  exportMarkdownToNotion,
+  exportMarkdownToJoplin,
+  exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
+  exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
+import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -51,7 +56,29 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
-  const deleteTimerRef = useRef<NodeJS.Timeout>()
+  const deleteTimerRef = useRef<NodeJS.Timeout>(null)
+
+  const pendingTopics = useMemo(() => {
+    return new Set<string>()
+  }, [])
+  const isPending = useCallback(
+    (topicId: string) => {
+      const hasPending = hasTopicPendingRequests(topicId)
+      if (topicId === activeTopic.id && !hasPending) {
+        pendingTopics.delete(topicId)
+        return false
+      }
+      if (pendingTopics.has(topicId)) {
+        return true
+      }
+      if (hasPending) {
+        pendingTopics.add(topicId)
+        return true
+      }
+      return false
+    },
+    [activeTopic.id, pendingTopics]
+  )
 
   const handleDeleteClick = useCallback((topicId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -66,7 +93,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   }, [])
 
   const onClearMessages = useCallback((topic: Topic) => {
-    window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
+    // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
     store.dispatch(setGenerating(false))
     EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
   }, [])
@@ -97,11 +124,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const onDeleteTopic = useCallback(
     async (topic: Topic) => {
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+      if (topic.id === activeTopic?.id) {
+        const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+      }
       removeTopic(topic)
     },
-    [assistant.topics, removeTopic, setActiveTopic]
+    [assistant.topics, removeTopic, setActiveTopic, activeTopic]
   )
 
   const onMoveTopic = useCallback(
@@ -116,7 +145,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   const onSwitchTopic = useCallback(
     async (topic: Topic) => {
-      await modelGenerating()
+      // await modelGenerating()
       setActiveTopic(topic)
     },
     [setActiveTopic]
@@ -134,7 +163,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             if (messages.length >= 2) {
               const summaryText = await fetchMessagesSummary({ messages, assistant })
               if (summaryText) {
-                updateTopic({ ...topic, name: summaryText })
+                updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
               }
             }
           }
@@ -150,7 +179,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               defaultValue: topic?.name || ''
             })
             if (name && topic?.name !== name) {
-              updateTopic({ ...topic, name })
+              updateTopic({ ...topic, name, isNameManuallyEdited: true })
             }
           }
         },
@@ -234,15 +263,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               key: 'word',
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
-                window.api.export.toWord(markdown, topic.name)
+                window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
               }
             },
             {
               label: t('chat.topics.export.notion'),
               key: 'notion',
               onClick: async () => {
-                const markdown = await topicToMarkdown(topic)
-                exportMarkdownToNotion(topic.name, markdown)
+                exportTopicToNotion(topic)
               }
             },
             {
@@ -251,6 +279,30 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
                 exportMarkdownToYuque(topic.name, markdown)
+              }
+            },
+            {
+              label: t('chat.topics.export.obsidian'),
+              key: 'obsidian',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                await ObsidianExportPopup.show({ title: topic.name, markdown, processingMethod: '3' })
+              }
+            },
+            {
+              label: t('chat.topics.export.joplin'),
+              key: 'joplin',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToJoplin(topic.name, markdown)
+              }
+            },
+            {
+              label: t('chat.topics.export.siyuan'),
+              key: 'siyuan',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToSiyuan(topic.name, markdown)
               }
             }
           ]
@@ -302,6 +354,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 className={isActive ? 'active' : ''}
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
+                {isPending(topic.id) && !isActive && <PendingIndicator />}
                 <TopicName className="name" title={topicName}>
                   {topicName}
                 </TopicName>
@@ -357,14 +410,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
-  padding-top: 11px;
-  user-select: none;
+  padding: 10px;
 `
 
 const TopicListItem = styled.div`
   padding: 7px 12px;
-  margin-left: 10px;
-  margin-right: 4px;
   border-radius: var(--list-item-border-radius);
   font-family: Ubuntu;
   font-size: 13px;
@@ -375,6 +425,8 @@ const TopicListItem = styled.div`
   font-family: Ubuntu;
   cursor: pointer;
   border: 0.5px solid transparent;
+  position: relative;
+  width: calc(var(--assistants-width) - 20px);
   .menu {
     opacity: 0;
     color: var(--color-text-3);
@@ -405,6 +457,19 @@ const TopicName = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+`
+
+const PendingIndicator = styled.div.attrs({
+  className: 'animation-pulse'
+})`
+  --pulse-size: 5px;
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
 `
 
 const TopicPromptText = styled.div`

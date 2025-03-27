@@ -108,7 +108,7 @@ const DisplaySettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <Segmented value={theme} onChange={setTheme} options={themeOptions} />
+          <Segmented value={theme} shape="round" onChange={setTheme} options={themeOptions} />
         </SettingRow>
         {isMac && (
           <>
@@ -119,14 +119,6 @@ const DisplaySettings: FC = () => {
             </SettingRow>
           </>
         )}
-      </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.show.icon')}</SettingRowTitle>
-          <Switch checked={showAssistantIcon} onChange={(checked) => setShowAssistantIcon(checked)} />
-        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
@@ -159,6 +151,14 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
           <Switch checked={showTopicTime} onChange={(checked) => dispatch(setShowTopicTime(checked))} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.assistant.show.icon')}</SettingRowTitle>
+          <Switch checked={showAssistantIcon} onChange={(checked) => setShowAssistantIcon(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

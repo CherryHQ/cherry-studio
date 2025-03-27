@@ -1,20 +1,20 @@
+import { CodeOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { Dropdown, Switch, Tooltip } from 'antd'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
   enabledMCPs: MCPServer[]
-  onEnableMCP: (server: MCPServer) => void
+  toggelEnableMCP: (server: MCPServer) => void
   ToolbarButton: any
 }
 
-const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) => {
-  const { mcpServers } = useMCPServers()
+const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton }) => {
+  const { mcpServers, activedMcpServers } = useMCPServers()
   const [isOpen, setIsOpen] = useState(false)
-  const [enableAll, setEnableAll] = useState(true)
   const dropdownRef = useRef<any>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -27,19 +27,31 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
   // Check if all active servers are enabled
   const activeServers = mcpServers.filter((s) => s.isActive)
 
-  // Enable all active servers by default
-  useEffect(() => {
-    if (activeServers.length > 0) {
-      activeServers.forEach((server) => {
-        if (enableAll && !enabledMCPs.includes(server)) {
-          onEnableMCP(server)
-        }
-        if (!enableAll && enabledMCPs.includes(server)) {
-          onEnableMCP(server)
+  const anyEnable = activeServers.some((server) =>
+    enabledMCPs.some((enabledServer) => enabledServer.name === server.name)
+  )
+
+  const enableAll = () =>
+    mcpServers.forEach((s) => {
+      toggelEnableMCP(s)
+    })
+
+  const disableAll = () =>
+    mcpServers.forEach((s) => {
+      enabledMCPs.forEach((enabledServer) => {
+        if (enabledServer.name === s.name) {
+          toggelEnableMCP(s)
         }
       })
+    })
+
+  const toggelAll = () => {
+    if (anyEnable) {
+      disableAll()
+    } else {
+      enableAll()
     }
-  }, [enableAll])
+  }
 
   const menu = (
     <div ref={menuRef} className="ant-dropdown-menu">
@@ -48,7 +60,7 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
           <h4>{t('settings.mcp.title')}</h4>
           <div className="enable-all-container">
             {/* <span className="enable-all-label">{t('mcp.enable_all')}</span> */}
-            <Switch size="small" checked={enableAll} onChange={setEnableAll} />
+            <Switch size="small" checked={anyEnable} onChange={toggelAll} />
           </div>
         </div>
       </DropdownHeader>
@@ -66,16 +78,24 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
                 )}
                 {server.baseUrl && <div className="server-url">{server.baseUrl}</div>}
               </div>
-              <Switch size="small" checked={enabledMCPs.includes(server)} onChange={() => onEnableMCP(server)} />
+              <Switch
+                size="small"
+                checked={enabledMCPs.some((s) => s.name === server.name)}
+                onChange={() => toggelEnableMCP(server)}
+              />
             </McpServerItems>
           ))
       ) : (
         <div className="ant-dropdown-menu-item-group">
-          <div className="ant-dropdown-menu-item no-results">{t('models.no_matches')}</div>
+          <div className="ant-dropdown-menu-item no-results">{t('settings.mcp.noServers')}</div>
         </div>
       )}
     </div>
   )
+
+  if (activedMcpServers.length === 0) {
+    return null
+  }
 
   return (
     <Dropdown
@@ -84,9 +104,9 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, onEnableMCP, ToolbarButton }) 
       open={isOpen}
       onOpenChange={setIsOpen}
       overlayClassName="mention-models-dropdown">
-      <Tooltip placement="top" title="MCP Servers" arrow>
+      <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
         <ToolbarButton type="text" ref={dropdownRef}>
-          <i className="iconfont icon-mcp" style={{ fontSize: 18 }}></i>
+          <CodeOutlined style={{ color: enabledMCPs.length > 0 ? '#d97757' : 'var(--color-icon)' }} />
         </ToolbarButton>
       </Tooltip>
     </Dropdown>

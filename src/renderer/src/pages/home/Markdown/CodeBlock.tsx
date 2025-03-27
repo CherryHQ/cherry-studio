@@ -26,7 +26,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '') || children?.includes('\n')
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
   const language = match?.[1] ?? 'text'
-  const [html, setHtml] = useState<string>('')
+  // const [html, setHtml] = useState<string>('')
   const { codeToHtml } = useSyntaxHighlighter()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
@@ -40,16 +40,13 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   useEffect(() => {
     const loadHighlightedCode = async () => {
       const highlightedHtml = await codeToHtml(children, language)
-      setHtml(highlightedHtml)
+      if (codeContentRef.current) {
+        codeContentRef.current.innerHTML = highlightedHtml
+        setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
+      }
     }
     loadHighlightedCode()
   }, [children, language, codeToHtml])
-
-  useEffect(() => {
-    if (codeContentRef.current) {
-      setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
-    }
-  }, [html])
 
   useEffect(() => {
     if (!codeCollapsible) {
@@ -112,7 +109,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
         isShowLineNumbers={codeShowLineNumbers}
         isUnwrapped={isUnwrapped}
         isCodeWrappable={codeWrappable}
-        dangerouslySetInnerHTML={{ __html: html }}
+        // dangerouslySetInnerHTML={{ __html: html }}
         style={{
           border: '0.5px solid var(--color-code-background)',
           borderTopLeftRadius: 0,

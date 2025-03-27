@@ -29,6 +29,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const { assistants, addAssistant } = useAssistants()
   const inputRef = useRef<InputRef>(null)
   const systemAgents = useSystemAgents()
+  const loadingRef = useRef(false)
 
   const agents = useMemo(() => {
     const allAgents = [...userAgents, ...systemAgents] as Agent[]
@@ -52,6 +53,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [assistants, defaultAssistant, searchText, systemAgents, userAgents])
 
   const onCreateAssistant = async (agent: Agent) => {
+    if (loadingRef.current) {
+      return
+    }
+
+    loadingRef.current = true
     let assistant: Assistant
 
     if (agent.id === 'default') {

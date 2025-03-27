@@ -2,7 +2,6 @@ import { FileType, KnowledgeItem, Topic, TranslateHistory } from '@renderer/type
 import { Dexie, type EntityTable } from 'dexie'
 
 import { upgradeToV5 } from './upgrades'
-
 // Database declaration (move this to its own module also)
 export const db = new Dexie('CherryStudio') as Dexie & {
   files: EntityTable<FileType, 'id'>

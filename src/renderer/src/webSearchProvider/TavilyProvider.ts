@@ -9,10 +9,10 @@ export default class TavilyProvider extends BaseWebSearchProvider {
 
   constructor(provider: WebSearchProvider) {
     super(provider)
-    if (!provider.apiKey) {
+    if (!this.apiKey) {
       throw new Error('API key is required for Tavily provider')
     }
-    this.tvly = new TavilyClient({ apiKey: provider.apiKey })
+    this.tvly = new TavilyClient({ apiKey: this.apiKey })
   }
 
   public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {

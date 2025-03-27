@@ -1,4 +1,4 @@
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import AiProvider from '@renderer/providers/AiProvider'
@@ -11,10 +11,12 @@ import FileManager from './FileManager'
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)
+  const rerankProvider = getProviderByModel(base.rerankModel)
   const aiProvider = new AiProvider(provider)
+  const rerankAiProvider = new AiProvider(rerankProvider)
 
   let host = aiProvider.getBaseURL()
-
+  const rerankHost = rerankAiProvider.getBaseURL()
   if (provider.type === 'gemini') {
     host = host + '/v1beta/openai/'
   }
@@ -39,7 +41,12 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     apiVersion: provider.apiVersion,
     baseURL: host,
     chunkSize,
-    chunkOverlap: base.chunkOverlap
+    chunkOverlap: base.chunkOverlap,
+    rerankBaseURL: rerankHost,
+    rerankApiKey: rerankAiProvider.getApiKey() || 'secret',
+    rerankModel: base.rerankModel?.id,
+    rerankModelProvider: base.rerankModel?.provider,
+    topN: base.topN
   }
 }
 
@@ -92,8 +99,17 @@ export const getKnowledgeBaseReference = async (base: KnowledgeBase, message: Me
       })
     )
 
-  const _searchResults = await Promise.all(
-    searchResults.map(async (item) => {
+  let rerankResults = searchResults
+  if (base.rerankModel) {
+    rerankResults = await window.api.knowledgeBase.rerank({
+      search: message.content,
+      base: getKnowledgeBaseParams(base),
+      results: searchResults
+    })
+  }
+
+  const processdResults = await Promise.all(
+    rerankResults.map(async (item) => {
       const file = await getFileFromUrl(item.metadata.source)
       return { ...item, file }
     })
@@ -102,7 +118,7 @@ export const getKnowledgeBaseReference = async (base: KnowledgeBase, message: Me
   const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
 
   const references = await Promise.all(
-    take(_searchResults, documentCount).map(async (item, index) => {
+    take(processdResults, documentCount).map(async (item, index) => {
       const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
       return {
         id: index + 1,
@@ -117,7 +133,7 @@ export const getKnowledgeBaseReference = async (base: KnowledgeBase, message: Me
 }
 
 export const getKnowledgeBaseReferences = async (message: Message) => {
-  if (isEmpty(message.knowledgeBaseIds)) {
+  if (isEmpty(message.knowledgeBaseIds) || isEmpty(message.content)) {
     return []
   }
 

@@ -6,10 +6,11 @@ import store from '@renderer/store'
 import { Assistant, Message, Model, Topic } from '@renderer/types'
 import { getTitleFromString, uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
+import { t } from 'i18next'
 import { isEmpty, remove, takeRight } from 'lodash'
 import { NavigateFunction } from 'react-router'
 
-import { getAssistantById, getDefaultModel } from './AssistantService'
+import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
 import FileManager from './FileManager'
 
@@ -39,8 +40,21 @@ export function filterUserRoleStartMessages(messages: Message[]): Message[] {
   return messages.slice(firstUserMessageIndex)
 }
 
+export function filterEmptyMessages(messages: Message[]): Message[] {
+  return messages.filter((message) => {
+    const content = message.content as string | any[]
+    if (typeof content === 'string' && isEmpty(message.files)) {
+      return !isEmpty(content.trim())
+    }
+    if (Array.isArray(content)) {
+      return content.some((c) => !isEmpty(c.text.trim()))
+    }
+    return true
+  })
+}
+
 export function filterUsefulMessages(messages: Message[]): Message[] {
-  const _messages = messages
+  const _messages = [...messages]
   const groupedMessages = getGroupedMessages(messages)
 
   Object.entries(groupedMessages).forEach(([key, messages]) => {
@@ -68,16 +82,26 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
 }
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
-  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const _messages = takeRight(messages, contextCount)
-  const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
-  const messagesCount = _messages.length
+  const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
+  // 使用与 getAssistantSettings 相同的逻辑处理无限上下文
+  const maxContextCount = rawContextCount === 20 ? 100000 : rawContextCount
 
+  // 在无限模式下，设置一个合理的高上限而不是处理所有消息
+  const _messages = rawContextCount === 20 ? takeRight(messages, 1000) : takeRight(messages, maxContextCount)
+
+  const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
+
+  let currentContextCount = 0
   if (clearIndex === -1) {
-    return contextCount
+    currentContextCount = _messages.length
+  } else {
+    currentContextCount = _messages.length - (clearIndex + 1)
   }
 
-  return messagesCount - (clearIndex + 1)
+  return {
+    current: currentContextCount,
+    max: rawContextCount
+  }
 }
 
 export function deleteMessageFiles(message: Message) {
@@ -151,6 +175,7 @@ export function getAssistantMessage({ assistant, topic }: { assistant: Assistant
 
 export function getGroupedMessages(messages: Message[]): { [key: string]: (Message & { index: number })[] } {
   const groups: { [key: string]: (Message & { index: number })[] } = {}
+
   messages.forEach((message, index) => {
     const key = message.askId ? 'assistant' + message.askId : 'user' + message.id
     if (key && !groups[key]) {
@@ -158,6 +183,7 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
     }
     groups[key].unshift({ ...message, index })
   })
+
   return groups
 }
 
@@ -188,4 +214,37 @@ export function getMessageTitle(message: Message, length = 30) {
   }
 
   return title
+}
+export function checkRateLimit(assistant: Assistant): boolean {
+  const provider = getAssistantProvider(assistant)
+
+  if (!provider.rateLimit) {
+    return false
+  }
+
+  const topicId = assistant.topics[0].id
+  const messages = store.getState().messages.messagesByTopic[topicId]
+
+  if (!messages || messages.length <= 1) {
+    return false
+  }
+
+  const now = Date.now()
+  const lastMessage = messages[messages.length - 1]
+  const lastMessageTime = new Date(lastMessage.createdAt).getTime()
+  const timeDiff = now - lastMessageTime
+  const rateLimitMs = provider.rateLimit * 1000
+
+  if (timeDiff < rateLimitMs) {
+    const waitTimeSeconds = Math.ceil((rateLimitMs - timeDiff) / 1000)
+
+    window.message.warning({
+      content: t('message.warning.rate.limit', { seconds: waitTimeSeconds }),
+      duration: 5,
+      key: 'rate-limit-message'
+    })
+    return true
+  }
+
+  return false
 }

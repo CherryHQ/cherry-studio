@@ -7,12 +7,19 @@ export interface SubscribeSource {
   blacklist?: string[] // 存储从该订阅源获取的黑名单
 }
 export interface WebSearchState {
+  // 默认搜索提供商的ID
   defaultProvider: string
+  // 所有可用的搜索提供商列表
   providers: WebSearchProvider[]
+  // 是否在搜索查询中添加当前日期
   searchWithTime: boolean
+  // 搜索结果的最大数量
   maxResults: number
+  // 要排除的域名列表
   excludeDomains: string[]
   subscribeSources: SubscribeSource[]
+  // 是否启用搜索增强模式
+  enhanceMode: boolean
 }
 
 const initialState: WebSearchState = {
@@ -37,7 +44,8 @@ const initialState: WebSearchState = {
   searchWithTime: true,
   maxResults: 5,
   excludeDomains: [],
-  subscribeSources: []
+  subscribeSources: [],
+  enhanceMode: false
 }
 
 const websearchSlice = createSlice({
@@ -94,6 +102,9 @@ const websearchSlice = createSlice({
     // 更新订阅源列表
     setSubscribeSources: (state, action: PayloadAction<SubscribeSource[]>) => {
       state.subscribeSources = action.payload
+    },
+    setEnhanceMode: (state, action: PayloadAction<boolean>) => {
+      state.enhanceMode = action.payload
     }
   }
 })
@@ -109,7 +120,8 @@ export const {
   addSubscribeSource,
   removeSubscribeSource,
   updateSubscribeBlacklist,
-  setSubscribeSources
+  setSubscribeSources,
+  setEnhanceMode
 } = websearchSlice.actions
 
 export default websearchSlice.reducer

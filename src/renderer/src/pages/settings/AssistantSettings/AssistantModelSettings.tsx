@@ -38,7 +38,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const { t } = useTranslation()
 
   const onTemperatureChange = (value) => {
-    console.debug('[onTemperatureChange]', value)
     if (!isNaN(value as number)) {
       updateAssistantSettings({ temperature: value })
     }
@@ -182,7 +181,13 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const formatSliderTooltip = (value?: number) => {
+    if (value === undefined) return ''
+    return value === 20 ? '∞' : value.toString()
+  }
 
   return (
     <Container>
@@ -298,6 +303,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             value={typeof contextCount === 'number' ? contextCount : 0}
             marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
             step={1}
+            tooltip={{ formatter: formatSliderTooltip }}
           />
         </Col>
         <Col span={4}>
