@@ -6,6 +6,7 @@ export interface SubscribeSource {
   name: string
   blacklist?: string[] // 存储从该订阅源获取的黑名单
 }
+
 export interface WebSearchState {
   // 默认搜索提供商的ID
   defaultProvider: string
