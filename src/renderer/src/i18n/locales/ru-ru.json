@@ -540,8 +540,17 @@
       "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!"
     },
     "minapp": {
+      "popup": {
+        "refresh": "Обновить",
+        "close": "Закрыть встроенное приложение",
+        "minimize": "Свернуть встроенное приложение",
+        "devtools": "Инструменты разработчика",
+        "openExternal": "Открыть в браузере"
+      },
       "sidebar.add.title": "Добавить в боковую панель",
       "sidebar.remove.title": "Удалить из боковой панели",
+      "sidebar.close.title": "Закрыть",
+      "sidebar.closeall.title": "Закрыть все",
       "sidebar.hide.title": "Скрыть приложение",
       "title": "Встроенные приложения"
     },

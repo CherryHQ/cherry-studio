@@ -540,10 +540,19 @@
       "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
     },
     "minapp": {
+      "popup": {
+        "refresh": "Refresh",
+        "close": "Close MinApp",
+        "minimize": "Minimize MinApp",
+        "devtools": "Developer Tools",
+        "openExternal": "Open in Browser"
+      },
       "sidebar.add.title": "Add to sidebar",
       "sidebar.remove.title": "Remove from sidebar",
-      "title": "MinApp",
-      "sidebar.hide.title": "Hide MinApp"
+      "sidebar.close.title": "Close",
+      "sidebar.closeall.title": "Close All",
+      "sidebar.hide.title": "Hide MinApp",
+      "title": "MinApp"
     },
     "miniwindow": {
       "clipboard": {

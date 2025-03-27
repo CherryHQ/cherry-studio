@@ -540,8 +540,17 @@
       "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！"
     },
     "minapp": {
+      "popup": {
+        "refresh": "重新整理",
+        "close": "關閉小工具",
+        "minimize": "最小化小工具",
+        "devtools": "開發者工具",
+        "openExternal": "在瀏覽器中開啟"
+      },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
+      "sidebar.close.title": "關閉",
+      "sidebar.closeall.title": "全部關閉",
       "sidebar.hide.title": "隱藏小工具",
       "title": "小工具"
     },

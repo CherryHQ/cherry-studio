@@ -540,8 +540,17 @@
       "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません"
     },
     "minapp": {
+      "popup": {
+        "refresh": "更新",
+        "close": "ミニアプリを閉じる",
+        "minimize": "ミニアプリを最小化",
+        "devtools": "開発者ツール",
+        "openExternal": "ブラウザで開く"
+      },
       "sidebar.add.title": "サイドバーに追加",
       "sidebar.remove.title": "サイドバーから削除",
+      "sidebar.close.title": "閉じる",
+      "sidebar.closeall.title": "すべて閉じる",
       "sidebar.hide.title": "ミニアプリを隠す",
       "title": "ミニアプリ"
     },
