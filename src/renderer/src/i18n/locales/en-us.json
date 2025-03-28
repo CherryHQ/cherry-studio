@@ -902,7 +902,8 @@
           "pathSelector.return": "Return",
           "pathSelector.currentPath": "Current Path",
           "new_folder.button.confirm": "Confirm",
-          "new_folder.button.cancel": "Cancel"
+          "new_folder.button.cancel": "Cancel",
+          "new_folder.button": "New Folder"
         }
       },
       "display.assistant.title": "Assistant Settings",

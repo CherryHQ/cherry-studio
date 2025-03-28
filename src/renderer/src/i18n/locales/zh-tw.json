@@ -902,7 +902,8 @@
           "pathSelector.return": "返回",
           "pathSelector.currentPath": "當前路徑",
           "new_folder.button.confirm": "確定",
-          "new_folder.button.cancel": "取消"
+          "new_folder.button.cancel": "取消",
+          "new_folder.button": "新建文件夾"
         }
       },
       "display.assistant.title": "助手設定",

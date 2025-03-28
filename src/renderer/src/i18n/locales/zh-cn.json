@@ -902,7 +902,8 @@
           "pathSelector.return": "返回",
           "pathSelector.currentPath": "当前路径",
           "new_folder.button.confirm": "确定",
-          "new_folder.button.cancel": "取消"
+          "new_folder.button.cancel": "取消",
+          "new_folder.button": "新建文件夹"
         }
       },
       "display.assistant.title": "助手设置",
