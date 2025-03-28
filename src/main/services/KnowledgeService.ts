@@ -36,12 +36,20 @@ export interface KnowledgeBaseAddItemOptions {
   base: KnowledgeBaseParams
   item: KnowledgeItem
   forceReload?: boolean
+  ignorePatterns?: {
+    patterns: string[]
+    type: 'glob' | 'regex' | 'static'
+  }
 }
 
 interface KnowledgeBaseAddItemOptionsNonNullableAttribute {
   base: KnowledgeBaseParams
   item: KnowledgeItem
   forceReload: boolean
+  ignorePatterns?: {
+    patterns: string[]
+    type: 'glob' | 'regex' | 'static'
+  }
 }
 
 interface EvaluateTaskWorkload {
@@ -186,17 +194,27 @@ class KnowledgeService {
     ragApplication: RAGApplication,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
-    const { base, item, forceReload } = options
+    const { base, item, forceReload, ignorePatterns } = options
     const directory = item.content as string
-    const files = getAllFiles(directory)
-    const totalFiles = files.length
-    let processedFiles = 0
 
-    const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {
+    // 获取所有文件并应用忽略规则
+    const allFiles = getAllFiles(directory)
+    const files = this.applyIgnorePatterns(allFiles, directory, ignorePatterns)
+
+    const totalFiles = files.length
+
+    let processedFiles = 0
+    let currentFile = ''
+
+    const sendDirectoryProcessingInfo = (totalFiles: number, processedFiles: number, currentFilePath: string) => {
       const mainWindow = windowService.getMainWindow()
-      mainWindow?.webContents.send('directory-processing-percent', {
+      // 计算相对路径，只显示相对于目录的路径部分
+      const relativePath = path.relative(directory, currentFilePath)
+
+      mainWindow?.webContents.send('directory-processing-info', {
         itemId: item.id,
-        percent: (processedFiles / totalFiles) * 100
+        percent: (processedFiles / totalFiles) * 100,
+        currentFile: relativePath
       })
     }
 
@@ -210,19 +228,24 @@ class KnowledgeService {
     for (const file of files) {
       loaderTasks.push({
         state: LoaderTaskItemState.PENDING,
-        task: () =>
-          addFileLoader(ragApplication, file, base, forceReload)
+        task: () => {
+          // 更新当前处理的文件
+          currentFile = file.path
+          sendDirectoryProcessingInfo(totalFiles, processedFiles, currentFile)
+
+          return addFileLoader(ragApplication, file, base, forceReload)
             .then((result) => {
               loaderDoneReturn.entriesAdded += 1
               processedFiles += 1
-              sendDirectoryProcessingPercent(totalFiles, processedFiles)
+              sendDirectoryProcessingInfo(totalFiles, processedFiles, currentFile)
               loaderDoneReturn.uniqueIds.push(result.uniqueId)
               return result
             })
             .catch((err) => {
               Logger.error(err)
               return KnowledgeService.ERROR_LOADER_RETURN
-            }),
+            })
+        },
         evaluateTaskWorkload: { workload: file.size }
       })
     }
@@ -231,6 +254,67 @@ class KnowledgeService {
       loaderTasks,
       loaderDoneReturn
     }
+  }
+
+  /**
+   * 应用过滤规则来过滤文件列表
+   * @param allFiles 所有文件的列表
+   * @param baseDir 基础目录路径
+   * @param ignorePatterns 过滤规则配置
+   * @returns 过滤后的文件列表
+   */
+  private applyIgnorePatterns(
+    allFiles: FileType[],
+    baseDir: string,
+    ignorePatterns?: { patterns: string[]; type: 'glob' | 'regex' | 'static'; direction?: 'include' | 'exclude' }
+  ): FileType[] {
+    if (!ignorePatterns || !ignorePatterns.patterns || ignorePatterns.patterns.length === 0) {
+      return allFiles
+    }
+
+    const { patterns, type, direction = 'exclude' } = ignorePatterns
+
+    return allFiles.filter((file) => {
+      // 计算相对路径，便于匹配
+      const relativePath = path.relative(baseDir, file.path)
+      let isMatch = false
+
+      switch (type) {
+        case 'glob':
+          // 通配符匹配
+          isMatch = patterns.some((pattern) => {
+            const minimatch = require('minimatch')
+            return minimatch(relativePath, pattern)
+          })
+          break
+
+        case 'regex':
+          // 正则表达式匹配
+          isMatch = patterns.some((pattern) => {
+            try {
+              const regex = new RegExp(pattern)
+              return regex.test(relativePath)
+            } catch (e) {
+              Logger.error(`Invalid regex pattern: ${pattern}`, e)
+              return false
+            }
+          })
+          break
+
+        case 'static':
+          // 静态路径匹配
+          isMatch = patterns.some((pattern) => {
+            return relativePath === pattern || relativePath.startsWith(`${pattern}${path.sep}`)
+          })
+          break
+
+        default:
+          return true
+      }
+
+      // 根据过滤方向返回结果
+      return direction === 'include' ? isMatch : !isMatch
+    })
   }
 
   private urlTask(
@@ -415,8 +499,8 @@ class KnowledgeService {
 
   public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
     return new Promise((resolve) => {
-      const { base, item, forceReload = false } = options
-      const optionsNonNullableAttribute = { base, item, forceReload }
+      const { base, item, forceReload = false, ignorePatterns } = options
+      const optionsNonNullableAttribute = { base, item, forceReload, ignorePatterns }
       this.getRagApplication(base)
         .then((ragApplication) => {
           const task = (() => {

@@ -258,6 +258,11 @@ export type KnowledgeItem = {
   processingProgress?: number
   processingError?: string
   retryCount?: number
+  ignorePatterns?: {
+    patterns: string[]
+    type: 'glob' | 'regex' | 'static'
+    direction?: 'include' | 'exclude'
+  }
 }
 
 export interface KnowledgeBase {
