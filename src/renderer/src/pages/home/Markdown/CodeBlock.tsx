@@ -218,12 +218,15 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
     padding: 1em;
 
     code {
-      display: table;
+      display: flex;
+      flex-direction: column;
       width: 100%;
 
       .line {
-        display: table-row;
-        height: 1.3rem;
+        display: block;
+        min-height: 1.3rem;
+        width: 100%;
+        padding-left: ${(props) => (props.isShowLineNumbers ? '2rem' : '0')};
       }
     }
   }
@@ -234,14 +237,15 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
       code {
         counter-reset: step;
         counter-increment: step 0;
+        position: relative;
       }
 
       code .line::before {
         content: counter(step);
         counter-increment: step;
         width: 1rem;
-        padding-right: 1rem;
-        display: table-cell;
+        position: absolute;
+        left: 0;
         text-align: right;
         opacity: 0.35;
       }
