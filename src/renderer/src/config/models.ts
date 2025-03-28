@@ -2012,6 +2012,10 @@ export function isReasoningModel(model?: Model): boolean {
     return true
   }
 
+  if (model.id.includes('gemini-2.5-pro-exp')) {
+    return true
+  }
+
   return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
 }
 
@@ -2052,7 +2056,9 @@ export function isWebSearchModel(model: Model): boolean {
       'gemini-2.0-flash-exp',
       'gemini-2.0-flash-001',
       'gemini-2.0-pro-exp-02-05',
-      'gemini-2.0-pro-exp'
+      'gemini-2.0-pro-exp',
+      'gemini-2.5-pro-exp',
+      'gemini-2.5-pro-exp-03-25'
     ]
     return models.includes(model?.id)
   }
