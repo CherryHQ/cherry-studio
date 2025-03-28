@@ -1,5 +1,5 @@
 import { getOpenAIWebSearchParams } from '@renderer/config/models'
-import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
+import { EMOJI_GENERATOR_PROMPT, SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -273,6 +273,73 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
     return await AI.generateText({ prompt, content })
   } catch (error: any) {
     return ''
+  }
+}
+
+/**
+ * 根据提示词生成emoji表情建议
+ * @param prompt 提示词
+ * @returns emoji表情
+ */
+export async function fetchEmojiSuggestion(prompt: string): Promise<string> {
+  console.log('🔍fetchEmojiSuggestion被调用，提示词:', prompt)
+
+  // 如果提示词为空，返回默认表情
+  if (!prompt || prompt.trim() === '') {
+    console.log('⚠️ 提示词为空，使用默认emoji')
+    const defaultEmojis = ['🤖', '💡', '✨', '🧠', '📚']
+    return defaultEmojis[Math.floor(Math.random() * defaultEmojis.length)]
+  }
+
+  try {
+    // 尝试使用AI生成emoji
+    const model = getDefaultModel()
+    console.log('🔍使用模型:', model.id, model.name)
+    const provider = getProviderByModel(model)
+    console.log('🔍使用提供商:', provider.id, provider.name)
+
+    if (!hasApiKey(provider)) {
+      console.log('⚠️API密钥不存在，回退到本地生成')
+      // 如果没有API密钥，回退到本地生成方式
+      const { generateEmojiFromPrompt } = await import('@renderer/utils')
+      return await generateEmojiFromPrompt(prompt)
+    }
+
+    console.log('✅开始使用AI生成emoji，提示词:', prompt)
+    const AI = new AiProvider(provider)
+
+    // 使用emoji生成提示词
+    console.log('📝使用提示模板:', EMOJI_GENERATOR_PROMPT.substring(0, 50) + '...')
+    const result = await AI.generateText({
+      prompt: EMOJI_GENERATOR_PROMPT,
+      content: prompt
+    })
+    console.log('🔍AI生成原始结果:', result)
+
+    // 从结果中提取emoji
+    if (result.includes('Emoji:')) {
+      const match = result.match(/Emoji:\s*([^\s]+)/)
+      const extractedEmoji = match ? match[1] : result
+      console.log('✨提取的emoji:', extractedEmoji)
+      return extractedEmoji
+    }
+
+    console.log('⚠️无法从AI结果中提取emoji，尝试使用原始结果')
+    return result
+  } catch (error) {
+    console.error('❌Error generating emoji from prompt:', error)
+    // 如果生成失败，回退到本地生成方式
+    try {
+      console.log('🔄AI生成失败，回退到本地生成')
+      const { generateEmojiFromPrompt } = await import('@renderer/utils')
+      return await generateEmojiFromPrompt(prompt)
+    } catch (e) {
+      console.error('❌Fallback emoji generation also failed:', e)
+      // 如果本地生成也失败，返回默认表情
+      console.log('⚠️本地生成也失败，使用默认emoji')
+      const defaultEmojis = ['🤖', '💡', '✨', '🧠', '📚']
+      return defaultEmojis[Math.floor(Math.random() * defaultEmojis.length)]
+    }
   }
 }
 
