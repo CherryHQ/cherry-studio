@@ -5,6 +5,7 @@ import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
+import { withGenerateImage } from '@renderer/utils/formats'
 import { cloneDeep, findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -152,6 +153,7 @@ export async function fetchChatCompletion({
     })
 
     message.status = 'success'
+    message = withGenerateImage(message)
 
     if (!message.usage || !message?.usage?.completion_tokens) {
       message.usage = await estimateMessagesUsage({
@@ -187,7 +189,7 @@ export async function fetchChatCompletion({
 
   // Reset generating state
   store.dispatch(setGenerating(false))
-
+  console.log('fetchChatCompletion messages', messages)
   return message
 }
 

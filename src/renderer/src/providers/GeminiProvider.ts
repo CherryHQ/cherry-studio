@@ -731,6 +731,7 @@ export default class GeminiProvider extends BaseProvider {
     onChunk({
       text,
       generateImage: {
+        type: 'base64',
         images
       },
       usage: {
