@@ -4,7 +4,7 @@ import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
-import { Button, Input, Space, Spin, Table, Tag, Typography } from 'antd'
+import { Button, Card, Flex, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -128,48 +128,22 @@ const NpxSearch: FC = () => {
             <Spin />
           </div>
         ) : searchResults.length > 0 ? (
-          <Table
-            dataSource={searchResults}
-            columns={[
-              {
-                title: t('settings.mcp.npx_list.package_name'),
-                dataIndex: 'name',
-                key: 'name',
-                width: '200px'
-              },
-              {
-                title: t('settings.mcp.npx_list.description'),
-                key: 'description',
-                ellipsis: true,
-                render: (_, record: SearchResult) => (
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                    <Text ellipsis={{ tooltip: true }}>{record.description}</Text>
-                    <Text ellipsis={{ tooltip: true }} type="secondary">
-                      {t('settings.mcp.npx_list.usage')}: {record.usage}
-                    </Text>
-                    <Paragraph ellipsis={{ tooltip: true }}>
-                      <Link href={record.npmLink} target="_blank" rel="noopener noreferrer">
-                        {record.npmLink}
-                      </Link>
-                    </Paragraph>
-                  </Space>
-                )
-              },
-              {
-                title: t('settings.mcp.npx_list.version'),
-                dataIndex: 'version',
-                key: 'version',
-                width: '100px',
-                align: 'center'
-              },
-              {
-                title: t('settings.mcp.npx_list.actions'),
-                key: 'actions',
-                width: '80px',
-                align: 'center',
-                render: (_, record: SearchResult) => (
+          searchResults.map((record) => (
+            <Card
+              size="small"
+              key={record.npmLink}
+              title={
+                <Typography.Title level={5} style={{ margin: 0 }}>
+                  {record.name}
+                </Typography.Title>
+              }
+              extra={
+                <Flex>
+                  <Tag bordered={false} color="magenta">
+                    v{record.version}
+                  </Tag>
                   <Button
-                    type="primary"
+                    type="text"
                     icon={<PlusOutlined />}
                     size="small"
                     onClick={() => {
@@ -185,12 +159,21 @@ const NpxSearch: FC = () => {
                       addMCPServer(tempServer)
                     }}
                   />
-                )
-              }
-            ]}
-            pagination={false}
-            bordered
-          />
+                </Flex>
+              }>
+              <Space direction="vertical" size="small">
+                <Text ellipsis={{ tooltip: true }}>{record.description}</Text>
+                <Text ellipsis={{ tooltip: true }} type="secondary">
+                  {t('settings.mcp.npx_list.usage')}: {record.usage}
+                </Text>
+                <Text ellipsis={{ tooltip: true }}>
+                  <Link href={record.npmLink} target="_blank" rel="noopener noreferrer">
+                    {record.npmLink}
+                  </Link>
+                </Text>
+              </Space>
+            </Card>
+          ))
         ) : null}
       </Space>
     </SettingGroup>
