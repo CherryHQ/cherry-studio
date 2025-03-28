@@ -86,9 +86,9 @@ const MCPSettings: FC = () => {
   useEffect(() => {
     const _selectedMcpServer = mcpServers.find((server) => server.id === selectedMcpServer?.id)
     setSelectedMcpServer(_selectedMcpServer || mcpServers[0])
-  }, [mcpServers, selectedMcpServer])
+  }, [mcpServers, route, selectedMcpServer])
 
-  const MainContent = () => {
+  const MainContent = useCallback(() => {
     if (route === 'npx-search' || isEmpty(mcpServers)) {
       return (
         <SettingContainer theme={theme}>
@@ -110,7 +110,7 @@ const MCPSettings: FC = () => {
     }
 
     return <NpxSearch />
-  }
+  }, [mcpServers, route, selectedMcpServer, theme])
 
   return (
     <Container>

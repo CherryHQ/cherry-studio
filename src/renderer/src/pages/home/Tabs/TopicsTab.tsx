@@ -202,7 +202,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 allowClear: true
               }
             })
-            prompt && updateTopic({ ...topic, prompt: prompt.trim() })
+            prompt !== null && updateTopic({ ...topic, prompt: prompt.trim() })
           }
         },
         {

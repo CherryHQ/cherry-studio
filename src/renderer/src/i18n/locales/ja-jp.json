@@ -905,7 +905,8 @@
           "pathSelector.return": "戻る",
           "pathSelector.currentPath": "現在のパス",
           "new_folder.button.confirm": "確認",
-          "new_folder.button.cancel": "キャンセル"
+          "new_folder.button.cancel": "キャンセル",
+          "new_folder.button": "新しいフォルダー"
         }
       },
       "display.advanced.title": "高度な設定",
