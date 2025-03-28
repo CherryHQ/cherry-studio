@@ -1,13 +1,14 @@
 import { InfoCircleOutlined, SearchOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
+import { useInAppLinks } from '@renderer/hooks/useInAppLinks'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
 import { clone } from 'lodash'
-import React, { Fragment, useMemo } from 'react'
+import React, { Fragment, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -116,6 +117,10 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
     })
   }, [message.metadata?.citations])
 
+  // Apply in-app link handling
+  const contentRef = useRef<HTMLDivElement>(null)
+  useInAppLinks(contentRef, [message.content, message.status])
+
   if (message.status === 'sending') {
     return (
       <MessageContentLoading>
@@ -144,59 +149,61 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   }
 
   return (
-    <Fragment>
-      <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
-        {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
-      </Flex>
-      <MessageThought message={message} />
-      <MessageTools message={message} />
-      <Markdown message={{ ...message, content: processedContent }} citationsData={citationsData} />
-      {message.metadata?.generateImage && <MessageImage message={message} />}
-      {message.translatedContent && (
-        <Fragment>
-          <Divider style={{ margin: 0, marginBottom: 10 }}>
-            <TranslationOutlined />
-          </Divider>
-          {message.translatedContent === t('translate.processing') ? (
-            <BeatLoader color="var(--color-text-2)" size="10" style={{ marginBottom: 15 }} />
-          ) : (
-            <Markdown message={{ ...message, content: message.translatedContent }} />
-          )}
-        </Fragment>
-      )}
-      <MessageSearchResults message={message} />
-      {formattedCitations && (
-        <CitationsContainer>
-          <CitationsTitle>
-            {t('message.citations')}
-            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-          </CitationsTitle>
-          {formattedCitations.map(({ number, url, hostname }) => (
-            <CitationLink key={number} href={url} target="_blank" rel="noopener noreferrer">
-              {number}. <span className="hostname">{hostname}</span>
-            </CitationLink>
-          ))}
-        </CitationsContainer>
-      )}
-      {message?.metadata?.webSearch && message.status === 'success' && (
-        <CitationsContainer className="footnotes">
-          <CitationsTitle>
-            {t('message.citations')}
-            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-          </CitationsTitle>
-          {message.metadata.webSearch.results.map((result, index) => (
-            <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
-              <Favicon hostname={new URL(result.url).hostname} alt={result.title} />
-              <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
-                {result.title}
+    <div ref={contentRef} className="message-content">
+      <Fragment>
+        <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
+          {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
+        </Flex>
+        <MessageThought message={message} />
+        <MessageTools message={message} />
+        <Markdown message={{ ...message, content: processedContent }} citationsData={citationsData} />
+        {message.metadata?.generateImage && <MessageImage message={message} />}
+        {message.translatedContent && (
+          <Fragment>
+            <Divider style={{ margin: 0, marginBottom: 10 }}>
+              <TranslationOutlined />
+            </Divider>
+            {message.translatedContent === t('translate.processing') ? (
+              <BeatLoader color="var(--color-text-2)" size="10" style={{ marginBottom: 15 }} />
+            ) : (
+              <Markdown message={{ ...message, content: message.translatedContent }} />
+            )}
+          </Fragment>
+        )}
+        <MessageSearchResults message={message} />
+        {formattedCitations && (
+          <CitationsContainer>
+            <CitationsTitle>
+              {t('message.citations')}
+              <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
+            </CitationsTitle>
+            {formattedCitations.map(({ number, url, hostname }) => (
+              <CitationLink key={number} href={url} target="_blank" rel="noopener noreferrer">
+                {number}. <span className="hostname">{hostname}</span>
               </CitationLink>
-            </HStack>
-          ))}
-        </CitationsContainer>
-      )}
-      <MessageAttachments message={message} />
-    </Fragment>
+            ))}
+          </CitationsContainer>
+        )}
+        {message?.metadata?.webSearch && message.status === 'success' && (
+          <CitationsContainer className="footnotes">
+            <CitationsTitle>
+              {t('message.citations')}
+              <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
+            </CitationsTitle>
+            {message.metadata.webSearch.results.map((result, index) => (
+              <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
+                <Favicon hostname={new URL(result.url).hostname} alt={result.title} />
+                <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
+                  {result.title}
+                </CitationLink>
+              </HStack>
+            ))}
+          </CitationsContainer>
+        )}
+        <MessageAttachments message={message} />
+      </Fragment>
+    </div>
   )
 }
 
