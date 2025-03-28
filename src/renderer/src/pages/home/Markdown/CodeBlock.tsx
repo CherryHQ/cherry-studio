@@ -225,7 +225,6 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
       .line {
         display: block;
         min-height: 1.3rem;
-        width: 100%;
         padding-left: ${(props) => (props.isShowLineNumbers ? '2rem' : '0')};
       }
     }
