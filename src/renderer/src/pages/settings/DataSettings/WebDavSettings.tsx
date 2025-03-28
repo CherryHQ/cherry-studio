@@ -103,7 +103,14 @@ const WebDavSettings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
+      <HStack gap="10px" alignItems="center">
+        <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
+        {webdavSync.lastSyncTime && (
+          <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+            {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('YYYY-MM-DD HH:mm:ss')}
+          </span>
+        )}
+      </HStack>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.webdav.host')}</SettingRowTitle>

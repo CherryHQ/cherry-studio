@@ -207,7 +207,14 @@ const NutstoreSettings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.data.nutstore.title')}</SettingTitle>
+      <HStack gap="10px" alignItems="center">
+        <SettingTitle>{t('settings.data.nutstore.title')}</SettingTitle>
+        {isLogin && nutstoreSyncState.lastSyncTime && (
+          <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+            {t('settings.data.webdav.lastSync')}: {dayjs(nutstoreSyncState.lastSyncTime).format('YYYY-MM-DD HH:mm:ss')}
+          </span>
+        )}
+      </HStack>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>
