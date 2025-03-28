@@ -7,6 +7,7 @@ import jaJP from './locales/ja-jp.json'
 import ruRU from './locales/ru-ru.json'
 import zhCN from './locales/zh-cn.json'
 import zhTW from './locales/zh-tw.json'
+import esMX from './locales/es-mx.json'
 // Machine translation
 import elGR from './translate/el-gr.json'
 import esES from './translate/es-es.json'
@@ -17,6 +18,7 @@ const resources = {
   'el-GR': elGR,
   'en-US': enUS,
   'es-ES': esES,
+  'es-MX': esMX,
   'fr-FR': frFR,
   'ja-JP': jaJP,
   'pt-PT': ptPT,
