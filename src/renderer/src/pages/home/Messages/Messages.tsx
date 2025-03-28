@@ -134,7 +134,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         setDisplayMessages([])
         const _topic = getTopic(assistant, topic.id)
         if (_topic) {
-          updateTopic({ ..._topic, name: defaultTopic.name } as Topic)
+          const newTopic = { ..._topic, name: defaultTopic.name } as Topic
+          updateTopic(newTopic)
+          setActiveTopic(newTopic)
         }
       }),
       EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, async () => {
