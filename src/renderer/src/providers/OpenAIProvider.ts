@@ -356,7 +356,6 @@ export default class OpenAIProvider extends BaseProvider {
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     messages = addImageFileToContents(messages)
-    console.log('messages', messages)
     let systemMessage = assistant.prompt ? { role: 'system', content: assistant.prompt } : undefined
 
     if (isOpenAIoSeries(model)) {

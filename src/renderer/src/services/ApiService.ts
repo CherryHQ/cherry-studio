@@ -189,7 +189,6 @@ export async function fetchChatCompletion({
 
   // Reset generating state
   store.dispatch(setGenerating(false))
-  console.log('fetchChatCompletion messages', messages)
   return message
 }
 
