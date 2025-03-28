@@ -145,7 +145,10 @@
         "history": "Chat History",
         "last": "Already at the last message",
         "next": "Next Message",
-        "prev": "Previous Message"
+        "prev": "Previous Message",
+        "top": "Back to top",
+        "bottom": "Back to bottom",
+        "close": "Close"
       },
       "resend": "Resend",
       "save": "Save",
