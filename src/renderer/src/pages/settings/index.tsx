@@ -1,7 +1,7 @@
 import { ThemeMode } from '@renderer/types'
 import { Divider } from 'antd'
 import Link from 'antd/es/typography/Link'
-import styled from 'styled-components'
+import styled, { CSSProp } from 'styled-components'
 
 export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   display: flex;
@@ -80,7 +80,7 @@ export const SettingHelpLink = styled(Link)`
   margin: 0 5px;
 `
 
-export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
+export const SettingGroup = styled.div<{ theme?: ThemeMode; css?: CSSProp }>`
   margin-bottom: 20px;
   border-radius: 8px;
   border: 0.5px solid var(--color-border);
