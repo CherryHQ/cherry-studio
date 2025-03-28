@@ -514,6 +514,7 @@ export default class OpenAIProvider extends BaseProvider {
 
           for (const toolCall of toolCalls) {
             const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall)
+
             if (!mcpTool) {
               continue
             }

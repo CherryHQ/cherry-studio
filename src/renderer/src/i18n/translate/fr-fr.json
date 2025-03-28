@@ -886,10 +886,7 @@
         "argsTooltip": "Chaque argument sur une ligne",
         "baseUrlTooltip": "Adresse URL distante",
         "command": "Commande",
-        "commandRequired": "Veuillez entrer une commande",
         "config_description": "Configurer le modèle du protocole de contexte du serveur",
-        "confirmDelete": "Supprimer le serveur",
-        "confirmDeleteMessage": "Êtes-vous sûr de vouloir supprimer ce serveur ?",
         "deleteError": "Échec de la suppression du serveur",
         "deleteSuccess": "Serveur supprimé avec succès",
         "dependenciesInstall": "Installer les dépendances",
@@ -910,7 +907,6 @@
         "jsonSaveSuccess": "Configuration JSON sauvegardée",
         "missingDependencies": "Manquantes, veuillez les installer pour continuer",
         "name": "Nom",
-        "nameRequired": "Veuillez entrer le nom du serveur",
         "noServers": "Aucun serveur configuré",
         "npx_list": {
           "actions": "Actions",

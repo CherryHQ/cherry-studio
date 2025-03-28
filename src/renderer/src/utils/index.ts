@@ -306,7 +306,7 @@ export async function captureDiv(divRef: React.RefObject<HTMLDivElement>) {
   return Promise.resolve(undefined)
 }
 
-export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElement>) => {
+export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElement | null>) => {
   if (divRef.current) {
     try {
       const div = divRef.current
@@ -392,7 +392,7 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
   return Promise.resolve(undefined)
 }
 
-export const captureScrollableDivAsDataURL = async (divRef: React.RefObject<HTMLDivElement>) => {
+export const captureScrollableDivAsDataURL = async (divRef: React.RefObject<HTMLDivElement | null>) => {
   return captureScrollableDiv(divRef).then((canvas) => {
     if (canvas) {
       return canvas.toDataURL('image/png')
@@ -401,7 +401,10 @@ export const captureScrollableDivAsDataURL = async (divRef: React.RefObject<HTML
   })
 }
 
-export const captureScrollableDivAsBlob = async (divRef: React.RefObject<HTMLDivElement>, func: BlobCallback) => {
+export const captureScrollableDivAsBlob = async (
+  divRef: React.RefObject<HTMLDivElement | null>,
+  func: BlobCallback
+) => {
   await captureScrollableDiv(divRef).then((canvas) => {
     canvas?.toBlob(func, 'image/png')
   })

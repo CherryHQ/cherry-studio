@@ -32,7 +32,9 @@
       "title": "Agents"
     },
     "assistants": {
+      "title": "Assistants",
       "abbr": "Assistant",
+      "settings.title": "Assistant Settings",
       "clear.content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
       "clear.title": "Clear topics",
       "copy.title": "Copy Assistant",
@@ -53,7 +55,7 @@
       "settings.reasoning_effort.medium": "medium",
       "settings.reasoning_effort.off": "off",
       "settings.reasoning_effort.tip": "Only supports OpenAI o-series and Anthropic reasoning models",
-      "title": "Assistants"
+      "settings.more": "Assistant Settings"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -977,10 +979,7 @@
         "argsTooltip": "Each argument on a new line",
         "baseUrlTooltip": "Remote server base URL",
         "command": "Command",
-        "commandRequired": "Please enter a command",
         "config_description": "Configure Model Context Protocol servers",
-        "confirmDelete": "Delete Server",
-        "confirmDeleteMessage": "Are you sure you want to delete the server?",
         "deleteError": "Failed to delete server",
         "deleteSuccess": "Server deleted successfully",
         "dependenciesInstall": "Install Dependencies",
@@ -991,7 +990,8 @@
         "editServer": "Edit Server",
         "env": "Environment Variables",
         "envTooltip": "Format: KEY=value, one per line",
-        "findMore": "Find More MCP Servers",
+        "findMore": "Find More MCP",
+        "searchNpx": "Search MCP",
         "install": "Install",
         "installError": "Failed to install dependencies",
         "installSuccess": "Dependencies installed successfully",
@@ -1001,8 +1001,8 @@
         "jsonSaveSuccess": "JSON configuration has been saved.",
         "missingDependencies": "is Missing, please install it to continue.",
         "name": "Name",
-        "nameRequired": "Please enter a server name",
         "noServers": "No servers configured",
+        "newServer": "MCP Server",
         "npx_list": {
           "actions": "Actions",
           "desc": "Search and add npm packages as MCP servers",
@@ -1018,14 +1018,19 @@
           "usage": "Usage",
           "version": "Version"
         },
+        "errors": {
+          "32000": "MCP server failed to start, please check the parameters according to the tutorial"
+        },
         "serverPlural": "servers",
         "serverSingular": "server",
         "title": "MCP Servers",
-        "toggleError": "Toggle failed",
+        "startError": "Start failed",
         "type": "Type",
         "updateError": "Failed to update server",
         "updateSuccess": "Server updated successfully",
-        "url": "URL"
+        "url": "URL",
+        "editMcpJson": "Edit MCP Configuration",
+        "installHelp": "Get Installation Help"
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
@@ -1137,7 +1142,7 @@
         "docs_more_details": "for more details",
         "get_api_key": "Get API Key",
         "is_not_support_array_content": "Enable compatible mode",
-        "no_models": "Please add models first before checking the API connection",
+        "no_models_for_check": "No models available for checking (e.g. chat models)",
         "not_checked": "Not Checked",
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",

@@ -1,13 +1,15 @@
-import { SearchOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
+import { nanoid } from '@reduxjs/toolkit'
+import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
-import { Button, Input, Space, Spin, Table, Typography } from 'antd'
+import { Button, Input, Space, Spin, Table, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingTitle } from '..'
-import AddMcpServerPopup from './AddMcpServerPopup'
 
 interface SearchResult {
   name: string
@@ -18,6 +20,8 @@ interface SearchResult {
   fullName: string
 }
 
+const npmScopes = ['@mcpmarket', '@modelcontextprotocol', '@gongrzhe']
+
 const NpxSearch: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -27,11 +31,16 @@ const NpxSearch: FC = () => {
   const [npmScope, setNpmScope] = useState('@modelcontextprotocol')
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const { addMCPServer } = useMCPServers()
 
   // Add new function to handle npm scope search
   const handleNpmSearch = async () => {
     if (!npmScope.trim()) {
-      window.message.warning(t('settings.mcp.npx_list.scope_required'))
+      window.message.warning({ content: t('settings.mcp.npx_list.scope_required'), key: 'mcp-npx-scope-required' })
+      return
+    }
+
+    if (searchLoading) {
       return
     }
 
@@ -45,7 +54,7 @@ const NpxSearch: FC = () => {
       const formattedResults = packages.map((pkg) => {
         return {
           key: pkg.name,
-          name: pkg.name || '',
+          name: pkg.name?.split('/')[1] || '',
           description: pkg.description || 'No description available',
           version: pkg.version || 'Latest',
           usage: `npx ${pkg.name}`,
@@ -57,13 +66,16 @@ const NpxSearch: FC = () => {
       setSearchResults(formattedResults)
 
       if (formattedResults.length === 0) {
-        window.message.info(t('settings.mcp.npx_list.no_packages'))
+        window.message.info({ content: t('settings.mcp.npx_list.no_packages'), key: 'mcp-npx-no-packages' })
       }
     } catch (error: unknown) {
       if (error instanceof Error) {
-        window.message.error(`${t('settings.mcp.npx_list.search_error')}: ${error.message}`)
+        window.message.error({
+          content: `${t('settings.mcp.npx_list.search_error')}: ${error.message}`,
+          key: 'mcp-npx-search-error'
+        })
       } else {
-        window.message.error(t('settings.mcp.npx_list.search_error'))
+        window.message.error({ content: t('settings.mcp.npx_list.search_error'), key: 'mcp-npx-search-error' })
       }
     } finally {
       setSearchLoading(false)
@@ -90,6 +102,22 @@ const NpxSearch: FC = () => {
             {t('settings.mcp.npx_list.search')}
           </Button>
         </Space.Compact>
+
+        <HStack alignItems="center" mt="-5px" mb="5px">
+          {npmScopes.map((scope) => (
+            <Tag
+              key={scope}
+              onClick={() => {
+                if (!searchLoading) {
+                  setNpmScope(scope)
+                  setTimeout(handleNpmSearch, 100)
+                }
+              }}
+              style={{ cursor: searchLoading ? 'not-allowed' : 'pointer' }}>
+              {scope}
+            </Tag>
+          ))}
+        </HStack>
 
         {searchLoading ? (
           <div style={{ textAlign: 'center', padding: '20px' }}>
@@ -127,31 +155,32 @@ const NpxSearch: FC = () => {
                 title: t('settings.mcp.npx_list.version'),
                 dataIndex: 'version',
                 key: 'version',
-                width: '100px'
+                width: '100px',
+                align: 'center'
               },
               {
                 title: t('settings.mcp.npx_list.actions'),
                 key: 'actions',
-                width: '120px',
+                width: '80px',
+                align: 'center',
                 render: (_, record: SearchResult) => (
                   <Button
                     type="primary"
+                    icon={<PlusOutlined />}
                     size="small"
                     onClick={() => {
                       // 创建一个临时的 MCP 服务器对象
                       const tempServer: MCPServer = {
+                        id: nanoid(),
                         name: record.name,
                         description: `${record.description}\n\n${t('settings.mcp.npx_list.usage')}: ${record.usage}\n${t('settings.mcp.npx_list.npm')}: ${record.npmLink}`,
                         command: 'npx',
                         args: ['-y', record.fullName],
-                        isActive: true
+                        isActive: false
                       }
-
-                      // 使用 showEditModal 函数设置表单值并显示弹窗
-                      AddMcpServerPopup.show({ server: tempServer, create: true })
-                    }}>
-                    {t('settings.mcp.addServer')}
-                  </Button>
+                      addMCPServer(tempServer)
+                    }}
+                  />
                 )
               }
             ]}

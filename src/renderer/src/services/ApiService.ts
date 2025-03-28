@@ -99,12 +99,15 @@ export async function fetchChatCompletion({
 
     const lastUserMessage = findLast(messages, (m) => m.role === 'user')
     // Get MCP tools
-    let mcpTools: MCPTool[] = []
+    const mcpTools: MCPTool[] = []
     const enabledMCPs = lastUserMessage?.enabledMCPs
 
     if (enabledMCPs && enabledMCPs.length > 0) {
-      const allMCPTools = await window.api.mcp.listTools()
-      mcpTools = allMCPTools.filter((tool) => enabledMCPs.some((mcp) => mcp.name === tool.serverName))
+      for (const mcpServer of enabledMCPs) {
+        const tools = await window.api.mcp.listTools(mcpServer)
+        console.debug('tools', tools)
+        mcpTools.push(...tools)
+      }
     }
 
     await AI.completions({
@@ -127,6 +130,7 @@ export async function fetchChatCompletion({
         if (mcpToolResponse) {
           message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
         }
+
         if (generateImage && generateImage.images.length > 0) {
           const existingImages = message.metadata?.generateImage?.images || []
           generateImage.images = [...existingImages, ...generateImage.images]

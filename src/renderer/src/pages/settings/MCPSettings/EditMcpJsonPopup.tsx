@@ -21,15 +21,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
-  const ipcRenderer = window.electron.ipcRenderer
-
   useEffect(() => {
     try {
       const mcpServersObj: Record<string, any> = {}
 
       mcpServers.forEach((server) => {
-        const { name, ...serverData } = server
-        mcpServersObj[name] = serverData
+        const { id, ...serverData } = server
+        mcpServersObj[id] = serverData
       })
 
       const standardFormat = {
@@ -47,6 +45,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const onOk = async () => {
     setJsonSaving(true)
+
     try {
       if (!jsonConfig.trim()) {
         dispatch(setMCPServers([]))
@@ -55,6 +54,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         setJsonSaving(false)
         return
       }
+
       const parsedConfig = JSON.parse(jsonConfig)
 
       if (!parsedConfig.mcpServers || typeof parsedConfig.mcpServers !== 'object') {
@@ -62,9 +62,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
 
       const serversArray: MCPServer[] = []
-      for (const [name, serverConfig] of Object.entries(parsedConfig.mcpServers)) {
+
+      for (const [id, serverConfig] of Object.entries(parsedConfig.mcpServers)) {
         const server: MCPServer = {
-          name,
+          id,
           isActive: false,
           ...(serverConfig as any)
         }
@@ -72,7 +73,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
 
       dispatch(setMCPServers(serversArray))
-      ipcRenderer.send('mcp:servers-from-renderer', mcpServers)
 
       window.message.success(t('settings.mcp.jsonSaveSuccess'))
       setJsonError('')

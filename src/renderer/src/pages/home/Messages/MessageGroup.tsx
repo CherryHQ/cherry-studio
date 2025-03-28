@@ -145,7 +145,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
           key={message.id}
           className={classNames({
             'group-message-wrapper': message.role === 'assistant' && isHorizontal && isGrouped,
-            [multiModelMessageStyle]: true,
+            [multiModelMessageStyle]: isGrouped,
             selected: 'foldSelected' in message ? message.foldSelected : index === 0
           })}>
           <MessageStream {...messageProps} />

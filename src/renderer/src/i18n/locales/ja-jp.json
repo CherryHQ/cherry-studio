@@ -32,7 +32,9 @@
       "title": "エージェント"
     },
     "assistants": {
+      "title": "アシスタント",
       "abbr": "アシスタント",
+      "settings.title": "アシスタント設定",
       "clear.content": "トピックをクリアすると、アシスタント内のすべてのトピックとファイルが削除されます。続行しますか？",
       "clear.title": "トピックをクリア",
       "copy.title": "アシスタントをコピー",
@@ -53,7 +55,7 @@
       "settings.reasoning_effort.medium": "中程度",
       "settings.reasoning_effort.off": "オフ",
       "settings.reasoning_effort.tip": "OpenAIのoシリーズとAnthropicの推論モデルのみサポートしています",
-      "title": "アシスタント"
+      "settings.more": "アシスタント設定"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -976,10 +978,7 @@
         "argsTooltip": "1行に1つの引数を入力してください",
         "baseUrlTooltip": "リモートURLアドレス",
         "command": "コマンド",
-        "commandRequired": "コマンドを入力してください",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
-        "confirmDelete": "サーバーを削除",
-        "confirmDeleteMessage": "本当にこのサーバーを削除しますか？",
         "deleteError": "サーバーの削除に失敗しました",
         "deleteSuccess": "サーバーが正常に削除されました",
         "dependenciesInstall": "依存関係をインストール",
@@ -990,7 +989,8 @@
         "editServer": "サーバーを編集",
         "env": "環境変数",
         "envTooltip": "形式: KEY=value, 1行に1つ",
-        "findMore": "MCP サーバーを見つける",
+        "findMore": "MCP を見つける",
+        "searchNpx": "MCP を検索",
         "install": "インストール",
         "installError": "依存関係のインストールに失敗しました",
         "installSuccess": "依存関係のインストールに成功しました",
@@ -1000,8 +1000,8 @@
         "jsonSaveSuccess": "JSON設定が保存されました。",
         "missingDependencies": "が不足しています。続行するにはインストールしてください。",
         "name": "名前",
-        "nameRequired": "サーバー名を入力してください",
         "noServers": "サーバーが設定されていません",
+        "newServer": "MCP サーバー",
         "npx_list": {
           "actions": "アクション",
           "desc": "npm パッケージを検索して MCP サーバーとして追加",
@@ -1020,11 +1020,16 @@
         "serverPlural": "サーバー",
         "serverSingular": "サーバー",
         "title": "MCP サーバー",
-        "toggleError": "切り替えに失敗しました",
+        "startError": "起動に失敗しました",
         "type": "タイプ",
         "updateError": "サーバーの更新に失敗しました",
         "updateSuccess": "サーバーが正常に更新されました",
-        "url": "URL"
+        "url": "URL",
+        "errors": {
+          "32000": "MCP サーバーが起動しませんでした。パラメーターを確認してください"
+        },
+        "editMcpJson": "MCP 設定を編集",
+        "installHelp": "インストールヘルプを取得"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -1136,7 +1141,7 @@
         "docs_more_details": "詳細を確認",
         "get_api_key": "APIキーを取得",
         "is_not_support_array_content": "互換モードを有効にする",
-        "no_models": "API接続をチェックする前に、モデルを追加してください",
+        "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
         "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
         "remove_invalid_keys": "無効なキーを削除",

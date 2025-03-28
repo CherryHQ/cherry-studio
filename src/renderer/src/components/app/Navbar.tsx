@@ -1,9 +1,10 @@
-import { isMac } from '@renderer/config/constant'
+import { isMac, isWindows } from '@renderer/config/constant'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
-import { FC, PropsWithChildren } from 'react'
+import type { FC, PropsWithChildren } from 'react'
+import type { HTMLAttributes } from 'react'
 import styled from 'styled-components'
 
-type Props = PropsWithChildren & JSX.IntrinsicElements['div']
+type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
@@ -62,4 +63,6 @@ const NavbarRightContainer = styled.div`
   display: flex;
   align-items: center;
   padding: 0 12px;
+  padding-right: ${isWindows ? '140px' : 12};
+  justify-content: flex-end;
 `

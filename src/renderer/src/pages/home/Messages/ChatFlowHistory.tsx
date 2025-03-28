@@ -50,7 +50,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
   let title = ''
   let backgroundColor = 'var(--bg-color)'
   let gradientColor = 'rgba(0, 0, 0, 0.03)'
-  let avatar: JSX.Element | null = null
+  let avatar: React.ReactNode | null = null
 
   // 根据消息类型设置不同的样式和图标
   if (nodeType === 'user') {

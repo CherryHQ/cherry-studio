@@ -153,7 +153,6 @@ const Container = styled.div`
   justify-content: space-between;
   padding: 7px 10px;
   position: relative;
-  margin: 0 10px;
   font-family: Ubuntu;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;

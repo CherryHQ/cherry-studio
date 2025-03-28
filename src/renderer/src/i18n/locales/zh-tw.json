@@ -32,7 +32,9 @@
       "title": "智慧代理人"
     },
     "assistants": {
+      "title": "助手",
       "abbr": "助手",
+      "settings.title": "助手設定",
       "clear.content": "清空話題會刪除助手下所有主題和檔案，確定要繼續嗎？",
       "clear.title": "清空話題",
       "copy.title": "複製助手",
@@ -52,8 +54,8 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "關",
-      "settings.reasoning_effort.tip": "僅支援 OpenAI o 系列和 Anthropic 推理模型",
-      "title": "助手"
+      "settings.reasoning_effort.tip": "僅支援 OpenAI o-series 和 Anthropic 推理模型",
+      "settings.more": "助手設定"
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",
@@ -976,10 +978,7 @@
         "argsTooltip": "每個參數佔一行",
         "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
-        "commandRequired": "請輸入指令",
         "config_description": "設定模型上下文協議伺服器",
-        "confirmDelete": "刪除伺服器",
-        "confirmDeleteMessage": "您確定要刪除該伺服器嗎？",
         "deleteError": "刪除伺服器失敗",
         "deleteSuccess": "伺服器刪除成功",
         "dependenciesInstall": "安裝相依套件",
@@ -990,7 +989,8 @@
         "editServer": "編輯伺服器",
         "env": "環境變數",
         "envTooltip": "格式：KEY=value，每行一個",
-        "findMore": "更多 MCP 伺服器",
+        "findMore": "更多 MCP",
+        "searchNpx": "搜索 MCP",
         "install": "安裝",
         "installError": "安裝相依套件失敗",
         "installSuccess": "相依套件安裝成功",
@@ -1000,8 +1000,8 @@
         "jsonSaveSuccess": "JSON配置已儲存",
         "missingDependencies": "缺失，請安裝它以繼續",
         "name": "名稱",
-        "nameRequired": "請輸入伺服器名稱",
         "noServers": "未設定伺服器",
+        "newServer": "MCP 伺服器",
         "npx_list": {
           "actions": "操作",
           "desc": "搜索並添加 npm 包作為 MCP 服務",
@@ -1017,14 +1017,19 @@
           "usage": "用法",
           "version": "版本"
         },
+        "errors": {
+          "32000": "MCP 伺服器啟動失敗，請根據教程檢查參數是否填寫完整"
+        },
         "serverPlural": "伺服器",
         "serverSingular": "伺服器",
         "title": "MCP 伺服器",
-        "toggleError": "切換失敗",
+        "startError": "啟動失敗",
         "type": "類型",
         "updateError": "更新伺服器失敗",
         "updateSuccess": "伺服器更新成功",
-        "url": "URL"
+        "url": "URL",
+        "editMcpJson": "編輯 MCP 配置",
+        "installHelp": "獲取安裝幫助"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -1136,7 +1141,7 @@
         "docs_more_details": "檢視更多細節",
         "get_api_key": "點選這裡取得金鑰",
         "is_not_support_array_content": "開啟相容模式",
-        "no_models": "請先新增模型再檢查 API 連接",
+        "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",
         "not_checked": "未檢查",
         "remove_duplicate_keys": "移除重複金鑰",
         "remove_invalid_keys": "刪除無效金鑰",
