@@ -17,14 +17,14 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Alert, Button, Divider, Dropdown, message, Tag, Tooltip, Upload } from 'antd'
+import { Alert, Button, Divider, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import CustomCollapse from '../../components/CustomCollapse'
 import FileItem from '../files/FileItem'
-import CustomCollapse from './components/CustomCollapse'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'
@@ -255,6 +255,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         </Dragger>
 
         <FlexColumn>
+          {fileItems.length === 0 && <Empty />}
           {fileItems.reverse().map((item) => {
             const file = item.content as FileType
             return (
@@ -299,6 +300,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </Button>
         }>
         <FlexColumn>
+          {directoryItems.length === 0 && <Empty />}
           {directoryItems.reverse().map((item) => (
             <FileItem
               key={item.id}
@@ -341,6 +343,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </Button>
         }>
         <FlexColumn>
+          {urlItems.length === 0 && <Empty />}
           {urlItems.reverse().map((item) => (
             <FileItem
               key={item.id}
@@ -403,6 +406,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </Button>
         }>
         <FlexColumn>
+          {sitemapItems.length === 0 && <Empty />}
           {sitemapItems.reverse().map((item) => (
             <FileItem
               key={item.id}
@@ -448,6 +452,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </Button>
         }>
         <FlexColumn>
+          {noteItems.length === 0 && <Empty />}
           {noteItems.reverse().map((note) => (
             <FileItem
               key={note.id}
