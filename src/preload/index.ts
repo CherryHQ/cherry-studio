@@ -44,6 +44,7 @@ const api = {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke('file:select', options),
     upload: (filePath: string) => ipcRenderer.invoke('file:upload', filePath),
     delete: (fileId: string) => ipcRenderer.invoke('file:delete', fileId),
+    deleteDir: (dirPath: string) => ipcRenderer.invoke('file:deleteDir', dirPath),
     read: (fileId: string) => ipcRenderer.invoke('file:read', fileId),
     clear: () => ipcRenderer.invoke('file:clear'),
     get: (filePath: string) => ipcRenderer.invoke('file:get', filePath),
@@ -56,6 +57,7 @@ const api = {
     selectFolder: () => ipcRenderer.invoke('file:selectFolder'),
     saveImage: (name: string, data: string) => ipcRenderer.invoke('file:saveImage', name, data),
     base64Image: (fileId: string) => ipcRenderer.invoke('file:base64Image', fileId),
+    base64File: (filePath: string) => ipcRenderer.invoke('file:base64File', filePath),
     download: (url: string) => ipcRenderer.invoke('file:download', url),
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke('file:copy', fileId, destPath),
     binaryFile: (fileId: string) => ipcRenderer.invoke('file:binaryFile', fileId)
@@ -94,12 +96,14 @@ const api = {
     setMinimumSize: (width: number, height: number) => ipcRenderer.invoke('window:set-minimum-size', width, height),
     resetMinimumSize: () => ipcRenderer.invoke('window:reset-minimum-size')
   },
-  gemini: {
-    uploadFile: (file: FileType, apiKey: string) => ipcRenderer.invoke('gemini:upload-file', file, apiKey),
-    base64File: (file: FileType) => ipcRenderer.invoke('gemini:base64-file', file),
-    retrieveFile: (file: FileType, apiKey: string) => ipcRenderer.invoke('gemini:retrieve-file', file, apiKey),
-    listFiles: (apiKey: string) => ipcRenderer.invoke('gemini:list-files', apiKey),
-    deleteFile: (apiKey: string, fileId: string) => ipcRenderer.invoke('gemini:delete-file', apiKey, fileId)
+  fileService: {
+    upload: (type: string, apiKey: string, file: FileType) =>
+      ipcRenderer.invoke('file-service:upload', type, apiKey, file),
+    list: (type: string, apiKey: string) => ipcRenderer.invoke('file-service:list', type, apiKey),
+    delete: (type: string, apiKey: string, fileId: string) =>
+      ipcRenderer.invoke('file-service:delete', type, apiKey, fileId),
+    retrieve: (type: string, apiKey: string, fileId: string) =>
+      ipcRenderer.invoke('file-service:retrieve', type, apiKey, fileId)
   },
   selectionMenu: {
     action: (action: string) => ipcRenderer.invoke('selection-menu:action', action)

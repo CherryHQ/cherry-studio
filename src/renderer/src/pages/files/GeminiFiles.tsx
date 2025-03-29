@@ -19,8 +19,9 @@ const GeminiFiles: FC<GeminiFilesProps> = ({ id }) => {
   const [loading, setLoading] = useState(false)
 
   const fetchFiles = useCallback(async () => {
-    const { files } = await window.api.gemini.listFiles(provider.apiKey)
-    files && setFiles(files.filter((file) => file.state === 'ACTIVE'))
+    const reponses = await window.api.fileService.list(provider.type, provider.apiKey)
+    const files = reponses.files.map((file) => file.originalFile as FileMetadataResponse)
+    setFiles(files)
   }, [provider])
 
   const columns: ColumnsType<FileMetadataResponse> = [
@@ -57,7 +58,7 @@ const GeminiFiles: FC<GeminiFilesProps> = ({ id }) => {
             style={{ cursor: 'pointer', color: 'var(--color-error)' }}
             onClick={() => {
               setFiles(files.filter((file) => file.name !== record.name))
-              window.api.gemini.deleteFile(provider.apiKey, record.name).catch((error) => {
+              window.api.fileService.delete(provider.type, provider.apiKey, record.name).catch((error) => {
                 console.error('Failed to delete file:', error)
                 setFiles((prev) => [...prev, record])
               })

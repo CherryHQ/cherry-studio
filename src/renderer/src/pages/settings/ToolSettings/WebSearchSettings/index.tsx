@@ -5,7 +5,7 @@ import { Select } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import BasicSettings from './BasicSettings'
 import BlacklistSettings from './BlacklistSettings'
 import WebSearchProviderSetting from './WebSearchProviderSetting'
@@ -29,24 +29,26 @@ const WebSearchSettings: FC = () => {
   return (
     <SettingContainer theme={themeMode}>
       <SettingGroup theme={themeMode}>
-        <SettingTitle>{t('settings.websearch.title')}</SettingTitle>
+        <SettingTitle>{t('settings.tool.websearch.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.websearch.search_provider')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.tool.websearch.search_provider')}</SettingRowTitle>
           <div style={{ display: 'flex', gap: '8px' }}>
             <Select
               value={selectedProvider?.id}
               style={{ width: '200px' }}
               onChange={(value: string) => updateSelectedWebSearchProvider(value)}
-              placeholder={t('settings.websearch.search_provider_placeholder')}
+              placeholder={t('settings.tool.websearch.search_provider_placeholder')}
               options={providers.map((p) => ({ value: p.id, label: p.name }))}
             />
           </div>
         </SettingRow>
       </SettingGroup>
-      <SettingGroup theme={themeMode}>
-        {selectedProvider && <WebSearchProviderSetting provider={selectedProvider} />}
-      </SettingGroup>
+      {selectedProvider && (
+        <SettingGroup theme={themeMode}>
+          <WebSearchProviderSetting provider={selectedProvider} />
+        </SettingGroup>
+      )}
       <BasicSettings />
       <BlacklistSettings />
     </SettingContainer>

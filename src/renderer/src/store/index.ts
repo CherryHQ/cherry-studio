@@ -14,6 +14,7 @@ import messagesReducer from './messages'
 import migrate from './migrate'
 import minapps from './minapps'
 import nutstore from './nutstore'
+import ocr from './ocr'
 import paintings from './paintings'
 import runtime from './runtime'
 import settings from './settings'
@@ -35,14 +36,15 @@ const rootReducer = combineReducers({
   websearch,
   mcp,
   copilot,
-  messages: messagesReducer
+  messages: messagesReducer,
+  ocr
 })
 
 const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 86,
+    version: 87,
     blacklist: ['runtime', 'messages'],
     migrate
   },

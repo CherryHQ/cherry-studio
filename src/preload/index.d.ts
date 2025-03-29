@@ -1,8 +1,16 @@
 import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from '@google/generative-ai/server'
 import type { MCPServer, MCPTool } from '@renderer/types'
-import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
+import {
+  AppInfo,
+  FileListResponse,
+  FileType,
+  FileUploadResponse,
+  KnowledgeBaseParams,
+  KnowledgeItem,
+  LanguageVarious,
+  WebDavConfig
+} from '@renderer/types'
 import type { LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
 import type { UpdateInfo } from 'electron-updater'
@@ -52,6 +60,7 @@ declare global {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
         upload: (file: FileType) => Promise<FileType>
         delete: (fileId: string) => Promise<void>
+        deleteDir: (dirPath: string) => Promise<void>
         read: (fileId: string) => Promise<string>
         clear: () => Promise<void>
         get: (filePath: string) => Promise<FileType | null>
@@ -67,6 +76,7 @@ declare global {
         ) => Promise<string | null>
         saveImage: (name: string, data: string) => void
         base64Image: (fileId: string) => Promise<{ mime: string; base64: string; data: string }>
+        base64File: (filePath: string) => Promise<{ mime: string; data: string }>
         download: (url: string) => Promise<FileType | null>
         copy: (fileId: string, destPath: string) => Promise<void>
         binaryFile: (fileId: string) => Promise<{ data: Buffer; mime: string }>
@@ -118,12 +128,11 @@ declare global {
         setMinimumSize: (width: number, height: number) => Promise<void>
         resetMinimumSize: () => Promise<void>
       }
-      gemini: {
-        uploadFile: (file: FileType, apiKey: string) => Promise<UploadFileResponse>
-        retrieveFile: (file: FileType, apiKey: string) => Promise<FileMetadataResponse | undefined>
-        base64File: (file: FileType) => Promise<{ data: string; mimeType: string }>
-        listFiles: (apiKey: string) => Promise<ListFilesResponse>
-        deleteFile: (apiKey: string, fileId: string) => Promise<void>
+      fileService: {
+        upload: (type: string, apiKey: string, file: FileType) => Promise<FileUploadResponse>
+        retrieve: (type: string, apiKey: string, fileId: string) => Promise<FileUploadResponse>
+        list: (type: string, apiKey: string) => Promise<FileListResponse>
+        delete: (type: string, apiKey: string, fileId: string) => Promise<void>
       }
       selectionMenu: {
         action: (action: string) => Promise<void>

@@ -7,7 +7,7 @@ import TextArea from 'antd/es/input/TextArea'
 import { t } from 'i18next'
 import { FC, useEffect, useState } from 'react'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 
 const BlacklistSettings: FC = () => {
   const [errFormat, setErrFormat] = useState(false)
@@ -45,22 +45,22 @@ const BlacklistSettings: FC = () => {
   return (
     <>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.websearch.blacklist')}</SettingTitle>
+        <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
         <SettingDivider />
         <SettingRow style={{ marginBottom: 10 }}>
-          <SettingRowTitle>{t('settings.websearch.blacklist_description')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.tool.websearch.blacklist_description')}</SettingRowTitle>
         </SettingRow>
         <TextArea
           value={blacklistInput}
           onChange={(e) => setBlacklistInput(e.target.value)}
-          placeholder={t('settings.websearch.blacklist_tooltip')}
+          placeholder={t('settings.tool.websearch.blacklist_tooltip')}
           autoSize={{ minRows: 4, maxRows: 8 }}
           rows={4}
         />
         <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
           {t('common.save')}
         </Button>
-        {errFormat && <Alert message={t('settings.websearch.blacklist_tooltip')} type="error" />}
+        {errFormat && <Alert message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />}
       </SettingGroup>
     </>
   )

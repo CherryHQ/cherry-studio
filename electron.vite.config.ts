@@ -22,6 +22,7 @@ export default defineConfig({
           '@cherrystudio/embedjs-loader-sitemap',
           '@cherrystudio/embedjs-libsql',
           '@cherrystudio/embedjs-loader-image',
+          '@cherrystudio/mac-system-ocr',
           'p-queue',
           'webdav'
         ]

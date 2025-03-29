@@ -6,7 +6,7 @@ import React, { memo } from 'react'
 import styled from 'styled-components'
 
 import GeminiFiles from './GeminiFiles'
-
+import MistralFiles from './MistralFiles'
 interface ContentViewProps {
   id: FileTypes | 'all' | string
   files?: FileType[]
@@ -47,6 +47,10 @@ const ContentView: React.FC<ContentViewProps> = ({ id, files, dataSource, column
 
   if (id.startsWith('gemini_')) {
     return <GeminiFiles id={id.replace('gemini_', '') as string} />
+  }
+
+  if (id.startsWith('mistral_')) {
+    return <MistralFiles id={id.replace('mistral_', '') as string} />
   }
 
   return (

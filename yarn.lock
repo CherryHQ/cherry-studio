@@ -474,7 +474,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-libsql@npm:^0.1.28":
+"@cherrystudio/embedjs-libsql@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-libsql@npm:0.1.29"
   dependencies:
@@ -486,7 +486,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-csv@npm:^0.1.28":
+"@cherrystudio/embedjs-loader-csv@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-loader-csv@npm:0.1.29"
   dependencies:
@@ -499,7 +499,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-image@npm:^0.1.28":
+"@cherrystudio/embedjs-loader-image@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-loader-image@npm:0.1.29"
   dependencies:
@@ -515,7 +515,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-markdown@npm:^0.1.28":
+"@cherrystudio/embedjs-loader-markdown@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-loader-markdown@npm:0.1.29"
   dependencies:
@@ -530,7 +530,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-msoffice@npm:^0.1.28":
+"@cherrystudio/embedjs-loader-msoffice@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-loader-msoffice@npm:0.1.29"
   dependencies:
@@ -543,7 +543,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-pdf@npm:^0.1.28":
+"@cherrystudio/embedjs-loader-pdf@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-loader-pdf@npm:0.1.29"
   dependencies:
@@ -556,7 +556,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-sitemap@npm:^0.1.28":
+"@cherrystudio/embedjs-loader-sitemap@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-loader-sitemap@npm:0.1.29"
   dependencies:
@@ -569,7 +569,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-web@npm:0.1.29, @cherrystudio/embedjs-loader-web@npm:^0.1.28":
+"@cherrystudio/embedjs-loader-web@npm:0.1.29, @cherrystudio/embedjs-loader-web@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-loader-web@npm:0.1.29"
   dependencies:
@@ -583,7 +583,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-xml@npm:^0.1.28":
+"@cherrystudio/embedjs-loader-xml@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-loader-xml@npm:0.1.29"
   dependencies:
@@ -595,7 +595,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-openai@npm:^0.1.28":
+"@cherrystudio/embedjs-openai@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs-openai@npm:0.1.29"
   dependencies:
@@ -616,7 +616,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs@npm:^0.1.28":
+"@cherrystudio/embedjs@npm:^0.1.29":
   version: 0.1.29
   resolution: "@cherrystudio/embedjs@npm:0.1.29"
   dependencies:
@@ -629,6 +629,17 @@ __metadata:
     mime: "npm:^4.0.6"
     stream-mime-type: "npm:^2.0.0"
   checksum: 10c0/01487ab886e7c5c260fc65dee0d67407988e58fa82a1f0fdc4a332548a570cc63f5d39cc87878a7e3272be547a306fee5ec6caa805614eb4e139ce1259b7f6c9
+  languageName: node
+  linkType: hard
+
+"@cherrystudio/mac-system-ocr@npm:^0.2.1":
+  version: 0.2.1
+  resolution: "@cherrystudio/mac-system-ocr@npm:0.2.1"
+  dependencies:
+    bindings: "npm:^1.5.0"
+    node-api-headers: "npm:^1.0.1"
+    node-gyp: "npm:latest"
+  checksum: 10c0/fbba8f85c2244799f281b100fa6fbaf134f742a6f4d0a15f465ed4f0f048edc0acb60ed74908c462f0de424c2e3476892127f25d10ab805c123233e4922d415c
   languageName: node
   linkType: hard
 
@@ -2369,6 +2380,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@mistralai/mistralai@npm:^1.5.2":
+  version: 1.5.2
+  resolution: "@mistralai/mistralai@npm:1.5.2"
+  dependencies:
+    zod-to-json-schema: "npm:^3.24.1"
+  peerDependencies:
+    zod: ">= 3"
+  checksum: 10c0/d33a8a71adac4d2074ea4bfa09605b1c2158b5ffeaa9a78f3d9602c822cf0885df660b09f2372f17d8a81e78fa64795f31d9fad0cc40a1fab57ca0a4df9dc009
+  languageName: node
+  linkType: hard
+
 "@modelcontextprotocol/sdk@npm:^1.8.0":
   version: 1.8.0
   resolution: "@modelcontextprotocol/sdk@npm:1.8.0"
@@ -3746,17 +3768,18 @@ __metadata:
     "@agentic/tavily": "npm:^7.3.3"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/sdk": "npm:^0.38.0"
-    "@cherrystudio/embedjs": "npm:^0.1.28"
-    "@cherrystudio/embedjs-libsql": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-csv": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-image": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-markdown": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-msoffice": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-pdf": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-sitemap": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-web": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-xml": "npm:^0.1.28"
-    "@cherrystudio/embedjs-openai": "npm:^0.1.28"
+    "@cherrystudio/embedjs": "npm:^0.1.29"
+    "@cherrystudio/embedjs-libsql": "npm:^0.1.29"
+    "@cherrystudio/embedjs-loader-csv": "npm:^0.1.29"
+    "@cherrystudio/embedjs-loader-image": "npm:^0.1.29"
+    "@cherrystudio/embedjs-loader-markdown": "npm:^0.1.29"
+    "@cherrystudio/embedjs-loader-msoffice": "npm:^0.1.29"
+    "@cherrystudio/embedjs-loader-pdf": "npm:^0.1.29"
+    "@cherrystudio/embedjs-loader-sitemap": "npm:^0.1.29"
+    "@cherrystudio/embedjs-loader-web": "npm:^0.1.29"
+    "@cherrystudio/embedjs-loader-xml": "npm:^0.1.29"
+    "@cherrystudio/embedjs-openai": "npm:^0.1.29"
+    "@cherrystudio/mac-system-ocr": "npm:^0.2.1"
     "@electron-toolkit/eslint-config-prettier": "npm:^3.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^3.0.0"
     "@electron-toolkit/preload": "npm:^3.0.0"
@@ -3771,6 +3794,7 @@ __metadata:
     "@hello-pangea/dnd": "npm:^16.6.0"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.36"
+    "@mistralai/mistralai": "npm:^1.5.2"
     "@modelcontextprotocol/sdk": "npm:^1.8.0"
     "@notionhq/client": "npm:^2.2.15"
     "@reduxjs/toolkit": "npm:^2.2.5"
@@ -3795,6 +3819,7 @@ __metadata:
     axios: "npm:^1.7.3"
     babel-plugin-styled-components: "npm:^2.1.4"
     browser-image-compression: "npm:^2.0.2"
+    canvas: "npm:3.1.0"
     dayjs: "npm:^1.11.11"
     dexie: "npm:^4.0.8"
     dexie-react-hooks: "npm:^1.1.7"
@@ -3830,6 +3855,8 @@ __metadata:
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A4.77.3#~/.yarn/patches/openai-npm-4.77.3-59c6d42e7a.patch"
     p-queue: "npm:^8.1.0"
+    pdf-to-img: "npm:^4.4.0"
+    pdfjs-dist: "npm:4.2.67"
     prettier: "npm:^3.5.3"
     proxy-agent: "npm:^6.5.0"
     rc-virtual-list: "npm:^3.18.5"
@@ -3864,6 +3891,9 @@ __metadata:
     vite: "npm:^5.0.12"
     webdav: "npm:^5.8.0"
     zipread: "npm:^1.3.3"
+  dependenciesMeta:
+    "@cherrystudio/mac-system-ocr":
+      optional: true
   languageName: unknown
   linkType: soft
 
@@ -4871,6 +4901,17 @@ __metadata:
   version: 1.0.30001706
   resolution: "caniuse-lite@npm:1.0.30001706"
   checksum: 10c0/b502d0a509611fd5b009e1123d482e983696984b6b749c3f485fd8d02cc58376c59cf0bb15f22fa2d337da104970edd27dd525d4663cebc728e26ac4adedff0d
+  languageName: node
+  linkType: hard
+
+"canvas@npm:3.1.0":
+  version: 3.1.0
+  resolution: "canvas@npm:3.1.0"
+  dependencies:
+    node-addon-api: "npm:^7.0.0"
+    node-gyp: "npm:latest"
+    prebuild-install: "npm:^7.1.1"
+  checksum: 10c0/28da5184c1d7e97049ba6a24f10690b9ed4b303bbd25517d95c892fa3a6331417791657a3a7467068e40af0dda2dcc9120d062f7426a3d796131e69a30e3cbf1
   languageName: node
   linkType: hard
 
@@ -11340,6 +11381,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-api-headers@npm:^1.0.1":
+  version: 1.5.0
+  resolution: "node-api-headers@npm:1.5.0"
+  checksum: 10c0/e8dfe99e8e3ca92cd5d37989413dfc96551e8f7883110b948917dad07e554cfbf1119130e96d0167f5cb5a05f651a4ac735402a305ff25d9ace422a2e429ae3b
+  languageName: node
+  linkType: hard
+
 "node-domexception@npm:1.0.0, node-domexception@npm:^1.0.0":
   version: 1.0.0
   resolution: "node-domexception@npm:1.0.0"
@@ -12223,6 +12271,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"path2d@npm:^0.2.0":
+  version: 0.2.2
+  resolution: "path2d@npm:0.2.2"
+  checksum: 10c0/1bb76c7f275d07f1bc7ca12171d828e91bf8a12596f0765a52e9d4d47fe1a428455dc1dd4c9002924a9bc554f6ac25e09a6c22eaecf32e5e33fba2985b5168f8
+  languageName: node
+  linkType: hard
+
 "pdf-parse@npm:1.1.1":
   version: 1.1.1
   resolution: "pdf-parse@npm:1.1.1"
@@ -12240,6 +12295,33 @@ __metadata:
     debug: "npm:^3.1.0"
     node-ensure: "npm:^0.0.0"
   checksum: 10c0/ba96bfcc9f67b6605bac3a657e4c0bae7a08ad73bab33bfc19ec742753e0a0cabd5e69cb9d5c6227965bc074905cda54367d61be2011cb30abd76f40fd5571fc
+  languageName: node
+  linkType: hard
+
+"pdf-to-img@npm:^4.4.0":
+  version: 4.4.0
+  resolution: "pdf-to-img@npm:4.4.0"
+  dependencies:
+    canvas: "npm:3.1.0"
+    pdfjs-dist: "npm:4.2.67"
+  bin:
+    pdf2img: bin/cli.mjs
+  checksum: 10c0/1b6eb36042d3b54f067241a74dc80d27e976685a15e730736f61bdbbc8b76bdd20e58976e87f1b0b9d9cfe534179ebe748b0eb3ec71d0807b83384447f861ee2
+  languageName: node
+  linkType: hard
+
+"pdfjs-dist@npm:4.2.67":
+  version: 4.2.67
+  resolution: "pdfjs-dist@npm:4.2.67"
+  dependencies:
+    canvas: "npm:^2.11.2"
+    path2d: "npm:^0.2.0"
+  dependenciesMeta:
+    canvas:
+      optional: true
+    path2d:
+      optional: true
+  checksum: 10c0/1d6d427a2253b2c15cbb168d7f95fc26428134ff61113359653c36f92475a4abd8552913b1492489933304ccc4285328b5cbcff36825ae533b8cd4c279881348
   languageName: node
   linkType: hard
 

@@ -21,12 +21,12 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Alert, Button, Card, Divider, Dropdown, message, Tag, Tooltip, Typography, Upload } from 'antd'
-import { FC } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
-import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
+import KnowledgeSettings from './components/KnowledgeSettings'
 import StatusIcon from './components/StatusIcon'
 
 const { Dragger } = Upload
@@ -39,6 +39,25 @@ interface KnowledgeContentProps {
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
+  const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
+
+  useEffect(() => {
+    const handlers = [
+      window.electron.ipcRenderer.on('file-ocr-progress', (_, { itemId, progress }) => {
+        console.log('[Progress] File OCR:', itemId, progress)
+        setProgressMap((prev) => new Map(prev).set(itemId, progress))
+      }),
+
+      window.electron.ipcRenderer.on('directory-processing-percent', (_, { itemId, percent }) => {
+        console.log('[Progress] Directory:', itemId, percent)
+        setProgressMap((prev) => new Map(prev).set(itemId, percent))
+      })
+    ]
+
+    return () => {
+      handlers.forEach((cleanup) => cleanup())
+    }
+  }, [])
 
   const {
     base,
@@ -54,7 +73,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     addSitemap,
     removeItem,
     getProcessingStatus,
-    getDirectoryProcessingPercent,
     addNote,
     addDirectory,
     updateItem
@@ -67,8 +85,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   if (!base) {
     return null
   }
-
-  const getProgressingPercentForItem = (itemId: string) => getDirectoryProcessingPercent(itemId)
 
   const handleAddFile = () => {
     if (disabled) {
@@ -101,7 +117,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           count: 1,
           origin_name: file.name,
           type: file.type as FileTypes,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          source: 'local' as const
         }))
         .filter(({ ext }) => fileTypes.includes(ext))
       const uploadedFiles = await FileManager.uploadFiles(_files)
@@ -271,7 +288,13 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 <FlexAlignCenter>
                   {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
                   <StatusIconWrapper>
-                    <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="file" />
+                    <StatusIcon
+                      sourceId={item.id}
+                      base={base}
+                      getProcessingStatus={getProcessingStatus}
+                      type="file"
+                      progress={progressMap.get(item.id)}
+                    />
                   </StatusIconWrapper>
                   <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
                 </FlexAlignCenter>
@@ -307,8 +330,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       sourceId={item.id}
                       base={base}
                       getProcessingStatus={getProcessingStatus}
-                      getProcessingPercent={getProgressingPercentForItem}
                       type="directory"
+                      progress={progressMap.get(item.id)}
                     />
                   </StatusIconWrapper>
                   <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
@@ -449,7 +472,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <ModelInfo>
         <div className="model-header">
           <label>{t('knowledge.model_info')}</label>
-          <Button icon={<SettingOutlined />} onClick={() => KnowledgeSettingsPopup.show({ base })} size="small" />
+          <Button icon={<SettingOutlined />} onClick={() => KnowledgeSettings.show({ base })} size="small" />
         </div>
 
         <div className="model-row">

@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AddKnowledgePopup from './components/AddKnowledgePopup'
-import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
+import KnowledgeSettings from './components/KnowledgeSettings'
 import KnowledgeContent from './KnowledgeContent'
 
 const KnowledgePage: FC = () => {
@@ -63,10 +63,10 @@ const KnowledgePage: FC = () => {
           }
         },
         {
-          label: t('knowledge.settings'),
+          label: t('knowledge.settings.title'),
           key: 'settings',
           icon: <SettingOutlined />,
-          onClick: () => KnowledgeSettingsPopup.show({ base })
+          onClick: () => KnowledgeSettings.show({ base })
         },
         { type: 'divider' },
         {
