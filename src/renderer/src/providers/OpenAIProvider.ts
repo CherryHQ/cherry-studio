@@ -6,6 +6,7 @@ import {
   isSupportedModel,
   isVisionModel
 } from '@renderer/config/models'
+import { IMAGE_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -20,6 +21,7 @@ import {
   Assistant,
   FileTypes,
   GenerateImageParams,
+  ImageResponse,
   MCPToolResponse,
   Message,
   Model,
@@ -128,9 +130,10 @@ export default class OpenAIProvider extends BaseProvider {
   ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
     const isVision = isVisionModel(model)
     const content = await this.getMessageContent(message)
+    const images = await this.getMessageImages(message)
 
     // If the message does not have files, return the message
-    if (isEmpty(message.files)) {
+    if (isEmpty(message.files) && isEmpty(images)) {
       return {
         role: message.role,
         content
@@ -170,7 +173,16 @@ export default class OpenAIProvider extends BaseProvider {
         })
       }
     }
-
+    if (images && images.length > 0 && isVision) {
+      for (const image of images) {
+        const { data } = await window.api.file.base64Image(image.path)
+        parts.push({
+          type: 'image_url',
+          image_url: { url: data }
+        })
+      }
+    }
+    console.log('getMessageParam', parts)
     return {
       role: message.role,
       content: parts
@@ -447,6 +459,21 @@ export default class OpenAIProvider extends BaseProvider {
       }
       const final_tool_calls = {} as Record<number, ChatCompletionMessageToolCall>
 
+      const imageResponses: ImageResponse[] = []
+      if (idx === 0 && lastUserMessage) {
+        console.log('idx===', idx)
+        // 只在第一次处理流时加载图片
+        const originalImages = (await this.getMessageImages(lastUserMessage)) ?? []
+        for (const image of originalImages) {
+          const { data } = await window.api.file.base64Image(image.path)
+          imageResponses.push({
+            id: image.id,
+            type: 'url',
+            data: data
+          })
+        }
+      }
+
       for await (const chunk of stream) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
           break
@@ -603,7 +630,8 @@ export default class OpenAIProvider extends BaseProvider {
             time_thinking_millsec
           },
           citations,
-          mcpToolResponse: toolResponses
+          mcpToolResponse: toolResponses,
+          imageResponse: imageResponses
         })
       }
     }
@@ -983,5 +1011,22 @@ export default class OpenAIProvider extends BaseProvider {
     // copilot每次请求前需要重新获取token，因为token中附带时间戳
     const { token } = await window.api.copilot.getToken(defaultHeaders)
     this.sdk.apiKey = token
+  }
+
+  public async summaryForImage(base64: string, mineType: string, model: Model): Promise<string> {
+    await this.checkIsCopilot()
+    console.log('start summaryForImage...')
+    const response = await this.sdk.chat.completions.create({
+      model: model.id,
+      stream: false,
+      messages: [
+        { role: 'system', content: IMAGE_SUMMARY_PROMPT },
+        {
+          role: 'user',
+          content: [{ type: 'image_url', image_url: { url: `data:${mineType};base64,${base64}` } }]
+        }
+      ]
+    })
+    return response.choices[0].message?.content || ''
   }
 }

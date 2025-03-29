@@ -68,6 +68,10 @@ export function getTranslateModel() {
   return store.getState().llm.translateModel
 }
 
+export function getImageSummaryModel() {
+  return store.getState().llm.imageSummaryModel
+}
+
 export function getAssistantProvider(assistant: Assistant): Provider {
   const providers = store.getState().llm.providers
   const provider = providers.find((p) => p.id === assistant.model?.provider)

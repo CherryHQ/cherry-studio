@@ -151,7 +151,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       <MessageThought message={message} />
       <MessageTools message={message} />
       <Markdown message={{ ...message, content: processedContent }} citationsData={citationsData} />
-      {message.metadata?.generateImage && <MessageImage message={message} />}
+      {message.metadata?.images && <MessageImage message={message} />}
       {message.translatedContent && (
         <Fragment>
           <Divider style={{ margin: 0, marginBottom: 10 }}>

@@ -27,6 +27,7 @@ import OcrProvider from '@main/ocr/OcrProvider'
 import Reranker from '@main/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
 import { getAllFiles } from '@main/utils/file'
+import { formatOcrFile } from '@main/utils/format'
 import type { LoaderReturn } from '@shared/config/types'
 import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { app } from 'electron'
@@ -168,6 +169,8 @@ class KnowledgeService {
           task: async () => {
             // 添加OCR预处理逻辑
             const fileToProcess: FileType = await this.preprocessing(file, base, item)
+
+            console.log(`[KnowledgeBase] processing file ${fileToProcess.path} as ${fileToProcess.ext} type`)
 
             // 使用处理后的文件进行加载
             return addFileLoader(ragApplication, fileToProcess, base, forceReload)
@@ -497,8 +500,25 @@ class KnowledgeService {
       try {
         const ocrProvider = new OcrProvider(base.ocrProvider)
         Logger.info(`Starting OCR processing for file: ${file.path}`)
+
         const { processedFile } = await ocrProvider.parseFile(item.id, file)
-        fileToProcess = processedFile
+        console.log('processedFile', processedFile)
+        // const processedFile: FileType = {
+        //   id: '4376f6a7-8242-493b-93e2-aa9c2739d28b',
+        //   origin_name: 'changes-in-iso-63362019-parts-1-2-3-5-and-6.pdf',
+        //   name: '4376f6a7-8242-493b-93e2-aa9c2739d28b.md',
+        //   path: '/Users/eeee/Library/Application Support/CherryStudioDev/Data/Files/4376f6a7-8242-493b-93e2-aa9c2739d28b/4376f6a7-8242-493b-93e2-aa9c2739d28b.md',
+        //   created_at: '2025-03-28T10:08:39.595Z',
+        //   size: 55182,
+        //   ext: '.md',
+        //   type: FileTypes.DOCUMENT,
+        //   count: 1,
+        //   source: 'local'
+        // }
+        Logger.info(`OCR parsing completed: ${processedFile.path}`)
+        // fileToProcess = processedFile
+        fileToProcess = await formatOcrFile(processedFile)
+        Logger.info(`OCR processing completed: ${fileToProcess.path}`)
       } catch (err) {
         Logger.error(`OCR processing failed: ${err}`)
         // 如果OCR失败，使用原始文件

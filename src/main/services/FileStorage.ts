@@ -1,4 +1,4 @@
-import { getFilesDir, getFileType, getTempDir } from '@main/utils/file'
+import { getFilesDir, getFileType, getMimeTypeFromExtension, getTempDir } from '@main/utils/file'
 import { documentExts, imageExts } from '@shared/config/constant'
 import { FileType } from '@types'
 import * as crypto from 'crypto'
@@ -211,6 +211,35 @@ class FileStorage {
     return fileInfo
   }
 
+  public getFileWithRelativePath = async (
+    _: Electron.IpcMainInvokeEvent,
+    relativePath: string
+  ): Promise<FileType | null> => {
+    const fullPath = path.join(this.storageDir, relativePath)
+    if (!fs.existsSync(fullPath)) {
+      return null
+    }
+
+    const stats = fs.statSync(fullPath)
+    const ext = path.extname(fullPath)
+    const fileType = getFileType(ext)
+
+    const fileInfo: FileType = {
+      id: uuidv4(),
+      origin_name: path.basename(fullPath),
+      name: path.basename(fullPath),
+      path: relativePath,
+      created_at: stats.birthtime.toISOString(),
+      size: stats.size,
+      ext: ext,
+      type: fileType,
+      count: 1,
+      source: 'local'
+    }
+
+    return fileInfo
+  }
+
   public deleteFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
     if (!fs.existsSync(path.join(this.storageDir, id))) {
       return
@@ -284,7 +313,7 @@ class FileStorage {
     const fileBuffer = await fs.promises.readFile(filePath)
     return {
       data: fileBuffer.toString('base64'),
-      mime: 'application/pdf'
+      mime: getMimeTypeFromExtension(filePath)
     }
   }
 

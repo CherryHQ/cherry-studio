@@ -4,9 +4,10 @@ import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
 import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference, Message } from '@renderer/types'
+import { fileToBase64 } from '@renderer/utils/file'
 import { isEmpty, take } from 'lodash'
 
-import { getProviderByModel } from './AssistantService'
+import { getImageSummaryModel, getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
@@ -124,11 +125,23 @@ export const getKnowledgeBaseReference = async (base: KnowledgeBase, message: Me
   const references = await Promise.all(
     take(processdResults, documentCount).map(async (item, index) => {
       const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
+
+      let images: FileType[] = []
+      if (item.metadata.image_paths && item.metadata.image_paths.length > 0) {
+        const imageResults = await Promise.all(
+          item.metadata.image_paths.map(async (imagePath) => {
+            const file = await window.api.file.getFileWithRelativePath(imagePath)
+            return file
+          })
+        )
+        images = imageResults.filter((file): file is FileType => file !== null)
+      }
       return {
         id: index + 1,
         content: item.pageContent,
         sourceUrl: await getKnowledgeSourceUrl(item),
-        type: baseItem?.type
+        type: baseItem?.type,
+        images: images
       } as KnowledgeReference
     })
   )
@@ -153,3 +166,19 @@ export const getKnowledgeBaseReferences = async (message: Message) => {
 
   return references
 }
+const ipcRenderer = window.electron.ipcRenderer
+
+ipcRenderer.on('knowledge-image-summary', async (event, { imagePath, imageId }) => {
+  console.log('knowledge-image-summary', event, imagePath, imageId)
+  const { data, mimeType } = await fileToBase64(imagePath)
+  const model = getImageSummaryModel()
+  const provider = getProviderByModel(model)
+  const aiProvider = new AiProvider(provider)
+  const response = await aiProvider.summaryForImage(data, mimeType, model)
+  console.log('knowledge-image-summary', response)
+
+  ipcRenderer.send('knowledge-image-summary-reply', {
+    response,
+    imageId
+  })
+})

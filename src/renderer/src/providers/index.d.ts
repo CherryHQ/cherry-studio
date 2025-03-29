@@ -9,7 +9,7 @@ interface ChunkCallbackData {
   search?: GroundingMetadata
   citations?: string[]
   mcpToolResponse?: MCPToolResponse[]
-  generateImage?: GenerateImageResponse
+  imageResponse?: ImageResponse[]
 }
 
 interface CompletionsParams {
@@ -23,7 +23,7 @@ interface CompletionsParams {
     search,
     citations,
     mcpToolResponse,
-    generateImage
+    imageResponse
   }: ChunkCallbackData) => void
   onFilterMessages: (messages: Message[]) => void
   mcpTools?: MCPTool[]

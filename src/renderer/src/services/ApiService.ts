@@ -114,7 +114,7 @@ export async function fetchChatCompletion({
       messages: filterUsefulMessages(messages),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse, generateImage }) => {
+      onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse, imageResponse }) => {
         message.content = message.content + text || ''
         message.usage = usage
         message.metrics = metrics
@@ -130,14 +130,22 @@ export async function fetchChatCompletion({
         if (mcpToolResponse) {
           message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
         }
+        if (imageResponse && imageResponse.length > 0) {
+          const existingImages = message.metadata?.images || []
 
-        if (generateImage && generateImage.images.length > 0) {
-          const existingImages = message.metadata?.generateImage?.images || []
-          generateImage.images = [...existingImages, ...generateImage.images]
-          console.log('generateImage', generateImage)
-          message.metadata = {
-            ...message.metadata,
-            generateImage: generateImage
+          // 过滤掉已经存在的图片（根据id判断）
+          const newImages = imageResponse.filter(
+            (newImg) => !existingImages.some((existingImg) => existingImg.id === newImg.id)
+          )
+
+          // 只有当有新图片时才合并数组
+          if (newImages.length > 0) {
+            const updatedImages = [...existingImages, ...newImages]
+            console.log('updatedImages', updatedImages)
+            message.metadata = {
+              ...message.metadata,
+              images: updatedImages
+            }
           }
         }
 

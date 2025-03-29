@@ -48,6 +48,7 @@ const api = {
     read: (fileId: string) => ipcRenderer.invoke('file:read', fileId),
     clear: () => ipcRenderer.invoke('file:clear'),
     get: (filePath: string) => ipcRenderer.invoke('file:get', filePath),
+    getFileWithRelativePath: (filePath: string) => ipcRenderer.invoke('file:getFileWithRelativePath', filePath),
     create: (fileName: string) => ipcRenderer.invoke('file:create', fileName),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke('file:write', filePath, data),
     open: (options?: { decompress: boolean }) => ipcRenderer.invoke('file:open', options),

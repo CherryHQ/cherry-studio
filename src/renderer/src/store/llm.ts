@@ -21,6 +21,7 @@ export interface LlmState {
   defaultModel: Model
   topicNamingModel: Model
   translateModel: Model
+  imageSummaryModel: Model
   settings: LlmSettings
 }
 
@@ -473,6 +474,7 @@ const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.silicon[1],
   topicNamingModel: SYSTEM_MODELS.silicon[2],
   translateModel: SYSTEM_MODELS.silicon[3],
+  imageSummaryModel: SYSTEM_MODELS.openai[2],
   providers: INITIAL_PROVIDERS,
   settings: {
     ollama: {
@@ -580,6 +582,9 @@ const settingsSlice = createSlice({
     setTranslateModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.translateModel = action.payload.model
     },
+    setImageSummaryModel: (state, action: PayloadAction<{ model: Model }>) => {
+      state.imageSummaryModel = action.payload.model
+    },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.ollama.keepAliveTime = action.payload
     },
@@ -617,6 +622,7 @@ export const {
   setDefaultModel,
   setTopicNamingModel,
   setTranslateModel,
+  setImageSummaryModel,
   setOllamaKeepAliveTime,
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,

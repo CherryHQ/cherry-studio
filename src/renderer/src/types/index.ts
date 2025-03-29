@@ -79,7 +79,7 @@ export type Message = {
     // MCP Tools
     mcpTools?: MCPToolResponse[]
     // Generate Image
-    generateImage?: GenerateImageResponse
+    images?: ImageResponse[]
   }
   // 多模型消息样式
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -365,8 +365,10 @@ export type GenerateImageParams = {
   promptEnhancement?: boolean
 }
 
-export type GenerateImageResponse = {
-  images: string[]
+export type ImageResponse = {
+  id: string
+  type: 'base64' | 'url'
+  data: string
 }
 
 export interface TranslateHistory {
@@ -405,6 +407,7 @@ export type KnowledgeReference = {
   sourceUrl: string
   type: KnowledgeItemType
   file?: FileType
+  images: FileType[]
 }
 
 export type MCPArgType = 'string' | 'list' | 'number'

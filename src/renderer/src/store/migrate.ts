@@ -2,7 +2,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { IMAGE_SUMMARY_PROMPT, TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant } from '@renderer/types'
@@ -859,6 +859,10 @@ const migrateConfig = {
         provider.type = 'mistral'
       }
     })
+    return state
+  },
+  '88': (state: RootState) => {
+    state.settings.imageSummaryPrompt = IMAGE_SUMMARY_PROMPT
     return state
   }
 }

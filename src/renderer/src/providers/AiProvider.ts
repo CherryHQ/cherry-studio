@@ -69,4 +69,7 @@ export default class AiProvider {
   public getBaseURL(): string {
     return this.sdk.getBaseURL()
   }
+  public async summaryForImage(base64: string, mimeType: string, model: Model): Promise<string> {
+    return this.sdk.summaryForImage(base64, mimeType, model)
+  }
 }

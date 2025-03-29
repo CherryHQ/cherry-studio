@@ -75,3 +75,15 @@ export function getTempDir() {
 export function getFilesDir() {
   return path.join(app.getPath('userData'), 'Data', 'Files')
 }
+
+export function getMimeTypeFromExtension(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase()
+  const extensionToMime: { [key: string]: string } = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.pdf': 'application/pdf'
+  }
+
+  return extensionToMime[ext] || 'application/pdf'
+}

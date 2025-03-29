@@ -64,6 +64,7 @@ declare global {
         read: (fileId: string) => Promise<string>
         clear: () => Promise<void>
         get: (filePath: string) => Promise<FileType | null>
+        getFileWithRelativePath: (filePath: string) => Promise<FileType | null>
         selectFolder: () => Promise<string | null>
         create: (fileName: string) => Promise<string>
         write: (filePath: string, data: Uint8Array | string) => Promise<void>

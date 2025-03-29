@@ -21,10 +21,10 @@ interface Props {
 const MessageImage: FC<Props> = ({ message }) => {
   const { t } = useTranslation()
 
-  const onDownload = (imageBase64: string, index: number) => {
+  const onDownload = (image: { type: string; data: string }, index: number) => {
     try {
       const link = document.createElement('a')
-      link.href = imageBase64
+      link.href = image.data
       link.download = `image-${Date.now()}-${index}.png`
       document.body.appendChild(link)
       link.click()
@@ -37,10 +37,14 @@ const MessageImage: FC<Props> = ({ message }) => {
   }
 
   // 复制 base64 图片到剪贴板
-  const onCopy = async (imageBase64: string) => {
+  const onCopy = async (image: { type: string; data: string }) => {
     try {
-      const base64Data = imageBase64.split(',')[1]
-      const mimeType = imageBase64.split(';')[0].split(':')[1]
+      if (image.type !== 'base64') {
+        window.message.info(t('message.copy.not_base64'))
+        return
+      }
+      const base64Data = image.data.split(',')[1]
+      const mimeType = image.data.split(';')[0].split(':')[1]
 
       const byteCharacters = atob(base64Data)
       const byteArrays: Uint8Array[] = []
@@ -74,9 +78,9 @@ const MessageImage: FC<Props> = ({ message }) => {
 
   return (
     <Container style={{ marginBottom: 8 }}>
-      {message.metadata?.generateImage!.images.map((image, index) => (
+      {message.metadata?.images!.map((image, index) => (
         <Image
-          src={image}
+          src={image.data}
           key={`image-${index}`}
           width="33%"
           preview={{

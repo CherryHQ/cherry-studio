@@ -3529,7 +3529,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/unist@npm:*, @types/unist@npm:^3.0.0":
+"@types/unist@npm:*, @types/unist@npm:^3.0.0, @types/unist@npm:^3.0.3":
   version: 3.0.3
   resolution: "@types/unist@npm:3.0.3"
   checksum: 10c0/2b1e4adcab78388e088fcc3c0ae8700f76619dbcb4741d7d201f87e2cb346bfc29a89003cfea2d76c996e1061452e14fcd737e8b25aacf949c1f2d6b2bc3dd60
@@ -3811,6 +3811,7 @@ __metadata:
     "@types/react-dom": "npm:^19.0.4"
     "@types/react-infinite-scroll-component": "npm:^5.0.0"
     "@types/tinycolor2": "npm:^1"
+    "@types/unist": "npm:^3.0.3"
     "@vitejs/plugin-react": "npm:^4.2.1"
     "@xyflow/react": "npm:^12.4.4"
     adm-zip: "npm:^0.5.16"
@@ -3850,6 +3851,9 @@ __metadata:
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
     markdown-it: "npm:^14.1.0"
+    micromark: "npm:^4.0.1"
+    micromark-extension-gfm: "npm:^3.0.0"
+    micromark-extension-mdx-jsx: "npm:^3.0.1"
     mime: "npm:^4.0.4"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
@@ -3877,6 +3881,8 @@ __metadata:
     rehype-raw: "npm:^7.0.0"
     remark-gfm: "npm:^4.0.0"
     remark-math: "npm:^6.0.0"
+    remark-parse: "npm:^11.0.0"
+    remark-stringify: "npm:^11.0.0"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.77.2"
     shiki: "npm:^1.22.2"
@@ -3887,6 +3893,9 @@ __metadata:
     tokenx: "npm:^0.4.1"
     typescript: "npm:^5.6.2"
     undici: "npm:^7.4.0"
+    unified: "npm:^11.0.5"
+    unist-util-remove-position: "npm:^5.0.0"
+    unist-util-visit: "npm:^5.0.0"
     uuid: "npm:^10.0.0"
     vite: "npm:^5.0.12"
     webdav: "npm:^5.8.0"
@@ -15553,7 +15562,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"unified@npm:^11.0.0":
+"unified@npm:^11.0.0, unified@npm:^11.0.5":
   version: 11.0.5
   resolution: "unified@npm:11.0.5"
   dependencies:

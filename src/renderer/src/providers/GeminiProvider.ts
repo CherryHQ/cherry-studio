@@ -52,6 +52,7 @@ import {
 import axios from 'axios'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
+import { v4 as uuidv4 } from 'uuid'
 
 import { ChunkCallbackData, CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
@@ -65,7 +66,7 @@ export default class GeminiProvider extends BaseProvider {
     super(provider)
     this.sdk = new GoogleGenerativeAI(this.apiKey)
     /// this sdk is experimental
-    this.imageSdk = new GoogleGenAI({ apiKey: this.apiKey })
+    this.imageSdk = new GoogleGenAI({ apiKey: this.apiKey, httpOptions: { baseUrl: this.getBaseURL() } })
     this.requestOptions = {
       baseUrl: this.getBaseURL()
     }
@@ -130,11 +131,11 @@ export default class GeminiProvider extends BaseProvider {
 
     const parts: Part[] = [{ text: await this.getMessageContent(message) }]
     // Add any generated images from previous responses
-    if (message.metadata?.generateImage?.images && message.metadata.generateImage.images.length > 0) {
-      for (const imageUrl of message.metadata.generateImage.images) {
-        if (imageUrl && imageUrl.startsWith('data:')) {
+    if (message.metadata?.images && message.metadata.images.length > 0) {
+      for (const image of message.metadata.images) {
+        if (image && image.type === 'base64') {
           // Extract base64 data and mime type from the data URL
-          const matches = imageUrl.match(/^data:(.+);base64,(.*)$/)
+          const matches = image.data.match(/^data:(.+);base64,(.*)$/)
           if (matches && matches.length === 3) {
             const mimeType = matches[1]
             const base64Data = matches[2]
@@ -744,9 +745,13 @@ export default class GeminiProvider extends BaseProvider {
     // 返回结果
     onChunk({
       text,
-      generateImage: {
-        images
-      },
+      imageResponse: images.map((image: string) => {
+        return {
+          id: uuidv4(),
+          type: 'base64',
+          data: image
+        }
+      }),
       usage: {
         prompt_tokens: response.usageMetadata?.promptTokenCount || 0,
         completion_tokens: response.usageMetadata?.candidatesTokenCount || 0,

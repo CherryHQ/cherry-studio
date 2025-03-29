@@ -4,6 +4,7 @@ import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import { getKnowledgeBaseReferences } from '@renderer/services/KnowledgeService'
 import type {
   Assistant,
+  FileType,
   GenerateImageParams,
   KnowledgeReference,
   Message,
@@ -42,6 +43,7 @@ export default abstract class BaseProvider {
   abstract models(): Promise<OpenAI.Models.Model[]>
   abstract generateImage(params: GenerateImageParams): Promise<string[]>
   abstract getEmbeddingDimensions(model: Model): Promise<number>
+  abstract summaryForImage(base64: string, mimeType: string, model: Model): Promise<string>
 
   public getBaseURL(): string {
     const host = this.provider.apiHost
@@ -204,5 +206,17 @@ export default abstract class BaseProvider {
       abortController,
       cleanup
     }
+  }
+
+  public async getMessageImages(message: Message): Promise<FileType[] | undefined> {
+    if (isEmpty(message.content)) {
+      return
+    }
+    const knowledgeReferences = await getKnowledgeBaseReferences(message)
+    console.log('knowledgeReferences', knowledgeReferences)
+    if (!isEmpty(knowledgeReferences)) {
+      return knowledgeReferences.flatMap((item) => item.images)
+    }
+    return
   }
 }
