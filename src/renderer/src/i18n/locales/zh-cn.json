@@ -88,6 +88,9 @@
       "update_available": "有可用更新"
     },
     "chat": {
+      "actions.model": "选择模型",
+      "actions.knowledge_base": "选择知识库",
+      "actions.mcp": "选择MCP服务",
       "add.assistant.title": "添加助手",
       "artifacts.button.download": "下载",
       "artifacts.button.openExternal": "外部浏览器打开",

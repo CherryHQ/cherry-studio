@@ -249,7 +249,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
       } else {
         // Only open menu if it wasn't explicitly dismissed
         if (!menuDismissed && (textBeforeLastAt.slice(-1) === ' ' || lastAtIndex === 0)) {
-          setIsOpen(true)
+          // setIsOpen(true)
           const searchStr = textBeforeCursor.slice(lastAtIndex + 1)
           setSearchText(searchStr)
         }

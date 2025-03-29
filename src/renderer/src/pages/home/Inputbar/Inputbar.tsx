@@ -41,6 +41,8 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
+import { SelectAtAction } from '../components/SelectAtAction'
+import SelectedKnowledgeBaseInput from '../components/SelectedKnowledgeBaseInput'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
@@ -101,6 +103,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const navigate = useNavigate()
+  const [selectAtActionShow, setSelectAtActionShow] = useState(false)
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const showMCPToolsIcon = isFunctionCallingModel(model)
@@ -230,19 +233,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
 
-    if (event.key === '@') {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        const cursorPosition = textArea.selectionStart
-        const textBeforeCursor = text.substring(0, cursorPosition)
-        if (cursorPosition === 0 || textBeforeCursor.endsWith(' ')) {
-          setMentionFromKeyboard(true)
-          EventEmitter.emit(EVENT_NAMES.SHOW_MODEL_SELECTOR)
-          setIsMentionPopupOpen(true)
-          return
-        }
-      }
-    }
+    // if (event.key === '@') {
+    //   const textArea = textareaRef.current?.resizableTextArea?.textArea
+    //   if (textArea) {
+    //     const cursorPosition = textArea.selectionStart
+    //     const textBeforeCursor = text.substring(0, cursorPosition)
+    //     if (cursorPosition === 0 || textBeforeCursor.endsWith(' ')) {
+    //       setMentionFromKeyboard(true)
+    //       EventEmitter.emit(EVENT_NAMES.SHOW_MODEL_SELECTOR)
+    //       setIsMentionPopupOpen(true)
+    //       return
+    //     }
+    //   }
+    // }
 
     if (event.key === 'Escape' && isMentionPopupOpen) {
       setIsMentionPopupOpen(false)
@@ -373,16 +376,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value
     setText(newText)
-
-    // Check if @ was deleted
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
-      const cursorPosition = textArea.selectionStart
-      const textBeforeCursor = newText.substring(0, cursorPosition)
-      const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-
-      if (lastAtIndex === -1 || textBeforeCursor.slice(lastAtIndex + 1).includes(' ')) {
+      if (newText.trim() === '@') {
+        setSelectAtActionShow(true)
+      } else {
         setIsMentionPopupOpen(false)
+        setSelectAtActionShow(false)
       }
     }
   }
@@ -589,6 +589,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(bases ?? [])
   }
 
+  const handleRemoveKnowledgeBase = (base: KnowledgeBase) => {
+    const newBases = selectedKnowledgeBases.filter((b) => b.id !== base.id)
+    handleKnowledgeBaseSelect(newBases)
+  }
+
   const onMentionModel = (model: Model, fromKeyboard: boolean = false) => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
@@ -610,6 +615,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }, 0)
       setMentionFromKeyboard(false)
     }
+  }
+
+  const onAtActionClose = () => {
+    setSelectAtActionShow(false)
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 0)
   }
 
   const handleRemoveModel = (model: Model) => {
@@ -677,12 +689,25 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
+        {selectAtActionShow && (
+          <SelectAtAction
+            onClose={onAtActionClose}
+            onMentionModel={onMentionModel}
+            mentionModels={mentionModels}
+            selectedKnowledgeBases={selectedKnowledgeBases}
+            handleKnowledgeBaseSelect={handleKnowledgeBaseSelect}
+          />
+        )}
         <InputBarContainer
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus')}
           ref={containerRef}>
           <AttachmentPreview files={files} setFiles={setFiles} />
           <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
+          <SelectedKnowledgeBaseInput
+            selectedKnowledgeBase={selectedKnowledgeBases}
+            onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
+          />
           <Textarea
             value={text}
             onChange={onChange}

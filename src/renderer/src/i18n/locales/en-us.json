@@ -224,7 +224,10 @@
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
       "translate": "Translate",
-      "topics.export.siyuan": "Export to Siyuan Note"
+      "topics.export.siyuan": "Export to Siyuan Note",
+      "actions.model": "[to be translated]:选择模型",
+      "actions.knowledge_base": "[to be translated]:选择知识库",
+      "actions.mcp": "[to be translated]:选择MCP服务"
     },
     "code_block": {
       "collapse": "Collapse",
