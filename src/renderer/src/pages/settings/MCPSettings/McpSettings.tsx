@@ -82,27 +82,28 @@ const McpSettings: React.FC<Props> = ({ server }) => {
 
   // Load tools on initial mount if server is active
   useEffect(() => {
-    const fetchTools = async () => {
-      if (server.isActive) {
-        try {
-          setLoadingServer(server.id)
-          const localTools = await window.api.mcp.listTools(server)
-          setTools(localTools)
-          // window.message.success(t('settings.mcp.toolsLoaded'))
-        } catch (error) {
-          window.message.error({
-            content: t('settings.mcp.toolsLoadError') + formatError(error),
-            key: 'mcp-tools-error'
-          })
-        } finally {
-          setLoadingServer(null)
-        }
-      }
-    }
-
     fetchTools()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const fetchTools = async () => {
+    if (server.isActive) {
+      try {
+        setLoadingServer(server.id)
+        const localTools = await window.api.mcp.listTools(server)
+        setTools(localTools)
+        // window.message.success(t('settings.mcp.toolsLoaded'))
+      } catch (error) {
+        window.message.error({
+          content: t('settings.mcp.toolsLoadError') + formatError(error),
+          key: 'mcp-tools-error'
+        })
+      } finally {
+        setLoadingServer(null)
+      }
+    }
+  }
+
   // Save the form data
   const onSave = async () => {
     setLoading(true)
@@ -141,6 +142,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         await window.api.mcp.restartServer(mcpServer)
         updateMCPServer({ ...mcpServer, isActive: true })
         window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+        await fetchTools()
         setLoading(false)
         setIsFormChanged(false)
       } catch (error: any) {

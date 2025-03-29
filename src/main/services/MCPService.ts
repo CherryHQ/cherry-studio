@@ -122,6 +122,8 @@ class McpService {
       await client.close()
       Logger.info(`[MCP] Closed server: ${serverKey}`)
       this.clients.delete(serverKey)
+      CacheService.remove(`mcp:list_tool:${serverKey}`)
+      Logger.info(`[MCP] Cleared cache for server: ${serverKey}`)
     } else {
       Logger.warn(`[MCP] No client found for server: ${serverKey}`)
     }
@@ -150,7 +152,8 @@ class McpService {
 
   async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     const client = await this.initClient(server)
-    const cacheKey = `mcp:list_tool:${server.id}`
+    const serverKey = this.getServerKey(server)
+    const cacheKey = `mcp:list_tool:${serverKey}`
     if (CacheService.has(cacheKey)) {
       Logger.info(`[MCP] Tools from ${server.name} loaded from cache`)
       const cachedTools = CacheService.get<MCPTool[]>(cacheKey)
