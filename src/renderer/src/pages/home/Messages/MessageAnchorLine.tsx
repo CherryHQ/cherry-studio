@@ -1,3 +1,4 @@
+import { DownOutlined } from '@ant-design/icons'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -129,6 +130,13 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
     [setSelectedMessage]
   )
 
+  const scrollToBottom = useCallback(() => {
+    const messagesContainer = document.getElementById('messages')
+    if (messagesContainer) {
+      messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' })
+    }
+  }, [])
+
   if (messages.length === 0) return null
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -159,6 +167,28 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       onMouseLeave={handleMouseLeave}
       $height={containerHeight}>
       <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
+        <MessageItem
+          key="bottom-anchor"
+          ref={(el) => {
+            if (el) messageItemsRef.current.set('bottom-anchor', el)
+            else messageItemsRef.current.delete('bottom-anchor')
+          }}
+          style={{
+            opacity: mouseY ? 0.5 + calculateValueByDistance('bottom-anchor', 1) : 0.6
+          }}
+          onClick={scrollToBottom}>
+          <MessageItemContainer
+            style={{ transform: `scale(${1 + calculateValueByDistance('bottom-anchor', 1)})` }}></MessageItemContainer>
+          <Avatar
+            icon={<DownOutlined style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }} />}
+            size={10 + calculateValueByDistance('bottom-anchor', 20)}
+            style={{
+              backgroundColor: theme === 'dark' ? 'var(--color-background-soft)' : 'var(--color-primary-light)',
+              border: `1px solid ${theme === 'dark' ? 'var(--color-border-soft)' : 'var(--color-primary-soft)'}`,
+              opacity: 0.9
+            }}
+          />
+        </MessageItem>
         {messages.map((message, index) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
           const scale = 1 + calculateValueByDistance(message.id, 1)
