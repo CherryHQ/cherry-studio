@@ -12,8 +12,9 @@ import {
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { isLocalAi } from '@renderer/config/env'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
-import { useAppSelector } from '@renderer/store' // 导入useAppSelector
+// 导入useAppSelector
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
@@ -35,9 +36,7 @@ const SettingsPage: FC = () => {
   const { pathname } = useLocation()
   const { t } = useTranslation()
 
-  const { disabled: disabledIcons } = useAppSelector((state) => state.settings.sidebarIcons)
-
-  const showMiniAppSettings = !disabledIcons.includes('minapp')
+  const showMiniAppSettings = useSidebarIconShow('minapp')
 
   const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
 
