@@ -1,5 +1,7 @@
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import store from '@renderer/store'
+import { setCustomCss } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
 
@@ -56,6 +58,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
       themeChangeListenerRemover()
     }
   })
+
+  useEffect(() => {
+    // Set up the CSS update listener
+    window.api.cssEditor.set((css: string) => {
+      store.dispatch(setCustomCss(css))
+    })
+  }, [])
 
   return <ThemeContext value={{ theme: _theme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
 }
