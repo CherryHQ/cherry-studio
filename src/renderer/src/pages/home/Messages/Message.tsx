@@ -150,10 +150,8 @@ const MessageItem: FC<Props> = ({
         {showMenubar && (
           <MessageFooter
             style={{
-              border: messageBorder,
-              flexDirection: isLastMessage || isBubbleStyle ? 'row-reverse' : undefined
+              border: messageBorder
             }}>
-            <MessageTokens message={message} isLastMessage={isLastMessage} />
             <MessageMenubar
               message={message}
               assistant={assistant}
@@ -166,6 +164,7 @@ const MessageItem: FC<Props> = ({
               messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
               setModel={setModel}
             />
+            <MessageTokens message={message} isLastMessage={isLastMessage} />
           </MessageFooter>
         )}
       </MessageContentContainer>
