@@ -17,13 +17,14 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Alert, Button, Card, Divider, Dropdown, message, Tag, Tooltip, Upload } from 'antd'
+import { Alert, Button, Divider, Dropdown, message, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import FileItem from '../files/FileItem'
+import CustomCollapse from './components/CustomCollapse'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'
@@ -35,6 +36,7 @@ interface KnowledgeContentProps {
 }
 
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
+
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
@@ -232,8 +234,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       {!providerName && (
         <Alert message={t('knowledge.no_provider')} type="error" style={{ marginBottom: 20 }} showIcon />
       )}
-      <Card
-        title={<CardTitle>{t('files.title')}</CardTitle>}
+
+      <CustomCollapse
+        label={t('files.title')}
         extra={
           <Button type="text" icon={<PlusOutlined />} onClick={handleAddFile} disabled={disabled}>
             {t('knowledge.add_file')}
@@ -251,7 +254,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </p>
         </Dragger>
 
-        <FileListSection>
+        <FlexColumn>
           {fileItems.reverse().map((item) => {
             const file = item.content as FileType
             return (
@@ -285,11 +288,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               />
             )
           })}
-        </FileListSection>
-      </Card>
+        </FlexColumn>
+      </CustomCollapse>
 
-      <Card
-        title={<CardTitle>{t('knowledge.directories')}</CardTitle>}
+      <CustomCollapse
+        label={t('knowledge.directories')}
         extra={
           <Button type="text" icon={<PlusOutlined />} onClick={handleAddDirectory} disabled={disabled}>
             {t('knowledge.add_directory')}
@@ -328,10 +331,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             />
           ))}
         </FlexColumn>
-      </Card>
+      </CustomCollapse>
 
-      <Card
-        title={<CardTitle>{t('knowledge.urls')}</CardTitle>}
+      <CustomCollapse
+        label={t('knowledge.urls')}
         extra={
           <Button type="text" icon={<PlusOutlined />} onClick={handleAddUrl} disabled={disabled}>
             {t('knowledge.add_url')}
@@ -390,10 +393,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             />
           ))}
         </FlexColumn>
-      </Card>
+      </CustomCollapse>
 
-      <Card
-        title={<CardTitle>{t('knowledge.sitemaps')}</CardTitle>}
+      <CustomCollapse
+        label={t('knowledge.sitemaps')}
         extra={
           <Button type="text" icon={<PlusOutlined />} onClick={handleAddSitemap} disabled={disabled}>
             {t('knowledge.add_sitemap')}
@@ -435,10 +438,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             />
           ))}
         </FlexColumn>
-      </Card>
+      </CustomCollapse>
 
-      <Card
-        title={<CardTitle>{t('knowledge.notes')}</CardTitle>}
+      <CustomCollapse
+        label={t('knowledge.notes')}
         extra={
           <Button type="text" icon={<PlusOutlined />} onClick={handleAddNote} disabled={disabled}>
             {t('knowledge.add_note')}
@@ -470,7 +473,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             />
           ))}
         </FlexColumn>
-      </Card>
+      </CustomCollapse>
 
       <Divider style={{ margin: '10px 0' }} />
       <ModelInfo>
@@ -528,18 +531,6 @@ const MainContent = styled(Scrollbar)`
   gap: 16px;
 `
 
-const CardTitle = styled.div`
-  font-weight: bold;
-`
-
-const FileListSection = styled.div`
-  margin-top: 20px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
 const IndexSection = styled.div`
   margin-top: 20px;
   display: flex;
@@ -586,6 +577,7 @@ const FlexColumn = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 16px;
 `
 
 const FlexAlignCenter = styled.div`
