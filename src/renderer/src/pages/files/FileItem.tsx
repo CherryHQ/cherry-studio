@@ -8,7 +8,7 @@ import {
   FileUnknownFilled,
   FileWordFilled,
   FileZipFilled,
-  FolderOpenOutlined,
+  FolderOpenFilled,
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
@@ -67,7 +67,7 @@ const getFileIcon = (type?: string) => {
   }
 
   if (['.folder'].includes(ext)) {
-    return <FolderOpenOutlined />
+    return <FolderOpenFilled />
   }
 
   return <FileUnknownFilled />
