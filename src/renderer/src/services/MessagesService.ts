@@ -80,11 +80,7 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
 
   // 过滤两条及以上 user 类型消息相邻的情况，只保留最新一条 user 消息
   _messages = _messages.filter((message, index, origin) => {
-    if (
-      message.role === 'user'
-      && index + 1 < origin.length
-      && origin[index + 1].role === 'user'
-    ) {
+    if (message.role === 'user' && index + 1 < origin.length && origin[index + 1].role === 'user') {
       return false
     }
     return true
