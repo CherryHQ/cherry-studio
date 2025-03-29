@@ -44,7 +44,10 @@ export default class AnthropicProvider extends BaseProvider {
     this.sdk = new Anthropic({
       apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
-      dangerouslyAllowBrowser: true
+      dangerouslyAllowBrowser: true,
+      defaultHeaders: {
+        'anthropic-beta': 'output-128k-2025-02-19'
+      }
     })
   }
 
