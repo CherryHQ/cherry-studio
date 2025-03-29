@@ -10,8 +10,8 @@ import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDescription, SettingDivider, SettingGroup, SettingRowTitle, SettingTitle } from '.'
-import MiniAppIconsManager from './DisplaySettings/MiniAppIconsManager'
+import { SettingContainer, SettingDescription, SettingDivider, SettingGroup, SettingRowTitle, SettingTitle } from '..'
+import MiniAppIconsManager from './MiniAppIconsManager'
 
 // 默认小程序缓存数量
 const DEFAULT_MAX_KEEPALIVE = 3

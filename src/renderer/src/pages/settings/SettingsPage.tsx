@@ -24,7 +24,7 @@ import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import { McpSettingsNavbar } from './MCPSettings/McpSettingsNavbar'
-import MiniAppSettings from './MiniAppSettings' // 导入新组件
+import MiniAppSettings from './MiniappSettings/MiniAppSettings' // 导入新组件
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
