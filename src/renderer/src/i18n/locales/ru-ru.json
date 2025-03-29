@@ -1104,7 +1104,6 @@
         "api.url.tip": "Заканчивая на / игнорирует v1, заканчивая на # принудительно использует введенный адрес",
         "api_host": "Хост API",
         "api_key": "Ключ API",
-        "api_key.tip": "Несколько ключей, разделенных запятыми",
         "api_version": "Версия API",
         "charge": "Пополнить",
         "check": "Проверить",
@@ -1141,12 +1140,15 @@
         "get_api_key": "Получить ключ API",
         "is_not_support_array_content": "Включить совместимый режим",
         "no_models_for_check": "Нет моделей для проверки (например, диалоговые модели)",
-        "not_checked": "Не проверено",
         "remove_duplicate_keys": "Удалить дубликаты ключей",
         "remove_invalid_keys": "Удалить недействительные ключи",
+        "invalid_key": "Недействительный ключ API",
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
-        "title": "Провайдеры моделей"
+        "title": "Провайдеры моделей",
+        "enter_new_api_key": "Введите новый API ключ",
+        "key_already_exists": "API ключ уже существует",
+        "check_tooltip.latency": "Задержка"
       },
       "proxy": {
         "mode": {

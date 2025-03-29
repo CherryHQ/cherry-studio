@@ -1105,7 +1105,6 @@
         "api.url.tip": "Ending with / ignores v1, ending with # forces use of input address",
         "api_host": "API Host",
         "api_key": "API Key",
-        "api_key.tip": "Multiple keys separated by commas",
         "api_version": "API Version",
         "charge": "Charge",
         "check": "Check",
@@ -1142,12 +1141,15 @@
         "get_api_key": "Get API Key",
         "is_not_support_array_content": "Enable compatible mode",
         "no_models_for_check": "No models available for checking (e.g. chat models)",
-        "not_checked": "Not Checked",
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",
+        "invalid_key": "Invalid API key",
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "enter_new_api_key": "Enter new API key",
+        "key_already_exists": "API key already exists",
+        "check_tooltip.latency": "Latency"
       },
       "proxy": {
         "mode": {
