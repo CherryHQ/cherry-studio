@@ -166,6 +166,7 @@
     "rehype-katex": "^7.0.1",
     "rehype-mathjax": "^7.0.0",
     "rehype-raw": "^7.0.0",
+    "remark-cjk-friendly": "^1.1.0",
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "rollup-plugin-visualizer": "^5.12.0",
