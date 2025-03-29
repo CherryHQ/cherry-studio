@@ -942,7 +942,8 @@
         "reset_tooltip": "Reset to default",
         "display_title": "Mini App Display Settings",
         "sidebar_title": "Sidebar Active Mini Apps Display",
-        "sidebar_description": "Show active mini apps in the sidebar"
+        "sidebar_description": "Show active mini apps in the sidebar",
+        "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value"
       },
       "font_size.title": "Message font size",
       "general": "General Settings",

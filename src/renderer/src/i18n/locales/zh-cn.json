@@ -942,7 +942,8 @@
         "reset_tooltip": "重置为默认值",
         "display_title": "小程序显示设置",
         "sidebar_title": "侧边栏活跃小程序显示设置",
-        "sidebar_description": "设置侧边栏是否显示活跃的小程序"
+        "sidebar_description": "设置侧边栏是否显示活跃的小程序",
+        "cache_change_notice": "更改将在打开的小程序增减至设定值后生效"
       },
       "font_size.title": "消息字体大小",
       "general": "常规设置",

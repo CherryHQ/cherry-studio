@@ -8,7 +8,6 @@ import {
   setOpenedOneOffMinapp
 } from '@renderer/store/runtime'
 import { MinAppType } from '@renderer/types'
-import { useEffect } from 'react'
 
 /**
  * Usage:
@@ -26,21 +25,8 @@ import { useEffect } from 'react'
  */
 export const useMinappPopup = () => {
   const dispatch = useAppDispatch()
-  const { openedKeepAliveMinapps, openedOneOffMinapp, currentMinappId, minappShow } = useRuntime()
+  const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
   const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
-
-  // 新增: 监听缓存设置变化，确保缓存数量不超过设置值
-  useEffect(() => {
-    // 检查当前缓存数量是否超过新的限制
-    if (openedKeepAliveMinapps.length > maxKeepAliveMinapps) {
-      const trimmedApps = openedKeepAliveMinapps.slice(0, maxKeepAliveMinapps)
-      dispatch(setOpenedKeepAliveMinapps(trimmedApps))
-      if (currentMinappId && !trimmedApps.some((app) => app.id === currentMinappId)) {
-        dispatch(setCurrentMinappId(''))
-        dispatch(setMinappShow(false))
-      }
-    }
-  }, [maxKeepAliveMinapps, openedKeepAliveMinapps, currentMinappId, dispatch])
 
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = (app: MinAppType, keepAlive: boolean = false) => {

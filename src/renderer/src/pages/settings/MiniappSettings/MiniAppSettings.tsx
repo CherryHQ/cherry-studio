@@ -5,8 +5,8 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setMaxKeepAliveMinapps, setShowOpenedMinappsInSidebar } from '@renderer/store/settings'
-import { Button, Slider, Switch, Tooltip } from 'antd'
-import { FC, useCallback, useState } from 'react'
+import { Button, message, Slider, Switch, Tooltip } from 'antd'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -25,6 +25,8 @@ const MiniAppSettings: FC = () => {
 
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
+  const [messageApi, contextHolder] = message.useMessage()
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleResetMinApps = useCallback(() => {
     setVisibleMiniApps(DEFAULT_MIN_APPS)
@@ -36,10 +38,38 @@ const MiniAppSettings: FC = () => {
   // 恢复默认缓存数量
   const handleResetCacheLimit = useCallback(() => {
     dispatch(setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE))
-  }, [dispatch])
+    messageApi.info(t('settings.miniapps.cache_change_notice'))
+  }, [dispatch, messageApi, t])
+
+  // 处理缓存数量变更
+  const handleCacheChange = useCallback(
+    (value: number) => {
+      dispatch(setMaxKeepAliveMinapps(value))
+
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        messageApi.info(t('settings.miniapps.cache_change_notice'))
+        debounceTimerRef.current = null
+      }, 500)
+    },
+    [dispatch, messageApi, t]
+  )
+
+  // 组件卸载时清除定时器
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
 
   return (
     <SettingContainer theme={theme}>
+      {contextHolder} {/* 添加消息上下文 */}
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.miniapps.title')}</SettingTitle>
         <SettingDivider />
@@ -67,12 +97,17 @@ const MiniAppSettings: FC = () => {
             <SettingDescription>{t('settings.miniapps.cache_description')}</SettingDescription>
           </SettingLabelGroup>
           <CacheSettingControls>
-            <SliderContainer>
+            <SliderWithResetContainer>
+              <Tooltip title={t('settings.miniapps.reset_tooltip')} placement="top">
+                <ResetButton onClick={handleResetCacheLimit}>
+                  <UndoOutlined />
+                </ResetButton>
+              </Tooltip>
               <Slider
                 min={1}
                 max={5}
                 value={maxKeepAliveMinapps}
-                onChange={(value) => dispatch(setMaxKeepAliveMinapps(value))}
+                onChange={handleCacheChange}
                 marks={{
                   1: '1',
                   3: '3',
@@ -80,12 +115,7 @@ const MiniAppSettings: FC = () => {
                 }}
                 tooltip={{ formatter: (value) => `${value}` }}
               />
-              <Tooltip title={t('settings.miniapps.reset_tooltip')} placement="top">
-                <ResetButton onClick={handleResetCacheLimit}>
-                  <UndoOutlined />
-                </ResetButton>
-              </Tooltip>
-            </SliderContainer>
+            </SliderWithResetContainer>
           </CacheSettingControls>
         </CacheSettingRow>
         <SettingDivider />
@@ -109,7 +139,7 @@ const CacheSettingRow = styled.div`
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin: px 0 0px;
+  margin: 0;
   gap: 20px;
 `
 
@@ -121,15 +151,15 @@ const SettingLabelGroup = styled.div`
 const CacheSettingControls = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: center;
   width: 240px;
 `
 
-const SliderContainer = styled.div`
-  width: 100%;
+const SliderWithResetContainer = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  width: 100%;
 
   .ant-slider {
     flex: 1;
@@ -151,6 +181,7 @@ const ResetButton = styled.button`
   justify-content: center;
   width: 28px;
   height: 28px;
+  min-width: 28px; /* 确保不会被压缩 */
   border-radius: 4px;
   border: 1px solid var(--color-border);
   background-color: var(--color-bg-1);

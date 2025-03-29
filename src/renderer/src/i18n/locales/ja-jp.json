@@ -942,7 +942,8 @@
         "reset_tooltip": "デフォルト値にリセット",
         "display_title": "ミニアプリ表示設定",
         "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
-        "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します"
+        "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
+        "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます"
       },
       "font_size.title": "メッセージのフォントサイズ",
       "general": "一般設定",

@@ -942,7 +942,8 @@
         "reset_tooltip": "重置為預設值",
         "display_title": "小程式顯示設置",
         "sidebar_title": "側邊欄活躍小程式顯示設置",
-        "sidebar_description": "設置側邊欄是否顯示活躍的小程式"
+        "sidebar_description": "設置側邊欄是否顯示活躍的小程式",
+        "cache_change_notice": "更改將在打開的小程式增減至設定值後生效"
       },
       "font_size.title": "訊息字型大小",
       "general": "一般設定",
