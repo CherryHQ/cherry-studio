@@ -1206,7 +1206,6 @@
       "websearch": {
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
-        "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "チェック",
         "check_failed": "検証に失敗しました",
         "check_success": "検証に成功しました",
@@ -1225,7 +1224,17 @@
           "description": "Tavily は、AI エージェントのために特別に開発された検索エンジンで、最新の結果、インテリジェントな検索提案、そして深い研究能力を提供します",
           "title": "Tavily"
         },
-        "title": "ウェブ検索"
+        "title": "ウェブ検索",
+        "blacklist_tooltip": "マッチパターン: *://*.example.com/*\n正規表現: /example\\.(net|org)/",
+        "subscribe": "購読",
+        "subscribe_tooltip": "ブラックリストに登録する",
+        "subscribe_update": "今すぐ更新",
+        "subscribe_add": "サブスクリプションを追加",
+        "subscribe_url": "フィードのURL",
+        "subscribe_name": "代替名",
+        "subscribe_name.placeholder": "ダウンロードしたフィードに名前がない場合に使用される代替名",
+        "subscribe_add_success": "フィードの追加が成功しました！",
+        "subscribe_delete": "フィードの削除"
       },
       "general.auto_check_update.title": "自動更新チェックを有効にする"
     },
