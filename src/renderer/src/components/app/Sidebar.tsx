@@ -173,6 +173,7 @@ const MainMenus: FC = () => {
 const SidebarOpenedMinappTabs: FC = () => {
   const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
   const { openMinappKeepAlive, hideMinappPopup, closeMinapp, closeAllMinapps } = useMinappPopup()
+  const { showOpenedMinappsInSidebar } = useSettings() // 获取控制显示的设置
   const { theme } = useTheme()
   const { t } = useTranslation()
 
@@ -208,7 +209,10 @@ const SidebarOpenedMinappTabs: FC = () => {
     container.style.setProperty('--indicator-right', `${indicatorRight}px`)
   }, [currentMinappId, openedKeepAliveMinapps, minappShow])
 
-  const isShowOpened = openedKeepAliveMinapps.length > 0
+  // 检查是否需要显示已打开小程序组件
+  const isShowOpened = showOpenedMinappsInSidebar && openedKeepAliveMinapps.length > 0
+
+  // 如果不需要显示，返回空容器保持动画效果但不显示内容
   if (!isShowOpened) return <TabsContainer className="TabsContainer" />
 
   return (

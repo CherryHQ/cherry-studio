@@ -115,7 +115,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
       <ProgramSection>
         {(['visible', 'disabled'] as const).map((listType) => (
           <ProgramColumn key={listType}>
-            <h4>{t(`settings.display.minApp.${listType}`)}</h4>
+            <h4>{t(`settings.miniapps.${listType}`)}</h4>
             <Droppable droppableId={listType}>
               {(provided: DroppableProvided) => (
                 <ProgramList ref={provided.innerRef} {...provided.droppableProps}>
@@ -125,7 +125,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
                     </Draggable>
                   ))}
                   {disabledMiniApps.length === 0 && listType === 'disabled' && (
-                    <EmptyPlaceholder>{t('settings.display.minApp.empty')}</EmptyPlaceholder>
+                    <EmptyPlaceholder>{t('settings.miniapps.empty')}</EmptyPlaceholder>
                   )}
                   {provided.placeholder}
                 </ProgramList>
