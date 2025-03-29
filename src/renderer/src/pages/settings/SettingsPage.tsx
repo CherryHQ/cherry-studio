@@ -1,4 +1,5 @@
 import {
+  AppstoreOutlined, // 添加图标
   CloudOutlined,
   CodeOutlined,
   GlobalOutlined,
@@ -23,6 +24,7 @@ import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import { McpSettingsNavbar } from './MCPSettings/McpSettingsNavbar'
+import MiniAppSettings from './MiniAppSettings' // 导入新组件
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
@@ -82,6 +84,12 @@ const SettingsPage: FC = () => {
               {t('settings.display.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/miniapps">
+            <MenuItem className={isRoute('/settings/miniapps')}>
+              <AppstoreOutlined />
+              {t('settings.miniapps.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/shortcut">
             <MenuItem className={isRoute('/settings/shortcut')}>
               <MacCommandOutlined />
@@ -115,9 +123,10 @@ const SettingsPage: FC = () => {
             <Route path="mcp" element={<MCPSettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
-            <Route path="data/*" element={<DataSettings />} />
-            <Route path="quickAssistant" element={<QuickAssistantSettings />} />
+            <Route path="miniapps" element={<MiniAppSettings />} />
             <Route path="shortcut" element={<ShortcutSettings />} />
+            <Route path="quickAssistant" element={<QuickAssistantSettings />} />
+            <Route path="data/*" element={<DataSettings />} />
             <Route path="about" element={<AboutSettings />} />
           </Routes>
         </SettingContent>

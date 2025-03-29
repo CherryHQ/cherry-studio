@@ -919,10 +919,6 @@
       "display.custom.css": "自定义 CSS",
       "display.custom.css.cherrycss": "从 cherrycss.com 获取",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
-      "display.minApp.disabled": "隐藏的小程序",
-      "display.minApp.empty": "把要隐藏的小程序从左侧拖拽到这里",
-      "display.minApp.title": "小程序显示设置",
-      "display.minApp.visible": "显示的小程序",
       "display.sidebar.chat.hiddenMessage": "助手是基础功能，不支持隐藏",
       "display.sidebar.disabled": "隐藏的图标",
       "display.sidebar.empty": "把要隐藏的功能从左侧拖拽到这里",
@@ -935,6 +931,12 @@
       "display.sidebar.visible": "显示的图标",
       "display.title": "显示设置",
       "display.topic.title": "话题设置",
+      "miniapps": {
+        "title": "小程序设置",
+        "disabled": "隐藏的小程序",
+        "empty": "把要隐藏的小程序从左侧拖拽到这里",
+        "visible": "显示的小程序"
+      },
       "font_size.title": "消息字体大小",
       "general": "常规设置",
       "general.avatar.reset": "重置头像",
