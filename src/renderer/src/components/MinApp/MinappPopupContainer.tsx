@@ -99,6 +99,9 @@ const MinappPopupContainer: React.FC = () => {
     })
   }, [currentMinappId])
 
+  /** only the keepalive minapp can be minimized */
+  const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.id == currentMinappId)
+
   /** combine the openedKeepAliveMinapps and openedOneOffMinapp */
   const combinedApps = useMemo(() => {
     return [...openedKeepAliveMinapps, ...(openedOneOffMinapp ? [openedOneOffMinapp] : [])]
@@ -237,11 +240,13 @@ const MinappPopupContainer: React.FC = () => {
               </Button>
             </Tooltip>
           )}
-          <Tooltip title={t('minapp.popup.minimize')} mouseEnterDelay={0.8} placement="bottom">
-            <Button onClick={() => handlePopupMinimize()}>
-              <MinusOutlined />
-            </Button>
-          </Tooltip>
+          {canMinimize && (
+            <Tooltip title={t('minapp.popup.minimize')} mouseEnterDelay={0.8} placement="bottom">
+              <Button onClick={() => handlePopupMinimize()}>
+                <MinusOutlined />
+              </Button>
+            </Tooltip>
+          )}
           <Tooltip title={t('minapp.popup.close')} mouseEnterDelay={0.8} placement="bottom">
             <Button onClick={() => handlePopupClose(appInfo.id)}>
               <CloseOutlined />
