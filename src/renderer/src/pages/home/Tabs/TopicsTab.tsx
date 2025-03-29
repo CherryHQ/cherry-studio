@@ -17,7 +17,7 @@ import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { TopicManager } from '@renderer/hooks/useTopic'
+import { TopicManager, useRenamingTopics } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
@@ -34,7 +34,7 @@ import {
   topicToMarkdown
 } from '@renderer/utils/export'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
-import { Dropdown, MenuProps, Tooltip } from 'antd'
+import { Dropdown, MenuProps, Skeleton, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
@@ -52,6 +52,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
   const { showTopicTime, topicPosition } = useSettings()
+  const { isRenamingTopic, startRenamingTopic, finishRenamingTopic } = useRenamingTopics()
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -158,13 +159,23 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           label: t('chat.topics.auto_rename'),
           key: 'auto-rename',
           icon: <i className="iconfont icon-business-smart-assistant" style={{ fontSize: '14px' }} />,
+          disabled: isRenamingTopic(topic.id),
           async onClick() {
-            const messages = await TopicManager.getTopicMessages(topic.id)
-            if (messages.length >= 2) {
-              const summaryText = await fetchMessagesSummary({ messages, assistant })
-              if (summaryText) {
-                updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+            // lock the topic from being renamed
+            if (isRenamingTopic(topic.id)) {
+              return
+            }
+            startRenamingTopic(topic.id)
+            try {
+              const messages = await TopicManager.getTopicMessages(topic.id)
+              if (messages.length >= 2) {
+                const summaryText = await fetchMessagesSummary({ messages, assistant })
+                if (summaryText) {
+                  updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+                }
               }
+            } finally {
+              finishRenamingTopic(topic.id)
             }
           }
         },
@@ -172,14 +183,25 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           label: t('chat.topics.edit.title'),
           key: 'rename',
           icon: <EditOutlined />,
+          disabled: isRenamingTopic(topic.id),
           async onClick() {
-            const name = await PromptPopup.show({
-              title: t('chat.topics.edit.title'),
-              message: '',
-              defaultValue: topic?.name || ''
-            })
-            if (name && topic?.name !== name) {
-              updateTopic({ ...topic, name, isNameManuallyEdited: true })
+            // lock the topic from being renamed
+            if (isRenamingTopic(topic.id)) {
+              window.message.warning(t('chat.topics.rename.locked'))
+              return
+            }
+            startRenamingTopic(topic.id)
+            try {
+              const name = await PromptPopup.show({
+                title: t('chat.topics.edit.title'),
+                message: '',
+                defaultValue: topic?.name || ''
+              })
+              if (name && topic?.name !== name) {
+                updateTopic({ ...topic, name, isNameManuallyEdited: true })
+              }
+            } finally {
+              finishRenamingTopic(topic.id)
             }
           }
         },
@@ -337,7 +359,19 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
       return menus
     },
-    [assistant, assistants, onClearMessages, onDeleteTopic, onPinTopic, onMoveTopic, t, updateTopic]
+    [
+      assistant,
+      assistants,
+      onClearMessages,
+      onDeleteTopic,
+      onPinTopic,
+      onMoveTopic,
+      t,
+      updateTopic,
+      isRenamingTopic,
+      startRenamingTopic,
+      finishRenamingTopic
+    ]
   )
 
   return (
@@ -348,6 +382,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           const topicName = topic.name.replace('`', '')
           const topicPrompt = topic.prompt
           const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
+          const isRenaming = isRenamingTopic(topic.id)
           return (
             <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
               <TopicListItem
@@ -355,9 +390,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
-                <TopicName className="name" title={topicName}>
-                  {topicName}
-                </TopicName>
+                {isRenaming ? (
+                  <Skeleton.Input active size="small" style={{ width: '80%', margin: '4px 0', height: '13px' }} />
+                ) : (
+                  <TopicName className="name" title={topicName}>
+                    {topicName}
+                  </TopicName>
+                )}
                 {topicPrompt && (
                   <TopicPromptText className="prompt" title={fullTopicPrompt}>
                     {fullTopicPrompt}
