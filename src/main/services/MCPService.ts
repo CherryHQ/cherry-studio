@@ -164,7 +164,7 @@ class McpService {
     tools.map((tool: any) => {
       const serverTool: MCPTool = {
         ...tool,
-        id: nanoid(),
+        id: `f${nanoid()}`,
         serverId: server.id,
         serverName: server.name
       }
