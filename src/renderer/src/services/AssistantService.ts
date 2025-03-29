@@ -3,7 +3,16 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
-import { Agent, Assistant, AssistantSettings, Message, Model, Provider, Topic } from '@renderer/types'
+import {
+  Agent,
+  Assistant,
+  AssistantSettings,
+  MentionedAssistant,
+  Message,
+  Model,
+  Provider,
+  Topic
+} from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 import { estimateMessageUsage } from './TokenService'
@@ -40,7 +49,7 @@ export function getDefaultAssistantSettings() {
   return store.getState().assistants.defaultAssistant.settings
 }
 
-export function getDefaultTopic(assistantId: string): Topic {
+export function getDefaultTopic(assistantId: string = 'default'): Topic {
   return {
     id: uuid(),
     assistantId,
@@ -155,7 +164,6 @@ export async function createAssistantFromAgent(agent: Agent) {
     id: assistantId,
     name: agent.name,
     emoji: agent.emoji,
-    topics: [topic],
     model: agent.defaultModel,
     type: 'assistant'
   }
@@ -170,4 +178,24 @@ export async function createAssistantFromAgent(agent: Agent) {
   })
 
   return assistant
+}
+
+export function createMentionedAssistant(assistant: Assistant, model: Model): MentionedAssistant {
+  return {
+    id: assistant.id,
+    name: assistant.name,
+    emoji: assistant.emoji,
+    model
+  }
+}
+
+export function consolidateMentionedAssistant(mentioned: MentionedAssistant): Assistant {
+  const assistant = getAssistantById(mentioned.id)
+  if (!assistant) {
+    throw new Error(`Failed to consolidate mentioned assistant: Assistant with id ${mentioned.id} not found`)
+  }
+  return {
+    ...assistant,
+    model: mentioned.model
+  }
 }

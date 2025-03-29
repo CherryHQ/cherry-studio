@@ -3,9 +3,9 @@ import {
   CloseOutlined,
   DeleteOutlined,
   EditOutlined,
-  FolderOutlined,
   PushpinOutlined,
   QuestionCircleOutlined,
+  RobotOutlined,
   UploadOutlined
 } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
@@ -14,10 +14,11 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useActiveTopicContext } from '@renderer/context/ActiveTopicContext'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { TopicManager } from '@renderer/hooks/useTopic'
+import { TopicManager, useTopics } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
@@ -36,20 +37,19 @@ import {
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { findIndex } from 'lodash'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
-  activeTopic: Topic
-  setActiveTopic: (topic: Topic) => void
+  selectedAssistant: Assistant | null // 为了保持旧的 UI 习惯
 }
 
-const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic }) => {
+const Topics: FC<Props> = ({ assistant, selectedAssistant }) => {
+  const { activeTopic, setActiveTopic } = useActiveTopicContext()
   const { assistants } = useAssistants()
-  const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
+  const { topics, removeTopic, switchAssistant, updateTopic, updateTopics } = useTopics()
   const { t } = useTranslation()
   const { showTopicTime, topicPosition } = useSettings()
 
@@ -80,7 +80,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     [activeTopic.id, pendingTopics]
   )
 
-  const handleDeleteClick = useCallback((topicId: string, e: React.MouseEvent) => {
+  const handleShowDeleteClick = useCallback((topicId: string, e: React.MouseEvent) => {
     e.stopPropagation()
 
     if (deleteTimerRef.current) {
@@ -98,19 +98,24 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
   }, [])
 
-  const handleConfirmDelete = useCallback(
+  const onDeleteTopic = useCallback(
+    async (topic: Topic) => {
+      await modelGenerating()
+      removeTopic(topic)
+    },
+    [removeTopic]
+  )
+
+  const handleDeleteAfterShown = useCallback(
     async (topic: Topic, e: React.MouseEvent) => {
       e.stopPropagation()
-      if (assistant.topics.length === 1) {
+      if (topics.length === 1) {
         return onClearMessages(topic)
       }
-      await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
-      removeTopic(topic)
+      onDeleteTopic(topic)
       setDeletingTopicId(null)
     },
-    [assistant.topics, onClearMessages, removeTopic, setActiveTopic]
+    [topics, onClearMessages, onDeleteTopic]
   )
 
   const onPinTopic = useCallback(
@@ -121,26 +126,12 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     [updateTopic]
   )
 
-  const onDeleteTopic = useCallback(
-    async (topic: Topic) => {
-      await modelGenerating()
-      if (topic.id === activeTopic?.id) {
-        const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
-      }
-      removeTopic(topic)
-    },
-    [assistant.topics, removeTopic, setActiveTopic, activeTopic]
-  )
-
-  const onMoveTopic = useCallback(
+  const onSwitchAssistant = useCallback(
     async (topic: Topic, toAssistant: Assistant) => {
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? 0 : index + 1])
-      moveTopic(topic, toAssistant)
+      switchAssistant(topic, toAssistant)
     },
-    [assistant.topics, moveTopic, setActiveTopic]
+    [switchAssistant]
   )
 
   const onSwitchTopic = useCallback(
@@ -161,7 +152,10 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           async onClick() {
             const messages = await TopicManager.getTopicMessages(topic.id)
             if (messages.length >= 2) {
-              const summaryText = await fetchMessagesSummary({ messages, assistant })
+              const summaryText = await fetchMessagesSummary({
+                messages,
+                assistant: selectedAssistant || assistant
+              })
               if (summaryText) {
                 updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
               }
@@ -202,7 +196,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 allowClear: true
               }
             })
-            prompt !== null && updateTopic({ ...topic, prompt: prompt.trim() })
+            prompt && updateTopic({ ...topic, prompt: prompt.trim() })
           }
         },
         {
@@ -309,22 +303,22 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         }
       ]
 
-      if (assistants.length > 1 && assistant.topics.length > 1) {
+      // 切换助手：助手可以没有话题，所以不需要检查助手关联的话题数量
+      if (assistants.length > 1) {
         menus.push({
-          label: t('chat.topics.move_to'),
-          key: 'move',
-          icon: <FolderOutlined />,
-          children: assistants
-            .filter((a) => a.id !== assistant.id)
-            .map((a) => ({
-              label: a.name,
-              key: a.id,
-              onClick: () => onMoveTopic(topic, a)
-            }))
+          label: t('chat.topics.switch_assistant'),
+          key: 'switch-assistant',
+          icon: <RobotOutlined />,
+          children: assistants.map((a) => ({
+            label: a.name,
+            key: a.id,
+            disabled: a.id === topic.assistantId,
+            onClick: () => onSwitchAssistant(topic, a)
+          }))
         })
       }
 
-      if (assistant.topics.length > 1 && !topic.pinned) {
+      if (topics.length > 1 && !topic.pinned) {
         menus.push({ type: 'divider' })
         menus.push({
           label: t('common.delete'),
@@ -337,12 +331,42 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
       return menus
     },
-    [assistant, assistants, onClearMessages, onDeleteTopic, onPinTopic, onMoveTopic, t, updateTopic]
+    [
+      t,
+      assistants,
+      topics.length,
+      selectedAssistant,
+      assistant,
+      updateTopic,
+      onPinTopic,
+      onClearMessages,
+      onSwitchAssistant,
+      onDeleteTopic
+    ]
+  )
+
+  const displayTopics = useMemo(() => {
+    if (selectedAssistant) {
+      return topics.filter((topic) => topic.assistantId === selectedAssistant.id)
+    }
+    return topics
+  }, [topics, selectedAssistant])
+
+  const handleTopicsUpdate = useCallback(
+    (updatedTopics: Topic[]) => {
+      if (selectedAssistant) {
+        const otherTopics = topics.filter((topic) => topic.assistantId !== selectedAssistant.id)
+        updateTopics([...updatedTopics, ...otherTopics])
+      } else {
+        updateTopics(updatedTopics)
+      }
+    },
+    [selectedAssistant, topics, updateTopics]
   )
 
   return (
     <Container right={topicPosition === 'right'} className="topics-tab">
-      <DragableList list={assistant.topics} onUpdate={updateTopics}>
+      <DragableList list={displayTopics} onUpdate={handleTopicsUpdate}>
         {(topic) => {
           const isActive = topic.id === activeTopic?.id
           const topicName = topic.name.replace('`', '')
@@ -382,11 +406,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                       className="menu"
                       onClick={(e) => {
                         if (e.ctrlKey || e.metaKey) {
-                          handleConfirmDelete(topic, e)
+                          handleDeleteAfterShown(topic, e)
                         } else if (deletingTopicId === topic.id) {
-                          handleConfirmDelete(topic, e)
+                          handleDeleteAfterShown(topic, e)
                         } else {
-                          handleDeleteClick(topic.id, e)
+                          handleShowDeleteClick(topic.id, e)
                         }
                       }}>
                       {deletingTopicId === topic.id ? (
@@ -401,7 +425,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             </Dropdown>
           )
         }}
-      </DragableList>
+      </DragableList>{' '}
       <div style={{ minHeight: '10px' }}></div>
     </Container>
   )

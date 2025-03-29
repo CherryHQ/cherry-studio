@@ -18,7 +18,13 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
+import { useTopics } from '@renderer/hooks/useTopic'
+import {
+  addAssistantMessagesToTopic,
+  createMentionedAssistant,
+  getAssistantById,
+  getDefaultTopic
+} from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
@@ -64,7 +70,8 @@ let _files: FileType[] = []
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
-  const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
+  const { assistant, model, setModel, updateAssistant } = useAssistant(_assistant.id)
+  const { addTopic } = useTopics()
   const {
     targetLanguage,
     sendMessageShortcut,
@@ -171,7 +178,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
 
       if (mentionModels) {
-        userMessage.mentions = mentionModels
+        userMessage.mentions = mentionModels.map((model) => createMentionedAssistant(assistant, model))
       }
 
       if (enabledMCPs) {
@@ -183,7 +190,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       dispatch(
         _sendMessage(userMessage, assistant, topic, {
-          mentions: mentionModels
+          mentions: mentionModels.map((model) => createMentionedAssistant(assistant, model))
         })
       )
 
@@ -315,22 +322,28 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }
 
-  const addNewTopic = useCallback(async () => {
-    await modelGenerating()
+  // 如果提供了特定的assistantId，使用该ID对应的助手创建话题
+  const addNewTopic = useCallback(
+    async (assistantId?: string) => {
+      await modelGenerating()
 
-    const topic = getDefaultTopic(assistant.id)
+      const targetAssistant = assistantId ? getAssistantById(assistantId) || assistant : assistant
 
-    await db.topics.add({ id: topic.id, messages: [] })
-    await addAssistantMessagesToTopic({ assistant, topic })
+      const topic = getDefaultTopic(targetAssistant.id)
 
-    // Reset to assistant default model
-    assistant.defaultModel && setModel(assistant.defaultModel)
+      await db.topics.add({ id: topic.id, messages: [] })
+      await addAssistantMessagesToTopic({ assistant: targetAssistant, topic })
 
-    addTopic(topic)
-    setActiveTopic(topic)
+      // Reset to assistant default model
+      targetAssistant.defaultModel && setModel(targetAssistant.defaultModel)
 
-    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant, setActiveTopic, setModel])
+      addTopic(topic, targetAssistant.id)
+      setActiveTopic(topic)
+
+      setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+    },
+    [addTopic, assistant, setActiveTopic, setModel]
+  )
 
   const onPause = async () => {
     await pauseMessages()
@@ -520,7 +533,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [isDragging, handleDrag, handleDragEnd])
 
   useShortcut('new_topic', () => {
-    addNewTopic()
+    addNewTopic(assistant.id)
     EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     textareaRef.current?.focus()
   })
@@ -719,7 +732,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           <Toolbar>
             <ToolbarMenu>
               <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
-                <ToolbarButton type="text" onClick={addNewTopic}>
+                <ToolbarButton type="text" onClick={() => addNewTopic(assistant.id)}>
                   <FormOutlined />
                 </ToolbarButton>
               </Tooltip>

@@ -2,20 +2,17 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ModelTags from '@renderer/components/ModelTags'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
+import { useActiveTopicContext } from '@renderer/context/ActiveTopicContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { Assistant } from '@renderer/types'
 import { Button } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-interface Props {
-  assistant: Assistant
-}
-
-const SelectModelButton: FC<Props> = ({ assistant }) => {
-  const { model, setModel } = useAssistant(assistant.id)
+const SelectModelButton: FC = () => {
+  const { activeTopic } = useActiveTopicContext()
+  const { model, setModel } = useAssistant(activeTopic.assistantId)
   const { t } = useTranslation()
 
   if (isLocalAi) {

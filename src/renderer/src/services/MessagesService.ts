@@ -3,6 +3,7 @@ import { DEFAULT_CONTEXTCOUNT } from '@renderer/config/constant'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
+import { selectTopicsByAssistantId } from '@renderer/store/topics'
 import { Assistant, Message, Model, Topic } from '@renderer/types'
 import { getTitleFromString, uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
@@ -230,7 +231,13 @@ export function checkRateLimit(assistant: Assistant): boolean {
     return false
   }
 
-  const topicId = assistant.topics[0].id
+  const topics = selectTopicsByAssistantId(store.getState(), assistant.id)
+
+  if (!topics || topics.length === 0) {
+    return false
+  }
+
+  const topicId = topics[0].id
   const messages = store.getState().messages.messagesByTopic[topicId]
 
   if (!messages || messages.length <= 1) {

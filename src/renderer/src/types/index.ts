@@ -7,7 +7,8 @@ export type Assistant = {
   name: string
   prompt: string
   knowledge_bases?: KnowledgeBase[]
-  topics: Topic[]
+  /** @deprecated 已迁移到独立的topics状态。此字段仅用于版本迁移兼容，不应再被读取或写入 */
+  topics?: Topic[]
   type: string
   emoji?: string
   description?: string
@@ -17,6 +18,13 @@ export type Assistant = {
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
   enableGenerateImage?: boolean
+}
+
+export type MentionedAssistant = {
+  id: string
+  name: string
+  emoji?: string
+  model: Model
 }
 
 export type AssistantMessage = {
@@ -64,7 +72,7 @@ export type Message = {
   knowledgeBaseIds?: string[]
   type: 'text' | '@' | 'clear'
   isPreset?: boolean
-  mentions?: Model[]
+  mentions?: MentionedAssistant[]
   askId?: string
   useful?: boolean
   error?: Record<string, any>

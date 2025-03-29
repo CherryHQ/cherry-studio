@@ -37,8 +37,34 @@ export async function upgradeToV5(tx: Transaction): Promise<void> {
   }
 }
 
-// 为每个 topic 添加时间戳,兼容老数据,默认按照最新的时间戳来,不确定是否要加
+// 把消息中的 Model[] 转换为 MentionedAssistant[]
+// 没有必要修复其中的 name 和 emoji
 export async function upgradeToV6(tx: Transaction): Promise<void> {
+  const topics = await tx.table('topics').toArray()
+
+  for (const topic of topics) {
+    let hasChanges = false
+
+    for (const message of topic.messages) {
+      if (message?.mentions && Array.isArray(message.mentions) && message.mentions.length > 0) {
+        hasChanges = true
+
+        message.mentions = message.mentions.map((model) => ({
+          id: message.assistantId,
+          name: '',
+          model: model
+        }))
+      }
+    }
+
+    if (hasChanges) {
+      await tx.table('topics').put(topic)
+    }
+  }
+}
+
+// 为每个 topic 添加时间戳,兼容老数据,默认按照最新的时间戳来,不确定是否要加
+export async function upgradeToV7(tx: Transaction): Promise<void> {
   const topics = await tx.table('topics').toArray()
 
   // 为每个 topic 添加时间戳,兼容老数据,默认按照最新的时间戳来

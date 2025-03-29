@@ -5,7 +5,7 @@ import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant } from '@renderer/types'
+import { Assistant, Topic } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
@@ -69,12 +69,14 @@ const migrateConfig = {
         assistant.name = i18n.t(`assistant.${assistant.id}.name`)
       }
 
-      assistant.topics = assistant.topics.map((topic) => {
-        if (isEmpty(topic.name)) {
-          topic.name = i18n.t(`assistant.${assistant.id}.topic.name`)
-        }
-        return topic
-      })
+      if (assistant.topics) {
+        assistant.topics = assistant.topics.map((topic) => {
+          if (isEmpty(topic.name)) {
+            topic.name = i18n.t(`assistant.${assistant.id}.topic.name`)
+          }
+          return topic
+        })
+      }
 
       return assistant
     }
@@ -220,11 +222,12 @@ const migrateConfig = {
         ...state.assistants,
         assistants: state.assistants.assistants.map((assistant) => ({
           ...assistant,
-          topics: assistant.topics.map((topic) => ({
-            ...topic,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }))
+          topics:
+            assistant.topics?.map((topic) => ({
+              ...topic,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            })) || []
         }))
       },
       settings: {
@@ -263,10 +266,12 @@ const migrateConfig = {
       assistants: {
         ...state.assistants,
         assistants: state.assistants.assistants.map((assistant) => {
-          assistant.topics = assistant.topics.map((topic) => ({
-            ...topic,
-            assistantId: assistant.id
-          }))
+          if (assistant.topics) {
+            assistant.topics = assistant.topics.map((topic) => ({
+              ...topic,
+              assistantId: assistant.id
+            }))
+          }
           return assistant
         })
       }
@@ -321,7 +326,7 @@ const migrateConfig = {
   },
   '34': (state: RootState) => {
     state.assistants.assistants.forEach((assistant) => {
-      assistant.topics.forEach((topic) => {
+      assistant.topics?.forEach((topic) => {
         topic.assistantId = assistant.id
         runAsyncFunction(async () => {
           const _topic = await db.topics.get(topic.id)
@@ -946,6 +951,96 @@ const migrateConfig = {
     }
 
     return state
+  },
+  '87': (state: RootState) => {
+    if (!state.assistants?.assistants && !state.assistants?.defaultAssistant) {
+      return state
+    }
+
+    if (!state.topics) {
+      state.topics = { topics: [], activeTopic: null }
+    }
+
+    try {
+      const allTopics: any[] = []
+
+      // Handle default assistant topics
+      const defaultTopics = state.assistants?.defaultAssistant?.topics || []
+      if (defaultTopics.length > 0) {
+        const defaultAssistantId = state.assistants.defaultAssistant.id
+        const defaultAssistantTopics = defaultTopics.map((topic) => ({
+          ...topic,
+          id: topic.id || uuid(),
+          assistantId: topic.assistantId || defaultAssistantId
+        }))
+        allTopics.push(...defaultAssistantTopics)
+      }
+
+      // Handle topics from other assistants
+      if (state.assistants?.assistants?.length > 0) {
+        state.assistants.assistants.forEach((assistant) => {
+          const assistantTopics = assistant.topics || []
+          if (assistantTopics.length > 0) {
+            const topicsWithId = assistantTopics.map((topic) => ({
+              ...topic,
+              id: topic.id || uuid(),
+              assistantId: topic.assistantId || assistant.id
+            }))
+            allTopics.push(...topicsWithId)
+          }
+        })
+      }
+
+      // Use Map to remove duplicate topics
+      const uniqueTopicsMap = new Map()
+
+      // Get a unique key for a topic
+      const getTopicKey = (topic: Topic) => `${topic.id}_${topic.assistantId}`
+
+      // First process topics collected from assistants (prioritize retention)
+      allTopics.forEach((topic) => {
+        if (topic.assistantId.trim() === '') {
+          topic.assistantId = state.assistants.defaultAssistant.id
+        }
+        const topicKey = getTopicKey(topic)
+        if (topic.id) {
+          uniqueTopicsMap.set(topicKey, topic)
+        }
+      })
+
+      // Then process existing topics
+      const existingTopics = state.topics.topics || []
+      existingTopics.forEach((topic) => {
+        if (topic.assistantId.trim() === '') {
+          topic.assistantId = state.assistants.defaultAssistant.id
+        }
+        const topicKey = getTopicKey(topic)
+        if (topic.id && !uniqueTopicsMap.has(topicKey)) {
+          uniqueTopicsMap.set(topicKey, topic)
+        }
+      })
+
+      // Update state
+      state.topics.topics = Array.from(uniqueTopicsMap.values())
+
+      // If there is no activeTopic but there are topics, set the first one as activeTopic
+      if (!state.topics.activeTopic && state.topics.topics.length > 0) {
+        state.topics.activeTopic = state.topics.topics[0]
+      }
+
+      // After migration, clear all assistant.topics arrays
+      if (state.assistants.defaultAssistant) {
+        state.assistants.defaultAssistant.topics = []
+      }
+
+      state.assistants.assistants?.forEach((assistant) => {
+        assistant.topics = []
+      })
+      return state
+    } catch (error) {
+      console.error(error)
+      return state
+    }
   }
 }
 
