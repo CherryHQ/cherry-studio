@@ -91,6 +91,7 @@ export interface SettingsState {
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
+  advancedMode: boolean
   joplinToken: string | null
   joplinUrl: string | null
   defaultObsidianVault: string | null
@@ -171,6 +172,7 @@ const initialState: SettingsState = {
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
+  advancedMode: false,
   joplinToken: '',
   joplinUrl: '',
   defaultObsidianVault: null,
@@ -386,6 +388,9 @@ const settingsSlice = createSlice({
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
     },
+    setAdvancedMode: (state, action: PayloadAction<boolean>) => {
+      state.advancedMode = action.payload
+    },
     setJoplinToken: (state, action: PayloadAction<string>) => {
       state.joplinToken = action.payload
     },
@@ -479,6 +484,7 @@ export const {
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
+  setAdvancedMode,
   setJoplinToken,
   setJoplinUrl,
   setMessageNavigation,

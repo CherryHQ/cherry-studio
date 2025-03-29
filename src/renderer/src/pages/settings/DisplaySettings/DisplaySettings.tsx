@@ -1,10 +1,11 @@
-import { SyncOutlined } from '@ant-design/icons'
+import { SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { updateAssistantSettings } from '@renderer/store/assistants'
 import {
   DEFAULT_SIDEBAR_ICONS,
   setClickAssistantToShowTopic,
@@ -13,8 +14,9 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, Input, Segmented, Switch } from 'antd'
-import { FC, useCallback, useMemo, useState } from 'react'
+import { modalConfirm } from '@renderer/utils'
+import { Button, Checkbox, Input, Segmented, Switch } from 'antd'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -35,17 +37,140 @@ const DisplaySettings: FC = () => {
     customCss,
     sidebarIcons,
     showAssistantIcon,
-    setShowAssistantIcon
+    setShowAssistantIcon,
+    advancedMode,
+    setAdvancedMode
   } = useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
   const { theme: themeMode } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const { assistants } = useAppSelector((state) => state.assistants)
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
+
+  // 进阶模式切换函数
+  const toggleAdvancedMode = async (checked: boolean) => {
+    if (checked) {
+      let allCheckedValue = false
+
+      const ConfirmContent = () => {
+        const [checkboxes, setCheckboxes] = useState({
+          temperature: false,
+          topP: false,
+          context: false,
+          maxTokens: false,
+          reasoning: false
+        })
+
+        const allChecked = Object.values(checkboxes).every((value) => value)
+
+        // 更新外部变量以便在确认对话框关闭后使用
+        useEffect(() => {
+          allCheckedValue = allChecked
+
+          // 动态更新确认按钮的禁用状态
+          const okButton = document.querySelector('.ant-modal-confirm-btns .ant-btn-primary') as HTMLButtonElement
+          if (okButton) {
+            okButton.disabled = !allChecked
+          }
+        }, [allChecked])
+
+        const handleCheckboxChange = (key: string) => (e: any) => {
+          setCheckboxes((prev) => ({ ...prev, [key]: e.target.checked }))
+        }
+
+        return (
+          <div>
+            {t('settings.display.advanced_mode.confirm_content')}
+            <ul style={{ marginTop: 10, paddingLeft: 20 }}>
+              <li>
+                <Checkbox checked={checkboxes.temperature} onChange={handleCheckboxChange('temperature')}>
+                  {t('settings.display.advanced_mode.temperature_warning')}
+                </Checkbox>
+              </li>
+              <li>
+                <Checkbox checked={checkboxes.topP} onChange={handleCheckboxChange('topP')}>
+                  {t('settings.display.advanced_mode.top_p_warning')}
+                </Checkbox>
+              </li>
+              <li>
+                <Checkbox checked={checkboxes.context} onChange={handleCheckboxChange('context')}>
+                  {t('settings.display.advanced_mode.context_warning')}
+                </Checkbox>
+              </li>
+              <li>
+                <Checkbox checked={checkboxes.maxTokens} onChange={handleCheckboxChange('maxTokens')}>
+                  {t('settings.display.advanced_mode.max_tokens_warning')}
+                </Checkbox>
+              </li>
+              <li>
+                <Checkbox checked={checkboxes.reasoning} onChange={handleCheckboxChange('reasoning')}>
+                  {t('settings.display.advanced_mode.reasoning_warning')}
+                </Checkbox>
+              </li>
+            </ul>
+            <div style={{ marginTop: 15, color: '#ff4d4f' }}>
+              {!allChecked && t('settings.display.advanced_mode.check_all_warning')}
+            </div>
+          </div>
+        )
+      }
+
+      const confirmed = await modalConfirm({
+        title: t('settings.display.advanced_mode.confirm'),
+        icon: <WarningOutlined style={{ color: '#ff4d4f' }} />,
+        content: <ConfirmContent />,
+        okText: t('settings.display.advanced_mode.confirm_button'),
+        cancelText: t('common.cancel'),
+        okButtonProps: {
+          danger: true
+        }
+      })
+
+      // 检查是否确认并且所有复选框都被勾选
+      if (!confirmed || !allCheckedValue) return
+    } else {
+      // 关闭进阶模式的确认对话框
+      const confirmed = await modalConfirm({
+        title: t('settings.display.advanced_mode.disable_confirm'),
+        icon: <WarningOutlined style={{ color: '#ff4d4f' }} />,
+        content: t('settings.display.advanced_mode.disable_confirm_content'),
+        okText: t('settings.display.advanced_mode.disable_confirm_button'),
+        cancelText: t('common.cancel'),
+        // 确保确认按钮始终可用
+        okButtonProps: {
+          danger: true,
+          disabled: false // 明确设置为不禁用
+        }
+      })
+      if (!confirmed) return
+
+      // 当关闭进阶模式时，设置所有助手的无限上下文为false和上下文数量为5
+      try {
+        // 更新每个助手的设置
+        for (const assistant of assistants) {
+          dispatch(
+            updateAssistantSettings({
+              assistantId: assistant.id,
+              settings: {
+                enableInfiniteContext: false,
+                contextCount: 5
+              }
+            })
+          )
+        }
+      } catch (error) {
+        console.error('更新助手设置失败:', error)
+      }
+    }
+
+    // 更新Redux全局状态
+    setAdvancedMode(checked)
+  }
 
   // 使用useCallback优化回调函数
   const handleWindowStyleChange = useCallback(
@@ -194,6 +319,18 @@ const DisplaySettings: FC = () => {
         />
       </SettingGroup>
       <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.advanced.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            {t('settings.display.advanced_mode')}
+            <WarningIcon style={{ marginLeft: 5, color: '#ff4d4f' }} />
+          </SettingRowTitle>
+          <Switch checked={advancedMode} onChange={toggleAdvancedMode} />
+        </SettingRow>
+        <AdvancedModeDescription>{t('settings.display.advanced.description')}</AdvancedModeDescription>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.display.custom.css')}
           <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
@@ -225,6 +362,17 @@ const ResetButtonWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+`
+
+const WarningIcon = styled(WarningOutlined)`
+  font-size: 14px;
+`
+
+const AdvancedModeDescription = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+  margin-top: 5px;
+  line-height: 1.5;
 `
 
 export default DisplaySettings
