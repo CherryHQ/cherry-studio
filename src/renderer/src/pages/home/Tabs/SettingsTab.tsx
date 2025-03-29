@@ -31,6 +31,7 @@ import {
   setMultiModelMessageStyle,
   setPasteLongTextAsFile,
   setPasteLongTextThreshold,
+  setRenderHtmlInMarkdown,
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
@@ -75,6 +76,7 @@ const SettingsTab: FC<Props> = (props) => {
     codeShowLineNumbers,
     codeCollapsible,
     codeWrappable,
+    renderHtmlInMarkdown,
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
@@ -329,6 +331,15 @@ const SettingsTab: FC<Props> = (props) => {
         <SettingRow>
           <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
           <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.render_html_in_markdown')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={renderHtmlInMarkdown}
+            onChange={(checked) => dispatch(setRenderHtmlInMarkdown(checked))}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
