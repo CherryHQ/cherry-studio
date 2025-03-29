@@ -54,7 +54,7 @@ export default class GeminiProvider extends BaseProvider {
     super(provider)
     this.sdk = new GoogleGenerativeAI(this.apiKey)
     /// this sdk is experimental
-    this.imageSdk = new GoogleGenAI({ apiKey: this.apiKey })
+    this.imageSdk = new GoogleGenAI({ apiKey: this.apiKey, httpOptions: { baseUrl: this.getBaseURL() } })
     this.requestOptions = {
       baseUrl: this.getBaseURL()
     }
