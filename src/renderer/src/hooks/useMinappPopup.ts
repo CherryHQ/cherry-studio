@@ -1,4 +1,5 @@
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings' // 使用设置中的值
 import { useAppDispatch } from '@renderer/store'
 import {
   setCurrentMinappId,
@@ -7,9 +8,7 @@ import {
   setOpenedOneOffMinapp
 } from '@renderer/store/runtime'
 import { MinAppType } from '@renderer/types'
-
-/** The max number of keep alive minapps */
-const MINAPP_MAX_KEEPALIVE = 3
+import { useEffect } from 'react'
 
 /**
  * Usage:
@@ -26,27 +25,39 @@ const MINAPP_MAX_KEEPALIVE = 3
  *     const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
  */
 export const useMinappPopup = () => {
-  const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
   const dispatch = useAppDispatch()
+  const { openedKeepAliveMinapps, openedOneOffMinapp, currentMinappId, minappShow } = useRuntime()
+  const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
+
+  // 新增: 监听缓存设置变化，确保缓存数量不超过设置值
+  useEffect(() => {
+    // 检查当前缓存数量是否超过新的限制
+    if (openedKeepAliveMinapps.length > maxKeepAliveMinapps) {
+      const trimmedApps = openedKeepAliveMinapps.slice(0, maxKeepAliveMinapps)
+      dispatch(setOpenedKeepAliveMinapps(trimmedApps))
+      if (currentMinappId && !trimmedApps.some((app) => app.id === currentMinappId)) {
+        dispatch(setCurrentMinappId(''))
+        dispatch(setMinappShow(false))
+      }
+    }
+  }, [maxKeepAliveMinapps, openedKeepAliveMinapps, currentMinappId, dispatch])
 
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = (app: MinAppType, keepAlive: boolean = false) => {
     if (keepAlive) {
-      //if the minapp is already opened, do nothing
+      // 如果小程序已经打开，只切换显示
       if (openedKeepAliveMinapps.some((item) => item.id === app.id)) {
         dispatch(setCurrentMinappId(app.id))
         dispatch(setMinappShow(true))
         return
       }
 
-      //if the minapp is not opened, open it
-      //check if the keep alive minapps meet the max limit
-      if (openedKeepAliveMinapps.length < MINAPP_MAX_KEEPALIVE) {
-        //always put new minapp at the first
+      // 如果缓存数量未达上限，添加到缓存列表
+      if (openedKeepAliveMinapps.length < maxKeepAliveMinapps) {
         dispatch(setOpenedKeepAliveMinapps([app, ...openedKeepAliveMinapps]))
       } else {
-        //pop the last one
-        dispatch(setOpenedKeepAliveMinapps([app, ...openedKeepAliveMinapps.slice(0, MINAPP_MAX_KEEPALIVE - 1)]))
+        // 缓存数量达到上限，移除最后一个，添加新的
+        dispatch(setOpenedKeepAliveMinapps([app, ...openedKeepAliveMinapps.slice(0, maxKeepAliveMinapps - 1)]))
       }
 
       dispatch(setOpenedOneOffMinapp(null))
