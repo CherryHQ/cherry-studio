@@ -38,14 +38,41 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 
   useEffect(() => {
-    const loadHighlightedCode = async () => {
-      const highlightedHtml = await codeToHtml(children, language)
-      if (codeContentRef.current) {
-        codeContentRef.current.innerHTML = highlightedHtml
-        setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
-      }
+    let isMounted = true
+
+    // 先显示纯文本并设置低透明度
+    if (codeContentRef.current) {
+      codeContentRef.current.style.opacity = '0.1'
+      codeContentRef.current.textContent = children
+      setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
     }
-    loadHighlightedCode()
+
+    // 只有当代码块在视口中才执行高亮
+    const observer = new IntersectionObserver(async (entries) => {
+      if (entries[0].isIntersecting && isMounted) {
+        // 高亮前先降低透明度
+        if (codeContentRef.current) codeContentRef.current.style.opacity = '0.6'
+
+        const highlightedHtml = await codeToHtml(children, language)
+        if (codeContentRef.current && isMounted) {
+          codeContentRef.current.innerHTML = highlightedHtml
+          // 完成后恢复完全不透明
+          setTimeout(() => {
+            if (codeContentRef.current) codeContentRef.current.style.opacity = '1'
+          }, 50)
+        }
+        observer.disconnect()
+      }
+    })
+
+    if (codeContentRef.current) {
+      observer.observe(codeContentRef.current)
+    }
+
+    return () => {
+      isMounted = false
+      observer.disconnect()
+    }
   }, [children, language, codeToHtml])
 
   useEffect(() => {
@@ -214,6 +241,7 @@ const DownloadButton = ({ language, data }: { language: string; data: string }) 
 const CodeBlockWrapper = styled.div``
 
 const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolean; isCodeWrappable: boolean }>`
+  transition: opacity 0.3s ease;
   .shiki {
     padding: 1em;
 
