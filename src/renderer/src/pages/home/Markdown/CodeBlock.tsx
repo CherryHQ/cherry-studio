@@ -60,24 +60,12 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   }, [children, language, codeToHtml])
 
   useEffect(() => {
-    if (!codeCollapsible) {
-      setIsExpanded(true)
-      setShouldShowExpandButton(false)
-    } else {
-      setIsExpanded(!codeCollapsible)
-      if (codeContentRef.current) {
-        setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
-      }
-    }
+    setIsExpanded(!codeCollapsible)
+    setShouldShowExpandButton(codeCollapsible && (codeContentRef.current?.scrollHeight ?? 0) > 350)
   }, [codeCollapsible])
 
   useEffect(() => {
-    if (!codeWrappable) {
-      // 如果未启动代码块换行功能
-      setIsUnwrapped(true)
-    } else {
-      setIsUnwrapped(!codeWrappable) // 被换行
-    }
+    setIsUnwrapped(!codeWrappable)
   }, [codeWrappable])
 
   if (language === 'mermaid') {
