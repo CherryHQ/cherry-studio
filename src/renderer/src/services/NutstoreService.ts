@@ -3,6 +3,8 @@ import store from '@renderer/store'
 import { setNutstoreSyncState } from '@renderer/store/nutstore'
 import { WebDavConfig } from '@renderer/types'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
+import dayjs from 'dayjs'
+import Logger from 'electron-log'
 import { type CreateDirectoryOptions } from 'webdav'
 
 import { getBackupData, handleData } from './BackupService'
@@ -59,13 +61,18 @@ let syncTimeout: NodeJS.Timeout | null = null
 let isAutoBackupRunning = false
 let isManualBackupRunning = false
 
-export async function backupToNutstore(options: { showMessage?: boolean } = {}) {
+export async function backupToNutstore({
+  showMessage = false,
+  customFileName = ''
+}: {
+  showMessage?: boolean
+  customFileName?: string
+} = {}) {
   const nutstoreToken = getNutstoreToken()
   if (!nutstoreToken) {
     return
   }
 
-  const { showMessage = false } = options
   if (isManualBackupRunning) {
     console.log('Backup already in progress')
     return
@@ -76,6 +83,16 @@ export async function backupToNutstore(options: { showMessage?: boolean } = {}) 
     return
   }
 
+  let deviceType = 'unknown'
+  try {
+    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+  } catch (error) {
+    Logger.error('[Backup] Failed to get device type:', error)
+  }
+  const timestamp = dayjs().format('YYYYMMDDHHmmss')
+  const backupFileName = customFileName || `cherry-studio.${timestamp}.${deviceType}.zip`
+  const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
+
   isManualBackupRunning = true
 
   store.dispatch(setNutstoreSyncState({ syncing: true, lastSyncError: null }))
@@ -83,7 +100,7 @@ export async function backupToNutstore(options: { showMessage?: boolean } = {}) 
   const backupData = await getBackupData()
 
   try {
-    const isSuccess = await window.api.backup.backupToWebdav(backupData, config)
+    const isSuccess = await window.api.backup.backupToWebdav(backupData, { ...config, fileName: finalFileName })
 
     if (isSuccess) {
       store.dispatch(

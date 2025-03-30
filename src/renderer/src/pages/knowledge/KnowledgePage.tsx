@@ -6,13 +6,12 @@ import {
   SearchOutlined,
   SettingOutlined
 } from '@ant-design/icons'
-import { Navbar, NavbarCenter, NavbarRight as NavbarRightFromComponents } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import DragableList from '@renderer/components/DragableList'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isWindows } from '@renderer/config/constant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { NavbarIcon } from '@renderer/pages/home/Navbar'
@@ -250,11 +249,6 @@ const NarrowIcon = styled(NavbarIcon)`
   @media (max-width: 1000px) {
     display: none;
   }
-`
-
-const NavbarRight = styled(NavbarRightFromComponents)`
-  min-width: auto;
-  padding-right: ${isWindows ? '140px' : 15};
 `
 
 export default KnowledgePage

@@ -9,7 +9,7 @@ import { Agent, Assistant } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Divider, Input, InputRef, Modal, Tag } from 'antd'
 import { take } from 'lodash'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -30,6 +30,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const inputRef = useRef<InputRef>(null)
   const systemAgents = useSystemAgents()
   const loadingRef = useRef(false)
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const agents = useMemo(() => {
     const allAgents = [...userAgents, ...systemAgents] as Agent[]
@@ -52,25 +54,80 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     return filtered
   }, [assistants, defaultAssistant, searchText, systemAgents, userAgents])
 
-  const onCreateAssistant = async (agent: Agent) => {
-    if (loadingRef.current) {
-      return
+  // 重置选中索引当搜索或列表内容变更时
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [agents.length, searchText])
+
+  const onCreateAssistant = useCallback(
+    async (agent: Agent) => {
+      if (loadingRef.current) {
+        return
+      }
+
+      loadingRef.current = true
+      let assistant: Assistant
+
+      if (agent.id === 'default') {
+        assistant = { ...agent, id: uuid() }
+        addAssistant(assistant)
+      } else {
+        assistant = await createAssistantFromAgent(agent)
+      }
+
+      setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
+      resolve(assistant)
+      setOpen(false)
+    },
+    [resolve, addAssistant, setOpen]
+  ) // 添加函数内使用的依赖项
+  // 键盘导航处理
+  useEffect(() => {
+    if (!open) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const displayedAgents = take(agents, 100)
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          setSelectedIndex((prev) => (prev >= displayedAgents.length - 1 ? 0 : prev + 1))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          setSelectedIndex((prev) => (prev <= 0 ? displayedAgents.length - 1 : prev - 1))
+          break
+        case 'Enter':
+          // 如果焦点在输入框且有搜索内容，则默认选择第一项
+          if (document.activeElement === inputRef.current?.input && searchText.trim()) {
+            e.preventDefault()
+            onCreateAssistant(displayedAgents[selectedIndex])
+          }
+          // 否则选择当前选中项
+          else if (selectedIndex >= 0 && selectedIndex < displayedAgents.length) {
+            e.preventDefault()
+            onCreateAssistant(displayedAgents[selectedIndex])
+          }
+          break
+      }
     }
 
-    loadingRef.current = true
-    let assistant: Assistant
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, selectedIndex, agents, searchText, onCreateAssistant])
 
-    if (agent.id === 'default') {
-      assistant = { ...agent, id: uuid() }
-      addAssistant(assistant)
-    } else {
-      assistant = await createAssistantFromAgent(agent)
+  // 确保选中项在可视区域
+  useEffect(() => {
+    if (containerRef.current) {
+      const agentItems = containerRef.current.querySelectorAll('.agent-item')
+      if (agentItems[selectedIndex]) {
+        agentItems[selectedIndex].scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        })
+      }
     }
-
-    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
-    resolve(assistant)
-    setOpen(false)
-  }
+  }, [selectedIndex])
 
   const onCancel = () => {
     setOpen(false)
@@ -121,12 +178,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         />
       </HStack>
       <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
-      <Container>
-        {take(agents, 100).map((agent) => (
+      <Container ref={containerRef}>
+        {take(agents, 100).map((agent, index) => (
           <AgentItem
             key={agent.id}
             onClick={() => onCreateAssistant(agent)}
-            className={agent.id === 'default' ? 'default' : ''}>
+            className={`agent-item ${agent.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
+            onMouseEnter={() => setSelectedIndex(index)}>
             <HStack
               alignItems="center"
               gap={5}
@@ -161,8 +219,13 @@ const AgentItem = styled.div`
   margin-bottom: 8px;
   cursor: pointer;
   overflow: hidden;
+  border: 1px solid transparent;
   &.default {
     background-color: var(--color-background-mute);
+  }
+  &.keyboard-selected {
+    background-color: var(--color-background-mute);
+    border: 1px solid var(--color-primary);
   }
   .anticon {
     font-size: 16px;

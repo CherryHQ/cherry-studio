@@ -886,10 +886,7 @@
         "argsTooltip": "Cada argumento em uma linha",
         "baseUrlTooltip": "Endereço de URL remoto",
         "command": "Comando",
-        "commandRequired": "Digite o comando",
         "config_description": "Configurar modelo de protocolo de contexto do servidor",
-        "confirmDelete": "Excluir servidor",
-        "confirmDeleteMessage": "Tem certeza de que deseja excluir este servidor?",
         "deleteError": "Falha ao excluir servidor",
         "deleteSuccess": "Servidor excluído com sucesso",
         "dependenciesInstall": "Instalar dependências",
@@ -910,7 +907,6 @@
         "jsonSaveSuccess": "Configuração JSON salva com sucesso",
         "missingDependencies": "Ausente, instale para continuar",
         "name": "Nome",
-        "nameRequired": "Digite o nome do servidor",
         "noServers": "Nenhum servidor configurado",
         "npx_list": {
           "actions": "Ações",

@@ -13,19 +13,19 @@ const mcpSlice = createSlice({
       state.servers = action.payload
     },
     addMCPServer: (state, action: PayloadAction<MCPServer>) => {
-      state.servers.push(action.payload)
+      state.servers.unshift(action.payload)
     },
     updateMCPServer: (state, action: PayloadAction<MCPServer>) => {
-      const index = state.servers.findIndex((server) => server.name === action.payload.name)
+      const index = state.servers.findIndex((server) => server.id === action.payload.id)
       if (index !== -1) {
         state.servers[index] = action.payload
       }
     },
     deleteMCPServer: (state, action: PayloadAction<string>) => {
-      state.servers = state.servers.filter((server) => server.name !== action.payload)
+      state.servers = state.servers.filter((server) => server.id !== action.payload)
     },
-    setMCPServerActive: (state, action: PayloadAction<{ name: string; isActive: boolean }>) => {
-      const index = state.servers.findIndex((server) => server.name === action.payload.name)
+    setMCPServerActive: (state, action: PayloadAction<{ id: string; isActive: boolean }>) => {
+      const index = state.servers.findIndex((server) => server.id === action.payload.id)
       if (index !== -1) {
         state.servers[index].isActive = action.payload.isActive
       }

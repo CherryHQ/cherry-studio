@@ -12,12 +12,13 @@ import styled from 'styled-components'
 
 interface MessageGroupModelListProps {
   messages: Message[]
+  selectMessageId: string
   setSelectedMessage: (message: Message) => void
 }
 
 type DisplayMode = 'compact' | 'expanded'
 
-const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, setSelectedMessage }) => {
+const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectMessageId, setSelectedMessage }) => {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const { foldDisplayMode } = useSettings()
@@ -47,7 +48,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, setSe
               <Tooltip key={index} title={message.model?.name} placement="top" mouseEnterDelay={0.2}>
                 <AvatarWrapper
                   className="avatar-wrapper"
-                  isSelected={'foldSelected' in message ? message.foldSelected! : index === 0}
+                  isSelected={message.id === selectMessageId}
                   onClick={() => {
                     setSelectedMessage(message)
                   }}>
@@ -59,7 +60,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, setSe
         ) : (
           /* Expanded style display */
           <Segmented
-            value={messages.find((message) => message.foldSelected)?.id || messages[0].id}
+            value={selectMessageId}
             onChange={(value) => {
               const message = messages.find((message) => message.id === value) as Message
               setSelectedMessage(message)

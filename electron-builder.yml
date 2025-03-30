@@ -83,8 +83,7 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    知识库设置增加重排模型，提升知识库的准确性
-    自定义服务商增加兼容模式
-    增加 Github Copilot 服务商
-    PlantUML 预览支持放大和缩小
-    联网模式支持增强模式
+    小程序支持多开
+    支持 GPT-4o 图像生成
+    修复 MCP 服务器无法使用问题
+    修复升级导致旧版本数据丢失问题

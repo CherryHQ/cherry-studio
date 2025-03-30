@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
+import type { MinAppType } from '@renderer/types'
 import type { UpdateInfo } from 'builder-util-runtime'
-
 export interface UpdateState {
   info: UpdateInfo | null
   checking: boolean
@@ -14,7 +14,14 @@ export interface UpdateState {
 export interface RuntimeState {
   avatar: string
   generating: boolean
+  /** whether the minapp popup is shown */
   minappShow: boolean
+  /** the minapps that are opened and should be keep alive */
+  openedKeepAliveMinapps: MinAppType[]
+  /** the minapp that is opened for one time */
+  openedOneOffMinapp: MinAppType | null
+  /** the current minapp id */
+  currentMinappId: string
   searching: boolean
   filesPath: string
   resourcesPath: string
@@ -30,6 +37,9 @@ const initialState: RuntimeState = {
   avatar: UserAvatar,
   generating: false,
   minappShow: false,
+  openedKeepAliveMinapps: [],
+  openedOneOffMinapp: null,
+  currentMinappId: '',
   searching: false,
   filesPath: '',
   resourcesPath: '',
@@ -59,6 +69,15 @@ const runtimeSlice = createSlice({
     setMinappShow: (state, action: PayloadAction<boolean>) => {
       state.minappShow = action.payload
     },
+    setOpenedKeepAliveMinapps: (state, action: PayloadAction<MinAppType[]>) => {
+      state.openedKeepAliveMinapps = action.payload
+    },
+    setOpenedOneOffMinapp: (state, action: PayloadAction<MinAppType | null>) => {
+      state.openedOneOffMinapp = action.payload
+    },
+    setCurrentMinappId: (state, action: PayloadAction<string>) => {
+      state.currentMinappId = action.payload
+    },
     setSearching: (state, action: PayloadAction<boolean>) => {
       state.searching = action.payload
     },
@@ -81,6 +100,9 @@ export const {
   setAvatar,
   setGenerating,
   setMinappShow,
+  setOpenedKeepAliveMinapps,
+  setOpenedOneOffMinapp,
+  setCurrentMinappId,
   setSearching,
   setFilesPath,
   setResourcesPath,

@@ -1,7 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import MinApp from '@renderer/components/MinApp'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setSiyuanApiUrl, setSiyuanBoxId, setSiyuanRootPath, setSiyuanToken } from '@renderer/store/settings'
 import { Button, Tooltip } from 'antd'
@@ -13,6 +13,7 @@ import { useSelector } from 'react-redux'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const SiyuanSettings: FC = () => {
+  const { openMinapp } = useMinappPopup()
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
@@ -39,7 +40,7 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    MinApp.start({
+    openMinapp({
       id: 'siyuan-help',
       name: 'Siyuan Help',
       url: 'https://docs.cherry-ai.com/advanced-basic/siyuan'

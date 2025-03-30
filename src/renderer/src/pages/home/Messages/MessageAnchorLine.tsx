@@ -33,9 +33,6 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const messageItemsRef = useRef<Map<string, HTMLDivElement>>(new Map())
   const containerRef = useRef<HTMLDivElement>(null)
   const [mouseY, setMouseY] = useState<number | null>(null)
-  const { topicPosition, showTopics } = useSettings()
-  const showRightTopics = topicPosition === 'right' && showTopics
-  const right = showRightTopics ? 'calc(var(--topic-list-width) + 15px)' : '15px'
 
   const [listOffsetY, setListOffsetY] = useState(0)
   const [containerHeight, setContainerHeight] = useState<number | null>(null)
@@ -160,7 +157,6 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      $right={right}
       $height={containerHeight}>
       <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
         {messages.map((message, index) => {
@@ -226,11 +222,11 @@ const MessageItemContainer = styled.div`
   transform-origin: right center;
 `
 
-const MessageLineContainer = styled.div<{ $right: string; $height: number | null }>`
+const MessageLineContainer = styled.div<{ $height: number | null }>`
   width: 14px;
   position: fixed;
   top: ${(props) => (props.$height ? `calc(${props.$height / 2}px + var(--status-bar-height))` : '50%')};
-  right: ${(props) => props.$right};
+  right: 13px;
   max-height: ${(props) => (props.$height ? `${props.$height}px` : 'calc(100% - var(--status-bar-height) * 2)')};
   transform: translateY(-50%);
   z-index: 0;

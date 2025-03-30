@@ -35,12 +35,18 @@ export function runInstallScript(scriptPath: string): Promise<void> {
   })
 }
 
+export async function getBinaryName(name: string): Promise<string> {
+  if (process.platform === 'win32') {
+    return `${name}.exe`
+  }
+  return name
+}
+
 export async function getBinaryPath(name: string): Promise<string> {
-  let cmd = process.platform === 'win32' ? `${name}.exe` : name
+  const binaryName = await getBinaryName(name)
   const binariesDir = path.join(os.homedir(), '.cherrystudio', 'bin')
   const binariesDirExists = await fs.existsSync(binariesDir)
-  cmd = binariesDirExists ? path.join(binariesDir, cmd) : name
-  return cmd
+  return binariesDirExists ? path.join(binariesDir, binaryName) : binaryName
 }
 
 export async function isBinaryExists(name: string): Promise<boolean> {

@@ -2,16 +2,13 @@ import {
   CopyOutlined,
   DeleteOutlined,
   EditOutlined,
-  FileTextOutlined,
-  FolderOutlined,
-  GlobalOutlined,
-  LinkOutlined,
   PlusOutlined,
   RedoOutlined,
   SearchOutlined,
   SettingOutlined
 } from '@ant-design/icons'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -19,24 +16,29 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Alert, Button, Card, Divider, Dropdown, message, Tag, Tooltip, Typography, Upload } from 'antd'
+import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
+import dayjs from 'dayjs'
+import VirtualList from 'rc-virtual-list'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import CustomCollapse from '../../components/CustomCollapse'
+import FileItem from '../files/FileItem'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'
 
 const { Dragger } = Upload
-const { Title } = Typography
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
 }
 
 const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
+
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
 
@@ -234,13 +236,21 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       {!providerName && (
         <Alert message={t('knowledge.no_provider')} type="error" style={{ marginBottom: 20 }} showIcon />
       )}
-      <FileSection>
-        <TitleWrapper>
-          <Title level={5}>{t('files.title')}</Title>
-          <Button icon={<PlusOutlined />} onClick={handleAddFile} disabled={disabled}>
+
+      <CustomCollapse
+        label={<CollapseLabel label={t('files.title')} count={fileItems.length} />}
+        extra={
+          <Button
+            type="text"
+            icon={<PlusOutlined />}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleAddFile()
+            }}
+            disabled={disabled}>
             {t('knowledge.add_file')}
           </Button>
-        </TitleWrapper>
+        }>
         <Dragger
           showUploadList={false}
           customRequest={({ file }) => handleDrop([file as File])}
@@ -252,86 +262,137 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
           </p>
         </Dragger>
-      </FileSection>
 
-      <FileListSection>
-        {fileItems.reverse().map((item) => {
-          const file = item.content as FileType
-          return (
-            <ItemCard key={item.id}>
-              <ItemContent>
-                <ItemInfo>
-                  <FileIcon />
-                  <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
-                    <Ellipsis>
-                      <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
-                    </Ellipsis>
-                  </ClickableSpan>
-                </ItemInfo>
-                <FlexAlignCenter>
-                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                  <StatusIconWrapper>
-                    <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="file" />
-                  </StatusIconWrapper>
-                  <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                </FlexAlignCenter>
-              </ItemContent>
-            </ItemCard>
-          )
-        })}
-      </FileListSection>
+        <FlexColumn>
+          {fileItems.length === 0 ? (
+            <EmptyView />
+          ) : (
+            <VirtualList
+              data={fileItems.reverse()}
+              height={window.innerHeight - 310}
+              itemHeight={80}
+              itemKey="id"
+              styles={{
+                verticalScrollBar: {
+                  width: 6
+                },
+                verticalScrollBarThumb: {
+                  background: 'var(--color-scrollbar-thumb)'
+                }
+              }}>
+              {(item) => {
+                const file = item.content as FileType
+                return (
+                  <div style={{ height: '80px', paddingTop: '12px' }}>
+                    <FileItem
+                      key={item.id}
+                      fileInfo={{
+                        name: (
+                          <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
+                            <Ellipsis>
+                              <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
+                            </Ellipsis>
+                          </ClickableSpan>
+                        ),
+                        ext: file.ext,
+                        extra: `${dayjs(file.created_at).format('MM-DD HH:mm')} · ${formatFileSize(file.size)}`,
+                        actions: (
+                          <FlexAlignCenter>
+                            {item.uniqueId && (
+                              <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                            )}
+                            <StatusIconWrapper>
+                              <StatusIcon
+                                sourceId={item.id}
+                                base={base}
+                                getProcessingStatus={getProcessingStatus}
+                                type="file"
+                              />
+                            </StatusIconWrapper>
+                            <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                          </FlexAlignCenter>
+                        )
+                      }}
+                    />
+                  </div>
+                )
+              }}
+            </VirtualList>
+          )}
+        </FlexColumn>
+      </CustomCollapse>
 
-      <ContentSection>
-        <TitleWrapper>
-          <Title level={5}>{t('knowledge.directories')}</Title>
-          <Button icon={<PlusOutlined />} onClick={handleAddDirectory} disabled={disabled}>
+      <CustomCollapse
+        label={<CollapseLabel label={t('knowledge.directories')} count={directoryItems.length} />}
+        extra={
+          <Button
+            type="text"
+            icon={<PlusOutlined />}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleAddDirectory()
+            }}
+            disabled={disabled}>
             {t('knowledge.add_directory')}
           </Button>
-        </TitleWrapper>
+        }>
         <FlexColumn>
+          {directoryItems.length === 0 && <EmptyView />}
           {directoryItems.reverse().map((item) => (
-            <ItemCard key={item.id}>
-              <ItemContent>
-                <ItemInfo>
-                  <FolderOutlined />
+            <FileItem
+              key={item.id}
+              fileInfo={{
+                name: (
                   <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
                     <Ellipsis>
                       <Tooltip title={item.content as string}>{item.content as string}</Tooltip>
                     </Ellipsis>
                   </ClickableSpan>
-                </ItemInfo>
-                <FlexAlignCenter>
-                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                  <StatusIconWrapper>
-                    <StatusIcon
-                      sourceId={item.id}
-                      base={base}
-                      getProcessingStatus={getProcessingStatus}
-                      getProcessingPercent={getProgressingPercentForItem}
-                      type="directory"
-                    />
-                  </StatusIconWrapper>
-                  <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                </FlexAlignCenter>
-              </ItemContent>
-            </ItemCard>
+                ),
+                ext: '.folder',
+                extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
+                actions: (
+                  <FlexAlignCenter>
+                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    <StatusIconWrapper>
+                      <StatusIcon
+                        sourceId={item.id}
+                        base={base}
+                        getProcessingStatus={getProcessingStatus}
+                        getProcessingPercent={getProgressingPercentForItem}
+                        type="directory"
+                      />
+                    </StatusIconWrapper>
+                    <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                  </FlexAlignCenter>
+                )
+              }}
+            />
           ))}
         </FlexColumn>
-      </ContentSection>
+      </CustomCollapse>
 
-      <ContentSection>
-        <TitleWrapper>
-          <Title level={5}>{t('knowledge.urls')}</Title>
-          <Button icon={<PlusOutlined />} onClick={handleAddUrl} disabled={disabled}>
+      <CustomCollapse
+        label={<CollapseLabel label={t('knowledge.urls')} count={urlItems.length} />}
+        extra={
+          <Button
+            type="text"
+            icon={<PlusOutlined />}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleAddUrl()
+            }}
+            disabled={disabled}>
             {t('knowledge.add_url')}
           </Button>
-        </TitleWrapper>
+        }>
         <FlexColumn>
+          {urlItems.length === 0 && <EmptyView />}
           {urlItems.reverse().map((item) => (
-            <ItemCard key={item.id}>
-              <ItemContent>
-                <ItemInfo>
-                  <LinkOutlined />
+            <FileItem
+              key={item.id}
+              fileInfo={{
+                name: (
                   <Dropdown
                     menu={{
                       items: [
@@ -363,33 +424,45 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       </Tooltip>
                     </ClickableSpan>
                   </Dropdown>
-                </ItemInfo>
-                <FlexAlignCenter>
-                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                  <StatusIconWrapper>
-                    <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
-                  </StatusIconWrapper>
-                  <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                </FlexAlignCenter>
-              </ItemContent>
-            </ItemCard>
+                ),
+                ext: '.url',
+                extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
+                actions: (
+                  <FlexAlignCenter>
+                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    <StatusIconWrapper>
+                      <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
+                    </StatusIconWrapper>
+                    <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                  </FlexAlignCenter>
+                )
+              }}
+            />
           ))}
         </FlexColumn>
-      </ContentSection>
+      </CustomCollapse>
 
-      <ContentSection>
-        <TitleWrapper>
-          <Title level={5}>{t('knowledge.sitemaps')}</Title>
-          <Button icon={<PlusOutlined />} onClick={handleAddSitemap} disabled={disabled}>
+      <CustomCollapse
+        label={<CollapseLabel label={t('knowledge.sitemaps')} count={sitemapItems.length} />}
+        extra={
+          <Button
+            type="text"
+            icon={<PlusOutlined />}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleAddSitemap()
+            }}
+            disabled={disabled}>
             {t('knowledge.add_sitemap')}
           </Button>
-        </TitleWrapper>
+        }>
         <FlexColumn>
+          {sitemapItems.length === 0 && <EmptyView />}
           {sitemapItems.reverse().map((item) => (
-            <ItemCard key={item.id}>
-              <ItemContent>
-                <ItemInfo>
-                  <GlobalOutlined />
+            <FileItem
+              key={item.id}
+              fileInfo={{
+                name: (
                   <ClickableSpan>
                     <Tooltip title={item.content as string}>
                       <Ellipsis>
@@ -399,53 +472,71 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       </Ellipsis>
                     </Tooltip>
                   </ClickableSpan>
-                </ItemInfo>
-                <FlexAlignCenter>
-                  {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                  <StatusIconWrapper>
-                    <StatusIcon
-                      sourceId={item.id}
-                      base={base}
-                      getProcessingStatus={getProcessingStatus}
-                      type="sitemap"
-                    />
-                  </StatusIconWrapper>
-                  <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                </FlexAlignCenter>
-              </ItemContent>
-            </ItemCard>
+                ),
+                ext: '.sitemap',
+                extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
+                actions: (
+                  <FlexAlignCenter>
+                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    <StatusIconWrapper>
+                      <StatusIcon
+                        sourceId={item.id}
+                        base={base}
+                        getProcessingStatus={getProcessingStatus}
+                        type="sitemap"
+                      />
+                    </StatusIconWrapper>
+                    <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                  </FlexAlignCenter>
+                )
+              }}
+            />
           ))}
         </FlexColumn>
-      </ContentSection>
+      </CustomCollapse>
 
-      <ContentSection>
-        <TitleWrapper>
-          <Title level={5}>{t('knowledge.notes')}</Title>
-          <Button icon={<PlusOutlined />} onClick={handleAddNote} disabled={disabled}>
+      <CustomCollapse
+        label={<CollapseLabel label={t('knowledge.notes')} count={noteItems.length} />}
+        extra={
+          <Button
+            type="text"
+            icon={<PlusOutlined />}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleAddNote()
+            }}
+            disabled={disabled}>
             {t('knowledge.add_note')}
           </Button>
-        </TitleWrapper>
+        }>
         <FlexColumn>
+          {noteItems.length === 0 && <EmptyView />}
           {noteItems.reverse().map((note) => (
-            <ItemCard key={note.id}>
-              <ItemContent>
-                <ItemInfo onClick={() => handleEditNote(note)} style={{ cursor: 'pointer' }}>
-                  <span>{(note.content as string).slice(0, 50)}...</span>
-                </ItemInfo>
-                <FlexAlignCenter>
-                  <Button type="text" onClick={() => handleEditNote(note)} icon={<EditOutlined />} />
-                  <StatusIconWrapper>
-                    <StatusIcon sourceId={note.id} base={base} getProcessingStatus={getProcessingStatus} type="note" />
-                  </StatusIconWrapper>
-                  <Button type="text" danger onClick={() => removeItem(note)} icon={<DeleteOutlined />} />
-                </FlexAlignCenter>
-              </ItemContent>
-            </ItemCard>
+            <FileItem
+              key={note.id}
+              fileInfo={{
+                name: <span onClick={() => handleEditNote(note)}>{(note.content as string).slice(0, 50)}...</span>,
+                ext: '.txt',
+                extra: `${dayjs(note.created_at).format('MM-DD HH:mm')}`,
+                actions: (
+                  <FlexAlignCenter>
+                    <Button type="text" onClick={() => handleEditNote(note)} icon={<EditOutlined />} />
+                    <StatusIconWrapper>
+                      <StatusIcon
+                        sourceId={note.id}
+                        base={base}
+                        getProcessingStatus={getProcessingStatus}
+                        type="note"
+                      />
+                    </StatusIconWrapper>
+                    <Button type="text" danger onClick={() => removeItem(note)} icon={<DeleteOutlined />} />
+                  </FlexAlignCenter>
+                )
+              }}
+            />
           ))}
         </FlexColumn>
-      </ContentSection>
-
-      <Divider style={{ margin: '10px 0' }} />
+      </CustomCollapse>
       <ModelInfo>
         <div className="model-header">
           <label>{t('knowledge.model_info')}</label>
@@ -491,6 +582,19 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   )
 }
 
+const EmptyView = () => <Empty style={{ margin: 0 }} styles={{ image: { display: 'none' } }} />
+
+const CollapseLabel = ({ label, count }: { label: string; count: number }) => {
+  return (
+    <HStack alignItems="center" gap={10}>
+      <label>{label}</label>
+      <Tag style={{ borderRadius: 100, padding: '0 10px' }} color={count ? 'green' : 'default'}>
+        {count}
+      </Tag>
+    </HStack>
+  )
+}
+
 const MainContent = styled(Scrollbar)`
   display: flex;
   width: 100%;
@@ -498,67 +602,7 @@ const MainContent = styled(Scrollbar)`
   padding-bottom: 50px;
   padding: 15px;
   position: relative;
-`
-
-const FileSection = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const ContentSection = styled.div`
-  margin-top: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  .ant-input-textarea {
-    background: var(--color-background-soft);
-    border-radius: 8px;
-  }
-`
-
-const TitleWrapper = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 5px;
-  background-color: var(--color-background-soft);
-  padding: 5px 20px;
-  min-height: 45px;
-  border-radius: 6px;
-  .ant-typography {
-    margin-bottom: 0;
-  }
-`
-
-const FileListSection = styled.div`
-  margin-top: 20px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const ItemCard = styled(Card)`
-  background-color: transparent;
-  border: none;
-  .ant-card-body {
-    padding: 0 20px;
-  }
-`
-
-const ItemContent = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 16px;
-`
-
-const ItemInfo = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
 `
 
 const IndexSection = styled.div`
@@ -602,10 +646,12 @@ const ModelInfo = styled.div`
     color: var(--color-text-2);
   }
 `
+
 const FlexColumn = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 16px;
 `
 
 const FlexAlignCenter = styled.div`
@@ -618,10 +664,6 @@ const ClickableSpan = styled.span`
   cursor: pointer;
   flex: 1;
   width: 0;
-`
-
-const FileIcon = styled(FileTextOutlined)`
-  font-size: 16px;
 `
 
 const BottomSpacer = styled.div`

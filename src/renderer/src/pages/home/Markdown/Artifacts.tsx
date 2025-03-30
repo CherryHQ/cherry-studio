@@ -1,6 +1,6 @@
 import { DownloadOutlined, ExpandOutlined, LinkOutlined } from '@ant-design/icons'
-import MinApp from '@renderer/components/MinApp'
 import { AppLogo } from '@renderer/config/env'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { extractTitle } from '@renderer/utils/formats'
 import { Button } from 'antd'
 import { FC } from 'react'
@@ -14,6 +14,7 @@ interface Props {
 const Artifacts: FC<Props> = ({ html }) => {
   const { t } = useTranslation()
   const title = extractTitle(html) || 'Artifacts ' + t('chat.artifacts.button.preview')
+  const { openMinapp } = useMinappPopup()
 
   /**
    * 在应用内打开
@@ -22,7 +23,8 @@ const Artifacts: FC<Props> = ({ html }) => {
     const path = await window.api.file.create('artifacts-preview.html')
     await window.api.file.write(path, html)
     const filePath = `file://${path}`
-    MinApp.start({
+    openMinapp({
+      id: 'artifacts-preview',
       name: title,
       logo: AppLogo,
       url: filePath

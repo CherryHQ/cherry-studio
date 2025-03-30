@@ -1,4 +1,4 @@
-@keyframes pulse {
+@keyframes animation-pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0.5);
   }
@@ -14,5 +14,5 @@
 .animation-pulse {
   --pulse-color: 59, 130, 246;
   --pulse-size: 8px;
-  animation: pulse 1.5s infinite;
+  animation: animation-pulse 1.5s infinite;
 }

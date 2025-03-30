@@ -21,6 +21,7 @@ interface Props {
   multiModelMessageStyle: MultiModelMessageStyle
   setMultiModelMessageStyle: (style: MultiModelMessageStyle) => void
   messages: Message[]
+  selectMessageId: string
   setSelectedMessage: (message: Message) => void
   topic: Topic
 }
@@ -29,6 +30,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   multiModelMessageStyle,
   setMultiModelMessageStyle,
   messages,
+  selectMessageId,
   setSelectedMessage,
   topic
 }) => {
@@ -75,7 +77,11 @@ const MessageGroupMenuBar: FC<Props> = ({
           ))}
         </LayoutContainer>
         {multiModelMessageStyle === 'fold' && (
-          <MessageGroupModelList messages={messages} setSelectedMessage={setSelectedMessage} />
+          <MessageGroupModelList
+            messages={messages}
+            selectMessageId={selectMessageId}
+            setSelectedMessage={setSelectedMessage}
+          />
         )}
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
       </HStack>

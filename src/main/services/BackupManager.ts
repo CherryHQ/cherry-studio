@@ -87,9 +87,16 @@ class BackupManager {
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
-      // 将 data 写入临时文件
+      // 使用流的方式写入 data.json
       const tempDataPath = path.join(this.tempDir, 'data.json')
-      await fs.writeFile(tempDataPath, data)
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(tempDataPath)
+        writeStream.write(data)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
       // 复制 Data 目录到临时目录
@@ -208,8 +215,15 @@ class BackupManager {
         fs.mkdirSync(this.backupDir, { recursive: true })
       }
 
-      // sync为同步写，无须await
-      fs.writeFileSync(backupedFilePath, retrievedFile as Buffer)
+      // 使用流的方式写入文件
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(backupedFilePath)
+        writeStream.write(retrievedFile as Buffer)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
 
       return await this.restore(_, backupedFilePath)
     } catch (error: any) {

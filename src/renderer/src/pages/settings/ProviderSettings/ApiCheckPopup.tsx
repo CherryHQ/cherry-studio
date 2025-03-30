@@ -43,25 +43,37 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type
     const newStatuses = [...keyStatuses]
 
     try {
-      for (let i = 0; i < newStatuses.length; i++) {
+      // 使用Promise.all并行处理所有API验证请求
+      const checkPromises = newStatuses.map(async (status, i) => {
+        // 先更新当前密钥为检查中状态
         setKeyStatuses((prev) => prev.map((status, idx) => (idx === i ? { ...status, checking: true } : status)))
 
-        let valid = false
-        if (type === 'provider' && model) {
-          const result = await checkApi({ ...(provider as Provider), apiKey: newStatuses[i].key }, model)
-          valid = result.valid
-        } else {
-          const result = await WebSearchService.checkSearch({
-            ...(provider as WebSearchProvider),
-            apiKey: newStatuses[i].key
-          })
-          valid = result.valid
-        }
+        try {
+          let valid = false
+          if (type === 'provider' && model) {
+            const result = await checkApi({ ...(provider as Provider), apiKey: status.key }, model)
+            valid = result.valid
+          } else {
+            const result = await WebSearchService.checkSearch({
+              ...(provider as WebSearchProvider),
+              apiKey: status.key
+            })
+            valid = result.valid
+          }
 
-        setKeyStatuses((prev) =>
-          prev.map((status, idx) => (idx === i ? { ...status, checking: false, isValid: valid } : status))
-        )
-      }
+          // 更新验证结果
+          setKeyStatuses((prev) => prev.map((s, idx) => (idx === i ? { ...s, checking: false, isValid: valid } : s)))
+
+          return { index: i, valid }
+        } catch (error) {
+          // 处理错误情况
+          setKeyStatuses((prev) => prev.map((s, idx) => (idx === i ? { ...s, checking: false, isValid: false } : s)))
+          return { index: i, valid: false }
+        }
+      })
+
+      // 等待所有请求完成
+      await Promise.all(checkPromises)
     } finally {
       setIsChecking(false)
     }
