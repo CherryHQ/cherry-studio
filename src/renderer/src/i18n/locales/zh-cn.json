@@ -770,8 +770,23 @@
           "title": "清除缓存"
         },
         "data.title": "数据目录",
+        "divider.basic": "基础数据设置",
+        "divider.cloud_storage": "云备份设置",
+        "divider.export_settings": "导出设置",
+        "divider.third_party": "第三方连接",
         "hour_interval_one": "{{count}} 小时",
         "hour_interval_other": "{{count}} 小时",
+        "export_menu": {
+          "title": "导出菜单设置",
+          "image": "导出为图片",
+          "markdown": "导出为Markdown",
+          "notion": "导出到Notion",
+          "yuque": "导出到语雀",
+          "obsidian": "导出到Obsidian",
+          "siyuan": "导出到思源笔记",
+          "joplin": "导出到Joplin",
+          "docx": "导出为Word"
+        },
         "joplin": {
           "check": {
             "button": "检查",

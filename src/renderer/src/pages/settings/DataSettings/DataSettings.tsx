@@ -4,9 +4,11 @@ import {
   FileMarkdownOutlined,
   FileSearchOutlined,
   FolderOpenOutlined,
+  MenuOutlined,
   SaveOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
+import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
@@ -23,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
 import NotionSettings from './NotionSettings'
@@ -63,14 +66,23 @@ const DataSettings: FC = () => {
   )
 
   const menuItems = [
+    { key: 'divider_0', isDivider: true, text: t('settings.data.divider.basic') },
     { key: 'data', title: 'settings.data.data.title', icon: <DatabaseOutlined style={{ fontSize: 16 }} /> },
+    { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'webdav', title: 'settings.data.webdav.title', icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
     { key: 'nutstore', title: 'settings.data.nutstore.title', icon: <NutstoreIcon /> },
+    { key: 'divider_2', isDivider: true, text: t('settings.data.divider.export_settings') },
+    {
+      key: 'export_menu',
+      title: 'settings.data.export_menu.title',
+      icon: <MenuOutlined style={{ fontSize: 16 }} />
+    },
     {
       key: 'markdown_export',
       title: 'settings.data.markdown_export.title',
       icon: <FileMarkdownOutlined style={{ fontSize: 16 }} />
     },
+    { key: 'divider_3', isDivider: true, text: t('settings.data.divider.third_party') },
     { key: 'notion', title: 'settings.data.notion.title', icon: <i className="iconfont icon-notion" /> },
     {
       key: 'yuque',
@@ -80,7 +92,6 @@ const DataSettings: FC = () => {
     {
       key: 'joplin',
       title: 'settings.data.joplin.title',
-      //joplin icon needs to be updated into iconfont
       icon: <JoplinIcon />
     },
     {
@@ -148,16 +159,20 @@ const DataSettings: FC = () => {
   return (
     <Container>
       <MenuList>
-        {menuItems.map((item) => (
-          <ListItem
-            key={item.key}
-            title={t(item.title)}
-            active={menu === item.key}
-            onClick={() => setMenu(item.key)}
-            titleStyle={{ fontWeight: 500 }}
-            icon={item.icon}
-          />
-        ))}
+        {menuItems.map((item) =>
+          item.isDivider ? (
+            <DividerWithText key={item.key} text={item.text || ''} /> // 动态传递分隔符文字
+          ) : (
+            <ListItem
+              key={item.key}
+              title={t(item.title || '')}
+              active={menu === item.key}
+              onClick={() => setMenu(item.key)}
+              titleStyle={{ fontWeight: 500 }}
+              icon={item.icon}
+            />
+          )
+        )}
       </MenuList>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1 }}>
         {menu === 'data' && (
@@ -227,6 +242,7 @@ const DataSettings: FC = () => {
         )}
         {menu === 'webdav' && <WebDavSettings />}
         {menu === 'nutstore' && <NutstoreSettings />}
+        {menu === 'export_menu' && <ExportMenuOptions />}
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'notion' && <NotionSettings />}
         {menu === 'yuque' && <YuqueSettings />}
