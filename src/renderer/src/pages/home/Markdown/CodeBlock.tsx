@@ -45,18 +45,16 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
       setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
     }
 
-    const requestId = requestIdleCallback(async () => {
+    setTimeout(async () => {
       const highlightedHtml = await codeToHtml(children, language)
       if (codeContentRef.current) {
         codeContentRef.current.innerHTML = highlightedHtml
         // 完成后恢复完全不透明
         setTimeout(() => {
           if (codeContentRef.current) codeContentRef.current.style.opacity = '1'
-        }, 50)
+        }, 0)
       }
-    })
-
-    return () => cancelIdleCallback(requestId)
+    }, 0)
   }, [children, language, codeToHtml])
 
   useEffect(() => {
