@@ -15,7 +15,7 @@ import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { debounce, isEmpty } from 'lodash'
+import { isEmpty } from 'lodash'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -55,7 +55,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [inputValue, setInputValue] = useState(apiKey)
+  const [inputApiKey, setInputApiKey] = useState(apiKey)
+  const [inputApiHost, setInputApiHost] = useState(apiHost)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -67,31 +68,44 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedSetApiKey = useCallback(
-    debounce((value) => {
+  const onUpdateApiKey = useCallback(
+    (value: string) => {
+      if (value !== provider.apiKey) {
+        updateProvider({ ...provider, apiKey: value })
+        window.message.success({
+          key: 'api-key-updated',
+          content: t('settings.provider.api_key.updated'),
+          duration: 2
+        })
+        return
+      }
       setApiKey(formatApiKeys(value))
-    }, 100),
-    []
+    },
+    [provider, updateProvider, t]
   )
 
-  const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
-      updateProvider({ ...provider, apiKey })
-    }
-  }
-
-  const onUpdateApiHost = () => {
-    if (apiHost.trim()) {
-      updateProvider({ ...provider, apiHost })
-    } else {
+  const onUpdateApiHost = useCallback(
+    (value: string) => {
+      if (value !== provider.apiHost) {
+        updateProvider({ ...provider, apiHost: value })
+        window.message.success({
+          key: 'api-host-updated',
+          content: t('settings.provider.api_host.updated'),
+          duration: 2
+        })
+        return
+      }
       setApiHost(provider.apiHost)
-    }
-  }
+    },
+    [provider, updateProvider, t]
+  )
 
-  const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
+  const onUpdateApiVersion = useCallback(
+    () => updateProvider({ ...provider, apiVersion }),
+    [apiVersion, provider, updateProvider]
+  )
 
-  const onHealthCheck = async () => {
+  const onHealthCheck = useCallback(async () => {
     const modelsToCheck = models.filter((model) => !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
@@ -180,9 +194,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
     // Reset health check status
     setIsHealthChecking(false)
-  }
+  }, [apiHost, apiKey, models, provider, t])
 
-  const onCheckApi = async () => {
+  const onCheckApi = useCallback(async () => {
     const modelsToCheck = models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
@@ -240,20 +254,20 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       setApiChecking(false)
       setTimeout(() => setApiValid(false), 3000)
     }
-  }
+  }, [apiHost, apiKey, models, provider, t, updateProvider])
 
-  const onReset = () => {
+  const onReset = useCallback(() => {
     setApiHost(configedApiHost)
     updateProvider({ ...provider, apiHost: configedApiHost })
-  }
+  }, [configedApiHost, provider, updateProvider])
 
-  const hostPreview = () => {
+  const hostPreview = useCallback(() => {
     if (apiHost.endsWith('#')) {
       return apiHost.replace('#', '')
     }
 
     return formatApiHost(apiHost) + 'chat/completions'
-  }
+  }, [apiHost])
 
   useEffect(() => {
     if (provider.id === 'copilot') {
@@ -300,18 +314,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
-          value={inputValue}
+          value={inputApiKey}
           placeholder={t('settings.provider.api_key')}
-          onChange={(e) => {
-            setInputValue(e.target.value)
-            debouncedSetApiKey(e.target.value)
-          }}
-          onBlur={() => {
-            const formattedValue = formatApiKeys(inputValue)
-            setInputValue(formattedValue)
-            setApiKey(formattedValue)
-            onUpdateApiKey()
-          }}
+          onChange={(e) => setInputApiKey(e.target.value)}
+          onPressEnter={() => onUpdateApiKey(inputApiKey)}
+          onBlur={() => onUpdateApiKey(inputApiKey)}
           spellCheck={false}
           autoFocus={provider.enabled && apiKey === ''}
           disabled={provider.id === 'copilot'}
@@ -343,10 +350,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input
-          value={apiHost}
+          value={inputApiHost}
           placeholder={t('settings.provider.api_host')}
-          onChange={(e) => setApiHost(e.target.value)}
-          onBlur={onUpdateApiHost}
+          onChange={(e) => setInputApiHost(e.target.value)}
+          onPressEnter={() => onUpdateApiHost(inputApiHost)}
+          onBlur={() => onUpdateApiHost(inputApiHost)}
         />
         {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
           <Button danger onClick={onReset}>
