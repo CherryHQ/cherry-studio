@@ -121,7 +121,6 @@ function filterPropertieAttributes(tool: MCPTool, filterNestedObj = false) {
     Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value, filterNestedObj)])
   )
 
-  console.log('[MCP] Final processed properties:', processedProperties)
   return processedProperties
 }
 
