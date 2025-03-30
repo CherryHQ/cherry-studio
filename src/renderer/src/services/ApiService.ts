@@ -18,7 +18,7 @@ import {
   getTranslateModel
 } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
-import { filterMessages, filterUsefulMessages } from './MessagesService'
+import { filterContextMessages, filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
 
@@ -112,7 +112,7 @@ export async function fetchChatCompletion({
     }
 
     await AI.completions({
-      messages: filterUsefulMessages(messages),
+      messages: filterUsefulMessages(filterContextMessages(messages)),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
       onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse, generateImage }) => {

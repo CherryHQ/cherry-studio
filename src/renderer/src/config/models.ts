@@ -142,6 +142,7 @@ const visionAllowedModels = [
   'minicpm',
   'gemini-1\\.5',
   'gemini-2\\.0',
+  'gemini-2\\.5',
   'gemini-exp',
   'claude-3',
   'vision',
@@ -156,6 +157,7 @@ const visionAllowedModels = [
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
   'gpt-4o(?:-[\\w-]+)?',
+  'gpt-4.5(?:-[\\w-]+)',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
@@ -163,7 +165,7 @@ const visionAllowedModels = [
   'gemma-3(?:-[\\w-]+)'
 ]
 
-const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+']
+const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+', 'o1-mini', 'o1-preview', 'AIDC-AI/Marco-o1']
 export const VISION_REGEX = new RegExp(
   `\\b(?!(?:${visionExcludedModels.join('|')})\\b)(${visionAllowedModels.join('|')})\\b`,
   'i'
@@ -191,15 +193,17 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4o-mini',
   'gpt-4',
   'gpt-4.5',
+  'o1(?:-[\\w-]+)?',
   'claude',
   'qwen',
   'hunyuan',
+  'deepseek-ai/',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
 ]
 
-const FUNCTION_CALLING_EXCLUDED_MODELS = ['aqa(?:-[\\w-]+)?', 'imagen(?:-[\\w-]+)?']
+const FUNCTION_CALLING_EXCLUDED_MODELS = ['aqa(?:-[\\w-]+)?', 'imagen(?:-[\\w-]+)?', 'o1-mini', 'o1-preview', 'AIDC-AI/Marco-o1']
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
   `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,

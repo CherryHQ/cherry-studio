@@ -455,135 +455,183 @@ const migrateConfig = {
     return state
   },
   '54': (state: RootState) => {
-    if (state.shortcuts) {
-      state.shortcuts.shortcuts.push({
-        key: 'search_message',
-        shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
-        editable: true,
-        enabled: true,
-        system: false
-      })
-    }
-    state.settings.sidebarIcons = {
-      visible: DEFAULT_SIDEBAR_ICONS,
-      disabled: []
-    }
-    return state
-  },
-  '55': (state: RootState) => {
-    if (!state.settings.sidebarIcons) {
+    try {
+      if (state.shortcuts) {
+        state.shortcuts.shortcuts.push({
+          key: 'search_message',
+          shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+          editable: true,
+          enabled: true,
+          system: false
+        })
+      }
       state.settings.sidebarIcons = {
         visible: DEFAULT_SIDEBAR_ICONS,
         disabled: []
       }
+      return state
+    } catch (error) {
+      return state
     }
-    return state
+  },
+  '55': (state: RootState) => {
+    try {
+      if (!state.settings.sidebarIcons) {
+        state.settings.sidebarIcons = {
+          visible: DEFAULT_SIDEBAR_ICONS,
+          disabled: []
+        }
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '57': (state: RootState) => {
-    if (state.shortcuts) {
-      state.shortcuts.shortcuts.push({
-        key: 'mini_window',
-        shortcut: [isMac ? 'Command' : 'Ctrl', 'E'],
-        editable: true,
-        enabled: false,
-        system: true
-      })
-    }
-
-    state.llm.providers.forEach((provider) => {
-      if (provider.id === 'qwenlm') {
-        provider.type = 'qwenlm'
+    try {
+      if (state.shortcuts) {
+        state.shortcuts.shortcuts.push({
+          key: 'mini_window',
+          shortcut: [isMac ? 'Command' : 'Ctrl', 'E'],
+          editable: true,
+          enabled: false,
+          system: true
+        })
       }
-    })
 
-    state.settings.enableQuickAssistant = false
-    state.settings.clickTrayToShowQuickAssistant = true
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'qwenlm') {
+          provider.type = 'qwenlm'
+        }
+      })
 
-    return state
+      state.settings.enableQuickAssistant = false
+      state.settings.clickTrayToShowQuickAssistant = true
+
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '58': (state: RootState) => {
-    if (state.shortcuts) {
-      state.shortcuts.shortcuts.push(
-        {
-          key: 'clear_topic',
-          shortcut: [isMac ? 'Command' : 'Ctrl', 'L'],
-          editable: true,
-          enabled: true,
-          system: false
-        },
-        {
-          key: 'toggle_new_context',
-          shortcut: [isMac ? 'Command' : 'Ctrl', 'R'],
-          editable: true,
-          enabled: true,
-          system: false
-        }
-      )
+    try {
+      if (state.shortcuts) {
+        state.shortcuts.shortcuts.push(
+          {
+            key: 'clear_topic',
+            shortcut: [isMac ? 'Command' : 'Ctrl', 'L'],
+            editable: true,
+            enabled: true,
+            system: false
+          },
+          {
+            key: 'toggle_new_context',
+            shortcut: [isMac ? 'Command' : 'Ctrl', 'R'],
+            editable: true,
+            enabled: true,
+            system: false
+          }
+        )
+      }
+      return state
+    } catch (error) {
+      return state
     }
-    return state
   },
   '59': (state: RootState) => {
-    if (state.minapps) {
-      const flowith = DEFAULT_MIN_APPS.find((app) => app.id === 'flowith')
-      if (flowith) {
-        state.minapps.enabled.push(flowith)
+    try {
+      if (state.minapps) {
+        const flowith = DEFAULT_MIN_APPS.find((app) => app.id === 'flowith')
+        if (flowith) {
+          state.minapps.enabled.push(flowith)
+        }
       }
+      return state
+    } catch (error) {
+      return state
     }
-    return state
   },
   '60': (state: RootState) => {
-    state.settings.multiModelMessageStyle = 'fold'
-    return state
+    try {
+      state.settings.multiModelMessageStyle = 'fold'
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '61': (state: RootState) => {
-    state.llm.providers.forEach((provider) => {
-      if (provider.id === 'qwenlm') {
-        provider.type = 'qwenlm'
-      }
-    })
-    return state
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'qwenlm') {
+          provider.type = 'qwenlm'
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '62': (state: RootState) => {
-    state.llm.providers.forEach((provider) => {
-      if (provider.id === 'azure-openai') {
-        provider.type = 'azure-openai'
-      }
-    })
-    state.settings.translateModelPrompt = TRANSLATE_PROMPT
-    return state
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'azure-openai') {
+          provider.type = 'azure-openai'
+        }
+      })
+      state.settings.translateModelPrompt = TRANSLATE_PROMPT
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '63': (state: RootState) => {
-    if (state.minapps) {
-      const mintop = DEFAULT_MIN_APPS.find((app) => app.id === '3mintop')
-      if (mintop) {
-        state.minapps.enabled.push(mintop)
+    try {
+      if (state.minapps) {
+        const mintop = DEFAULT_MIN_APPS.find((app) => app.id === '3mintop')
+        if (mintop) {
+          state.minapps.enabled.push(mintop)
+        }
       }
+      return state
+    } catch (error) {
+      return state
     }
-    return state
   },
   '64': (state: RootState) => {
-    state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'qwenlm')
-    addProvider(state, 'baidu-cloud')
-    return state
+    try {
+      state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'qwenlm')
+      addProvider(state, 'baidu-cloud')
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '65': (state: RootState) => {
-    state.settings.targetLanguage = 'english'
-    return state
+    try {
+      state.settings.targetLanguage = 'english'
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '66': (state: RootState) => {
-    addProvider(state, 'gitee-ai')
-    addProvider(state, 'ppio')
+    try {
+      addProvider(state, 'gitee-ai')
+      addProvider(state, 'ppio')
 
-    state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'graphrag-kylin-mountain')
+      state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'graphrag-kylin-mountain')
 
-    if (state.minapps) {
-      const aistudio = DEFAULT_MIN_APPS.find((app) => app.id === 'aistudio')
-      if (aistudio) {
-        state.minapps.enabled.push(aistudio)
+      if (state.minapps) {
+        const aistudio = DEFAULT_MIN_APPS.find((app) => app.id === 'aistudio')
+        if (aistudio) {
+          state.minapps.enabled.push(aistudio)
+        }
       }
-    }
 
-    return state
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '67': (state: RootState) => {
     if (state.minapps) {
@@ -606,208 +654,283 @@ const migrateConfig = {
     return state
   },
   '68': (state: RootState) => {
-    if (state.minapps) {
-      const notebooklm = DEFAULT_MIN_APPS.find((app) => app.id === 'notebooklm')
-      if (notebooklm) {
-        state.minapps.enabled.push(notebooklm)
+    try {
+      if (state.minapps) {
+        const notebooklm = DEFAULT_MIN_APPS.find((app) => app.id === 'notebooklm')
+        if (notebooklm) {
+          state.minapps.enabled.push(notebooklm)
+        }
       }
+
+      addProvider(state, 'modelscope')
+      addProvider(state, 'lmstudio')
+
+      return state
+    } catch (error) {
+      return state
     }
-
-    addProvider(state, 'modelscope')
-    addProvider(state, 'lmstudio')
-
-    return state
   },
   '69': (state: RootState) => {
-    if (state.minapps) {
-      const coze = DEFAULT_MIN_APPS.find((app) => app.id === 'coze')
-      if (coze) {
-        state.minapps.enabled.push(coze)
+    try {
+      if (state.minapps) {
+        const coze = DEFAULT_MIN_APPS.find((app) => app.id === 'coze')
+        if (coze) {
+          state.minapps.enabled.push(coze)
+        }
       }
+      state.settings.gridColumns = 2
+      state.settings.gridPopoverTrigger = 'hover'
+      return state
+    } catch (error) {
+      return state
     }
-    state.settings.gridColumns = 2
-    state.settings.gridPopoverTrigger = 'hover'
-    return state
   },
   '70': (state: RootState) => {
-    state.llm.providers.forEach((provider) => {
-      if (provider.id === 'dmxapi') {
-        provider.apiHost = 'https://www.dmxapi.cn'
-      }
-    })
-    return state
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'dmxapi') {
+          provider.apiHost = 'https://www.dmxapi.cn'
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '71': (state: RootState) => {
-    const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat', 'baidu-ai-search']
+    try {
+      const appIds = ['dify', 'wpslingxi', 'lechat', 'abacus', 'lambdachat', 'baidu-ai-search']
 
-    if (state.minapps) {
-      appIds.forEach((id) => {
-        const app = DEFAULT_MIN_APPS.find((app) => app.id === id)
-        if (app) {
-          state.minapps.enabled.push(app)
-        }
-      })
-      // remove zhihu-zhiada
-      state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
-      state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
+      if (state.minapps) {
+        appIds.forEach((id) => {
+          const app = DEFAULT_MIN_APPS.find((app) => app.id === id)
+          if (app) {
+            state.minapps.enabled.push(app)
+          }
+        })
+        // remove zhihu-zhiada
+        state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== 'zhihu-zhiada')
+        state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== 'zhihu-zhiada')
+      }
+
+      state.settings.thoughtAutoCollapse = true
+
+      return state
+    } catch (error) {
+      return state
     }
-
-    state.settings.thoughtAutoCollapse = true
-
-    return state
   },
   '72': (state: RootState) => {
-    if (state.minapps) {
-      const monica = DEFAULT_MIN_APPS.find((app) => app.id === 'monica')
-      if (monica) {
-        state.minapps.enabled.push(monica)
-      }
-    }
-
-    // remove duplicate lmstudio providers
-    const emptyLmStudioProviderIndex = state.llm.providers.findLastIndex(
-      (provider) => provider.id === 'lmstudio' && provider.models.length === 0
-    )
-
-    if (emptyLmStudioProviderIndex !== -1) {
-      state.llm.providers.splice(emptyLmStudioProviderIndex, 1)
-    }
-
-    return state
-  },
-  '73': (state: RootState) => {
-    if (state.websearch) {
-      state.websearch.searchWithTime = true
-      state.websearch.maxResults = 5
-      state.websearch.excludeDomains = []
-    }
-
-    addProvider(state, 'lmstudio')
-    addProvider(state, 'o3')
-    moveProvider(state.llm.providers, 'o3', 2)
-
-    state.assistants.assistants.forEach((assistant) => {
-      const leadingEmoji = getLeadingEmoji(assistant.name)
-      if (leadingEmoji) {
-        assistant.emoji = leadingEmoji
-        assistant.name = assistant.name.replace(leadingEmoji, '').trim()
-      }
-    })
-
-    state.agents.agents.forEach((agent) => {
-      const leadingEmoji = getLeadingEmoji(agent.name)
-      if (leadingEmoji) {
-        agent.emoji = leadingEmoji
-        agent.name = agent.name.replace(leadingEmoji, '').trim()
-      }
-    })
-
-    const defaultAssistantEmoji = getLeadingEmoji(state.assistants.defaultAssistant.name)
-
-    if (defaultAssistantEmoji) {
-      state.assistants.defaultAssistant.emoji = defaultAssistantEmoji
-      state.assistants.defaultAssistant.name = state.assistants.defaultAssistant.name
-        .replace(defaultAssistantEmoji, '')
-        .trim()
-    }
-
-    return state
-  },
-  '74': (state: RootState) => {
-    addProvider(state, 'xirang')
-    return state
-  },
-  '75': (state: RootState) => {
-    if (state.minapps) {
-      const you = DEFAULT_MIN_APPS.find((app) => app.id === 'you')
-      const cici = DEFAULT_MIN_APPS.find((app) => app.id === 'cici')
-      const zhihu = DEFAULT_MIN_APPS.find((app) => app.id === 'zhihu')
-      you && state.minapps.enabled.push(you)
-      cici && state.minapps.enabled.push(cici)
-      zhihu && state.minapps.enabled.push(zhihu)
-    }
-    return state
-  },
-  '76': (state: RootState) => {
-    addProvider(state, 'tencent-cloud-ti')
-    return state
-  },
-  '77': (state: RootState) => {
-    if (state.websearch) {
-      if (!state.websearch.providers.find((p) => p.id === 'searxng')) {
-        state.websearch.providers.push(
-          {
-            id: 'searxng',
-            name: 'Searxng',
-            apiHost: ''
-          },
-          {
-            id: 'exa',
-            name: 'Exa',
-            apiKey: ''
-          }
-        )
-      }
-      state.websearch.providers.forEach((p) => {
-        // @ts-ignore eslint-disable-next-line
-        delete p.enabled
-      })
-    }
-    return state
-  },
-  '78': (state: RootState) => {
-    state.llm.providers = moveProvider(state.llm.providers, 'ppio', 9)
-    state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
-    removeMiniAppIconsFromState(state)
-    return state
-  },
-  '79': (state: RootState) => {
-    addProvider(state, 'gpustack')
-    return state
-  },
-  '80': (state: RootState) => {
-    addProvider(state, 'alayanew')
-    state.llm.providers = moveProvider(state.llm.providers, 'alayanew', 10)
-    return state
-  },
-  '81': (state: RootState) => {
-    addProvider(state, 'copilot')
-    return state
-  },
-  '82': (state: RootState) => {
-    const runtimeState = state.runtime as any
-    if (runtimeState?.webdavSync) {
-      state.backup = state.backup || {}
-      state.backup = {
-        ...state.backup,
-        webdavSync: {
-          lastSyncTime: runtimeState.webdavSync.lastSyncTime || null,
-          syncing: runtimeState.webdavSync.syncing || false,
-          lastSyncError: runtimeState.webdavSync.lastSyncError || null
+    try {
+      if (state.minapps) {
+        const monica = DEFAULT_MIN_APPS.find((app) => app.id === 'monica')
+        if (monica) {
+          state.minapps.enabled.push(monica)
         }
       }
-      delete runtimeState.webdavSync
+
+      // remove duplicate lmstudio providers
+      const emptyLmStudioProviderIndex = state.llm.providers.findLastIndex(
+        (provider) => provider.id === 'lmstudio' && provider.models.length === 0
+      )
+
+      if (emptyLmStudioProviderIndex !== -1) {
+        state.llm.providers.splice(emptyLmStudioProviderIndex, 1)
+      }
+
+      return state
+    } catch (error) {
+      return state
     }
-    return state
+  },
+  '73': (state: RootState) => {
+    try {
+      if (state.websearch) {
+        state.websearch.searchWithTime = true
+        state.websearch.maxResults = 5
+        state.websearch.excludeDomains = []
+      }
+
+      addProvider(state, 'lmstudio')
+      addProvider(state, 'o3')
+      moveProvider(state.llm.providers, 'o3', 2)
+
+      state.assistants.assistants.forEach((assistant) => {
+        const leadingEmoji = getLeadingEmoji(assistant.name)
+        if (leadingEmoji) {
+          assistant.emoji = leadingEmoji
+          assistant.name = assistant.name.replace(leadingEmoji, '').trim()
+        }
+      })
+
+      state.agents.agents.forEach((agent) => {
+        const leadingEmoji = getLeadingEmoji(agent.name)
+        if (leadingEmoji) {
+          agent.emoji = leadingEmoji
+          agent.name = agent.name.replace(leadingEmoji, '').trim()
+        }
+      })
+
+      const defaultAssistantEmoji = getLeadingEmoji(state.assistants.defaultAssistant.name)
+
+      if (defaultAssistantEmoji) {
+        state.assistants.defaultAssistant.emoji = defaultAssistantEmoji
+        state.assistants.defaultAssistant.name = state.assistants.defaultAssistant.name
+          .replace(defaultAssistantEmoji, '')
+          .trim()
+      }
+
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '74': (state: RootState) => {
+    try {
+      addProvider(state, 'xirang')
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '75': (state: RootState) => {
+    try {
+      if (state.minapps) {
+        const you = DEFAULT_MIN_APPS.find((app) => app.id === 'you')
+        const cici = DEFAULT_MIN_APPS.find((app) => app.id === 'cici')
+        const zhihu = DEFAULT_MIN_APPS.find((app) => app.id === 'zhihu')
+        you && state.minapps.enabled.push(you)
+        cici && state.minapps.enabled.push(cici)
+        zhihu && state.minapps.enabled.push(zhihu)
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '76': (state: RootState) => {
+    try {
+      addProvider(state, 'tencent-cloud-ti')
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '77': (state: RootState) => {
+    try {
+      if (state.websearch) {
+        if (!state.websearch.providers.find((p) => p.id === 'searxng')) {
+          state.websearch.providers.push(
+            {
+              id: 'searxng',
+              name: 'Searxng',
+              apiHost: ''
+            },
+            {
+              id: 'exa',
+              name: 'Exa',
+              apiKey: ''
+            }
+          )
+        }
+        state.websearch.providers.forEach((p) => {
+          // @ts-ignore eslint-disable-next-line
+          delete p.enabled
+        })
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '78': (state: RootState) => {
+    try {
+      state.llm.providers = moveProvider(state.llm.providers, 'ppio', 9)
+      state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
+      removeMiniAppIconsFromState(state)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '79': (state: RootState) => {
+    try {
+      addProvider(state, 'gpustack')
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '80': (state: RootState) => {
+    try {
+      addProvider(state, 'alayanew')
+      state.llm.providers = moveProvider(state.llm.providers, 'alayanew', 10)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '81': (state: RootState) => {
+    try {
+      addProvider(state, 'copilot')
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '82': (state: RootState) => {
+    try {
+      const runtimeState = state.runtime as any
+      if (runtimeState?.webdavSync) {
+        state.backup = state.backup || {}
+        state.backup = {
+          ...state.backup,
+          webdavSync: {
+            lastSyncTime: runtimeState.webdavSync.lastSyncTime || null,
+            syncing: runtimeState.webdavSync.syncing || false,
+            lastSyncError: runtimeState.webdavSync.lastSyncError || null
+          }
+        }
+        delete runtimeState.webdavSync
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   },
   '83': (state: RootState) => {
-    state.settings.messageNavigation = 'buttons'
-    state.settings.launchOnBoot = false
-    state.settings.launchToTray = false
-    state.settings.trayOnClose = true
-    return state
+    try {
+      state.settings.messageNavigation = 'buttons'
+      state.settings.launchOnBoot = false
+      state.settings.launchToTray = false
+      state.settings.trayOnClose = true
+      return state
+    } catch (error) {
+      console.error(error)
+      return state
+    }
   },
   '84': (state: RootState) => {
-    addProvider(state, 'voyageai')
-    return state
+    try {
+      addProvider(state, 'voyageai')
+      return state
+    } catch (error) {
+      console.error(error)
+      return state
+    }
   },
   '85': (state: RootState) => {
-    // @ts-ignore eslint-disable-next-line
-    state.settings.autoCheckUpdate = !state.settings.manualUpdateCheck
-    // @ts-ignore eslint-disable-next-line
-    delete state.settings.manualUpdateCheck
-    state.settings.gridPopoverTrigger = 'click'
-    return state
+    try {
+      // @ts-ignore eslint-disable-next-line
+      state.settings.autoCheckUpdate = !state.settings.manualUpdateCheck
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.manualUpdateCheck
+      state.settings.gridPopoverTrigger = 'click'
+      return state
+    } catch (error) {
+      console.error(error)
+      return state
+    }
   },
   '86': (state: RootState) => {
     try {

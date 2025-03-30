@@ -1,4 +1,5 @@
 import {
+  AppstoreOutlined,
   CloudOutlined,
   CodeOutlined,
   GlobalOutlined,
@@ -11,7 +12,9 @@ import {
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { isLocalAi } from '@renderer/config/env'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
+// 导入useAppSelector
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
@@ -23,6 +26,7 @@ import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import { McpSettingsNavbar } from './MCPSettings/McpSettingsNavbar'
+import MiniAppSettings from './MiniappSettings/MiniAppSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
@@ -31,6 +35,8 @@ import WebSearchSettings from './WebSearchSettings'
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
   const { t } = useTranslation()
+
+  const showMiniAppSettings = useSidebarIconShow('minapp')
 
   const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
 
@@ -82,6 +88,14 @@ const SettingsPage: FC = () => {
               {t('settings.display.title')}
             </MenuItem>
           </MenuItemLink>
+          {showMiniAppSettings && (
+            <MenuItemLink to="/settings/miniapps">
+              <MenuItem className={isRoute('/settings/miniapps')}>
+                <AppstoreOutlined />
+                {t('settings.miniapps.title')}
+              </MenuItem>
+            </MenuItemLink>
+          )}
           <MenuItemLink to="/settings/shortcut">
             <MenuItem className={isRoute('/settings/shortcut')}>
               <MacCommandOutlined />
@@ -115,9 +129,10 @@ const SettingsPage: FC = () => {
             <Route path="mcp" element={<MCPSettings />} />
             <Route path="general/*" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
-            <Route path="data/*" element={<DataSettings />} />
-            <Route path="quickAssistant" element={<QuickAssistantSettings />} />
+            {showMiniAppSettings && <Route path="miniapps" element={<MiniAppSettings />} />}
             <Route path="shortcut" element={<ShortcutSettings />} />
+            <Route path="quickAssistant" element={<QuickAssistantSettings />} />
+            <Route path="data/*" element={<DataSettings />} />
             <Route path="about" element={<AboutSettings />} />
           </Routes>
         </SettingContent>

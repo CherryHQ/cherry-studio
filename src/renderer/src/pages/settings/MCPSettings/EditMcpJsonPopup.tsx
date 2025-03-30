@@ -69,6 +69,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           isActive: false,
           ...(serverConfig as any)
         }
+
+        if (!server.name) {
+          server.name = id
+        }
+
         serversArray.push(server)
       }
 

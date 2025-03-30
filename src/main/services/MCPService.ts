@@ -1,6 +1,7 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { isLinux, isMac, isWin } from '@main/constant'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -96,7 +97,10 @@ class McpService {
         transport = new StdioClientTransport({
           command: cmd,
           args,
-          env: server.env
+          env: {
+            PATH: this.getEnhancedPath(process.env.PATH || ''),
+            ...server.env
+          }
         })
       } else {
         throw new Error('Either baseUrl or command must be provided')
@@ -122,6 +126,8 @@ class McpService {
       await client.close()
       Logger.info(`[MCP] Closed server: ${serverKey}`)
       this.clients.delete(serverKey)
+      CacheService.remove(`mcp:list_tool:${serverKey}`)
+      Logger.info(`[MCP] Cleared cache for server: ${serverKey}`)
     } else {
       Logger.warn(`[MCP] No client found for server: ${serverKey}`)
     }
@@ -150,7 +156,8 @@ class McpService {
 
   async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     const client = await this.initClient(server)
-    const cacheKey = `mcp:list_tool:${server.id}`
+    const serverKey = this.getServerKey(server)
+    const cacheKey = `mcp:list_tool:${serverKey}`
     if (CacheService.has(cacheKey)) {
       Logger.info(`[MCP] Tools from ${server.name} loaded from cache`)
       const cachedTools = CacheService.get<MCPTool[]>(cacheKey)
@@ -164,7 +171,7 @@ class McpService {
     tools.map((tool: any) => {
       const serverTool: MCPTool = {
         ...tool,
-        id: nanoid(),
+        id: `f${nanoid()}`,
         serverId: server.id,
         serverName: server.name
       }
@@ -199,6 +206,63 @@ class McpService {
     const uvPath = path.join(dir, uvName)
     const bunPath = path.join(dir, bunName)
     return { dir, uvPath, bunPath }
+  }
+
+  /**
+   * Get enhanced PATH including common tool locations
+   */
+  private getEnhancedPath(originalPath: string): string {
+    // 将原始 PATH 按分隔符分割成数组
+    const pathSeparator = process.platform === 'win32' ? ';' : ':'
+    const existingPaths = new Set(originalPath.split(pathSeparator).filter(Boolean))
+    const homeDir = process.env.HOME || process.env.USERPROFILE || ''
+
+    // 定义要添加的新路径
+    const newPaths: string[] = []
+
+    if (isMac) {
+      newPaths.push(
+        '/bin',
+        '/usr/bin',
+        '/usr/local/bin',
+        '/usr/local/sbin',
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/local/opt/node/bin',
+        `${homeDir}/.nvm/current/bin`,
+        `${homeDir}/.npm-global/bin`,
+        `${homeDir}/.yarn/bin`,
+        `${homeDir}/.cargo/bin`,
+        '/opt/local/bin'
+      )
+    }
+
+    if (isLinux) {
+      newPaths.push(
+        '/bin',
+        '/usr/bin',
+        '/usr/local/bin',
+        `${homeDir}/.nvm/current/bin`,
+        `${homeDir}/.npm-global/bin`,
+        `${homeDir}/.yarn/bin`,
+        `${homeDir}/.cargo/bin`,
+        '/snap/bin'
+      )
+    }
+
+    if (isWin) {
+      newPaths.push(`${process.env.APPDATA}\\npm`, `${homeDir}\\AppData\\Local\\Yarn\\bin`, `${homeDir}\\.cargo\\bin`)
+    }
+
+    // 只添加不存在的路径
+    newPaths.forEach((path) => {
+      if (path && !existingPaths.has(path)) {
+        existingPaths.add(path)
+      }
+    })
+
+    // 转换回字符串
+    return Array.from(existingPaths).join(pathSeparator)
   }
 }
 
