@@ -11,8 +11,8 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
-import ApiCheckPopup from '../ProviderSettings/ApiCheckPopup'
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '../..'
+import ApiCheckPopup from '../../ProviderSettings/ApiCheckPopup'
 
 interface Props {
   provider: WebSearchProvider
@@ -51,7 +51,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   async function checkSearch() {
     if (!provider) {
       window.message.error({
-        content: t('settings.websearch.no_provider_selected'),
+        content: t('settings.no_provider_selected'),
         duration: 3,
         icon: <InfoCircleOutlined />,
         key: 'no-provider-selected'
@@ -88,7 +88,9 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
         key: 'api-check',
         style: { marginTop: '3vh' },
         duration: valid ? 2 : 8,
-        content: valid ? t('settings.websearch.check_success') : t('settings.websearch.check_failed') + errorMessage
+        content: valid
+          ? t('settings.tool.websearch.check_success')
+          : t('settings.tool.websearch.check_failed') + errorMessage
       })
 
       setApiValid(valid)
@@ -99,7 +101,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
         key: 'check-search-error',
         style: { marginTop: '3vh' },
         duration: 8,
-        content: t('settings.websearch.check_failed')
+        content: t('settings.tool.websearch.check_failed')
       })
     } finally {
       setApiChecking(false)
@@ -145,12 +147,18 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
               type={apiValid ? 'primary' : 'default'}
               onClick={checkSearch}
               disabled={apiChecking}>
-              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
+              {apiChecking ? (
+                <LoadingOutlined spin />
+              ) : apiValid ? (
+                <CheckOutlined />
+              ) : (
+                t('settings.tool.websearch.check')
+              )}
             </Button>
           </Flex>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.websearch.get_api_key')}
+              {t('settings.tool.websearch.get_api_key')}
             </SettingHelpLink>
             <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
           </SettingHelpTextRow>
@@ -160,12 +168,12 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {hasObjectKey(provider, 'apiHost') && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
-            {t('settings.provider.api_host')}
+            {t('settings.tool.provider.api_host')}
           </SettingSubtitle>
           <Flex>
             <Input
               value={apiHost}
-              placeholder={t('settings.provider.api_host')}
+              placeholder={t('settings.tool.provider.api_host')}
               onChange={(e) => setApiHost(e.target.value)}
               onBlur={onUpdateApiHost}
             />
@@ -174,7 +182,13 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
               type={apiValid ? 'primary' : 'default'}
               onClick={checkSearch}
               disabled={apiChecking}>
-              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
+              {apiChecking ? (
+                <LoadingOutlined spin />
+              ) : apiValid ? (
+                <CheckOutlined />
+              ) : (
+                t('settings.tool.websearch.check')
+              )}
             </Button>
           </Flex>
         </>

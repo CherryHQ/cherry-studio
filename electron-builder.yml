@@ -27,12 +27,16 @@ files:
   - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
+  - '!node_modules/pdfjs-dist/web/**/*'
+  - '!node_modules/pdfjs-dist/legacy/web/*'
 asarUnpack:
   - resources/**
   - '**/*.{node,dll,metal,exp,lib}'
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-portable.${ext}
+  files:
+    - '!node_modules/@cherrystudio/mac-system-ocr'
   target:
     - target: nsis
     - target: portable
@@ -64,6 +68,8 @@ mac:
         - x64
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
+  files:
+    - '!node_modules/@cherrystudio/mac-system-ocr'
   target:
     - target: AppImage
       arch:

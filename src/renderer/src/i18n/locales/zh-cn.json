@@ -394,7 +394,11 @@
       "rename": "重命名",
       "search": "搜索知识库",
       "search_placeholder": "输入查询内容",
-      "settings": "知识库设置",
+      "settings": {
+        "title": "知识库设置",
+        "preprocessing": "预处理",
+        "preprocessing_tooltip": "使用 OCR 预处理上传的文件"
+      },
       "sitemap_placeholder": "请输入站点地图 URL",
       "sitemaps": "网站",
       "source": "来源",
@@ -1207,37 +1211,53 @@
       "theme.window.style.title": "窗口样式",
       "theme.window.style.transparent": "透明窗口",
       "title": "设置",
+      "tool": {
+        "title": "工具设置",
+        "ocr": {
+          "title": "OCR设置",
+          "provider": "OCR服务商",
+          "provider_placeholder": "选择一个OCR服务商",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "识别模式",
+              "accurate": "精准",
+              "fast": "快速"
+            },
+            "min_confidence": "最小置信度"
+          }
+        },
+        "websearch": {
+          "blacklist": "黑名单",
+          "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+          "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "检查",
+          "check_failed": "验证失败",
+          "check_success": "验证成功",
+          "enhance_mode": "搜索增强模式",
+          "enhance_mode_tooltip": "使用默认模型提取关键词后搜索",
+          "get_api_key": "点击这里获取密钥",
+          "no_provider_selected": "请选择搜索服务商后再检查",
+          "search_max_result": "搜索结果个数",
+          "search_provider": "搜索服务商",
+          "search_provider_placeholder": "选择一个搜索服务商",
+          "search_result_default": "默认",
+          "search_with_time": "搜索包含日期",
+          "tavily": {
+            "api_key": "Tavily API 密钥",
+            "api_key.placeholder": "请输入 Tavily API 密钥",
+            "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
+            "title": "Tavily"
+          },
+          "title": "网络搜索"
+        }
+      },
       "topic.position": "话题位置",
       "topic.position.left": "左侧",
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
       "tray.onclose": "关闭时最小化到托盘",
       "tray.show": "显示托盘图标",
-      "tray.title": "托盘",
-      "websearch": {
-        "blacklist": "黑名单",
-        "blacklist_description": "在搜索结果中不会出现以下网站的结果",
-        "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
-        "check": "检查",
-        "check_failed": "验证失败",
-        "check_success": "验证成功",
-        "enhance_mode": "搜索增强模式",
-        "enhance_mode_tooltip": "使用默认模型提取关键词后搜索",
-        "get_api_key": "点击这里获取密钥",
-        "no_provider_selected": "请选择搜索服务商后再检查",
-        "search_max_result": "搜索结果个数",
-        "search_provider": "搜索服务商",
-        "search_provider_placeholder": "选择一个搜索服务商",
-        "search_result_default": "默认",
-        "search_with_time": "搜索包含日期",
-        "tavily": {
-          "api_key": "Tavily API 密钥",
-          "api_key.placeholder": "请输入 Tavily API 密钥",
-          "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
-          "title": "Tavily"
-        },
-        "title": "网络搜索"
-      }
+      "tray.title": "托盘"
     },
     "translate": {
       "any.language": "任意语言",

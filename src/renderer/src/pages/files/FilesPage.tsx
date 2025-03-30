@@ -31,7 +31,7 @@ const FilesPage: FC = () => {
   const { providers } = useProviders()
 
   const geminiProviders = providers.filter((provider) => provider.type === 'gemini')
-
+  const mistralProviders = providers.filter((provider) => provider.type === 'mistral')
   const tempFilesSort = (files: FileType[]) => {
     return files.sort((a, b) => {
       const aIsTemp = a.origin_name.startsWith('temp_file')
@@ -184,6 +184,11 @@ const FilesPage: FC = () => {
     { key: FileTypes.TEXT, label: t('files.text'), icon: <FileTextOutlined /> },
     ...geminiProviders.map((provider) => ({
       key: 'gemini_' + provider.id,
+      label: provider.name,
+      icon: <FilePdfOutlined />
+    })),
+    ...mistralProviders.map((provider) => ({
+      key: 'mistral_' + provider.id,
       label: provider.name,
       icon: <FilePdfOutlined />
     })),

@@ -57,7 +57,8 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileType[] = []): Fil
         count: 1,
         origin_name: name,
         type: fileType,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        source: 'local'
       }
 
       arrayOfFiles.push(fileItem)

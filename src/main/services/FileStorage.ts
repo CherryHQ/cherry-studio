@@ -73,7 +73,8 @@ class FileStorage {
             size: storedStats.size,
             ext,
             type: getFileType(ext),
-            count: 2
+            count: 2,
+            source: 'local'
           }
         }
       }
@@ -112,7 +113,8 @@ class FileStorage {
         size: stats.size,
         ext: ext,
         type: fileType,
-        count: 1
+        count: 1,
+        source: 'local' as const
       }
     })
 
@@ -177,7 +179,8 @@ class FileStorage {
       size: stats.size,
       ext: ext,
       type: fileType,
-      count: 1
+      count: 1,
+      source: 'local'
     }
 
     return fileMetadata
@@ -201,14 +204,25 @@ class FileStorage {
       size: stats.size,
       ext: ext,
       type: fileType,
-      count: 1
+      count: 1,
+      source: 'local'
     }
 
     return fileInfo
   }
 
   public deleteFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+    if (!fs.existsSync(path.join(this.storageDir, id))) {
+      return
+    }
     await fs.promises.unlink(path.join(this.storageDir, id))
+  }
+
+  public deleteDir = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+    if (!fs.existsSync(path.join(this.storageDir, id))) {
+      return
+    }
+    await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
   }
 
   public readFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<string> => {
@@ -260,6 +274,17 @@ class FileStorage {
       mime,
       base64,
       data: `data:${mime};base64,${base64}`
+    }
+  }
+
+  public base64File = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string
+  ): Promise<{ data: string; mime: string }> => {
+    const fileBuffer = await fs.promises.readFile(filePath)
+    return {
+      data: fileBuffer.toString('base64'),
+      mime: 'application/pdf'
     }
   }
 
@@ -420,7 +445,8 @@ class FileStorage {
         size: stats.size,
         ext: ext,
         type: fileType,
-        count: 1
+        count: 1,
+        source: 'local'
       }
 
       return fileMetadata

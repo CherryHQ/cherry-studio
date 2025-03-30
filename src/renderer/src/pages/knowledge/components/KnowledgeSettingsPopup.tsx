@@ -115,7 +115,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
   return (
     <Modal
-      title={t('knowledge.settings')}
+      title={t('knowledge.settings.title')}
       open={open}
       onOk={onOk}
       onCancel={onCancel}

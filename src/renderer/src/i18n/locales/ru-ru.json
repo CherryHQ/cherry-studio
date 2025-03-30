@@ -394,7 +394,11 @@
       "rename": "Переименовать",
       "search": "Поиск в базе знаний",
       "search_placeholder": "Введите текст для поиска",
-      "settings": "Настройки базы знаний",
+      "settings": {
+        "title": "Настройки базы знаний",
+        "preprocessing": "Предварительная обработка",
+        "preprocessing_tooltip": "Предварительная обработка изображений с помощью OCR"
+      },
       "sitemap_placeholder": "Введите URL карты сайта",
       "sitemaps": "Сайты",
       "source": "Источник",
@@ -1206,6 +1210,46 @@
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
       "title": "Настройки",
+      "tool": {
+        "title": "Настройки инструментов",
+        "ocr": {
+          "title": "Настройки OCR",
+          "provider": "Поставщик OCR",
+          "provider_placeholder": "Выберите поставщика OCR",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "Режим распознавания",
+              "accurate": "Точный",
+              "fast": "Быстрый"
+            },
+            "min_confidence": "Минимальная достоверность"
+          }
+        },
+        "websearch": {
+          "blacklist": "Черный список",
+          "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
+          "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "проверка",
+          "check_failed": "Проверка не прошла",
+          "check_success": "Проверка успешна",
+          "enhance_mode": "Режим улучшения поиска",
+          "enhance_mode_tooltip": "Используйте модель по умолчанию для извлечения ключевых слов из проблемы и поиска",
+          "get_api_key": "Получить ключ API",
+          "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
+          "search_max_result": "Количество результатов поиска",
+          "search_provider": "поиск сервисного провайдера",
+          "search_provider_placeholder": "Выберите поставщика поисковых услуг",
+          "search_result_default": "По умолчанию",
+          "search_with_time": "Поиск, содержащий дату",
+          "tavily": {
+            "api_key": "Ключ API Tavily",
+            "api_key.placeholder": "Введите ключ API Tavily",
+            "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
+            "title": "Tavily"
+          },
+          "title": "Поиск в Интернете"
+        }
+      },
       "topic.position": "Позиция топиков",
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
@@ -1213,30 +1257,6 @@
       "tray.onclose": "Свернуть в трей при закрытии",
       "tray.show": "Показать значок в трее",
       "tray.title": "Трей",
-      "websearch": {
-        "blacklist": "Черный список",
-        "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
-        "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
-        "check": "проверка",
-        "check_failed": "Проверка не прошла",
-        "check_success": "Проверка успешна",
-        "enhance_mode": "Режим улучшения поиска",
-        "enhance_mode_tooltip": "Используйте модель по умолчанию для извлечения ключевых слов из проблемы и поиска",
-        "get_api_key": "Получить ключ API",
-        "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
-        "search_max_result": "Количество результатов поиска",
-        "search_provider": "поиск сервисного провайдера",
-        "search_provider_placeholder": "Выберите поставщика поисковых услуг",
-        "search_result_default": "По умолчанию",
-        "search_with_time": "Поиск, содержащий дату",
-        "tavily": {
-          "api_key": "Ключ API Tavily",
-          "api_key.placeholder": "Введите ключ API Tavily",
-          "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
-          "title": "Tavily"
-        },
-        "title": "Поиск в Интернете"
-      },
       "general.auto_check_update.title": "Включить автоматическую проверку обновлений"
     },
     "translate": {

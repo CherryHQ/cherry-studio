@@ -946,6 +946,49 @@ const migrateConfig = {
     }
 
     return state
+  },
+  '87': (state: RootState) => {
+    if (!state.ocr) {
+      state.ocr = {
+        defaultProvider: '',
+        providers: []
+      }
+    }
+
+    if (state.ocr.providers.length === 0) {
+      state.ocr.providers = [
+        {
+          id: 'doc2x',
+          name: 'Doc2x',
+          apiKey: '',
+          apiHost: 'https://v2.doc2x.noedgeai.com'
+        },
+        {
+          id: 'mistral',
+          name: 'Mistral',
+          model: 'mistral-ocr-latest',
+          apiKey: '',
+          apiHost: 'https://api.mistral.ai'
+        }
+      ]
+    }
+    if (!state.ocr.providers.find((provider) => provider.id === 'system')) {
+      state.ocr.providers.push({
+        id: 'system',
+        name: 'System(Mac Only)',
+        options: {
+          recognitionLevel: 0,
+          minConfidence: 0.5
+        }
+      })
+    }
+
+    state.llm.providers.forEach((provider) => {
+      if (provider.id === 'mistral') {
+        provider.type = 'mistral'
+      }
+    })
+    return state
   }
 }
 

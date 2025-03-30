@@ -394,7 +394,11 @@
       "rename": "重新命名",
       "search": "搜尋知識庫",
       "search_placeholder": "輸入查詢內容",
-      "settings": "知識庫設定",
+      "settings": {
+        "title": "知識庫設定",
+        "preprocessing": "預處理",
+        "preprocessing_tooltip": "預處理上傳的文件"
+      },
       "sitemap_placeholder": "請輸入網站地圖 URL",
       "sitemaps": "網站",
       "source": "來源",
@@ -1206,6 +1210,46 @@
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
       "title": "設定",
+      "tool": {
+        "title": "工具",
+        "ocr": {
+          "title": "OCR",
+          "provider": "OCR 提供者",
+          "provider_placeholder": "選擇一個 OCR 提供者",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "辨識模式",
+              "accurate": "精確",
+              "fast": "快速"
+            },
+            "min_confidence": "最小置信度"
+          }
+        },
+        "websearch": {
+          "blacklist": "黑名單",
+          "blacklist_description": "以下網站不會出現在搜尋結果中",
+          "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "檢查",
+          "check_failed": "驗證失敗",
+          "check_success": "驗證成功",
+          "enhance_mode": "搜索增強模式",
+          "enhance_mode_tooltip": "使用預設模型提取關鍵詞後搜索",
+          "get_api_key": "點選這裡取得金鑰",
+          "no_provider_selected": "請選擇搜尋服務商後再檢查",
+          "search_max_result": "搜尋結果個數",
+          "search_provider": "搜尋服務商",
+          "search_provider_placeholder": "選擇一個搜尋服務商",
+          "search_result_default": "預設",
+          "search_with_time": "搜尋包含日期",
+          "tavily": {
+            "api_key": "Tavily API 金鑰",
+            "api_key.placeholder": "請輸入 Tavily API 金鑰",
+            "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
+            "title": "Tavily"
+          },
+          "title": "網路搜尋"
+        }
+      },
       "topic.position": "話題位置",
       "topic.position.left": "左側",
       "topic.position.right": "右側",
@@ -1213,30 +1257,6 @@
       "tray.onclose": "關閉時最小化到系统匣",
       "tray.show": "顯示系统匣圖示",
       "tray.title": "系统匣",
-      "websearch": {
-        "blacklist": "黑名單",
-        "blacklist_description": "以下網站不會出現在搜尋結果中",
-        "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
-        "check": "檢查",
-        "check_failed": "驗證失敗",
-        "check_success": "驗證成功",
-        "enhance_mode": "搜索增強模式",
-        "enhance_mode_tooltip": "使用預設模型提取關鍵詞後搜索",
-        "get_api_key": "點選這裡取得金鑰",
-        "no_provider_selected": "請選擇搜尋服務商後再檢查",
-        "search_max_result": "搜尋結果個數",
-        "search_provider": "搜尋服務商",
-        "search_provider_placeholder": "選擇一個搜尋服務商",
-        "search_result_default": "預設",
-        "search_with_time": "搜尋包含日期",
-        "tavily": {
-          "api_key": "Tavily API 金鑰",
-          "api_key.placeholder": "請輸入 Tavily API 金鑰",
-          "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
-          "title": "Tavily"
-        },
-        "title": "網路搜尋"
-      },
       "general.auto_check_update.title": "啟用自動更新檢查"
     },
     "translate": {
