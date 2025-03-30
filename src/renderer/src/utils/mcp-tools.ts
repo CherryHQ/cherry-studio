@@ -10,12 +10,14 @@ const supportedAttributes = [
   'type',
   'nullable',
   'required',
-  // 'format',
+  'format',
   'description',
   'properties',
   'items',
   'enum',
-  'anyOf'
+  'anyOf',
+  'oneOf',
+  'allOf'
 ]
 
 function filterPropertieAttributes(tool: MCPTool, filterNestedObj = false) {
@@ -23,37 +25,104 @@ function filterPropertieAttributes(tool: MCPTool, filterNestedObj = false) {
   if (!properties) {
     return {}
   }
-  const getSubMap = (obj: Record<string, any>, keys: string[]) => {
-    const filtered = Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)))
 
-    if (filterNestedObj) {
-      return {
-        ...filtered,
-        ...(obj.type === 'object' && obj.properties
-          ? {
-              properties: Object.fromEntries(
-                Object.entries(obj.properties).map(([k, v]) => [
-                  k,
-                  (v as any).type === 'object' ? getSubMap(v as Record<string, any>, keys) : v
-                ])
-              )
-            }
-          : {}),
-        ...(obj.type === 'array' && obj.items?.type === 'object'
-          ? {
-              items: getSubMap(obj.items, keys)
-            }
-          : {})
+  const ensureValidSchema = (obj: Record<string, any>, processNested: boolean): Record<string, any> => {
+    const schema: Record<string, any> = {
+      type: (obj.type || 'object').toLowerCase()
+    }
+
+    // Copy supported attributes
+    for (const attr of supportedAttributes) {
+      if (obj[attr] !== undefined) {
+        if (processNested && (attr === 'properties' || attr === 'items')) {
+          continue
+        }
+        schema[attr] = obj[attr]
       }
     }
 
-    return filtered
+    // Handle description
+    if (obj.description) {
+      schema.description = obj.description
+    }
+
+    // Handle object type
+    if (schema.type === 'object') {
+      if (obj.properties) {
+        if (processNested) {
+          schema.properties = Object.fromEntries(
+            Object.entries(obj.properties).map(([key, value]) => [
+              key,
+              ensureValidSchema(value as Record<string, any>, true)
+            ])
+          )
+        } else {
+          schema.properties = obj.properties
+        }
+      } else {
+        schema.properties = {
+          value: {
+            type: 'string',
+            description: 'Default value for unspecified object'
+          }
+        }
+      }
+
+      // Handle required fields
+      if (obj.required && Array.isArray(obj.required)) {
+        schema.required = obj.required
+      }
+    }
+
+    // Handle array type
+    if (schema.type === 'array') {
+      if (obj.items) {
+        if (processNested) {
+          schema.items = ensureValidSchema(obj.items, true)
+        } else {
+          schema.items = obj.items
+        }
+      } else {
+        schema.items = { type: 'string' } // Default items type if not specified
+      }
+    }
+
+    // Handle oneOf, anyOf, allOf
+    for (const key of ['oneOf', 'anyOf', 'allOf']) {
+      if (obj[key] && Array.isArray(obj[key])) {
+        if (processNested) {
+          schema[key] = obj[key].map((item: any) => ensureValidSchema(item, true))
+        } else {
+          schema[key] = obj[key]
+        }
+      }
+    }
+
+    // Handle enums
+    if (obj.enum && Array.isArray(obj.enum)) {
+      schema.enum = obj.enum
+    }
+
+    // Handle format
+    if (obj.format) {
+      schema.format = obj.format
+    }
+
+    // Handle numeric constraints
+    if (schema.type === 'number' || schema.type === 'integer') {
+      if (obj.minimum !== undefined) schema.minimum = obj.minimum
+      if (obj.maximum !== undefined) schema.maximum = obj.maximum
+    }
+
+    return schema
   }
 
-  for (const [key, val] of Object.entries(properties)) {
-    properties[key] = getSubMap(val, supportedAttributes)
-  }
-  return properties
+  const processedProperties = Object.fromEntries(
+    Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value, filterNestedObj)])
+  )
+
+  console.log('[MCP] Final processed properties:', processedProperties)
+  return processedProperties
 }
 
 export function mcpToolsToOpenAITools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
