@@ -3,6 +3,7 @@ import { FileType, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Col, Image, Row, Spin } from 'antd'
 import { t } from 'i18next'
+import VirtualList from 'rc-virtual-list'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
@@ -27,31 +28,33 @@ interface FileItemProps {
 const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
   if (id === FileTypes.IMAGE && files?.length && files?.length > 0) {
     return (
-      <Image.PreviewGroup>
-        <Row gutter={[16, 16]}>
-          {files?.map((file) => (
-            <Col key={file.id} xs={24} sm={12} md={8} lg={4} xl={3}>
-              <ImageWrapper>
-                <LoadingWrapper>
-                  <Spin />
-                </LoadingWrapper>
-                <Image
-                  src={FileManager.getFileUrl(file)}
-                  style={{ height: '100%', objectFit: 'cover', cursor: 'pointer' }}
-                  preview={{ mask: false }}
-                  onLoad={(e) => {
-                    const img = e.target as HTMLImageElement
-                    img.parentElement?.classList.add('loaded')
-                  }}
-                />
-                <ImageInfo>
-                  <div>{formatFileSize(file.size)}</div>
-                </ImageInfo>
-              </ImageWrapper>
-            </Col>
-          ))}
-        </Row>
-      </Image.PreviewGroup>
+      <div style={{ padding: 16 }}>
+        <Image.PreviewGroup>
+          <Row gutter={[16, 16]}>
+            {files?.map((file) => (
+              <Col key={file.id} xs={24} sm={12} md={8} lg={4} xl={3}>
+                <ImageWrapper>
+                  <LoadingWrapper>
+                    <Spin />
+                  </LoadingWrapper>
+                  <Image
+                    src={FileManager.getFileUrl(file)}
+                    style={{ height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                    preview={{ mask: false }}
+                    onLoad={(e) => {
+                      const img = e.target as HTMLImageElement
+                      img.parentElement?.classList.add('loaded')
+                    }}
+                  />
+                  <ImageInfo>
+                    <div>{formatFileSize(file.size)}</div>
+                  </ImageInfo>
+                </ImageWrapper>
+              </Col>
+            ))}
+          </Row>
+        </Image.PreviewGroup>
+      </div>
     )
   }
 
@@ -60,27 +63,40 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
   }
 
   return (
-    <FileListContainer>
-      {list.map((item) => (
-        <FileItem
-          key={item.key}
-          fileInfo={{
-            name: item.file,
-            ext: item.ext,
-            extra: `${item.created_at} · ${t('files.count')} ${item.count} · ${item.size}`,
-            actions: item.actions
-          }}
-        />
-      ))}
-    </FileListContainer>
+    <VirtualList
+      data={list}
+      height={window.innerHeight - 100}
+      itemHeight={80}
+      itemKey="key"
+      style={{ padding: '0 16px 16px 16px' }}
+      styles={{
+        verticalScrollBar: {
+          width: 6
+        },
+        verticalScrollBarThumb: {
+          background: 'var(--color-scrollbar-thumb)'
+        }
+      }}>
+      {(item) => (
+        <div
+          style={{
+            height: '80px',
+            paddingTop: '12px'
+          }}>
+          <FileItem
+            key={item.key}
+            fileInfo={{
+              name: item.file,
+              ext: item.ext,
+              extra: `${item.created_at} · ${t('files.count')} ${item.count} · ${item.size}`,
+              actions: item.actions
+            }}
+          />
+        </div>
+      )}
+    </VirtualList>
   )
 }
-
-const FileListContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
 
 const ImageWrapper = styled.div`
   position: relative;

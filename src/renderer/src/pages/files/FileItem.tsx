@@ -123,8 +123,9 @@ const FileIcon = styled.div`
 const FileName = styled.div`
   font-size: 15px;
   font-weight: bold;
-  white-space: wrap;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   transition: color 0.2s ease;
   span {

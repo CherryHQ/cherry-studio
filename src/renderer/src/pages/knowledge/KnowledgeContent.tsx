@@ -19,6 +19,7 @@ import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Alert, Button, Divider, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
+import VirtualList from 'rc-virtual-list'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -255,40 +256,61 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         </Dragger>
 
         <FlexColumn>
-          {fileItems.length === 0 && <Empty />}
-          {fileItems.reverse().map((item) => {
-            const file = item.content as FileType
-            return (
-              <FileItem
-                key={item.id}
-                fileInfo={{
-                  name: (
-                    <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
-                      <Ellipsis>
-                        <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
-                      </Ellipsis>
-                    </ClickableSpan>
-                  ),
-                  ext: file.ext,
-                  extra: `${dayjs(file.created_at).format('MM-DD HH:mm')} · ${formatFileSize(file.size)}`,
-                  actions: (
-                    <FlexAlignCenter>
-                      {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                      <StatusIconWrapper>
-                        <StatusIcon
-                          sourceId={item.id}
-                          base={base}
-                          getProcessingStatus={getProcessingStatus}
-                          type="file"
-                        />
-                      </StatusIconWrapper>
-                      <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                    </FlexAlignCenter>
-                  )
-                }}
-              />
-            )
-          })}
+          {fileItems.length === 0 ? (
+            <Empty />
+          ) : (
+            <VirtualList
+              data={fileItems.reverse()}
+              height={window.innerHeight - 310}
+              itemHeight={80}
+              itemKey="id"
+              styles={{
+                verticalScrollBar: {
+                  width: 6
+                },
+                verticalScrollBarThumb: {
+                  background: 'var(--color-scrollbar-thumb)'
+                }
+              }}>
+              {(item) => {
+                const file = item.content as FileType
+                return (
+                  <div style={{ height: '80px', paddingTop: '12px' }}>
+                    <FileItem
+                      key={item.id}
+                      fileInfo={{
+                        name: (
+                          <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
+                            <Ellipsis>
+                              <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
+                            </Ellipsis>
+                          </ClickableSpan>
+                        ),
+                        ext: file.ext,
+                        extra: `${dayjs(file.created_at).format('MM-DD HH:mm')} · ${formatFileSize(file.size)}`,
+                        actions: (
+                          <FlexAlignCenter>
+                            {item.uniqueId && (
+                              <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                            )}
+                            <StatusIconWrapper>
+                              <StatusIcon
+                                sourceId={item.id}
+                                base={base}
+                                getProcessingStatus={getProcessingStatus}
+                                type="file"
+                              />
+                            </StatusIconWrapper>
+                            <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                          </FlexAlignCenter>
+                        )
+                      }}
+                    />
+                  </div>
+                )
+              }}
+            </VirtualList>
+          )}
         </FlexColumn>
       </CustomCollapse>
 
