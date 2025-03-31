@@ -21,6 +21,7 @@ class McpService {
       baseUrl: server.baseUrl,
       command: server.command,
       args: server.args,
+      registryUrl: server.registryUrl,
       env: server.env,
       id: server.id
     })
@@ -93,6 +94,23 @@ class McpService {
         }
 
         Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
+
+        if (server.registryUrl) {
+          if (cmd.includes('npx') || cmd.includes('bun') || cmd.includes('bunx')) {
+            server.env = {
+              ...server.env,
+              NPM_CONFIG_REGISTRY: server.registryUrl
+            }
+          } else if (cmd.includes('uvx') || cmd.includes('uv')) {
+            server.env = {
+              ...server.env,
+              UV_DEFAULT_INDEX: server.registryUrl,
+              PIP_INDEX_URL: server.registryUrl
+            }
+          }
+        }
+
+        // Logger.info(`[MCP] Environment variables for server:`, server.env)
 
         transport = new StdioClientTransport({
           command: cmd,
