@@ -13,7 +13,7 @@ import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
 import { omit } from 'lodash'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -114,11 +114,16 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
   const handleSwitch = useCallback(async () => {
     await modelGenerating()
 
-    if (topicPosition === 'left' && clickAssistantToShowTopic) {
-      EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+    if (clickAssistantToShowTopic) {
+      if (topicPosition === 'left') {
+        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+      }
+      onSwitch(assistant)
+    } else {
+      startTransition(() => {
+        onSwitch(assistant)
+      })
     }
-
-    onSwitch(assistant)
   }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
 
   const assistantName = assistant.name || t('chat.default.name')
