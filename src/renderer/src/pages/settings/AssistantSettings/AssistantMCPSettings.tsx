@@ -26,11 +26,11 @@ interface Props {
 const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
   const { t } = useTranslation()
 
-  const { activedMcpServers } = useMCPServers()
+  const { mcpServers: allMcpServers } = useMCPServers()
   const onUpdate = (ids: string[]) => {
     const mcpServers = ids
-      .map((id) => activedMcpServers.find((server) => server.id === id))
-      .filter((server): server is MCPServer => server !== undefined)
+      .map((id) => allMcpServers.find((server) => server.id === id))
+      .filter((server): server is MCPServer => server !== undefined && server.isActive)
     const _assistant = { ...assistant, mcpServers }
     updateAssistant(_assistant)
   }
@@ -53,21 +53,21 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
     <Container>
       <HeaderContainer>
         <Box style={{ fontWeight: 'bold', fontSize: '16px' }}>
-          {t('common.mcp')}
-          <Tooltip title={t('settings.mcpServersDescription', 'Select MCP servers to use with this assistant')}>
+          {t('assistants.settings.mcp.title')}
+          <Tooltip title={t('assistants.settings.mcp.description', 'Select MCP servers to use with this assistant')}>
             <InfoIcon />
           </Tooltip>
         </Box>
-        {activedMcpServers.length > 0 && (
+        {allMcpServers.length > 0 && (
           <EnabledCount>
-            {enabledCount} / {activedMcpServers.length} {t('settings.enabled')}
+            {enabledCount} / {allMcpServers.length} {t('settings.mcp.active')}
           </EnabledCount>
         )}
       </HeaderContainer>
 
-      {activedMcpServers.length > 0 ? (
+      {allMcpServers.length > 0 ? (
         <ServerList>
-          {activedMcpServers.map((server) => {
+          {allMcpServers.map((server) => {
             const isEnabled = assistant.mcpServers?.some((s) => s.id === server.id) || false
 
             return (
@@ -77,7 +77,12 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
                   {server.description && <ServerDescription>{server.description}</ServerDescription>}
                   {server.baseUrl && <ServerUrl>{server.baseUrl}</ServerUrl>}
                 </ServerInfo>
-                <Switch checked={isEnabled} onChange={() => handleServerToggle(server.id)} size="small" />
+                <Switch
+                  checked={isEnabled}
+                  disabled={!server.isActive}
+                  onChange={() => handleServerToggle(server.id)}
+                  size="small"
+                />
               </ServerItem>
             )
           })}
@@ -85,7 +90,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
       ) : (
         <EmptyContainer>
           <Empty
-            description={t('settings.noMcpServers', 'No MCP servers available')}
+            description={t('assistants.settings.mcp.noAvaliable', 'No MCP servers available')}
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         </EmptyContainer>
