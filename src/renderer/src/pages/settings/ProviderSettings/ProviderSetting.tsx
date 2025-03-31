@@ -14,7 +14,7 @@ import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { FC, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -46,7 +46,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
-  const [searchText, setSearchText] = useState('')
+  const [modelSearchText, setModelSearchText] = useState('')
+  const deferredModelSearchText = useDeferredValue(modelSearchText)
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -306,7 +307,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
             <span>{t('common.models')}</span>
-            {!isEmpty(models) && <ModelListSearchBar onSearch={setSearchText} />}
+            {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
           </Space>
           {!isEmpty(models) && (
             <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
@@ -321,7 +322,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           )}
         </Space>
       </SettingSubtitle>
-      <ModelList provider={provider} modelStatuses={modelStatuses} searchText={searchText} />
+      <ModelList providerId={provider.id} modelStatuses={modelStatuses} searchText={deferredModelSearchText} />
     </SettingContainer>
   )
 }
