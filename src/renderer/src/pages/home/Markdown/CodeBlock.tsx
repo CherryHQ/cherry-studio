@@ -7,7 +7,7 @@ import { useSyntaxHighlighter } from '@renderer/context/SyntaxHighlighterProvide
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import React, { memo, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -37,25 +37,44 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
   const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 
-  useEffect(() => {
-    // 先显示纯文本并设置低透明度
-    if (codeContentRef.current) {
-      codeContentRef.current.style.opacity = '0.1'
-      codeContentRef.current.textContent = children
-      setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
-    }
-
+  const highlightCode = useCallback(async () => {
     setTimeout(async () => {
       const highlightedHtml = await codeToHtml(children, language)
       if (codeContentRef.current) {
         codeContentRef.current.innerHTML = highlightedHtml
         // 完成后恢复完全不透明
-        setTimeout(() => {
-          if (codeContentRef.current) codeContentRef.current.style.opacity = '1'
-        }, 0)
+        codeContentRef.current.style.opacity = '1'
       }
     }, 0)
   }, [children, language, codeToHtml])
+
+  useEffect(() => {
+    let isMounted = true
+    const codeElement = codeContentRef.current
+
+    // 先显示纯文本并设置低透明度
+    if (codeElement) {
+      codeElement.style.opacity = '0.1'
+      codeElement.textContent = children
+    }
+
+    // 只有当代码块在视口中才执行高亮
+    const observer = new IntersectionObserver(async (entries) => {
+      if (entries[0].isIntersecting && isMounted) {
+        highlightCode()
+        observer.disconnect()
+      }
+    })
+
+    if (codeElement) {
+      observer.observe(codeElement)
+    }
+
+    return () => {
+      isMounted = false
+      observer.disconnect()
+    }
+  }, [children, highlightCode])
 
   useEffect(() => {
     setIsExpanded(!codeCollapsible)
@@ -95,15 +114,13 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           )}
           <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
         </div>
-        
       </CodeHeader>
       <StickyWrapper>
         <HStack
           position="absolute"
           gap={12}
           alignItems="center"
-          style={{ bottom: '0.2rem', right: '1rem', height: "27px" }}
-        >
+          style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
           {showDownloadButton && <DownloadButton language={language} data={children} />}
           {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           <CopyButton text={children} />
