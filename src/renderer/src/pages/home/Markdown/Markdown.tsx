@@ -64,7 +64,8 @@ const Markdown: FC<Props> = ({ message, citationsData }) => {
         return <Link {...props} />
       },
       code: CodeBlock,
-      img: ImagePreview
+      img: ImagePreview,
+      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />
     } as Partial<Components>
 
     if (messageContent.includes('<style>')) {

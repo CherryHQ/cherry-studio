@@ -1,8 +1,20 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { MCPConfig, MCPServer } from '@renderer/types'
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
+import { nanoid } from '@reduxjs/toolkit'
+import type { MCPConfig, MCPServer } from '@renderer/types'
 
 const initialState: MCPConfig = {
-  servers: []
+  servers: [
+    {
+      id: nanoid(),
+      name: 'mcp-auto-install',
+      description: 'Automatically install MCP services (Beta version)',
+      baseUrl: '',
+      command: 'npx',
+      args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
+      env: {},
+      isActive: false
+    }
+  ]
 }
 
 const mcpSlice = createSlice({
@@ -47,5 +59,6 @@ export const { getActiveServers, getAllServers } = mcpSlice.selectors
 // Type-safe selector for accessing this slice from the root state
 export const selectMCP = (state: { mcp: MCPConfig }) => state.mcp
 
+export { mcpSlice }
 // Export the reducer as default export
 export default mcpSlice.reducer
