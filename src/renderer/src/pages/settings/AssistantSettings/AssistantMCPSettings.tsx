@@ -77,12 +77,19 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
                   {server.description && <ServerDescription>{server.description}</ServerDescription>}
                   {server.baseUrl && <ServerUrl>{server.baseUrl}</ServerUrl>}
                 </ServerInfo>
-                <Switch
-                  checked={isEnabled}
-                  disabled={!server.isActive}
-                  onChange={() => handleServerToggle(server.id)}
-                  size="small"
-                />
+                <Tooltip
+                  title={
+                    !server.isActive
+                      ? t('assistants.settings.mcp.enableFirst', 'Enable this server in MCP settings first')
+                      : undefined
+                  }>
+                  <Switch
+                    checked={isEnabled}
+                    disabled={!server.isActive}
+                    onChange={() => handleServerToggle(server.id)}
+                    size="small"
+                  />
+                </Tooltip>
               </ServerItem>
             )
           })}

@@ -45,6 +45,7 @@
       "save.title": "エージェントに保存",
       "search": "アシスタントを検索...",
       "settings.mcp": "MCP サーバー",
+      "settings.mcp.enableFirst": "まず MCP 設定でこのサーバーを有効にしてください",
       "settings.mcp.title": "MCP 設定",
       "settings.mcp.noServersAvailable": "利用可能な MCP サーバーがありません。設定でサーバーを追加してください",
       "settings.mcp.description": "デフォルトで有効な MCP サーバー",

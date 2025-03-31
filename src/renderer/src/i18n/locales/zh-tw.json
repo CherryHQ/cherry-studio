@@ -45,6 +45,7 @@
       "save.title": "儲存到智慧代理人",
       "search": "搜尋助手...",
       "settings.mcp": "MCP 伺服器",
+      "settings.mcp.enableFirst": "請先在 MCP 設定中啟用此伺服器",
       "settings.mcp.title": "MCP 設定",
       "settings.mcp.noServersAvailable": "無可用 MCP 伺服器。請在設定中新增伺服器",
       "settings.mcp.description": "預設啟用的 MCP 伺服器",

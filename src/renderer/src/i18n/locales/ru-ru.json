@@ -45,6 +45,7 @@
       "save.title": "Сохранить в агента",
       "search": "Поиск ассистентов...",
       "settings.mcp": "Серверы MCP",
+      "settings.mcp.enableFirst": "Сначала включите этот сервер в настройках MCP",
       "settings.mcp.title": "Настройки MCP",
       "settings.mcp.noServersAvailable": "Нет доступных серверов MCP. Добавьте серверы в настройках",
       "settings.mcp.description": "Серверы MCP, включенные по умолчанию",

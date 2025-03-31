@@ -47,6 +47,7 @@
       "settings.default_model": "Default Model",
       "settings.knowledge_base": "Knowledge Base Settings",
       "settings.mcp": "MCP Servers",
+      "settings.mcp.enableFirst": "Enable this server in MCP settings first",
       "settings.mcp.title": "MCP Settings",
       "settings.mcp.noServersAvailable": "No MCP servers available. Add servers in settings",
       "settings.mcp.description": "Default enabled MCP servers",

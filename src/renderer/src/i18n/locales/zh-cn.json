@@ -45,6 +45,7 @@
       "save.title": "保存到智能体",
       "search": "搜索助手",
       "settings.mcp": "MCP 服务器",
+      "settings.mcp.enableFirst": "请先在 MCP 设置中启用此服务器",
       "settings.mcp.title": "MCP 设置",
       "settings.mcp.noServersAvailable": "无可用 MCP 服务器。请在设置中添加服务器",
       "settings.mcp.description": "默认启用的 MCP 服务器",
