@@ -16,7 +16,7 @@ import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -268,23 +268,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
     return formatApiHost(apiHost) + 'chat/completions'
   }, [apiHost])
-
-  useEffect(() => {
-    if (provider.id === 'copilot') {
-      return
-    }
-    setApiKey(provider.apiKey)
-    setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost, provider.id])
-
-  // Save apiKey to provider when unmount
-  useEffect(() => {
-    return () => {
-      if (apiKey.trim() && apiKey !== provider.apiKey) {
-        updateProvider({ ...provider, apiKey })
-      }
-    }
-  }, [apiKey, provider, updateProvider])
 
   return (
     <SettingContainer theme={theme}>
