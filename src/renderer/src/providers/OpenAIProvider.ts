@@ -459,6 +459,7 @@ export default class OpenAIProvider extends BaseProvider {
       }
       const final_tool_calls = {} as Record<number, ChatCompletionMessageToolCall>
 
+      // 添加知识库图片信息
       const imageResponses: ImageResponse[] = []
       if (idx === 0 && lastUserMessage) {
         console.log('idx===', idx)

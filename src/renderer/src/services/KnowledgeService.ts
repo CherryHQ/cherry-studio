@@ -127,15 +127,16 @@ export const getKnowledgeBaseReference = async (base: KnowledgeBase, message: Me
       const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
 
       let images: FileType[] = []
-      if (item.metadata.image_paths && item.metadata.image_paths.length > 0) {
+      if (item.metadata.images && item.metadata.images.length > 0) {
         const imageResults = await Promise.all(
-          item.metadata.image_paths.map(async (imagePath) => {
+          item.metadata.images.map(async (imagePath) => {
             const file = await window.api.file.getFileWithRelativePath(imagePath)
             return file
           })
         )
         images = imageResults.filter((file): file is FileType => file !== null)
       }
+      console.log('images', images)
       return {
         id: index + 1,
         content: item.pageContent,

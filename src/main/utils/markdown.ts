@@ -1,3 +1,4 @@
+import { ImageArea } from '@cherrystudio/embedjs-interfaces'
 import { Node } from 'unist'
 
 // 假设这些接口定义在同一个文件或已导入
@@ -20,16 +21,6 @@ export interface HtmlNode extends Node {
   position?: {
     start: { line: number; column: number; offset: number }
     end: { line: number; column: number; offset: number }
-  }
-}
-
-// markdown.ts (assuming the interfaces ImageNode and MarkdownImage are here)
-// Add a new interface for the output of mapImageAreas
-export interface ImageArea {
-  url: string
-  areaPosition: {
-    startOffset: number
-    endOffset: number
   }
 }
 

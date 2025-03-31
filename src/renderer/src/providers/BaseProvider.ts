@@ -215,7 +215,20 @@ export default abstract class BaseProvider {
     const knowledgeReferences = await getKnowledgeBaseReferences(message)
     console.log('knowledgeReferences', knowledgeReferences)
     if (!isEmpty(knowledgeReferences)) {
-      return knowledgeReferences.flatMap((item) => item.images)
+      // 筛选重复图片
+      const uniqueImagesMap = new Map<string, FileType>()
+
+      knowledgeReferences.forEach((item) => {
+        if (item.images && Array.isArray(item.images)) {
+          item.images.forEach((image) => {
+            if (image.path && !uniqueImagesMap.has(image.path)) {
+              uniqueImagesMap.set(image.path, image)
+            }
+          })
+        }
+      })
+
+      return Array.from(uniqueImagesMap.values())
     }
     return
   }

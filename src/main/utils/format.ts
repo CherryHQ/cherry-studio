@@ -1,11 +1,12 @@
 import path from 'node:path'
 
+import { ImageArea } from '@cherrystudio/embedjs-interfaces'
 import { windowService } from '@main/services/WindowService'
 import { FileType } from '@types'
 import { ipcMain } from 'electron'
 import * as fs from 'fs'
 
-import { findImages, ImageArea } from './markdown'
+import { findImages } from './markdown'
 
 export async function formatOcrFile(ocrFile: FileType): Promise<FileType> {
   console.log('Formatting OCR file:', ocrFile.name)
