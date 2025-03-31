@@ -105,8 +105,6 @@
     &::-webkit-scrollbar {
       width: 14px;
       height: 6px;
-      background-color: transparent;
-      opacity: 0;
     }
 
     &::-webkit-scrollbar-thumb {
@@ -115,12 +113,11 @@
       border-radius: 7px;
       background-color: var(--color-scrollbar-thumb);
       min-height: 50px;
-      transition: opacity 0.2s;
-      opacity: 0;
+      transition: all 0.2s;
     }
 
     &:hover::-webkit-scrollbar-thumb {
-      opacity: 1;
+      background-color: var(--color-scrollbar-thumb);
     }
 
     &::-webkit-scrollbar-thumb:hover {
