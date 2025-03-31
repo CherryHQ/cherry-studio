@@ -17,4 +17,15 @@ export default abstract class BaseReranker {
       'Content-Type': 'application/json'
     }
   }
+
+  public formatErrorMessage(url: string, error: any, requestBody: any) {
+    const errorDetails = {
+      url: url,
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      requestBody: requestBody
+    }
+    return JSON.stringify(errorDetails, null, 2)
+  }
 }

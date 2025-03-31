@@ -142,6 +142,7 @@ const visionAllowedModels = [
   'minicpm',
   'gemini-1\\.5',
   'gemini-2\\.0',
+  'gemini-2\\.5',
   'gemini-exp',
   'claude-3',
   'vision',
@@ -149,12 +150,14 @@ const visionAllowedModels = [
   'qwen-vl',
   'qwen2-vl',
   'qwen2.5-vl',
+  'qwen2.5-omni',
   'qvq',
   'internvl2',
   'grok-vision-beta',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
   'gpt-4o(?:-[\\w-]+)?',
+  'gpt-4.5(?:-[\\w-]+)',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
@@ -162,7 +165,15 @@ const visionAllowedModels = [
   'gemma-3(?:-[\\w-]+)'
 ]
 
-const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+']
+const visionExcludedModels = [
+  'gpt-4-\\d+-preview',
+  'gpt-4-turbo-preview',
+  'gpt-4-32k',
+  'gpt-4-\\d+',
+  'o1-mini',
+  'o1-preview',
+  'AIDC-AI/Marco-o1'
+]
 export const VISION_REGEX = new RegExp(
   `\\b(?!(?:${visionExcludedModels.join('|')})\\b)(${visionAllowedModels.join('|')})\\b`,
   'i'
@@ -190,15 +201,23 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4o-mini',
   'gpt-4',
   'gpt-4.5',
+  'o1(?:-[\\w-]+)?',
   'claude',
   'qwen',
   'hunyuan',
+  'deepseek-ai/',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
 ]
 
-const FUNCTION_CALLING_EXCLUDED_MODELS = ['aqa(?:-[\\w-]+)?', 'imagen(?:-[\\w-]+)?']
+const FUNCTION_CALLING_EXCLUDED_MODELS = [
+  'aqa(?:-[\\w-]+)?',
+  'imagen(?:-[\\w-]+)?',
+  'o1-mini',
+  'o1-preview',
+  'AIDC-AI/Marco-o1'
+]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
   `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
@@ -1939,6 +1958,17 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 
 export const GENERATE_IMAGE_MODELS = ['gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-exp']
 
+export const GEMINI_SEARCH_MODELS = [
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash-001',
+  'gemini-2.0-pro-exp-02-05',
+  'gemini-2.0-pro-exp',
+  'gemini-2.5-pro-exp',
+  'gemini-2.5-pro-exp-03-25'
+]
+
 export function isTextToImageModel(model: Model): boolean {
   return TEXT_TO_IMAGE_REGEX.test(model.id)
 }
@@ -2011,6 +2041,10 @@ export function isReasoningModel(model?: Model): boolean {
     return true
   }
 
+  if (model.id.includes('gemini-2.5-pro-exp')) {
+    return true
+  }
+
   return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
 }
 
@@ -2039,30 +2073,23 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  if (provider.id === 'aihubmix') {
+    const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
+    return models.includes(model?.id)
+  }
+
   if (provider?.type === 'openai') {
-    if (model?.id?.includes('gemini-2.0-flash-exp')) {
+    if (GEMINI_SEARCH_MODELS.includes(model?.id)) {
       return true
     }
   }
 
   if (provider.id === 'gemini' || provider?.type === 'gemini') {
-    const models = [
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-exp',
-      'gemini-2.0-flash-001',
-      'gemini-2.0-pro-exp-02-05',
-      'gemini-2.0-pro-exp'
-    ]
-    return models.includes(model?.id)
+    return GEMINI_SEARCH_MODELS.includes(model?.id)
   }
 
   if (provider.id === 'hunyuan') {
     return model?.id !== 'hunyuan-lite'
-  }
-
-  if (provider.id === 'aihubmix') {
-    const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
-    return models.includes(model?.id)
   }
 
   if (provider.id === 'zhipu') {

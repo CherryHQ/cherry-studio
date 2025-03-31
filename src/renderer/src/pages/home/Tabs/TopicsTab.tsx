@@ -37,7 +37,7 @@ import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import { FC, startTransition, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -56,7 +56,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
-  const deleteTimerRef = useRef<NodeJS.Timeout>()
+  const deleteTimerRef = useRef<NodeJS.Timeout>(null)
 
   const pendingTopics = useMemo(() => {
     return new Set<string>()
@@ -146,7 +146,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const onSwitchTopic = useCallback(
     async (topic: Topic) => {
       // await modelGenerating()
-      setActiveTopic(topic)
+      startTransition(() => {
+        setActiveTopic(topic)
+      })
     },
     [setActiveTopic]
   )
@@ -202,7 +204,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 allowClear: true
               }
             })
-            prompt && updateTopic({ ...topic, prompt: prompt.trim() })
+            prompt !== null && updateTopic({ ...topic, prompt: prompt.trim() })
           }
         },
         {
@@ -410,14 +412,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
-  padding-top: 11px;
-  user-select: none;
+  padding: 10px;
 `
 
 const TopicListItem = styled.div`
   padding: 7px 12px;
-  margin-left: 10px;
-  margin-right: 4px;
   border-radius: var(--list-item-border-radius);
   font-family: Ubuntu;
   font-size: 13px;
@@ -429,6 +428,7 @@ const TopicListItem = styled.div`
   cursor: pointer;
   border: 0.5px solid transparent;
   position: relative;
+  width: calc(var(--assistants-width) - 20px);
   .menu {
     opacity: 0;
     color: var(--color-text-3);

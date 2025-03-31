@@ -1,5 +1,8 @@
 import { Tool, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { FunctionCall, FunctionDeclaration, SchemaType, Tool as geminiToool } from '@google/generative-ai'
+import { nanoid } from '@reduxjs/toolkit'
+import store from '@renderer/store'
+import { addMCPServer } from '@renderer/store/mcp'
 import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
 
@@ -58,6 +61,7 @@ function filterPropertieAttributes(tool: MCPTool, filterNestedObj = false) {
 export function mcpToolsToOpenAITools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
   return mcpTools.map((tool) => ({
     type: 'function',
+    name: tool.name,
     function: {
       name: tool.id,
       description: tool.description,
@@ -73,11 +77,17 @@ export function openAIToolsToMcpTool(
   mcpTools: MCPTool[] | undefined,
   llmTool: ChatCompletionMessageToolCall
 ): MCPTool | undefined {
-  if (!mcpTools) return undefined
-  const tool = mcpTools.find((tool) => tool.id === llmTool.function.name)
-  if (!tool) {
+  if (!mcpTools) {
     return undefined
   }
+
+  const tool = mcpTools.find((mcptool) => mcptool.id === llmTool.function.name)
+
+  if (!tool) {
+    console.warn('No MCP Tool found for tool call:', llmTool)
+    return undefined
+  }
+
   console.log(
     `[MCP] OpenAI Tool to MCP Tool: ${tool.serverName} ${tool.name}`,
     tool,
@@ -94,6 +104,7 @@ export function openAIToolsToMcpTool(
 
   return {
     id: tool.id,
+    serverId: tool.serverId,
     serverName: tool.serverName,
     name: tool.name,
     description: tool.description,
@@ -104,12 +115,36 @@ export function openAIToolsToMcpTool(
 export async function callMCPTool(tool: MCPTool): Promise<any> {
   console.log(`[MCP] Calling Tool: ${tool.serverName} ${tool.name}`, tool)
   try {
+    const server = getMcpServerByTool(tool)
+
+    if (!server) {
+      throw new Error(`Server not found: ${tool.serverName}`)
+    }
+
     const resp = await window.api.mcp.callTool({
-      client: tool.serverName,
+      server,
       name: tool.name,
       args: tool.inputSchema
     })
+
     console.log(`[MCP] Tool called: ${tool.serverName} ${tool.name}`, resp)
+
+    if (tool.serverName === 'mcp-auto-install') {
+      if (resp.data) {
+        const mcpServer: MCPServer = {
+          id: nanoid(),
+          name: resp.data.name,
+          description: resp.data.description,
+          baseUrl: resp.data.baseUrl,
+          command: resp.data.command,
+          args: resp.data.args,
+          env: resp.data.env,
+          isActive: false
+        }
+        store.dispatch(addMCPServer(mcpServer))
+      }
+    }
+
     return resp
   } catch (e) {
     console.error(`[MCP] Error calling Tool: ${tool.serverName} ${tool.name}`, e)
@@ -226,4 +261,9 @@ export function filterMCPTools(
     }
   }
   return mcpTools
+}
+
+export function getMcpServerByTool(tool: MCPTool) {
+  const servers = store.getState().mcp.servers
+  return servers.find((s) => s.id === tool.serverId)
 }

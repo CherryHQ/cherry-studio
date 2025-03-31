@@ -53,8 +53,10 @@ export default class VoyageReranker extends BaseReranker {
         .filter((doc): doc is ExtractChunkData => doc !== undefined)
         .sort((a, b) => b.score - a.score)
     } catch (error: any) {
-      console.error('Voyage Reranker API 错误:', error.message || error)
-      throw new Error(`${error} - BaseUrl: ${baseURL}`)
+      const errorDetails = this.formatErrorMessage(url, error, requestBody)
+
+      console.error('Voyage Reranker API Error:', errorDetails)
+      throw new Error(`重排序请求失败: ${error.message}\n请求详情: ${errorDetails}`)
     }
   }
 }

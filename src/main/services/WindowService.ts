@@ -163,6 +163,25 @@ export class WindowService {
       mainWindow.webContents.send('fullscreen-status-changed', false)
     })
 
+    // set the zoom factor again when the window is going to resize
+    //
+    // this is a workaround for the known bug that
+    // the zoom factor is reset to cached value when window is resized after routing to other page
+    // see: https://github.com/electron/electron/issues/10572
+    //
+    mainWindow.on('will-resize', () => {
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+    })
+
+    // ARCH: as `will-resize` is only for Win & Mac,
+    // linux has the same problem, use `resize` listener instead
+    // but `resize` will fliker the ui
+    if (isLinux) {
+      mainWindow.on('resize', () => {
+        mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      })
+    }
+
     // 添加Escape键退出全屏的支持
     mainWindow.webContents.on('before-input-event', (event, input) => {
       // 当按下Escape键且窗口处于全屏状态时退出全屏

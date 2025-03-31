@@ -16,16 +16,19 @@ import AssistantPromptSettings from './AssistantPromptSettings'
 
 interface AssistantSettingPopupShowParams {
   assistant: Assistant
+  tab?: AssistantSettingPopupTab
 }
+
+type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
 }
 
-const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) => {
+const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...props }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const [menu, setMenu] = useState('prompt')
+  const [menu, setMenu] = useState<AssistantSettingPopupTab>(tab || 'prompt')
 
   const _useAssistant = useAssistant(props.assistant.id)
   const _useAgent = useAgent(props.assistant.id)
@@ -94,10 +97,10 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
         <LeftMenu>
           <Menu
             style={{ width: 220, padding: 5, background: 'transparent' }}
-            defaultSelectedKeys={['prompt']}
+            defaultSelectedKeys={[tab || 'prompt']}
             mode="vertical"
             items={items}
-            onSelect={({ key }) => setMenu(key as string)}
+            onSelect={({ key }) => setMenu(key as AssistantSettingPopupTab)}
           />
         </LeftMenu>
         <Settings>

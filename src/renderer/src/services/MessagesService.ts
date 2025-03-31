@@ -54,7 +54,7 @@ export function filterEmptyMessages(messages: Message[]): Message[] {
 }
 
 export function filterUsefulMessages(messages: Message[]): Message[] {
-  const _messages = [...messages]
+  let _messages = [...messages]
   const groupedMessages = getGroupedMessages(messages)
 
   Object.entries(groupedMessages).forEach(([key, messages]) => {
@@ -77,6 +77,14 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
   while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
     _messages.pop()
   }
+
+  // 过滤两条及以上 user 类型消息相邻的情况，只保留最新一条 user 消息
+  _messages = _messages.filter((message, index, origin) => {
+    if (message.role === 'user' && index + 1 < origin.length && origin[index + 1].role === 'user') {
+      return false
+    }
+    return true
+  })
 
   return _messages
 }
@@ -175,6 +183,7 @@ export function getAssistantMessage({ assistant, topic }: { assistant: Assistant
 
 export function getGroupedMessages(messages: Message[]): { [key: string]: (Message & { index: number })[] } {
   const groups: { [key: string]: (Message & { index: number })[] } = {}
+
   messages.forEach((message, index) => {
     const key = message.askId ? 'assistant' + message.askId : 'user' + message.id
     if (key && !groups[key]) {
@@ -182,6 +191,7 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
     }
     groups[key].unshift({ ...message, index })
   })
+
   return groups
 }
 

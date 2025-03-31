@@ -26,7 +26,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '') || children?.includes('\n')
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
   const language = match?.[1] ?? 'text'
-  const [html, setHtml] = useState<string>('')
+  // const [html, setHtml] = useState<string>('')
   const { codeToHtml } = useSyntaxHighlighter()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
@@ -40,16 +40,13 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   useEffect(() => {
     const loadHighlightedCode = async () => {
       const highlightedHtml = await codeToHtml(children, language)
-      setHtml(highlightedHtml)
+      if (codeContentRef.current) {
+        codeContentRef.current.innerHTML = highlightedHtml
+        setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
+      }
     }
     loadHighlightedCode()
   }, [children, language, codeToHtml])
-
-  useEffect(() => {
-    if (codeContentRef.current) {
-      setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
-    }
-  }, [html])
 
   useEffect(() => {
     if (!codeCollapsible) {
@@ -112,7 +109,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
         isShowLineNumbers={codeShowLineNumbers}
         isUnwrapped={isUnwrapped}
         isCodeWrappable={codeWrappable}
-        dangerouslySetInnerHTML={{ __html: html }}
+        // dangerouslySetInnerHTML={{ __html: html }}
         style={{
           border: '0.5px solid var(--color-code-background)',
           borderTopLeftRadius: 0,
@@ -221,12 +218,14 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
     padding: 1em;
 
     code {
-      display: table;
+      display: flex;
+      flex-direction: column;
       width: 100%;
 
       .line {
-        display: table-row;
-        height: 1.3rem;
+        display: block;
+        min-height: 1.3rem;
+        padding-left: ${(props) => (props.isShowLineNumbers ? '2rem' : '0')};
       }
     }
   }
@@ -237,14 +236,15 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
       code {
         counter-reset: step;
         counter-increment: step 0;
+        position: relative;
       }
 
       code .line::before {
         content: counter(step);
         counter-increment: step;
         width: 1rem;
-        padding-right: 1rem;
-        display: table-cell;
+        position: absolute;
+        left: 0;
         text-align: right;
         opacity: 0.35;
       }
