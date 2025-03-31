@@ -303,9 +303,8 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     isNearButtons,
     handleMouseEnter,
     handleMouseLeave,
-    right,
     showRightTopics,
-    manuallyClosedUntil // 添加新的依赖项
+    manuallyClosedUntil
   ])
 
   return (
