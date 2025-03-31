@@ -16,7 +16,7 @@ import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
-import { FC, useCallback, useState } from 'react'
+import { FC, startTransition, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -70,32 +70,38 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
   const onUpdateApiKey = useCallback(
     (value: string) => {
-      if (value !== provider.apiKey) {
-        updateProvider({ ...provider, apiKey: value })
-        window.message.success({
-          key: 'api-key-updated',
-          content: t('settings.provider.api_key.updated'),
-          duration: 2
-        })
-        return
-      }
-      setApiKey(formatApiKeys(value))
+      setInputApiKey(value)
+      startTransition(() => {
+        if (value !== provider.apiKey) {
+          updateProvider({ ...provider, apiKey: value })
+          window.message.success({
+            key: 'api-key-updated',
+            content: t('settings.provider.api_key.updated'),
+            duration: 2
+          })
+          return
+        }
+        setApiKey(formatApiKeys(value))
+      })
     },
     [provider, updateProvider, t]
   )
 
   const onUpdateApiHost = useCallback(
     (value: string) => {
-      if (value !== provider.apiHost) {
-        updateProvider({ ...provider, apiHost: value })
-        window.message.success({
-          key: 'api-host-updated',
-          content: t('settings.provider.api_host.updated'),
-          duration: 2
-        })
-        return
-      }
-      setApiHost(provider.apiHost)
+      setInputApiHost(value)
+      startTransition(() => {
+        if (value !== provider.apiHost) {
+          updateProvider({ ...provider, apiHost: value })
+          window.message.success({
+            key: 'api-host-updated',
+            content: t('settings.provider.api_host.updated'),
+            duration: 2
+          })
+          return
+        }
+        setApiHost(provider.apiHost)
+      })
     },
     [provider, updateProvider, t]
   )
@@ -299,9 +305,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <Input.Password
           value={inputApiKey}
           placeholder={t('settings.provider.api_key')}
-          onChange={(e) => setInputApiKey(e.target.value)}
-          onPressEnter={() => onUpdateApiKey(inputApiKey)}
-          onBlur={() => onUpdateApiKey(inputApiKey)}
+          onChange={(e) => onUpdateApiKey(e.target.value)}
           spellCheck={false}
           autoFocus={provider.enabled && apiKey === ''}
           disabled={provider.id === 'copilot'}
@@ -335,9 +339,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <Input
           value={inputApiHost}
           placeholder={t('settings.provider.api_host')}
-          onChange={(e) => setInputApiHost(e.target.value)}
-          onPressEnter={() => onUpdateApiHost(inputApiHost)}
-          onBlur={() => onUpdateApiHost(inputApiHost)}
+          onChange={(e) => onUpdateApiHost(e.target.value)}
         />
         {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
           <Button danger onClick={onReset}>
