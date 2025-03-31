@@ -162,6 +162,20 @@ const api = {
     decryptToken: (token: string) => ipcRenderer.invoke('nutstore:decrypt-token', token),
     getDirectoryContents: (token: string, path: string) =>
       ipcRenderer.invoke('nutstore:get-directory-contents', token, path)
+  },
+  // Add CSS related API
+  customCss: {
+    setCustomCss: (css: string) => ipcRenderer.invoke('custom-css:set', css),
+    // Add an event listener for CSS updates
+    onCustomCssUpdate: (callback: (css: string) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, css: string) => {
+        callback(css)
+      }
+      ipcRenderer.on('update-custom-css', listener)
+      return () => {
+        ipcRenderer.removeListener('update-custom-css', listener)
+      }
+    }
   }
 }
 

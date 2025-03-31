@@ -298,4 +298,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('nutstore:get-directory-contents', (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
   )
+
+  // Custom CSS
+  ipcMain.handle('custom-css:set', (_, css: string) => {
+    // Save the CSS to config
+    configManager.setCustomCss(css)
+
+    // Broadcast to all windows including the mini window
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('update-custom-css', css)
+    })
+  })
 }

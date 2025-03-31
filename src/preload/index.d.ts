@@ -175,6 +175,10 @@ declare global {
         decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
         getDirectoryContents: (token: string, path: string) => Promise<any>
       }
+      customCss: {
+        setCustomCss: (css: string) => Promise<void>
+        onCustomCssUpdate: (callback: (css: string) => void) => () => void
+      }
     }
   }
 }

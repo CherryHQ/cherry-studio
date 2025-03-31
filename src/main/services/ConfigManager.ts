@@ -116,6 +116,15 @@ export class ConfigManager {
     this.store.set('enableQuickAssistant', value)
   }
 
+  getCustomCss(): string {
+    return this.store.get('customCss', '') as string
+  }
+
+  setCustomCss(css: string) {
+    this.store.set('customCss', css)
+    this.notifySubscribers('customCss', css)
+  }
+
   set(key: string, value: any) {
     this.store.set(key, value)
   }
