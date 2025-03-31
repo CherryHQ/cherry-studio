@@ -70,38 +70,34 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
   const onUpdateApiKey = useCallback(
     (value: string) => {
-      setInputApiKey(value)
-      startTransition(() => {
-        if (value !== provider.apiKey) {
+      if (value !== provider.apiKey) {
+        startTransition(() => {
           updateProvider({ ...provider, apiKey: value })
           window.message.success({
             key: 'api-key-updated',
             content: t('settings.provider.api_key.updated'),
             duration: 2
           })
-          return
-        }
-        setApiKey(formatApiKeys(value))
-      })
+          setApiKey(formatApiKeys(value))
+        })
+      }
     },
-    [provider, updateProvider, t]
+    [updateProvider, provider, t]
   )
 
   const onUpdateApiHost = useCallback(
     (value: string) => {
-      setInputApiHost(value)
-      startTransition(() => {
-        if (value !== provider.apiHost) {
+      if (value !== provider.apiHost) {
+        startTransition(() => {
           updateProvider({ ...provider, apiHost: value })
           window.message.success({
             key: 'api-host-updated',
             content: t('settings.provider.api_host.updated'),
             duration: 2
           })
-          return
-        }
-        setApiHost(provider.apiHost)
-      })
+          setApiHost(provider.apiHost)
+        })
+      }
     },
     [provider, updateProvider, t]
   )
@@ -305,7 +301,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <Input.Password
           value={inputApiKey}
           placeholder={t('settings.provider.api_key')}
-          onChange={(e) => onUpdateApiKey(e.target.value)}
+          onChange={(e) => setInputApiKey(e.target.value)}
+          onPressEnter={() => onUpdateApiKey(inputApiKey)}
+          onBlur={() => onUpdateApiKey(inputApiKey)}
           spellCheck={false}
           autoFocus={provider.enabled && apiKey === ''}
           disabled={provider.id === 'copilot'}
@@ -339,7 +337,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <Input
           value={inputApiHost}
           placeholder={t('settings.provider.api_host')}
-          onChange={(e) => onUpdateApiHost(e.target.value)}
+          onChange={(e) => setInputApiHost(e.target.value)}
+          onPressEnter={() => onUpdateApiHost(inputApiHost)}
+          onBlur={() => onUpdateApiHost(inputApiHost)}
         />
         {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
           <Button danger onClick={onReset}>
