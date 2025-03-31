@@ -82,7 +82,7 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
     [highlighter, highlighterTheme]
   )
 
-  return <SyntaxHighlighterContext.Provider value={{ codeToHtml }}>{children}</SyntaxHighlighterContext.Provider>
+  return <SyntaxHighlighterContext value={{ codeToHtml }}>{children}</SyntaxHighlighterContext>
 }
 
 export const useSyntaxHighlighter = () => {

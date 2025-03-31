@@ -56,6 +56,8 @@ const Container = styled.div`
 
 const Main = styled(Flex)`
   height: calc(100vh - var(--navbar-height));
+  // 设置为containing block，方便子元素fixed定位
+  transform: translateZ(0);
 `
 
 export default Chat

@@ -545,8 +545,17 @@
       "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！"
     },
     "minapp": {
+      "popup": {
+        "refresh": "重新整理",
+        "close": "關閉小工具",
+        "minimize": "最小化小工具",
+        "devtools": "開發者工具",
+        "openExternal": "在瀏覽器中開啟"
+      },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
+      "sidebar.close.title": "關閉",
+      "sidebar.closeall.title": "全部關閉",
       "sidebar.hide.title": "隱藏小工具",
       "title": "小工具"
     },
@@ -905,17 +914,14 @@
           "pathSelector.return": "返回",
           "pathSelector.currentPath": "當前路徑",
           "new_folder.button.confirm": "確定",
-          "new_folder.button.cancel": "取消"
+          "new_folder.button.cancel": "取消",
+          "new_folder.button": "新建文件夾"
         }
       },
       "display.assistant.title": "助手設定",
       "display.custom.css": "自訂 CSS",
       "display.custom.css.cherrycss": "從 cherrycss.com 取得",
       "display.custom.css.placeholder": "/* 這裡寫自訂 CSS */",
-      "display.minApp.disabled": "隱藏的小工具",
-      "display.minApp.empty": "把要隱藏的小工具從左側拖拽到這裡",
-      "display.minApp.title": "小工具顯示設定",
-      "display.minApp.visible": "顯示的小工具",
       "display.sidebar.chat.hiddenMessage": "助手是基礎功能，不支援隱藏",
       "display.sidebar.disabled": "隱藏的圖示",
       "display.sidebar.empty": "把要隱藏的功能從左側拖拽到這裡",
@@ -928,6 +934,20 @@
       "display.sidebar.visible": "顯示的圖示",
       "display.title": "顯示設定",
       "display.topic.title": "話題設定",
+      "miniapps": {
+        "title": "小程式設置",
+        "disabled": "隱藏的小程式",
+        "empty": "把要隱藏的小程式從左側拖拽到這裡",
+        "visible": "顯示的小程式",
+        "cache_settings": "緩存設置",
+        "cache_title": "小程式緩存數量",
+        "cache_description": "設置同時保持活躍狀態的小程式最大數量",
+        "reset_tooltip": "重置為預設值",
+        "display_title": "小程式顯示設置",
+        "sidebar_title": "側邊欄活躍小程式顯示設置",
+        "sidebar_description": "設置側邊欄是否顯示活躍的小程式",
+        "cache_change_notice": "更改將在打開的小程式增減至設定值後生效"
+      },
       "font_size.title": "訊息字型大小",
       "general": "一般設定",
       "general.avatar.reset": "重設頭像",
@@ -963,10 +983,7 @@
         "argsTooltip": "每個參數佔一行",
         "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
-        "commandRequired": "請輸入指令",
         "config_description": "設定模型上下文協議伺服器",
-        "confirmDelete": "刪除伺服器",
-        "confirmDeleteMessage": "您確定要刪除該伺服器嗎？",
         "deleteError": "刪除伺服器失敗",
         "deleteSuccess": "伺服器刪除成功",
         "dependenciesInstall": "安裝相依套件",
@@ -977,7 +994,8 @@
         "editServer": "編輯伺服器",
         "env": "環境變數",
         "envTooltip": "格式：KEY=value，每行一個",
-        "findMore": "更多 MCP 伺服器",
+        "findMore": "更多 MCP",
+        "searchNpx": "搜索 MCP",
         "install": "安裝",
         "installError": "安裝相依套件失敗",
         "installSuccess": "相依套件安裝成功",
@@ -987,8 +1005,8 @@
         "jsonSaveSuccess": "JSON配置已儲存",
         "missingDependencies": "缺失，請安裝它以繼續",
         "name": "名稱",
-        "nameRequired": "請輸入伺服器名稱",
         "noServers": "未設定伺服器",
+        "newServer": "MCP 伺服器",
         "npx_list": {
           "actions": "操作",
           "desc": "搜索並添加 npm 包作為 MCP 服務",
@@ -1004,14 +1022,26 @@
           "usage": "用法",
           "version": "版本"
         },
+        "errors": {
+          "32000": "MCP 伺服器啟動失敗，請根據教程檢查參數是否填寫完整"
+        },
         "serverPlural": "伺服器",
         "serverSingular": "伺服器",
         "title": "MCP 伺服器",
-        "toggleError": "切換失敗",
+        "startError": "啟動失敗",
         "type": "類型",
         "updateError": "更新伺服器失敗",
         "updateSuccess": "伺服器更新成功",
-        "url": "URL"
+        "url": "URL",
+        "editMcpJson": "編輯 MCP 配置",
+        "installHelp": "獲取安裝幫助",
+        "tools": {
+          "inputSchema": "輸入參數",
+          "availableTools": "可用工具",
+          "noToolsAvailable": "沒有可用工具"
+        },
+        "deleteServer": "刪除伺服器",
+        "deleteServerConfirm": "確定要刪除此伺服器嗎？"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",

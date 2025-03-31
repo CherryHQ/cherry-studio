@@ -8,8 +8,8 @@ import {
   OnDragStartResponder,
   ResponderProvided
 } from '@hello-pangea/dnd'
-import VirtualList from 'rc-virtual-list'
 import { droppableReorder } from '@renderer/utils'
+import VirtualList from 'rc-virtual-list'
 import { FC } from 'react'
 
 interface Props<T> {

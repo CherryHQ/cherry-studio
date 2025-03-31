@@ -57,11 +57,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
     }
   })
 
-  return (
-    <ThemeContext.Provider value={{ theme: _theme, settingTheme: theme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  )
+  return <ThemeContext value={{ theme: _theme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
 }
 
 export const useTheme = () => use(ThemeContext)

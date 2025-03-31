@@ -120,15 +120,13 @@ const api = {
       ipcRenderer.invoke('aes:decrypt', encryptedData, iv, secretKey)
   },
   mcp: {
-    listServers: () => ipcRenderer.invoke('mcp:list-servers'),
-    addServer: (server: MCPServer) => ipcRenderer.invoke('mcp:add-server', server),
-    updateServer: (server: MCPServer) => ipcRenderer.invoke('mcp:update-server', server),
-    deleteServer: (serverName: string) => ipcRenderer.invoke('mcp:delete-server', serverName),
-    setServerActive: (name: string, isActive: boolean) =>
-      ipcRenderer.invoke('mcp:set-server-active', { name, isActive }),
-    listTools: (serverName?: string) => ipcRenderer.invoke('mcp:list-tools', serverName),
-    callTool: (params: { client: string; name: string; args: any }) => ipcRenderer.invoke('mcp:call-tool', params),
-    cleanup: () => ipcRenderer.invoke('mcp:cleanup')
+    removeServer: (server: MCPServer) => ipcRenderer.invoke('mcp:remove-server', server),
+    restartServer: (server: MCPServer) => ipcRenderer.invoke('mcp:restart-server', server),
+    stopServer: (server: MCPServer) => ipcRenderer.invoke('mcp:stop-server', server),
+    listTools: (server: MCPServer) => ipcRenderer.invoke('mcp:list-tools', server),
+    callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) =>
+      ipcRenderer.invoke('mcp:call-tool', { server, name, args }),
+    getInstallInfo: () => ipcRenderer.invoke('mcp:get-install-info')
   },
   shell: {
     openExternal: shell.openExternal

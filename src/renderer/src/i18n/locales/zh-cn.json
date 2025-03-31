@@ -545,8 +545,17 @@
       "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!"
     },
     "minapp": {
+      "popup": {
+        "refresh": "刷新",
+        "close": "关闭小程序",
+        "minimize": "最小化小程序",
+        "devtools": "开发者工具",
+        "openExternal": "在浏览器中打开"
+      },
       "sidebar.add.title": "添加到侧边栏",
       "sidebar.remove.title": "从侧边栏移除",
+      "sidebar.close.title": "关闭",
+      "sidebar.closeall.title": "全部关闭",
       "sidebar.hide.title": "隐藏小程序",
       "title": "小程序"
     },
@@ -905,17 +914,14 @@
           "pathSelector.return": "返回",
           "pathSelector.currentPath": "当前路径",
           "new_folder.button.confirm": "确定",
-          "new_folder.button.cancel": "取消"
+          "new_folder.button.cancel": "取消",
+          "new_folder.button": "新建文件夹"
         }
       },
       "display.assistant.title": "助手设置",
       "display.custom.css": "自定义 CSS",
       "display.custom.css.cherrycss": "从 cherrycss.com 获取",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
-      "display.minApp.disabled": "隐藏的小程序",
-      "display.minApp.empty": "把要隐藏的小程序从左侧拖拽到这里",
-      "display.minApp.title": "小程序显示设置",
-      "display.minApp.visible": "显示的小程序",
       "display.sidebar.chat.hiddenMessage": "助手是基础功能，不支持隐藏",
       "display.sidebar.disabled": "隐藏的图标",
       "display.sidebar.empty": "把要隐藏的功能从左侧拖拽到这里",
@@ -928,6 +934,20 @@
       "display.sidebar.visible": "显示的图标",
       "display.title": "显示设置",
       "display.topic.title": "话题设置",
+      "miniapps": {
+        "title": "小程序设置",
+        "disabled": "隐藏的小程序",
+        "empty": "把要隐藏的小程序从左侧拖拽到这里",
+        "visible": "显示的小程序",
+        "cache_settings": "缓存设置",
+        "cache_title": "小程序缓存数量",
+        "cache_description": "设置同时保持活跃状态的小程序最大数量",
+        "reset_tooltip": "重置为默认值",
+        "display_title": "小程序显示设置",
+        "sidebar_title": "侧边栏活跃小程序显示设置",
+        "sidebar_description": "设置侧边栏是否显示活跃的小程序",
+        "cache_change_notice": "更改将在打开的小程序增减至设定值后生效"
+      },
       "font_size.title": "消息字体大小",
       "general": "常规设置",
       "general.avatar.reset": "重置头像",
@@ -964,10 +984,7 @@
         "argsTooltip": "每个参数占一行",
         "baseUrlTooltip": "远程 URL 地址",
         "command": "命令",
-        "commandRequired": "请输入命令",
         "config_description": "配置模型上下文协议服务器",
-        "confirmDelete": "删除服务器",
-        "confirmDeleteMessage": "您确定要删除该服务器吗？",
         "deleteError": "删除服务器失败",
         "deleteSuccess": "服务器删除成功",
         "dependenciesInstall": "安装依赖项",
@@ -978,7 +995,8 @@
         "editServer": "编辑服务器",
         "env": "环境变量",
         "envTooltip": "格式：KEY=value，每行一个",
-        "findMore": "更多 MCP 服务器",
+        "findMore": "更多 MCP",
+        "searchNpx": "搜索 MCP",
         "install": "安装",
         "installError": "安装依赖项失败",
         "installSuccess": "依赖项安装成功",
@@ -988,8 +1006,8 @@
         "jsonSaveSuccess": "JSON配置已保存",
         "missingDependencies": "缺失，请安装它以继续",
         "name": "名称",
-        "nameRequired": "请输入服务器名称",
         "noServers": "未配置服务器",
+        "newServer": "MCP 服务器",
         "npx_list": {
           "actions": "操作",
           "desc": "搜索并添加 npm 包作为 MCP 服务",
@@ -1005,14 +1023,26 @@
           "usage": "用法",
           "version": "版本"
         },
+        "errors": {
+          "32000": "MCP 服务器启动失败，请根据教程检查参数是否填写完整"
+        },
         "serverPlural": "服务器",
         "serverSingular": "服务器",
         "title": "MCP 服务器",
-        "toggleError": "切换失败",
+        "startError": "启动失败",
         "type": "类型",
         "updateError": "更新服务器失败",
         "updateSuccess": "服务器更新成功",
-        "url": "URL"
+        "url": "URL",
+        "editMcpJson": "编辑 MCP 配置",
+        "installHelp": "获取安装帮助",
+        "tools": {
+          "inputSchema": "输入参数",
+          "availableTools": "可用工具",
+          "noToolsAvailable": "没有可用工具"
+        },
+        "deleteServer": "删除服务器",
+        "deleteServerConfirm": "确定要删除此服务器吗？"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",

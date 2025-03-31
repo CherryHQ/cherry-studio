@@ -618,9 +618,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const toggelEnableMCP = (mcp: MCPServer) => {
     setEnabledMCPs((prev) => {
-      const exists = prev.some((item) => item.name === mcp.name)
+      const exists = prev.some((item) => item.id === mcp.id)
       if (exists) {
-        return prev.filter((item) => item.name !== mcp.name)
+        return prev.filter((item) => item.id !== mcp.id)
       } else {
         return [...prev, mcp]
       }

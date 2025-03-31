@@ -32,7 +32,6 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const lastMoveTime = useRef(0)
   const { topicPosition, showTopics } = useSettings()
   const showRightTopics = topicPosition === 'right' && showTopics
-  const right = showRightTopics ? 'calc(var(--topic-list-width) + 16px)' : '16px'
 
   // Reset hide timer and make buttons visible
   const resetHideTimer = useCallback(() => {
@@ -311,11 +310,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
   return (
     <>
-      <NavigationContainer
-        $isVisible={isVisible}
-        $right={right}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}>
+      <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
           <Tooltip title={t('chat.navigation.close')} placement="left">
             <NavigationButton
@@ -394,12 +389,11 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
 interface NavigationContainerProps {
   $isVisible: boolean
-  $right: string
 }
 
 const NavigationContainer = styled.div<NavigationContainerProps>`
   position: fixed;
-  right: ${(props) => props.$right};
+  right: 16px;
   top: 50%;
   transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? 0 : '100%')});
   z-index: 999;

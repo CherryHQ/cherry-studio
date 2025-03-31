@@ -475,6 +475,9 @@ class KnowledgeService {
     _: Electron.IpcMainInvokeEvent,
     { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }
   ): Promise<ExtractChunkData[]> => {
+    if (results.length === 0) {
+      return results
+    }
     return await new Reranker(base).rerank(search, results)
   }
 }
