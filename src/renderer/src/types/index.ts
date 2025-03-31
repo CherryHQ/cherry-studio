@@ -17,6 +17,7 @@ export type Assistant = {
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
   enableGenerateImage?: boolean
+  mcpServers?: MCPServer[]
 }
 
 export type AssistantMessage = {
