@@ -547,7 +547,8 @@
         "close": "ミニアプリを閉じる",
         "minimize": "ミニアプリを最小化",
         "devtools": "開発者ツール",
-        "openExternal": "ブラウザで開く"
+        "openExternal": "ブラウザで開く",
+        "rightclick_copyurl": "右クリックでURLをコピー"
       },
       "sidebar.add.title": "サイドバーに追加",
       "sidebar.remove.title": "サイドバーから削除",

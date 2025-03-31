@@ -1,6 +1,8 @@
 import { Tool, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { FunctionCall, FunctionDeclaration, SchemaType, Tool as geminiToool } from '@google/generative-ai'
+import { nanoid } from '@reduxjs/toolkit'
 import store from '@renderer/store'
+import { addMCPServer } from '@renderer/store/mcp'
 import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
 
@@ -126,6 +128,23 @@ export async function callMCPTool(tool: MCPTool): Promise<any> {
     })
 
     console.log(`[MCP] Tool called: ${tool.serverName} ${tool.name}`, resp)
+
+    if (tool.serverName === 'mcp-auto-install') {
+      if (resp.data) {
+        const mcpServer: MCPServer = {
+          id: nanoid(),
+          name: resp.data.name,
+          description: resp.data.description,
+          baseUrl: resp.data.baseUrl,
+          command: resp.data.command,
+          args: resp.data.args,
+          env: resp.data.env,
+          isActive: false
+        }
+        store.dispatch(addMCPServer(mcpServer))
+      }
+    }
+
     return resp
   } catch (e) {
     console.error(`[MCP] Error calling Tool: ${tool.serverName} ${tool.name}`, e)

@@ -547,7 +547,8 @@
         "close": "關閉小工具",
         "minimize": "最小化小工具",
         "devtools": "開發者工具",
-        "openExternal": "在瀏覽器中開啟"
+        "openExternal": "在瀏覽器中開啟",
+        "rightclick_copyurl": "右鍵複製URL"
       },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
