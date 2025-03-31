@@ -1237,7 +1237,16 @@
           "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
           "title": "Tavily"
         },
-        "title": "Web Search"
+        "title": "Web Search",
+        "subscribe": "Subscribe",
+        "subscribe_tooltip": "Subscribe to the blacklist.",
+        "subscribe_update": "Update now",
+        "subscribe_add": "Add Subscription",
+        "subscribe_url": "Subscription feed address",
+        "subscribe_name": "Alternative name",
+        "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
+        "subscribe_add_success": "Subscription feed added successfully!",
+        "subscribe_delete": "Delete subscription source"
       }
     },
     "translate": {

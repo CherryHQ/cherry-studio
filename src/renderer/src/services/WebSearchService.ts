@@ -83,16 +83,17 @@ class WebSearchService {
    * @returns 搜索响应
    */
   public async search(provider: WebSearchProvider, query: string): Promise<WebSearchResponse> {
-    const { searchWithTime, maxResults, excludeDomains } = this.getWebSearchState()
+    const websearch = this.getWebSearchState()
     const webSearchEngine = new WebSearchEngineProvider(provider)
 
     let formattedQuery = query
-    if (searchWithTime) {
+    // 有待商榷，效果一般
+    if (websearch.searchWithTime) {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
 
     try {
-      return await webSearchEngine.search(formattedQuery, maxResults, excludeDomains)
+      return await webSearchEngine.search(formattedQuery, websearch)
     } catch (error) {
       console.error('Search failed:', error)
       return {

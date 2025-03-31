@@ -1,3 +1,4 @@
+import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
 
 export default abstract class BaseWebSearchProvider {
@@ -9,8 +10,7 @@ export default abstract class BaseWebSearchProvider {
     this.provider = provider
     this.apiKey = this.getApiKey()
   }
-
-  abstract search(query: string, maxResult: number, excludeDomains: string[]): Promise<WebSearchResponse>
+  abstract search(query: string, websearch: WebSearchState): Promise<WebSearchResponse>
 
   public getApiKey() {
     const keys = this.provider.apiKey?.split(',').map((key) => key.trim()) || []
