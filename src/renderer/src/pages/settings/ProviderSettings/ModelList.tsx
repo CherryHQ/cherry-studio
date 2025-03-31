@@ -20,7 +20,7 @@ import { Model, Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Card, Flex, Space, Tooltip, Typography } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useDeferredValue, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -180,18 +180,10 @@ const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuse
   const modelsWebsite = providerConfig?.websites?.models
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
-  const [debouncedSearchText, setDebouncedSearchText] = useState(searchText)
+  const deferredSearchText = useDeferredValue(searchText)
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchText(searchText)
-    }, 50)
-
-    return () => clearTimeout(timer)
-  }, [searchText])
-
-  const filteredModels = debouncedSearchText
-    ? models.filter((model) => model.name.toLowerCase().includes(debouncedSearchText.toLowerCase()))
+  const filteredModels = deferredSearchText
+    ? models.filter((model) => model.name.toLowerCase().includes(deferredSearchText.toLowerCase()))
     : models
 
   const modelGroups = groupBy(filteredModels, 'group')
