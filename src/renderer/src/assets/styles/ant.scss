@@ -105,6 +105,8 @@
     &::-webkit-scrollbar {
       width: 14px;
       height: 6px;
+      background-color: transparent;
+      opacity: 0;
     }
 
     &::-webkit-scrollbar-thumb {
@@ -113,11 +115,12 @@
       border-radius: 7px;
       background-color: var(--color-scrollbar-thumb);
       min-height: 50px;
-      transition: all 0.2s;
+      transition: opacity 0.2s;
+      opacity: 0;
     }
 
     &:hover::-webkit-scrollbar-thumb {
-      background-color: var(--color-scrollbar-thumb);
+      opacity: 1;
     }
 
     &::-webkit-scrollbar-thumb:hover {
@@ -191,4 +194,10 @@
       opacity: 0.9;
     }
   }
+}
+
+.ant-dropdown-menu .ant-dropdown-menu-sub {
+  max-height: 350px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
