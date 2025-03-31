@@ -241,9 +241,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
         }
       }
 
-      for (let i = 0; i < keyStatuses.length; i++) {
-        await checkSingleKey(i, selectedModel)
-      }
+      await Promise.all(keyStatuses.map((_, index) => checkSingleKey(index, selectedModel)))
     } finally {
       setIsChecking(false)
     }
