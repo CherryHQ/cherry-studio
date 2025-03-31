@@ -19,49 +19,52 @@ import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resour
 import { ChunkCallbackData } from '../providers'
 
 const ensureValidSchema = (obj: Record<string, any>): FunctionDeclarationSchemaProperty => {
+  // Filter out unsupported keys for Gemini
+  const filteredObj = filterUnsupportedKeys(obj)
+
   // Handle base schema properties
   const baseSchema = {
-    description: obj.description,
-    nullable: obj.nullable
+    description: filteredObj.description,
+    nullable: filteredObj.nullable
   } as BaseSchema
 
   // Handle string type
-  if (obj.type?.toLowerCase() === SchemaType.STRING) {
-    if (obj.enum && Array.isArray(obj.enum)) {
+  if (filteredObj.type?.toLowerCase() === SchemaType.STRING) {
+    if (filteredObj.enum && Array.isArray(filteredObj.enum)) {
       return {
         ...baseSchema,
         type: SchemaType.STRING,
         format: 'enum',
-        enum: obj.enum as string[]
+        enum: filteredObj.enum as string[]
       } as EnumStringSchema
     }
     return {
       ...baseSchema,
       type: SchemaType.STRING,
-      format: obj.format === 'date-time' ? 'date-time' : undefined
+      format: filteredObj.format === 'date-time' ? 'date-time' : undefined
     } as SimpleStringSchema
   }
 
   // Handle number type
-  if (obj.type?.toLowerCase() === SchemaType.NUMBER) {
+  if (filteredObj.type?.toLowerCase() === SchemaType.NUMBER) {
     return {
       ...baseSchema,
       type: SchemaType.NUMBER,
-      format: ['float', 'double'].includes(obj.format) ? (obj.format as 'float' | 'double') : undefined
+      format: ['float', 'double'].includes(filteredObj.format) ? (filteredObj.format as 'float' | 'double') : undefined
     } as NumberSchema
   }
 
   // Handle integer type
-  if (obj.type?.toLowerCase() === SchemaType.INTEGER) {
+  if (filteredObj.type?.toLowerCase() === SchemaType.INTEGER) {
     return {
       ...baseSchema,
       type: SchemaType.INTEGER,
-      format: ['int32', 'int64'].includes(obj.format) ? (obj.format as 'int32' | 'int64') : undefined
+      format: ['int32', 'int64'].includes(filteredObj.format) ? (filteredObj.format as 'int32' | 'int64') : undefined
     } as IntegerSchema
   }
 
   // Handle boolean type
-  if (obj.type?.toLowerCase() === SchemaType.BOOLEAN) {
+  if (filteredObj.type?.toLowerCase() === SchemaType.BOOLEAN) {
     return {
       ...baseSchema,
       type: SchemaType.BOOLEAN
@@ -69,22 +72,25 @@ const ensureValidSchema = (obj: Record<string, any>): FunctionDeclarationSchemaP
   }
 
   // Handle array type
-  if (obj.type?.toLowerCase() === SchemaType.ARRAY) {
+  if (filteredObj.type?.toLowerCase() === SchemaType.ARRAY) {
     return {
       ...baseSchema,
       type: SchemaType.ARRAY,
-      items: obj.items
-        ? ensureValidSchema(obj.items as Record<string, any>)
+      items: filteredObj.items
+        ? ensureValidSchema(filteredObj.items as Record<string, any>)
         : ({ type: SchemaType.STRING } as SimpleStringSchema),
-      minItems: obj.minItems,
-      maxItems: obj.maxItems
+      minItems: filteredObj.minItems,
+      maxItems: filteredObj.maxItems
     } as ArraySchema
   }
 
   // Handle object type (default)
-  const properties = obj.properties
+  const properties = filteredObj.properties
     ? Object.fromEntries(
-        Object.entries(obj.properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
+        Object.entries(filteredObj.properties).map(([key, value]) => [
+          key,
+          ensureValidSchema(value as Record<string, any>)
+        ])
       )
     : { _empty: { type: SchemaType.STRING } as SimpleStringSchema } // Ensure properties is never empty
 
@@ -92,8 +98,45 @@ const ensureValidSchema = (obj: Record<string, any>): FunctionDeclarationSchemaP
     ...baseSchema,
     type: SchemaType.OBJECT,
     properties,
-    required: Array.isArray(obj.required) ? obj.required : undefined
+    required: Array.isArray(filteredObj.required) ? filteredObj.required : undefined
   } as ObjectSchema
+}
+
+function filterUnsupportedKeys(obj: Record<string, any>): Record<string, any> {
+  const supportedBaseKeys = ['description', 'nullable']
+  const supportedStringKeys = [...supportedBaseKeys, 'type', 'format', 'enum']
+  const supportedNumberKeys = [...supportedBaseKeys, 'type', 'format']
+  const supportedBooleanKeys = [...supportedBaseKeys, 'type']
+  const supportedArrayKeys = [...supportedBaseKeys, 'type', 'items', 'minItems', 'maxItems']
+  const supportedObjectKeys = [...supportedBaseKeys, 'type', 'properties', 'required']
+
+  const filtered: Record<string, any> = {}
+
+  let keysToKeep: string[]
+
+  if (obj.type?.toLowerCase() === SchemaType.STRING) {
+    keysToKeep = supportedStringKeys
+  } else if (obj.type?.toLowerCase() === SchemaType.NUMBER) {
+    keysToKeep = supportedNumberKeys
+  } else if (obj.type?.toLowerCase() === SchemaType.INTEGER) {
+    keysToKeep = supportedNumberKeys
+  } else if (obj.type?.toLowerCase() === SchemaType.BOOLEAN) {
+    keysToKeep = supportedBooleanKeys
+  } else if (obj.type?.toLowerCase() === SchemaType.ARRAY) {
+    keysToKeep = supportedArrayKeys
+  } else {
+    // Default to object type
+    keysToKeep = supportedObjectKeys
+  }
+
+  // copy supported keys
+  for (const key of keysToKeep) {
+    if (obj[key] !== undefined) {
+      filtered[key] = obj[key]
+    }
+  }
+
+  return filtered
 }
 
 function filterPropertieAttributes(tool: MCPTool, filterNestedObj: boolean = false): Record<string, object> {
