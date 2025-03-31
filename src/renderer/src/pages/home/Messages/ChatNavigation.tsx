@@ -1,9 +1,14 @@
-import { DownOutlined, UpOutlined } from '@ant-design/icons'
+import { DownOutlined, HistoryOutlined, UpOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Button, Tooltip } from 'antd'
+import { RootState } from '@renderer/store'
+import { selectCurrentTopicId } from '@renderer/store/messages'
+import { Button, Drawer, Tooltip } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
+
+import ChatFlowHistory from './ChatFlowHistory'
 
 interface ChatNavigationProps {
   containerId: string
@@ -14,10 +19,11 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [isNearButtons, setIsNearButtons] = useState(false)
   const [hideTimer, setHideTimer] = useState<NodeJS.Timeout | null>(null)
+  const [showChatHistory, setShowChatHistory] = useState(false)
+  const currentTopicId = useSelector((state: RootState) => selectCurrentTopicId(state))
   const lastMoveTime = useRef(0)
   const { topicPosition, showTopics } = useSettings()
   const showRightTopics = topicPosition === 'right' && showTopics
-  const right = showRightTopics ? 'calc(var(--topic-list-width) + 16px)' : '16px'
 
   // Reset hide timer and make buttons visible
   const resetHideTimer = useCallback(() => {
@@ -58,6 +64,15 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     }, 1500)
     setHideTimer(timer)
   }, [])
+
+  const handleChatHistoryClick = () => {
+    setShowChatHistory(true)
+    resetHideTimer()
+  }
+
+  const handleDrawerClose = () => {
+    setShowChatHistory(false)
+  }
 
   const findUserMessages = () => {
     const container = document.getElementById(containerId)
@@ -247,54 +262,67 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         clearTimeout(hideTimer)
       }
     }
-  }, [
-    containerId,
-    hideTimer,
-    resetHideTimer,
-    isNearButtons,
-    handleMouseEnter,
-    handleMouseLeave,
-    right,
-    showRightTopics
-  ])
+  }, [containerId, hideTimer, resetHideTimer, isNearButtons, handleMouseEnter, handleMouseLeave, showRightTopics])
 
   return (
-    <NavigationContainer
-      $isVisible={isVisible}
-      $right={right}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}>
-      <ButtonGroup>
-        <Tooltip title={t('chat.navigation.prev')} placement="left">
-          <NavigationButton
-            type="text"
-            icon={<UpOutlined />}
-            onClick={handlePrevMessage}
-            aria-label={t('chat.navigation.prev')}
-          />
-        </Tooltip>
-        <Divider />
-        <Tooltip title={t('chat.navigation.next')} placement="left">
-          <NavigationButton
-            type="text"
-            icon={<DownOutlined />}
-            onClick={handleNextMessage}
-            aria-label={t('chat.navigation.next')}
-          />
-        </Tooltip>
-      </ButtonGroup>
-    </NavigationContainer>
+    <>
+      <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+        <ButtonGroup>
+          <Tooltip title={t('chat.navigation.prev')} placement="left">
+            <NavigationButton
+              type="text"
+              icon={<UpOutlined />}
+              onClick={handlePrevMessage}
+              aria-label={t('chat.navigation.prev')}
+            />
+          </Tooltip>
+          <Divider />
+          <Tooltip title={t('chat.navigation.next')} placement="left">
+            <NavigationButton
+              type="text"
+              icon={<DownOutlined />}
+              onClick={handleNextMessage}
+              aria-label={t('chat.navigation.next')}
+            />
+          </Tooltip>
+          <Divider />
+          <Tooltip title={t('chat.navigation.history')} placement="left">
+            <NavigationButton
+              type="text"
+              icon={<HistoryOutlined />}
+              onClick={handleChatHistoryClick}
+              aria-label={t('chat.navigation.history')}
+            />
+          </Tooltip>
+        </ButtonGroup>
+      </NavigationContainer>
+
+      <Drawer
+        title={t('chat.history.title')}
+        placement="right"
+        onClose={handleDrawerClose}
+        open={showChatHistory}
+        width={680}
+        destroyOnClose
+        styles={{
+          body: {
+            padding: 0,
+            height: 'calc(100% - 55px)'
+          }
+        }}>
+        <ChatFlowHistory conversationId={currentTopicId || undefined} />
+      </Drawer>
+    </>
   )
 }
 
 interface NavigationContainerProps {
   $isVisible: boolean
-  $right: string
 }
 
 const NavigationContainer = styled.div<NavigationContainerProps>`
   position: fixed;
-  right: ${(props) => props.$right};
+  right: 16px;
   top: 50%;
   transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? 0 : '100%')});
   z-index: 999;

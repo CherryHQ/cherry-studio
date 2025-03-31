@@ -5,6 +5,7 @@ import { app } from 'electron'
 import Logger from 'electron-log'
 import * as fs from 'fs-extra'
 import * as path from 'path'
+import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
 
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -14,10 +15,12 @@ class BackupManager {
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
 
   constructor() {
+    this.checkConnection = this.checkConnection.bind(this)
     this.backup = this.backup.bind(this)
     this.restore = this.restore.bind(this)
     this.backupToWebdav = this.backupToWebdav.bind(this)
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
+    this.listWebdavFiles = this.listWebdavFiles.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
@@ -84,9 +87,16 @@ class BackupManager {
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
-      // 将 data 写入临时文件
+      // 使用流的方式写入 data.json
       const tempDataPath = path.join(this.tempDir, 'data.json')
-      await fs.writeFile(tempDataPath, data)
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(tempDataPath)
+        writeStream.write(data)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
       // 复制 Data 目录到临时目录
@@ -117,10 +127,10 @@ class BackupManager {
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      Logger.log('Backup completed successfully')
+      Logger.log('[BackupManager] Backup completed successfully')
       return backupedFilePath
     } catch (error) {
-      Logger.error('Backup failed:', error)
+      Logger.error('[BackupManager] Backup failed:', error)
       throw error
     }
   }
@@ -186,7 +196,7 @@ class BackupManager {
   }
 
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, data: string, webdavConfig: WebDavConfig) {
-    const filename = 'cherry-studio.backup.zip'
+    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const backupedFilePath = await this.backup(_, filename, data)
     const webdavClient = new WebDav(webdavConfig)
     return await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
@@ -195,18 +205,55 @@ class BackupManager {
   }
 
   async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const filename = 'cherry-studio.backup.zip'
+    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const webdavClient = new WebDav(webdavConfig)
-    const retrievedFile = await webdavClient.getFileContents(filename)
-    const backupedFilePath = path.join(this.backupDir, filename)
+    try {
+      const retrievedFile = await webdavClient.getFileContents(filename)
+      const backupedFilePath = path.join(this.backupDir, filename)
 
-    if (!fs.existsSync(this.backupDir)) {
-      fs.mkdirSync(this.backupDir, { recursive: true })
+      if (!fs.existsSync(this.backupDir)) {
+        fs.mkdirSync(this.backupDir, { recursive: true })
+      }
+
+      // 使用流的方式写入文件
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(backupedFilePath)
+        writeStream.write(retrievedFile as Buffer)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
+
+      return await this.restore(_, backupedFilePath)
+    } catch (error: any) {
+      Logger.error('[backup] Failed to restore from WebDAV:', error)
+      throw new Error(error.message || 'Failed to restore backup file')
     }
+  }
 
-    await fs.writeFileSync(backupedFilePath, retrievedFile as Buffer)
+  listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
+    try {
+      const client = createClient(config.webdavHost, {
+        username: config.webdavUser,
+        password: config.webdavPass
+      })
 
-    return await this.restore(_, backupedFilePath)
+      const response = await client.getDirectoryContents(config.webdavPath)
+      const files = Array.isArray(response) ? response : response.data
+
+      return files
+        .filter((file: FileStat) => file.type === 'file' && file.basename.endsWith('.zip'))
+        .map((file: FileStat) => ({
+          fileName: file.basename,
+          modifiedTime: file.lastmod,
+          size: file.size
+        }))
+        .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error: any) {
+      Logger.error('Failed to list WebDAV files:', error)
+      throw new Error(error.message || 'Failed to list backup files')
+    }
   }
 
   private async getDirSize(dirPath: string): Promise<number> {
@@ -245,6 +292,21 @@ class BackupManager {
         onProgress(stats.size)
       }
     }
+  }
+
+  async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
+    const webdavClient = new WebDav(webdavConfig)
+    return await webdavClient.checkConnection()
+  }
+
+  async createDirectory(
+    _: Electron.IpcMainInvokeEvent,
+    webdavConfig: WebDavConfig,
+    path: string,
+    options?: CreateDirectoryOptions
+  ) {
+    const webdavClient = new WebDav(webdavConfig)
+    return await webdavClient.createDirectory(path, options)
   }
 }
 

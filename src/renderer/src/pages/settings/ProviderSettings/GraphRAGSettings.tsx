@@ -1,4 +1,4 @@
-import MinApp from '@renderer/components/MinApp'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { MinAppType, Provider } from '@renderer/types'
 import { Button } from 'antd'
 import { FC } from 'react'
@@ -15,18 +15,20 @@ const GraphRAGSettings: FC<Props> = ({ provider }) => {
   const apiUrl = provider.apiHost
   const modalId = provider.models.filter((model) => model.id.includes('global'))[0]?.id
   const { t } = useTranslation()
+  const { openMinapp } = useMinappPopup()
 
   const onShowGraphRAG = async () => {
     const { appPath } = await window.api.getAppInfo()
     const url = `file://${appPath}/resources/graphrag.html?apiUrl=${apiUrl}&modelId=${modalId}`
 
     const app: MinAppType = {
+      id: 'graphrag',
       name: t('words.knowledgeGraph'),
       logo: '',
       url
     }
 
-    MinApp.start(app)
+    openMinapp(app)
   }
 
   if (!modalId) {

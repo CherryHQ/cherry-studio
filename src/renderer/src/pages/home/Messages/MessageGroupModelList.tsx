@@ -1,52 +1,56 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { useAppDispatch } from '@renderer/store'
+import { setFoldDisplayMode } from '@renderer/store/settings'
 import { Message, Model } from '@renderer/types'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
-import { FC, useState } from 'react'
+import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface MessageGroupModelListProps {
   messages: Message[]
-  selectedIndex: number
-  setSelectedIndex: (index: number) => void
+  selectMessageId: string
+  setSelectedMessage: (message: Message) => void
 }
 
 type DisplayMode = 'compact' | 'expanded'
 
-const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectedIndex, setSelectedIndex }) => {
+const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectMessageId, setSelectedMessage }) => {
+  const dispatch = useAppDispatch()
   const { t } = useTranslation()
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('expanded')
-  const isCompact = displayMode === 'compact'
+  const { foldDisplayMode } = useSettings()
+  const isCompact = foldDisplayMode === 'compact'
 
   return (
     <ModelsWrapper>
-      <DisplayModeToggle displayMode={displayMode} onClick={() => setDisplayMode(isCompact ? 'expanded' : 'compact')}>
+      <DisplayModeToggle
+        displayMode={foldDisplayMode}
+        onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
         <Tooltip
           title={
-            displayMode === 'compact'
+            foldDisplayMode === 'compact'
               ? t(`message.message.multi_model_style.fold.expand`)
               : t('message.message.multi_model_style.fold.compress')
           }
           placement="top">
-          {displayMode === 'compact' ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
+          {foldDisplayMode === 'compact' ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
         </Tooltip>
       </DisplayModeToggle>
 
-      <ModelsContainer $displayMode={displayMode}>
-        {displayMode === 'compact' ? (
+      <ModelsContainer $displayMode={foldDisplayMode}>
+        {foldDisplayMode === 'compact' ? (
           /* Compact style display */
           <Avatar.Group className="avatar-group">
             {messages.map((message, index) => (
               <Tooltip key={index} title={message.model?.name} placement="top" mouseEnterDelay={0.2}>
                 <AvatarWrapper
                   className="avatar-wrapper"
-                  isSelected={selectedIndex === index}
+                  isSelected={message.id === selectMessageId}
                   onClick={() => {
-                    setSelectedIndex(index)
-                    EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messages[index].id, false)
+                    setSelectedMessage(message)
                   }}>
                   <ModelAvatar model={message.model as Model} size={28} />
                 </AvatarWrapper>
@@ -56,19 +60,19 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
         ) : (
           /* Expanded style display */
           <Segmented
-            value={selectedIndex.toString()}
+            value={selectMessageId}
             onChange={(value) => {
-              setSelectedIndex(Number(value))
-              EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messages[Number(value)].id, false)
+              const message = messages.find((message) => message.id === value) as Message
+              setSelectedMessage(message)
             }}
-            options={messages.map((message, index) => ({
+            options={messages.map((message) => ({
               label: (
                 <SegmentedLabel>
                   <ModelAvatar model={message.model as Model} size={20} />
                   <ModelName>{message.model?.name}</ModelName>
                 </SegmentedLabel>
               ),
-              value: index.toString()
+              value: message.id
             }))}
             size="small"
           />

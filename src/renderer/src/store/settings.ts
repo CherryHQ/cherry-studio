@@ -2,6 +2,8 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 
+import { WebDAVSyncState } from './backup'
+
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter'
 
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
@@ -16,6 +18,8 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'files'
 ]
 
+export interface NutstoreSyncRuntime extends WebDAVSyncState {}
+
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
@@ -28,6 +32,9 @@ export interface SettingsState {
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
+  launchOnBoot: boolean
+  launchToTray: boolean
+  trayOnClose: boolean
   tray: boolean
   theme: ThemeMode
   windowStyle: 'transparent' | 'opaque'
@@ -38,7 +45,7 @@ export interface SettingsState {
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
-  manualUpdateCheck: boolean
+  autoCheckUpdate: boolean
   renderInputMessageAsMarkdown: boolean
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
@@ -46,8 +53,10 @@ export interface SettingsState {
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
+  foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
+  messageNavigation: 'none' | 'buttons' | 'anchor'
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -66,21 +75,32 @@ export interface SettingsState {
     disabled: SidebarIcon[]
   }
   narrowMode: boolean
+  // QuickAssistant
   enableQuickAssistant: boolean
   clickTrayToShowQuickAssistant: boolean
   multiModelMessageStyle: MultiModelMessageStyle
+  readClipboardAtStartup: boolean
   notionDatabaseID: string | null
   notionApiKey: string | null
   notionPageNameKey: string | null
   markdownExportPath: string | null
+  forceDollarMathInMarkdown: boolean
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
-  obsidianApiKey: string | null
-  obsidianUrl: string | null
+  joplinToken: string | null
+  joplinUrl: string | null
+  defaultObsidianVault: string | null
+  // 思源笔记配置
+  siyuanApiUrl: string | null
+  siyuanToken: string | null
+  siyuanBoxId: string | null
+  siyuanRootPath: string | null
+  maxKeepAliveMinapps: number
+  showOpenedMinappsInSidebar: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -97,6 +117,9 @@ const initialState: SettingsState = {
   showMessageDivider: true,
   messageFont: 'system',
   showInputEstimatedTokens: false,
+  launchOnBoot: false,
+  launchToTray: false,
+  trayOnClose: true,
   tray: true,
   theme: ThemeMode.auto,
   windowStyle: 'transparent',
@@ -107,7 +130,7 @@ const initialState: SettingsState = {
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: false,
-  manualUpdateCheck: false,
+  autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
   codeShowLineNumbers: false,
   codeCollapsible: false,
@@ -115,8 +138,10 @@ const initialState: SettingsState = {
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',
+  foldDisplayMode: 'expanded',
   gridColumns: 2,
-  gridPopoverTrigger: 'hover',
+  gridPopoverTrigger: 'click',
+  messageNavigation: 'none',
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -135,19 +160,29 @@ const initialState: SettingsState = {
   narrowMode: false,
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
+  readClipboardAtStartup: true,
   multiModelMessageStyle: 'fold',
   notionDatabaseID: '',
   notionApiKey: '',
   notionPageNameKey: 'Name',
   markdownExportPath: null,
+  forceDollarMathInMarkdown: false,
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
   notionSplitSize: 90,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
-  obsidianApiKey: '',
-  obsidianUrl: ''
+  joplinToken: '',
+  joplinUrl: '',
+  defaultObsidianVault: null,
+  // 思源笔记配置初始值
+  siyuanApiUrl: null,
+  siyuanToken: null,
+  siyuanBoxId: null,
+  siyuanRootPath: null,
+  maxKeepAliveMinapps: 3,
+  showOpenedMinappsInSidebar: true
 }
 
 const settingsSlice = createSlice({
@@ -194,8 +229,17 @@ const settingsSlice = createSlice({
     setShowInputEstimatedTokens: (state, action: PayloadAction<boolean>) => {
       state.showInputEstimatedTokens = action.payload
     },
+    setLaunchOnBoot: (state, action: PayloadAction<boolean>) => {
+      state.launchOnBoot = action.payload
+    },
+    setLaunchToTray: (state, action: PayloadAction<boolean>) => {
+      state.launchToTray = action.payload
+    },
     setTray: (state, action: PayloadAction<boolean>) => {
       state.tray = action.payload
+    },
+    setTrayOnClose: (state, action: PayloadAction<boolean>) => {
+      state.trayOnClose = action.payload
     },
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
       state.theme = action.payload
@@ -218,14 +262,14 @@ const settingsSlice = createSlice({
     setPasteLongTextAsFile: (state, action: PayloadAction<boolean>) => {
       state.pasteLongTextAsFile = action.payload
     },
+    setAutoCheckUpdate: (state, action: PayloadAction<boolean>) => {
+      state.autoCheckUpdate = action.payload
+    },
     setRenderInputMessageAsMarkdown: (state, action: PayloadAction<boolean>) => {
       state.renderInputMessageAsMarkdown = action.payload
     },
     setClickAssistantToShowTopic: (state, action: PayloadAction<boolean>) => {
       state.clickAssistantToShowTopic = action.payload
-    },
-    setManualUpdateCheck: (state, action: PayloadAction<boolean>) => {
-      state.manualUpdateCheck = action.payload
     },
     setWebdavHost: (state, action: PayloadAction<string>) => {
       state.webdavHost = action.payload
@@ -256,6 +300,9 @@ const settingsSlice = createSlice({
     },
     setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
       state.mathEngine = action.payload
+    },
+    setFoldDisplayMode: (state, action: PayloadAction<'expanded' | 'compact'>) => {
+      state.foldDisplayMode = action.payload
     },
     setGridColumns: (state, action: PayloadAction<number>) => {
       state.gridColumns = action.payload
@@ -304,6 +351,9 @@ const settingsSlice = createSlice({
     setEnableQuickAssistant: (state, action: PayloadAction<boolean>) => {
       state.enableQuickAssistant = action.payload
     },
+    setReadClipboardAtStartup: (state, action: PayloadAction<boolean>) => {
+      state.readClipboardAtStartup = action.payload
+    },
     setMultiModelMessageStyle: (state, action: PayloadAction<'horizontal' | 'vertical' | 'fold' | 'grid'>) => {
       state.multiModelMessageStyle = action.payload
     },
@@ -318,6 +368,9 @@ const settingsSlice = createSlice({
     },
     setmarkdownExportPath: (state, action: PayloadAction<string | null>) => {
       state.markdownExportPath = action.payload
+    },
+    setForceDollarMathInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.forceDollarMathInMarkdown = action.payload
     },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
@@ -337,11 +390,35 @@ const settingsSlice = createSlice({
     setYuqueUrl: (state, action: PayloadAction<string>) => {
       state.yuqueUrl = action.payload
     },
-    setObsidianApiKey: (state, action: PayloadAction<string>) => {
-      state.obsidianApiKey = action.payload
+    setJoplinToken: (state, action: PayloadAction<string>) => {
+      state.joplinToken = action.payload
     },
-    setObsidianUrl: (state, action: PayloadAction<string>) => {
-      state.obsidianUrl = action.payload
+    setJoplinUrl: (state, action: PayloadAction<string>) => {
+      state.joplinUrl = action.payload
+    },
+    setSiyuanApiUrl: (state, action: PayloadAction<string>) => {
+      state.siyuanApiUrl = action.payload
+    },
+    setSiyuanToken: (state, action: PayloadAction<string>) => {
+      state.siyuanToken = action.payload
+    },
+    setSiyuanBoxId: (state, action: PayloadAction<string>) => {
+      state.siyuanBoxId = action.payload
+    },
+    setSiyuanRootPath: (state, action: PayloadAction<string>) => {
+      state.siyuanRootPath = action.payload
+    },
+    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
+      state.messageNavigation = action.payload
+    },
+    setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
+      state.defaultObsidianVault = action.payload
+    },
+    setMaxKeepAliveMinapps: (state, action: PayloadAction<number>) => {
+      state.maxKeepAliveMinapps = action.payload
+    },
+    setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
+      state.showOpenedMinappsInSidebar = action.payload
     }
   }
 })
@@ -360,6 +437,9 @@ export const {
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
+  setLaunchOnBoot,
+  setLaunchToTray,
+  setTrayOnClose,
   setTray,
   setTheme,
   setFontSize,
@@ -368,9 +448,9 @@ export const {
   setShowTopicTime,
   setShowAssistantIcon,
   setPasteLongTextAsFile,
+  setAutoCheckUpdate,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
-  setManualUpdateCheck,
   setWebdavHost,
   setWebdavUser,
   setWebdavPass,
@@ -381,6 +461,7 @@ export const {
   setCodeCollapsible,
   setCodeWrappable,
   setMathEngine,
+  setFoldDisplayMode,
   setGridColumns,
   setGridPopoverTrigger,
   setMessageStyle,
@@ -395,19 +476,29 @@ export const {
   setNarrowMode,
   setClickTrayToShowQuickAssistant,
   setEnableQuickAssistant,
+  setReadClipboardAtStartup,
   setMultiModelMessageStyle,
   setNotionDatabaseID,
   setNotionApiKey,
   setNotionPageNameKey,
   setmarkdownExportPath,
+  setForceDollarMathInMarkdown,
   setThoughtAutoCollapse,
   setNotionAutoSplit,
   setNotionSplitSize,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
-  setObsidianApiKey,
-  setObsidianUrl
+  setJoplinToken,
+  setJoplinUrl,
+  setMessageNavigation,
+  setDefaultObsidianVault,
+  setSiyuanApiUrl,
+  setSiyuanToken,
+  setSiyuanBoxId,
+  setSiyuanRootPath,
+  setMaxKeepAliveMinapps,
+  setShowOpenedMinappsInSidebar
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

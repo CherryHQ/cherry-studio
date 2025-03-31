@@ -5,14 +5,15 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import { Message, Topic } from '@renderer/types'
-import { removeSpecialCharactersForFileName } from '@renderer/utils/index'
+import { convertMathFormula, removeSpecialCharactersForFileName } from '@renderer/utils/index'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 
 export const messageToMarkdown = (message: Message) => {
+  const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
   const titleSection = `### ${roleText}`
-  const contentSection = message.content
+  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(message.content) : message.content
 
   return [titleSection, '', contentSection].join('\n')
 }
@@ -319,61 +320,248 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
 
 /**
  * 导出Markdown到Obsidian
+ * @param attributes 文档属性
+ * @param attributes.title 标题
+ * @param attributes.created 创建时间
+ * @param attributes.source 来源
+ * @param attributes.tags 标签
+ * @param attributes.processingMethod 处理方式
+ * @param attributes.folder 选择的文件夹路径或文件路径
+ * @param attributes.vault 选择的Vault名称
  */
-export const exportMarkdownToObsidian = async (
-  fileName: string,
-  markdown: string,
-  selectedPath: string,
-  isMdFile: boolean = false
-) => {
+export const exportMarkdownToObsidian = async (attributes: any) => {
   try {
-    const obsidianUrl = store.getState().settings.obsidianUrl
-    const obsidianApiKey = store.getState().settings.obsidianApiKey
+    // 从参数获取Vault名称
+    const obsidianValut = attributes.vault
+    let obsidianFolder = attributes.folder || ''
+    let isMarkdownFile = false
 
-    if (!obsidianUrl || !obsidianApiKey) {
+    if (!obsidianValut) {
       window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
       return
     }
 
-    // 如果是md文件，直接将内容追加到该文件
-    if (isMdFile) {
-      const response = await fetch(`${obsidianUrl}vault${selectedPath}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/markdown',
-          Authorization: `Bearer ${obsidianApiKey}`
-        },
-        body: `\n\n${markdown}` // 添加两个换行后追加内容
-      })
-
-      if (!response.ok) {
-        window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
-        return
-      }
-    } else {
-      // 创建新文件
-      const sanitizedFileName = removeSpecialCharactersForFileName(fileName)
-      const path = selectedPath === '/' ? '' : selectedPath
-      const fullPath = path.endsWith('/') ? `${path}${sanitizedFileName}.md` : `${path}/${sanitizedFileName}.md`
-
-      const response = await fetch(`${obsidianUrl}vault${fullPath}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'text/markdown',
-          Authorization: `Bearer ${obsidianApiKey}`
-        },
-        body: markdown
-      })
-
-      if (!response.ok) {
-        window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
-        return
-      }
+    if (!attributes.title) {
+      window.message.error(i18n.t('chat.topics.export.obsidian_title_required'))
+      return
     }
 
+    // 检查是否选择了.md文件
+    if (obsidianFolder && obsidianFolder.endsWith('.md')) {
+      isMarkdownFile = true
+    }
+
+    let filePath = ''
+
+    // 如果是.md文件，直接使用该文件路径
+    if (isMarkdownFile) {
+      filePath = obsidianFolder
+    } else {
+      // 否则构建路径
+      //构建保存路径添加以 / 结尾
+      if (obsidianFolder && !obsidianFolder.endsWith('/')) {
+        obsidianFolder = obsidianFolder + '/'
+      }
+
+      //构建文件名
+      const fileName = transformObsidianFileName(attributes.title)
+      filePath = obsidianFolder + fileName + '.md'
+    }
+
+    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(filePath)}&vault=${encodeURIComponent(obsidianValut)}&clipboard`
+
+    if (attributes.processingMethod === '3') {
+      obsidianUrl += '&overwrite=true'
+    } else if (attributes.processingMethod === '2') {
+      obsidianUrl += '&prepend=true'
+    } else if (attributes.processingMethod === '1') {
+      obsidianUrl += '&append=true'
+    }
+
+    window.open(obsidianUrl)
     window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
   } catch (error) {
     console.error('导出到Obsidian失败:', error)
     window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
   }
+}
+
+/**
+ * 生成Obsidian文件名,源自 Obsidian  Web Clipper 官方实现,修改了一些细节
+ * @param fileName
+ * @returns
+ */
+
+function transformObsidianFileName(fileName: string): string {
+  const platform = window.navigator.userAgent
+  const isWindows = /win/i.test(platform)
+  const isMac = /mac/i.test(platform)
+
+  // 删除Obsidian 全平台无效字符
+  let sanitized = fileName.replace(/[#|\\^\\[\]]/g, '')
+
+  if (isWindows) {
+    // Windows 的清理
+    sanitized = sanitized
+      .replace(/[<>:"\\/\\|?*]/g, '') // 移除无效字符
+      .replace(/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i, '_$1$2') // 避免保留名称
+      .replace(/[\s.]+$/, '') // 移除结尾的空格和句点
+  } else if (isMac) {
+    // Mac 的清理
+    sanitized = sanitized
+      .replace(/[/:\u0020-\u007E]/g, '') // 移除无效字符
+      .replace(/^\./, '_') // 避免以句点开头
+  } else {
+    // Linux 或其他系统
+    sanitized = sanitized
+      .replace(/[<>:"\\/\\|?*]/g, '') // 移除无效字符
+      .replace(/^\./, '_') // 避免以句点开头
+  }
+
+  // 所有平台的通用操作
+  sanitized = sanitized
+    .replace(/^\.+/, '') // 移除开头的句点
+    .trim() // 移除前后空格
+    .slice(0, 245) // 截断为 245 个字符，留出空间以追加 ' 1.md'
+
+  // 确保文件名不为空
+  if (sanitized.length === 0) {
+    sanitized = 'Untitled'
+  }
+
+  return sanitized
+}
+export const exportMarkdownToJoplin = async (title: string, content: string) => {
+  const { joplinUrl, joplinToken } = store.getState().settings
+
+  if (!joplinUrl || !joplinToken) {
+    window.message.error(i18n.t('message.error.joplin.no_config'))
+    return
+  }
+
+  try {
+    const baseUrl = joplinUrl.endsWith('/') ? joplinUrl : `${joplinUrl}/`
+    const response = await fetch(`${baseUrl}notes?token=${joplinToken}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: title,
+        body: content,
+        source: 'Cherry Studio'
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('service not available')
+    }
+
+    const data = await response.json()
+    if (data?.error) {
+      throw new Error('response error')
+    }
+
+    window.message.success(i18n.t('message.success.joplin.export'))
+    return
+  } catch (error) {
+    window.message.error(i18n.t('message.error.joplin.export'))
+    return
+  }
+}
+
+/**
+ * 导出Markdown到思源笔记
+ * @param title 笔记标题
+ * @param content 笔记内容
+ */
+export const exportMarkdownToSiyuan = async (title: string, content: string) => {
+  const { isExporting } = store.getState().runtime.export
+  const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = store.getState().settings
+
+  if (isExporting) {
+    window.message.warning({ content: i18n.t('message.warn.siyuan.exporting'), key: 'siyuan-exporting' })
+    return
+  }
+
+  if (!siyuanApiUrl || !siyuanToken || !siyuanBoxId) {
+    window.message.error({ content: i18n.t('message.error.siyuan.no_config'), key: 'siyuan-no-config-error' })
+    return
+  }
+
+  setExportState({ isExporting: true })
+
+  try {
+    // test connection
+    const testResponse = await fetch(`${siyuanApiUrl}/api/notebook/lsNotebooks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Token ${siyuanToken}`
+      }
+    })
+
+    if (!testResponse.ok) {
+      throw new Error('API请求失败')
+    }
+
+    const testData = await testResponse.json()
+    if (testData.code !== 0) {
+      throw new Error(`${testData.msg || i18n.t('message.error.unknown')}`)
+    }
+
+    // 确保根路径以/开头
+    const rootPath = siyuanRootPath?.startsWith('/') ? siyuanRootPath : `/${siyuanRootPath || 'CherryStudio'}`
+
+    // 创建文档
+    const docTitle = `${title.replace(/[#|\\^\\[\]]/g, '')}`
+    const docPath = `${rootPath}/${docTitle}`
+
+    // 创建文档
+    await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, content)
+
+    window.message.success({
+      content: i18n.t('message.success.siyuan.export'),
+      key: 'siyuan-success'
+    })
+  } catch (error) {
+    console.error('导出到思源笔记失败:', error)
+    window.message.error({
+      content: i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''),
+      key: 'siyuan-error'
+    })
+  } finally {
+    setExportState({ isExporting: false })
+  }
+}
+
+/**
+ * 创建思源笔记文档
+ */
+async function createSiyuanDoc(
+  apiUrl: string,
+  token: string,
+  boxId: string,
+  path: string,
+  markdown: string
+): Promise<string> {
+  const response = await fetch(`${apiUrl}/api/filetree/createDocWithMd`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Token ${token}`
+    },
+    body: JSON.stringify({
+      notebook: boxId,
+      path: path,
+      markdown: markdown
+    })
+  })
+
+  const data = await response.json()
+  if (data.code !== 0) {
+    throw new Error(`${data.msg || i18n.t('message.error.unknown')}`)
+  }
+
+  return data.data
 }

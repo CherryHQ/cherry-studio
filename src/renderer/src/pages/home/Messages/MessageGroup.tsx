@@ -1,10 +1,12 @@
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Message, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Popover } from 'antd'
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import styled, { css } from 'styled-components'
 
 import MessageGroupMenuBar from './MessageGroupMenuBar'
@@ -17,21 +19,131 @@ interface Props {
 }
 
 const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
+  const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
 
-  const [multiModelMessageStyle, setMultiModelMessageStyle] =
-    useState<MultiModelMessageStyle>(multiModelMessageStyleSetting)
+  const [multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
+    messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
+  )
 
   const messageLength = messages.length
+  const prevMessageLengthRef = useRef(messageLength)
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
+
+  const getSelectedMessageId = useCallback(() => {
+    const selectedMessage = messages.find((message) => message.foldSelected)
+    if (selectedMessage) {
+      return selectedMessage.id
+    }
+    return messages[0]?.id
+  }, [messages])
+
+  const setSelectedMessage = useCallback(
+    (message: Message) => {
+      messages.forEach(async (m) => {
+        await editMessage(m.id, { foldSelected: m.id === message.id })
+      })
+
+      setTimeout(() => {
+        const messageElement = document.getElementById(`message-${message.id}`)
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 200)
+    },
+    [editMessage, messages]
+  )
 
   const isGrouped = messageLength > 1 && messages.every((m) => m.role === 'assistant')
   const isHorizontal = multiModelMessageStyle === 'horizontal'
   const isGrid = multiModelMessageStyle === 'grid'
 
   useEffect(() => {
-    setSelectedIndex(messageLength - 1)
+    if (messageLength > prevMessageLengthRef.current) {
+      setSelectedIndex(messageLength - 1)
+      const lastMessage = messages[messageLength - 1]
+      if (lastMessage) {
+        setSelectedMessage(lastMessage)
+      }
+    } else {
+      const selectedId = getSelectedMessageId()
+      const newIndex = messages.findIndex((msg) => msg.id === selectedId)
+      if (newIndex !== -1) {
+        setSelectedIndex(newIndex)
+      }
+    }
+    prevMessageLengthRef.current = messageLength
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messageLength])
+
+  // 添加对流程图节点点击事件的监听
+  useEffect(() => {
+    // 只在组件挂载和消息数组变化时添加监听器
+    if (!isGrouped || messageLength <= 1) return
+
+    const handleFlowNavigate = (event: CustomEvent) => {
+      const { messageId } = event.detail
+
+      // 查找对应的消息在当前消息组中的索引
+      const targetIndex = messages.findIndex((msg) => msg.id === messageId)
+
+      // 如果找到消息且不是当前选中的索引，则切换标签
+      if (targetIndex !== -1 && targetIndex !== selectedIndex) {
+        setSelectedIndex(targetIndex)
+
+        // 使用setSelectedMessage函数来切换标签，这是处理foldSelected的关键
+        const targetMessage = messages[targetIndex]
+        if (targetMessage) {
+          setSelectedMessage(targetMessage)
+        }
+      }
+    }
+
+    // 添加事件监听器
+    document.addEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
+
+    // 清理函数
+    return () => {
+      document.removeEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, selectedIndex, isGrouped, messageLength])
+
+  // 添加对LOCATE_MESSAGE事件的监听
+  useEffect(() => {
+    // 为每个消息注册一个定位事件监听器
+    const eventHandlers: { [key: string]: () => void } = {}
+
+    messages.forEach((message) => {
+      const eventName = EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id
+      const handler = () => {
+        // 检查消息是否处于可见状态
+        const element = document.getElementById(`message-${message.id}`)
+        if (element) {
+          const display = window.getComputedStyle(element).display
+
+          if (display === 'none') {
+            // 如果消息隐藏，先切换标签
+            setSelectedMessage(message)
+          } else {
+            // 直接滚动
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        }
+      }
+
+      eventHandlers[eventName] = handler
+      EventEmitter.on(eventName, handler)
+    })
+
+    // 清理函数
+    return () => {
+      // 移除所有事件监听器
+      Object.entries(eventHandlers).forEach(([eventName, handler]) => {
+        EventEmitter.off(eventName, handler)
+      })
+    }
+  }, [messages, setSelectedMessage])
 
   const renderMessage = useCallback(
     (message: Message & { index: number }, index: number) => {
@@ -49,11 +161,16 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
 
       const messageWrapper = (
         <MessageWrapper
+          id={`message-${message.id}`}
           $layout={multiModelMessageStyle}
           $selected={index === selectedIndex}
           $isGrouped={isGrouped}
           key={message.id}
-          className={message.role === 'assistant' && isHorizontal && isGrouped ? 'group-message-wrapper' : ''}>
+          className={classNames({
+            'group-message-wrapper': message.role === 'assistant' && isHorizontal && isGrouped,
+            [multiModelMessageStyle]: isGrouped,
+            selected: message.id === getSelectedMessageId()
+          })}>
           <MessageStream {...messageProps} />
         </MessageWrapper>
       )
@@ -89,12 +206,14 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
       selectedIndex,
       topic,
       hidePresetMessages,
-      gridPopoverTrigger
+      gridPopoverTrigger,
+      getSelectedMessageId
     ]
   )
 
   return (
     <GroupContainer
+      id={`message-group-${messages[0].askId}`}
       $isGrouped={isGrouped}
       $layout={multiModelMessageStyle}
       className={classNames([isGrouped && 'group-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
@@ -108,10 +227,15 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
       {isGrouped && (
         <MessageGroupMenuBar
           multiModelMessageStyle={multiModelMessageStyle}
-          setMultiModelMessageStyle={setMultiModelMessageStyle}
+          setMultiModelMessageStyle={(style) => {
+            setMultiModelMessageStyle(style)
+            messages.forEach((message) => {
+              editMessage(message.id, { multiModelMessageStyle: style })
+            })
+          }}
           messages={messages}
-          selectedIndex={selectedIndex}
-          setSelectedIndex={setSelectedIndex}
+          selectMessageId={getSelectedMessageId()}
+          setSelectedMessage={setSelectedMessage}
           topic={topic}
         />
       )}
@@ -162,6 +286,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
       grid-template-rows: auto;
       gap: 16px;
     `}
+  overflow-y: visible;
 `
 
 interface MessageWrapperProps {
@@ -173,15 +298,18 @@ interface MessageWrapperProps {
 
 const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
   width: 100%;
-  display: ${(props) => {
-    if (props.$layout === 'fold') {
-      return props.$selected ? 'block' : 'none'
+  &.horizontal {
+    display: inline-block;
+  }
+  &.grid {
+    display: inline-block;
+  }
+  &.fold {
+    display: none;
+    &.selected {
+      display: inline-block;
     }
-    if (props.$layout === 'horizontal') {
-      return 'inline-block'
-    }
-    return 'block'
-  }};
+  }
 
   ${({ $layout, $isGrouped }) => {
     if ($layout === 'horizontal' && $isGrouped) {
@@ -200,14 +328,14 @@ const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
     return $layout === 'grid' && $isGrouped
       ? css`
           max-height: ${$isInPopover ? '50vh' : '300px'};
-          overflow-y: ${$isInPopover ? 'auto' : 'hidden'};
+          overflow-y: ${$isInPopover ? 'visible' : 'hidden'};
           border: 0.5px solid ${$isInPopover ? 'transparent' : 'var(--color-border)'};
           padding: 10px;
           border-radius: 6px;
           background-color: var(--color-background);
         `
       : css`
-          overflow-y: auto;
+          overflow-y: visible;
           border-radius: 6px;
         `
   }}

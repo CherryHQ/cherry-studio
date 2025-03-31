@@ -6,10 +6,11 @@ import store from '@renderer/store'
 import { Assistant, Message, Model, Topic } from '@renderer/types'
 import { getTitleFromString, uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
+import { t } from 'i18next'
 import { isEmpty, remove, takeRight } from 'lodash'
 import { NavigateFunction } from 'react-router'
 
-import { getAssistantById, getDefaultModel } from './AssistantService'
+import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
 import FileManager from './FileManager'
 
@@ -53,7 +54,7 @@ export function filterEmptyMessages(messages: Message[]): Message[] {
 }
 
 export function filterUsefulMessages(messages: Message[]): Message[] {
-  const _messages = [...messages]
+  let _messages = [...messages]
   const groupedMessages = getGroupedMessages(messages)
 
   Object.entries(groupedMessages).forEach(([key, messages]) => {
@@ -76,6 +77,14 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
   while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
     _messages.pop()
   }
+
+  // 过滤两条及以上 user 类型消息相邻的情况，只保留最新一条 user 消息
+  _messages = _messages.filter((message, index, origin) => {
+    if (message.role === 'user' && index + 1 < origin.length && origin[index + 1].role === 'user') {
+      return false
+    }
+    return true
+  })
 
   return _messages
 }
@@ -174,6 +183,7 @@ export function getAssistantMessage({ assistant, topic }: { assistant: Assistant
 
 export function getGroupedMessages(messages: Message[]): { [key: string]: (Message & { index: number })[] } {
   const groups: { [key: string]: (Message & { index: number })[] } = {}
+
   messages.forEach((message, index) => {
     const key = message.askId ? 'assistant' + message.askId : 'user' + message.id
     if (key && !groups[key]) {
@@ -181,6 +191,7 @@ export function getGroupedMessages(messages: Message[]): { [key: string]: (Messa
     }
     groups[key].unshift({ ...message, index })
   })
+
   return groups
 }
 
@@ -211,4 +222,37 @@ export function getMessageTitle(message: Message, length = 30) {
   }
 
   return title
+}
+export function checkRateLimit(assistant: Assistant): boolean {
+  const provider = getAssistantProvider(assistant)
+
+  if (!provider.rateLimit) {
+    return false
+  }
+
+  const topicId = assistant.topics[0].id
+  const messages = store.getState().messages.messagesByTopic[topicId]
+
+  if (!messages || messages.length <= 1) {
+    return false
+  }
+
+  const now = Date.now()
+  const lastMessage = messages[messages.length - 1]
+  const lastMessageTime = new Date(lastMessage.createdAt).getTime()
+  const timeDiff = now - lastMessageTime
+  const rateLimitMs = provider.rateLimit * 1000
+
+  if (timeDiff < rateLimitMs) {
+    const waitTimeSeconds = Math.ceil((rateLimitMs - timeDiff) / 1000)
+
+    window.message.warning({
+      content: t('message.warning.rate.limit', { seconds: waitTimeSeconds }),
+      duration: 5,
+      key: 'rate-limit-message'
+    })
+    return true
+  }
+
+  return false
 }

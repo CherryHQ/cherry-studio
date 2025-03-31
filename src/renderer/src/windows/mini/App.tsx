@@ -10,7 +10,7 @@ import { SyntaxHighlighterProvider } from '../../context/SyntaxHighlighterProvid
 import { ThemeProvider } from '../../context/ThemeProvider'
 import HomeWindow from './home/HomeWindow'
 
-function MiniWindow(): JSX.Element {
+function MiniWindow(): React.ReactElement {
   //miniWindow should register its own message component
   const [messageApi, messageContextHolder] = message.useMessage()
   window.message = messageApi

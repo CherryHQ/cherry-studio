@@ -1,6 +1,6 @@
+import { BaseLoader } from '@cherrystudio/embedjs-interfaces'
+import { cleanString } from '@cherrystudio/embedjs-utils'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
-import { BaseLoader } from '@llm-tools/embedjs-interfaces'
-import { cleanString } from '@llm-tools/embedjs-utils'
 import { getTempDir } from '@main/utils/file'
 import Logger from 'electron-log'
 import EPub from 'epub'

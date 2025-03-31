@@ -1,5 +1,5 @@
 import { is } from '@electron-toolkit/utils'
-import { isDev, isLinux, isWin } from '@main/constant'
+import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
 import Logger from 'electron-log'
@@ -17,6 +17,9 @@ export class WindowService {
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
   private wasFullScreen: boolean = false
+  //hacky-fix: store the focused status of mainWindow before miniWindow shows
+  //to restore the focus status when miniWindow hides
+  private wasMainWindowFocused: boolean = false
   private selectionMenuWindow: BrowserWindow | null = null
   private lastSelectedText: string = ''
   private contextMenu: Menu | null = null
@@ -31,6 +34,7 @@ export class WindowService {
   public createMainWindow(): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.show()
+      this.mainWindow.focus()
       return this.mainWindow
     }
 
@@ -40,8 +44,6 @@ export class WindowService {
     })
 
     const theme = configManager.getTheme()
-    const isMac = process.platform === 'darwin'
-    const isLinux = process.platform === 'linux'
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
@@ -59,7 +61,7 @@ export class WindowService {
       titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
       trafficLightPosition: { x: 8, y: 12 },
-      ...(process.platform === 'linux' ? { icon } : {}),
+      ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -70,6 +72,12 @@ export class WindowService {
     })
 
     this.setupMainWindow(this.mainWindow, mainWindowState)
+
+    //preload miniWindow to resolve series of issues about miniWindow in Mac
+    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+    if (enableQuickAssistant && !this.miniWindow) {
+      this.miniWindow = this.createMiniWindow(true)
+    }
 
     return this.mainWindow
   }
@@ -146,7 +154,15 @@ export class WindowService {
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
-      mainWindow.show()
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+
+      // show window only when laucn to tray not set
+      const isLaunchToTray = configManager.getLaunchToTray()
+      if (!isLaunchToTray) {
+        //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
+        app.dock?.show()
+        mainWindow.show()
+      }
     })
 
     // 处理全屏相关事件
@@ -159,6 +175,25 @@ export class WindowService {
       this.wasFullScreen = false
       mainWindow.webContents.send('fullscreen-status-changed', false)
     })
+
+    // set the zoom factor again when the window is going to resize
+    //
+    // this is a workaround for the known bug that
+    // the zoom factor is reset to cached value when window is resized after routing to other page
+    // see: https://github.com/electron/electron/issues/10572
+    //
+    mainWindow.on('will-resize', () => {
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+    })
+
+    // ARCH: as `will-resize` is only for Win & Mac,
+    // linux has the same problem, use `resize` listener instead
+    // but `resize` will fliker the ui
+    if (isLinux) {
+      mainWindow.on('resize', () => {
+        mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      })
+    }
 
     // 添加Escape键退出全屏的支持
     mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -255,12 +290,20 @@ export class WindowService {
         return app.quit()
       }
 
-      // 没有开启托盘，且是Windows或Linux系统，直接退出
-      const notInTray = !configManager.getTray()
-      if ((isWin || isLinux) && notInTray) {
-        return app.quit()
+      // 托盘及关闭行为设置
+      const isShowTray = configManager.getTray()
+      const isTrayOnClose = configManager.getTrayOnClose()
+
+      // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
+      if (!isShowTray || (isShowTray && !isTrayOnClose)) {
+        // 如果是Windows或Linux，直接退出
+        // mac按照系统默认行为，不退出
+        if (isWin || isLinux) {
+          return app.quit()
+        }
       }
 
+      //上述逻辑以下，是“开启托盘+设置关闭时最小化到托盘”的情况
       // 如果是Windows或Linux，且处于全屏状态，则退出应用
       if (this.wasFullScreen) {
         if (isWin || isLinux) {
@@ -271,8 +314,12 @@ export class WindowService {
           return
         }
       }
+
       event.preventDefault()
       mainWindow.hide()
+
+      //for mac users, should hide dock icon if close to tray
+      app.dock?.hide()
     })
 
     mainWindow.on('closed', () => {
@@ -294,41 +341,43 @@ export class WindowService {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore()
+        return
       }
+      //[macOS] Known Issue
+      // setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
+      // AppleScript may be a solution, but it's not worth
+      this.mainWindow.setVisibleOnAllWorkspaces(true)
       this.mainWindow.show()
       this.mainWindow.focus()
+      this.mainWindow.setVisibleOnAllWorkspaces(false)
     } else {
       this.mainWindow = this.createMainWindow()
-      this.mainWindow.focus()
     }
   }
 
-  public showMiniWindow() {
-    const enableQuickAssistant = configManager.getEnableQuickAssistant()
-
-    if (!enableQuickAssistant) {
+  public toggleMainWindow() {
+    // should not toggle main window when in full screen
+    if (this.wasFullScreen) {
       return
     }
 
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.hide()
-    }
-    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
-      this.selectionMenuWindow.hide()
-    }
-
-    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
-      if (this.miniWindow.isMinimized()) {
-        this.miniWindow.restore()
+    if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
+      if (this.mainWindow.isFocused()) {
+        // if tray is enabled, hide the main window, else do nothing
+        if (configManager.getTray()) {
+          this.mainWindow.hide()
+          app.dock?.hide()
+        }
+      } else {
+        this.mainWindow.focus()
       }
-      this.miniWindow.show()
-      this.miniWindow.center()
-      this.miniWindow.focus()
       return
     }
 
-    const isMac = process.platform === 'darwin'
+    this.showMainWindow()
+  }
 
+  public createMiniWindow(isPreload: boolean = false): BrowserWindow {
     this.miniWindow = new BrowserWindow({
       width: 550,
       height: 400,
@@ -336,7 +385,7 @@ export class WindowService {
       minHeight: 380,
       maxWidth: 1024,
       maxHeight: 768,
-      show: true,
+      show: false,
       autoHideMenuBar: true,
       transparent: isMac,
       vibrancy: 'under-window',
@@ -346,6 +395,11 @@ export class WindowService {
       alwaysOnTop: true,
       resizable: true,
       useContentSize: true,
+      ...(isMac ? { type: 'panel' } : {}),
+      skipTaskbar: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -354,9 +408,24 @@ export class WindowService {
       }
     })
 
+    //miniWindow should show in current desktop
+    this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    //make miniWindow always on top of fullscreen apps with level set
+    this.miniWindow.setAlwaysOnTop(true, 'screen-saver', 1)
+
+    this.miniWindow.on('ready-to-show', () => {
+      if (isPreload) {
+        return
+      }
+
+      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
+      this.miniWindow?.center()
+      this.miniWindow?.show()
+    })
+
     this.miniWindow.on('blur', () => {
       if (!this.isPinnedMiniWindow) {
-        this.miniWindow?.hide()
+        this.hideMiniWindow()
       }
     })
 
@@ -383,9 +452,48 @@ export class WindowService {
         hash: '#/mini'
       })
     }
+
+    return this.miniWindow
+  }
+
+  public showMiniWindow() {
+    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+
+    if (!enableQuickAssistant) {
+      return
+    }
+
+    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
+      this.selectionMenuWindow.hide()
+    }
+
+    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
+
+      if (this.miniWindow.isMinimized()) {
+        this.miniWindow.restore()
+      }
+      this.miniWindow.show()
+      return
+    }
+
+    this.miniWindow = this.createMiniWindow()
   }
 
   public hideMiniWindow() {
+    //hacky-fix:[mac/win] previous window(not self-app) should be focused again after miniWindow hide
+    if (isWin) {
+      this.miniWindow?.minimize()
+      this.miniWindow?.hide()
+      return
+    } else if (isMac) {
+      this.miniWindow?.hide()
+      if (!this.wasMainWindowFocused) {
+        app.hide()
+      }
+      return
+    }
+
     this.miniWindow?.hide()
   }
 
@@ -394,11 +502,12 @@ export class WindowService {
   }
 
   public toggleMiniWindow() {
-    if (this.miniWindow) {
-      this.miniWindow.isVisible() ? this.miniWindow.hide() : this.miniWindow.show()
-    } else {
-      this.showMiniWindow()
+    if (this.miniWindow && !this.miniWindow.isDestroyed() && this.miniWindow.isVisible()) {
+      this.hideMiniWindow()
+      return
     }
+
+    this.showMiniWindow()
   }
 
   public setPinMiniWindow(isPinned) {
@@ -413,7 +522,6 @@ export class WindowService {
     }
 
     const theme = configManager.getTheme()
-    const isMac = process.platform === 'darwin'
 
     this.selectionMenuWindow = new BrowserWindow({
       width: 280,

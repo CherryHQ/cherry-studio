@@ -42,3 +42,7 @@ export function dumpPersistState() {
   }
   return JSON.stringify(persistState)
 }
+
+export const runAsyncFunction = async (fn: () => void) => {
+  await fn()
+}

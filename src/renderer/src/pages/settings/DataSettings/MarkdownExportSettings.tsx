@@ -2,8 +2,8 @@ import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { RootState, useAppDispatch } from '@renderer/store'
-import { setmarkdownExportPath } from '@renderer/store/settings'
-import { Button } from 'antd'
+import { setForceDollarMathInMarkdown, setmarkdownExportPath } from '@renderer/store/settings'
+import { Button, Switch } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,7 @@ const MarkdownExportSettings: FC = () => {
   const dispatch = useAppDispatch()
 
   const markdownExportPath = useSelector((state: RootState) => state.settings.markdownExportPath)
+  const forceDollarMathInMarkdown = useSelector((state: RootState) => state.settings.forceDollarMathInMarkdown)
 
   const handleSelectFolder = async () => {
     const path = await window.api.file.selectFolder()
@@ -27,6 +28,10 @@ const MarkdownExportSettings: FC = () => {
 
   const handleClearPath = () => {
     dispatch(setmarkdownExportPath(null))
+  }
+
+  const handleToggleForceDollarMath = (checked: boolean) => {
+    dispatch(setForceDollarMathInMarkdown(checked))
   }
 
   return (
@@ -55,6 +60,14 @@ const MarkdownExportSettings: FC = () => {
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.markdown_export.force_dollar_math.title')}</SettingRowTitle>
+        <Switch checked={forceDollarMathInMarkdown} onChange={handleToggleForceDollarMath} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.markdown_export.force_dollar_math.help')}</SettingHelpText>
       </SettingRow>
     </SettingGroup>
   )

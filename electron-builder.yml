@@ -72,12 +72,18 @@ linux:
   maintainer: electronjs.org
   category: Utility
 publish:
-  provider: generic
-  url: https://cherrystudio.ocool.online
+  # provider: generic
+  # url: https://cherrystudio.ocool.online
+  provider: github
+  repo: cherry-studio
+  owner: CherryHQ
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    修复公式渲染问题
+    小程序支持多开
+    支持 GPT-4o 图像生成
+    修复 MCP 服务器无法使用问题
+    修复升级导致旧版本数据丢失问题

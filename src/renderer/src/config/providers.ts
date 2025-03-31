@@ -38,6 +38,7 @@ import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
+import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
@@ -66,6 +67,7 @@ const PROVIDER_LOGO_MAP = {
   'graphrag-kylin-mountain': GraphRagProviderLogo,
   minimax: MinimaxProviderLogo,
   github: GithubProviderLogo,
+  copilot: GithubProviderLogo,
   ocoolai: OcoolAiProviderLogo,
   together: TogetherProviderLogo,
   fireworks: FireworksProviderLogo,
@@ -85,12 +87,15 @@ const PROVIDER_LOGO_MAP = {
   o3: O3ProviderLogo,
   'tencent-cloud-ti': TencentCloudProviderLogo,
   gpustack: GPUStackProviderLogo,
-  alayanew: AlayaNewProviderLogo
+  alayanew: AlayaNewProviderLogo,
+  voyageai: VoyageAIProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
   return PROVIDER_LOGO_MAP[providerId as keyof typeof PROVIDER_LOGO_MAP]
 }
+
+export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai']
 
 export const PROVIDER_CONFIG = {
   openai: {
@@ -185,7 +190,7 @@ export const PROVIDER_CONFIG = {
   },
   together: {
     api: {
-      url: 'https://api.tohgether.xyz'
+      url: 'https://api.together.xyz'
     },
     websites: {
       official: 'https://www.together.ai/',
@@ -236,6 +241,11 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://github.com/settings/tokens',
       docs: 'https://docs.github.com/en/github-models',
       models: 'https://github.com/marketplace/models'
+    }
+  },
+  copilot: {
+    api: {
+      url: 'https://api.githubcopilot.com/'
     }
   },
   yi: {
@@ -354,7 +364,7 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://www.alayanew.com/backend/register?id=cherrystudio',
-      apiKey: 'https://www.alayanew.com/access?id=cherrystudio',
+      apiKey: ' https://www.alayanew.com/backend/register?id=cherrystudio',
       docs: 'https://docs.alayanew.com/docs/modelService/interview?utm_source=cherrystudio',
       models: 'https://www.alayanew.com/product/deepseek?id=cherrystudio'
     }
@@ -551,6 +561,17 @@ export const PROVIDER_CONFIG = {
       official: 'https://gpustack.ai/',
       docs: 'https://docs.gpustack.ai/latest/',
       models: 'https://docs.gpustack.ai/latest/overview/#supported-models'
+    }
+  },
+  voyageai: {
+    api: {
+      url: 'https://api.voyageai.com'
+    },
+    websites: {
+      official: 'https://www.voyageai.com/',
+      apiKey: 'https://dashboard.voyageai.com/organization/api-keys',
+      docs: 'https://docs.voyageai.com/docs',
+      models: 'https://docs.voyageai.com/docs'
     }
   }
 }

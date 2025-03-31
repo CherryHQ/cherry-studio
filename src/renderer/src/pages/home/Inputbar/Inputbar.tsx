@@ -10,10 +10,10 @@ import {
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
@@ -21,7 +21,7 @@ import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
-import { getUserMessage } from '@renderer/services/MessagesService'
+import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
@@ -44,6 +44,7 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
+import GenerateImageButton from './GenerateImageButton'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
 import MCPToolsButton from './MCPToolsButton'
 import MentionModelsButton from './MentionModelsButton'
@@ -82,20 +83,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const containerRef = useRef(null)
   const { searching } = useRuntime()
   const { isBubbleStyle } = useMessageStyle()
-  const { loading, pauseMessages } = useMessageOperations(topic)
+  const { pauseMessages } = useMessageOperations(topic)
+  const loading = useTopicLoading(topic)
   const dispatch = useAppDispatch()
   const [spaceClickCount, setSpaceClickCount] = useState(0)
-  const spaceClickTimer = useRef<NodeJS.Timeout>()
+  const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
-  const [enabledMCPs, setEnabledMCPs] = useState<MCPServer[]>([])
+  const [enabledMCPs, setEnabledMCPs] = useState<MCPServer[]>(assistant.mcpServers || [])
   const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
-  const currentMessageId = useRef<string>()
+  const currentMessageId = useRef<string>('')
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const navigate = useNavigate()
@@ -143,8 +145,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [textareaHeight])
 
+  // reset state when assistant changes
+  useEffect(() => {
+    // Reset to assistant default model
+    assistant.defaultModel && setModel(assistant.defaultModel)
+
+    // Reset to assistant knowledge mcp servers
+    setEnabledMCPs(assistant.mcpServers || [])
+  }, [assistant, setModel])
+
   const sendMessage = useCallback(async () => {
     if (inputEmpty || loading) {
+      return
+    }
+    if (checkRateLimit(assistant)) {
       return
     }
 
@@ -318,8 +332,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     await db.topics.add({ id: topic.id, messages: [] })
     await addAssistantMessagesToTopic({ assistant, topic })
 
+    // Clear previous state
     // Reset to assistant default model
     assistant.defaultModel && setModel(assistant.defaultModel)
+    // Reset to assistant knowledge mcp servers
+    setEnabledMCPs(assistant.mcpServers || [])
 
     addTopic(topic)
     setActiveTopic(topic)
@@ -515,11 +532,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [isDragging, handleDrag, handleDragEnd])
 
   useShortcut('new_topic', () => {
-    if (!loading) {
-      addNewTopic()
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-      textareaRef.current?.focus()
-    }
+    addNewTopic()
+    EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    textareaRef.current?.focus()
   })
 
   useShortcut('clear_topic', () => {
@@ -615,9 +630,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const toggelEnableMCP = (mcp: MCPServer) => {
     setEnabledMCPs((prev) => {
-      const exists = prev.some((item) => item.name === mcp.name)
+      const exists = prev.some((item) => item.id === mcp.id)
       if (exists) {
-        return prev.filter((item) => item.name !== mcp.name)
+        return prev.filter((item) => item.id !== mcp.id)
       } else {
         return [...prev, mcp]
       }
@@ -625,7 +640,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const onEnableWebSearch = () => {
-    console.log(assistant)
     if (!isWebSearchModel(model)) {
       if (!WebSearchService.isWebSearchEnabled()) {
         window.modal.confirm({
@@ -644,9 +658,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
   }
 
+  const onEnableGenerateImage = () => {
+    updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
+  }
+
   useEffect(() => {
     if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
+    }
+    if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
+      updateAssistant({ ...assistant, enableGenerateImage: false })
     }
   }, [assistant, model, updateAssistant])
 
@@ -715,11 +736,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 </ToolbarButton>
               </Tooltip>
               <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
-              <MentionModelsButton
-                mentionModels={mentionModels}
-                onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
-                ToolbarButton={ToolbarButton}
-              />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
                 <ToolbarButton type="text" onClick={onEnableWebSearch}>
                   <GlobalOutlined
@@ -742,6 +758,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   ToolbarButton={ToolbarButton}
                 />
               )}
+              <GenerateImageButton
+                model={model}
+                assistant={assistant}
+                onEnableGenerateImage={onEnableGenerateImage}
+                ToolbarButton={ToolbarButton}
+              />
+              <MentionModelsButton
+                mentionModels={mentionModels}
+                onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
+                ToolbarButton={ToolbarButton}
+              />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}
