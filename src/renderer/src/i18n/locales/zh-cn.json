@@ -547,7 +547,8 @@
         "close": "关闭小程序",
         "minimize": "最小化小程序",
         "devtools": "开发者工具",
-        "openExternal": "在浏览器中打开"
+        "openExternal": "在浏览器中打开",
+        "rightclick_copyurl": "右键复制URL"
       },
       "sidebar.add.title": "添加到侧边栏",
       "sidebar.remove.title": "从侧边栏移除",

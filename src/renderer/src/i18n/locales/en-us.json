@@ -547,7 +547,8 @@
         "close": "Close MinApp",
         "minimize": "Minimize MinApp",
         "devtools": "Developer Tools",
-        "openExternal": "Open in Browser"
+        "openExternal": "Open in Browser",
+        "rightclick_copyurl": "Right-click to copy URL"
       },
       "sidebar.add.title": "Add to sidebar",
       "sidebar.remove.title": "Remove from sidebar",
