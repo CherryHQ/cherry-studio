@@ -63,7 +63,7 @@
     "@cherrystudio/embedjs-openai": "^0.1.28",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
-    "@google/generative-ai": "^0.21.0",
+    "@google/generative-ai": "^0.24.0",
     "@langchain/community": "^0.3.36",
     "@notionhq/client": "^2.2.15",
     "@tryfabric/martian": "^1.2.4",

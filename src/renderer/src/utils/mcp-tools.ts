@@ -1,124 +1,114 @@
 import { Tool, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
-import { FunctionCall, FunctionDeclaration, SchemaType, Tool as geminiToool } from '@google/generative-ai'
+import { FunctionCall, FunctionDeclaration, SchemaType, Tool as geminiTool } from '@google/generative-ai'
+import {
+  ArraySchema,
+  BaseSchema,
+  BooleanSchema,
+  EnumStringSchema,
+  FunctionDeclarationSchema,
+  FunctionDeclarationSchemaProperty,
+  IntegerSchema,
+  NumberSchema,
+  ObjectSchema,
+  SimpleStringSchema
+} from '@google/generative-ai'
 import store from '@renderer/store'
 import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
 
 import { ChunkCallbackData } from '../providers'
 
-const supportedAttributes = [
-  'type',
-  'nullable',
-  'required',
-  'format',
-  'description',
-  'properties',
-  'items',
-  'enum',
-  'anyOf',
-  'oneOf',
-  'allOf'
-]
+const ensureValidSchema = (obj: Record<string, any>): FunctionDeclarationSchemaProperty => {
+  // Handle base schema properties
+  const baseSchema = {
+    description: obj.description,
+    nullable: obj.nullable
+  } as BaseSchema
 
-function filterPropertieAttributes(tool: MCPTool, filterNestedObj = false) {
+  // Handle string type
+  if (obj.type?.toLowerCase() === SchemaType.STRING) {
+    if (obj.enum && Array.isArray(obj.enum)) {
+      return {
+        ...baseSchema,
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: obj.enum as string[]
+      } as EnumStringSchema
+    }
+    return {
+      ...baseSchema,
+      type: SchemaType.STRING,
+      format: obj.format === 'date-time' ? 'date-time' : undefined
+    } as SimpleStringSchema
+  }
+
+  // Handle number type
+  if (obj.type?.toLowerCase() === SchemaType.NUMBER) {
+    return {
+      ...baseSchema,
+      type: SchemaType.NUMBER,
+      format: ['float', 'double'].includes(obj.format) ? (obj.format as 'float' | 'double') : undefined
+    } as NumberSchema
+  }
+
+  // Handle integer type
+  if (obj.type?.toLowerCase() === SchemaType.INTEGER) {
+    return {
+      ...baseSchema,
+      type: SchemaType.INTEGER,
+      format: ['int32', 'int64'].includes(obj.format) ? (obj.format as 'int32' | 'int64') : undefined
+    } as IntegerSchema
+  }
+
+  // Handle boolean type
+  if (obj.type?.toLowerCase() === SchemaType.BOOLEAN) {
+    return {
+      ...baseSchema,
+      type: SchemaType.BOOLEAN
+    } as BooleanSchema
+  }
+
+  // Handle array type
+  if (obj.type?.toLowerCase() === SchemaType.ARRAY) {
+    return {
+      ...baseSchema,
+      type: SchemaType.ARRAY,
+      items: obj.items
+        ? ensureValidSchema(obj.items as Record<string, any>)
+        : ({ type: SchemaType.STRING } as SimpleStringSchema),
+      minItems: obj.minItems,
+      maxItems: obj.maxItems
+    } as ArraySchema
+  }
+
+  // Handle object type (default)
+  const properties = obj.properties
+    ? Object.fromEntries(
+        Object.entries(obj.properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
+      )
+    : { _empty: { type: SchemaType.STRING } as SimpleStringSchema } // Ensure properties is never empty
+
+  return {
+    ...baseSchema,
+    type: SchemaType.OBJECT,
+    properties,
+    required: Array.isArray(obj.required) ? obj.required : undefined
+  } as ObjectSchema
+}
+
+function filterPropertieAttributes(tool: MCPTool, filterNestedObj: boolean = false): Record<string, object> {
   const properties = tool.inputSchema.properties
   if (!properties) {
     return {}
   }
 
-  const ensureValidSchema = (obj: Record<string, any>, processNested: boolean): Record<string, any> => {
-    const schema: Record<string, any> = {
-      type: (obj.type || 'object').toLowerCase()
-    }
-
-    // Copy supported attributes
-    for (const attr of supportedAttributes) {
-      if (obj[attr] !== undefined) {
-        if (processNested && (attr === 'properties' || attr === 'items')) {
-          continue
-        }
-        schema[attr] = obj[attr]
-      }
-    }
-
-    // Handle description
-    if (obj.description) {
-      schema.description = obj.description
-    }
-
-    // Handle object type
-    if (schema.type === 'object') {
-      if (obj.properties) {
-        if (processNested) {
-          schema.properties = Object.fromEntries(
-            Object.entries(obj.properties).map(([key, value]) => [
-              key,
-              ensureValidSchema(value as Record<string, any>, true)
-            ])
-          )
-        } else {
-          schema.properties = obj.properties
-        }
-      } else {
-        schema.properties = {
-          value: {
-            type: 'string',
-            description: 'Default value for unspecified object'
-          }
-        }
-      }
-
-      // Handle required fields
-      if (obj.required && Array.isArray(obj.required)) {
-        schema.required = obj.required
-      }
-    }
-
-    // Handle array type
-    if (schema.type === 'array') {
-      if (obj.items) {
-        if (processNested) {
-          schema.items = ensureValidSchema(obj.items, true)
-        } else {
-          schema.items = obj.items
-        }
-      } else {
-        schema.items = { type: 'string' } // Default items type if not specified
-      }
-    }
-
-    // Handle oneOf, anyOf, allOf
-    for (const key of ['oneOf', 'anyOf', 'allOf']) {
-      if (obj[key] && Array.isArray(obj[key])) {
-        if (processNested) {
-          schema[key] = obj[key].map((item: any) => ensureValidSchema(item, true))
-        } else {
-          schema[key] = obj[key]
-        }
-      }
-    }
-
-    // Handle enums
-    if (obj.enum && Array.isArray(obj.enum)) {
-      schema.enum = obj.enum
-    }
-
-    // Handle format
-    if (obj.format) {
-      schema.format = obj.format
-    }
-
-    // Handle numeric constraints
-    if (schema.type === 'number' || schema.type === 'integer') {
-      if (obj.minimum !== undefined) schema.minimum = obj.minimum
-      if (obj.maximum !== undefined) schema.maximum = obj.maximum
-    }
-
-    return schema
+  // For OpenAI, we don't need to validate as strictly
+  if (!filterNestedObj) {
+    return properties
   }
 
   const processedProperties = Object.fromEntries(
-    Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value, filterNestedObj)])
+    Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
   )
 
   return processedProperties
@@ -232,7 +222,7 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
   return tool
 }
 
-export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiToool[] {
+export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiTool[] {
   if (!mcpTools || mcpTools.length === 0) {
     // No tools available
     return []
@@ -244,18 +234,19 @@ export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiTo
     const functionDeclaration: FunctionDeclaration = {
       name: tool.id,
       description: tool.description,
-      ...(Object.keys(properties).length > 0
-        ? {
-            parameters: {
-              type: SchemaType.OBJECT,
-              properties
-            }
-          }
-        : {})
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties:
+          Object.keys(properties).length > 0
+            ? Object.fromEntries(
+                Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
+              )
+            : { _empty: { type: SchemaType.STRING } as SimpleStringSchema }
+      } as FunctionDeclarationSchema
     }
     functions.push(functionDeclaration)
   }
-  const tool: geminiToool = {
+  const tool: geminiTool = {
     functionDeclarations: functions
   }
   return [tool]
