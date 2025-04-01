@@ -2,11 +2,12 @@ import { DeleteOutlined } from '@ant-design/icons'
 import type { FileMetadataResponse } from '@google/generative-ai/server'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { runAsyncFunction } from '@renderer/utils'
-import { Table } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+import { Spin } from 'antd'
+import dayjs from 'dayjs'
 import { FC, useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import FileItem from './FileItem'
 
 interface GeminiFilesProps {
   id: string
@@ -15,58 +16,12 @@ interface GeminiFilesProps {
 const GeminiFiles: FC<GeminiFilesProps> = ({ id }) => {
   const { provider } = useProvider(id)
   const [files, setFiles] = useState<FileMetadataResponse[]>([])
-  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
 
   const fetchFiles = useCallback(async () => {
     const { files } = await window.api.gemini.listFiles(provider.apiKey)
     files && setFiles(files.filter((file) => file.state === 'ACTIVE'))
   }, [provider])
-
-  const columns: ColumnsType<FileMetadataResponse> = [
-    {
-      title: t('files.name'),
-      dataIndex: 'displayName',
-      key: 'displayName'
-    },
-    {
-      title: t('files.type'),
-      dataIndex: 'mimeType',
-      key: 'mimeType'
-    },
-    {
-      title: t('files.size'),
-      dataIndex: 'sizeBytes',
-      key: 'sizeBytes',
-      render: (size: string) => `${(parseInt(size) / 1024 / 1024).toFixed(2)} MB`
-    },
-    {
-      title: t('files.created_at'),
-      dataIndex: 'createTime',
-      key: 'createTime',
-      render: (time: string) => new Date(time).toLocaleString()
-    },
-    {
-      title: t('files.actions'),
-      dataIndex: 'actions',
-      key: 'actions',
-      align: 'center',
-      render: (_, record) => {
-        return (
-          <DeleteOutlined
-            style={{ cursor: 'pointer', color: 'var(--color-error)' }}
-            onClick={() => {
-              setFiles(files.filter((file) => file.name !== record.name))
-              window.api.gemini.deleteFile(provider.apiKey, record.name).catch((error) => {
-                console.error('Failed to delete file:', error)
-                setFiles((prev) => [...prev, record])
-              })
-            }}
-          />
-        )
-      }
-    }
-  ]
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -86,13 +41,61 @@ const GeminiFiles: FC<GeminiFilesProps> = ({ id }) => {
     setFiles([])
   }, [id])
 
+  if (loading) {
+    return (
+      <Container>
+        <LoadingWrapper>
+          <Spin />
+        </LoadingWrapper>
+      </Container>
+    )
+  }
+
   return (
     <Container>
-      <Table columns={columns} dataSource={files} rowKey="name" loading={loading} />
+      <FileListContainer>
+        {files.map((file) => (
+          <FileItem
+            key={file.name}
+            fileInfo={{
+              name: file.displayName,
+              ext: `.${file.name.split('.').pop()}`,
+              extra: `${dayjs(file.createTime).format('MM-DD HH:mm')} · ${(parseInt(file.sizeBytes) / 1024 / 1024).toFixed(2)} MB`,
+              actions: (
+                <DeleteOutlined
+                  style={{ cursor: 'pointer', color: 'var(--color-error)' }}
+                  onClick={() => {
+                    setFiles(files.filter((f) => f.name !== file.name))
+                    window.api.gemini.deleteFile(provider.apiKey, file.name).catch((error) => {
+                      console.error('Failed to delete file:', error)
+                      setFiles((prev) => [...prev, file])
+                    })
+                  }}
+                />
+              )
+            }}
+          />
+        ))}
+      </FileListContainer>
     </Container>
   )
 }
 
-const Container = styled.div``
+const Container = styled.div`
+  width: 100%;
+`
+
+const FileListContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const LoadingWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+`
 
 export default GeminiFiles

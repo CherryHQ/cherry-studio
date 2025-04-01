@@ -1,4 +1,4 @@
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { KnowledgeBaseParams } from '@types'
 import axios from 'axios'
 
@@ -49,8 +49,10 @@ export default class SiliconFlowReranker extends BaseReranker {
         .filter((doc): doc is ExtractChunkData => doc !== undefined)
         .sort((a, b) => b.score - a.score)
     } catch (error: any) {
-      console.error('SiliconFlow Reranker API 错误:', error.status)
-      throw new Error(`${error} - BaseUrl: ${baseURL}`)
+      const errorDetails = this.formatErrorMessage(url, error, requestBody)
+
+      console.error('SiliconFlow Reranker API 错误:', errorDetails)
+      throw new Error(`重排序请求失败: ${error.message}\n请求详情: ${errorDetails}`)
     }
   }
 }

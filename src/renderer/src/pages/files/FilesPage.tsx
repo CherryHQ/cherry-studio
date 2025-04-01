@@ -1,14 +1,15 @@
 import {
   DeleteOutlined,
   EditOutlined,
-  EllipsisOutlined,
+  ExclamationCircleOutlined,
   FileImageOutlined,
   FilePdfOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  SortAscendingOutlined,
+  SortDescendingOutlined
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
-import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
@@ -16,18 +17,23 @@ import store from '@renderer/store'
 import { FileType, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import type { MenuProps } from 'antd'
-import { Button, Dropdown, Menu } from 'antd'
+import { Button, Empty, Flex, Menu, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { FC, useMemo, useState } from 'react'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import ContentView from './ContentView'
+import FileList from './FileList'
+
+type SortField = 'created_at' | 'size' | 'name'
+type SortOrder = 'asc' | 'desc'
 
 const FilesPage: FC = () => {
   const { t } = useTranslation()
   const [fileType, setFileType] = useState<string>('document')
+  const [sortField, setSortField] = useState<SortField>('created_at')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const { providers } = useProviders()
 
   const geminiProviders = providers.filter((provider) => provider.type === 'gemini')
@@ -42,12 +48,32 @@ const FilesPage: FC = () => {
     })
   }
 
+  const sortFiles = (files: FileType[]) => {
+    return [...files].sort((a, b) => {
+      let comparison = 0
+      switch (sortField) {
+        case 'created_at':
+          comparison = dayjs(a.created_at).unix() - dayjs(b.created_at).unix()
+          break
+        case 'size':
+          comparison = a.size - b.size
+          break
+        case 'name':
+          comparison = a.origin_name.localeCompare(b.origin_name)
+          break
+      }
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
+  }
+
   const files = useLiveQuery<FileType[]>(() => {
     if (fileType === 'all') {
       return db.files.orderBy('count').toArray().then(tempFilesSort)
     }
     return db.files.where('type').equals(fileType).sortBy('count').then(tempFilesSort)
   }, [fileType])
+
+  const sortedFiles = files ? sortFiles(files) : []
 
   const handleDelete = async (fileId: string) => {
     const file = await FileManager.getFile(fileId)
@@ -89,94 +115,33 @@ const FilesPage: FC = () => {
     }
   }
 
-  const getActionMenu = (fileId: string): MenuProps['items'] => [
-    {
-      key: 'rename',
-      icon: <EditOutlined />,
-      label: t('files.edit'),
-      onClick: () => handleRename(fileId)
-    },
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      label: t('files.delete'),
-      danger: true,
-      onClick: () => {
-        window.modal.confirm({
-          title: t('files.delete.title'),
-          content: t('files.delete.content'),
-          centered: true,
-          okButtonProps: { danger: true },
-          onOk: () => handleDelete(fileId)
-        })
-      }
-    }
-  ]
-
-  const dataSource = files?.map((file) => {
+  const dataSource = sortedFiles?.map((file) => {
     return {
       key: file.id,
-      file: (
-        <FileNameText className="text-nowrap" onClick={() => window.api.file.openPath(file.path)}>
-          {FileManager.formatFileName(file)}
-        </FileNameText>
-      ),
+      file: <span onClick={() => window.api.file.openPath(file.path)}>{FileManager.formatFileName(file)}</span>,
       size: formatFileSize(file.size),
       size_bytes: file.size,
       count: file.count,
+      path: file.path,
+      ext: file.ext,
       created_at: dayjs(file.created_at).format('MM-DD HH:mm'),
       created_at_unix: dayjs(file.created_at).unix(),
       actions: (
-        <Dropdown menu={{ items: getActionMenu(file.id) }} trigger={['click']} placement="bottom" arrow>
-          <Button type="text" size="small" icon={<EllipsisOutlined />} />
-        </Dropdown>
+        <Flex align="center" gap={0} style={{ opacity: 0.7 }}>
+          <Button type="text" icon={<EditOutlined />} onClick={() => handleRename(file.id)} />
+          <Popconfirm
+            title={t('files.delete.title')}
+            description={t('files.delete.content')}
+            okText={t('common.confirm')}
+            cancelText={t('common.cancel')}
+            onConfirm={() => handleDelete(file.id)}
+            icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
+            <Button type="text" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Flex>
       )
     }
   })
-
-  const columns = useMemo(
-    () => [
-      {
-        title: t('files.name'),
-        dataIndex: 'file',
-        key: 'file',
-        width: '300px'
-      },
-      {
-        title: t('files.size'),
-        dataIndex: 'size',
-        key: 'size',
-        width: '80px',
-        sorter: (a: { size_bytes: number }, b: { size_bytes: number }) => b.size_bytes - a.size_bytes,
-        align: 'center'
-      },
-      {
-        title: t('files.count'),
-        dataIndex: 'count',
-        key: 'count',
-        width: '60px',
-        sorter: (a: { count: number }, b: { count: number }) => b.count - a.count,
-        align: 'center'
-      },
-      {
-        title: t('files.created_at'),
-        dataIndex: 'created_at',
-        key: 'created_at',
-        width: '120px',
-        align: 'center',
-        sorter: (a: { created_at_unix: number }, b: { created_at_unix: number }) =>
-          b.created_at_unix - a.created_at_unix
-      },
-      {
-        title: t('files.actions'),
-        dataIndex: 'actions',
-        key: 'actions',
-        width: '80px',
-        align: 'center'
-      }
-    ],
-    [t]
-  )
 
   const menuItems = [
     { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FilePdfOutlined /> },
@@ -199,9 +164,31 @@ const FilesPage: FC = () => {
         <SideNav>
           <Menu selectedKeys={[fileType]} items={menuItems} onSelect={({ key }) => setFileType(key as FileTypes)} />
         </SideNav>
-        <TableContainer right>
-          <ContentView id={fileType} files={files} dataSource={dataSource} columns={columns} />
-        </TableContainer>
+        <MainContent>
+          <SortContainer>
+            {['created_at', 'size', 'name'].map((field) => (
+              <SortButton
+                key={field}
+                active={sortField === field}
+                onClick={() => {
+                  if (sortField === field) {
+                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+                  } else {
+                    setSortField(field as 'created_at' | 'size' | 'name')
+                    setSortOrder('desc')
+                  }
+                }}>
+                {t(`files.${field}`)}
+                {sortField === field && (sortOrder === 'desc' ? <SortDescendingOutlined /> : <SortAscendingOutlined />)}
+              </SortButton>
+            ))}
+          </SortContainer>
+          {dataSource && dataSource?.length > 0 ? (
+            <FileList id={fileType} list={dataSource} files={sortedFiles} />
+          ) : (
+            <Empty />
+          )}
+        </MainContent>
       </ContentContainer>
     </Container>
   )
@@ -214,24 +201,25 @@ const Container = styled.div`
   height: calc(100vh - var(--navbar-height));
 `
 
+const MainContent = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+`
+
+const SortContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 0.5px solid var(--color-border);
+`
+
 const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
   min-height: 100%;
-`
-
-const TableContainer = styled(Scrollbar)`
-  padding: 15px;
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-`
-
-const FileNameText = styled.div`
-  font-size: 14px;
-  color: var(--color-text);
-  cursor: pointer;
 `
 
 const SideNav = styled.div`
@@ -263,6 +251,27 @@ const SideNav = styled.div`
       border: 0.5px solid var(--color-border);
       color: var(--color-text);
     }
+  }
+`
+
+const SortButton = styled(Button)<{ active?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  height: 30px;
+  border-radius: var(--list-item-border-radius);
+  border: 0.5px solid ${(props) => (props.active ? 'var(--color-border)' : 'transparent')};
+  background-color: ${(props) => (props.active ? 'var(--color-background-soft)' : 'transparent')};
+  color: ${(props) => (props.active ? 'var(--color-text)' : 'var(--color-text-secondary)')};
+
+  &:hover {
+    background-color: var(--color-background-soft);
+    color: var(--color-text);
+  }
+
+  .anticon {
+    font-size: 12px;
   }
 `
 

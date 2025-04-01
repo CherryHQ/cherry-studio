@@ -32,7 +32,9 @@
       "title": "Агенты"
     },
     "assistants": {
+      "title": "Ассистенты",
       "abbr": "Ассистент",
+      "settings.title": "Настройки ассистента",
       "clear.content": "Очистка топика удалит все топики и файлы в ассистенте. Вы уверены, что хотите продолжить?",
       "clear.title": "Очистить топики",
       "copy.title": "Копировать ассистента",
@@ -42,6 +44,11 @@
       "save.success": "Успешно сохранено",
       "save.title": "Сохранить в агента",
       "search": "Поиск ассистентов...",
+      "settings.mcp": "Серверы MCP",
+      "settings.mcp.enableFirst": "Сначала включите этот сервер в настройках MCP",
+      "settings.mcp.title": "Настройки MCP",
+      "settings.mcp.noServersAvailable": "Нет доступных серверов MCP. Добавьте серверы в настройках",
+      "settings.mcp.description": "Серверы MCP, включенные по умолчанию",
       "settings.default_model": "Модель по умолчанию",
       "settings.knowledge_base": "Настройки базы знаний",
       "settings.model": "Настройки модели",
@@ -53,7 +60,7 @@
       "settings.reasoning_effort.medium": "Средняя",
       "settings.reasoning_effort.off": "Выключено",
       "settings.reasoning_effort.tip": "Поддерживается только моделями с рассуждением OpenAI o-series и Anthropic",
-      "title": "Ассистенты"
+      "settings.more": "Настройки ассистента"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -143,7 +150,10 @@
         "history": "История чата",
         "last": "Уже последнее сообщение",
         "next": "Следующее сообщение",
-        "prev": "Предыдущее сообщение"
+        "prev": "Предыдущее сообщение",
+        "top": "Вернуться наверх",
+        "bottom": "Вернуться вниз",
+        "close": "Закрыть"
       },
       "resend": "Переотправить",
       "save": "Сохранить",
@@ -222,7 +232,10 @@
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
       "translate": "Перевести",
-      "topics.export.siyuan": "Экспорт в Siyuan Note"
+      "topics.export.siyuan": "Экспорт в Siyuan Note",
+      "topics.export.wait_for_title_naming": "Создание заголовка...",
+      "topics.export.title_naming_success": "Заголовок успешно создан",
+      "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию"
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -540,8 +553,18 @@
       "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!"
     },
     "minapp": {
+      "popup": {
+        "refresh": "Обновить",
+        "close": "Закрыть встроенное приложение",
+        "minimize": "Свернуть встроенное приложение",
+        "devtools": "Инструменты разработчика",
+        "openExternal": "Открыть в браузере",
+        "rightclick_copyurl": "ПКМ → Копировать URL"
+      },
       "sidebar.add.title": "Добавить в боковую панель",
       "sidebar.remove.title": "Удалить из боковой панели",
+      "sidebar.close.title": "Закрыть",
+      "sidebar.closeall.title": "Закрыть все",
       "sidebar.hide.title": "Скрыть приложение",
       "title": "Встроенные приложения"
     },
@@ -900,17 +923,16 @@
           "pathSelector.return": "Назад",
           "pathSelector.currentPath": "Текущий путь",
           "new_folder.button.confirm": "Подтвердить",
-          "new_folder.button.cancel": "Отмена"
-        }
+          "new_folder.button.cancel": "Отмена",
+          "new_folder.button": "Новая папка"
+        },
+        "message_title.use_topic_naming.title": "Использовать модель именования тем для создания заголовков сообщений",
+        "message_title.use_topic_naming.help": "Этот параметр влияет на все методы экспорта в Markdown, такие как Notion, Yuque и т.д."
       },
       "display.assistant.title": "Настройки ассистентов",
       "display.custom.css": "Пользовательский CSS",
       "display.custom.css.cherrycss": "Получить из cherrycss.com",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
-      "display.minApp.disabled": "скрытый апплет",
-      "display.minApp.empty": "Перетащите апплет, который хотите скрыть, слева сюда",
-      "display.minApp.title": "Настройки отображения мини программы",
-      "display.minApp.visible": "Отображаемый апплет",
       "display.sidebar.chat.hiddenMessage": "Помощник является базовой функцией и не поддерживает скрытие",
       "display.sidebar.disabled": "Скрыть иконки",
       "display.sidebar.empty": "Перетащите скрываемую функцию с левой стороны сюда",
@@ -923,6 +945,20 @@
       "display.sidebar.visible": "Показывать иконки",
       "display.title": "Настройки отображения",
       "display.topic.title": "Настройки топиков",
+      "miniapps": {
+        "title": "Настройки мини-приложений",
+        "disabled": "Скрытые мини-приложения",
+        "empty": "Перетащите мини-приложения слева, чтобы скрыть их",
+        "visible": "Отображаемые мини-приложения",
+        "cache_settings": "Настройки кэша",
+        "cache_title": "Количество кэшируемых мини-приложений",
+        "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
+        "reset_tooltip": "Сбросить до значения по умолчанию",
+        "display_title": "Настройки отображения мини-приложений",
+        "sidebar_title": "Отображение активных мини-приложений в боковой панели",
+        "sidebar_description": "Настройка отображения активных мини-приложений в боковой панели",
+        "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения"
+      },
       "font_size.title": "Размер шрифта сообщений",
       "general": "Общие настройки",
       "general.avatar.reset": "Сброс аватара",
@@ -958,10 +994,7 @@
         "argsTooltip": "Каждый аргумент с новой строки",
         "baseUrlTooltip": "Адрес удаленного URL",
         "command": "Команда",
-        "commandRequired": "Пожалуйста, введите команду",
         "config_description": "Настройка серверов протокола контекста модели",
-        "confirmDelete": "Удалить сервер",
-        "confirmDeleteMessage": "Вы уверены, что хотите удалить этот сервер?",
         "deleteError": "Не удалось удалить сервер",
         "deleteSuccess": "Сервер успешно удален",
         "dependenciesInstall": "Установить зависимости",
@@ -972,7 +1005,8 @@
         "editServer": "Редактировать сервер",
         "env": "Переменные окружения",
         "envTooltip": "Формат: KEY=value, по одной на строку",
-        "findMore": "Найти больше MCP серверов",
+        "findMore": "Найти больше MCP",
+        "searchNpx": "Найти MCP",
         "install": "Установить",
         "installError": "Не удалось установить зависимости",
         "installSuccess": "Зависимости успешно установлены",
@@ -982,8 +1016,8 @@
         "jsonSaveSuccess": "JSON конфигурация сохранена",
         "missingDependencies": "отсутствует, пожалуйста, установите для продолжения.",
         "name": "Имя",
-        "nameRequired": "Пожалуйста, введите имя сервера",
         "noServers": "Серверы не настроены",
+        "newServer": "MCP сервер",
         "npx_list": {
           "actions": "Действия",
           "desc": "Поиск и добавление npm пакетов в качестве MCP серверов",
@@ -999,14 +1033,29 @@
           "usage": "Использование",
           "version": "Версия"
         },
+        "errors": {
+          "32000": "MCP сервер не запущен, пожалуйста, проверьте параметры"
+        },
         "serverPlural": "серверы",
         "serverSingular": "сервер",
         "title": "Серверы MCP",
-        "toggleError": "Переключение не удалось",
+        "startError": "Запуск не удалось",
         "type": "Тип",
         "updateError": "Ошибка обновления сервера",
         "updateSuccess": "Сервер успешно обновлен",
-        "url": "URL"
+        "url": "URL",
+        "editMcpJson": "Редактировать MCP",
+        "installHelp": "Получить помощь по установке",
+        "tools": {
+          "inputSchema": "входные параметры",
+          "availableTools": "доступные инструменты",
+          "noToolsAvailable": "нет доступных инструментов"
+        },
+        "deleteServer": "Удалить сервер",
+        "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",
+        "registry": "Реестр пакетов",
+        "registryTooltip": "Выберите реестр для установки пакетов, если возникают проблемы с сетью при использовании реестра по умолчанию.",
+        "registryDefault": "По умолчанию"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
@@ -1118,7 +1167,7 @@
         "docs_more_details": "для получения дополнительной информации",
         "get_api_key": "Получить ключ API",
         "is_not_support_array_content": "Включить совместимый режим",
-        "no_models": "Пожалуйста, добавьте модели перед проверкой соединения с API",
+        "no_models_for_check": "Нет моделей для проверки (например, диалоговые модели)",
         "not_checked": "Не проверено",
         "remove_duplicate_keys": "Удалить дубликаты ключей",
         "remove_invalid_keys": "Удалить недействительные ключи",
@@ -1156,7 +1205,7 @@
         "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
         "reset_to_default": "Сбросить настройки по умолчанию",
         "search_message": "Поиск сообщения",
-        "show_app": "Показать приложение",
+        "show_app": "Показать/скрыть приложение",
         "show_settings": "Открыть настройки",
         "title": "Горячие клавиши",
         "toggle_new_context": "Очистить контекст",

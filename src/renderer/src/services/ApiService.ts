@@ -10,6 +10,7 @@ import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
+import { withGenerateImage } from '@renderer/utils/formats'
 import {
   cleanLinkCommas,
   completeLinks,
@@ -31,7 +32,7 @@ import {
   getTranslateModel
 } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
-import { filterMessages, filterUsefulMessages } from './MessagesService'
+import { filterContextMessages, filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
 
@@ -113,16 +114,19 @@ export async function fetchChatCompletion({
 
     const lastUserMessage = findLast(messages, (m) => m.role === 'user')
     // Get MCP tools
-    let mcpTools: MCPTool[] = []
+    const mcpTools: MCPTool[] = []
     const enabledMCPs = lastUserMessage?.enabledMCPs
 
     if (enabledMCPs && enabledMCPs.length > 0) {
-      const allMCPTools = await window.api.mcp.listTools()
-      mcpTools = allMCPTools.filter((tool) => enabledMCPs.some((mcp) => mcp.name === tool.serverName))
+      for (const mcpServer of enabledMCPs) {
+        const tools = await window.api.mcp.listTools(mcpServer)
+        console.debug('tools', tools)
+        mcpTools.push(...tools)
+      }
     }
 
     await AI.completions({
-      messages: filterUsefulMessages(messages),
+      messages: filterUsefulMessages(filterContextMessages(messages)),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
       onChunk: ({
@@ -164,6 +168,7 @@ export async function fetchChatCompletion({
         if (mcpToolResponse) {
           message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
         }
+
         if (generateImage && generateImage.images.length > 0) {
           const existingImages = message.metadata?.generateImage?.images || []
           generateImage.images = [...existingImages, ...generateImage.images]
@@ -226,6 +231,7 @@ export async function fetchChatCompletion({
     })
 
     message.status = 'success'
+    message = withGenerateImage(message)
 
     if (!message.usage || !message?.usage?.completion_tokens) {
       message.usage = await estimateMessagesUsage({
@@ -261,7 +267,6 @@ export async function fetchChatCompletion({
 
   // Reset generating state
   store.dispatch(setGenerating(false))
-
   return message
 }
 

@@ -1,5 +1,5 @@
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
-import MinApp from '@renderer/components/MinApp'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
@@ -15,13 +15,14 @@ interface Props {
 }
 
 const App: FC<Props> = ({ app, onClick, size = 60 }) => {
+  const { openMinappKeepAlive } = useMinappPopup()
   const { t } = useTranslation()
   const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
 
   const handleClick = () => {
-    MinApp.start(app)
+    openMinappKeepAlive(app)
     onClick?.()
   }
 

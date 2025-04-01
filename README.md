@@ -84,8 +84,9 @@ https://docs.cherry-ai.com
 
 # 🌈 Theme
 
-Theme Gallery: https://cherrycss.com  
-Aero Theme: https://github.com/hakadao/CherryStudio-Aero
+- Theme Gallery: https://cherrycss.com  
+- Aero Theme: https://github.com/hakadao/CherryStudio-Aero
+- PaperMaterial Theme: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
 
 Welcome PR for more themes
 

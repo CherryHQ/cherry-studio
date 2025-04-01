@@ -11,7 +11,6 @@ import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
-import { useInitMCPServers } from './useMCPServers'
 import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
@@ -26,7 +25,6 @@ export function useAppInit() {
 
   useUpdateHandler()
   useFullScreenNotice()
-  useInitMCPServers()
 
   useEffect(() => {
     avatar?.value && dispatch(setAvatar(avatar.value))

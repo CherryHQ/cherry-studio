@@ -49,9 +49,7 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
-import MinApp from '@renderer/components/MinApp'
 import { MinAppType } from '@renderer/types'
-
 export const DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'openai',
@@ -395,8 +393,3 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true
   }
 ]
-
-export function startMinAppById(id: string) {
-  const app = DEFAULT_MIN_APPS.find((app) => app?.id === id)
-  app && MinApp.start(app)
-}

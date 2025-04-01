@@ -32,7 +32,9 @@
       "title": "エージェント"
     },
     "assistants": {
+      "title": "アシスタント",
       "abbr": "アシスタント",
+      "settings.title": "アシスタント設定",
       "clear.content": "トピックをクリアすると、アシスタント内のすべてのトピックとファイルが削除されます。続行しますか？",
       "clear.title": "トピックをクリア",
       "copy.title": "アシスタントをコピー",
@@ -42,6 +44,11 @@
       "save.success": "保存に成功しました",
       "save.title": "エージェントに保存",
       "search": "アシスタントを検索...",
+      "settings.mcp": "MCP サーバー",
+      "settings.mcp.enableFirst": "まず MCP 設定でこのサーバーを有効にしてください",
+      "settings.mcp.title": "MCP 設定",
+      "settings.mcp.noServersAvailable": "利用可能な MCP サーバーがありません。設定でサーバーを追加してください",
+      "settings.mcp.description": "デフォルトで有効な MCP サーバー",
       "settings.default_model": "デフォルトモデル",
       "settings.knowledge_base": "ナレッジベース設定",
       "settings.model": "モデル設定",
@@ -53,7 +60,7 @@
       "settings.reasoning_effort.medium": "中程度",
       "settings.reasoning_effort.off": "オフ",
       "settings.reasoning_effort.tip": "OpenAIのoシリーズとAnthropicの推論モデルのみサポートしています",
-      "title": "アシスタント"
+      "settings.more": "アシスタント設定"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -143,7 +150,10 @@
         "history": "チャット履歴",
         "last": "最後のメッセージです",
         "next": "次のメッセージ",
-        "prev": "前のメッセージ"
+        "prev": "前のメッセージ",
+        "top": "トップに戻る",
+        "bottom": "下部に戻る",
+        "close": "閉じる"
       },
       "resend": "再送信",
       "save": "保存",
@@ -222,7 +232,10 @@
       "topics.title": "トピック",
       "topics.unpinned": "固定解除",
       "translate": "翻訳",
-      "topics.export.siyuan": "思源笔记にエクスポート"
+      "topics.export.siyuan": "思源笔记にエクスポート",
+      "topics.export.wait_for_title_naming": "タイトルを生成中...",
+      "topics.export.title_naming_success": "タイトルの生成に成功しました",
+      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します"
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -540,8 +553,18 @@
       "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません"
     },
     "minapp": {
+      "popup": {
+        "refresh": "更新",
+        "close": "ミニアプリを閉じる",
+        "minimize": "ミニアプリを最小化",
+        "devtools": "開発者ツール",
+        "openExternal": "ブラウザで開く",
+        "rightclick_copyurl": "右クリックでURLをコピー"
+      },
       "sidebar.add.title": "サイドバーに追加",
       "sidebar.remove.title": "サイドバーから削除",
+      "sidebar.close.title": "閉じる",
+      "sidebar.closeall.title": "すべて閉じる",
       "sidebar.hide.title": "ミニアプリを隠す",
       "title": "ミニアプリ"
     },
@@ -900,17 +923,16 @@
           "pathSelector.return": "戻る",
           "pathSelector.currentPath": "現在のパス",
           "new_folder.button.confirm": "確認",
-          "new_folder.button.cancel": "キャンセル"
-        }
+          "new_folder.button.cancel": "キャンセル",
+          "new_folder.button": "新しいフォルダー"
+        },
+        "message_title.use_topic_naming.title": "トピック命名モデルを使用してメッセージのタイトルを作成",
+        "message_title.use_topic_naming.help": "この設定は、すべてのMarkdownエクスポート方法に影響します。"
       },
       "display.assistant.title": "アシスタント設定",
       "display.custom.css": "カスタムCSS",
       "display.custom.css.cherrycss": "cherrycss.comから取得",
       "display.custom.css.placeholder": "/* ここにカスタムCSSを入力 */",
-      "display.minApp.disabled": "非表示ミニプログラム",
-      "display.minApp.empty": "非表示にしたいアプレットを左からここまでドラッグします",
-      "display.minApp.title": "ミニプログラム表示設定",
-      "display.minApp.visible": "表示中ミニプログラム",
       "display.sidebar.chat.hiddenMessage": "アシスタントは基本的な機能であり、非表示はサポートされていません",
       "display.sidebar.disabled": "アイコンを非表示",
       "display.sidebar.empty": "非表示にする機能を左側からここにドラッグ",
@@ -923,6 +945,20 @@
       "display.sidebar.visible": "アイコンを表示",
       "display.title": "表示設定",
       "display.topic.title": "トピック設定",
+      "miniapps": {
+        "title": "ミニアプリ設定",
+        "disabled": "非表示のミニアプリ",
+        "empty": "非表示にするミニアプリを左側からここにドラッグしてください",
+        "visible": "表示するミニアプリ",
+        "cache_settings": "キャッシュ設定",
+        "cache_title": "ミニアプリのキャッシュ数",
+        "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
+        "reset_tooltip": "デフォルト値にリセット",
+        "display_title": "ミニアプリ表示設定",
+        "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
+        "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
+        "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます"
+      },
       "font_size.title": "メッセージのフォントサイズ",
       "general": "一般設定",
       "general.avatar.reset": "アバターをリセット",
@@ -958,10 +994,7 @@
         "argsTooltip": "1行に1つの引数を入力してください",
         "baseUrlTooltip": "リモートURLアドレス",
         "command": "コマンド",
-        "commandRequired": "コマンドを入力してください",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
-        "confirmDelete": "サーバーを削除",
-        "confirmDeleteMessage": "本当にこのサーバーを削除しますか？",
         "deleteError": "サーバーの削除に失敗しました",
         "deleteSuccess": "サーバーが正常に削除されました",
         "dependenciesInstall": "依存関係をインストール",
@@ -972,7 +1005,8 @@
         "editServer": "サーバーを編集",
         "env": "環境変数",
         "envTooltip": "形式: KEY=value, 1行に1つ",
-        "findMore": "MCP サーバーを見つける",
+        "findMore": "MCP を見つける",
+        "searchNpx": "MCP を検索",
         "install": "インストール",
         "installError": "依存関係のインストールに失敗しました",
         "installSuccess": "依存関係のインストールに成功しました",
@@ -982,8 +1016,8 @@
         "jsonSaveSuccess": "JSON設定が保存されました。",
         "missingDependencies": "が不足しています。続行するにはインストールしてください。",
         "name": "名前",
-        "nameRequired": "サーバー名を入力してください",
         "noServers": "サーバーが設定されていません",
+        "newServer": "MCP サーバー",
         "npx_list": {
           "actions": "アクション",
           "desc": "npm パッケージを検索して MCP サーバーとして追加",
@@ -1002,11 +1036,26 @@
         "serverPlural": "サーバー",
         "serverSingular": "サーバー",
         "title": "MCP サーバー",
-        "toggleError": "切り替えに失敗しました",
+        "startError": "起動に失敗しました",
         "type": "タイプ",
         "updateError": "サーバーの更新に失敗しました",
         "updateSuccess": "サーバーが正常に更新されました",
-        "url": "URL"
+        "url": "URL",
+        "errors": {
+          "32000": "MCP サーバーが起動しませんでした。パラメーターを確認してください"
+        },
+        "editMcpJson": "MCP 設定を編集",
+        "installHelp": "インストールヘルプを取得",
+        "tools": {
+          "inputSchema": "入力スキーマ",
+          "availableTools": "利用可能なツール",
+          "noToolsAvailable": "利用可能なツールはありません"
+        },
+        "deleteServer": "サーバーを削除",
+        "deleteServerConfirm": "このサーバーを削除してもよろしいですか？",
+        "registry": "パッケージ管理レジストリ",
+        "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
+        "registryDefault": "デフォルト"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -1118,7 +1167,7 @@
         "docs_more_details": "詳細を確認",
         "get_api_key": "APIキーを取得",
         "is_not_support_array_content": "互換モードを有効にする",
-        "no_models": "API接続をチェックする前に、モデルを追加してください",
+        "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
         "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
         "remove_invalid_keys": "無効なキーを削除",
@@ -1156,7 +1205,7 @@
         "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
         "reset_to_default": "デフォルトにリセット",
         "search_message": "メッセージを検索",
-        "show_app": "アプリを表示",
+        "show_app": "アプリを表示/非表示",
         "show_settings": "設定を開く",
         "title": "ショートカット",
         "toggle_new_context": "コンテキストをクリア",

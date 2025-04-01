@@ -1,9 +1,47 @@
-import BaseProvider from '@renderer/providers/BaseProvider'
-import ProviderFactory from '@renderer/providers/ProviderFactory'
-import { Assistant, GenerateImageParams, Message, Model, Provider, Suggestion } from '@renderer/types'
+import type { GroundingMetadata } from '@google/generative-ai'
+import BaseProvider from '@renderer/providers/AiProvider/BaseProvider'
+import ProviderFactory from '@renderer/providers/AiProvider/ProviderFactory'
+import type {
+  Assistant,
+  GenerateImageParams,
+  GenerateImageResponse,
+  MCPTool,
+  MCPToolResponse,
+  Message,
+  Metrics,
+  Model,
+  Provider,
+  Suggestion
+} from '@renderer/types'
 import OpenAI from 'openai'
 
-import { CompletionsParams } from '.'
+export interface ChunkCallbackData {
+  text?: string
+  reasoning_content?: string
+  usage?: OpenAI.Completions.CompletionUsage
+  metrics?: Metrics
+  search?: GroundingMetadata
+  citations?: string[]
+  mcpToolResponse?: MCPToolResponse[]
+  generateImage?: GenerateImageResponse
+}
+
+export interface CompletionsParams {
+  messages: Message[]
+  assistant: Assistant
+  onChunk: ({
+    text,
+    reasoning_content,
+    usage,
+    metrics,
+    search,
+    citations,
+    mcpToolResponse,
+    generateImage
+  }: ChunkCallbackData) => void
+  onFilterMessages: (messages: Message[]) => void
+  mcpTools?: MCPTool[]
+}
 
 export default class AiProvider {
   private sdk: BaseProvider
