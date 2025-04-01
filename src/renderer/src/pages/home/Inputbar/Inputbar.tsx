@@ -13,7 +13,6 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
@@ -102,7 +101,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const navigate = useNavigate()
-  const { activedMcpServers } = useMCPServers()
+  // const { activedMcpServers } = useMCPServers()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const showMCPToolsIcon = isFunctionCallingModel(model)
@@ -187,7 +186,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           // }
         }
       }
-      console.log('userMessage', userMessage)
       userMessage.usage = await estimateMessageUsage(userMessage)
       currentMessageId.current = userMessage.id
 
@@ -207,7 +205,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       console.error('Failed to send message:', error)
     }
   }, [
-    activedMcpServers,
     assistant,
     dispatch,
     files,
@@ -218,7 +215,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     resizeTextArea,
     selectedKnowledgeBases,
     text,
-    topic
+    topic,
+    enabledMCPs
   ])
 
   const translate = async () => {
