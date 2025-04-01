@@ -11,6 +11,7 @@ const initialState: MCPConfig = {
       baseUrl: '',
       command: 'npx',
       args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
+      registryUrl: 'https://registry.npmmirror.com',
       env: {},
       isActive: false
     }
