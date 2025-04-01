@@ -18,6 +18,7 @@ const api = {
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke('app:set-tray-on-close', isActive),
   restartTray: () => ipcRenderer.invoke('app:restart-tray'),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('app:set-theme', theme),
+  setCustomCss: (css: string) => ipcRenderer.invoke('app:set-custom-css', css),
   openWebsite: (url: string) => ipcRenderer.invoke('open:website', url),
   minApp: (url: string) => ipcRenderer.invoke('minapp', url),
   clearCache: () => ipcRenderer.invoke('app:clear-cache'),
