@@ -85,6 +85,7 @@ export interface SettingsState {
   notionPageNameKey: string | null
   markdownExportPath: string | null
   forceDollarMathInMarkdown: boolean
+  useTopicNamingForMessageTitle: boolean
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
@@ -129,7 +130,7 @@ const initialState: SettingsState = {
   showAssistantIcon: false,
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
-  clickAssistantToShowTopic: false,
+  clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
   codeShowLineNumbers: false,
@@ -167,6 +168,7 @@ const initialState: SettingsState = {
   notionPageNameKey: 'Name',
   markdownExportPath: null,
   forceDollarMathInMarkdown: false,
+  useTopicNamingForMessageTitle: false,
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
   notionSplitSize: 90,
@@ -372,6 +374,9 @@ const settingsSlice = createSlice({
     setForceDollarMathInMarkdown: (state, action: PayloadAction<boolean>) => {
       state.forceDollarMathInMarkdown = action.payload
     },
+    setUseTopicNamingForMessageTitle: (state, action: PayloadAction<boolean>) => {
+      state.useTopicNamingForMessageTitle = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
@@ -483,6 +488,7 @@ export const {
   setNotionPageNameKey,
   setmarkdownExportPath,
   setForceDollarMathInMarkdown,
+  setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
   setNotionAutoSplit,
   setNotionSplitSize,

@@ -18,7 +18,7 @@ import { addMCPServer } from '@renderer/store/mcp'
 import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
 
-import { ChunkCallbackData } from '../providers'
+import { ChunkCallbackData } from '../providers/AiProvider'
 
 const ensureValidSchema = (obj: Record<string, any>): FunctionDeclarationSchemaProperty => {
   // Filter out unsupported keys for Gemini

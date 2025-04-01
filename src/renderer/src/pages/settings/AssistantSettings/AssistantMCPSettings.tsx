@@ -25,14 +25,14 @@ interface Props {
 
 const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
   const { t } = useTranslation()
-
   const { mcpServers: allMcpServers } = useMCPServers()
+
   const onUpdate = (ids: string[]) => {
     const mcpServers = ids
       .map((id) => allMcpServers.find((server) => server.id === id))
       .filter((server): server is MCPServer => server !== undefined && server.isActive)
-    const _assistant = { ...assistant, mcpServers }
-    updateAssistant(_assistant)
+
+    updateAssistant({ ...assistant, mcpServers })
   }
 
   const handleServerToggle = (serverId: string) => {
@@ -52,7 +52,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
   return (
     <Container>
       <HeaderContainer>
-        <Box style={{ fontWeight: 'bold', fontSize: '16px' }}>
+        <Box style={{ fontWeight: 'bold', fontSize: '14px' }}>
           {t('assistants.settings.mcp.title')}
           <Tooltip title={t('assistants.settings.mcp.description', 'Select MCP servers to use with this assistant')}>
             <InfoIcon />
@@ -111,9 +111,6 @@ const Container = styled.div`
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  padding: 12px;
-  background-color: ${(props) => props.theme.colors?.background || '#f9f9f9'};
-  border-radius: 8px;
 `
 
 const HeaderContainer = styled.div`
@@ -126,13 +123,13 @@ const HeaderContainer = styled.div`
 const InfoIcon = styled(InfoCircleOutlined)`
   margin-left: 6px;
   font-size: 14px;
-  color: ${(props) => props.theme.colors?.textSecondary || '#8c8c8c'};
+  color: var(--color-text-2);
   cursor: help;
 `
 
 const EnabledCount = styled.span`
   font-size: 12px;
-  color: ${(props) => props.theme.colors?.textSecondary || '#8c8c8c'};
+  color: var(--color-text-2);
 `
 
 const EmptyContainer = styled.div`
@@ -148,7 +145,6 @@ const ServerList = styled.div`
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
-  padding: 4px;
 `
 
 const ServerItem = styled.div<{ isEnabled: boolean }>`
@@ -157,15 +153,9 @@ const ServerItem = styled.div<{ isEnabled: boolean }>`
   align-items: center;
   padding: 12px 16px;
   border-radius: 8px;
-  background-color: ${(props) => props.theme.colors?.cardBackground || '#fff'};
-  border: 1px solid ${(props) => props.theme.colors?.border || '#e6e6e6'};
+  background-color: var(--color-background-mute);
+  border: 1px solid var(--color-border);
   transition: all 0.2s ease;
-
-  &:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    transform: translateY(-1px);
-  }
-
   opacity: ${(props) => (props.isEnabled ? 1 : 0.7)};
 `
 
