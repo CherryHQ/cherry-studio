@@ -1080,7 +1080,7 @@
       "models.translate_model_prompt_message": "请输入翻译模型提示词",
       "models.translate_model_prompt_title": "翻译模型提示词",
       "models.image_summary_model": "视觉模型",
-      "models.image_summary_model_description": "图片总结服务使用的模型",
+      "models.image_summary_model_description": "视觉服务使用的模型",
       "models.image_summary_model_prompt_message": "请输入视觉模型提示词",
       "models.image_summary_model_prompt_title": "视觉模型提示词",
       "moresetting": "更多设置",

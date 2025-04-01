@@ -68,8 +68,8 @@ export function getTranslateModel() {
   return store.getState().llm.translateModel
 }
 
-export function getImageSummaryModel() {
-  return store.getState().llm.imageSummaryModel
+export function getVisionModel() {
+  return store.getState().llm.visionModel
 }
 
 export function getAssistantProvider(assistant: Assistant): Provider {

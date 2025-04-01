@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { IMAGE_SUMMARY_PROMPT, TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { TRANSLATE_PROMPT, VISION_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 
 import { WebDAVSyncState } from './backup'
@@ -65,7 +65,7 @@ export interface SettingsState {
   webdavAutoSync: boolean
   webdavSyncInterval: number
   translateModelPrompt: string
-  imageSummaryPrompt: string
+  visionSummaryPrompt: string
   autoTranslateWithSpace: boolean
   enableTopicNaming: boolean
   customCss: string
@@ -148,7 +148,7 @@ const initialState: SettingsState = {
   webdavAutoSync: false,
   webdavSyncInterval: 0,
   translateModelPrompt: TRANSLATE_PROMPT,
-  imageSummaryPrompt: IMAGE_SUMMARY_PROMPT,
+  visionSummaryPrompt: VISION_SUMMARY_PROMPT,
   autoTranslateWithSpace: false,
   enableTopicNaming: true,
   customCss: '',
@@ -317,8 +317,8 @@ const settingsSlice = createSlice({
     setTranslateModelPrompt: (state, action: PayloadAction<string>) => {
       state.translateModelPrompt = action.payload
     },
-    setImageSummaryModelPrompt: (state, action: PayloadAction<string>) => {
-      state.imageSummaryPrompt = action.payload
+    setVisionSummaryModelPrompt: (state, action: PayloadAction<string>) => {
+      state.visionSummaryPrompt = action.payload
     },
     setAutoTranslateWithSpace: (state, action: PayloadAction<boolean>) => {
       state.autoTranslateWithSpace = action.payload
@@ -462,7 +462,7 @@ export const {
   setMessageStyle,
   setCodeStyle,
   setTranslateModelPrompt,
-  setImageSummaryModelPrompt,
+  setVisionSummaryModelPrompt,
   setAutoTranslateWithSpace,
   setEnableTopicNaming,
   setPasteLongTextThreshold,

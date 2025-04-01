@@ -6,7 +6,7 @@ import {
   isSupportedModel,
   isVisionModel
 } from '@renderer/config/models'
-import { IMAGE_SUMMARY_PROMPT } from '@renderer/config/prompts'
+import { VISION_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -1016,12 +1016,11 @@ export default class OpenAIProvider extends BaseProvider {
 
   public async summaryForImage(base64: string, mineType: string, model: Model): Promise<string> {
     await this.checkIsCopilot()
-    console.log('start summaryForImage...')
     const response = await this.sdk.chat.completions.create({
       model: model.id,
       stream: false,
       messages: [
-        { role: 'system', content: IMAGE_SUMMARY_PROMPT },
+        { role: 'system', content: VISION_SUMMARY_PROMPT },
         {
           role: 'user',
           content: [{ type: 'image_url', image_url: { url: `data:${mineType};base64,${base64}` } }]

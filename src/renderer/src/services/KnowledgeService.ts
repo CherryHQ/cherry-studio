@@ -7,7 +7,7 @@ import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference, Messa
 import { fileToBase64 } from '@renderer/utils/file'
 import { isEmpty, take } from 'lodash'
 
-import { getImageSummaryModel, getProviderByModel } from './AssistantService'
+import { getProviderByModel, getVisionModel } from './AssistantService'
 import FileManager from './FileManager'
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
@@ -172,7 +172,7 @@ const ipcRenderer = window.electron.ipcRenderer
 ipcRenderer.on('knowledge-image-summary', async (event, { imagePath, imageId }) => {
   console.log('knowledge-image-summary', event, imagePath, imageId)
   const { data, mimeType } = await fileToBase64(imagePath)
-  const model = getImageSummaryModel()
+  const model = getVisionModel()
   const provider = getProviderByModel(model)
   const aiProvider = new AiProvider(provider)
   const response = await aiProvider.summaryForImage(data, mimeType, model)

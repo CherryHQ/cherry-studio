@@ -7,6 +7,7 @@ import {
 } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { isReasoningModel } from '@renderer/config/models'
+import { VISION_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -574,5 +575,30 @@ export default class AnthropicProvider extends BaseProvider {
 
   public async getEmbeddingDimensions(): Promise<number> {
     return 0
+  }
+
+  public async summaryForImage(base64: string, mimeType: string, model: Model): Promise<string> {
+    const response = await this.sdk.messages.create({
+      model: model.id,
+      system: VISION_SUMMARY_PROMPT,
+      stream: false,
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                data: base64,
+                media_type: mimeType.replace('jpg', 'jpeg') as any,
+                type: 'base64'
+              }
+            }
+          ]
+        }
+      ]
+    })
+    return response.content[0].type === 'text' ? response.content[0].text : ''
   }
 }

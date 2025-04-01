@@ -110,4 +110,4 @@ export const FOOTNOTE_PROMPT = `Please answer the question based on the referenc
 {references}
 `
 
-export const IMAGE_SUMMARY_PROMPT = `You are an assistant tasked with summarizing images for retrieval. These summaries will be embedded and used to retrieve the raw image. Give a concise summary of the image that is well optimized for retrieval.`
+export const VISION_SUMMARY_PROMPT = `You are an assistant tasked with summarizing images for retrieval. These summaries will be embedded and used to retrieve the raw image. Give a concise summary of the image that is well optimized for retrieval.`

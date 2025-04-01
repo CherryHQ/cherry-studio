@@ -21,6 +21,7 @@ import {
   TextPart
 } from '@google/generative-ai'
 import { isGemmaModel, isWebSearchModel } from '@renderer/config/models'
+import { VISION_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -60,13 +61,13 @@ import BaseProvider from './BaseProvider'
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI
   private requestOptions: RequestOptions
-  private imageSdk: GoogleGenAI
+  private newSdk: GoogleGenAI
 
   constructor(provider: Provider) {
     super(provider)
     this.sdk = new GoogleGenerativeAI(this.apiKey)
     /// this sdk is experimental
-    this.imageSdk = new GoogleGenAI({ apiKey: this.apiKey, httpOptions: { baseUrl: this.getBaseURL() } })
+    this.newSdk = new GoogleGenAI({ apiKey: this.apiKey, httpOptions: { baseUrl: this.getBaseURL() } })
     this.requestOptions = {
       baseUrl: this.getBaseURL()
     }
@@ -667,7 +668,7 @@ export default class GeminiProvider extends BaseProvider {
     maxTokens?: number
   ): Promise<GenerateContentResponse> {
     try {
-      return await this.imageSdk.models.generateContent({
+      return await this.newSdk.models.generateContent({
         model: modelId,
         contents: contents,
         config: {
@@ -688,7 +689,7 @@ export default class GeminiProvider extends BaseProvider {
     maxTokens?: number
   ): Promise<AsyncGenerator<GenerateContentResponse>> {
     try {
-      return await this.imageSdk.models.generateContentStream({
+      return await this.newSdk.models.generateContentStream({
         model: modelId,
         contents: contents,
         config: {
@@ -828,5 +829,27 @@ export default class GeminiProvider extends BaseProvider {
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     const data = await this.sdk.getGenerativeModel({ model: model.id }, this.requestOptions).embedContent('hi')
     return data.embedding.values.length
+  }
+
+  public async summaryForImage(base64: string, mineType: string, model: Model): Promise<string> {
+    const geminiModel = this.sdk.getGenerativeModel(
+      {
+        model: model.id,
+        systemInstruction: VISION_SUMMARY_PROMPT
+      },
+      this.requestOptions
+    )
+
+    const chat = await geminiModel.startChat()
+    const imageContent = {
+      inlineData: {
+        data: base64,
+        mimeType: mineType
+      }
+    }
+
+    const { response } = await chat.sendMessage([imageContent])
+
+    return response.text()
   }
 }

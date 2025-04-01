@@ -8,15 +8,15 @@ import {
 } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { isEmbeddingModel } from '@renderer/config/models'
-import { IMAGE_SUMMARY_PROMPT, TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
+import { TRANSLATE_PROMPT, VISION_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
-import { setImageSummaryModelPrompt, setTranslateModelPrompt } from '@renderer/store/settings'
+import { setTranslateModelPrompt, setVisionSummaryModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
@@ -32,17 +32,17 @@ const ModelSettings: FC = () => {
     defaultModel,
     topicNamingModel,
     translateModel,
-    imageSummaryModel,
+    visionModel,
     setDefaultModel,
     setTopicNamingModel,
     setTranslateModel,
-    setImageSummaryModel
+    setVisionModel
   } = useDefaultModel()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { translateModelPrompt, imageSummaryPrompt } = useSettings()
+  const { translateModelPrompt, visionSummaryPrompt } = useSettings()
 
   const dispatch = useAppDispatch()
 
@@ -52,12 +52,26 @@ const ModelSettings: FC = () => {
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
       options: sortBy(p.models, 'name')
-        .filter((m) => !isEmbeddingModel(m))
+        .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
         .map((m) => ({
           label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
           value: getModelUniqId(m)
         }))
     }))
+
+  const visionOptions = providers
+    .filter((p) => p.models.length > 0)
+    .map((p) => ({
+      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+      title: p.name,
+      options: sortBy(p.models, 'name')
+        .filter((m) => isVisionModel(m))
+        .map((m) => ({
+          label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
+          value: getModelUniqId(m)
+        }))
+    }))
+    .filter((providerOption) => providerOption.options.length > 0)
 
   const defaultModelValue = useMemo(
     () => (hasModel(defaultModel) ? getModelUniqId(defaultModel) : undefined),
@@ -74,9 +88,9 @@ const ModelSettings: FC = () => {
     [translateModel]
   )
 
-  const defaultImageSummaryModel = useMemo(
-    () => (hasModel(imageSummaryModel) ? getModelUniqId(imageSummaryModel) : undefined),
-    [imageSummaryModel]
+  const defaultVisionModel = useMemo(
+    () => (hasModel(visionModel) ? getModelUniqId(visionModel) : undefined),
+    [visionModel]
   )
 
   const onUpdateTranslateModel = async () => {
@@ -98,23 +112,23 @@ const ModelSettings: FC = () => {
     dispatch(setTranslateModelPrompt(TRANSLATE_PROMPT))
   }
 
-  const onUpdateImageSummaryModel = async () => {
+  const onUpdateVisionModel = async () => {
     const prompt = await PromptPopup.show({
       title: t('settings.models.image_summary_model_prompt_title'),
       message: t('settings.models.image_summary_model_prompt_message'),
-      defaultValue: imageSummaryPrompt,
+      defaultValue: visionSummaryPrompt,
       inputProps: {
         rows: 10,
         onPressEnter: () => {}
       }
     })
     if (prompt) {
-      dispatch(setImageSummaryModelPrompt(prompt))
+      dispatch(setVisionSummaryModelPrompt(prompt))
     }
   }
 
-  const onResetImageSummaryPrompt = () => {
-    dispatch(setImageSummaryModelPrompt(IMAGE_SUMMARY_PROMPT))
+  const onResetVisionSummaryPrompt = () => {
+    dispatch(setVisionSummaryModelPrompt(VISION_SUMMARY_PROMPT))
   }
 
   return (
@@ -196,18 +210,18 @@ const ModelSettings: FC = () => {
         </SettingTitle>
         <HStack alignItems="center">
           <Select
-            value={defaultImageSummaryModel}
-            defaultValue={defaultImageSummaryModel}
+            value={defaultVisionModel}
+            defaultValue={defaultVisionModel}
             style={{ width: 360 }}
-            onChange={(value) => setImageSummaryModel(find(allModels, JSON.parse(value)) as Model)}
-            options={selectOptions}
+            onChange={(value) => setVisionModel(find(allModels, JSON.parse(value)) as Model)}
+            options={visionOptions}
             showSearch
             placeholder={t('settings.models.empty')}
           />
-          <Button icon={<SettingOutlined />} style={{ marginLeft: 8 }} onClick={onUpdateImageSummaryModel} />
-          {imageSummaryPrompt !== IMAGE_SUMMARY_PROMPT && (
+          <Button icon={<SettingOutlined />} style={{ marginLeft: 8 }} onClick={onUpdateVisionModel} />
+          {visionSummaryPrompt !== VISION_SUMMARY_PROMPT && (
             <Tooltip title={t('common.reset')}>
-              <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetImageSummaryPrompt}></Button>
+              <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetVisionSummaryPrompt}></Button>
             </Tooltip>
           )}
         </HStack>
