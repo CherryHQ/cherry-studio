@@ -18,6 +18,7 @@ const api = {
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke('app:set-tray-on-close', isActive),
   restartTray: () => ipcRenderer.invoke('app:restart-tray'),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('app:set-theme', theme),
+  setCustomCss: (css: string) => ipcRenderer.invoke('app:set-custom-css', css),
   openWebsite: (url: string) => ipcRenderer.invoke('open:website', url),
   minApp: (url: string) => ipcRenderer.invoke('minapp', url),
   clearCache: () => ipcRenderer.invoke('app:clear-cache'),
@@ -162,20 +163,6 @@ const api = {
     decryptToken: (token: string) => ipcRenderer.invoke('nutstore:decrypt-token', token),
     getDirectoryContents: (token: string, path: string) =>
       ipcRenderer.invoke('nutstore:get-directory-contents', token, path)
-  },
-  // Add CSS related API
-  customCss: {
-    setCustomCss: (css: string) => ipcRenderer.invoke('custom-css:set', css),
-    // Add an event listener for CSS updates
-    onCustomCssUpdate: (callback: (css: string) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, css: string) => {
-        callback(css)
-      }
-      ipcRenderer.on('update-custom-css', listener)
-      return () => {
-        ipcRenderer.removeListener('update-custom-css', listener)
-      }
-    }
   }
 }
 

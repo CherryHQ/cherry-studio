@@ -125,6 +125,22 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       mainWindow.setTitleBarOverlay(theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight)
   })
 
+  // custom css
+  ipcMain.handle('app:set-custom-css', (event, css: string) => {
+    if (css === configManager.getCustomCss()) return
+    configManager.setCustomCss(css)
+
+    // Broadcast to all windows including the mini window
+    const senderWindowId = event.sender.id
+    const windows = BrowserWindow.getAllWindows()
+    // 向其他窗口广播主题变化
+    windows.forEach((win) => {
+      if (win.webContents.id !== senderWindowId) {
+        win.webContents.send('custom-css:update', css)
+      }
+    })
+  })
+
   // clear cache
   ipcMain.handle('app:clear-cache', async () => {
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
@@ -298,15 +314,4 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('nutstore:get-directory-contents', (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
   )
-
-  // Custom CSS
-  ipcMain.handle('custom-css:set', (_, css: string) => {
-    // Save the CSS to config
-    configManager.setCustomCss(css)
-
-    // Broadcast to all windows including the mini window
-    BrowserWindow.getAllWindows().forEach((win) => {
-      win.webContents.send('update-custom-css', css)
-    })
-  })
 }

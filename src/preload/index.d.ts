@@ -29,6 +29,7 @@ declare global {
       setTrayOnClose: (isActive: boolean) => void
       restartTray: () => void
       setTheme: (theme: 'light' | 'dark') => void
+      setCustomCss: (css: string) => void
       minApp: (options: { url: string; windowOptions?: Electron.BrowserWindowConstructorOptions }) => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
@@ -174,10 +175,6 @@ declare global {
         getSSOUrl: () => Promise<string>
         decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
         getDirectoryContents: (token: string, path: string) => Promise<any>
-      }
-      customCss: {
-        setCustomCss: (css: string) => Promise<void>
-        onCustomCssUpdate: (callback: (css: string) => void) => () => void
       }
     }
   }

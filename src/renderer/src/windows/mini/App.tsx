@@ -3,7 +3,7 @@ import '@renderer/databases'
 import { useSettings } from '@renderer/hooks/useSettings'
 import store, { persistor, useAppDispatch } from '@renderer/store'
 import { setCustomCss } from '@renderer/store/settings'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 
@@ -15,50 +15,45 @@ import HomeWindow from './home/HomeWindow'
 function useMiniWindowCustomCss() {
   const { customCss } = useSettings()
   const dispatch = useAppDispatch()
-
-  const applyCustomCss = (css: string) => {
-    const oldCustomCss = document.getElementById('user-defined-custom-css')
-    if (oldCustomCss) {
-      oldCustomCss.remove()
-    }
-
-    if (css) {
-      const style = document.createElement('style')
-      style.id = 'user-defined-custom-css'
-      style.textContent = css
-      document.head.appendChild(style)
-    }
-  }
+  const [isInitialized, setIsInitialized] = useState(false)
 
   useEffect(() => {
-    // Initial load, get the latest CSS from the config manager
-    window.api.config
-      .get('customCss')
-      .then((latestCss) => {
-        if (latestCss && latestCss !== customCss) {
-          dispatch(setCustomCss(latestCss))
-          applyCustomCss(latestCss)
-        } else if (customCss) {
-          applyCustomCss(customCss)
-        }
-      })
-      .catch(() => {
-        applyCustomCss(customCss)
-      })
-
-    // Setup listener for CSS updates
-    const removeListener = window.api.customCss.onCustomCssUpdate((css) => {
-      // 当收到更新时，同时更新Redux状态，确保同步
-      if (css !== customCss) {
+    // 初始化时从主进程获取最新的CSS配置
+    window.api.config.get('customCss').then((css) => {
+      if (css !== undefined) {
         dispatch(setCustomCss(css))
       }
-      applyCustomCss(css)
+      setIsInitialized(true)
+    })
+
+    // Listen for custom CSS updates from main window
+    const removeListener = window.electron.ipcRenderer.on('custom-css:update', (_event, css) => {
+      dispatch(setCustomCss(css))
     })
 
     return () => {
       removeListener()
     }
-  }, [customCss, dispatch])
+  }, [dispatch])
+
+  useEffect(() => {
+    if (!isInitialized) return
+
+    // Apply custom CSS
+    const oldCustomCss = document.getElementById('user-defined-custom-css')
+    if (oldCustomCss) {
+      oldCustomCss.remove()
+    }
+
+    if (customCss) {
+      const style = document.createElement('style')
+      style.id = 'user-defined-custom-css'
+      style.textContent = customCss
+      document.head.appendChild(style)
+    }
+  }, [customCss, isInitialized])
+
+  return isInitialized
 }
 
 function MiniWindow(): React.ReactElement {
@@ -79,7 +74,12 @@ function MiniWindow(): React.ReactElement {
 
 // Inner component that uses the hook after Redux is initialized
 function MiniWindowContent(): React.ReactElement {
-  useMiniWindowCustomCss()
+  const cssInitialized = useMiniWindowCustomCss()
+
+  // Show empty fragment until CSS is initialized
+  if (!cssInitialized) {
+    return <></>
+  }
 
   return <HomeWindow />
 }

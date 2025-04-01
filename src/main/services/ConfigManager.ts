@@ -30,6 +30,14 @@ export class ConfigManager {
     this.store.set('theme', theme)
   }
 
+  getCustomCss(): string {
+    return this.store.get('customCss', '') as string
+  }
+
+  setCustomCss(css: string) {
+    this.store.set('customCss', css)
+  }
+
   getLaunchToTray(): boolean {
     return !!this.store.get('launchToTray', false)
   }
@@ -114,15 +122,6 @@ export class ConfigManager {
 
   setEnableQuickAssistant(value: boolean) {
     this.store.set('enableQuickAssistant', value)
-  }
-
-  getCustomCss(): string {
-    return this.store.get('customCss', '') as string
-  }
-
-  setCustomCss(css: string) {
-    this.store.set('customCss', css)
-    this.notifySubscribers('customCss', css)
   }
 
   set(key: string, value: any) {
