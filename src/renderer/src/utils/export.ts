@@ -8,6 +8,7 @@ import { Message, Topic } from '@renderer/types'
 import { convertMathFormula, removeSpecialCharactersForFileName } from '@renderer/utils/index'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
+//TODO: 添加对思考内容的支持
 
 export const messageToMarkdown = (message: Message) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
@@ -16,6 +17,42 @@ export const messageToMarkdown = (message: Message) => {
   const contentSection = forceDollarMathInMarkdown ? convertMathFormula(message.content) : message.content
 
   return [titleSection, '', contentSection].join('\n')
+}
+
+// 保留接口用于其它导出方法使用
+export const messageToMarkdownWithReasoning = (message: Message) => {
+  const { forceDollarMathInMarkdown } = store.getState().settings
+  const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
+  const titleSection = `### ${roleText}`
+
+  // 处理思考内容
+  let reasoningSection = ''
+  if (message.reasoning_content) {
+    // 移除开头的<think>标记和换行符，并将所有换行符替换为<br>
+    let reasoningContent = message.reasoning_content
+    if (reasoningContent.startsWith('<think>\n')) {
+      reasoningContent = reasoningContent.substring(8) // 移除<think>\n
+    } else if (reasoningContent.startsWith('<think>')) {
+      reasoningContent = reasoningContent.substring(7) // 移除<think>
+    }
+
+    // 替换所有换行符为<br>
+    reasoningContent = reasoningContent.replace(/\n/g, '<br>')
+
+    // 应用数学公式转换（如果启用）
+    if (forceDollarMathInMarkdown) {
+      reasoningContent = convertMathFormula(reasoningContent)
+    }
+
+    reasoningSection = `<details>
+  <summary>${i18n.t('common.reasoning_content')}</summary>
+${reasoningContent}
+</details>`
+  }
+
+  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(message.content) : message.content
+
+  return [titleSection, '', reasoningSection + contentSection].join('\n')
 }
 
 export const messagesToMarkdown = (messages: Message[]) => {
