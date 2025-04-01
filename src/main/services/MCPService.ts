@@ -49,6 +49,7 @@ class McpService {
       // If the ping fails, remove the client from the cache
       // and create a new one
       if (!pingResult) {
+        await existingClient.close()
         this.clients.delete(serverKey)
       } else {
         return existingClient
@@ -144,8 +145,6 @@ class McpService {
       await client.close()
       Logger.info(`[MCP] Closed server: ${serverKey}`)
       this.clients.delete(serverKey)
-      CacheService.remove(`mcp:list_tool:${serverKey}`)
-      Logger.info(`[MCP] Cleared cache for server: ${serverKey}`)
     } else {
       Logger.warn(`[MCP] No client found for server: ${serverKey}`)
     }
@@ -174,8 +173,7 @@ class McpService {
 
   async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
     const client = await this.initClient(server)
-    const serverKey = this.getServerKey(server)
-    const cacheKey = `mcp:list_tool:${serverKey}`
+    const cacheKey = `mcp:list_tool:${server.id}`
     if (CacheService.has(cacheKey)) {
       Logger.info(`[MCP] Tools from ${server.name} loaded from cache`)
       const cachedTools = CacheService.get<MCPTool[]>(cacheKey)
@@ -189,7 +187,7 @@ class McpService {
     tools.map((tool: any) => {
       const serverTool: MCPTool = {
         ...tool,
-        id: `f${nanoid()}`,
+        id: `t_${nanoid()}`, // 确保ID以字母开头，避免以数字开头的ID导致API错误
         serverId: server.id,
         serverName: server.name
       }

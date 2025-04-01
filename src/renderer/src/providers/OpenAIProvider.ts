@@ -50,6 +50,19 @@ import BaseProvider from './BaseProvider'
 
 type ReasoningEffort = 'high' | 'medium' | 'low'
 
+// --- Start Modification: Add helper function ---
+function getFormattedDateTime(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = (now.getMonth() + 1).toString().padStart(2, '0')
+  const day = now.getDate().toString().padStart(2, '0')
+  const hours = now.getHours().toString().padStart(2, '0')
+  const minutes = now.getMinutes().toString().padStart(2, '0')
+  const seconds = now.getSeconds().toString().padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+// --- End Modification ---
+
 export default class OpenAIProvider extends BaseProvider {
   private sdk: OpenAI
 
@@ -365,6 +378,17 @@ export default class OpenAIProvider extends BaseProvider {
       }
     }
 
+    // --- Start Modification: Replace placeholder in system message ---
+    if (
+      systemMessage?.content &&
+      typeof systemMessage.content === 'string' &&
+      systemMessage.content.includes('{{Date::time}}')
+    ) {
+      const formattedDateTime = getFormattedDateTime() // Assume getFormattedDateTime is defined above or imported
+      systemMessage.content = systemMessage.content.replace(/\{\{Date::time\}\}/g, formattedDateTime)
+    }
+    // --- End Modification ---
+
     const userMessages: ChatCompletionMessageParam[] = []
     const _messages = filterUserRoleStartMessages(
       filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
@@ -373,7 +397,29 @@ export default class OpenAIProvider extends BaseProvider {
     onFilterMessages(_messages)
 
     for (const message of _messages) {
-      userMessages.push(await this.getMessageParam(message, model))
+      const messageParam = await this.getMessageParam(message, model)
+
+      // --- Start Modification: Replace placeholder in user/assistant message content ---
+      if (
+        messageParam.content &&
+        typeof messageParam.content === 'string' &&
+        messageParam.content.includes('{{Date::time}}')
+      ) {
+        const formattedDateTime = getFormattedDateTime() // Assume getFormattedDateTime is defined above or imported
+        messageParam.content = messageParam.content.replace(/\{\{Date::time\}\}/g, formattedDateTime)
+      } else if (messageParam.content && Array.isArray(messageParam.content)) {
+        // Handle content array (e.g., for vision models)
+        messageParam.content = messageParam.content.map((part) => {
+          if (part.type === 'text' && part.text.includes('{{Date::time}}')) {
+            const formattedDateTime = getFormattedDateTime() // Assume getFormattedDateTime is defined above or imported
+            return { ...part, text: part.text.replace(/\{\{Date::time\}\}/g, formattedDateTime) }
+          }
+          return part
+        })
+      }
+      // --- End Modification ---
+
+      userMessages.push(messageParam)
     }
 
     const isOpenAIReasoning = this.isOpenAIReasoning(model)
