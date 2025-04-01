@@ -1,12 +1,12 @@
 import { DownOutlined, UpOutlined } from '@ant-design/icons'
+import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { isEmbeddingModel, isFunctionCallingModel, isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { Model, ModelType } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
-import { Button, Checkbox, Divider, Flex, Form, Input, Modal, Space, message } from 'antd'
+import { Button, Checkbox, Divider, Flex, Form, Input, message, Modal } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import CopyIcon from '@renderer/components/Icons/CopyIcon'
 interface ModelEditContentProps {
   model: Model
   onUpdateModel: (model: Model) => void
@@ -65,12 +65,13 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
           label={t('settings.models.add.model_id')}
           tooltip={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
-          <Space direction="horizontal">
+          <Flex justify="space-between" gap={5}>
             <Input
               placeholder={t('settings.models.add.model_id.placeholder')}
               spellCheck={false}
               maxLength={200}
               disabled={true}
+              value={model.id}
               onChange={(e) => {
                 const value = e.target.value
                 form.setFieldValue('name', value)
@@ -80,13 +81,13 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
             <Button
               onClick={() => {
                 //copy model id
-                const val = form.getFieldsValue('name')
-                navigator.clipboard.writeText((val.id || '') as string)
+                const val = form.getFieldValue('name')
+                navigator.clipboard.writeText((val.id || model.id) as string)
                 message.success(t('message.copied'))
               }}>
               <CopyIcon /> {t('chat.topics.copy.title')}
             </Button>
-          </Space>
+          </Flex>
         </Form.Item>
         <Form.Item
           name="name"
