@@ -2,6 +2,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { isLinux, isMac, isWin } from '@main/constant'
+import { makeSureDirExists } from '@main/utils'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -82,11 +83,17 @@ class McpService {
               args.unshift('x')
             }
           }
-
           if (server.registryUrl) {
             server.env = {
               ...server.env,
               NPM_CONFIG_REGISTRY: server.registryUrl
+            }
+
+            // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
+            if (server.name === 'mcp-auto-install') {
+              const binPath = await getBinaryPath()
+              makeSureDirExists(binPath)
+              server.env.MCP_REGISTRY_PATH = path.join(binPath, 'mcp-registry.json')
             }
           }
         } else if (server.command === 'uvx' || server.command === 'uv') {

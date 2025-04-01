@@ -370,11 +370,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
                 </Form.Item>
               )}
 
-              <Form.Item
-                name="args"
-                label={t('settings.mcp.args')}
-                tooltip={t('settings.mcp.argsTooltip')}
-                rules={[{ required: serverType === 'stdio', message: '' }]}>
+              <Form.Item name="args" label={t('settings.mcp.args')} tooltip={t('settings.mcp.argsTooltip')}>
                 <TextArea rows={3} placeholder={`arg1\narg2`} style={{ fontFamily: 'monospace' }} />
               </Form.Item>
 

@@ -257,8 +257,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           loader={null}
           scrollableTarget="messages"
           inverse
-          style={{ overflow: 'visible' }}
-        >
+          style={{ overflow: 'visible' }}>
           <ScrollContainer>
             <LoaderContainer $loading={isLoadingMore}>
               <BeatLoader size={8} color="var(--color-text-2)" />
