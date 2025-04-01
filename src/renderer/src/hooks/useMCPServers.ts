@@ -11,7 +11,7 @@ ipcRenderer.on('mcp:servers-changed', (_event, servers) => {
 
 export const useMCPServers = () => {
   const mcpServers = useAppSelector((state) => state.mcp.servers)
-  const activedMcpServers = useAppSelector((state) => state.mcp.servers?.filter((server) => server.isActive))
+  const activedMcpServers = mcpServers.filter((server) => server.isActive)
   const dispatch = useAppDispatch()
 
   return {

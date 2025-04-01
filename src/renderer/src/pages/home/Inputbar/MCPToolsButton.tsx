@@ -19,6 +19,10 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton
   const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
 
+  const availableMCPs = activedMcpServers.filter((server) => enabledMCPs.some((s) => s.id === server.id))
+
+  const buttonEnabled = availableMCPs.length > 0
+
   const truncateText = (text: string, maxLength: number = 50) => {
     if (!text || text.length <= maxLength) return text
     return text.substring(0, maxLength) + '...'
@@ -102,7 +106,7 @@ const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton
       overlayClassName="mention-models-dropdown">
       <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
         <ToolbarButton type="text" ref={dropdownRef}>
-          <CodeOutlined style={{ color: enabledMCPs.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)' }} />
+          <CodeOutlined style={{ color: buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)' }} />
         </ToolbarButton>
       </Tooltip>
     </Dropdown>

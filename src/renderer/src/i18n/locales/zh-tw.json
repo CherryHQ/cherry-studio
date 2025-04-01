@@ -150,7 +150,10 @@
         "history": "聊天歷史",
         "last": "已經是最後一條訊息",
         "next": "下一條訊息",
-        "prev": "上一條訊息"
+        "prev": "上一條訊息",
+        "top": "回到頂部",
+        "bottom": "回到底部",
+        "close": "關閉"
       },
       "resend": "重新傳送",
       "save": "儲存",
@@ -229,7 +232,10 @@
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
       "translate": "翻譯",
-      "topics.export.siyuan": "匯出到思源筆記"
+      "topics.export.siyuan": "匯出到思源筆記",
+      "topics.export.wait_for_title_naming": "正在生成標題...",
+      "topics.export.title_naming_success": "標題生成成功",
+      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題"
     },
     "code_block": {
       "collapse": "折疊",
@@ -923,7 +929,9 @@
           "new_folder.button.confirm": "確定",
           "new_folder.button.cancel": "取消",
           "new_folder.button": "新建文件夾"
-        }
+        },
+        "message_title.use_topic_naming.title": "使用話題命名模型為導出的消息創建標題",
+        "message_title.use_topic_naming.help": "此設定會影響所有通過Markdown導出的方式，如Notion、語雀等。"
       },
       "display.assistant.title": "助手設定",
       "display.custom.css": "自訂 CSS",
