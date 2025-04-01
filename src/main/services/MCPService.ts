@@ -17,14 +17,7 @@ class McpService {
   private clients: Map<string, Client> = new Map()
 
   private getServerKey(server: MCPServer): string {
-    return JSON.stringify({
-      baseUrl: server.baseUrl,
-      command: server.command,
-      args: server.args,
-      registryUrl: server.registryUrl,
-      env: server.env,
-      id: server.id
-    })
+    return server.id
   }
 
   constructor() {
