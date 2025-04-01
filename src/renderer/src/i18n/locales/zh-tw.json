@@ -229,7 +229,10 @@
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
       "translate": "翻譯",
-      "topics.export.siyuan": "匯出到思源筆記"
+      "topics.export.siyuan": "匯出到思源筆記",
+      "topics.export.wait_for_title_naming": "正在生成標題...",
+      "topics.export.title_naming_success": "標題生成成功",
+      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題"
     },
     "code_block": {
       "collapse": "折疊",
@@ -1246,7 +1249,9 @@
         },
         "title": "網路搜尋"
       },
-      "general.auto_check_update.title": "啟用自動更新檢查"
+      "general.auto_check_update.title": "啟用自動更新檢查",
+      "message_title.use_topic_naming.title": "使用話題命名模型為匯出的訊息建立標題",
+      "message_title.use_topic_naming.help": "開啟後，使用話題命名模型為匯出的訊息建立標題。該項也會影響所有透過Markdown匯出的方式。"
     },
     "translate": {
       "any.language": "任意語言",

@@ -229,7 +229,10 @@
       "topics.title": "トピック",
       "topics.unpinned": "固定解除",
       "translate": "翻訳",
-      "topics.export.siyuan": "思源笔记にエクスポート"
+      "topics.export.siyuan": "思源笔记にエクスポート",
+      "topics.export.wait_for_title_naming": "タイトルを生成中...",
+      "topics.export.title_naming_success": "タイトルの生成に成功しました",
+      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します"
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -1246,7 +1249,9 @@
         },
         "title": "ウェブ検索"
       },
-      "general.auto_check_update.title": "自動更新チェックを有効にする"
+      "general.auto_check_update.title": "自動更新チェックを有効にする",
+      "message_title.use_topic_naming.title": "エクスポートされたメッセージのタイトル作成にトピック命名モデルを使用",
+      "message_title.use_topic_naming.help": "有効にすると、エクスポートされたメッセージのタイトル作成にトピック命名モデルを使用します。これはすべてのMarkdownエクスポート方式にも影響します。"
     },
     "translate": {
       "any.language": "任意の言語",

@@ -229,7 +229,10 @@
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
       "translate": "Перевести",
-      "topics.export.siyuan": "Экспорт в Siyuan Note"
+      "topics.export.siyuan": "Экспорт в Siyuan Note",
+      "topics.export.wait_for_title_naming": "Создание заголовка...",
+      "topics.export.title_naming_success": "Заголовок успешно создан",
+      "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию"
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -1246,7 +1249,9 @@
         },
         "title": "Поиск в Интернете"
       },
-      "general.auto_check_update.title": "Включить автоматическую проверку обновлений"
+      "general.auto_check_update.title": "Включить автоматическую проверку обновлений",
+      "message_title.use_topic_naming.title": "Использовать модель именования тем для создания заголовков экспортируемых сообщений",
+      "message_title.use_topic_naming.help": "При включении использует модель именования тем для создания заголовков экспортируемых сообщений. Это также повлияет на все методы экспорта Markdown."
     },
     "translate": {
       "any.language": "Любой язык",
