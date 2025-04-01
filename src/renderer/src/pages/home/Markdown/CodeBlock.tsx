@@ -37,12 +37,17 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
   const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 
+  const shouldShowExpandButtonRef = useRef(false)
+
   useEffect(() => {
     const loadHighlightedCode = async () => {
       const highlightedHtml = await codeToHtml(children, language)
       if (codeContentRef.current) {
         codeContentRef.current.innerHTML = highlightedHtml
-        setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
+        const isShowExpandButton = codeContentRef.current.scrollHeight > 350
+        if (shouldShowExpandButtonRef.current === isShowExpandButton) return
+        shouldShowExpandButtonRef.current = isShowExpandButton
+        setShouldShowExpandButton(shouldShowExpandButtonRef.current)
       }
     }
     loadHighlightedCode()
@@ -98,12 +103,18 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           )}
           <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
         </div>
-        <HStack gap={12} alignItems="center">
+      </CodeHeader>
+      <StickyWrapper>
+        <HStack
+          position="absolute"
+          gap={12}
+          alignItems="center"
+          style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
           {showDownloadButton && <DownloadButton language={language} data={children} />}
           {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           <CopyButton text={children} />
         </HStack>
-      </CodeHeader>
+      </StickyWrapper>
       <CodeContent
         ref={codeContentRef}
         isShowLineNumbers={codeShowLineNumbers}
@@ -211,7 +222,9 @@ const DownloadButton = ({ language, data }: { language: string; data: string }) 
   )
 }
 
-const CodeBlockWrapper = styled.div``
+const CodeBlockWrapper = styled.div`
+  position: relative;
+`
 
 const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolean; isCodeWrappable: boolean }>`
   .shiki {
@@ -374,6 +387,12 @@ const DownloadWrapper = styled.div`
   &:hover {
     color: var(--color-text-1);
   }
+`
+
+const StickyWrapper = styled.div`
+  position: sticky;
+  top: 28px;
+  z-index: 10;
 `
 
 export default memo(CodeBlock)

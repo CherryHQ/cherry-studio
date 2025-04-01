@@ -12,6 +12,7 @@ import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
+import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS } from './settings'
 
 // remove logo base64 data to reduce the size of the state
@@ -1148,6 +1149,22 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '88': (state: RootState) => {
+    try {
+      if (state?.mcp?.servers) {
+        const hasAutoInstall = state.mcp.servers.some((server) => server.name === 'mcp-auto-install')
+        if (!hasAutoInstall) {
+          const defaultServer = mcpSlice.getInitialState().servers[0]
+          state.mcp.servers = [{ ...defaultServer, id: nanoid() }, ...state.mcp.servers]
+        }
+      }
+    } catch (error) {
+      console.error(error)
+      return state
+    }
+
+    return state
   }
 }
 

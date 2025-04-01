@@ -286,6 +286,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
       grid-template-rows: auto;
       gap: 16px;
     `}
+  overflow-y: visible;
 `
 
 interface MessageWrapperProps {
@@ -327,14 +328,14 @@ const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
     return $layout === 'grid' && $isGrouped
       ? css`
           max-height: ${$isInPopover ? '50vh' : '300px'};
-          overflow-y: ${$isInPopover ? 'auto' : 'hidden'};
+          overflow-y: ${$isInPopover ? 'visible' : 'hidden'};
           border: 0.5px solid ${$isInPopover ? 'transparent' : 'var(--color-border)'};
           padding: 10px;
           border-radius: 6px;
           background-color: var(--color-background);
         `
       : css`
-          overflow-y: auto;
+          overflow-y: visible;
           border-radius: 6px;
         `
   }}

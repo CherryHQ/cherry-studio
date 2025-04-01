@@ -175,7 +175,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
-          <Switch checked={trayOnClose} onChange={(checked) => updateTrayOnClose(checked)} disabled={!tray} />
+          <Switch checked={trayOnClose} onChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

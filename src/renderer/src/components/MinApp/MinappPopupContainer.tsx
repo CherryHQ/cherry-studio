@@ -1,6 +1,7 @@
 import {
   CloseOutlined,
   CodeOutlined,
+  CopyOutlined,
   ExportOutlined,
   MinusOutlined,
   PushpinOutlined,
@@ -42,6 +43,9 @@ const MinappPopupContainer: React.FC = () => {
   const [isPopupShow, setIsPopupShow] = useState(true)
   /** whether the current minapp is ready */
   const [isReady, setIsReady] = useState(false)
+  /** the current REAL url of the minapp
+   * different from the app preset url, because user may navigate in minapp */
+  const [currentUrl, setCurrentUrl] = useState<string | null>(null)
 
   /** store the last minapp id and show status */
   const lastMinappId = useRef<string | null>(null)
@@ -59,6 +63,11 @@ const MinappPopupContainer: React.FC = () => {
   /** set the popup display status */
   useEffect(() => {
     if (minappShow) {
+      // init the current url
+      if (currentMinappId && currentAppInfo) {
+        setCurrentUrl(currentAppInfo.url)
+      }
+
       setIsPopupShow(true)
 
       if (webviewLoadedRefs.current.get(currentMinappId)) {
@@ -168,6 +177,13 @@ const MinappPopupContainer: React.FC = () => {
     }
   }
 
+  /** the callback function to handle the webview navigate to new url */
+  const handleWebviewNavigate = (appid: string, url: string) => {
+    if (appid === currentMinappId) {
+      setCurrentUrl(url)
+    }
+  }
+
   /** will open the devtools of the minapp */
   const handleOpenDevTools = (appid: string) => {
     const webview = webviewRefs.current.get(appid)
@@ -187,12 +203,9 @@ const MinappPopupContainer: React.FC = () => {
     }
   }
 
-  /** only open the current url */
-  const handleOpenLink = (appid: string) => {
-    const webview = webviewRefs.current.get(appid)
-    if (webview) {
-      window.api.openWebsite(webview.getURL())
-    }
+  /** open the giving url in browser */
+  const handleOpenLink = (url: string) => {
+    window.api.openWebsite(url)
   }
 
   /** toggle the pin status of the minapp */
@@ -205,11 +218,41 @@ const MinappPopupContainer: React.FC = () => {
   }
 
   /** Title bar of the popup */
-  const Title = ({ appInfo }: { appInfo: AppInfo | null }) => {
+  const Title = ({ appInfo, url }: { appInfo: AppInfo | null; url: string | null }) => {
     if (!appInfo) return null
+
+    const handleCopyUrl = (event: any, url: string) => {
+      //don't show app-wide context menu
+      event.preventDefault()
+      navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          window.message.success('URL ' + t('message.copy.success'))
+        })
+        .catch(() => {
+          window.message.error('URL ' + t('message.copy.failed'))
+        })
+    }
+
     return (
       <TitleContainer style={{ justifyContent: 'space-between' }}>
-        <TitleText>{appInfo.name}</TitleText>
+        <Tooltip
+          title={
+            <TitleTextTooltip>
+              {url ?? appInfo.url} <br />
+              <CopyOutlined className="icon-copy" />
+              {t('minapp.popup.rightclick_copyurl')}
+            </TitleTextTooltip>
+          }
+          mouseEnterDelay={0.8}
+          placement="rightBottom"
+          styles={{
+            root: {
+              maxWidth: '400px'
+            }
+          }}>
+          <TitleText onContextMenu={(e) => handleCopyUrl(e, url ?? appInfo.url)}>{appInfo.name}</TitleText>
+        </Tooltip>
         <ButtonsGroup className={isWindows ? 'windows' : ''}>
           <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
             <Button onClick={() => handleReload(appInfo.id)}>
@@ -228,7 +271,7 @@ const MinappPopupContainer: React.FC = () => {
           )}
           {appInfo.canOpenExternalLink && (
             <Tooltip title={t('minapp.popup.openExternal')} mouseEnterDelay={0.8} placement="bottom">
-              <Button onClick={() => handleOpenLink(appInfo.id)}>
+              <Button onClick={() => handleOpenLink(url ?? appInfo.url)}>
                 <ExportOutlined />
               </Button>
             </Tooltip>
@@ -266,6 +309,7 @@ const MinappPopupContainer: React.FC = () => {
         url={app.url}
         onSetRefCallback={handleWebviewSetRef}
         onLoadedCallback={handleWebviewLoaded}
+        onNavigateCallback={handleWebviewNavigate}
       />
     ))
 
@@ -275,7 +319,7 @@ const MinappPopupContainer: React.FC = () => {
 
   return (
     <Drawer
-      title={<Title appInfo={currentAppInfo} />}
+      title={<Title appInfo={currentAppInfo} url={currentUrl} />}
       placement="bottom"
       onClose={handlePopupMinimize}
       open={isPopupShow}
@@ -321,8 +365,18 @@ const TitleText = styled.div`
   font-size: 14px;
   color: var(--color-text-1);
   margin-right: 10px;
-  user-select: none;
+  -webkit-app-region: no-drag;
 `
+
+const TitleTextTooltip = styled.span`
+  font-size: 0.8rem;
+
+  .icon-copy {
+    font-size: 0.7rem;
+    padding-right: 5px;
+  }
+`
+
 const ButtonsGroup = styled.div`
   display: flex;
   flex-direction: row;

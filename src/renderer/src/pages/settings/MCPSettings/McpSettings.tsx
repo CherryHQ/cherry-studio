@@ -20,10 +20,25 @@ interface MCPFormValues {
   serverType: 'sse' | 'stdio'
   baseUrl?: string
   command?: string
+  registryUrl?: string
   args?: string
   env?: string
   isActive: boolean
 }
+
+interface Registry {
+  name: string
+  url: string
+}
+
+const NpmRegistry: Registry[] = [{ name: '淘宝 NPM Mirror', url: 'https://registry.npmmirror.com' }]
+const PipRegistry: Registry[] = [
+  { name: '清华大学', url: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
+  { name: '阿里云', url: 'http://mirrors.aliyun.com/pypi/simple/' },
+  { name: '中国科学技术大学', url: 'https://mirrors.ustc.edu.cn/pypi/simple/' },
+  { name: '华为云', url: 'https://repo.huaweicloud.com/repository/pypi/simple/' },
+  { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
+]
 
 const McpSettings: React.FC<Props> = ({ server }) => {
   const { t } = useTranslation()
@@ -35,29 +50,33 @@ const McpSettings: React.FC<Props> = ({ server }) => {
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
   const { updateMCPServer } = useMCPServers()
   const [tools, setTools] = useState<MCPTool[]>([])
-
-  useEffect(() => {
-    if (server) {
-      form.setFieldsValue({
-        name: server.name,
-        description: server.description,
-        serverType: server.baseUrl ? 'sse' : 'stdio',
-        baseUrl: server.baseUrl || '',
-        command: server.command || '',
-        args: server.args ? server.args.join('\n') : '',
-        env: server.env
-          ? Object.entries(server.env)
-              .map(([key, value]) => `${key}=${value}`)
-              .join('\n')
-          : '',
-        isActive: server.isActive
-      })
-    }
-  }, [form, server])
+  const [isShowRegistry, setIsShowRegistry] = useState(false)
+  const [registry, setRegistry] = useState<Registry[]>()
 
   useEffect(() => {
     const serverType = server.baseUrl ? 'sse' : 'stdio'
     setServerType(serverType)
+
+    // Set registry UI state based on command and registryUrl
+    if (server.command) {
+      handleCommandChange(server.command)
+
+      // If there's a registryUrl, ensure registry UI is shown
+      if (server.registryUrl) {
+        setIsShowRegistry(true)
+
+        // Determine registry type based on command
+        if (server.command.includes('uv') || server.command.includes('uvx')) {
+          setRegistry(PipRegistry)
+        } else if (
+          server.command.includes('npx') ||
+          server.command.includes('bun') ||
+          server.command.includes('bunx')
+        ) {
+          setRegistry(NpmRegistry)
+        }
+      }
+    }
 
     form.setFieldsValue({
       name: server.name,
@@ -65,6 +84,8 @@ const McpSettings: React.FC<Props> = ({ server }) => {
       serverType: serverType,
       baseUrl: server.baseUrl || '',
       command: server.command || '',
+      registryUrl: server.registryUrl || '',
+      isActive: server.isActive,
       args: server.args ? server.args.join('\n') : '',
       env: server.env
         ? Object.entries(server.env)
@@ -72,7 +93,8 @@ const McpSettings: React.FC<Props> = ({ server }) => {
             .join('\n')
         : ''
     })
-  }, [form, server])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server])
 
   // Watch the serverType field to update the form layout dynamically
   useEffect(() => {
@@ -110,32 +132,36 @@ const McpSettings: React.FC<Props> = ({ server }) => {
     try {
       const values = await form.validateFields()
 
+      // set basic fields
       const mcpServer: MCPServer = {
         id: server.id,
         name: values.name,
         description: values.description,
-        isActive: values.isActive
+        isActive: values.isActive,
+        registryUrl: values.registryUrl
       }
 
+      // set stdio or sse server
       if (values.serverType === 'sse') {
         mcpServer.baseUrl = values.baseUrl
       } else {
         mcpServer.command = values.command
         mcpServer.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
+      }
 
+      // set env variables
+      if (values.env) {
         const env: Record<string, string> = {}
-        if (values.env) {
-          values.env.split('\n').forEach((line) => {
-            if (line.trim()) {
-              const [key, ...chunks] = line.split('=')
-              const value = chunks.join('=')
-              if (key && value) {
-                env[key.trim()] = value.trim()
-              }
+        values.env.split('\n').forEach((line) => {
+          if (line.trim()) {
+            const [key, ...chunks] = line.split('=')
+            const value = chunks.join('=')
+            if (key && value) {
+              env[key.trim()] = value.trim()
             }
-          })
-        }
-        mcpServer.env = Object.keys(env).length > 0 ? env : undefined
+          }
+        })
+        mcpServer.env = env
       }
 
       try {
@@ -156,7 +182,39 @@ const McpSettings: React.FC<Props> = ({ server }) => {
       }
     } catch (error: any) {
       setLoading(false)
+      console.error('Failed to save MCP server settings:', error)
     }
+  }
+
+  // Watch for command field changes
+  const handleCommandChange = (command: string) => {
+    if (command.includes('uv') || command.includes('uvx')) {
+      setIsShowRegistry(true)
+      setRegistry(PipRegistry)
+    } else if (command.includes('npx') || command.includes('bun') || command.includes('bunx')) {
+      setIsShowRegistry(true)
+      setRegistry(NpmRegistry)
+    } else {
+      setIsShowRegistry(false)
+      setRegistry(undefined)
+    }
+  }
+
+  const onSelectRegistry = (url: string) => {
+    const command = form.getFieldValue('command') || ''
+
+    // Add new registry env variables
+    if (command.includes('uv') || command.includes('uvx')) {
+      // envs['PIP_INDEX_URL'] = url
+      // envs['UV_DEFAULT_INDEX'] = url
+      form.setFieldsValue({ registryUrl: url })
+    } else if (command.includes('npx') || command.includes('bun') || command.includes('bunx')) {
+      // envs['NPM_CONFIG_REGISTRY'] = url
+      form.setFieldsValue({ registryUrl: url })
+    }
+
+    // Mark form as changed
+    setIsFormChanged(true)
   }
 
   const onDeleteMcpServer = useCallback(
@@ -281,8 +339,36 @@ const McpSettings: React.FC<Props> = ({ server }) => {
                 name="command"
                 label={t('settings.mcp.command')}
                 rules={[{ required: serverType === 'stdio', message: '' }]}>
-                <Input placeholder="uvx or npx" />
+                <Input placeholder="uvx or npx" onChange={(e) => handleCommandChange(e.target.value)} />
               </Form.Item>
+
+              {isShowRegistry && registry && (
+                <Form.Item
+                  name="registryUrl"
+                  label={t('settings.mcp.registry')}
+                  tooltip={t('settings.mcp.registryTooltip')}>
+                  <Radio.Group>
+                    <Radio
+                      key="no-proxy"
+                      value=""
+                      onChange={(e) => {
+                        onSelectRegistry(e.target.value)
+                      }}>
+                      {t('settings.mcp.registryDefault')}
+                    </Radio>
+                    {registry.map((reg) => (
+                      <Radio
+                        key={reg.url}
+                        value={reg.url}
+                        onChange={(e) => {
+                          onSelectRegistry(e.target.value)
+                        }}>
+                        {reg.name}
+                      </Radio>
+                    ))}
+                  </Radio.Group>
+                </Form.Item>
+              )}
 
               <Form.Item
                 name="args"

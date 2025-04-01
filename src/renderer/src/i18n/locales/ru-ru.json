@@ -44,6 +44,11 @@
       "save.success": "Успешно сохранено",
       "save.title": "Сохранить в агента",
       "search": "Поиск ассистентов...",
+      "settings.mcp": "Серверы MCP",
+      "settings.mcp.enableFirst": "Сначала включите этот сервер в настройках MCP",
+      "settings.mcp.title": "Настройки MCP",
+      "settings.mcp.noServersAvailable": "Нет доступных серверов MCP. Добавьте серверы в настройках",
+      "settings.mcp.description": "Серверы MCP, включенные по умолчанию",
       "settings.default_model": "Модель по умолчанию",
       "settings.knowledge_base": "Настройки базы знаний",
       "settings.model": "Настройки модели",
@@ -224,7 +229,10 @@
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
       "translate": "Перевести",
-      "topics.export.siyuan": "Экспорт в Siyuan Note"
+      "topics.export.siyuan": "Экспорт в Siyuan Note",
+      "topics.export.wait_for_title_naming": "Создание заголовка...",
+      "topics.export.title_naming_success": "Заголовок успешно создан",
+      "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию"
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -547,7 +555,8 @@
         "close": "Закрыть встроенное приложение",
         "minimize": "Свернуть встроенное приложение",
         "devtools": "Инструменты разработчика",
-        "openExternal": "Открыть в браузере"
+        "openExternal": "Открыть в браузере",
+        "rightclick_copyurl": "ПКМ → Копировать URL"
       },
       "sidebar.add.title": "Добавить в боковую панель",
       "sidebar.remove.title": "Удалить из боковой панели",
@@ -1038,7 +1047,10 @@
           "noToolsAvailable": "нет доступных инструментов"
         },
         "deleteServer": "Удалить сервер",
-        "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?"
+        "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",
+        "registry": "Реестр пакетов",
+        "registryTooltip": "Выберите реестр для установки пакетов, если возникают проблемы с сетью при использовании реестра по умолчанию.",
+        "registryDefault": "По умолчанию"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
@@ -1188,7 +1200,7 @@
         "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
         "reset_to_default": "Сбросить настройки по умолчанию",
         "search_message": "Поиск сообщения",
-        "show_app": "Показать приложение",
+        "show_app": "Показать/скрыть приложение",
         "show_settings": "Открыть настройки",
         "title": "Горячие клавиши",
         "toggle_new_context": "Очистить контекст",
@@ -1237,7 +1249,9 @@
         },
         "title": "Поиск в Интернете"
       },
-      "general.auto_check_update.title": "Включить автоматическую проверку обновлений"
+      "general.auto_check_update.title": "Включить автоматическую проверку обновлений",
+      "message_title.use_topic_naming.title": "Использовать модель именования тем для создания заголовков экспортируемых сообщений",
+      "message_title.use_topic_naming.help": "При включении использует модель именования тем для создания заголовков экспортируемых сообщений. Это также повлияет на все методы экспорта Markdown."
     },
     "translate": {
       "any.language": "Любой язык",
