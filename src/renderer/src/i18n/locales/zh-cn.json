@@ -229,7 +229,10 @@
       "topics.title": "话题",
       "topics.unpinned": "取消固定",
       "translate": "翻译",
-      "topics.export.siyuan": "导出到思源笔记"
+      "topics.export.siyuan": "导出到思源笔记",
+      "topics.export.wait_for_title_naming": "正在生成标题...",
+      "topics.export.title_naming_success": "标题生成成功",
+      "topics.export.title_naming_failed": "标题生成失败，使用默认标题"
     },
     "code_block": {
       "collapse": "收起",
@@ -800,6 +803,8 @@
         "markdown_export.path_placeholder": "导出路径",
         "markdown_export.select": "选择",
         "markdown_export.title": "Markdown 导出",
+        "message_title.use_topic_naming.title": "使用话题命名模型为导出的消息创建标题",
+        "message_title.use_topic_naming.help": "开启后，使用话题命名模型为导出的消息创建标题。该项也会影响所有通过Markdown导出的方式。",
         "minute_interval_one": "{{count}} 分钟",
         "minute_interval_other": "{{count}} 分钟",
         "notion.api_key": "Notion 密钥",

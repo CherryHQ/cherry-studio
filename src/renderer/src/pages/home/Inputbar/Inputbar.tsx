@@ -145,14 +145,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [textareaHeight])
 
-  // reset state when assistant changes
+  // Reset to assistant knowledge mcp servers
   useEffect(() => {
-    // Reset to assistant default model
-    assistant.defaultModel && setModel(assistant.defaultModel)
-
-    // Reset to assistant knowledge mcp servers
     setEnabledMCPs(assistant.mcpServers || [])
-  }, [assistant, setModel])
+  }, [assistant])
 
   const sendMessage = useCallback(async () => {
     if (inputEmpty || loading) {

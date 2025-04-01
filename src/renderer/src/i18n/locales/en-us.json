@@ -229,7 +229,10 @@
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
       "translate": "Translate",
-      "topics.export.siyuan": "Export to Siyuan Note"
+      "topics.export.siyuan": "Export to Siyuan Note",
+      "topics.export.wait_for_title_naming": "Generating title...",
+      "topics.export.title_naming_success": "Title generated successfully",
+      "topics.export.title_naming_failed": "Failed to generate title, using default title"
     },
     "code_block": {
       "collapse": "Collapse",
@@ -919,7 +922,9 @@
           "new_folder.button.confirm": "Confirm",
           "new_folder.button.cancel": "Cancel",
           "new_folder.button": "New Folder"
-        }
+        },
+        "message_title.use_topic_naming.title": "Use topic naming model to create titles for exported messages",
+        "message_title.use_topic_naming.help": "When enabled, use topic naming model to create titles for exported messages. This will also affect all Markdown export methods."
       },
       "display.assistant.title": "Assistant Settings",
       "display.custom.css": "Custom CSS",
