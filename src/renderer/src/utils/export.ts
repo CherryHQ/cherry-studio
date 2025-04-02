@@ -31,22 +31,20 @@ export const messageToMarkdownWithReasoning = (message: Message) => {
     // 移除开头的<think>标记和换行符，并将所有换行符替换为<br>
     let reasoningContent = message.reasoning_content
     if (reasoningContent.startsWith('<think>\n')) {
-      reasoningContent = reasoningContent.substring(8) // 移除<think>\n
+      reasoningContent = reasoningContent.substring(8)
     } else if (reasoningContent.startsWith('<think>')) {
-      reasoningContent = reasoningContent.substring(7) // 移除<think>
+      reasoningContent = reasoningContent.substring(7)
     }
-
-    // 替换所有换行符为<br>
     reasoningContent = reasoningContent.replace(/\n/g, '<br>')
 
     // 应用数学公式转换（如果启用）
     if (forceDollarMathInMarkdown) {
       reasoningContent = convertMathFormula(reasoningContent)
     }
-
-    reasoningSection = `<details>
-  <summary>${i18n.t('common.reasoning_content')}</summary>
-${reasoningContent}
+    // 添加思考内容的Markdown格式
+    reasoningSection = `<details style="background-color: #f5f5f5; padding: 5px; border-radius: 10px; margin-bottom: 10px;">
+      <summary>${i18n.t('common.reasoning_content')}</summary><hr>
+    ${reasoningContent}
 </details>`
   }
 
@@ -99,12 +97,12 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
   }
 }
 
-export const exportMessageAsMarkdown = async (message: Message) => {
+export const exportMessageAsMarkdown = async (message: Message, exportReasoning?: boolean) => {
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
       const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + '.md'
-      const markdown = messageToMarkdown(message)
+      const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
         window.message.success({
@@ -119,7 +117,7 @@ export const exportMessageAsMarkdown = async (message: Message) => {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + ` ${timestamp}.md`
-      const markdown = messageToMarkdown(message)
+      const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
