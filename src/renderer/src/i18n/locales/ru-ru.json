@@ -185,6 +185,7 @@
       "topics.export.image": "Экспорт как изображение",
       "topics.export.joplin": "Экспорт в Joplin",
       "topics.export.md": "Экспорт как markdown",
+      "topics.export.md.reason": "Экспорт в Markdown (с рассуждениями)",
       "topics.export.notion": "Экспорт в Notion",
       "topics.export.obsidian": "Экспорт в Obsidian",
       "topics.export.obsidian_vault": "Хранилище",
@@ -280,7 +281,8 @@
       "select": "Выбрать",
       "topics": "Топики",
       "warning": "Предупреждение",
-      "you": "Вы"
+      "you": "Вы",
+      "reasoning_content": "Глубокий анализ"
     },
     "docs": {
       "title": "Документация"
@@ -776,8 +778,24 @@
           "title": "Очистка кэша"
         },
         "data.title": "Каталог данных",
+        "divider.basic": "Основные настройки данных",
+        "divider.cloud_storage": "Настройки облачного резервирования",
+        "divider.export_settings": "Настройки экспорта",
+        "divider.third_party": "Сторонние подключения",
         "hour_interval_one": "{{count}} час",
         "hour_interval_other": "{{count}} часов",
+        "export_menu": {
+          "title": "Настройки меню экспорта",
+          "image": "Экспорт как изображение",
+          "markdown": "Экспорт в Markdown",
+          "markdown_reason": "Экспорт в Markdown (с рассуждениями)",
+          "notion": "Экспорт в Notion",
+          "yuque": "Экспорт в Yuque",
+          "obsidian": "Экспорт в Obsidian",
+          "siyuan": "Экспорт в SiYuan Note",
+          "joplin": "Экспорт в Joplin",
+          "docx": "Экспорт в Word"
+        },
         "joplin": {
           "check": {
             "button": "Проверить",

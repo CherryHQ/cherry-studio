@@ -185,6 +185,7 @@
       "topics.export.image": "Export as image",
       "topics.export.joplin": "Export to Joplin",
       "topics.export.md": "Export as markdown",
+      "topics.export.md.reason": "Export as Markdown (with reasoning)",
       "topics.export.notion": "Export to Notion",
       "topics.export.obsidian": "Export to Obsidian",
       "topics.export.obsidian_vault": "Vault",
@@ -280,7 +281,8 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "reasoning_content": "Deep reasoning"
     },
     "docs": {
       "title": "Docs"
@@ -776,8 +778,24 @@
           "title": "Clear Cache"
         },
         "data.title": "Data Directory",
+        "divider.basic": "Basic Data Settings",
+        "divider.cloud_storage": "Cloud Backup Settings",
+        "divider.export_settings": "Export Settings",
+        "divider.third_party": "Third-party Connections",
         "hour_interval_one": "{{count}} hour",
         "hour_interval_other": "{{count}} hours",
+        "export_menu": {
+          "title": "Export Menu Settings",
+          "image": "Export as Image",
+          "markdown": "Export as Markdown",
+          "markdown_reason": "Export as Markdown (with reasoning)",
+          "notion": "Export to Notion",
+          "yuque": "Export to Yuque",
+          "obsidian": "Export to Obsidian",
+          "siyuan": "Export to SiYuan Note",
+          "joplin": "Export to Joplin",
+          "docx": "Export as Word"
+        },
         "joplin": {
           "check": {
             "button": "Check",

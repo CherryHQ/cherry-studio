@@ -185,6 +185,7 @@
       "topics.export.image": "匯出為圖片",
       "topics.export.joplin": "匯出到 Joplin",
       "topics.export.md": "匯出為 Markdown",
+      "topics.export.md.reason": "匯出為 Markdown (包含思考)",
       "topics.export.notion": "匯出到 Notion",
       "topics.export.obsidian": "匯出到 Obsidian",
       "topics.export.obsidian_vault": "保管庫",
@@ -280,7 +281,8 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "reasoning_content": "已深度思考"
     },
     "docs": {
       "title": "說明文件"
@@ -776,8 +778,24 @@
           "title": "清除快取"
         },
         "data.title": "資料目錄",
+        "divider.basic": "基礎數據設定",
+        "divider.cloud_storage": "雲備份設定",
+        "divider.export_settings": "匯出設定",
+        "divider.third_party": "第三方連接",
         "hour_interval_one": "{{count}} 小時",
         "hour_interval_other": "{{count}} 小時",
+        "export_menu": {
+          "title": "匯出選單設定",
+          "image": "匯出為圖片",
+          "markdown": "匯出為Markdown",
+          "markdown_reason": "匯出為Markdown（包含思考）",
+          "notion": "匯出到Notion",
+          "yuque": "匯出到語雀",
+          "obsidian": "匯出到Obsidian",
+          "siyuan": "匯出到思源筆記",
+          "joplin": "匯出到Joplin",
+          "docx": "匯出為Word"
+        },
         "joplin": {
           "check": {
             "button": "檢查",
