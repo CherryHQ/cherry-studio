@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 
+import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
-import { MCPServer, Shortcut, ThemeMode } from '@types'
+import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
 
@@ -15,7 +16,9 @@ import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
-import MCPService from './services/MCPService'
+import mcpService from './services/MCPService'
+import * as NutstoreService from './services/NutstoreService'
+import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
@@ -28,7 +31,7 @@ import { compress, decompress } from './utils/zip'
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
-const mcpService = new MCPService()
+const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
@@ -68,9 +71,28 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setLanguage(language)
   })
 
+  // launch on boot
+  ipcMain.handle('app:set-launch-on-boot', (_, openAtLogin: boolean) => {
+    // Set login item settings for windows and mac
+    // linux is not supported because it requires more file operations
+    if (isWin || isMac) {
+      app.setLoginItemSettings({ openAtLogin })
+    }
+  })
+
+  // launch to tray
+  ipcMain.handle('app:set-launch-to-tray', (_, isActive: boolean) => {
+    configManager.setLaunchToTray(isActive)
+  })
+
   // tray
   ipcMain.handle('app:set-tray', (_, isActive: boolean) => {
     configManager.setTray(isActive)
+  })
+
+  // to tray on close
+  ipcMain.handle('app:set-tray-on-close', (_, isActive: boolean) => {
+    configManager.setTrayOnClose(isActive)
   })
 
   ipcMain.handle('app:restart-tray', () => TrayService.getInstance().restartTray())
@@ -84,8 +106,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // theme
-  ipcMain.handle('app:set-theme', (_, theme: ThemeMode) => {
+  ipcMain.handle('app:set-theme', (event, theme: ThemeMode) => {
+    if (theme === configManager.getTheme()) return
+
     configManager.setTheme(theme)
+
+    // should sync theme change to all windows
+    const senderWindowId = event.sender.id
+    const windows = BrowserWindow.getAllWindows()
+    // 向其他窗口广播主题变化
+    windows.forEach((win) => {
+      if (win.webContents.id !== senderWindowId) {
+        win.webContents.send('theme:change', theme)
+      }
+    })
+
     mainWindow?.setTitleBarOverlay &&
       mainWindow.setTitleBarOverlay(theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight)
   })
@@ -130,6 +165,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('backup:restore', backupManager.restore)
   ipcMain.handle('backup:backupToWebdav', backupManager.backupToWebdav)
   ipcMain.handle('backup:restoreFromWebdav', backupManager.restoreFromWebdav)
+  ipcMain.handle('backup:listWebdavFiles', backupManager.listWebdavFiles)
+  ipcMain.handle('backup:checkConnection', backupManager.checkConnection)
+  ipcMain.handle('backup:createDirectory', backupManager.createDirectory)
 
   // file
   ipcMain.handle('file:open', fileManager.open)
@@ -217,6 +255,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('miniwindow:hide', () => windowService.hideMiniWindow())
   ipcMain.handle('miniwindow:close', () => windowService.closeMiniWindow())
   ipcMain.handle('miniwindow:toggle', () => windowService.toggleMiniWindow())
+  ipcMain.handle('miniwindow:set-pin', (_, isPinned) => windowService.setPinMiniWindow(isPinned))
 
   // aes
   ipcMain.handle('aes:encrypt', (_, text: string, secretKey: string, iv: string) => encrypt(text, secretKey, iv))
@@ -225,35 +264,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   )
 
   // Register MCP handlers
-  ipcMain.on('mcp:servers-from-renderer', (_, servers) => mcpService.setServers(servers))
-  ipcMain.handle('mcp:list-servers', async () => mcpService.listAvailableServices())
-  ipcMain.handle('mcp:add-server', async (_, server: MCPServer) => mcpService.addServer(server))
-  ipcMain.handle('mcp:update-server', async (_, server: MCPServer) => mcpService.updateServer(server))
-  ipcMain.handle('mcp:delete-server', async (_, serverName: string) => mcpService.deleteServer(serverName))
-  ipcMain.handle('mcp:set-server-active', async (_, { name, isActive }) =>
-    mcpService.setServerActive({ name, isActive })
-  )
-
-  // According to preload, this should take no parameters, but our implementation accepts
-  // an optional serverName for better flexibility
-  ipcMain.handle('mcp:list-tools', async (_, serverName?: string) => mcpService.listTools(serverName))
-  ipcMain.handle('mcp:call-tool', async (_, params: { client: string; name: string; args: any }) =>
-    mcpService.callTool(params)
-  )
-
-  ipcMain.handle('mcp:cleanup', async () => mcpService.cleanup())
+  ipcMain.handle('mcp:remove-server', mcpService.removeServer)
+  ipcMain.handle('mcp:restart-server', mcpService.restartServer)
+  ipcMain.handle('mcp:stop-server', mcpService.stopServer)
+  ipcMain.handle('mcp:list-tools', mcpService.listTools)
+  ipcMain.handle('mcp:call-tool', mcpService.callTool)
+  ipcMain.handle('mcp:get-install-info', mcpService.getInstallInfo)
 
   ipcMain.handle('app:is-binary-exist', (_, name: string) => isBinaryExists(name))
   ipcMain.handle('app:get-binary-path', (_, name: string) => getBinaryPath(name))
   ipcMain.handle('app:install-uv-binary', () => runInstallScript('install-uv.js'))
   ipcMain.handle('app:install-bun-binary', () => runInstallScript('install-bun.js'))
-
-  // Listen for changes in MCP servers and notify renderer
-  mcpService.on('servers-updated', (servers) => {
-    mainWindow?.webContents.send('mcp:servers-updated', servers)
-  })
-
-  app.on('before-quit', () => mcpService.cleanup())
 
   //copilot
   ipcMain.handle('copilot:get-auth-message', CopilotService.getAuthMessage)
@@ -262,4 +283,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('copilot:get-token', CopilotService.getToken)
   ipcMain.handle('copilot:logout', CopilotService.logout)
   ipcMain.handle('copilot:get-user', CopilotService.getUser)
+
+  // Obsidian service
+  ipcMain.handle('obsidian:get-vaults', () => {
+    return obsidianVaultService.getVaults()
+  })
+
+  ipcMain.handle('obsidian:get-files', (_event, vaultName) => {
+    return obsidianVaultService.getFilesByVaultName(vaultName)
+  })
+
+  // nutstore
+  ipcMain.handle('nutstore:get-sso-url', NutstoreService.getNutstoreSSOUrl)
+  ipcMain.handle('nutstore:decrypt-token', (_, token: string) => NutstoreService.decryptToken(token))
+  ipcMain.handle('nutstore:get-directory-contents', (_, token: string, path: string) =>
+    NutstoreService.getDirectoryContents(token, path)
+  )
 }

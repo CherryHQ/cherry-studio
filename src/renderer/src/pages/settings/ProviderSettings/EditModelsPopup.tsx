@@ -6,6 +6,7 @@ import {
   isEmbeddingModel,
   isFunctionCallingModel,
   isReasoningModel,
+  isRerankModel,
   isVisionModel,
   isWebSearchModel,
   SYSTEM_MODELS
@@ -17,7 +18,7 @@ import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/ut
 import { Avatar, Button, Empty, Flex, Modal, Popover, Radio, Tooltip } from 'antd'
 import Search from 'antd/es/input/Search'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -44,6 +45,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const [searchText, setSearchText] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
   const { t, i18n } = useTranslation()
+  const searchInputRef = useRef<any>(null)
 
   const systemModels = SYSTEM_MODELS[_provider.id] || []
   const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
@@ -70,6 +72,8 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         return isEmbeddingModel(model)
       case 'function_calling':
         return isFunctionCallingModel(model)
+      case 'rerank':
+        return isRerankModel(model)
       default:
         return true
     }
@@ -127,6 +131,14 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (open && searchInputRef.current) {
+      setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 100)
+    }
+  }, [open])
+
   const ModalHeader = () => {
     return (
       <Flex>
@@ -148,7 +160,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       footer={null}
-      width="600px"
+      width="680px"
       styles={{
         content: { padding: 0 },
         header: { padding: 22, paddingBottom: 15 }
@@ -156,17 +168,23 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       centered>
       <SearchContainer>
         <Center>
-          <Radio.Group value={filterType} onChange={(e) => setFilterType(e.target.value)} buttonStyle="solid">
+          <Radio.Group
+            size={i18n.language.startsWith('zh') ? 'middle' : 'small'}
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            buttonStyle="solid">
             <Radio.Button value="all">{t('models.all')}</Radio.Button>
-            <Radio.Button value="reasoning">{t('models.reasoning')}</Radio.Button>
-            <Radio.Button value="vision">{t('models.vision')}</Radio.Button>
-            <Radio.Button value="websearch">{t('models.websearch')}</Radio.Button>
-            <Radio.Button value="free">{t('models.free')}</Radio.Button>
-            <Radio.Button value="embedding">{t('models.embedding')}</Radio.Button>
-            <Radio.Button value="function_calling">{t('models.function_calling')}</Radio.Button>
+            <Radio.Button value="reasoning">{t('models.type.reasoning')}</Radio.Button>
+            <Radio.Button value="vision">{t('models.type.vision')}</Radio.Button>
+            <Radio.Button value="websearch">{t('models.type.websearch')}</Radio.Button>
+            <Radio.Button value="free">{t('models.type.free')}</Radio.Button>
+            <Radio.Button value="embedding">{t('models.type.embedding')}</Radio.Button>
+            <Radio.Button value="rerank">{t('models.type.rerank')}</Radio.Button>
+            <Radio.Button value="function_calling">{t('models.type.function_calling')}</Radio.Button>
           </Radio.Group>
         </Center>
         <Search
+          ref={searchInputRef}
           placeholder={t('settings.provider.search_placeholder')}
           allowClear
           onChange={(e) => setSearchText(e.target.value)}

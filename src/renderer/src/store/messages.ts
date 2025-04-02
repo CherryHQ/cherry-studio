@@ -6,9 +6,9 @@ import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getAssistantMessage, resetAssistantMessage } from '@renderer/services/MessagesService'
 import type { AppDispatch, RootState } from '@renderer/store'
 import type { Assistant, Message, Topic } from '@renderer/types'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { clearTopicQueue, getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
-import { cloneDeep, isEmpty, throttle } from 'lodash'
+import { isEmpty, throttle } from 'lodash'
 
 export interface MessagesState {
   messagesByTopic: Record<string, Message[]>
@@ -27,31 +27,6 @@ const initialState: MessagesState = {
   displayCount: 20,
   error: null
 }
-
-// const MAX_RECENT_TOPICS = 10
-
-// // 只初始化最近的会话消息
-// export const initializeMessagesState = createAsyncThunk('messages/initialize', async () => {
-//   try {
-//     // 获取所有会话的基本信息
-//     const recentTopics = await TopicManager.getTopicLimit(MAX_RECENT_TOPICS)
-//     console.log('recentTopics', recentTopics)
-//     const messagesByTopic: Record<string, Message[]> = {}
-
-//     // 只加载最近会话的消息
-//     for (const topic of recentTopics) {
-//       if (topic.messages && topic.messages.length > 0) {
-//         const messages = topic.messages.map((msg) => ({ ...msg }))
-//         messagesByTopic[topic.id] = messages
-//       }
-//     }
-
-//     return messagesByTopic
-//   } catch (error) {
-//     console.error('Failed to initialize recent messages:', error)
-//     return {}
-//   }
-// })
 
 // 新增准备会话消息的函数，实现懒加载机制
 export const prepareTopicMessages = createAsyncThunk(
@@ -138,14 +113,10 @@ const messagesSlice = createSlice({
     ) => {
       const { topicId, messageId, updates } = action.payload
       const topicMessages = state.messagesByTopic[topicId]
-
       if (topicMessages) {
         const message = topicMessages.find((msg) => msg.id === messageId)
         if (message) {
           Object.assign(message, updates)
-          db.topics.update(topicId, {
-            messages: topicMessages.map((m) => (m.id === message.id ? cloneDeep(message) : m))
-          })
         }
       }
     },
@@ -210,19 +181,6 @@ const messagesSlice = createSlice({
       }
     }
   }
-  // extraReducers: (builder) => {
-  //   builder
-  //     .addCase(initializeMessagesState.pending, (state) => {
-  //       state.error = null
-  //     })
-  //     .addCase(initializeMessagesState.fulfilled, (state, action) => {
-  //       console.log('initializeMessagesState.fulfilled', action.payload)
-  //       state.messagesByTopic = action.payload
-  //     })
-  //     .addCase(initializeMessagesState.rejected, (state, action) => {
-  //       state.error = action.error.message || 'Failed to load messages'
-  //     })
-  // }
 })
 
 const handleResponseMessageUpdate = (
@@ -293,7 +251,7 @@ export const sendMessage =
             const isGroupedMessage = messageToReset.length > 1
             const resetMessage = resetAssistantMessage(m, isGroupedMessage ? m.model : assistant.model)
             // 更新状态
-            dispatch(updateMessage({ topicId: topic.id, messageId: m.id, updates: resetMessage }))
+            dispatch(updateMessageThunk(topic.id, m.id, resetMessage))
             // 使用重置后的消息
             return resetMessage
           })
@@ -301,7 +259,7 @@ export const sendMessage =
           const { model, id } = messageToReset
           const resetMessage = resetAssistantMessage(messageToReset, model)
           // 更新状态
-          dispatch(updateMessage({ topicId: topic.id, messageId: id, updates: resetMessage }))
+          dispatch(updateMessageThunk(topic.id, id, resetMessage))
           // 使用重置后的消息
           assistantMessages.push(resetMessage)
         }
@@ -434,10 +392,9 @@ export const sendMessage =
           } catch (error: any) {
             console.error('Error in chat completion:', error)
             dispatch(
-              updateMessage({
-                topicId: topic.id,
-                messageId: assistantMessage.id,
-                updates: { status: 'error', error: { message: error.message } }
+              updateMessageThunk(topic.id, assistantMessage.id, {
+                status: 'error',
+                error: { message: error.message }
               })
             )
             dispatch(clearStreamMessage({ topicId: topic.id, messageId: assistantMessage.id }))
@@ -486,10 +443,9 @@ export const resendMessage =
       const userMessage = topicMessages.find((m) => m.id === message.askId && m.role === 'user')
       if (!userMessage) {
         dispatch(
-          updateMessage({
-            topicId: topic.id,
-            messageId: message.id,
-            updates: { status: 'error', error: { message: i18n.t('error.user_message_not_found') } }
+          updateMessageThunk(topic.id, message.id, {
+            status: 'error',
+            error: { message: i18n.t('error.user_message_not_found') }
           })
         )
         console.error(i18n.t('error.user_message_not_found'))
@@ -559,6 +515,14 @@ export const clearTopicMessagesThunk = (topic: Topic) => async (dispatch: AppDis
   }
 }
 
+export const deleteMessageAction =
+  (topic: Topic, id: string, idType: 'id' | 'askId' = 'id') =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    const messages = getState().messages.messagesByTopic[topic.id] || []
+    const newMessages = messages.filter((m) => m[idType] !== id)
+    await dispatch(updateMessages(topic, newMessages))
+  }
+
 // 修改的 updateMessages thunk，同时更新缓存
 export const updateMessages = (topic: Topic, messages: Message[]) => async (dispatch: AppDispatch) => {
   try {
@@ -572,6 +536,28 @@ export const updateMessages = (topic: Topic, messages: Message[]) => async (disp
   }
 }
 
+// 新增一个 thunk 来处理消息更新
+export const updateMessageThunk =
+  (topicId: string, messageId: string, updates: Partial<Message>) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    try {
+      // 先更新 Redux 状态
+      dispatch(updateMessage({ topicId, messageId, updates }))
+
+      // 然后同步到数据库
+      const state = getState()
+      const topicMessages = state.messages.messagesByTopic[topicId]
+      if (topicMessages) {
+        await db.topics.update(topicId, {
+          messages: topicMessages
+        })
+      }
+    } catch (error) {
+      console.error('Failed to update message:', error)
+      dispatch(setError(error instanceof Error ? error.message : 'Failed to update message'))
+    }
+  }
+
 // Selectors
 export const selectCurrentTopicId = (state: RootState): string | null => {
   const messagesState = state.messages
@@ -584,11 +570,10 @@ export const selectTopicMessages = createSelector(
 )
 
 // 获取特定话题的loading状态
-export const selectTopicLoading = (state: RootState, topicId?: string): boolean => {
-  const messagesState = state.messages as MessagesState
-  const currentTopicId = topicId || messagesState.currentTopic?.id || ''
-  return currentTopicId ? (messagesState.loadingByTopic[currentTopicId] ?? false) : false
-}
+export const selectTopicLoading = createSelector(
+  [(state: RootState) => state.messages.loadingByTopic, (_, topicId?: string) => topicId],
+  (loadingByTopic, topicId) => (topicId ? (loadingByTopic[topicId] ?? false) : false)
+)
 
 export const selectDisplayCount = (state: RootState): number => {
   const messagesState = state.messages as MessagesState

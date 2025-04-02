@@ -7,7 +7,9 @@
   <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="./README.ja.md">日本語</a><br></p>
 <div align="center">
  <a href="https://trendshift.io/repositories/11772" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11772" alt="kangfenmao%2Fcherry-studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+ <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 </div>
+
 # 🍒 Cherry Studio
 
 Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客户端，兼容 Windows、Mac 和 Linux 系统。
@@ -15,6 +17,10 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(472019156)](https://qm.qq.com/q/CbZiBWwCXu)
 
 ❤️ 喜欢 Cherry Studio? 点亮小星星 🌟 或 [赞助开发者](sponsor.md)! ❤️
+
+# 📖 使用教程
+
+https://docs.cherry-ai.com
 
 # 🌠 界面
 
@@ -77,6 +83,13 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 - [ ] 语音输入输出（AI 通话）
 - [ ] 数据备份支持自定义备份内容
 
+# 🌈 主题
+
+主题库：https://cherrycss.com  
+Aero 主题：https://github.com/hakadao/CherryStudio-Aero
+
+欢迎 PR 更多主题
+
 # 🖥️ 开发
 
 参考[开发文档](dev.md)
@@ -117,11 +130,7 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 # 🌐 社区
 
-[Telegram](https://t.me/CherryStudioAI) | [Email](mailto:kangfenmao@gmail.com) | [Twitter](https://x.com/kangfenmao)
-
-# 📣 产品猎人
-
-<a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+[Telegram](https://t.me/CherryStudioAI) | [Email](mailto:support@cherry-ai.com) | [Twitter](https://x.com/kangfenmao)
 
 # ☕ 赞助
 
@@ -130,6 +139,10 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 # 📃 许可证
 
 [LICENSE](../LICENSE)
+
+# ✉️ 联系我们
+
+yinsenho@cherry-ai.com
 
 # ⭐️ Star 记录
 

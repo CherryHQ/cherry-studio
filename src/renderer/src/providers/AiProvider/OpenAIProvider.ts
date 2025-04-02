@@ -27,6 +27,7 @@ import {
   Suggestion
 } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
+import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   callMCPTool,
   mcpToolsToOpenAITools,
@@ -354,7 +355,7 @@ export default class OpenAIProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-
+    messages = addImageFileToContents(messages)
     let systemMessage = assistant.prompt ? { role: 'system', content: assistant.prompt } : undefined
 
     if (isOpenAIoSeries(model)) {
@@ -474,7 +475,7 @@ export default class OpenAIProvider extends BaseProvider {
 
         const finishReason = chunk.choices[0]?.finish_reason
 
-        if (delta?.tool_calls) {
+        if (delta?.tool_calls?.length) {
           const chunkToolCalls = delta.tool_calls
           for (const t of chunkToolCalls) {
             const { index, id, function: fn, type } = t
@@ -514,6 +515,7 @@ export default class OpenAIProvider extends BaseProvider {
 
           for (const toolCall of toolCalls) {
             const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall)
+
             if (!mcpTool) {
               continue
             }

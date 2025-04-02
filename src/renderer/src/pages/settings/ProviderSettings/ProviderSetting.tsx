@@ -1,21 +1,22 @@
 import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
-import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
+import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { providerCharge } from '@renderer/utils/oauth'
-import { Button, Divider, Flex, Input, Space, Switch } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { isEmpty } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { debounce, isEmpty } from 'lodash'
+import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -34,6 +35,7 @@ import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
+import ModelListSearchBar from './ModelListSearchBar'
 import OllamSettings from './OllamaSettings'
 import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
@@ -49,9 +51,12 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
+  const [modelSearchText, setModelSearchText] = useState('')
+  const deferredModelSearchText = useDeferredValue(modelSearchText)
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const [inputValue, setInputValue] = useState(apiKey)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -62,6 +67,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedSetApiKey = useCallback(
+    debounce((value) => {
+      setApiKey(formatApiKeys(value))
+    }, 100),
+    []
+  )
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
@@ -80,12 +93,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
 
   const onHealthCheck = async () => {
-    if (isEmpty(models)) {
+    const modelsToCheck = models.filter((model) => !isRerankModel(model))
+
+    if (isEmpty(modelsToCheck)) {
       window.message.error({
         key: 'no-models',
         style: { marginTop: '3vh' },
         duration: 5,
-        content: t('settings.provider.no_models')
+        content: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -95,14 +110,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       .map((k) => k.trim())
       .filter((k) => k)
 
+    // Add an empty key to enable health checks for local models.
+    // Error messages will be shown for each model if a valid key is needed.
     if (keys.length === 0) {
-      window.message.error({
-        key: 'no-api-keys',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.models.check.no_api_keys')
-      })
-      return
+      keys.push('')
     }
 
     // Show configuration dialog to get health check parameters
@@ -112,12 +123,12 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       apiKeys: keys
     })
 
-    if (result.cancelled || result.apiKeys.length === 0) {
+    if (result.cancelled) {
       return
     }
 
     // Prepare the list of models to be checked
-    const initialStatuses = models.map((model) => ({
+    const initialStatuses = modelsToCheck.map((model) => ({
       model,
       checking: true,
       status: undefined
@@ -128,7 +139,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     const checkResults = await checkModelsHealth(
       {
         provider: { ...provider, apiHost },
-        models,
+        models: modelsToCheck,
         apiKeys: result.apiKeys,
         isConcurrent: result.isConcurrent
       },
@@ -162,9 +173,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       duration: 10,
       content: t('settings.models.check.model_status_summary', {
         provider: provider.name,
-        count_passed: successModels.length,
-        count_failed: failedModels.length,
-        count_partial: partialModels.length
+        count_passed: successModels.length + partialModels.length,
+        count_partial: partialModels.length,
+        count_failed: failedModels.length
       })
     })
 
@@ -173,12 +184,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   const onCheckApi = async () => {
-    if (isEmpty(models)) {
+    const modelsToCheck = models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
+
+    if (isEmpty(modelsToCheck)) {
       window.message.error({
         key: 'no-models',
         style: { marginTop: '3vh' },
         duration: 5,
-        content: t('settings.provider.no_models')
+        content: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -271,9 +284,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             </Link>
           )}
           {!provider.isSystem && (
-            <Button type="text" style={{ width: 30 }} onClick={() => ProviderSettingsPopup.show({ provider })}>
-              <SettingOutlined />
-            </Button>
+            <SettingOutlined
+              type="text"
+              style={{ width: 30 }}
+              onClick={() => ProviderSettingsPopup.show({ provider })}
+            />
           )}
         </Flex>
         <Switch
@@ -286,12 +301,19 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
-          value={apiKey}
+          value={inputValue}
           placeholder={t('settings.provider.api_key')}
-          onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
-          onBlur={onUpdateApiKey}
+          onChange={(e) => {
+            setInputValue(e.target.value)
+            debouncedSetApiKey(e.target.value)
+          }}
+          onBlur={() => {
+            const formattedValue = formatApiKeys(inputValue)
+            setInputValue(formattedValue)
+            setApiKey(formattedValue)
+            onUpdateApiKey()
+          }}
           spellCheck={false}
-          type="password"
           autoFocus={provider.enabled && apiKey === ''}
           disabled={provider.id === 'copilot'}
         />
@@ -306,7 +328,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <HStack gap={5}>
+          <HStack>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>
@@ -363,22 +385,25 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       )}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-          <span>{t('common.models')}</span>
+        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
-            {!isEmpty(models) && (
+            <span>{t('common.models')}</span>
+            {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
+          </Space>
+          {!isEmpty(models) && (
+            <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
               <Button
                 type="text"
                 size="small"
                 icon={<HeartOutlined />}
                 onClick={onHealthCheck}
                 loading={isHealthChecking}
-                title={t('settings.models.check.button_caption')}></Button>
-            )}
-          </Space>
-        </Flex>
+              />
+            </Tooltip>
+          )}
+        </Space>
       </SettingSubtitle>
-      <ModelList provider={provider} modelStatuses={modelStatuses} />
+      <ModelList providerId={provider.id} modelStatuses={modelStatuses} searchText={deferredModelSearchText} />
     </SettingContainer>
   )
 }

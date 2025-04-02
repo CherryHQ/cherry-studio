@@ -2,7 +2,11 @@ import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { RootState, useAppDispatch } from '@renderer/store'
-import { setForceDollarMathInMarkdown, setmarkdownExportPath } from '@renderer/store/settings'
+import {
+  setForceDollarMathInMarkdown,
+  setmarkdownExportPath,
+  setUseTopicNamingForMessageTitle
+} from '@renderer/store/settings'
 import { Button, Switch } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC } from 'react'
@@ -18,6 +22,7 @@ const MarkdownExportSettings: FC = () => {
 
   const markdownExportPath = useSelector((state: RootState) => state.settings.markdownExportPath)
   const forceDollarMathInMarkdown = useSelector((state: RootState) => state.settings.forceDollarMathInMarkdown)
+  const useTopicNamingForMessageTitle = useSelector((state: RootState) => state.settings.useTopicNamingForMessageTitle)
 
   const handleSelectFolder = async () => {
     const path = await window.api.file.selectFolder()
@@ -32,6 +37,10 @@ const MarkdownExportSettings: FC = () => {
 
   const handleToggleForceDollarMath = (checked: boolean) => {
     dispatch(setForceDollarMathInMarkdown(checked))
+  }
+
+  const handleToggleTopicNaming = (checked: boolean) => {
+    dispatch(setUseTopicNamingForMessageTitle(checked))
   }
 
   return (
@@ -68,6 +77,14 @@ const MarkdownExportSettings: FC = () => {
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.force_dollar_math.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.message_title.use_topic_naming.title')}</SettingRowTitle>
+        <Switch checked={useTopicNamingForMessageTitle} onChange={handleToggleTopicNaming} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.message_title.use_topic_naming.help')}</SettingHelpText>
       </SettingRow>
     </SettingGroup>
   )

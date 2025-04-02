@@ -16,6 +16,8 @@ export type Assistant = {
   settings?: Partial<AssistantSettings>
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
+  enableGenerateImage?: boolean
+  mcpServers?: MCPServer[]
 }
 
 export type AssistantMessage = {
@@ -77,7 +79,13 @@ export type Message = {
     webSearch?: WebSearchResponse
     // MCP Tools
     mcpTools?: MCPToolResponse[]
+    // Generate Image
+    generateImage?: GenerateImageResponse
   }
+  // 多模型消息样式
+  multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
+  // fold时是否选中
+  foldSelected?: boolean
 }
 
 export type Metrics = {
@@ -155,7 +163,7 @@ export interface Painting {
 }
 
 export type MinAppType = {
-  id?: string | number
+  id: string
   name: string
   logo?: string
   url: string
@@ -192,9 +200,18 @@ export enum ThemeMode {
   auto = 'auto'
 }
 
-export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US' | 'ru-RU' | 'ja-JP'
+export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
 
-export type TranslateLanguageVarious = 'chinese' | 'chinese-traditional' | 'english' | 'japanese' | 'russian'
+export type TranslateLanguageVarious =
+  | 'chinese'
+  | 'chinese-traditional'
+  | 'greek'
+  | 'english'
+  | 'spanish'
+  | 'french'
+  | 'japanese'
+  | 'portuguese'
+  | 'russian'
 
 export type CodeStyleVarious = BuiltinTheme | 'auto'
 
@@ -203,6 +220,7 @@ export type WebDavConfig = {
   webdavUser: string
   webdavPass: string
   webdavPath: string
+  fileName?: string
 }
 
 export type AppInfo = {
@@ -290,6 +308,11 @@ export type GenerateImageParams = {
   promptEnhancement?: boolean
 }
 
+export type GenerateImageResponse = {
+  type: 'url' | 'base64'
+  images: string[]
+}
+
 export interface TranslateHistory {
   id: string
   sourceText: string
@@ -340,10 +363,12 @@ export interface MCPServerParameter {
 }
 
 export interface MCPServer {
+  id: string
   name: string
   description?: string
   baseUrl?: string
   command?: string
+  registryUrl?: string
   args?: string[]
   env?: Record<string, string>
   isActive: boolean
@@ -359,6 +384,7 @@ export interface MCPToolInputSchema {
 
 export interface MCPTool {
   id: string
+  serverId: string
   serverName: string
   name: string
   description?: string

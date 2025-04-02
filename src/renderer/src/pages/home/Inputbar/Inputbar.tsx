@@ -10,10 +10,11 @@ import {
   QuestionCircleOutlined
 } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isFunctionCallingModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
@@ -44,6 +45,7 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
+import GenerateImageButton from './GenerateImageButton'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
 import MCPToolsButton from './MCPToolsButton'
 import MentionModelsButton from './MentionModelsButton'
@@ -82,23 +84,25 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const containerRef = useRef(null)
   const { searching } = useRuntime()
   const { isBubbleStyle } = useMessageStyle()
-  const { loading, pauseMessages } = useMessageOperations(topic)
+  const { pauseMessages } = useMessageOperations(topic)
+  const loading = useTopicLoading(topic)
   const dispatch = useAppDispatch()
   const [spaceClickCount, setSpaceClickCount] = useState(0)
-  const spaceClickTimer = useRef<NodeJS.Timeout>()
+  const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
-  const [enabledMCPs, setEnabledMCPs] = useState<MCPServer[]>([])
+  const [enabledMCPs, setEnabledMCPs] = useState<MCPServer[]>(assistant.mcpServers || [])
   const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
-  const currentMessageId = useRef<string>()
+  const currentMessageId = useRef<string>('')
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const navigate = useNavigate()
+  const { activedMcpServers } = useMCPServers()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const showMCPToolsIcon = isFunctionCallingModel(model)
@@ -143,6 +147,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [textareaHeight])
 
+  // Reset to assistant knowledge mcp servers
+  useEffect(() => {
+    setEnabledMCPs(assistant.mcpServers || [])
+  }, [assistant.mcpServers])
+
   const sendMessage = useCallback(async () => {
     if (inputEmpty || loading) {
       return
@@ -172,8 +181,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         userMessage.mentions = mentionModels
       }
 
-      if (enabledMCPs) {
-        userMessage.enabledMCPs = enabledMCPs
+      if (isFunctionCallingModel(model)) {
+        if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
+          userMessage.enabledMCPs = activedMcpServers.filter((server) =>
+            assistant.mcpServers?.some((s) => s.id === server.id)
+          )
+        }
       }
 
       userMessage.usage = await estimateMessageUsage(userMessage)
@@ -195,13 +208,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       console.error('Failed to send message:', error)
     }
   }, [
+    activedMcpServers,
     assistant,
     dispatch,
-    enabledMCPs,
     files,
     inputEmpty,
     loading,
     mentionModels,
+    model,
     resizeTextArea,
     selectedKnowledgeBases,
     text,
@@ -321,8 +335,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     await db.topics.add({ id: topic.id, messages: [] })
     await addAssistantMessagesToTopic({ assistant, topic })
 
+    // Clear previous state
     // Reset to assistant default model
     assistant.defaultModel && setModel(assistant.defaultModel)
+    // Reset to assistant knowledge mcp servers
+    setEnabledMCPs(assistant.mcpServers || [])
 
     addTopic(topic)
     setActiveTopic(topic)
@@ -616,9 +633,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const toggelEnableMCP = (mcp: MCPServer) => {
     setEnabledMCPs((prev) => {
-      const exists = prev.some((item) => item.name === mcp.name)
+      const exists = prev.some((item) => item.id === mcp.id)
       if (exists) {
-        return prev.filter((item) => item.name !== mcp.name)
+        return prev.filter((item) => item.id !== mcp.id)
       } else {
         return [...prev, mcp]
       }
@@ -626,7 +643,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const onEnableWebSearch = () => {
-    console.log(assistant)
     if (!isWebSearchModel(model)) {
       if (!WebSearchService.isWebSearchEnabled()) {
         window.modal.confirm({
@@ -645,9 +661,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
   }
 
+  const onEnableGenerateImage = () => {
+    updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
+  }
+
   useEffect(() => {
     if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
+    }
+    if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
+      updateAssistant({ ...assistant, enableGenerateImage: false })
     }
   }, [assistant, model, updateAssistant])
 
@@ -716,11 +739,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 </ToolbarButton>
               </Tooltip>
               <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
-              <MentionModelsButton
-                mentionModels={mentionModels}
-                onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
-                ToolbarButton={ToolbarButton}
-              />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
                 <ToolbarButton type="text" onClick={onEnableWebSearch}>
                   <GlobalOutlined
@@ -743,6 +761,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   ToolbarButton={ToolbarButton}
                 />
               )}
+              <GenerateImageButton
+                model={model}
+                assistant={assistant}
+                onEnableGenerateImage={onEnableGenerateImage}
+                ToolbarButton={ToolbarButton}
+              />
+              <MentionModelsButton
+                mentionModels={mentionModels}
+                onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
+                ToolbarButton={ToolbarButton}
+              />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}

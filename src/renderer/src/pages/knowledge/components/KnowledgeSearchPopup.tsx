@@ -1,4 +1,4 @@
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getFileFromUrl, getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
@@ -126,7 +126,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
                 <List.Item>
                   <ResultItem>
                     <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>
-                    <Paragraph>{highlightText(item.pageContent)}</Paragraph>
+                    <Paragraph style={{ userSelect: 'text' }}>{highlightText(item.pageContent)}</Paragraph>
                     <MetadataContainer>
                       <Text type="secondary">
                         {t('knowledge.source')}:{' '}
@@ -191,6 +191,7 @@ const MetadataContainer = styled.div`
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--color-border);
+  user-select: text;
 `
 
 const TopViewKey = 'KnowledgeSearchPopup'

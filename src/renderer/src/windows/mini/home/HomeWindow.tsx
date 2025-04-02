@@ -31,7 +31,7 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const { defaultModel: model } = useDefaultModel()
-  const { language, readClipboardAtStartup } = useSettings()
+  const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
@@ -207,9 +207,24 @@ const HomeWindow: FC = () => {
     }
   }, [route])
 
+  const backgroundColor = () => {
+    // ONLY MAC: when transparent style + light theme: use vibrancy effect
+    // because the dark style under mac's vibrancy effect has not been implemented
+    if (
+      isMac &&
+      windowStyle === 'transparent' &&
+      theme === 'light' &&
+      !window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
+      return 'transparent'
+    }
+
+    return 'var(--color-background)'
+  }
+
   if (['chat', 'summary', 'explanation'].includes(route)) {
     return (
-      <Container>
+      <Container style={{ backgroundColor: backgroundColor() }}>
         {route === 'chat' && (
           <>
             <InputBar
@@ -238,7 +253,7 @@ const HomeWindow: FC = () => {
 
   if (route === 'translate') {
     return (
-      <Container>
+      <Container style={{ backgroundColor: backgroundColor() }}>
         <TranslateWindow text={content} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
@@ -247,7 +262,7 @@ const HomeWindow: FC = () => {
   }
 
   return (
-    <Container>
+    <Container style={{ backgroundColor: backgroundColor() }}>
       <InputBar
         text={text}
         model={model}
@@ -271,6 +286,8 @@ const HomeWindow: FC = () => {
       <Divider style={{ margin: '10px 0' }} />
       <Footer
         route={route}
+        canUseBackspace={text.length > 0 || clipboardText.length == 0}
+        clearClipboard={clearClipboard}
         onExit={() => {
           setRoute('home')
           setText('')
@@ -285,14 +302,16 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   height: 100%;
+  width: 100%;
   flex-direction: column;
   -webkit-app-region: drag;
   padding: 8px 10px;
-  background-color: ${isMac ? 'transparent' : 'var(--color-background)'};
 `
 
 const Main = styled.main`
   display: flex;
+  flex-direction: column;
+
   flex: 1;
   overflow: hidden;
 `
