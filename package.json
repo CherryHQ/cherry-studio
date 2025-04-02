@@ -19,7 +19,7 @@
   },
   "scripts": {
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev -- --trace-warnings",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "yarn test && yarn typecheck && yarn check:i18n",
     "build:unpack": "dotenv npm run build && electron-builder --dir",

@@ -2,13 +2,13 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 // Original translation
-import arEG from './locales/ar-eg.json'
 import enUS from './locales/en-us.json'
 import jaJP from './locales/ja-jp.json'
 import ruRU from './locales/ru-ru.json'
 import zhCN from './locales/zh-cn.json'
 import zhTW from './locales/zh-tw.json'
 // Machine translation
+import arEG from './translate/ar-eg.json'
 import elGR from './translate/el-gr.json'
 import esES from './translate/es-es.json'
 import frFR from './translate/fr-fr.json'
