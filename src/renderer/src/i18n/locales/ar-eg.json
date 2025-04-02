@@ -53,7 +53,14 @@
       "settings.reasoning_effort.medium": "متوسط",
       "settings.reasoning_effort.off": "معطل",
       "settings.reasoning_effort.tip": "يدعم فقط نماذج التفكير من OpenAI o-series و Anthropic",
-      "title": "المساعدون"
+      "title": "المساعدون",
+      "settings.title": "إعدادات المساعد",
+      "settings.mcp": "خادم MCP",
+      "settings.mcp.enableFirst": "يرجى تفعيل هذا الخادم في إعدادات MCP أولاً",
+      "settings.mcp.title": "إعدادات MCP",
+      "settings.mcp.noServersAvailable": "لا يوجد خوادم MCP متاحة. يرجى إضافة خادم في إعدادات MCP",
+      "settings.mcp.description": "الخادم الافتراضي المفعل",
+      "settings.more": "إعدادات المساعد"
     },
     "auth": {
       "error": "فشل الحصول تلقائيًا على مفتاح API، الرجاء الحصول عليه يدويًا",
@@ -163,7 +170,6 @@
       "topics.export.word": "تصدير كملف Word",
       "topics.export.yuque": "تصدير إلى Yuque",
       "topics.export.obsidian": "تصدير إلى Obsidian",
-      "topics.export.obsidian_not_configured": "Obsidian غير مهيأ",
       "topics.export.obsidian_export_success": "تم التصدير بنجاح",
       "topics.export.obsidian_export_failed": "فشل التصدير",
       "topics.export.joplin": "تصدير إلى Joplin",
@@ -182,7 +188,10 @@
         "next": "الرسالة التالية",
         "first": "أنت بالفعل في الرسالة الأولى",
         "last": "أنت بالفعل في الرسالة الأخيرة",
-        "history": "التاريخ"
+        "history": "التاريخ",
+        "top": "العودة إلى الأعلى",
+        "bottom": "إلى الأسفل",
+        "close": "إغلاق"
       },
       "history": {
         "assistant_node": "المساعد",
@@ -212,7 +221,21 @@
       "topics.export.obsidian_title": "العنوان",
       "topics.export.obsidian_title_placeholder": "أدخل العنوان",
       "topics.export.obsidian_title_required": "العنوان لا يمكن أن يكون فارغًا",
-      "topics.export.siyuan": "تصدير إلى SiYuan"
+      "topics.export.siyuan": "تصدير إلى SiYuan",
+      "topics.export.obsidian_vault": "الخزنة",
+      "topics.export.obsidian_vault_placeholder": "الرجاء اختيار اسم الخزنة",
+      "topics.export.obsidian_path": "المسار",
+      "topics.export.obsidian_path_placeholder": "الرجاء اختيار المسار",
+      "topics.export.obsidian_no_vaults": "لم يتم العثور على خزنة Obsidian",
+      "topics.export.obsidian_loading": "جارٍ التحميل...",
+      "topics.export.obsidian_fetch_error": "فشل الحصول على خزنة Obsidian",
+      "topics.export.obsidian_fetch_folders_error": "فشل الحصول على هيكل المجلدات",
+      "topics.export.obsidian_no_vault_selected": "الرجاء تحديد خزنة أولاً",
+      "topics.export.obsidian_select_vault_first": "الرجاء تحديد الخزنة أولاً",
+      "topics.export.obsidian_root_directory": "الدليل الجذري",
+      "topics.export.wait_for_title_naming": "يتم الآن إنشاء العنوان...",
+      "topics.export.title_naming_success": "تم إنشاء العنوان بنجاح",
+      "topics.export.title_naming_failed": "فشل إنشاء العنوان، يتم استخدام العنوان الافتراضي"
     },
     "code_block": {
       "collapse": "طي",
@@ -527,7 +550,17 @@
       "sidebar.add.title": "إضافة إلى الشريط الجانبي",
       "sidebar.remove.title": "إزالة من الشريط الجانبي",
       "title": "MinApp",
-      "sidebar.hide.title": "إخفاء التطبيق"
+      "sidebar.hide.title": "إخفاء التطبيق",
+      "popup": {
+        "refresh": "تحديث",
+        "close": "إغلاق التطبيق المصغر",
+        "minimize": "تصغير التطبيق المصغر",
+        "devtools": "أدوات المطور",
+        "openExternal": "فتح في المتصفح",
+        "rightclick_copyurl": "نسخ عنوان URL بالنقر بزر الماوس الأيمن"
+      },
+      "sidebar.close.title": "إغلاق",
+      "sidebar.closeall.title": "إغلاق الكل"
     },
     "miniwindow": {
       "clipboard": {
@@ -828,12 +861,12 @@
         },
         "obsidian": {
           "title": "تكوين Obsidian",
-          "folder": "المجلد",
-          "folder_placeholder": "الرجاء إدخال اسم المجلد",
-          "tags": "التصنيفات العامة",
-          "tags_placeholder": "الرجاء إدخال أسماء التصنيفات، مفصولة بفواصل",
-          "vault": "المخزن",
-          "vault_placeholder": "الرجاء إدخال اسم المخزن"
+          "default_vault": "المخزن الافتراضي لـ Obsidian",
+          "default_vault_placeholder": "الرجاء اختيار المخزن الافتراضي لـ Obsidian",
+          "default_vault_loading": "جارٍ جلب مخزن Obsidian...",
+          "default_vault_no_vaults": "لم يتم العثور على مخزن Obsidian",
+          "default_vault_fetch_error": "فشل جلب مخزن Obsidian",
+          "default_vault_export_failed": "فشل التصدير"
         },
         "joplin": {
           "check": {
@@ -890,17 +923,16 @@
           "pathSelector.return": "العودة",
           "pathSelector.currentPath": "المسار الحالي",
           "new_folder.button.confirm": "تأكيد",
-          "new_folder.button.cancel": "إلغاء"
-        }
+          "new_folder.button.cancel": "إلغاء",
+          "new_folder.button": "مجلد جديد"
+        },
+        "message_title.use_topic_naming.title": "استخدام نموذج تسمية الموضوع لإنشاء عنوان للرسائل المصدرة",
+        "message_title.use_topic_naming.help": "عند التفعيل، يتم استخدام نموذج تسمية الموضوع لإنشاء عنوان للرسائل المصدرة. يؤثر هذا أيضًا على جميع طرق التصدير عبر Markdown."
       },
       "display.assistant.title": "إعدادات المساعد",
       "display.custom.css": "CSS مخصص",
       "display.custom.css.cherrycss": "احصل عليه من cherrycss.com",
       "display.custom.css.placeholder": "/* ضع CSS المخصص هنا */",
-      "display.minApp.disabled": "إخفاء MinApp",
-      "display.minApp.empty": "اسحب MinApp من اليسار لإخفائها هنا",
-      "display.minApp.title": "إعدادات MinApp",
-      "display.minApp.visible": "MinApp مرئي",
       "display.sidebar.chat.hiddenMessage": "المساعدون هم وظائف أساسية، لا يتم دعم إخفائها",
       "display.sidebar.disabled": "إخفاء الأيقونات",
       "display.sidebar.empty": "اسحب الميزة المخفية من الجانب الأيسر هنا",
@@ -945,10 +977,7 @@
         "argsTooltip": "كل وسيطة في سطر جديد",
         "baseUrlTooltip": "عنوان URL الأساسي للخادم البعيد",
         "command": "الأمر",
-        "commandRequired": "الرجاء إدخال أمر",
         "config_description": "تكوين خوادم بروتوكول سياق النموذج (MCP)",
-        "confirmDelete": "حذف الخادم",
-        "confirmDeleteMessage": "هل أنت متأكد أنك تريد حذف الخادم؟",
         "deleteSuccess": "تم حذف الخادم بنجاح",
         "deleteError": "فشل في حذف الخادم",
         "description": "الوصف",
@@ -958,7 +987,6 @@
         "envTooltip": "التنسيق: KEY=value، واحدة في كل سطر",
         "findMore": "ابحث عن المزيد من خوادم MCP",
         "name": "الاسم",
-        "nameRequired": "الرجاء إدخال اسم الخادم",
         "noServers": "لا توجد خوادم مكونة",
         "serverPlural": "خوادم",
         "serverSingular": "خادم",
@@ -967,7 +995,6 @@
         "updateSuccess": "تم تحديث الخادم بنجاح",
         "updateError": "فشل في تحديث الخادم",
         "url": "عنوان URL",
-        "toggleError": "فشل التبديل",
         "dependenciesInstalling": "جارٍ تثبيت التبعيات...",
         "dependenciesInstall": "تثبيت التبعيات",
         "installSuccess": "تم تثبيت التبعيات بنجاح",
@@ -993,7 +1020,25 @@
         "jsonModeHint": "قم بتحرير تمثيل JSON لتكوين خادم MCP. يرجى التأكد من صحة التنسيق قبل الحفظ.",
         "jsonFormatError": "خطأ في تنسيق JSON",
         "jsonSaveSuccess": "تم حفظ تكوين JSON.",
-        "jsonSaveError": "فشل في حفظ تكوين JSON."
+        "jsonSaveError": "فشل في حفظ تكوين JSON.",
+        "searchNpx": "البحث عن MCP",
+        "newServer": "خادم MCP",
+        "errors": {
+          "32000": "فشل تشغيل خادم MCP، يرجى التحقق من أن المعلمات كاملة وفقًا للبرنامج التعليمي"
+        },
+        "startError": "فشل البدء",
+        "editMcpJson": "تحرير تكوين MCP",
+        "installHelp": "الحصول على تعليمات التثبيت",
+        "tools": {
+          "inputSchema": "معلمات الإدخال",
+          "availableTools": "الأدوات المتاحة",
+          "noToolsAvailable": "لا توجد أدوات متاحة"
+        },
+        "deleteServer": "حذف الخادم",
+        "deleteServerConfirm": "هل أنت متأكد أنك تريد حذف هذا الخادم؟",
+        "registry": "مصدر إدارة الحزم",
+        "registryTooltip": "حدد المصدر المستخدم لتثبيت الحزم لحل مشاكل الشبكة مع المصدر الافتراضي.",
+        "registryDefault": "افتراضي"
       },
       "messages.divider": "إظهار الفاصل بين الرسائل",
       "messages.navigation": "تصفيح الرسائل",
@@ -1080,7 +1125,6 @@
         "docs_check": "فحص",
         "docs_more_details": "لمزيد من التفاصيل",
         "get_api_key": "الحصول على مفتاح API",
-        "no_models": "الرجاء إضافة نماذج أولاً قبل التحقق من اتصال API",
         "not_checked": "لم يتم التحقق",
         "remove_duplicate_keys": "إزالة المفاتيح المكررة",
         "remove_invalid_keys": "إزالة المفاتيح غير الصالحة",
@@ -1111,7 +1155,8 @@
           "model_setting": "إعدادات النموذج",
           "invalid_json": "خطأ في تنسيق JSON",
           "open_verification_first": "الرجاء النقر على الرابط أعلاه للوصول إلى صفحة التحقق."
-        }
+        },
+        "no_models_for_check": "لا توجد نماذج يمكن فحصها (مثل نماذج المحادثة)"
       },
       "proxy": {
         "mode": {
@@ -1195,7 +1240,21 @@
         },
         "title": "البحث على الويب"
       },
-      "general.auto_check_update.title": "التحقق التلقائي من التحديثات"
+      "general.auto_check_update.title": "التحقق التلقائي من التحديثات",
+      "miniapps": {
+        "title": "إعدادات التطبيقات المصغرة",
+        "disabled": "التطبيقات المصغرة المخفية",
+        "empty": "اسحب التطبيقات المصغرة التي تريد إخفاءها من اليسار إلى هنا",
+        "visible": "التطبيقات المصغرة الظاهرة",
+        "cache_settings": "إعدادات التخزين المؤقت",
+        "cache_title": "عدد التطبيقات المصغرة في التخزين المؤقت",
+        "cache_description": "تعيين الحد الأقصى لعدد التطبيقات المصغرة النشطة في نفس الوقت",
+        "reset_tooltip": "إعادة التعيين إلى الوضع الافتراضي",
+        "display_title": "إعدادات عرض التطبيقات المصغرة",
+        "sidebar_title": "إعدادات عرض التطبيقات المصغرة النشطة في الشريط الجانبي",
+        "sidebar_description": "تعيين ما إذا كان الشريط الجانبي يعرض التطبيقات المصغرة النشطة",
+        "cache_change_notice": "سيبدأ التغيير بعد زيادة أو نقصان التطبيقات المصغرة المفتوحة إلى القيمة المحددة"
+      }
     },
     "translate": {
       "any.language": "أي لغة",
