@@ -110,6 +110,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [tokenCount, setTokenCount] = useState(0)
 
   const [mentionFromKeyboard, setMentionFromKeyboard] = useState(false)
+  const [isCtrlPressed, setIsCtrlPressed] = useState(false)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -241,6 +242,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
+
+    // Detect Ctrl key press state
+    if (event.key === 'Control') {
+      setIsCtrlPressed(true)
+    }
 
     if (event.key === '@') {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
@@ -590,7 +596,23 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     window.addEventListener('focus', () => {
       textareaRef.current?.focus()
     })
-  }, [])
+
+    // Add global keyboard event listener to detect Ctrl key release
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Control') {
+        setIsCtrlPressed(false)
+        // If Ctrl key is released and menu is open, close menu
+        if (isMentionPopupOpen) {
+          setIsMentionPopupOpen(false)
+        }
+      }
+    }
+
+    document.addEventListener('keyup', handleKeyUp)
+    return () => {
+      document.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [isMentionPopupOpen])
 
   useEffect(() => {
     // if assistant knowledge bases are undefined return []
@@ -618,11 +640,34 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
 
-      setMentionModels((prev) => [...prev, model])
-      setIsMentionPopupOpen(false)
-      setTimeout(() => {
-        textareaRef.current?.focus()
-      }, 0)
+      // Check if the model is already selected
+      const isModelSelected = mentionModels.some((m) => m.id === model.id && m.provider === model.provider)
+
+      // If Ctrl key is pressed, implement multi-select logic
+      if (isCtrlPressed) {
+        // If model is already selected, deselect it (Windows-style multi-select logic)
+        if (isModelSelected) {
+          setMentionModels((prev) => prev.filter((m) => !(m.id === model.id && m.provider === model.provider)))
+        } else {
+          // Otherwise add to selection list
+          setMentionModels((prev) => [...prev, model])
+        }
+        // When Ctrl is pressed, don't close menu and keep focus
+        setTimeout(() => {
+          textareaRef.current?.focus()
+        }, 0)
+      } else {
+        // Single select mode: if model is not selected, add to list
+        if (!isModelSelected) {
+          setMentionModels((prev) => [...prev, model])
+        }
+        // Close menu
+        setIsMentionPopupOpen(false)
+        setTimeout(() => {
+          textareaRef.current?.focus()
+        }, 0)
+      }
+
       setMentionFromKeyboard(false)
     }
   }

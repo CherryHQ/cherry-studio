@@ -50,13 +50,28 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
   )
 
   const handleModelSelect = useCallback(
-    (model: Model) => {
-      // Check if model is already selected
-      if (mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))) {
+    (model: Model, ctrlPressed: boolean = false) => {
+      // When Ctrl key is pressed, allow operation even if model is already selected (deselection logic will be handled in Inputbar)
+      if (!ctrlPressed && mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))) {
         return
       }
       onSelect(model, fromKeyboard)
-      setIsOpen(false)
+      // Only close menu in non-Ctrl multi-select mode
+      if (!ctrlPressed) {
+        setIsOpen(false)
+      } else {
+        // When using Ctrl multi-select, add one-time event listener to detect Ctrl key release
+        const handleCtrlKeyUp = (e: KeyboardEvent) => {
+          if (e.key === 'Control' || e.key === 'Meta') {
+            setIsOpen(false)
+            setSearchText('')
+            setMenuDismissed(true) // Set dismissed flag when Ctrl is released
+            // Remove event listener
+            document.removeEventListener('keyup', handleCtrlKeyUp)
+          }
+        }
+        document.addEventListener('keyup', handleCtrlKeyUp, { once: true })
+      }
     },
     [fromKeyboard, mentionModels, onSelect]
   )
@@ -101,7 +116,11 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
                 {first(m.name)}
               </Avatar>
             ),
-            onClick: () => handleModelSelect(m)
+            onClick: (e) => {
+              // Detect Ctrl key state and pass to handleModelSelect
+              const ctrlPressed = e.ctrlKey || e.metaKey
+              handleModelSelect(m, ctrlPressed)
+            }
           }))
 
         return filteredModels.length > 0
@@ -153,7 +172,11 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
               {first(m.model.name)}
             </Avatar>
           ),
-          onClick: () => handleModelSelect(m.model)
+          onClick: (e: { ctrlKey: any; metaKey: any }) => {
+            // Detect Ctrl key state and pass to handleModelSelect
+            const ctrlPressed = e.ctrlKey || e.metaKey
+            handleModelSelect(m.model, ctrlPressed)
+          }
         }))
 
       if (pinnedItems.length > 0) {
@@ -223,11 +246,14 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
         e.preventDefault()
         if (selectedIndex >= 0 && selectedIndex < flatModelItems.length) {
           const selectedModel = flatModelItems[selectedIndex].model
-          if (!mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(selectedModel))) {
-            flatModelItems[selectedIndex].onClick()
+          // Directly call handleModelSelect and pass Ctrl key state
+          handleModelSelect(selectedModel, e.ctrlKey)
+
+          // If Ctrl key is pressed, don't close menu, keep multi-select state
+          if (!e.ctrlKey) {
+            setIsOpen(false)
+            setSearchText('')
           }
-          setIsOpen(false)
-          setSearchText('')
         }
       } else if (e.key === 'Escape') {
         setIsOpen(false)
@@ -235,6 +261,16 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
         setMenuDismissed(true) // Set dismissed flag when Escape is pressed
       }
     }
+
+    // Add keyup event listener to detect Ctrl key release
+    // const handleKeyUp = (e: KeyboardEvent) => {
+    //   // Handle Ctrl key release event, only close menu when menu is open
+    //   if ((e.key === 'Control' || e.key === 'Meta') && isOpen) {
+    //     setIsOpen(false)
+    //     setSearchText('')
+    //     setMenuDismissed(true) // Set dismissed flag when Ctrl is released
+    //   }
+    // }
 
     const handleTextChange = (e: Event) => {
       const textArea = e.target as HTMLTextAreaElement
@@ -263,16 +299,17 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
 
     EventEmitter.on(EVENT_NAMES.SHOW_MODEL_SELECTOR, showModelSelector)
     document.addEventListener('keydown', handleKeyDown)
+    // document.addEventListener('keyup', handleKeyUp)
 
     return () => {
       EventEmitter.off(EVENT_NAMES.SHOW_MODEL_SELECTOR, showModelSelector)
       document.removeEventListener('keydown', handleKeyDown)
+      // document.removeEventListener('keyup', handleKeyUp)
       if (textArea) {
         textArea.removeEventListener('input', handleTextChange)
       }
     }
-  }, [isOpen, selectedIndex, flatModelItems, mentionModels, menuDismissed])
-
+  }, [isOpen, selectedIndex, flatModelItems, mentionModels, menuDismissed, handleModelSelect])
   useEffect(() => {
     const updateScrollbarClass = () => {
       requestAnimationFrame(() => {
@@ -330,7 +367,7 @@ const MentionModelsButton: FC<Props> = ({ mentionModels, onMentionModel: onSelec
                     ref={(el) => setItemRef(startIndex + idx, el)}
                     className={`ant-dropdown-menu-item ${
                       selectedIndex === startIndex + idx ? 'ant-dropdown-menu-item-selected' : ''
-                    }`}
+                    } ${mentionModels.some((m) => getModelUniqId(m) === getModelUniqId(item.model)) ? 'ant-dropdown-menu-item-active' : ''}`}
                     onClick={item.onClick}>
                     <span className="ant-dropdown-menu-item-icon">{item.icon}</span>
                     {item.label}
