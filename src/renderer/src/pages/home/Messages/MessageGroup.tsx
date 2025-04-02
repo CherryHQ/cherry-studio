@@ -262,7 +262,6 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
   width: 100%;
   display: grid;
   gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
-  overflow-y: auto;
   grid-template-columns: repeat(
     ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
     minmax(550px, 1fr)
@@ -286,6 +285,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
       grid-template-rows: auto;
       gap: 16px;
     `}
+  overflow-x: auto;
   overflow-y: visible;
 `
 
