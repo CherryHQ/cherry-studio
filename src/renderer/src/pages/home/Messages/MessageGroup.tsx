@@ -285,8 +285,13 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
       grid-template-rows: auto;
       gap: 16px;
     `}
-  overflow-x: auto;
-  overflow-y: visible;
+  ${({ $layout }) => {
+    return $layout === 'horizontal'
+      ? css`
+          overflow-y: auto;
+        `
+      : 'overflow-y: visible;'
+  }}
 `
 
 interface MessageWrapperProps {
