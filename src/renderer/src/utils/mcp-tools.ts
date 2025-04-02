@@ -1,16 +1,19 @@
 import { Tool, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
-import { FunctionCall, FunctionDeclaration, SchemaType, Tool as geminiTool } from '@google/generative-ai'
 import {
   ArraySchema,
   BaseSchema,
   BooleanSchema,
   EnumStringSchema,
+  FunctionCall,
+  FunctionDeclaration,
   FunctionDeclarationSchema,
   FunctionDeclarationSchemaProperty,
   IntegerSchema,
   NumberSchema,
   ObjectSchema,
-  SimpleStringSchema
+  SchemaType,
+  SimpleStringSchema,
+  Tool as geminiTool
 } from '@google/generative-ai'
 import { nanoid } from '@reduxjs/toolkit'
 import store from '@renderer/store'
@@ -182,7 +185,9 @@ export function openAIToolsToMcpTool(
     return undefined
   }
 
-  const tool = mcpTools.find((mcptool) => mcptool.id === llmTool.function.name)
+  const tool = mcpTools.find(
+    (mcptool) => mcptool.id === llmTool.function.name || mcptool.name === llmTool.function.name
+  )
 
   if (!tool) {
     console.warn('No MCP Tool found for tool call:', llmTool)
