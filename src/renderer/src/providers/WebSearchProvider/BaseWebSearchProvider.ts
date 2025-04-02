@@ -4,10 +4,12 @@ export default abstract class BaseWebSearchProvider {
   // @ts-ignore this
   private provider: WebSearchProvider
   protected apiKey: string
+  protected apiHost: string | undefined // 添加受保护的 apiHost 字段
 
   constructor(provider: WebSearchProvider) {
     this.provider = provider
     this.apiKey = this.getApiKey()
+    this.apiHost = provider.apiHost // 在构造函数中初始化 apiHost
   }
 
   abstract search(query: string, maxResult: number, excludeDomains: string[]): Promise<WebSearchResponse>

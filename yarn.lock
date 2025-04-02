@@ -3113,6 +3113,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/axios@npm:^0.14.4":
+  version: 0.14.4
+  resolution: "@types/axios@npm:0.14.4"
+  dependencies:
+    axios: "npm:*"
+  checksum: 10c0/945ef9d9d493b7292d33cf55679af90ffb60fe85475ce79327494480d517e8263f3f0c2f262396a1ada3ef4d66f3b05ea16b1f3c40680aa2b8399c36f6a92dfa
+  languageName: node
+  linkType: hard
+
 "@types/babel__core@npm:^7.20.5":
   version: 7.20.5
   resolution: "@types/babel__core@npm:7.20.5"
@@ -3777,6 +3786,7 @@ __metadata:
     "@tavily/core": "patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch"
     "@tryfabric/martian": "npm:^1.2.4"
     "@types/adm-zip": "npm:^0"
+    "@types/axios": "npm:^0.14.4"
     "@types/fs-extra": "npm:^11"
     "@types/lodash": "npm:^4.17.5"
     "@types/markdown-it": "npm:^14"
@@ -4346,7 +4356,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"axios@npm:^1.7.3, axios@npm:^1.7.7":
+"axios@npm:*, axios@npm:^1.7.3, axios@npm:^1.7.7":
   version: 1.8.4
   resolution: "axios@npm:1.8.4"
   dependencies:
