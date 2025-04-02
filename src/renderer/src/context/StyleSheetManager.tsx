@@ -1,5 +1,5 @@
 import isPropValid from '@emotion/is-prop-valid'
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { StyleSheetManager as StyledComponentsStyleSheetManager } from 'styled-components'
 import rtlPlugin from 'stylis-plugin-rtl'
 
@@ -9,7 +9,7 @@ interface StyleSheetManagerProps {
   children: ReactNode
 }
 
-const StyleSheetManager = ({ children }: StyleSheetManagerProps): JSX.Element => {
+const StyleSheetManager = ({ children }: StyleSheetManagerProps): React.ReactElement => {
   const { isRTL } = useLayoutDirection()
   return (
     <StyledComponentsStyleSheetManager

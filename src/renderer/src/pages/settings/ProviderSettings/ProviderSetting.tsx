@@ -1,11 +1,12 @@
 import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
-import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
+import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
@@ -15,7 +16,7 @@ import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -50,7 +51,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
-  const [searchText, setSearchText] = useState('')
+  const [modelSearchText, setModelSearchText] = useState('')
+  const deferredModelSearchText = useDeferredValue(modelSearchText)
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -91,12 +93,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
 
   const onHealthCheck = async () => {
-    if (isEmpty(models)) {
+    const modelsToCheck = models.filter((model) => !isRerankModel(model))
+
+    if (isEmpty(modelsToCheck)) {
       window.message.error({
         key: 'no-models',
         style: { marginTop: '3vh' },
         duration: 5,
-        content: t('settings.provider.no_models')
+        content: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -124,7 +128,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
 
     // Prepare the list of models to be checked
-    const initialStatuses = models.map((model) => ({
+    const initialStatuses = modelsToCheck.map((model) => ({
       model,
       checking: true,
       status: undefined
@@ -135,7 +139,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     const checkResults = await checkModelsHealth(
       {
         provider: { ...provider, apiHost },
-        models,
+        models: modelsToCheck,
         apiKeys: result.apiKeys,
         isConcurrent: result.isConcurrent
       },
@@ -180,12 +184,14 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   const onCheckApi = async () => {
-    if (isEmpty(models)) {
+    const modelsToCheck = models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
+
+    if (isEmpty(modelsToCheck)) {
       window.message.error({
         key: 'no-models',
         style: { marginTop: '3vh' },
         duration: 5,
-        content: t('settings.provider.no_models')
+        content: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -382,7 +388,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
             <span>{t('common.models')}</span>
-            {!isEmpty(models) && <ModelListSearchBar onSearch={setSearchText} />}
+            {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
           </Space>
           {!isEmpty(models) && (
             <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
@@ -397,7 +403,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           )}
         </Space>
       </SettingSubtitle>
-      <ModelList provider={provider} modelStatuses={modelStatuses} searchText={searchText} />
+      <ModelList providerId={provider.id} modelStatuses={modelStatuses} searchText={deferredModelSearchText} />
     </SettingContainer>
   )
 }

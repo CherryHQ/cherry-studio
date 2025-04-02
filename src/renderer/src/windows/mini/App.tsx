@@ -9,7 +9,7 @@ import { SyntaxHighlighterProvider } from '../../context/SyntaxHighlighterProvid
 import { ThemeProvider } from '../../context/ThemeProvider'
 import HomeWindow from './home/HomeWindow'
 
-function MiniWindow(): JSX.Element {
+function MiniWindow(): React.ReactElement {
   return (
     <Provider store={store}>
       <ThemeProvider>

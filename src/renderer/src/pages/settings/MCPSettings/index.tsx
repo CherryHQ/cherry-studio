@@ -1,188 +1,179 @@
-import {
-  DeleteOutlined,
-  EditOutlined,
-  LinkOutlined,
-  PlusOutlined,
-  QuestionCircleOutlined,
-  SearchOutlined
-} from '@ant-design/icons'
+import { CodeOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { nanoid } from '@reduxjs/toolkit'
+import DragableList from '@renderer/components/DragableList'
+import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack } from '@renderer/components/Layout'
+import ListItem from '@renderer/components/ListItem'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAppSelector } from '@renderer/store'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { EventEmitter } from '@renderer/services/EventService'
 import { MCPServer } from '@renderer/types'
-import { Button, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
-import { FC, useState } from 'react'
+import { Dropdown, MenuProps } from 'antd'
+import { isEmpty } from 'lodash'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
-import AddMcpServerPopup from './AddMcpServerPopup'
-import EditMcpJsonPopup from './EditMcpJsonPopup'
+import { SettingContainer } from '..'
 import InstallNpxUv from './InstallNpxUv'
+import McpSettings from './McpSettings'
 import NpxSearch from './NpxSearch'
 
 const MCPSettings: FC = () => {
   const { t } = useTranslation()
+  const { mcpServers, addMCPServer, updateMcpServers, deleteMCPServer } = useMCPServers()
+  const [selectedMcpServer, setSelectedMcpServer] = useState<MCPServer | null>(mcpServers[0])
+  const [route, setRoute] = useState<'npx-search' | 'mcp-install' | null>(null)
   const { theme } = useTheme()
-  const { Paragraph, Text } = Typography
-  const mcpServers = useAppSelector((state) => state.mcp.servers)
-  const [loadingServer, setLoadingServer] = useState<string | null>(null)
 
-  const handleDelete = (serverName: string) => {
-    window.modal.confirm({
-      title: t('settings.mcp.confirmDelete'),
-      content: t('settings.mcp.confirmDeleteMessage'),
-      okText: t('common.delete'),
-      okButtonProps: { danger: true },
-      cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        try {
-          await window.api.mcp.deleteServer(serverName)
-          window.message.success(t('settings.mcp.deleteSuccess'))
-        } catch (error: any) {
-          window.message.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
-        }
-      }
-    })
-  }
+  useEffect(() => {
+    const unsubs = [
+      EventEmitter.on('mcp:npx-search', () => setRoute('npx-search')),
+      EventEmitter.on('mcp:mcp-install', () => setRoute('mcp-install'))
+    ]
+    return () => unsubs.forEach((unsub) => unsub())
+  }, [])
 
-  const handleToggleActive = async (name: string, isActive: boolean) => {
-    setLoadingServer(name)
-    try {
-      await window.api.mcp.setServerActive(name, isActive)
-    } catch (error: any) {
-      window.message.error(`${t('settings.mcp.toggleError')}: ${error.message}`)
-    } finally {
-      setLoadingServer(null)
+  const onAddMcpServer = async () => {
+    const newServer = {
+      id: nanoid(),
+      name: t('settings.mcp.newServer'),
+      description: '',
+      baseUrl: '',
+      command: '',
+      args: [],
+      env: {},
+      isActive: false
     }
+    addMCPServer(newServer)
+    window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
+    setSelectedMcpServer(newServer)
   }
 
-  const handleOpenMCPServers = () => {
-    window.open('https://glama.ai/mcp/servers', '_blank')
-  }
-
-  const columns = [
-    {
-      title: t('settings.mcp.name'),
-      dataIndex: 'name',
-      key: 'name',
-      width: '300px',
-      render: (text: string, record: MCPServer) => <Text strong={record.isActive}>{text}</Text>
-    },
-    {
-      title: t('settings.mcp.type'),
-      key: 'type',
-      width: '100px',
-      render: (_: any, record: MCPServer) => <Tag color="cyan">{record.baseUrl ? 'SSE' : 'STDIO'}</Tag>
-    },
-    {
-      title: t('settings.mcp.description'),
-      dataIndex: 'description',
-      key: 'description',
-      width: 'auto',
-      render: (text: string) => {
-        if (!text) {
-          return (
-            <Text type="secondary" italic>
-              {t('common.description')}
-            </Text>
-          )
-        }
-
-        return (
-          <Paragraph
-            className="selectable"
-            ellipsis={{
-              rows: 1,
-              expandable: 'collapsible',
-              symbol: t('common.more'),
-              onExpand: () => {}, // Empty callback required for proper functionality
-              tooltip: true
-            }}
-            style={{ marginBottom: 0 }}>
-            {text}
-          </Paragraph>
-        )
+  const onDeleteMcpServer = useCallback(
+    async (server: MCPServer) => {
+      try {
+        await window.api.mcp.removeServer(server)
+        await deleteMCPServer(server.id)
+        window.message.success({ content: t('settings.mcp.deleteSuccess'), key: 'mcp-list' })
+      } catch (error: any) {
+        window.message.error({
+          content: `${t('settings.mcp.deleteError')}: ${error.message}`,
+          key: 'mcp-list'
+        })
       }
     },
-    {
-      title: t('settings.mcp.active'),
-      dataIndex: 'isActive',
-      key: 'isActive',
-      width: '100px',
-      render: (isActive: boolean, record: MCPServer) => (
-        <Switch
-          checked={isActive}
-          loading={loadingServer === record.name}
-          onChange={(checked) => handleToggleActive(record.name, checked)}
-        />
-      )
+    [deleteMCPServer, t]
+  )
+
+  const getMenuItems = useCallback(
+    (server: MCPServer) => {
+      const menus: MenuProps['items'] = [
+        {
+          label: t('common.delete'),
+          danger: true,
+          key: 'delete',
+          icon: <DeleteOutlined />,
+          onClick: () => onDeleteMcpServer(server)
+        }
+      ]
+      return menus
     },
-    {
-      title: t('settings.mcp.actions'),
-      key: 'actions',
-      width: '100px',
-      render: (_: any, record: MCPServer) => (
-        <Space>
-          <Tooltip title={t('common.edit')}>
-            <Button
-              type="primary"
-              ghost
-              icon={<EditOutlined />}
-              onClick={() => AddMcpServerPopup.show({ server: record })}
-            />
-          </Tooltip>
-          <Tooltip title={t('common.delete')}>
-            <Button danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.name)} />
-          </Tooltip>
-        </Space>
+    [onDeleteMcpServer, t]
+  )
+
+  useEffect(() => {
+    const _selectedMcpServer = mcpServers.find((server) => server.id === selectedMcpServer?.id)
+    setSelectedMcpServer(_selectedMcpServer || mcpServers[0])
+  }, [mcpServers, route, selectedMcpServer])
+
+  const MainContent = useCallback(() => {
+    if (route === 'npx-search' || isEmpty(mcpServers)) {
+      return (
+        <SettingContainer theme={theme}>
+          <NpxSearch />
+        </SettingContainer>
       )
     }
-  ]
 
-  // Create a CSS class for inactive rows instead of using jsx global
-  const inactiveRowStyle = {
-    opacity: 0.7,
-    backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f5f5f5'
-  }
+    if (route === 'mcp-install') {
+      return (
+        <SettingContainer theme={theme}>
+          <InstallNpxUv />
+        </SettingContainer>
+      )
+    }
+
+    if (selectedMcpServer) {
+      return <McpSettings server={selectedMcpServer} />
+    }
+
+    return <NpxSearch />
+  }, [mcpServers, route, selectedMcpServer, theme])
 
   return (
-    <SettingContainer theme={theme}>
-      <InstallNpxUv />
-      <SettingGroup theme={theme}>
-        <SettingTitle>
-          {t('settings.mcp.title')}
-          <Tooltip title={t('settings.mcp.config_description')}>
-            <QuestionCircleOutlined style={{ marginLeft: 8, fontSize: 14 }} />
-          </Tooltip>
-        </SettingTitle>
-        <SettingDivider />
-        <HStack gap={15} alignItems="center">
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => AddMcpServerPopup.show()}>
-            {t('settings.mcp.addServer')}
-          </Button>
-          <Button icon={<EditOutlined />} onClick={() => EditMcpJsonPopup.show()}>
-            {t('settings.mcp.editJson')}
-          </Button>
-          <Button icon={<SearchOutlined />} onClick={handleOpenMCPServers}>
-            {t('settings.mcp.findMore')} <LinkOutlined />
-          </Button>
-        </HStack>
-        <Table
-          dataSource={mcpServers}
-          columns={columns}
-          rowKey="name"
-          pagination={false}
-          size="small"
-          locale={{ emptyText: t('settings.mcp.noServers') }}
-          rowClassName={(record) => (!record.isActive ? 'inactive-row' : '')}
-          onRow={(record) => ({ style: !record.isActive ? inactiveRowStyle : {} })}
-          style={{ marginTop: 15 }}
+    <Container>
+      <McpList>
+        <ListItem
+          key="add"
+          title={t('settings.mcp.addServer')}
+          active={false}
+          onClick={onAddMcpServer}
+          icon={<PlusOutlined />}
+          titleStyle={{ fontWeight: 500 }}
+          style={{ marginBottom: 5 }}
         />
-      </SettingGroup>
-      <NpxSearch />
-    </SettingContainer>
+        <DragableList list={mcpServers} onUpdate={updateMcpServers}>
+          {(server: MCPServer) => (
+            <Dropdown menu={{ items: getMenuItems(server) }} trigger={['contextMenu']} key={server.id}>
+              <div>
+                <ListItem
+                  key={server.id}
+                  title={server.name}
+                  active={selectedMcpServer?.id === server.id}
+                  onClick={() => {
+                    setSelectedMcpServer(server)
+                    setRoute(null)
+                  }}
+                  titleStyle={{ fontWeight: 500 }}
+                  icon={<CodeOutlined />}
+                  rightContent={
+                    <IndicatorLight
+                      size={6}
+                      color={server.isActive ? 'green' : 'var(--color-text-3)'}
+                      animation={server.isActive}
+                      shadow={false}
+                      style={{ marginRight: 4 }}
+                    />
+                  }
+                />
+              </div>
+            </Dropdown>
+          )}
+        </DragableList>
+      </McpList>
+      <MainContent />
+    </Container>
   )
 }
+
+const Container = styled(HStack)`
+  flex: 1;
+`
+
+const McpList = styled(Scrollbar)`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: var(--settings-width);
+  padding: 12px;
+  border-right: 0.5px solid var(--color-border);
+  height: calc(100vh - var(--navbar-height));
+  .iconfont {
+    color: var(--color-text-2);
+    line-height: 16px;
+  }
+`
 
 export default MCPSettings

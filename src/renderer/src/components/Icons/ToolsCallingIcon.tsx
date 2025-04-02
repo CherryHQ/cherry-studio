@@ -23,7 +23,7 @@ const Container = styled.div`
 `
 
 const Icon = styled(ToolOutlined)`
-  color: #d97757;
+  color: var(--color-primary);
   font-size: 15px;
   margin-inline-end: 6px;
 `

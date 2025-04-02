@@ -20,7 +20,7 @@
   --color-gray-2: #414853;
   --color-gray-3: #32363f;
 
-  --color-text-1: rgba(255, 255, 245, 0.86);
+  --color-text-1: rgba(255, 255, 245, 0.9);
   --color-text-2: rgba(235, 235, 245, 0.6);
   --color-text-3: rgba(235, 235, 245, 0.38);
 
@@ -53,7 +53,7 @@
   --color-reference-background: #0b0e12;
 
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
-  --navbar-background: rgba(20, 20, 20, 0.4);
+  --navbar-background: #1f1f1f;
 
   --navbar-height: 40px;
   --sidebar-width: 50px;
@@ -125,7 +125,7 @@ body[theme-mode='light'] {
   --color-reference-background: #f1f7ff;
 
   --navbar-background-mac: rgba(255, 255, 255, 0.55);
-  --navbar-background: rgba(255, 255, 255, 0.4);
+  --navbar-background: rgba(244, 244, 244);
 
   --chat-background: #f3f3f3;
   --chat-background-user: #95ec69;

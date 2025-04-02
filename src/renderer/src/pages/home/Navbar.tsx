@@ -3,7 +3,7 @@ import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar
 import { HStack } from '@renderer/components/Layout'
 import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { isMac, isWindows } from '@renderer/config/constant'
+import { isMac } from '@renderer/config/constant'
 import { useLayoutDirection } from '@renderer/context/LayoutDirection'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
@@ -77,13 +77,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
           </Tooltip>
         </NavbarLeft>
       )}
-      <NavbarRight
-        style={{
-          justifyContent: 'space-between',
-          paddingInlineEnd: isRTL ? (isWindows ? 12 : 80) : isWindows ? 140 : 12,
-          flex: 1
-        }}
-        className="home-navbar-right">
+      <NavbarRight style={{ justifyContent: 'space-between', flex: 1 }} className="home-navbar-right">
         <HStack alignItems="center">
           {!showAssistants && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>

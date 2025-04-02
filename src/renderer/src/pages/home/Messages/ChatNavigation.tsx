@@ -1,4 +1,11 @@
-import { DownOutlined, HistoryOutlined, UpOutlined } from '@ant-design/icons'
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  CloseOutlined,
+  HistoryOutlined,
+  VerticalAlignBottomOutlined,
+  VerticalAlignTopOutlined
+} from '@ant-design/icons'
 import { useLayoutDirection } from '@renderer/context/LayoutDirection'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { RootState } from '@renderer/store'
@@ -21,13 +28,12 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [isNearButtons, setIsNearButtons] = useState(false)
   const [hideTimer, setHideTimer] = useState<NodeJS.Timeout | null>(null)
   const [showChatHistory, setShowChatHistory] = useState(false)
+  const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
   const currentTopicId = useSelector((state: RootState) => selectCurrentTopicId(state))
   const lastMoveTime = useRef(0)
   const { topicPosition, showTopics } = useSettings()
   const showRightTopics = topicPosition === 'right' && showTopics
   const { isRTL } = useLayoutDirection()
-  const sidePosition = isRTL ? 'left' : 'right'
-  const sideOffset = showRightTopics ? 'calc(var(--topic-list-width) + 16px)' : '16px'
 
   // Reset hide timer and make buttons visible
   const resetHideTimer = useCallback(() => {
@@ -48,6 +54,10 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
   // Handle mouse entering button area
   const handleMouseEnter = useCallback(() => {
+    if (manuallyClosedUntil && Date.now() < manuallyClosedUntil) {
+      return
+    }
+
     setIsNearButtons(true)
     setIsVisible(true)
 
@@ -56,7 +66,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       clearTimeout(hideTimer)
       setHideTimer(null)
     }
-  }, [hideTimer])
+  }, [hideTimer, manuallyClosedUntil])
 
   // Handle mouse leaving button area
   const handleMouseLeave = useCallback(() => {
@@ -101,7 +111,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
   const scrollToTop = () => {
     const container = document.getElementById(containerId)
-    container && container.scrollTo({ top: 0, behavior: 'smooth' })
+    container && container.scrollTo({ top: -container.scrollHeight, behavior: 'smooth' })
   }
 
   const scrollToBottom = () => {
@@ -150,6 +160,23 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     }
 
     return -1
+  }
+
+  // 修改 handleCloseChatNavigation 函数
+  const handleCloseChatNavigation = () => {
+    setIsVisible(false)
+    // 设置手动关闭状态，1分钟内不响应鼠标靠近事件
+    setManuallyClosedUntil(Date.now() + 60000) // 60000毫秒 = 1分钟
+  }
+
+  const handleScrollToTop = () => {
+    resetHideTimer()
+    scrollToTop()
+  }
+
+  const handleScrollToBottom = () => {
+    resetHideTimer()
+    scrollToBottom()
   }
 
   const handleNextMessage = () => {
@@ -220,6 +247,11 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
     // Throttled mouse move handler to improve performance
     const handleMouseMove = (e: MouseEvent) => {
+      // 如果在手动关闭期间，不响应鼠标移动事件
+      if (manuallyClosedUntil && Date.now() < manuallyClosedUntil) {
+        return
+      }
+
       // Throttle mouse move to every 50ms for performance
       const now = Date.now()
       if (now - lastMoveTime.current < 50) return
@@ -266,21 +298,43 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         clearTimeout(hideTimer)
       }
     }
-  }, [containerId, hideTimer, resetHideTimer, isNearButtons, handleMouseEnter, handleMouseLeave, showRightTopics])
+  }, [
+    containerId,
+    hideTimer,
+    resetHideTimer,
+    isNearButtons,
+    handleMouseEnter,
+    handleMouseLeave,
+    showRightTopics,
+    manuallyClosedUntil
+  ])
 
   return (
     <>
-      <NavigationContainer
-        $isVisible={isVisible}
-        $sidePosition={sidePosition}
-        $sideOffset={sideOffset}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}>
+      <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
+          <Tooltip title={t('chat.navigation.close')} placement={isRTL ? 'right' : 'left'}>
+            <NavigationButton
+              type="text"
+              icon={<CloseOutlined />}
+              onClick={handleCloseChatNavigation}
+              aria-label={t('chat.navigation.close')}
+            />
+          </Tooltip>
+          <Divider />
+          <Tooltip title={t('chat.navigation.top')} placement={isRTL ? 'right' : 'left'}>
+            <NavigationButton
+              type="text"
+              icon={<VerticalAlignTopOutlined />}
+              onClick={handleScrollToTop}
+              aria-label={t('chat.navigation.top')}
+            />
+          </Tooltip>
+          <Divider />
           <Tooltip title={t('chat.navigation.prev')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
-              icon={<UpOutlined />}
+              icon={<ArrowUpOutlined />}
               onClick={handlePrevMessage}
               aria-label={t('chat.navigation.prev')}
             />
@@ -289,9 +343,27 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
           <Tooltip title={t('chat.navigation.next')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
-              icon={<DownOutlined />}
+              icon={<ArrowDownOutlined />}
               onClick={handleNextMessage}
               aria-label={t('chat.navigation.next')}
+            />
+          </Tooltip>
+          <Divider />
+          <Tooltip title={t('chat.navigation.bottom')} placement={isRTL ? 'right' : 'left'}>
+            <NavigationButton
+              type="text"
+              icon={<VerticalAlignBottomOutlined />}
+              onClick={handleScrollToBottom}
+              aria-label={t('chat.navigation.bottom')}
+            />
+          </Tooltip>
+          <Divider />
+          <Tooltip title={t('chat.navigation.bottom')} placement={isRTL ? 'right' : 'left'}>
+            <NavigationButton
+              type="text"
+              icon={<VerticalAlignBottomOutlined />}
+              onClick={handleScrollToBottom}
+              aria-label={t('chat.navigation.bottom')}
             />
           </Tooltip>
           <Divider />
@@ -327,16 +399,13 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
 interface NavigationContainerProps {
   $isVisible: boolean
-  $sidePosition: 'left' | 'right'
-  $sideOffset: string
 }
 
 const NavigationContainer = styled.div<NavigationContainerProps>`
   position: fixed;
-  ${(props) => props.$sidePosition}: ${(props) => props.$sideOffset};
+  inset-inline-end: 16px;
   top: 50%;
-  transform: translateY(-50%)
-    translateX(${(props) => (props.$isVisible ? 0 : props.$sidePosition === 'right' ? '100%' : '-100%')});
+  transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? 0 : '100%')});
   z-index: 999;
   opacity: ${(props) => (props.$isVisible ? 1 : 0)};
   transition:

@@ -7,13 +7,14 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import type { Message } from '@renderer/types'
 import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
 import { isEmpty } from 'lodash'
-import { type FC, useCallback, useMemo } from 'react'
+import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 // @ts-ignore next-line
 import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
+import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 
@@ -36,6 +37,8 @@ interface Props {
   >
 }
 
+const remarkPlugins = [remarkMath, remarkGfm, remarkCjkFriendly]
+const disallowedElements = ['iframe']
 const Markdown: FC<Props> = ({ message, citationsData }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
@@ -54,7 +57,7 @@ const Markdown: FC<Props> = ({ message, citationsData }) => {
     return hasElements ? [rehypeRaw, rehypeMath] : [rehypeMath]
   }, [messageContent, rehypeMath])
 
-  const components = useCallback(() => {
+  const components = useMemo(() => {
     const baseComponents = {
       a: (props: any) => {
         if (props.href && citationsData?.has(props.href)) {
@@ -63,15 +66,12 @@ const Markdown: FC<Props> = ({ message, citationsData }) => {
         return <Link {...props} />
       },
       code: CodeBlock,
-      img: ImagePreview
+      img: ImagePreview,
+      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
+      style: MarkdownShadowDOMRenderer as any
     } as Partial<Components>
-
-    if (messageContent.includes('<style>')) {
-      baseComponents.style = MarkdownShadowDOMRenderer as any
-    }
-
     return baseComponents
-  }, [messageContent, citationsData])
+  }, [citationsData])
 
   if (message.role === 'user' && !renderInputMessageAsMarkdown) {
     return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
@@ -80,9 +80,10 @@ const Markdown: FC<Props> = ({ message, citationsData }) => {
   return (
     <ReactMarkdown
       rehypePlugins={rehypePlugins}
-      remarkPlugins={[remarkMath, remarkGfm]}
+      remarkPlugins={remarkPlugins}
       className="markdown"
-      components={components()}
+      components={components}
+      disallowedElements={disallowedElements}
       remarkRehypeOptions={{
         footnoteLabel: t('common.footnotes'),
         footnoteLabelTagName: 'h4',

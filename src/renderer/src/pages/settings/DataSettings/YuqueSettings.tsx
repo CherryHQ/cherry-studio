@@ -1,7 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import MinApp from '@renderer/components/MinApp'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setYuqueRepoId, setYuqueToken, setYuqueUrl } from '@renderer/store/settings'
 import { Button, Tooltip } from 'antd'
@@ -16,6 +16,7 @@ const YuqueSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
+  const { openMinapp } = useMinappPopup()
 
   const yuqueToken = useSelector((state: RootState) => state.settings.yuqueToken)
   const yuqueUrl = useSelector((state: RootState) => state.settings.yuqueUrl)
@@ -64,7 +65,7 @@ const YuqueSettings: FC = () => {
   }
 
   const handleYuqueHelpClick = () => {
-    MinApp.start({
+    openMinapp({
       id: 'yuque-help',
       name: 'Yuque Help',
       url: 'https://www.yuque.com/settings/tokens'

@@ -16,11 +16,11 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import { RAGApplication, RAGApplicationBuilder, TextLoader } from '@llm-tools/embedjs'
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
-import { LibSqlDb } from '@llm-tools/embedjs-libsql'
-import { SitemapLoader } from '@llm-tools/embedjs-loader-sitemap'
-import { WebLoader } from '@llm-tools/embedjs-loader-web'
+import { RAGApplication, RAGApplicationBuilder, TextLoader } from '@cherrystudio/embedjs'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
+import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
+import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import Embeddings from '@main/embeddings/Embeddings'
 import { addFileLoader } from '@main/loader'
 import Reranker from '@main/reranker/Reranker'
@@ -475,6 +475,9 @@ class KnowledgeService {
     _: Electron.IpcMainInvokeEvent,
     { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }
   ): Promise<ExtractChunkData[]> => {
+    if (results.length === 0) {
+      return results
+    }
     return await new Reranker(base).rerank(search, results)
   }
 }
