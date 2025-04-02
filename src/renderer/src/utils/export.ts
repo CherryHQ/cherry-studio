@@ -53,27 +53,29 @@ export const messageToMarkdownWithReasoning = (message: Message) => {
   return [titleSection, '', reasoningSection + contentSection].join('\n')
 }
 
-export const messagesToMarkdown = (messages: Message[]) => {
-  return messages.map((message) => messageToMarkdown(message)).join('\n\n---\n\n')
+export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolean) => {
+  return messages
+    .map((message) => (exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)))
+    .join('\n\n---\n\n')
 }
 
-export const topicToMarkdown = async (topic: Topic) => {
+export const topicToMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
   const topicName = `# ${topic.name}`
   const topicMessages = await db.topics.get(topic.id)
 
   if (topicMessages) {
-    return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages)
+    return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages, exportReasoning)
   }
 
   return ''
 }
 
-export const exportTopicAsMarkdown = async (topic: Topic) => {
+export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
-      const markdown = await topicToMarkdown(topic)
+      const markdown = await topicToMarkdown(topic, exportReasoning)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
         window.message.success({
@@ -88,7 +90,7 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
-      const markdown = await topicToMarkdown(topic)
+      const markdown = await topicToMarkdown(topic, exportReasoning)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {

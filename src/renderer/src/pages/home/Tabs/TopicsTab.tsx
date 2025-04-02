@@ -161,6 +161,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       state.settings.exportMenuOptions || {
         image: true,
         markdown: true,
+        markdown_reason: true,
         notion: true,
         yuque: true,
         joplin: true,
@@ -275,6 +276,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               label: t('chat.topics.export.md'),
               key: 'markdown',
               onClick: () => exportTopicAsMarkdown(topic)
+            },
+            exportMenuOptions.markdown_reason !== false && {
+              label: t('chat.topics.export.md.reason'),
+              key: 'markdown_reason',
+              onClick: () => exportTopicAsMarkdown(topic, true)
             },
             exportMenuOptions.docx !== false && {
               label: t('chat.topics.export.word'),

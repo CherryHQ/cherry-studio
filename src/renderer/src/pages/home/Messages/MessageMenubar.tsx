@@ -75,6 +75,7 @@ const MessageMenubar: FC<Props> = (props) => {
       state.settings.exportMenuOptions || {
         image: true,
         markdown: true,
+        markdown_reason: true,
         notion: true,
         yuque: true,
         joplin: true,
@@ -224,6 +225,11 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.md'),
             key: 'markdown',
             onClick: () => exportMessageAsMarkdown(message)
+          },
+          exportMenuOptions.markdown_reason && {
+            label: t('chat.topics.export.md.reason'),
+            key: 'markdown_reason',
+            onClick: () => exportMessageAsMarkdown(message, true)
           },
           exportMenuOptions.docx && {
             label: t('chat.topics.export.word'),

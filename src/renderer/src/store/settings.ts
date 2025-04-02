@@ -104,6 +104,7 @@ export interface SettingsState {
   exportMenuOptions: {
     image: boolean
     markdown: boolean
+    markdown_reason: boolean
     notion: boolean
     yuque: boolean
     joplin: boolean
@@ -196,6 +197,7 @@ const initialState: SettingsState = {
   exportMenuOptions: {
     image: true,
     markdown: true,
+    markdown_reason: true,
     notion: true,
     yuque: true,
     joplin: true,

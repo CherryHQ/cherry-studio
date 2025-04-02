@@ -18,6 +18,7 @@ const ExportMenuOptions: FC = () => {
       state.settings.exportMenuOptions || {
         image: true,
         markdown: true,
+        markdown_reason: true,
         notion: true,
         yuque: true,
         joplin: true,
@@ -51,38 +52,47 @@ const ExportMenuOptions: FC = () => {
         <SettingRowTitle>{t('settings.data.export_menu.markdown')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.markdown} onChange={(checked) => handleToggleOption('markdown', checked)} />
       </SettingRow>
-
       <SettingDivider />
+
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.export_menu.markdown_reason')}</SettingRowTitle>
+        <Switch
+          checked={exportMenuOptions.markdown_reason}
+          onChange={(checked) => handleToggleOption('markdown_reason', checked)}
+        />
+      </SettingRow>
+      <SettingDivider />
+
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.notion')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.notion} onChange={(checked) => handleToggleOption('notion', checked)} />
       </SettingRow>
-
       <SettingDivider />
+
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.yuque')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.yuque} onChange={(checked) => handleToggleOption('yuque', checked)} />
       </SettingRow>
-
       <SettingDivider />
+
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.joplin')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.joplin} onChange={(checked) => handleToggleOption('joplin', checked)} />
       </SettingRow>
-
       <SettingDivider />
+
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.obsidian')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.obsidian} onChange={(checked) => handleToggleOption('obsidian', checked)} />
       </SettingRow>
-
       <SettingDivider />
+
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.siyuan')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.siyuan} onChange={(checked) => handleToggleOption('siyuan', checked)} />
       </SettingRow>
-
       <SettingDivider />
+
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.docx} onChange={(checked) => handleToggleOption('docx', checked)} />
