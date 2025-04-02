@@ -22,8 +22,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 
 import { defaultLanguage } from '@shared/config/constant'
 
-import { defaultLanguage } from '@shared/config/constant'
-
 const HomeWindow: FC = () => {
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
   const [isFirstMessage, setIsFirstMessage] = useState(true)
