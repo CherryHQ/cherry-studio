@@ -215,7 +215,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'image',
             onClick: async () => {
               const imageData = await captureScrollableDivAsDataURL(messageContainerRef)
-              const title = getMessageTitle(message)
+              const title = await getMessageTitle(message)
               if (title && imageData) {
                 window.api.file.saveImage(title, imageData)
               }
@@ -236,14 +236,15 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'word',
             onClick: async () => {
               const markdown = messageToMarkdown(message)
-              window.api.export.toWord(markdown, getMessageTitle(message))
+              const title = await getMessageTitle(message)
+              window.api.export.toWord(markdown, title)
             }
           },
           exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
             key: 'notion',
             onClick: async () => {
-              const title = getMessageTitle(message)
+              const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToNotion(title, markdown)
             }
@@ -252,7 +253,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.yuque'),
             key: 'yuque',
             onClick: async () => {
-              const title = getMessageTitle(message)
+              const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToYuque(title, markdown)
             }
@@ -270,7 +271,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.joplin'),
             key: 'joplin',
             onClick: async () => {
-              const title = getMessageTitle(message)
+              const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToJoplin(title, markdown)
             }
@@ -279,7 +280,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.siyuan'),
             key: 'siyuan',
             onClick: async () => {
-              const title = getMessageTitle(message)
+              const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToSiyuan(title, markdown)
             }

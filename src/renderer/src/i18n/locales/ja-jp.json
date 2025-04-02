@@ -150,7 +150,10 @@
         "history": "チャット履歴",
         "last": "最後のメッセージです",
         "next": "次のメッセージ",
-        "prev": "前のメッセージ"
+        "prev": "前のメッセージ",
+        "top": "トップに戻る",
+        "bottom": "下部に戻る",
+        "close": "閉じる"
       },
       "resend": "再送信",
       "save": "保存",
@@ -230,7 +233,10 @@
       "topics.title": "トピック",
       "topics.unpinned": "固定解除",
       "translate": "翻訳",
-      "topics.export.siyuan": "思源笔记にエクスポート"
+      "topics.export.siyuan": "思源笔记にエクスポート",
+      "topics.export.wait_for_title_naming": "タイトルを生成中...",
+      "topics.export.title_naming_success": "タイトルの生成に成功しました",
+      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します"
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -578,13 +584,17 @@
         "copy_last_message": "C キーを押してコピー",
         "esc": "ESC キーを押して{{action}}",
         "esc_back": "戻る",
-        "esc_close": "ウィンドウを閉じる"
+        "esc_close": "ウィンドウを閉じる",
+        "backspace_clear": "バックスペースを押してクリアします"
       },
       "input": {
         "placeholder": {
           "empty": "{{model}} に質問してください...",
           "title": "下のテキストに対して何をしますか？"
         }
+      },
+      "tooltip": {
+        "pin": "上部ウィンドウ"
       }
     },
     "models": {
@@ -937,7 +947,9 @@
           "new_folder.button.confirm": "確認",
           "new_folder.button.cancel": "キャンセル",
           "new_folder.button": "新しいフォルダー"
-        }
+        },
+        "message_title.use_topic_naming.title": "トピック命名モデルを使用してメッセージのタイトルを作成",
+        "message_title.use_topic_naming.help": "この設定は、すべてのMarkdownエクスポート方法に影響します。"
       },
       "display.assistant.title": "アシスタント設定",
       "display.custom.css": "カスタムCSS",

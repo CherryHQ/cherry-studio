@@ -221,7 +221,7 @@ export default class AnthropicProvider extends BaseProvider {
       return onChunk({
         text,
         reasoning_content,
-        usage: message.usage,
+        usage: message.usage as any,
         metrics: {
           completion_tokens: message.usage.output_tokens,
           time_completion_millsec,

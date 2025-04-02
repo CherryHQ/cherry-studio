@@ -150,7 +150,10 @@
         "history": "История чата",
         "last": "Уже последнее сообщение",
         "next": "Следующее сообщение",
-        "prev": "Предыдущее сообщение"
+        "prev": "Предыдущее сообщение",
+        "top": "Вернуться наверх",
+        "bottom": "Вернуться вниз",
+        "close": "Закрыть"
       },
       "resend": "Переотправить",
       "save": "Сохранить",
@@ -230,7 +233,10 @@
       "topics.title": "Топики",
       "topics.unpinned": "Открепленные темы",
       "translate": "Перевести",
-      "topics.export.siyuan": "Экспорт в Siyuan Note"
+      "topics.export.siyuan": "Экспорт в Siyuan Note",
+      "topics.export.wait_for_title_naming": "Создание заголовка...",
+      "topics.export.title_naming_success": "Заголовок успешно создан",
+      "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию"
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -578,13 +584,17 @@
         "copy_last_message": "Нажмите C для копирования",
         "esc": "Нажмите ESC {{action}}",
         "esc_back": "возвращения",
-        "esc_close": "закрытия окна"
+        "esc_close": "закрытия окна",
+        "backspace_clear": "Нажмите Backspace, чтобы очистить"
       },
       "input": {
         "placeholder": {
           "empty": "Задайте вопрос {{model}}...",
           "title": "Что вы хотите сделать с этим текстом?"
         }
+      },
+      "tooltip": {
+        "pin": "Верхнее окно"
       }
     },
     "models": {
@@ -937,7 +947,9 @@
           "new_folder.button.confirm": "Подтвердить",
           "new_folder.button.cancel": "Отмена",
           "new_folder.button": "Новая папка"
-        }
+        },
+        "message_title.use_topic_naming.title": "Использовать модель именования тем для создания заголовков сообщений",
+        "message_title.use_topic_naming.help": "Этот параметр влияет на все методы экспорта в Markdown, такие как Notion, Yuque и т.д."
       },
       "display.assistant.title": "Настройки ассистентов",
       "display.custom.css": "Пользовательский CSS",

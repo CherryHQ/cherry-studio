@@ -103,7 +103,8 @@ export const exportMessageAsMarkdown = async (message: Message, exportReasoning?
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
-      const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + '.md'
+      const title = await getMessageTitle(message)
+      const fileName = removeSpecialCharactersForFileName(title) + '.md'
       const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
@@ -118,7 +119,8 @@ export const exportMessageAsMarkdown = async (message: Message, exportReasoning?
   } else {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + ` ${timestamp}.md`
+      const title = await getMessageTitle(message)
+      const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
       const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })

@@ -269,7 +269,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           ) : (
             <VirtualList
               data={fileItems.reverse()}
-              height={window.innerHeight - 310}
+              height={fileItems.length > 5 ? 400 : fileItems.length * 80}
               itemHeight={80}
               itemKey="id"
               styles={{

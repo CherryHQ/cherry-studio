@@ -112,7 +112,8 @@ const api = {
     show: () => ipcRenderer.invoke('miniwindow:show'),
     hide: () => ipcRenderer.invoke('miniwindow:hide'),
     close: () => ipcRenderer.invoke('miniwindow:close'),
-    toggle: () => ipcRenderer.invoke('miniwindow:toggle')
+    toggle: () => ipcRenderer.invoke('miniwindow:toggle'),
+    setPin: (isPinned: boolean) => ipcRenderer.invoke('miniwindow:set-pin', isPinned)
   },
   aes: {
     encrypt: (text: string, secretKey: string, iv: string) => ipcRenderer.invoke('aes:encrypt', text, secretKey, iv),
