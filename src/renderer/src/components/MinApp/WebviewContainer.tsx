@@ -1,3 +1,4 @@
+import { useLayoutDirection } from '@renderer/context/LayoutDirection'
 import { WebviewTag } from 'electron'
 import { memo, useEffect, useRef } from 'react'
 
@@ -21,6 +22,7 @@ const WebviewContainer = memo(
     onNavigateCallback: (appid: string, url: string) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
+    const { isRTL } = useLayoutDirection()
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)
@@ -47,6 +49,13 @@ const WebviewContainer = memo(
 
       const handleLoaded = () => {
         onLoadedCallback(appid)
+        if (isRTL && webviewRef.current) {
+          webviewRef.current.executeJavaScript(`
+            document.documentElement.dir = 'rtl';
+            document.documentElement.style.direction = 'rtl';
+            document.documentElement.style.unicodeBidi = 'isolate';
+          `)
+        }
       }
 
       const handleNavigate = (event: any) => {
