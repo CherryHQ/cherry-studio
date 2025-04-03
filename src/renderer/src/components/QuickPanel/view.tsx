@@ -332,13 +332,16 @@ const QuickPanelContainer = styled.div<{ $pageSize: number }>`
 `
 
 const QuickPanelBody = styled.div`
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(35px) saturate(150%);
   border-radius: 8px 8px 0 0;
   padding: 5px 0;
   border-width: 0.5px 0.5px 0 0.5px;
   border-style: solid;
   border-color: var(--color-border);
+  body[theme-mode='dark'] & {
+    background-color: rgba(0, 0, 0, 0.4);
+  }
 `
 
 const QuickPanelFooter = styled.div`
