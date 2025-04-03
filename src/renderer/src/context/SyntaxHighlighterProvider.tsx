@@ -4,9 +4,9 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { type CodeStyleVarious, ThemeMode } from '@renderer/types'
 import { LRUCache } from 'lru-cache'
 import type React from 'react'
-import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BundledLanguage, BundledTheme, HighlighterGeneric } from 'shiki'
-import { bundledLanguages, bundledThemes, createHighlighter } from 'shiki'
+import { createContext, type PropsWithChildren, use, useCallback, useMemo, useRef } from 'react'
+import type { BundledLanguage } from 'shiki'
+import { bundledLanguages, bundledThemes, createHighlighter, type Highlighter } from 'shiki'
 
 interface SyntaxHighlighterContextType {
   codeToHtml: (code: string, language: string) => Promise<string>
@@ -15,14 +15,29 @@ interface SyntaxHighlighterContextType {
 const SyntaxHighlighterContext = createContext<SyntaxHighlighterContextType | undefined>(undefined)
 
 // 全局高亮器缓存 (LRU, 最多2个实例)
-const highlighterCache = new LRUCache<string, HighlighterGeneric<BundledLanguage, BundledTheme>>({
+const highlighterCache = new LRUCache<string, Promise<Highlighter>>({
   max: 2,
-  dispose: (value) => value.dispose()
+  dispose: async (hlPromise) => (await hlPromise)?.dispose()
 })
+
+// 创建高亮器
+async function getHighlighter(theme: string) {
+  const commonLanguages = ['javascript', 'typescript', 'python', 'java', 'markdown']
+
+  const hlCached = highlighterCache.get(theme)
+  if (hlCached) return await hlCached
+
+  const hlPromise = createHighlighter({
+    themes: [theme],
+    langs: commonLanguages
+  })
+
+  highlighterCache.set(theme, hlPromise)
+  return await hlPromise
+}
 
 export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const { theme } = useTheme()
-  const [highlighter, setHighlighter] = useState<HighlighterGeneric<BundledLanguage, BundledTheme> | null>(null)
   const { codeStyle } = useSettings()
   useMermaid()
 
@@ -33,32 +48,6 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
 
     return codeStyle
   }, [theme, codeStyle])
-
-  useEffect(() => {
-    const initHighlighter = async () => {
-      const commonLanguages = ['javascript', 'typescript', 'python', 'java', 'markdown']
-
-      const hl_cached = highlighterCache.get(highlighterTheme)
-      if (hl_cached) {
-        setHighlighter(hl_cached)
-        return
-      }
-
-      const hl = await createHighlighter({
-        themes: [highlighterTheme],
-        langs: commonLanguages
-      })
-
-      highlighterCache.set(highlighterTheme, hl)
-      setHighlighter(hl)
-
-      // Load all themes and languages
-      // hl.loadTheme(...(Object.keys(bundledThemes) as BundledTheme[]))
-      // hl.loadLanguage(...(Object.keys(bundledLanguages) as BundledLanguage[]))
-    }
-
-    initHighlighter()
-  }, [highlighterTheme])
 
   // 高亮结果缓存
   const highlightCache = useRef(
@@ -86,8 +75,6 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
   const codeToHtml = useCallback(
     async (_code: string, language: string) => {
       {
-        if (!highlighter) return ''
-
         const key = getCacheKey(_code, language, highlighterTheme)
         const cached = highlightCache.current.get(key)
         if (cached) return cached
@@ -102,6 +89,8 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
         const escapedCode = code?.replace(/[<>]/g, (char) => ({ '<': '&lt;', '>': '&gt;' })[char]!)
 
         try {
+          const highlighter = await getHighlighter(highlighterTheme)
+
           if (!highlighter.getLoadedLanguages().includes(mappedLanguage as BundledLanguage)) {
             if (mappedLanguage in bundledLanguages || mappedLanguage === 'text') {
               await highlighter.loadLanguage(mappedLanguage as BundledLanguage)
@@ -122,7 +111,7 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
         }
       }
     },
-    [getCacheKey, highlighter, highlighterTheme]
+    [getCacheKey, highlighterTheme]
   )
 
   return <SyntaxHighlighterContext value={{ codeToHtml }}>{children}</SyntaxHighlighterContext>
