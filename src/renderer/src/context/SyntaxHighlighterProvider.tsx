@@ -37,6 +37,36 @@ async function getHighlighter(theme: string) {
   return await hlPromise
 }
 
+// 增强的hash
+const enhancedHash = (input: string) => {
+  const THRESHOLD = 50000
+
+  if (input.length <= THRESHOLD) {
+    return fastHash(input)
+  }
+
+  const mid = Math.floor(input.length / 2)
+
+  // 三段hash保证唯一性
+  const frontSection = input.slice(0, 10000)
+  const midSection = input.slice(mid - 15000, mid + 15000)
+  const endSection = input.slice(-10000)
+
+  return `${fastHash(frontSection)}-${fastHash(midSection)}-${fastHash(endSection)}`
+}
+
+// FNV-1a hash
+const fastHash = (input: string, maxInputLength: number = 50000) => {
+  let hash = 2166136261 // FNV偏移基数
+  const count = Math.min(input.length, maxInputLength)
+  for (let i = 0; i < count; i++) {
+    hash ^= input.charCodeAt(i)
+    hash *= 16777619 // FNV素数
+    hash >>>= 0 // 保持为32位无符号整数
+  }
+  return hash.toString(36)
+}
+
 export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const { theme } = useTheme()
   const { codeStyle } = useSettings()
@@ -54,25 +84,15 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
   const highlightCache = useRef(
     new LRUCache<string, string>({
       max: 200, // 最大缓存条目数
-      maxSize: 1 * 10 ** 6, // 最大缓存大小
-      sizeCalculation: (value) => value.length,
+      maxSize: 2 * 10 ** 6, // 最大缓存大小（字符数）
+      sizeCalculation: (value) => value.length, // 缓存大小计算（字符数）
       ttl: 1000 * 60 * 10 // 缓存过期时间（10分钟）
     })
   )
 
   const getCacheKey = useCallback((code: string, language: string, theme: string) => {
-    return `${language}|${theme}|${code.length}|${hashCode(code)}`
+    return `${language}|${theme}|${code.length}|${enhancedHash(code)}`
   }, [])
-
-  const hashCode = (str: string) => {
-    const count = Math.min(str.length, 50000)
-    let hash = 0
-    for (let i = 0; i < count; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i)
-      hash |= 0
-    }
-    return hash
-  }
 
   const codeToHtml = useCallback(
     async (_code: string, language: string, enableCache: boolean) => {
@@ -107,7 +127,12 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
             lang: mappedLanguage,
             theme: highlighterTheme
           })
-          enableCache && highlightCache.current.set(key, html)
+
+          // 缓存大于2000字符的代码
+          if (enableCache && _code.length > 2000) {
+            highlightCache.current.set(key, html)
+          }
+
           return html
         } catch (error) {
           console.warn(`Error highlighting code for language '${mappedLanguage}':`, error)
