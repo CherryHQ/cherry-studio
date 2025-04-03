@@ -42,29 +42,6 @@ const enhancedHash = (input: string) => {
 
 // 高亮结果缓存实例
 let highlightCache: LRUCache<string, string> | null = null
-// 订阅函数取消器
-let unsubscribe: (() => void) | null = null
-// 上一次的缓存设置
-let previousSettings = {
-  codeCacheable: false,
-  codeCacheMaxSize: 0,
-  codeCacheTTL: 0,
-  codeCacheThreshold: 0
-}
-
-/**
- * 获取当前缓存设置
- */
-const getCacheSettings = () => {
-  try {
-    if (!store || !store.getState) return null
-    const { codeCacheable, codeCacheMaxSize, codeCacheTTL, codeCacheThreshold } = store.getState().settings
-    return { codeCacheable, codeCacheMaxSize, codeCacheTTL, codeCacheThreshold }
-  } catch (error) {
-    console.warn('[CodeCacheService] Failed to get cache settings', error)
-    return null
-  }
-}
 
 /**
  * 检查缓存设置是否发生变化
@@ -81,130 +58,61 @@ const haveSettingsChanged = (prev: any, current: any) => {
 }
 
 /**
- * 初始化缓存
- * @returns 配置的LRU缓存实例或null
- */
-const initializeCache = () => {
-  try {
-    if (!store || !store.getState) return null
-
-    const { codeCacheable, codeCacheMaxSize, codeCacheTTL } = store.getState().settings
-
-    if (!codeCacheable) return null
-
-    return new LRUCache<string, string>({
-      max: 200, // 最大缓存条目数
-      maxSize: codeCacheMaxSize * 1000, // 最大缓存大小
-      sizeCalculation: (value) => value.length, // 缓存大小计算
-      ttl: codeCacheTTL * 60 * 1000 // 缓存过期时间（毫秒）
-    })
-  } catch (error) {
-    console.warn('[CodeCacheService] Failed to initialize code cache', error)
-    return null
-  }
-}
-
-/**
  * 代码缓存服务
  * 提供代码高亮结果的缓存管理和哈希计算功能
  */
 export const CodeCacheService = {
-  init: () => {
-    if (unsubscribe) unsubscribe()
-
-    previousSettings = getCacheSettings() || previousSettings
-
-    // 初始化服务
-    CodeCacheService.updateConfig()
-
-    // 订阅缓存相关设置变化
-    if (store && store.subscribe) {
-      unsubscribe = store.subscribe(() => {
-        const currentSettings = getCacheSettings()
-
-        if (haveSettingsChanged(previousSettings, currentSettings)) {
-          previousSettings = currentSettings || previousSettings
-          CodeCacheService.updateConfig()
-        }
-      })
-    }
+  /**
+   * 缓存上次使用的配置
+   */
+  _lastConfig: {
+    codeCacheable: false,
+    codeCacheMaxSize: 0,
+    codeCacheTTL: 0,
+    codeCacheThreshold: 0
   },
 
   /**
-   * 清理服务资源
+   * 获取当前缓存配置
+   * @returns 当前配置对象
    */
-  cleanup: () => {
-    if (unsubscribe) {
-      unsubscribe()
-      unsubscribe = null
-    }
-
-    if (highlightCache) {
-      highlightCache.clear()
-      highlightCache = null
-    }
-  },
-
-  /**
-   * 生成缓存键
-   * @param code 代码内容
-   * @param language 代码语言
-   * @param theme 高亮主题
-   * @returns 缓存键
-   */
-  generateCacheKey: (code: string, language: string, theme: string) => {
-    return `${language}|${theme}|${code.length}|${enhancedHash(code)}`
-  },
-
-  /**
-   * 获取缓存的高亮结果
-   * @param key 缓存键
-   * @returns 缓存的HTML或null
-   */
-  getCachedResult: (key: string) => {
+  getConfig() {
     try {
-      if (!store || !store.getState) return null
+      if (!store || !store.getState) return this._lastConfig
 
-      const { codeCacheable } = store.getState().settings
-      if (!codeCacheable) return null
+      const { codeCacheable, codeCacheMaxSize, codeCacheTTL, codeCacheThreshold } = store.getState().settings
 
-      return highlightCache?.get(key) || null
+      return { codeCacheable, codeCacheMaxSize, codeCacheTTL, codeCacheThreshold }
     } catch (error) {
-      console.warn('[CodeCacheService] Failed to get cached result', error)
-      return null
+      console.warn('[CodeCacheService] Failed to get config', error)
+      return this._lastConfig
     }
   },
 
   /**
-   * 设置缓存结果
-   * @param key 缓存键
-   * @param html 高亮HTML
-   * @param codeLength 代码长度
+   * 检查并确保缓存配置是最新的
+   * 每次缓存操作前调用
+   * @returns 当前缓存实例或null
    */
-  setCachedResult: (key: string, html: string, codeLength: number) => {
-    try {
-      if (!store || !store.getState) return
+  ensureCache() {
+    const currentConfig = this.getConfig()
 
-      const { codeCacheable, codeCacheThreshold } = store.getState().settings
-
-      // 判断是否可以缓存
-      if (!codeCacheable || codeLength < codeCacheThreshold * 1000) return
-
-      highlightCache?.set(key, html)
-    } catch (error) {
-      console.warn('[CodeCacheService] Failed to set cached result', error)
+    // 检查配置是否变化
+    if (haveSettingsChanged(this._lastConfig, currentConfig)) {
+      this._lastConfig = currentConfig
+      this._updateCacheInstance(currentConfig)
     }
+
+    return highlightCache
   },
 
   /**
-   * 更新缓存配置
-   * 当设置变化时应该调用
+   * 更新缓存实例
+   * @param config 缓存配置
    */
-  updateConfig: () => {
+  _updateCacheInstance(config: any) {
     try {
-      if (!store || !store.getState) return
-
-      const { codeCacheable, codeCacheMaxSize, codeCacheTTL } = store.getState().settings
+      const { codeCacheable, codeCacheMaxSize, codeCacheTTL } = config
       const newMaxSize = codeCacheMaxSize * 1000
       const newTTLMilliseconds = codeCacheTTL * 60 * 1000
 
@@ -212,7 +120,12 @@ export const CodeCacheService = {
       if (codeCacheable) {
         if (!highlightCache) {
           // 缓存不存在，创建新缓存
-          highlightCache = initializeCache()
+          highlightCache = new LRUCache<string, string>({
+            max: 200, // 最大缓存条目数
+            maxSize: newMaxSize, // 最大缓存大小
+            sizeCalculation: (value) => value.length, // 缓存大小计算
+            ttl: newTTLMilliseconds // 缓存过期时间（毫秒）
+          })
           return
         }
 
@@ -239,5 +152,67 @@ export const CodeCacheService = {
     } catch (error) {
       console.warn('[CodeCacheService] Failed to update cache config', error)
     }
+  },
+
+  /**
+   * 生成缓存键
+   * @param code 代码内容
+   * @param language 代码语言
+   * @param theme 高亮主题
+   * @returns 缓存键
+   */
+  generateCacheKey: (code: string, language: string, theme: string) => {
+    return `${language}|${theme}|${code.length}|${enhancedHash(code)}`
+  },
+
+  /**
+   * 获取缓存的高亮结果
+   * @param key 缓存键
+   * @returns 缓存的HTML或null
+   */
+  getCachedResult: (key: string) => {
+    try {
+      // 确保缓存配置是最新的
+      CodeCacheService.ensureCache()
+
+      if (!store || !store.getState) return null
+      const { codeCacheable } = store.getState().settings
+      if (!codeCacheable) return null
+
+      return highlightCache?.get(key) || null
+    } catch (error) {
+      console.warn('[CodeCacheService] Failed to get cached result', error)
+      return null
+    }
+  },
+
+  /**
+   * 设置缓存结果
+   * @param key 缓存键
+   * @param html 高亮HTML
+   * @param codeLength 代码长度
+   */
+  setCachedResult: (key: string, html: string, codeLength: number) => {
+    try {
+      // 确保缓存配置是最新的
+      CodeCacheService.ensureCache()
+
+      if (!store || !store.getState) return
+      const { codeCacheable, codeCacheThreshold } = store.getState().settings
+
+      // 判断是否可以缓存
+      if (!codeCacheable || codeLength < codeCacheThreshold * 1000) return
+
+      highlightCache?.set(key, html)
+    } catch (error) {
+      console.warn('[CodeCacheService] Failed to set cached result', error)
+    }
+  },
+
+  /**
+   * 清空缓存
+   */
+  clear: () => {
+    highlightCache?.clear()
   }
 }
