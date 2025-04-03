@@ -17,6 +17,7 @@ export type Assistant = {
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
   enableGenerateImage?: boolean
+  promptVariables?: Variable[]
   mcpServers?: MCPServer[]
 }
 
@@ -42,6 +43,12 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: 'low' | 'medium' | 'high'
+}
+
+export type Variable = {
+  id: string
+  name: string
+  value: string
 }
 
 export type Agent = Omit<Assistant, 'model'>

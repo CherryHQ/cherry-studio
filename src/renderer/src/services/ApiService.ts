@@ -4,6 +4,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { processPromptVariables } from '@renderer/utils'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
 import { withGenerateImage } from '@renderer/utils/formats'
 import { cloneDeep, findLast, isEmpty } from 'lodash'
@@ -41,6 +42,14 @@ export async function fetchChatCompletion({
     let _messages: Message[] = []
     let isFirstChunk = true
     let query = ''
+
+    // Process variables in the prompt if they exist
+    if (assistant.promptVariables && assistant.promptVariables.length > 0) {
+      assistant = {
+        ...assistant,
+        prompt: processPromptVariables(assistant.prompt, assistant.promptVariables)
+      }
+    }
 
     // Search web
     if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {

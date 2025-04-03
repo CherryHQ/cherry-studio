@@ -286,7 +286,13 @@
       "select": "选择",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户"
+      "you": "用户",
+      "variable_name": "变量名称",
+      "value": "值",
+      "no_variables_added": "没有添加变量",
+      "insert_variable_into_prompt": "插入变量到提示词",
+      "variables": "变量",
+      "variables_help": "添加需要替换的变量名字和值即可"
     },
     "docs": {
       "title": "帮助文档"

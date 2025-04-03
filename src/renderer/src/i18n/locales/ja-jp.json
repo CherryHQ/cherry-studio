@@ -286,7 +286,13 @@
       "select": "選択",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた"
+      "you": "あなた",
+      "variable_name": "変数名",
+      "value": "値",
+      "no_variables_added": "変数がありません",
+      "insert_variable_into_prompt": "プロンプトに変数を挿入",
+      "variables": "変数",
+      "variables_help": "テキスト内で置換が必要な変数を追加し、置換ドキュメント内で{{variable_name}}の形式でトリガーします"
     },
     "docs": {
       "title": "ドキュメント"

@@ -500,4 +500,23 @@ export function hasObjectKey(obj: any, key: string) {
   return Object.keys(obj).includes(key)
 }
 
+/**
+ * Process variables in a prompt string
+ * @param prompt The prompt string containing variables in {{var_name}} format
+ * @param variables Array of variables with name and value
+ * @returns The prompt with variables replaced
+ */
+export function processPromptVariables(prompt: string, variables: Array<{ name: string; value: string }> = []) {
+  if (!prompt || !variables || variables.length === 0) {
+    return prompt
+  }
+  let processedPrompt = prompt
+  variables.forEach((variable) => {
+    const pattern = new RegExp(`{{${variable.name}}}`, 'g')
+    processedPrompt = processedPrompt.replace(pattern, variable.value)
+  })
+
+  return processedPrompt
+}
+
 export { classNames }

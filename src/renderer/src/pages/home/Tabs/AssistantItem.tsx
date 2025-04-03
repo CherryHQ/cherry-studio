@@ -84,6 +84,9 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
           const agent = omit(assistant, ['model', 'emoji'])
           agent.id = uuid()
           agent.type = 'agent'
+          if (assistant.promptVariables) {
+            agent.promptVariables = [...assistant.promptVariables]
+          }
           addAgent(agent)
           window.message.success({
             content: t('assistants.save.success'),

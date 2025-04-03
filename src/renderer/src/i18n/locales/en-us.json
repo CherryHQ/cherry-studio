@@ -286,7 +286,13 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "variable_name": "Variable Name",
+      "value": "Value",
+      "no_variables_added": "No variables added",
+      "insert_variable_into_prompt": "Insert variable into prompt",
+      "variables": "Variables",
+      "variables_help": "Add variables that need to be replaced in the text, triggered by {{variable_name}} in the replacement document"
     },
     "docs": {
       "title": "Docs"

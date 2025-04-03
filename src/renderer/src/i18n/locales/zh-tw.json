@@ -286,7 +286,13 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "variable_name": "變量名稱",
+      "value": "值",
+      "no_variables_added": "沒有添加變量",
+      "insert_variable_into_prompt": "插入變量到提示詞",
+      "variables": "變量",
+      "variables_help": "添加需要替換的變量名字和值即可"
     },
     "docs": {
       "title": "說明文件"
