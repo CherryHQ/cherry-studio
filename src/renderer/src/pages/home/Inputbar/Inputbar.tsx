@@ -364,7 +364,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       },
       {
-        label: t('chat.input.upload'),
+        label: isVisionModel(model) ? t('chat.input.upload') : t('chat.input.upload.document'),
         description: '',
         icon: <PaperClipOutlined />,
         isMenu: true,
@@ -380,7 +380,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
     ]
-  }, [files.length, openSelectFileMenu, showKnowledgeIcon, showMCPToolsIcon, t, text, translate])
+  }, [files.length, model, openSelectFileMenu, showKnowledgeIcon, showMCPToolsIcon, t, text, translate])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
