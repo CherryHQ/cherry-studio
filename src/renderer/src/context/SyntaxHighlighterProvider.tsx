@@ -5,7 +5,7 @@ import { CodeCacheService } from '@renderer/services/CodeCacheService'
 import { type CodeStyleVarious, ThemeMode } from '@renderer/types'
 import { LRUCache } from 'lru-cache'
 import type React from 'react'
-import { createContext, type PropsWithChildren, use, useCallback, useMemo } from 'react'
+import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo } from 'react'
 import type { BundledLanguage } from 'shiki'
 import { bundledLanguages, bundledThemes, createHighlighter, type Highlighter } from 'shiki'
 
@@ -42,6 +42,13 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
   const { theme } = useTheme()
   const { codeStyle } = useSettings()
   useMermaid()
+
+  // 初始化代码缓存服务
+  useEffect(() => {
+    setTimeout(() => {
+      CodeCacheService.init()
+    }, 0)
+  }, [])
 
   const highlighterTheme = useMemo(() => {
     if (!codeStyle || codeStyle === 'auto') {

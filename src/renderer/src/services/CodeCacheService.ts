@@ -42,22 +42,31 @@ const enhancedHash = (input: string) => {
 
 // 高亮结果缓存实例
 let highlightCache: LRUCache<string, string> | null = null
+// 订阅函数取消器
+let unsubscribe: (() => void) | null = null
 
 /**
  * 初始化缓存
  * @returns 配置的LRU缓存实例或null
  */
 const initializeCache = () => {
-  const { codeCacheable, codeCacheMaxSize, codeCacheTTL } = store.getState().settings
+  try {
+    if (!store || !store.getState) return null
 
-  if (!codeCacheable) return null
+    const { codeCacheable, codeCacheMaxSize, codeCacheTTL } = store.getState().settings
 
-  return new LRUCache<string, string>({
-    max: 200, // 最大缓存条目数
-    maxSize: codeCacheMaxSize, // 最大缓存大小
-    sizeCalculation: (value) => value.length, // 缓存大小计算
-    ttl: codeCacheTTL * 60 * 1000 // 缓存过期时间（毫秒）
-  })
+    if (!codeCacheable) return null
+
+    return new LRUCache<string, string>({
+      max: 200, // 最大缓存条目数
+      maxSize: codeCacheMaxSize, // 最大缓存大小
+      sizeCalculation: (value) => value.length, // 缓存大小计算
+      ttl: codeCacheTTL * 60 * 1000 // 缓存过期时间（毫秒）
+    })
+  } catch (error) {
+    console.warn('[CodeCacheService] Failed to initialize code cache', error)
+    return null
+  }
 }
 
 /**
@@ -65,6 +74,21 @@ const initializeCache = () => {
  * 提供代码高亮结果的缓存管理和哈希计算功能
  */
 export const CodeCacheService = {
+  init: () => {
+    // 清理旧订阅（如果有）
+    if (unsubscribe) unsubscribe()
+
+    // 初始化服务
+    CodeCacheService.updateConfig()
+
+    // 设置新订阅
+    if (store && store.subscribe) {
+      unsubscribe = store.subscribe(() => {
+        CodeCacheService.updateConfig()
+      })
+    }
+  },
+
   /**
    * 生成缓存键
    * @param code 代码内容
@@ -82,14 +106,21 @@ export const CodeCacheService = {
    * @returns 缓存的HTML或null
    */
   getCachedResult: (key: string) => {
-    if (!highlightCache) {
-      highlightCache = initializeCache()
+    try {
+      if (!store || !store.getState) return null
+
+      if (!highlightCache) {
+        highlightCache = initializeCache()
+      }
+
+      const { codeCacheable } = store.getState().settings
+      if (!codeCacheable) return null
+
+      return highlightCache?.get(key) || null
+    } catch (error) {
+      console.warn('[CodeCacheService] Failed to get cached result', error)
+      return null
     }
-
-    const { codeCacheable } = store.getState().settings
-    if (!codeCacheable) return null
-
-    return highlightCache?.get(key) || null
   },
 
   /**
@@ -99,16 +130,22 @@ export const CodeCacheService = {
    * @param codeLength 代码长度
    */
   setCachedResult: (key: string, html: string, codeLength: number) => {
-    if (!highlightCache) {
-      highlightCache = initializeCache()
+    try {
+      if (!store || !store.getState) return
+
+      if (!highlightCache) {
+        highlightCache = initializeCache()
+      }
+
+      const { codeCacheable, codeCacheThreshold } = store.getState().settings
+
+      // 判断是否可以缓存
+      if (!codeCacheable || codeLength < codeCacheThreshold) return
+
+      highlightCache?.set(key, html)
+    } catch (error) {
+      console.warn('[CodeCacheService] Failed to set cached result', error)
     }
-
-    const { codeCacheable, codeCacheThreshold } = store.getState().settings
-
-    // 判断是否可以缓存
-    if (!codeCacheable || codeLength < codeCacheThreshold) return
-
-    highlightCache?.set(key, html)
   },
 
   /**
@@ -116,25 +153,31 @@ export const CodeCacheService = {
    * 当设置变化时应该调用
    */
   updateConfig: () => {
-    const { codeCacheable, codeCacheMaxSize, codeCacheTTL } = store.getState().settings
+    try {
+      if (!store || !store.getState) return
 
-    // 根据配置决定是否创建或清除缓存
-    if (codeCacheable) {
-      if (!highlightCache) {
-        highlightCache = initializeCache()
-      } else {
-        // 重新创建缓存以应用新设置
+      const { codeCacheable, codeCacheMaxSize, codeCacheTTL } = store.getState().settings
+
+      // 根据配置决定是否创建或清除缓存
+      if (codeCacheable) {
+        if (!highlightCache) {
+          highlightCache = initializeCache()
+        } else {
+          // 重新创建缓存以应用新设置
+          highlightCache.clear()
+          highlightCache = new LRUCache<string, string>({
+            max: 200,
+            maxSize: codeCacheMaxSize,
+            sizeCalculation: (value) => value.length,
+            ttl: codeCacheTTL * 60 * 1000
+          })
+        }
+      } else if (highlightCache) {
         highlightCache.clear()
-        highlightCache = new LRUCache<string, string>({
-          max: 200,
-          maxSize: codeCacheMaxSize,
-          sizeCalculation: (value) => value.length,
-          ttl: codeCacheTTL * 60 * 1000
-        })
+        highlightCache = null
       }
-    } else if (highlightCache) {
-      highlightCache.clear()
-      highlightCache = null
+    } catch (error) {
+      console.warn('[CodeCacheService] Failed to update cache config', error)
     }
   },
 
@@ -145,11 +188,3 @@ export const CodeCacheService = {
     highlightCache?.clear()
   }
 }
-
-// 监听配置变化
-store.subscribe(() => {
-  CodeCacheService.updateConfig()
-})
-
-// 初始化服务
-CodeCacheService.updateConfig()
