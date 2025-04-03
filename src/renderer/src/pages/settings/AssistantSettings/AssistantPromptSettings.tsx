@@ -10,6 +10,7 @@ import { Button, Input, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
 interface Props {
@@ -25,6 +26,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
   const [prompt, setPrompt] = useState(assistant.prompt)
   const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
+  const [showMarkdown, setShowMarkdown] = useState(true)
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -92,15 +94,26 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
         {t('common.prompt')}
       </Box>
       <TextAreaContainer>
-        <TextArea
-          rows={10}
-          placeholder={t('common.assistant') + t('common.prompt')}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onBlur={onUpdate}
-          spellCheck={false}
-          style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 150px)' }}
-        />
+        {!showMarkdown ? (
+          <TextArea
+            rows={10}
+            placeholder={t('common.assistant') + t('common.prompt')}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onBlur={() => {
+              onUpdate()
+              setShowMarkdown(true)
+            }}
+            autoFocus={true}
+            spellCheck={false}
+            style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 200px)', paddingBottom: '30px' }}
+          />
+        ) : (
+          <MarkdownContainer onClick={() => setShowMarkdown(false)}>
+            <ReactMarkdown className="markdown">{prompt}</ReactMarkdown>
+            <div style={{ height: '30px' }} />
+          </MarkdownContainer>
+        )}
         <TokenCount>Tokens: {tokenCount}</TokenCount>
       </TextAreaContainer>
       <HStack width="100%" justifyContent="flex-end" mt="10px">
@@ -144,6 +157,13 @@ const TokenCount = styled.div`
   font-size: 12px;
   color: var(--color-text-2);
   user-select: none;
+`
+
+const MarkdownContainer = styled.div`
+  min-height: calc(80vh - 200px);
+  max-height: calc(80vh - 200px);
+  overflow: auto;
+  overflow-x: hidden;
 `
 
 export default AssistantPromptSettings
