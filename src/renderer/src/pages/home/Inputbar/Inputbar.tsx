@@ -252,8 +252,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [isTranslating, text, targetLanguage, resizeTextArea])
 
-  /** 触发快捷面板的符号 */
-  const quickPanelSymbol = useRef('')
   const quickPanelMenu = useMemo<QuickPanelListItem[]>(() => {
     return [
       {
@@ -346,7 +344,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
 
     if (event.key === '/') {
-      quickPanelSymbol.current = '/'
       quickPanel.open({
         title: t('settings.quickPanel.title'),
         list: quickPanelMenu,

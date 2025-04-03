@@ -56,7 +56,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
       label: t('knowledge.add.title'),
       suffix: <ExportOutlined />,
       icon: <PlusOutlined />,
-      action: () => navigate('/settings/knowledge'),
+      action: () => navigate('/knowledge'),
       isSelected: false
     })
     return newList
