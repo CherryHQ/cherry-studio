@@ -18,7 +18,7 @@ const SyntaxHighlighterContext = createContext<SyntaxHighlighterContextType | un
 // 全局高亮器缓存 (LRU, 最多2个实例)
 const highlighterCache = new LRUCache<string, Promise<Highlighter>>({
   max: 2,
-  ttl: 1000 * 60 * 10, // 缓存过期时间（10分钟）
+  ttl: 1000 * 60 * 15, // 缓存过期时间（15分钟）
   dispose: async (hlPromise) => (await hlPromise)?.dispose()
 })
 

@@ -138,7 +138,7 @@ export const CodeCacheService = {
           console.log('[CodeCacheService] Cache config changed, recreating cache')
           highlightCache.clear()
           highlightCache = new LRUCache<string, string>({
-            max: 200,
+            max: 500,
             maxSize: newMaxSize,
             sizeCalculation: (value) => value.length,
             ttl: newTTLMilliseconds
