@@ -65,7 +65,7 @@ const Markdown: FC<Props> = ({ message, citationsData }) => {
         }
         return <Link {...props} />
       },
-      code: (props: any) => <CodeBlock {...props} />,
+      code: CodeBlock,
       img: ImagePreview,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
       style: MarkdownShadowDOMRenderer as any
