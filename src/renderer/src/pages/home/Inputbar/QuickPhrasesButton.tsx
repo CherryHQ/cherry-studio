@@ -15,10 +15,11 @@ export interface QuickPhrasesButtonRef {
 interface Props {
   ref?: React.RefObject<QuickPhrasesButtonRef | null>
   setInputValue: React.Dispatch<React.SetStateAction<string>>
+  resizeTextArea: () => void
   ToolbarButton: any
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, ToolbarButton }: Props) => {
+const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -71,11 +72,12 @@ const QuickPhrasesButton = ({ ref, setInputValue, ToolbarButton }: Props) => {
           textArea.focus()
           // 设置选中范围
           textArea.setSelectionRange(selectionStart, selectionEndPosition)
+          resizeTextArea()
         }, 0)
         return newText
       })
     },
-    [setInputValue]
+    [setInputValue, resizeTextArea]
   )
 
   const phraseItems = useMemo(() => {

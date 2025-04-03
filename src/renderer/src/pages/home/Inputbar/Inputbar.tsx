@@ -875,7 +875,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 onMentionModel={onMentionModel}
                 ToolbarButton={ToolbarButton}
               />
-              <QuickPhrasesButton ref={quickPhrasesButtonRef} setInputValue={setText} ToolbarButton={ToolbarButton} />
+              <QuickPhrasesButton
+                ref={quickPhrasesButtonRef}
+                setInputValue={setText}
+                resizeTextArea={resizeTextArea}
+                ToolbarButton={ToolbarButton}
+              />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}
