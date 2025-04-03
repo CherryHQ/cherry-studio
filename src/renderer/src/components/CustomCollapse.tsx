@@ -9,6 +9,7 @@ interface CustomCollapseProps {
 
 const CustomCollapse: FC<CustomCollapseProps> = ({ label, extra, children }) => {
   const CollapseStyle = {
+    width: '100%',
     background: 'transparent',
     border: '0.5px solid var(--color-border)'
   }

@@ -1060,7 +1060,8 @@
         "deleteServerConfirm": "确定要删除此服务器吗？",
         "registry": "包管理源",
         "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题。",
-        "registryDefault": "默认"
+        "registryDefault": "默认",
+        "not_support": "模型不支持"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
@@ -1258,6 +1259,27 @@
           "title": "Tavily"
         },
         "title": "网络搜索"
+      },
+      "quickPhrase": {
+        "title": "快捷短语",
+        "add": "添加短语",
+        "edit": "编辑短语",
+        "titleLabel": "标题",
+        "contentLabel": "内容",
+        "titlePlaceholder": "请输入短语标题",
+        "contentPlaceholder": "请输入短语内容",
+        "delete": "删除短语",
+        "deleteConfirm": "删除短语后将无法恢复，是否继续？"
+      },
+      "quickPanel": {
+        "title": "快捷菜单",
+        "close": "关闭",
+        "select": "选择",
+        "page": "翻页",
+        "confirm": "确认",
+        "back": "后退",
+        "forward": "前进",
+        "multiple": "多选"
       }
     },
     "translate": {

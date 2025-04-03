@@ -1,0 +1,446 @@
+import { CheckOutlined, RightOutlined } from '@ant-design/icons'
+import { isMac } from '@renderer/config/constant'
+import { classNames } from '@renderer/utils'
+import { Flex } from 'antd'
+import { t } from 'i18next'
+import React, { use, useCallback, useEffect, useRef, useState } from 'react'
+import styled from 'styled-components'
+
+import { QuickPanelContext } from './provider'
+import { QuickPanelCallBackOptions, QuickPanelCloseAction, QuickPanelListItem, QuickPanelOpenOptions } from './types'
+
+/**
+ * @description 快捷面板内容视图;
+ * 请不要往这里添加入参，避免耦合;
+ * 这里只读取来自上下文QuickPanelContext的数据
+ *
+ * 无奈之举，为了清除输入框搜索文本，所以传了个setInputText进来
+ */
+export const QuickPanelView: React.FC<{
+  setInputText: (text: string) => void
+}> = ({ setInputText }) => {
+  const ctx = use(QuickPanelContext)
+  if (!ctx) {
+    throw new Error('QuickPanel must be used within a QuickPanelProvider')
+  }
+
+  const ASSISTIVE_KEY = isMac ? '⌘' : 'Ctrl'
+  const [isAssistiveKeyPressed, setIsAssistiveKeyPressed] = useState(false)
+  // 避免上下翻页时，鼠标干扰
+  const [isMouseOver, setIsMouseOver] = useState(false)
+
+  const [list, setList] = useState(ctx.list)
+  const [index, setIndex] = useState(ctx.defaultIndex)
+  const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
+
+  const contentRef = useRef<HTMLDivElement>(null)
+  const scrollBlock = useRef<ScrollLogicalPosition>('nearest')
+
+  const handleClose = useCallback(
+    (action?: QuickPanelCloseAction) => {
+      ctx.close(action)
+      setHistoryPanel([])
+
+      if (ctx.symbol === 'quick-phrases') return // 快捷短语有自己的替换逻辑
+
+      // 删除输入框中匹配的搜索文本
+      const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+      const inputText = textArea.value
+      const cursorPosition = textArea.selectionStart
+      let newText = inputText
+      const searchPattern = new RegExp(`[/@]${ctx.searchText}$`)
+      const match = inputText.slice(0, cursorPosition).match(searchPattern)
+      if (match) {
+        const start = match.index || 0
+        const end = start + match[0].length
+        newText = inputText.slice(0, start) + inputText.slice(end)
+        setInputText(newText)
+
+        setTimeout(() => {
+          textArea.focus()
+          textArea.setSelectionRange(start, start)
+        }, 0)
+      }
+    },
+    [ctx, setInputText]
+  )
+
+  const handleItemAction = useCallback(
+    (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
+      if (item.disabled) return
+
+      const quickPanelCallBackOptions: QuickPanelCallBackOptions = {
+        symbol: ctx.symbol,
+        action,
+        item,
+        searchText: ctx.searchText,
+        multiple: isAssistiveKeyPressed
+      }
+      ctx.beforeAction?.(quickPanelCallBackOptions)
+      item?.action?.(quickPanelCallBackOptions)
+      ctx.afterAction?.(quickPanelCallBackOptions)
+
+      if (item.isMenu) {
+        // 保存上一个打开的选项，用于回退
+        setHistoryPanel((prev) => [
+          ...(prev || []),
+          {
+            title: ctx.title,
+            list: ctx.list,
+            symbol: ctx.symbol,
+            multiple: ctx.multiple,
+            defaultIndex: index,
+            pageSize: ctx.pageSize,
+            onClose: ctx.onClose,
+            beforeAction: ctx.beforeAction,
+            afterAction: ctx.afterAction
+          }
+        ])
+        return
+      }
+
+      if (ctx.multiple && isAssistiveKeyPressed) return
+
+      handleClose(action)
+    },
+    [ctx, handleClose, index, isAssistiveKeyPressed]
+  )
+
+  // 处理搜索，过滤列表
+  useEffect(() => {
+    setList(
+      ctx.list?.filter((item) => {
+        if (!ctx.searchText) return true
+
+        let filterText = item.filterText || ''
+        if (typeof item.label === 'string') {
+          filterText += item.label
+        }
+        if (typeof item.description === 'string') {
+          filterText += item.description
+        }
+
+        return filterText.toLowerCase().includes(ctx.searchText.toLowerCase())
+      })
+    )
+    setIndex(ctx.defaultIndex || 0)
+  }, [ctx.list.length, ctx.searchText, ctx.list, ctx.defaultIndex])
+
+  // 处理上下翻时滚动到选中的元素
+  useEffect(() => {
+    if (!ctx.isVisible || !contentRef.current || ctx.list.length === 0) return
+
+    const selectedElement = contentRef.current.children[index] as HTMLElement
+    if (selectedElement) {
+      selectedElement.scrollIntoView({
+        block: scrollBlock.current,
+        behavior: 'smooth'
+      })
+      scrollBlock.current = 'nearest'
+    }
+  }, [index, ctx.isVisible, ctx.list.length])
+
+  // 处理键盘事件
+  useEffect(() => {
+    if (!ctx.isVisible) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isMac ? e.metaKey : e.ctrlKey) {
+        setIsAssistiveKeyPressed(true)
+      }
+
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          if (isAssistiveKeyPressed) {
+            scrollBlock.current = 'start'
+            setIndex((prev) => {
+              const newIndex = prev - ctx.pageSize
+              if (prev === 0) return list.length - 1
+              return newIndex < 0 ? 0 : newIndex
+            })
+          } else {
+            scrollBlock.current = 'nearest'
+            setIndex((prev) => (prev > 0 ? prev - 1 : list.length - 1))
+          }
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          if (isAssistiveKeyPressed) {
+            scrollBlock.current = 'start'
+            setIndex((prev) => {
+              const newIndex = prev + ctx.pageSize
+              if (prev + 1 === list.length) return 0
+              return newIndex >= list.length ? list.length - 1 : newIndex
+            })
+          } else {
+            scrollBlock.current = 'nearest'
+            setIndex((prev) => (prev < list.length - 1 ? prev + 1 : 0))
+          }
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          if (historyPanel.length > 0) {
+            const lastPanel = historyPanel.pop()
+            if (lastPanel) {
+              ctx.open(lastPanel)
+            }
+          }
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          if (list?.[index]?.isMenu) {
+            handleItemAction(list[index], 'enter')
+          }
+          break
+        case 'Enter':
+          e.preventDefault()
+          e.stopPropagation()
+          if (list?.[index]) {
+            handleItemAction(list[index], 'enter')
+          }
+          break
+        case 'Escape':
+          e.preventDefault()
+          e.stopPropagation()
+          handleClose('esc')
+          break
+      }
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (isMac ? !e.metaKey : !e.ctrlKey) {
+        setIsAssistiveKeyPressed(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose])
+
+  return (
+    <QuickPanelContainer $pageSize={ctx.pageSize} className={ctx.isVisible ? 'visible' : ''}>
+      <QuickPanelBody onMouseMove={() => setIsMouseOver(true)}>
+        <QuickPanelContent ref={contentRef} $pageSize={ctx.pageSize} $isMouseOver={isMouseOver}>
+          {list.map((item, i) => (
+            <QuickPanelItem
+              className={classNames({
+                focused: i === index,
+                selected: item.isSelected,
+                disabled: item.disabled
+              })}
+              key={i}
+              onClick={() => handleItemAction(item, 'click')}
+              onMouseEnter={() => setIndex(i)}>
+              <QuickPanelItemLeft>
+                <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
+                <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
+              </QuickPanelItemLeft>
+
+              <QuickPanelItemRight>
+                {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
+                <QuickPanelItemSuffixIcon>
+                  {item.suffix ? (
+                    item.suffix
+                  ) : item.isSelected ? (
+                    <CheckOutlined />
+                  ) : (
+                    item.isMenu && !item.disabled && <RightOutlined />
+                  )}
+                </QuickPanelItemSuffixIcon>
+              </QuickPanelItemRight>
+            </QuickPanelItem>
+          ))}
+        </QuickPanelContent>
+        <QuickPanelFooter>
+          <QuickPanelFooterTips>
+            <QuickPanelTitle>{ctx.title || ''}</QuickPanelTitle>
+            <Flex align="center" gap={16}>
+              <span>ESC {t('settings.quickPanel.close')}</span>
+
+              <Flex align="center" gap={4}>
+                ▲▼ {t('settings.quickPanel.select')}
+              </Flex>
+
+              <Flex align="center" gap={4}>
+                <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
+                  {ASSISTIVE_KEY}
+                </span>
+                + ▲▼ {t('settings.quickPanel.page')}
+              </Flex>
+
+              <Flex align="center" gap={4}>
+                ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
+              </Flex>
+
+              <Flex align="center" gap={4}>
+                ↩︎ {t('settings.quickPanel.confirm')}
+              </Flex>
+
+              {ctx.multiple && (
+                <Flex align="center" gap={4}>
+                  <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
+                    {ASSISTIVE_KEY}
+                  </span>
+                  + ↩︎ {t('settings.quickPanel.multiple')}
+                </Flex>
+              )}
+            </Flex>
+          </QuickPanelFooterTips>
+        </QuickPanelFooter>
+      </QuickPanelBody>
+    </QuickPanelContainer>
+  )
+}
+
+const QuickPanelContainer = styled.div<{ $pageSize: number }>`
+  --focused-color: rgba(0, 0, 0, 0.06);
+  --selected-color: rgba(0, 0, 0, 0.03);
+  max-height: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  padding: 0 30px 0 30px;
+  transform: translateY(-100%);
+  transform-origin: bottom;
+  transition: max-height 0.2s ease;
+  overflow: hidden;
+  pointer-events: none;
+  &.visible {
+    pointer-events: auto;
+    max-height: ${(props) => props.$pageSize * 31 + 100}px;
+  }
+  body[theme-mode='dark'] & {
+    --focused-color: rgba(255, 255, 255, 0.1);
+    --selected-color: rgba(255, 255, 255, 0.03);
+  }
+`
+
+const QuickPanelBody = styled.div`
+  background-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(35px) saturate(150%);
+  border-radius: 8px 8px 0 0;
+  padding: 5px 0;
+  border-width: 0.5px 0.5px 0 0.5px;
+  border-style: solid;
+  border-color: var(--color-border);
+`
+
+const QuickPanelFooter = styled.div`
+  width: 100%;
+`
+
+const QuickPanelFooterTips = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--color-text-3);
+  padding: 8px 12px 5px;
+`
+
+const QuickPanelTitle = styled.div`
+  font-size: 10px;
+  color: var(--color-text-3);
+`
+
+const QuickPanelContent = styled.div<{ $pageSize: number; $isMouseOver: boolean }>`
+  width: 100%;
+  max-height: ${(props) => props.$pageSize * 31}px;
+  padding: 0 5px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  pointer-events: ${(props) => (props.$isMouseOver ? 'auto' : 'none')};
+
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+`
+
+const QuickPanelItem = styled.div`
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  justify-content: space-between;
+  padding: 5px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 1px;
+  &.selected {
+    background-color: var(--selected-color);
+  }
+  &.focused {
+    background-color: var(--focused-color);
+  }
+  &.disabled {
+    --selected-color: rgba(0, 0, 0, 0.02);
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+`
+
+const QuickPanelItemLeft = styled.div`
+  max-width: 60%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  flex-shrink: 0;
+`
+
+const QuickPanelItemIcon = styled.span`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const QuickPanelItemLabel = styled.span`
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+`
+
+const QuickPanelItemRight = styled.div`
+  min-width: 20%;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  color: var(--color-text-3);
+`
+
+const QuickPanelItemDescription = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const QuickPanelItemSuffixIcon = styled.span`
+  min-width: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+`

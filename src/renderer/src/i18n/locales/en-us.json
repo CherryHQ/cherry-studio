@@ -1258,6 +1258,27 @@
           "title": "Tavily"
         },
         "title": "Web Search"
+      },
+      "quickPhrase": {
+        "title": "Quick Phrases",
+        "add": "Add Phrase",
+        "edit": "Edit Phrase",
+        "titleLabel": "Title",
+        "contentLabel": "Content",
+        "titlePlaceholder": "Please enter the phrase title",
+        "contentPlaceholder": "Please enter the phrase content",
+        "delete": "Delete Phrase",
+        "deleteConfirm": "Delete phrase will not be recoverable, continue?"
+      },
+      "quickPanel": {
+        "title": "Quick Menu",
+        "close": "Close",
+        "select": "Select",
+        "page": "Page",
+        "confirm": "Confirm",
+        "back": "Back",
+        "forward": "Forward",
+        "multiple": "Multiple"
       }
     },
     "translate": {
