@@ -19,11 +19,10 @@ import SvgPreview from './SvgPreview'
 interface CodeBlockProps {
   children: string
   className?: string
-  isStreaming?: boolean
   [key: string]: any
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = ({ children, className, isStreaming }) => {
+const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '') || children?.includes('\n')
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
   const language = match?.[1] ?? 'text'
@@ -33,6 +32,8 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className, isStreaming 
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const [shouldShowExpandButton, setShouldShowExpandButton] = useState(false)
   const codeContentRef = useRef<HTMLDivElement>(null)
+  const childrenLengthRef = useRef(children?.length)
+  const isStreamingRef = useRef(false)
 
   const showFooterCopyButton = children && children.length > 500 && !codeCollapsible
 
@@ -51,7 +52,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className, isStreaming 
 
     setTimeout(async () => {
       // 只在非流式输出状态才启用cache
-      const highlightedHtml = await codeToHtml(children, language, !isStreaming)
+      const highlightedHtml = await codeToHtml(children, language, !isStreamingRef.current)
       if (codeContentRef.current) {
         codeContentRef.current.innerHTML = highlightedHtml
         codeContentRef.current.style.opacity = '1'
@@ -61,7 +62,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className, isStreaming 
         setShouldShowExpandButton(shouldShowExpandButtonRef.current)
       }
     }, 0)
-  }, [shouldHighlight, language, codeToHtml, children, isStreaming])
+  }, [shouldHighlight, language, codeToHtml, children])
 
   useEffect(() => {
     let isMounted = true
@@ -69,7 +70,12 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className, isStreaming 
 
     if (!codeElement) return
 
-    if (!isStreaming) {
+    if (childrenLengthRef.current !== children?.length) {
+      isStreamingRef.current = true
+    }
+
+    // 非流式输出时，改变不透明度表示正在渲染代码
+    if (!isStreamingRef.current) {
       codeElement.style.opacity = '0.1'
       codeElement.textContent = children
     }
@@ -89,7 +95,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className, isStreaming 
       isMounted = false
       observer.disconnect()
     }
-  }, [children, highlightCode, isStreaming, language, shouldHighlight])
+  }, [children, highlightCode, language, shouldHighlight])
 
   useEffect(() => {
     setIsExpanded(!codeCollapsible)

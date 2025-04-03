@@ -65,13 +65,13 @@ const Markdown: FC<Props> = ({ message, citationsData }) => {
         }
         return <Link {...props} />
       },
-      code: (props: any) => <CodeBlock {...props} isStreaming={['sending', 'pending'].includes(message.status)} />,
+      code: (props: any) => <CodeBlock {...props} />,
       img: ImagePreview,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
       style: MarkdownShadowDOMRenderer as any
     } as Partial<Components>
     return baseComponents
-  }, [citationsData, message.status])
+  }, [citationsData])
 
   if (message.role === 'user' && !renderInputMessageAsMarkdown) {
     return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
