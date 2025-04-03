@@ -70,7 +70,14 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js', 'chunk-ALDIEZMG.js', 'chunk-4X6ZJEXY.js']
+      exclude: [
+        'chunk-PZ64DZKH.js',
+        'chunk-JMKENWIY.js',
+        'chunk-UXYB6GHG.js',
+        'chunk-ALDIEZMG.js',
+        'chunk-4X6ZJEXY.js',
+        'chunk-CY3XWMVS.js'
+      ]
     }
   }
 })
