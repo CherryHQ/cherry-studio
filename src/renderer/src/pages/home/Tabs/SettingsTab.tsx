@@ -19,6 +19,7 @@ import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
   setAutoTranslateWithSpace,
+  setCodeCacheable,
   setCodeCollapsible,
   setCodeShowLineNumbers,
   setCodeStyle,
@@ -75,6 +76,7 @@ const SettingsTab: FC<Props> = (props) => {
     codeShowLineNumbers,
     codeCollapsible,
     codeWrappable,
+    codeCacheable,
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
@@ -329,6 +331,16 @@ const SettingsTab: FC<Props> = (props) => {
         <SettingRow>
           <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
           <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>
+            {t('chat.settings.code_cacheable')}{' '}
+            <Tooltip title={t('chat.settings.code_cacheable.tip')}>
+              <QuestionIcon style={{ marginLeft: 4 }} />
+            </Tooltip>
+          </SettingRowTitleSmall>
+          <Switch size="small" checked={codeCacheable} onChange={(checked) => dispatch(setCodeCacheable(checked))} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>

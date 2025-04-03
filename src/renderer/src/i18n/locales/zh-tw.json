@@ -159,6 +159,8 @@
       "save": "儲存",
       "settings.code_collapsible": "程式碼區塊可折疊",
       "settings.code_wrappable": "程式碼區塊可自動換行",
+      "settings.code_cacheable": "程式碼區塊快取",
+      "settings.code_cacheable.tip": "快取程式碼區塊可以減少長程式碼區塊的渲染時間，但會增加記憶體使用量",
       "settings.context_count": "上下文",
       "settings.context_count.tip": "在上下文中保留的前幾則訊息。",
       "settings.max": "最大",

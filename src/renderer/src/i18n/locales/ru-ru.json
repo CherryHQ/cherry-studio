@@ -159,6 +159,8 @@
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",
       "settings.code_wrappable": "Блок кода можно переносить",
+      "settings.code_cacheable": "Кэш блока кода",
+      "settings.code_cacheable.tip": "Кэширование блока кода может уменьшить время рендеринга длинных блоков кода, но увеличит использование памяти",
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",

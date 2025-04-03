@@ -159,6 +159,8 @@
       "save": "保存",
       "settings.code_collapsible": "コードブロック折り畳み",
       "settings.code_wrappable": "コードブロック折り返し",
+      "settings.code_cacheable": "コードブロックキャッシュ",
+      "settings.code_cacheable.tip": "コードブロックのキャッシュは長いコードブロックのレンダリング時間を短縮できますが、メモリ使用量が増加します",
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",

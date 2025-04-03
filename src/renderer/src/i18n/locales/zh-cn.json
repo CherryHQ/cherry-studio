@@ -159,6 +159,8 @@
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",
       "settings.code_wrappable": "代码块可换行",
+      "settings.code_cacheable": "代码块缓存",
+      "settings.code_cacheable.tip": "缓存代码块可以减少长代码块的渲染时间，但会增加内存占用",
       "settings.context_count": "上下文数",
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",

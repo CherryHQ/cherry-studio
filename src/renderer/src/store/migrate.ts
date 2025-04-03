@@ -1165,6 +1165,14 @@ const migrateConfig = {
     }
 
     return state
+  },
+  '89': (state: RootState) => {
+    try {
+      state.settings.codeCacheable = false
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

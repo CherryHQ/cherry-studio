@@ -159,6 +159,8 @@
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
       "settings.code_wrappable": "Code block wrappable",
+      "settings.code_cacheable": "Code block cache",
+      "settings.code_cacheable.tip": "Caching code blocks can reduce the rendering time of long code blocks, but it will increase memory usage",
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",

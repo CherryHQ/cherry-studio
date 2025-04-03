@@ -24,7 +24,7 @@ interface CodeBlockProps {
 
 const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '') || children?.includes('\n')
-  const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
+  const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable, codeCacheable } = useSettings()
   const language = match?.[1] ?? 'text'
   // const [html, setHtml] = useState<string>('')
   const { codeToHtml } = useSyntaxHighlighter()
@@ -52,7 +52,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
     setTimeout(async () => {
       // 只在非流式输出状态才启用cache
-      const highlightedHtml = await codeToHtml(children, language, !isStreamingRef.current)
+      const highlightedHtml = await codeToHtml(children, language, codeCacheable && !isStreamingRef.current)
       if (codeContentRef.current) {
         codeContentRef.current.innerHTML = highlightedHtml
         codeContentRef.current.style.opacity = '1'

@@ -50,6 +50,7 @@ export interface SettingsState {
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
+  codeCacheable: boolean
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
@@ -136,6 +137,7 @@ const initialState: SettingsState = {
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
+  codeCacheable: false,
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',
@@ -299,6 +301,9 @@ const settingsSlice = createSlice({
     },
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
+    },
+    setCodeCacheable: (state, action: PayloadAction<boolean>) => {
+      state.codeCacheable = action.payload
     },
     setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
       state.mathEngine = action.payload
@@ -465,6 +470,7 @@ export const {
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
+  setCodeCacheable,
   setMathEngine,
   setFoldDisplayMode,
   setGridColumns,
