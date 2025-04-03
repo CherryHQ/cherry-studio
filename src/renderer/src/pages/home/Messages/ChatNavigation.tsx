@@ -255,19 +255,15 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       if (now - lastMoveTime.current < 50) return
       lastMoveTime.current = now
 
-      // Calculate if the mouse is in the trigger area
-      const triggerWidth = 80 // Same as the width in styled component
-
-      // Safe way to calculate position when using calc expressions
-      let rightOffset = 16 // Default right offset
+      const triggerWidth = 10
+      let rightOffset = 5
       if (showRightTopics) {
-        // When topics are shown on right, we need to account for topic list width
-        rightOffset = 16 + 300 // Assuming topic list width is 300px, adjust if different
+        rightOffset = 5 + 300
       }
 
       const rightPosition = window.innerWidth - rightOffset - triggerWidth
-      const topPosition = window.innerHeight * 0.3 // 30% from top
-      const height = window.innerHeight * 0.4 // 40% of window height
+      const topPosition = window.innerHeight * 0.35
+      const height = window.innerHeight * 0.3
 
       const isInTriggerArea =
         e.clientX > rightPosition &&
@@ -407,31 +403,32 @@ const ButtonGroup = styled.div`
   display: flex;
   flex-direction: column;
   background: var(--bg-color);
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   overflow: hidden;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--color-border);
 `
 
 const NavigationButton = styled(Button)`
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 0;
   border: none;
   color: var(--color-text);
-  transition: all 0.2s ease-in-out;
+  transition: all 0.25s ease-in-out;
 
   &:hover {
     background-color: var(--color-hover);
     color: var(--color-primary);
+    transform: scale(1.05);
   }
 
   .anticon {
-    font-size: 14px;
+    font-size: 16px;
   }
 `
 
