@@ -17,6 +17,7 @@ const SyntaxHighlighterContext = createContext<SyntaxHighlighterContextType | un
 // 全局高亮器缓存 (LRU, 最多2个实例)
 const highlighterCache = new LRUCache<string, Promise<Highlighter>>({
   max: 2,
+  ttl: 1000 * 60 * 10, // 缓存过期时间（10分钟）
   dispose: async (hlPromise) => (await hlPromise)?.dispose()
 })
 
@@ -55,7 +56,7 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
       max: 100, // 最大缓存条目数
       maxSize: 10 * 1024 * 1024, // 最大缓存大小（10MB）
       sizeCalculation: (value) => value.length,
-      ttl: 1000 * 60 * 30 // 缓存过期时间（30分钟）
+      ttl: 1000 * 60 * 10 // 缓存过期时间（10分钟）
     })
   )
 
