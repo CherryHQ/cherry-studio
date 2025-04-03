@@ -49,8 +49,8 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
 
   const highlightCache = useRef(
     new LRUCache<string, string>({
-      max: 500, // 最大缓存条目数
-      maxSize: 5 * 1024 * 1024, // 最大缓存大小（5MB）
+      max: 100, // 最大缓存条目数
+      maxSize: 10 * 1024 * 1024, // 最大缓存大小（10MB）
       sizeCalculation: (value) => value.length,
       ttl: 1000 * 60 * 30 // 缓存过期时间（30分钟）
     })
