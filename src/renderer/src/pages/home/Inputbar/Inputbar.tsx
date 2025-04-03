@@ -196,7 +196,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
 
       if (isFunctionCallingModel(model)) {
-        if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
+        if (!isEmpty(enabledMCPs) && !isEmpty(activedMcpServers)) {
           userMessage.enabledMCPs = activedMcpServers.filter((server) => enabledMCPs?.some((s) => s.id === server.id))
         }
       }

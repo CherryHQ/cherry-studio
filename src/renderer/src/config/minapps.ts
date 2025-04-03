@@ -1,6 +1,5 @@
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
-import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
@@ -307,12 +306,6 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: ThreeMinTopAppLogo,
     url: 'https://3min.top',
     bodered: false
-  },
-  {
-    id: 'aistudio',
-    name: 'AI Studio',
-    logo: AIStudioLogo,
-    url: 'https://aistudio.google.com/'
   },
   {
     id: 'xiaoyi',
