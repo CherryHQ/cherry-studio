@@ -102,6 +102,17 @@ export interface SettingsState {
   siyuanRootPath: string | null
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
+  exportMenuOptions: {
+    image: boolean
+    markdown: boolean
+    markdown_reason: boolean
+    notion: boolean
+    yuque: boolean
+    joplin: boolean
+    obsidian: boolean
+    siyuan: boolean
+    docx: boolean
+  }
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -184,7 +195,18 @@ const initialState: SettingsState = {
   siyuanBoxId: null,
   siyuanRootPath: null,
   maxKeepAliveMinapps: 3,
-  showOpenedMinappsInSidebar: true
+  showOpenedMinappsInSidebar: true,
+  exportMenuOptions: {
+    image: true,
+    markdown: true,
+    markdown_reason: true,
+    notion: true,
+    yuque: true,
+    joplin: true,
+    obsidian: true,
+    siyuan: true,
+    docx: true
+  }
 }
 
 const settingsSlice = createSlice({
@@ -424,6 +446,9 @@ const settingsSlice = createSlice({
     },
     setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
       state.showOpenedMinappsInSidebar = action.payload
+    },
+    setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
+      state.exportMenuOptions = action.payload
     }
   }
 })
@@ -504,7 +529,8 @@ export const {
   setSiyuanBoxId,
   setSiyuanRootPath,
   setMaxKeepAliveMinapps,
-  setShowOpenedMinappsInSidebar
+  setShowOpenedMinappsInSidebar,
+  setExportMenuOptions
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

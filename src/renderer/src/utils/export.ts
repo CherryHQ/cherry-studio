@@ -8,6 +8,7 @@ import { Message, Topic } from '@renderer/types'
 import { convertMathFormula, removeSpecialCharactersForFileName } from '@renderer/utils/index'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
+//TODO: 添加对思考内容的支持
 
 export const messageToMarkdown = (message: Message) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
@@ -18,27 +19,63 @@ export const messageToMarkdown = (message: Message) => {
   return [titleSection, '', contentSection].join('\n')
 }
 
-export const messagesToMarkdown = (messages: Message[]) => {
-  return messages.map((message) => messageToMarkdown(message)).join('\n\n---\n\n')
+// 保留接口用于其它导出方法使用
+export const messageToMarkdownWithReasoning = (message: Message) => {
+  const { forceDollarMathInMarkdown } = store.getState().settings
+  const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
+  const titleSection = `### ${roleText}`
+
+  // 处理思考内容
+  let reasoningSection = ''
+  if (message.reasoning_content) {
+    // 移除开头的<think>标记和换行符，并将所有换行符替换为<br>
+    let reasoningContent = message.reasoning_content
+    if (reasoningContent.startsWith('<think>\n')) {
+      reasoningContent = reasoningContent.substring(8)
+    } else if (reasoningContent.startsWith('<think>')) {
+      reasoningContent = reasoningContent.substring(7)
+    }
+    reasoningContent = reasoningContent.replace(/\n/g, '<br>')
+
+    // 应用数学公式转换（如果启用）
+    if (forceDollarMathInMarkdown) {
+      reasoningContent = convertMathFormula(reasoningContent)
+    }
+    // 添加思考内容的Markdown格式
+    reasoningSection = `<details style="background-color: #f5f5f5; padding: 5px; border-radius: 10px; margin-bottom: 10px;">
+      <summary>${i18n.t('common.reasoning_content')}</summary><hr>
+    ${reasoningContent}
+</details>`
+  }
+
+  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(message.content) : message.content
+
+  return [titleSection, '', reasoningSection + contentSection].join('\n')
 }
 
-export const topicToMarkdown = async (topic: Topic) => {
+export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolean) => {
+  return messages
+    .map((message) => (exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)))
+    .join('\n\n---\n\n')
+}
+
+export const topicToMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
   const topicName = `# ${topic.name}`
   const topicMessages = await db.topics.get(topic.id)
 
   if (topicMessages) {
-    return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages)
+    return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages, exportReasoning)
   }
 
   return ''
 }
 
-export const exportTopicAsMarkdown = async (topic: Topic) => {
+export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
-      const markdown = await topicToMarkdown(topic)
+      const markdown = await topicToMarkdown(topic, exportReasoning)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
         window.message.success({
@@ -53,7 +90,7 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
-      const markdown = await topicToMarkdown(topic)
+      const markdown = await topicToMarkdown(topic, exportReasoning)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
@@ -62,13 +99,13 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
   }
 }
 
-export const exportMessageAsMarkdown = async (message: Message) => {
+export const exportMessageAsMarkdown = async (message: Message, exportReasoning?: boolean) => {
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + '.md'
-      const markdown = messageToMarkdown(message)
+      const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
         window.message.success({
@@ -84,7 +121,7 @@ export const exportMessageAsMarkdown = async (message: Message) => {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const title = await getMessageTitle(message)
       const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
-      const markdown = messageToMarkdown(message)
+      const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
