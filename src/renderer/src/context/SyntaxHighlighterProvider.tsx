@@ -77,6 +77,8 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
   const codeToHtml = useCallback(
     async (_code: string, language: string, enableCache: boolean) => {
       {
+        if (!_code) return ''
+
         const key = getCacheKey(_code, language, highlighterTheme)
         const cached = highlightCache.current.get(key)
         if (enableCache && cached) return cached
