@@ -582,13 +582,17 @@
         "copy_last_message": "按 C 鍵複製",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
-        "esc_close": "關閉視窗"
+        "esc_close": "關閉視窗",
+        "backspace_clear": "按 Backspace 清空"
       },
       "input": {
         "placeholder": {
           "empty": "詢問 {{model}} 取得幫助...",
           "title": "你想對下方文字做什麼"
         }
+      },
+      "tooltip": {
+        "pin": "窗口置頂"
       }
     },
     "models": {

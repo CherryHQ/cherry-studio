@@ -580,15 +580,19 @@
       },
       "footer": {
         "copy_last_message": "按 C 键复制",
+        "backspace_clear": "按 Backspace 清空",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
-        "esc_close": "关闭窗口"
+        "esc_close": "关闭"
       },
       "input": {
         "placeholder": {
           "empty": "询问 {{model}} 获取帮助...",
           "title": "你想对下方文字做什么"
         }
+      },
+      "tooltip": {
+        "pin": "窗口置顶"
       }
     },
     "models": {

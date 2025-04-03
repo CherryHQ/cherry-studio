@@ -582,13 +582,17 @@
         "copy_last_message": "Нажмите C для копирования",
         "esc": "Нажмите ESC {{action}}",
         "esc_back": "возвращения",
-        "esc_close": "закрытия окна"
+        "esc_close": "закрытия окна",
+        "backspace_clear": "Нажмите Backspace, чтобы очистить"
       },
       "input": {
         "placeholder": {
           "empty": "Задайте вопрос {{model}}...",
           "title": "Что вы хотите сделать с этим текстом?"
         }
+      },
+      "tooltip": {
+        "pin": "Верхнее окно"
       }
     },
     "models": {
