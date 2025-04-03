@@ -50,7 +50,7 @@ import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
-import AttachmentButton from './AttachmentButton'
+import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
 import GenerateImageButton from './GenerateImageButton'
 import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
@@ -124,6 +124,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const mentionModelsButtonRef = useRef<MentionModelsButtonRef>(null)
   const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
+  const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -293,13 +294,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       },
       {
-        label: '选择文件',
-        description: '待开发',
+        label: t('chat.input.upload'),
+        description: '',
         icon: <PaperClipOutlined />,
-        disabled: true,
-        isMenu: true,
+        isMenu: false,
         action: () => {
-          // TODO: 直接从知识库中选择文件
+          attachmentButtonRef.current?.openQuickPanel()
         }
       },
       {
@@ -838,7 +838,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   <FormOutlined />
                 </ToolbarButton>
               </Tooltip>
-              <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
+              <AttachmentButton
+                ref={attachmentButtonRef}
+                model={model}
+                files={files}
+                setFiles={setFiles}
+                ToolbarButton={ToolbarButton}
+              />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
                 <ToolbarButton type="text" onClick={onEnableWebSearch}>
                   <GlobalOutlined

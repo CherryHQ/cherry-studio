@@ -1268,7 +1268,7 @@
         "titleLabel": "标题",
         "contentLabel": "内容",
         "titlePlaceholder": "请输入短语标题",
-        "contentPlaceholder": "请输入短语内容",
+        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}。",
         "delete": "删除短语",
         "deleteConfirm": "删除短语后将无法恢复，是否继续？"
       },
