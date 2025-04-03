@@ -114,7 +114,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
               assistant={assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
-              onOk={onOk}
             />
           )}
           {menu === 'model' && (

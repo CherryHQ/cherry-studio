@@ -2,7 +2,7 @@ import 'emoji-picker-element'
 
 import { CloseCircleFilled } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { Box, HStack } from '@renderer/components/Layout'
+import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -16,17 +16,17 @@ import styled from 'styled-components'
 interface Props {
   assistant: Assistant
   updateAssistant: (assistant: Assistant) => void
-  updateAssistantSettings: (settings: AssistantSettings) => void
-  onOk: () => void
+  updateAssistantSettings?: (settings: AssistantSettings) => void
+  onOk?: () => void
 }
 
-const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, onOk }) => {
+const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
   const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
   const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
   const [prompt, setPrompt] = useState(assistant.prompt)
   const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
-  const [showMarkdown, setShowMarkdown] = useState(true)
+  const [showMarkdown, setShowMarkdown] = useState(prompt.length > 0)
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -94,7 +94,12 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
         {t('common.prompt')}
       </Box>
       <TextAreaContainer>
-        {!showMarkdown ? (
+        {showMarkdown ? (
+          <MarkdownContainer onClick={() => setShowMarkdown(false)}>
+            <ReactMarkdown className="markdown">{prompt}</ReactMarkdown>
+            <div style={{ height: '30px' }} />
+          </MarkdownContainer>
+        ) : (
           <TextArea
             rows={10}
             placeholder={t('common.assistant') + t('common.prompt')}
@@ -102,25 +107,26 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
             onChange={(e) => setPrompt(e.target.value)}
             onBlur={() => {
               onUpdate()
-              setShowMarkdown(true)
             }}
             autoFocus={true}
             spellCheck={false}
             style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 200px)', paddingBottom: '30px' }}
           />
-        ) : (
-          <MarkdownContainer onClick={() => setShowMarkdown(false)}>
-            <ReactMarkdown className="markdown">{prompt}</ReactMarkdown>
-            <div style={{ height: '30px' }} />
-          </MarkdownContainer>
         )}
-        <TokenCount>Tokens: {tokenCount}</TokenCount>
       </TextAreaContainer>
-      <HStack width="100%" justifyContent="flex-end" mt="10px">
-        <Button type="primary" onClick={onOk}>
-          {t('common.close')}
-        </Button>
-      </HStack>
+      <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
+        <TokenCount>Tokens: {tokenCount}</TokenCount>
+
+        {showMarkdown ? (
+          <Button type="primary" onClick={() => setShowMarkdown(false)}>
+            {t('common.edit')}
+          </Button>
+        ) : (
+          <Button type="primary" onClick={() => setShowMarkdown(true)}>
+            {t('common.save')}
+          </Button>
+        )}
+      </HSpaceBetweenStack>
     </Container>
   )
 }
@@ -148,13 +154,9 @@ const TextAreaContainer = styled.div`
 `
 
 const TokenCount = styled.div`
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  background-color: var(--color-background-soft);
-  padding: 2px 8px;
+  padding: 2px 2px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--color-text-2);
   user-select: none;
 `
@@ -162,6 +164,7 @@ const TokenCount = styled.div`
 const MarkdownContainer = styled.div`
   min-height: calc(80vh - 200px);
   max-height: calc(80vh - 200px);
+  padding-right: 2px;
   overflow: auto;
   overflow-x: hidden;
 `
