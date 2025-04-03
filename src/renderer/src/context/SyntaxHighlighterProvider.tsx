@@ -14,6 +14,12 @@ interface SyntaxHighlighterContextType {
 
 const SyntaxHighlighterContext = createContext<SyntaxHighlighterContextType | undefined>(undefined)
 
+// 全局高亮器缓存 (LRU, 最多2个实例)
+const highlighterCache = new LRUCache<string, HighlighterGeneric<BundledLanguage, BundledTheme>>({
+  max: 2,
+  dispose: (value) => value.dispose()
+})
+
 export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const { theme } = useTheme()
   const [highlighter, setHighlighter] = useState<HighlighterGeneric<BundledLanguage, BundledTheme> | null>(null)
@@ -32,11 +38,18 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
     const initHighlighter = async () => {
       const commonLanguages = ['javascript', 'typescript', 'python', 'java', 'markdown']
 
+      const hl_cached = highlighterCache.get(highlighterTheme)
+      if (hl_cached) {
+        setHighlighter(hl_cached)
+        return
+      }
+
       const hl = await createHighlighter({
         themes: [highlighterTheme],
         langs: commonLanguages
       })
 
+      highlighterCache.set(highlighterTheme, hl)
       setHighlighter(hl)
 
       // Load all themes and languages
@@ -47,6 +60,7 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
     initHighlighter()
   }, [highlighterTheme])
 
+  // 高亮结果缓存
   const highlightCache = useRef(
     new LRUCache<string, string>({
       max: 100, // 最大缓存条目数
