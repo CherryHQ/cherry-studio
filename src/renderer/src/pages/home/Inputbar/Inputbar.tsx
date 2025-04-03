@@ -307,11 +307,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         description: '',
         icon: <TranslationOutlined />,
         action: () => {
+          if (!text) return
           translate()
         }
       }
     ]
-  }, [files.length, showKnowledgeIcon, showMCPToolsIcon, t, translate])
+  }, [files.length, showKnowledgeIcon, showMCPToolsIcon, t, translate, text])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
@@ -792,11 +793,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           className={classNames('inputbar-container', inputFocus && 'focus')}
           ref={containerRef}>
           <AttachmentPreview files={files} setFiles={setFiles} />
-          <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
           <KnowledgeBaseInput
             selectedKnowledgeBases={selectedKnowledgeBases}
             onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
           />
+          <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
           <Textarea
             value={text}
             onChange={onChange}
