@@ -180,15 +180,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (mentionModels) {
         userMessage.mentions = mentionModels
       }
-
       if (isFunctionCallingModel(model)) {
         if (!isEmpty(enabledMCPs) && !isEmpty(activedMcpServers)) {
-          userMessage.enabledMCPs = activedMcpServers.filter((server) =>
-            enabledMCPs?.some((s) => s.id === server.id)
-          )
+          userMessage.enabledMCPs = activedMcpServers.filter((server) => enabledMCPs?.some((s) => s.id === server.id))
         }
       }
-
       userMessage.usage = await estimateMessageUsage(userMessage)
       currentMessageId.current = userMessage.id
 
@@ -208,7 +204,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       console.error('Failed to send message:', error)
     }
   }, [
-    activedMcpServers,
     assistant,
     dispatch,
     files,
@@ -219,7 +214,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     resizeTextArea,
     selectedKnowledgeBases,
     text,
-    topic
+    topic,
+    enabledMCPs,
+    activedMcpServers
   ])
 
   const translate = async () => {

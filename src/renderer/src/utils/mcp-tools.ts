@@ -245,6 +245,7 @@ export async function callMCPTool(tool: MCPTool): Promise<any> {
           command: resp.data.command,
           args: resp.data.args,
           env: resp.data.env,
+          registryUrl: '',
           isActive: false
         }
         store.dispatch(addMCPServer(mcpServer))
