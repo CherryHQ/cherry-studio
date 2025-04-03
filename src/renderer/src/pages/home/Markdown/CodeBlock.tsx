@@ -37,28 +37,33 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
   const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 
+  const shouldHighlight = useCallback((lang: string) => {
+    const NON_HIGHLIGHT_LANGS = ['mermaid', 'plantuml', 'svg']
+    return !NON_HIGHLIGHT_LANGS.includes(lang)
+  }, [])
+
   const highlightCode = useCallback(async () => {
+    // 跳过非文本代码块
+    if (!shouldHighlight(language)) return
+
     setTimeout(async () => {
       const highlightedHtml = await codeToHtml(children, language)
       if (codeContentRef.current) {
         codeContentRef.current.innerHTML = highlightedHtml
-        // 完成后恢复完全不透明
         codeContentRef.current.style.opacity = '1'
       }
     }, 0)
-  }, [children, language, codeToHtml])
+  }, [children, language, codeToHtml, shouldHighlight])
 
   useEffect(() => {
     let isMounted = true
     const codeElement = codeContentRef.current
 
-    // 先显示纯文本并设置低透明度
     if (codeElement) {
       codeElement.style.opacity = '0.1'
       codeElement.textContent = children
     }
 
-    // 只有当代码块在视口中才执行高亮
     const observer = new IntersectionObserver(async (entries) => {
       if (entries[0].isIntersecting && isMounted) {
         highlightCode()
@@ -74,7 +79,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
       isMounted = false
       observer.disconnect()
     }
-  }, [children, highlightCode])
+  }, [children, highlightCode, language, shouldHighlight])
 
   useEffect(() => {
     setIsExpanded(!codeCollapsible)

@@ -2,8 +2,9 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { type CodeStyleVarious, ThemeMode } from '@renderer/types'
+import { LRUCache } from 'lru-cache'
 import type React from 'react'
-import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo, useState } from 'react'
+import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BundledLanguage, BundledTheme, HighlighterGeneric } from 'shiki'
 import { bundledLanguages, bundledThemes, createHighlighter } from 'shiki'
 
@@ -46,10 +47,36 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
     initHighlighter()
   }, [highlighterTheme])
 
+  const highlightCache = useRef(
+    new LRUCache<string, string>({
+      max: 500, // 最大缓存条目数
+      maxSize: 5 * 1024 * 1024, // 最大缓存大小（5MB）
+      sizeCalculation: (value) => value.length,
+      ttl: 1000 * 60 * 30 // 缓存过期时间（30分钟）
+    })
+  )
+
+  const getCacheKey = useCallback((code: string, language: string, theme: string) => {
+    return `${language}|${theme}|${code.length}|${hashCode(code)}`
+  }, [])
+
+  const hashCode = (str: string) => {
+    let hash = 0
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i)
+      hash |= 0
+    }
+    return hash
+  }
+
   const codeToHtml = useCallback(
     async (_code: string, language: string) => {
       {
         if (!highlighter) return ''
+
+        const key = getCacheKey(_code, language, highlighterTheme)
+        const cached = highlightCache.current.get(key)
+        if (cached) return cached
 
         const languageMap: Record<string, string> = {
           vab: 'vb'
@@ -69,17 +96,19 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
             }
           }
 
-          return highlighter.codeToHtml(code, {
+          const html = highlighter.codeToHtml(code, {
             lang: mappedLanguage,
             theme: highlighterTheme
           })
+          highlightCache.current.set(key, html)
+          return html
         } catch (error) {
           console.warn(`Error highlighting code for language '${mappedLanguage}':`, error)
           return `<pre style="padding: 10px"><code>${escapedCode}</code></pre>`
         }
       }
     },
-    [highlighter, highlighterTheme]
+    [getCacheKey, highlighter, highlighterTheme]
   )
 
   return <SyntaxHighlighterContext value={{ codeToHtml }}>{children}</SyntaxHighlighterContext>
