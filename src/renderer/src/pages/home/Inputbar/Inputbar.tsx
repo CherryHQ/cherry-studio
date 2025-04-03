@@ -180,10 +180,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         userMessage.mentions = mentionModels
       }
       if (isFunctionCallingModel(model)) {
-        if (enabledMCPs.length) {
-          // if (!isEmpty(assistant.mcpServers) || !isEmpty(activedMcpServers)) {
-          userMessage.enabledMCPs = [...enabledMCPs]
-          // }
+        if (!isEmpty(enabledMCPs) && !isEmpty(activedMcpServers)) {
+          userMessage.enabledMCPs = activedMcpServers.filter((server) =>
+            enabledMCPs?.some((s) => s.id === server.id)
+          )
         }
       }
       userMessage.usage = await estimateMessageUsage(userMessage)

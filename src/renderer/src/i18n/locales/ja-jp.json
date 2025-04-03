@@ -582,13 +582,17 @@
         "copy_last_message": "C キーを押してコピー",
         "esc": "ESC キーを押して{{action}}",
         "esc_back": "戻る",
-        "esc_close": "ウィンドウを閉じる"
+        "esc_close": "ウィンドウを閉じる",
+        "backspace_clear": "バックスペースを押してクリアします"
       },
       "input": {
         "placeholder": {
           "empty": "{{model}} に質問してください...",
           "title": "下のテキストに対して何をしますか？"
         }
+      },
+      "tooltip": {
+        "pin": "上部ウィンドウ"
       }
     },
     "models": {

@@ -580,15 +580,19 @@
       },
       "footer": {
         "copy_last_message": "Press C to copy",
-        "esc": "Press ESC {{action}}",
-        "esc_back": "back",
-        "esc_close": "close the window"
+        "backspace_clear": "Backspace to clear",
+        "esc": "ESC to {{action}}",
+        "esc_back": "return",
+        "esc_close": "close"
       },
       "input": {
         "placeholder": {
           "empty": "Ask {{model}} for help...",
           "title": "What do you want to do with this text?"
         }
+      },
+      "tooltip": {
+        "pin": "Keep Window on Top"
       }
     },
     "models": {

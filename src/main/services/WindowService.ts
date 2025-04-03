@@ -15,6 +15,7 @@ export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
+  private isPinnedMiniWindow: boolean = false
   private wasFullScreen: boolean = false
   //hacky-fix: store the focused status of mainWindow before miniWindow shows
   //to restore the focus status when miniWindow hides
@@ -378,8 +379,12 @@ export class WindowService {
 
   public createMiniWindow(isPreload: boolean = false): BrowserWindow {
     this.miniWindow = new BrowserWindow({
-      width: 500,
-      height: 520,
+      width: 550,
+      height: 400,
+      minWidth: 350,
+      minHeight: 380,
+      maxWidth: 1024,
+      maxHeight: 768,
       show: false,
       autoHideMenuBar: true,
       transparent: isMac,
@@ -388,7 +393,7 @@ export class WindowService {
       center: true,
       frame: false,
       alwaysOnTop: true,
-      resizable: false,
+      resizable: true,
       useContentSize: true,
       ...(isMac ? { type: 'panel' } : {}),
       skipTaskbar: true,
@@ -419,7 +424,9 @@ export class WindowService {
     })
 
     this.miniWindow.on('blur', () => {
-      this.hideMiniWindow()
+      if (!this.isPinnedMiniWindow) {
+        this.hideMiniWindow()
+      }
     })
 
     this.miniWindow.on('closed', () => {
@@ -501,6 +508,10 @@ export class WindowService {
     }
 
     this.showMiniWindow()
+  }
+
+  public setPinMiniWindow(isPinned) {
+    this.isPinnedMiniWindow = isPinned
   }
 
   public showSelectionMenu(bounds: { x: number; y: number }) {
