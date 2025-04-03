@@ -50,7 +50,11 @@ export interface SettingsState {
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
+  // 代码块缓存
   codeCacheable: boolean
+  codeCacheMaxSize: number
+  codeCacheTTL: number
+  codeCacheThreshold: number
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
@@ -138,6 +142,9 @@ const initialState: SettingsState = {
   codeCollapsible: false,
   codeWrappable: false,
   codeCacheable: false,
+  codeCacheMaxSize: 1000000, // 缓存最大容量，字符数
+  codeCacheTTL: 15, // 缓存过期时间，分钟
+  codeCacheThreshold: 2000, // 允许缓存的最小字符数
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',
@@ -305,6 +312,15 @@ const settingsSlice = createSlice({
     setCodeCacheable: (state, action: PayloadAction<boolean>) => {
       state.codeCacheable = action.payload
     },
+    setCodeCacheMaxSize: (state, action: PayloadAction<number>) => {
+      state.codeCacheMaxSize = action.payload
+    },
+    setCodeCacheTTL: (state, action: PayloadAction<number>) => {
+      state.codeCacheTTL = action.payload
+    },
+    setCodeCacheThreshold: (state, action: PayloadAction<number>) => {
+      state.codeCacheThreshold = action.payload
+    },
     setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
       state.mathEngine = action.payload
     },
@@ -471,6 +487,9 @@ export const {
   setCodeCollapsible,
   setCodeWrappable,
   setCodeCacheable,
+  setCodeCacheMaxSize,
+  setCodeCacheTTL,
+  setCodeCacheThreshold,
   setMathEngine,
   setFoldDisplayMode,
   setGridColumns,

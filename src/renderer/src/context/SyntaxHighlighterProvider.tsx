@@ -1,10 +1,11 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { CodeCacheService } from '@renderer/services/CodeCacheService'
 import { type CodeStyleVarious, ThemeMode } from '@renderer/types'
 import { LRUCache } from 'lru-cache'
 import type React from 'react'
-import { createContext, type PropsWithChildren, use, useCallback, useMemo, useRef } from 'react'
+import { createContext, type PropsWithChildren, use, useCallback, useMemo } from 'react'
 import type { BundledLanguage } from 'shiki'
 import { bundledLanguages, bundledThemes, createHighlighter, type Highlighter } from 'shiki'
 
@@ -37,36 +38,6 @@ async function getHighlighter(theme: string) {
   return await hlPromise
 }
 
-// 增强的hash
-const enhancedHash = (input: string) => {
-  const THRESHOLD = 50000
-
-  if (input.length <= THRESHOLD) {
-    return fastHash(input)
-  }
-
-  const mid = Math.floor(input.length / 2)
-
-  // 三段hash保证唯一性
-  const frontSection = input.slice(0, 10000)
-  const midSection = input.slice(mid - 15000, mid + 15000)
-  const endSection = input.slice(-10000)
-
-  return `${fastHash(frontSection)}-${fastHash(midSection)}-${fastHash(endSection)}`
-}
-
-// FNV-1a hash
-const fastHash = (input: string, maxInputLength: number = 50000) => {
-  let hash = 2166136261 // FNV偏移基数
-  const count = Math.min(input.length, maxInputLength)
-  for (let i = 0; i < count; i++) {
-    hash ^= input.charCodeAt(i)
-    hash *= 16777619 // FNV素数
-    hash >>>= 0 // 保持为32位无符号整数
-  }
-  return hash.toString(36)
-}
-
 export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const { theme } = useTheme()
   const { codeStyle } = useSettings()
@@ -80,28 +51,14 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
     return codeStyle
   }, [theme, codeStyle])
 
-  // 高亮结果缓存
-  const highlightCache = useRef(
-    new LRUCache<string, string>({
-      max: 200, // 最大缓存条目数
-      maxSize: 2 * 10 ** 6, // 最大缓存大小（字符数）
-      sizeCalculation: (value) => value.length, // 缓存大小计算（字符数）
-      ttl: 1000 * 60 * 10 // 缓存过期时间（10分钟）
-    })
-  )
-
-  const getCacheKey = useCallback((code: string, language: string, theme: string) => {
-    return `${language}|${theme}|${code.length}|${enhancedHash(code)}`
-  }, [])
-
   const codeToHtml = useCallback(
     async (_code: string, language: string, enableCache: boolean) => {
       {
         if (!_code) return ''
 
-        const key = getCacheKey(_code, language, highlighterTheme)
-        const cached = highlightCache.current.get(key)
-        if (enableCache && cached) return cached
+        const key = CodeCacheService.generateCacheKey(_code, language, highlighterTheme)
+        const cached = enableCache ? CodeCacheService.getCachedResult(key) : null
+        if (cached) return cached
 
         const languageMap: Record<string, string> = {
           vab: 'vb'
@@ -128,9 +85,9 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
             theme: highlighterTheme
           })
 
-          // 缓存大于2000字符的代码
-          if (enableCache && _code.length > 2000) {
-            highlightCache.current.set(key, html)
+          // 设置缓存
+          if (enableCache) {
+            CodeCacheService.setCachedResult(key, html, _code.length)
           }
 
           return html
@@ -140,7 +97,7 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
         }
       }
     },
-    [getCacheKey, highlighterTheme]
+    [highlighterTheme]
   )
 
   return <SyntaxHighlighterContext value={{ codeToHtml }}>{children}</SyntaxHighlighterContext>
