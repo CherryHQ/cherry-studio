@@ -142,9 +142,9 @@ const initialState: SettingsState = {
   codeCollapsible: false,
   codeWrappable: false,
   codeCacheable: false,
-  codeCacheMaxSize: 1000000, // 缓存最大容量，字符数
+  codeCacheMaxSize: 1000, // 缓存最大容量，千字符数
   codeCacheTTL: 15, // 缓存过期时间，分钟
-  codeCacheThreshold: 2000, // 允许缓存的最小字符数
+  codeCacheThreshold: 2, // 允许缓存的最小代码长度，千字符数
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',

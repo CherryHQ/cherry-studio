@@ -45,9 +45,9 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
 
   // 初始化代码缓存服务
   useEffect(() => {
-    setTimeout(() => {
-      CodeCacheService.init()
-    }, 0)
+    setTimeout(CodeCacheService.init, 0)
+
+    return () => CodeCacheService.cleanup()
   }, [])
 
   const highlighterTheme = useMemo(() => {

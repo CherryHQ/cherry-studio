@@ -360,11 +360,11 @@ const SettingsTab: FC<Props> = (props) => {
               </SettingRowTitleSmall>
               <InputNumber
                 size="small"
-                min={10 ** 6}
-                max={10 ** 7}
-                step={10 ** 6}
+                min={1000}
+                max={10000}
+                step={1000}
                 value={codeCacheMaxSize}
-                onChange={(value) => dispatch(setCodeCacheMaxSize(value ?? 10 ** 6))}
+                onChange={(value) => dispatch(setCodeCacheMaxSize(value ?? 1000))}
                 style={{ width: 80 }}
               />
             </SettingRow>
@@ -397,10 +397,10 @@ const SettingsTab: FC<Props> = (props) => {
               <InputNumber
                 size="small"
                 min={0}
-                max={50000}
-                step={1000}
+                max={50}
+                step={1}
                 value={codeCacheThreshold}
-                onChange={(value) => dispatch(setCodeCacheThreshold(value ?? 2000))}
+                onChange={(value) => dispatch(setCodeCacheThreshold(value ?? 2))}
                 style={{ width: 80 }}
               />
             </SettingRow>

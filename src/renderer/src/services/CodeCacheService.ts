@@ -44,6 +44,41 @@ const enhancedHash = (input: string) => {
 let highlightCache: LRUCache<string, string> | null = null
 // 订阅函数取消器
 let unsubscribe: (() => void) | null = null
+// 上一次的缓存设置
+let previousSettings = {
+  codeCacheable: false,
+  codeCacheMaxSize: 0,
+  codeCacheTTL: 0,
+  codeCacheThreshold: 0
+}
+
+/**
+ * 获取当前缓存设置
+ */
+const getCacheSettings = () => {
+  try {
+    if (!store || !store.getState) return null
+    const { codeCacheable, codeCacheMaxSize, codeCacheTTL, codeCacheThreshold } = store.getState().settings
+    return { codeCacheable, codeCacheMaxSize, codeCacheTTL, codeCacheThreshold }
+  } catch (error) {
+    console.warn('[CodeCacheService] Failed to get cache settings', error)
+    return null
+  }
+}
+
+/**
+ * 检查缓存设置是否发生变化
+ */
+const haveSettingsChanged = (prev: any, current: any) => {
+  if (!prev || !current) return true
+
+  return (
+    prev.codeCacheable !== current.codeCacheable ||
+    prev.codeCacheMaxSize !== current.codeCacheMaxSize ||
+    prev.codeCacheTTL !== current.codeCacheTTL ||
+    prev.codeCacheThreshold !== current.codeCacheThreshold
+  )
+}
 
 /**
  * 初始化缓存
@@ -59,7 +94,7 @@ const initializeCache = () => {
 
     return new LRUCache<string, string>({
       max: 200, // 最大缓存条目数
-      maxSize: codeCacheMaxSize, // 最大缓存大小
+      maxSize: codeCacheMaxSize * 1000, // 最大缓存大小
       sizeCalculation: (value) => value.length, // 缓存大小计算
       ttl: codeCacheTTL * 60 * 1000 // 缓存过期时间（毫秒）
     })
@@ -75,17 +110,38 @@ const initializeCache = () => {
  */
 export const CodeCacheService = {
   init: () => {
-    // 清理旧订阅（如果有）
     if (unsubscribe) unsubscribe()
+
+    previousSettings = getCacheSettings() || previousSettings
 
     // 初始化服务
     CodeCacheService.updateConfig()
 
-    // 设置新订阅
+    // 订阅缓存相关设置变化
     if (store && store.subscribe) {
       unsubscribe = store.subscribe(() => {
-        CodeCacheService.updateConfig()
+        const currentSettings = getCacheSettings()
+
+        if (haveSettingsChanged(previousSettings, currentSettings)) {
+          previousSettings = currentSettings || previousSettings
+          CodeCacheService.updateConfig()
+        }
       })
+    }
+  },
+
+  /**
+   * 清理服务资源
+   */
+  cleanup: () => {
+    if (unsubscribe) {
+      unsubscribe()
+      unsubscribe = null
+    }
+
+    if (highlightCache) {
+      highlightCache.clear()
+      highlightCache = null
     }
   },
 
@@ -109,10 +165,6 @@ export const CodeCacheService = {
     try {
       if (!store || !store.getState) return null
 
-      if (!highlightCache) {
-        highlightCache = initializeCache()
-      }
-
       const { codeCacheable } = store.getState().settings
       if (!codeCacheable) return null
 
@@ -133,14 +185,10 @@ export const CodeCacheService = {
     try {
       if (!store || !store.getState) return
 
-      if (!highlightCache) {
-        highlightCache = initializeCache()
-      }
-
       const { codeCacheable, codeCacheThreshold } = store.getState().settings
 
       // 判断是否可以缓存
-      if (!codeCacheable || codeLength < codeCacheThreshold) return
+      if (!codeCacheable || codeLength < codeCacheThreshold * 1000) return
 
       highlightCache?.set(key, html)
     } catch (error) {
@@ -157,34 +205,39 @@ export const CodeCacheService = {
       if (!store || !store.getState) return
 
       const { codeCacheable, codeCacheMaxSize, codeCacheTTL } = store.getState().settings
+      const newMaxSize = codeCacheMaxSize * 1000
+      const newTTLMilliseconds = codeCacheTTL * 60 * 1000
 
       // 根据配置决定是否创建或清除缓存
       if (codeCacheable) {
         if (!highlightCache) {
+          // 缓存不存在，创建新缓存
           highlightCache = initializeCache()
-        } else {
-          // 重新创建缓存以应用新设置
+          return
+        }
+
+        // 尝试从当前缓存获取配置信息
+        const maxSize = highlightCache.max || 0
+        const ttl = highlightCache.ttl || 0
+
+        // 检查实际配置是否变化
+        if (maxSize !== newMaxSize || ttl !== newTTLMilliseconds) {
+          console.log('[CodeCacheService] Cache config changed, recreating cache')
           highlightCache.clear()
           highlightCache = new LRUCache<string, string>({
             max: 200,
-            maxSize: codeCacheMaxSize,
+            maxSize: newMaxSize,
             sizeCalculation: (value) => value.length,
-            ttl: codeCacheTTL * 60 * 1000
+            ttl: newTTLMilliseconds
           })
         }
       } else if (highlightCache) {
+        // 缓存被禁用，清理资源
         highlightCache.clear()
         highlightCache = null
       }
     } catch (error) {
       console.warn('[CodeCacheService] Failed to update cache config', error)
     }
-  },
-
-  /**
-   * 清空缓存
-   */
-  clear: () => {
-    highlightCache?.clear()
   }
 }
