@@ -235,7 +235,8 @@
       "topics.export.siyuan": "匯出到思源筆記",
       "topics.export.wait_for_title_naming": "正在生成標題...",
       "topics.export.title_naming_success": "標題生成成功",
-      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題"
+      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
+      "input.translating": "翻譯中..."
     },
     "code_block": {
       "collapse": "折疊",
@@ -1059,7 +1060,8 @@
         "deleteServerConfirm": "確定要刪除此伺服器嗎？",
         "registry": "套件管理源",
         "registryTooltip": "選擇用於安裝套件的源，以解決預設源的網路問題。",
-        "registryDefault": "預設"
+        "registryDefault": "預設",
+        "not_support": "不支援此模型"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -1258,7 +1260,28 @@
         },
         "title": "網路搜尋"
       },
-      "general.auto_check_update.title": "啟用自動更新檢查"
+      "general.auto_check_update.title": "啟用自動更新檢查",
+      "quickPhrase": {
+        "title": "快捷短語",
+        "add": "新增短語",
+        "edit": "編輯短語",
+        "titleLabel": "標題",
+        "contentLabel": "內容",
+        "titlePlaceholder": "請輸入短語標題",
+        "contentPlaceholder": "請輸入短語內容",
+        "delete": "刪除短語",
+        "deleteConfirm": "刪除後無法復原，是否繼續？"
+      },
+      "quickPanel": {
+        "title": "快捷選單",
+        "close": "關閉",
+        "select": "選擇",
+        "page": "翻頁",
+        "confirm": "確認",
+        "back": "後退",
+        "forward": "前進",
+        "multiple": "多選"
+      }
     },
     "translate": {
       "any.language": "任意語言",

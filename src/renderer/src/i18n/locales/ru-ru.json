@@ -235,7 +235,8 @@
       "topics.export.siyuan": "Экспорт в Siyuan Note",
       "topics.export.wait_for_title_naming": "Создание заголовка...",
       "topics.export.title_naming_success": "Заголовок успешно создан",
-      "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию"
+      "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",
+      "input.translating": "Перевод..."
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -1059,7 +1060,8 @@
         "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",
         "registry": "Реестр пакетов",
         "registryTooltip": "Выберите реестр для установки пакетов, если возникают проблемы с сетью при использовании реестра по умолчанию.",
-        "registryDefault": "По умолчанию"
+        "registryDefault": "По умолчанию",
+        "not_support": "Модель не поддерживается"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
@@ -1258,7 +1260,28 @@
         },
         "title": "Поиск в Интернете"
       },
-      "general.auto_check_update.title": "Включить автоматическую проверку обновлений"
+      "general.auto_check_update.title": "Включить автоматическую проверку обновлений",
+      "quickPhrase": {
+        "title": "Быстрые фразы",
+        "add": "Добавить фразу",
+        "edit": "Редактировать фразу",
+        "titleLabel": "Заголовок",
+        "contentLabel": "Содержание",
+        "titlePlaceholder": "Введите заголовок фразы",
+        "contentPlaceholder": "Введите содержание фразы",
+        "delete": "Удалить фразу",
+        "deleteConfirm": "После удаления фраза не может быть восстановлена, продолжить?"
+      },
+      "quickPanel": {
+        "title": "Быстрое меню",
+        "close": "Закрыть",
+        "select": "Выбрать",
+        "page": "Страница",
+        "confirm": "Подтвердить",
+        "back": "Назад",
+        "forward": "Вперед",
+        "multiple": "Множественный выбор"
+      }
     },
     "translate": {
       "any.language": "Любой язык",

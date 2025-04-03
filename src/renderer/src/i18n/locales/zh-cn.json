@@ -129,6 +129,7 @@
       "input.new_topic": "新话题 {{Command}}",
       "input.pause": "暂停",
       "input.placeholder": "在这里输入消息...",
+      "input.translating": "翻译中...",
       "input.send": "发送",
       "input.settings": "设置",
       "input.topics": " 话题 ",

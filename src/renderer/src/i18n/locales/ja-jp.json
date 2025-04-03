@@ -235,7 +235,8 @@
       "topics.export.siyuan": "思源笔记にエクスポート",
       "topics.export.wait_for_title_naming": "タイトルを生成中...",
       "topics.export.title_naming_success": "タイトルの生成に成功しました",
-      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します"
+      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",
+      "input.translating": "翻訳中..."
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -1059,7 +1060,8 @@
         "deleteServerConfirm": "このサーバーを削除してもよろしいですか？",
         "registry": "パッケージ管理レジストリ",
         "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
-        "registryDefault": "デフォルト"
+        "registryDefault": "デフォルト",
+        "not_support": "モデルはサポートされていません"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -1258,7 +1260,28 @@
         },
         "title": "ウェブ検索"
       },
-      "general.auto_check_update.title": "自動更新チェックを有効にする"
+      "general.auto_check_update.title": "自動更新チェックを有効にする",
+      "quickPhrase": {
+        "title": "クイックフレーズ",
+        "add": "フレーズを追加",
+        "edit": "フレーズを編集",
+        "titleLabel": "タイトル",
+        "contentLabel": "内容",
+        "titlePlaceholder": "フレーズのタイトルを入力してください",
+        "contentPlaceholder": "フレーズの内容を入力してください",
+        "delete": "フレーズを削除",
+        "deleteConfirm": "削除後は復元できません。続行しますか？"
+      },
+      "quickPanel": {
+        "title": "クイックメニュー",
+        "close": "閉じる",
+        "select": "選択",
+        "page": "ページ",
+        "confirm": "確認",
+        "back": "戻る",
+        "forward": "進む",
+        "multiple": "複数選択"
+      }
     },
     "translate": {
       "any.language": "任意の言語",
