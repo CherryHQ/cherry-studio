@@ -53,8 +53,8 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
   // 高亮结果缓存
   const highlightCache = useRef(
     new LRUCache<string, string>({
-      max: 100, // 最大缓存条目数
-      maxSize: 10 * 1024 * 1024, // 最大缓存大小（10MB）
+      max: 200, // 最大缓存条目数
+      maxSize: 5 * 10 ** 6, // 最大缓存大小
       sizeCalculation: (value) => value.length,
       ttl: 1000 * 60 * 10 // 缓存过期时间（10分钟）
     })
@@ -65,8 +65,9 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
   }, [])
 
   const hashCode = (str: string) => {
+    const count = Math.min(str.length, 10000)
     let hash = 0
-    for (let i = 0; i < str.length; i++) {
+    for (let i = 0; i < count; i++) {
       hash = (hash << 5) - hash + str.charCodeAt(i)
       hash |= 0
     }
