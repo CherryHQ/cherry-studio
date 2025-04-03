@@ -37,6 +37,8 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
   const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 
+  const shouldShowExpandButtonRef = useRef(false)
+
   const shouldHighlight = useCallback((lang: string) => {
     const NON_HIGHLIGHT_LANGS = ['mermaid', 'plantuml', 'svg']
     return !NON_HIGHLIGHT_LANGS.includes(lang)
@@ -47,13 +49,17 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
     if (!shouldHighlight(language)) return
 
     setTimeout(async () => {
-      const highlightedHtml = await codeToHtml(children, language)
+      const highlightedHtml = await codeToHtml(children, language, true)
       if (codeContentRef.current) {
         codeContentRef.current.innerHTML = highlightedHtml
         codeContentRef.current.style.opacity = '1'
+        const isShowExpandButton = codeContentRef.current.scrollHeight > 350
+        if (shouldShowExpandButtonRef.current === isShowExpandButton) return
+        shouldShowExpandButtonRef.current = isShowExpandButton
+        setShouldShowExpandButton(shouldShowExpandButtonRef.current)
       }
     }, 0)
-  }, [children, language, codeToHtml, shouldHighlight])
+  }, [shouldHighlight, language, codeToHtml, children])
 
   useEffect(() => {
     let isMounted = true

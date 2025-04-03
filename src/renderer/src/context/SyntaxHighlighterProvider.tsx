@@ -9,7 +9,7 @@ import type { BundledLanguage } from 'shiki'
 import { bundledLanguages, bundledThemes, createHighlighter, type Highlighter } from 'shiki'
 
 interface SyntaxHighlighterContextType {
-  codeToHtml: (code: string, language: string) => Promise<string>
+  codeToHtml: (code: string, language: string, enableCache: boolean) => Promise<string>
 }
 
 const SyntaxHighlighterContext = createContext<SyntaxHighlighterContextType | undefined>(undefined)
@@ -75,11 +75,11 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
   }
 
   const codeToHtml = useCallback(
-    async (_code: string, language: string) => {
+    async (_code: string, language: string, enableCache: boolean) => {
       {
         const key = getCacheKey(_code, language, highlighterTheme)
         const cached = highlightCache.current.get(key)
-        if (cached) return cached
+        if (enableCache && cached) return cached
 
         const languageMap: Record<string, string> = {
           vab: 'vb'
@@ -105,7 +105,7 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
             lang: mappedLanguage,
             theme: highlighterTheme
           })
-          highlightCache.current.set(key, html)
+          enableCache && highlightCache.current.set(key, html)
           return html
         } catch (error) {
           console.warn(`Error highlighting code for language '${mappedLanguage}':`, error)
