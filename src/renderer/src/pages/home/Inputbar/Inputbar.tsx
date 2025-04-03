@@ -19,6 +19,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
@@ -36,12 +37,13 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/messages'
 import { setSearching } from '@renderer/store/runtime'
-import { Assistant, FileType, KnowledgeBase, MCPServer, Message, Model, Topic } from '@renderer/types'
-import { classNames, delay, getFileExtension } from '@renderer/utils'
+import { Assistant, FileType, KnowledgeBase, KnowledgeItem, MCPServer, Message, Model, Topic } from '@renderer/types'
+import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Popconfirm, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import dayjs from 'dayjs'
 import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -112,6 +114,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const navigate = useNavigate()
   const { activedMcpServers } = useMCPServers()
+  const { bases: knowledgeBases } = useKnowledgeBases()
 
   const quickPanel = useQuickPanel()
 
@@ -253,6 +256,73 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [isTranslating, text, targetLanguage, resizeTextArea])
 
+  const openKnowledgeFileList = useCallback(
+    (base: KnowledgeBase) => {
+      quickPanel.open({
+        title: base.name,
+        list: base.items
+          .filter((item): item is KnowledgeItem => ['file'].includes(item.type))
+          .map((item) => {
+            const fileContent = item.content as FileType
+            return {
+              label: fileContent.origin_name || fileContent.name,
+              description:
+                formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
+              icon: <FileSearchOutlined />,
+              isSelected: files.some((f) => f.path === fileContent.path),
+              action: async ({ item }) => {
+                item.isSelected = !item.isSelected
+                if (fileContent.path) {
+                  const file = await window.api.file.get(fileContent.path)
+                  setFiles((prevFiles) => {
+                    const fileExists = prevFiles.some((f) => f.path === fileContent.path)
+                    if (fileExists) {
+                      return prevFiles.filter((f) => f.path !== fileContent.path)
+                    } else {
+                      return file ? [...prevFiles, file] : prevFiles
+                    }
+                  })
+                }
+              }
+            }
+          }),
+        symbol: 'file',
+        multiple: true
+      })
+    },
+    [files, quickPanel]
+  )
+
+  const openSelectFileMenu = useCallback(() => {
+    quickPanel.open({
+      title: t('chat.input.upload'),
+      list: [
+        {
+          label: t('chat.input.upload.upload_from_local'),
+          description: '',
+          icon: <PaperClipOutlined />,
+          action: () => {
+            attachmentButtonRef.current?.openQuickPanel()
+          }
+        },
+        ...knowledgeBases.map((base) => {
+          const length = base.items?.filter(
+            (item): item is KnowledgeItem => ['file', 'note'].includes(item.type) && typeof item.content !== 'string'
+          ).length
+          return {
+            label: base.name,
+            description: `${length} ${t('files.count')}`,
+            icon: <FileSearchOutlined />,
+            disabled: length === 0,
+            isMenu: true,
+            action: () => openKnowledgeFileList(base)
+          }
+        })
+      ],
+      symbol: 'file'
+    })
+  }, [knowledgeBases, openKnowledgeFileList, quickPanel, t])
+
   const quickPanelMenu = useMemo<QuickPanelListItem[]>(() => {
     return [
       {
@@ -297,10 +367,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         label: t('chat.input.upload'),
         description: '',
         icon: <PaperClipOutlined />,
-        isMenu: false,
-        action: () => {
-          attachmentButtonRef.current?.openQuickPanel()
-        }
+        isMenu: true,
+        action: openSelectFileMenu
       },
       {
         label: t('translate.title'),
@@ -312,7 +380,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
     ]
-  }, [files.length, showKnowledgeIcon, showMCPToolsIcon, t, translate, text])
+  }, [files.length, openSelectFileMenu, showKnowledgeIcon, showMCPToolsIcon, t, text, translate])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13

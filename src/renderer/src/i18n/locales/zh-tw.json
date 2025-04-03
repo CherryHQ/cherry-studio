@@ -236,7 +236,8 @@
       "topics.export.wait_for_title_naming": "正在生成標題...",
       "topics.export.title_naming_success": "標題生成成功",
       "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
-      "input.translating": "翻譯中..."
+      "input.translating": "翻譯中...",
+      "input.upload.upload_from_local": "上傳本地文件..."
     },
     "code_block": {
       "collapse": "折疊",
@@ -329,7 +330,7 @@
     "files": {
       "actions": "操作",
       "all": "所有檔案",
-      "count": "數量",
+      "count": "個檔案",
       "created_at": "建立時間",
       "delete": "刪除",
       "delete.content": "刪除檔案會刪除檔案在所有訊息中的引用，確定要刪除此檔案嗎？",

@@ -1,4 +1,4 @@
-import { ExportOutlined, PlusOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { PlusOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel/types'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
@@ -89,8 +89,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton 
       action: () => handlePhraseSelect(phrase)
     }))
     newList.push({
-      label: t('settings.quickPhrase.add'),
-      suffix: <ExportOutlined />,
+      label: t('settings.quickPhrase.add') + '...',
       icon: <PlusOutlined />,
       action: () => navigate('/settings/quickPhrase')
     })

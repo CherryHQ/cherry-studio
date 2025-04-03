@@ -1,5 +1,5 @@
 import { FileSearchOutlined } from '@ant-design/icons'
-import { ExportOutlined, PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
 import { KnowledgeBase } from '@renderer/types'
@@ -47,14 +47,13 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   const baseItems = useMemo<QuickPanelListItem[]>(() => {
     const newList: QuickPanelListItem[] = knowledgeState.bases.map((base) => ({
       label: base.name,
-      description: base.items.length,
+      description: `${base.items.length} ${t('files.count')}`,
       icon: <FileSearchOutlined />,
       action: () => handleBaseSelect(base),
       isSelected: selectedBases?.some((selected) => selected.id === base.id)
     }))
     newList.push({
-      label: t('knowledge.add.title'),
-      suffix: <ExportOutlined />,
+      label: t('knowledge.add.title') + '...',
       icon: <PlusOutlined />,
       action: () => navigate('/knowledge'),
       isSelected: false

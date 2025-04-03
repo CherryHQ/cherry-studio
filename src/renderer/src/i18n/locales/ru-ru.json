@@ -236,7 +236,8 @@
       "topics.export.wait_for_title_naming": "Создание заголовка...",
       "topics.export.title_naming_success": "Заголовок успешно создан",
       "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",
-      "input.translating": "Перевод..."
+      "input.translating": "Перевод...",
+      "input.upload.upload_from_local": "Загрузить локальный файл..."
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -329,7 +330,7 @@
     "files": {
       "actions": "Действия",
       "all": "Все файлы",
-      "count": "Количество",
+      "count": "файлов",
       "created_at": "Дата создания",
       "delete": "Удалить",
       "delete.content": "Удаление файла удалит его из всех сообщений, вы уверены, что хотите удалить этот файл?",

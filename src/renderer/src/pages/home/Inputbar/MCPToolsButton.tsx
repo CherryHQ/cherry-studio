@@ -1,4 +1,4 @@
-import { CodeOutlined, ExportOutlined, PlusOutlined } from '@ant-design/icons'
+import { CodeOutlined, PlusOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
@@ -37,8 +37,7 @@ const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarB
       isSelected: enabledMCPs.some((s) => s.id === server.id)
     }))
     newList.push({
-      label: t('settings.mcp.addServer'),
-      suffix: <ExportOutlined />,
+      label: t('settings.mcp.addServer') + '...',
       icon: <PlusOutlined />,
       action: () => navigate('/settings/mcp')
     })

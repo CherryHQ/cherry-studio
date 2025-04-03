@@ -1,4 +1,4 @@
-import { ExportOutlined, PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined } from '@ant-design/icons'
 import ModelTags from '@renderer/components/ModelTags'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
@@ -61,8 +61,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
         isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(item.model))
       }))
     newList.push({
-      label: t('settings.models.add.add_model'),
-      suffix: <ExportOutlined />,
+      label: t('settings.models.add.add_model') + '...',
       icon: <PlusOutlined />,
       action: () => navigate('/settings/provider'),
       isSelected: false

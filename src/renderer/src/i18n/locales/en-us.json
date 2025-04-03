@@ -236,7 +236,8 @@
       "topics.export.wait_for_title_naming": "Generating title...",
       "topics.export.title_naming_success": "Title generated successfully",
       "topics.export.title_naming_failed": "Failed to generate title, using default title",
-      "input.translating": "Translating..."
+      "input.translating": "Translating...",
+      "input.upload.upload_from_local": "Upload local file..."
     },
     "code_block": {
       "collapse": "Collapse",
@@ -329,7 +330,7 @@
     "files": {
       "actions": "Actions",
       "all": "All Files",
-      "count": "Count",
+      "count": "files",
       "created_at": "Created At",
       "delete": "Delete",
       "delete.content": "Deleting a file will delete its reference from all messages. Are you sure you want to delete this file?",
