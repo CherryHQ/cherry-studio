@@ -38,6 +38,10 @@ export const QuickPanelView: React.FC<{
 
   const scrollBlock = useRef<ScrollLogicalPosition>('nearest')
 
+  // 解决长按上下键时滚动太慢问题
+  const keyPressCount = useRef<number>(0)
+  const scrollBehavior = useRef<'auto' | 'smooth'>('smooth')
+
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
       ctx.close(action)
@@ -136,7 +140,7 @@ export const QuickPanelView: React.FC<{
     if (selectedElement) {
       selectedElement.scrollIntoView({
         block: scrollBlock.current,
-        behavior: 'smooth'
+        behavior: scrollBehavior.current
       })
       scrollBlock.current = 'nearest'
     }
@@ -149,6 +153,13 @@ export const QuickPanelView: React.FC<{
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isMac ? e.metaKey : e.ctrlKey) {
         setIsAssistiveKeyPressed(true)
+      }
+
+      if (['ArrowUp', 'ArrowDown'].includes(e.key)) {
+        keyPressCount.current++
+        if (keyPressCount.current > 5) {
+          scrollBehavior.current = 'auto'
+        }
       }
 
       switch (e.key) {
@@ -183,6 +194,26 @@ export const QuickPanelView: React.FC<{
             scrollBlock.current = 'nearest'
             setIndex((prev) => (prev < list.length - 1 ? prev + 1 : 0))
           }
+          break
+        case 'PageUp':
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          scrollBlock.current = 'start'
+          setIndex((prev) => {
+            const newIndex = prev - ctx.pageSize
+            return newIndex < 0 ? 0 : newIndex
+          })
+          break
+        case 'PageDown':
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+          scrollBlock.current = 'start'
+          setIndex((prev) => {
+            const newIndex = prev + ctx.pageSize
+            return newIndex >= list.length ? list.length - 1 : newIndex
+          })
           break
         case 'ArrowLeft':
           e.preventDefault()
@@ -222,6 +253,9 @@ export const QuickPanelView: React.FC<{
       if (isMac ? !e.metaKey : !e.ctrlKey) {
         setIsAssistiveKeyPressed(false)
       }
+
+      keyPressCount.current = 0
+      scrollBehavior.current = 'smooth'
     }
 
     const handleClickOutside = (e: MouseEvent) => {
@@ -397,7 +431,7 @@ const QuickPanelItem = styled.div`
   padding: 5px;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color 0.1s ease;
   margin-bottom: 1px;
   &.selected {
     background-color: var(--selected-color);
