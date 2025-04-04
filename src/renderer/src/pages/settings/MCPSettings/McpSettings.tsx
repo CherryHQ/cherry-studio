@@ -93,22 +93,17 @@ const McpSettings: React.FC<Props> = ({ server }) => {
             .join('\n')
         : ''
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [server])
+  }, [server, form])
 
-  // Watch the serverType field to update the form layout dynamically
   useEffect(() => {
-    const type = form.getFieldValue('serverType')
-    type && setServerType(type)
-  }, [form])
-
-  // Load tools on initial mount if server is active
-  useEffect(() => {
-    fetchTools()
+    const currentServerType = form.getFieldValue('serverType')
+    if (currentServerType) {
+      setServerType(currentServerType)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [form.getFieldValue('serverType')])
 
-  const fetchTools = async () => {
+  const fetchTools = useCallback(async () => {
     if (server.isActive) {
       try {
         setLoadingServer(server.id)
@@ -124,7 +119,15 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         setLoadingServer(null)
       }
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server.id])
+
+  useEffect(() => {
+    console.log('Loading tools for server:', server.id, 'Active:', server.isActive)
+    if (server.isActive) {
+      fetchTools()
+    }
+  }, [server.id, server.isActive, fetchTools])
 
   // Save the form data
   const onSave = async () => {
@@ -241,10 +244,6 @@ const McpSettings: React.FC<Props> = ({ server }) => {
     [server, t]
   )
 
-  const onFormValuesChange = () => {
-    setIsFormChanged(true)
-  }
-
   const formatError = (error: any) => {
     if (error.message.includes('32000')) {
       return t('settings.mcp.errors.32000')
@@ -278,6 +277,35 @@ const McpSettings: React.FC<Props> = ({ server }) => {
     }
   }
 
+  // Handle toggling a tool on/off
+  const handleToggleTool = useCallback(
+    async (tool: MCPTool, enabled: boolean) => {
+      // Create a new disabledTools array or use the existing one
+      let disabledTools = [...(server.disabledTools || [])]
+
+      if (enabled) {
+        // Remove tool from disabledTools if it's being enabled
+        disabledTools = disabledTools.filter((name) => name !== tool.name)
+      } else {
+        // Add tool to disabledTools if it's being disabled
+        if (!disabledTools.includes(tool.name)) {
+          disabledTools.push(tool.name)
+        }
+      }
+
+      // Update the server with new disabledTools
+      const updatedServer = {
+        ...server,
+        disabledTools
+      }
+
+      // Save the updated server configuration
+      // await window.api.mcp.updateServer(updatedServer)
+      updateMCPServer(updatedServer)
+    },
+    [server, updateMCPServer]
+  )
+
   return (
     <SettingContainer>
       <SettingGroup style={{ marginBottom: 0 }}>
@@ -302,7 +330,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         <Form
           form={form}
           layout="vertical"
-          onValuesChange={onFormValuesChange}
+          onValuesChange={() => setIsFormChanged(true)}
           style={{
             // height: 'calc(100vh - var(--navbar-height) - 315px)',
             overflowY: 'auto',
@@ -380,7 +408,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
             </>
           )}
         </Form>
-        {server.isActive && <MCPToolsSection tools={tools} />}
+        {server.isActive && <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />}
       </SettingGroup>
     </SettingContainer>
   )

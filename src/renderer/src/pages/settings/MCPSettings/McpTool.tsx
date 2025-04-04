@@ -1,10 +1,26 @@
-import { MCPTool } from '@renderer/types'
-import { Badge, Collapse, Descriptions, Empty, Flex, Tag, Tooltip, Typography } from 'antd'
+import { MCPServer, MCPTool } from '@renderer/types'
+import { Badge, Collapse, Descriptions, Empty, Flex, Switch, Tag, Tooltip, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const MCPToolsSection = ({ tools }: { tools: MCPTool[] }) => {
+interface MCPToolsSectionProps {
+  tools: MCPTool[]
+  server: MCPServer
+  onToggleTool: (tool: MCPTool, enabled: boolean) => void
+}
+
+const MCPToolsSection = ({ tools, server, onToggleTool }: MCPToolsSectionProps) => {
   const { t } = useTranslation()
+
+  // Check if a tool is enabled (not in the disabledTools array)
+  const isToolEnabled = (tool: MCPTool) => {
+    return !server.disabledTools?.includes(tool.name)
+  }
+
+  // Handle tool toggle
+  const handleToggle = (tool: MCPTool, checked: boolean) => {
+    onToggleTool(tool, checked)
+  }
 
   // Render tool properties from the input schema
   const renderToolProperties = (tool: MCPTool) => {
@@ -86,18 +102,21 @@ const MCPToolsSection = ({ tools }: { tools: MCPTool[] }) => {
             <Collapse.Panel
               key={tool.id}
               header={
-                <Flex vertical align="flex-start" style={{ width: '100%' }}>
-                  <Flex align="center" style={{ width: '100%' }}>
-                    <Typography.Text strong>{tool.name}</Typography.Text>
-                    <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>
-                      {tool.id}
-                    </Typography.Text>
+                <Flex justify="space-between" align="center" style={{ width: '100%' }}>
+                  <Flex vertical align="flex-start">
+                    <Flex align="center" style={{ width: '100%' }}>
+                      <Typography.Text strong>{tool.name}</Typography.Text>
+                      <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>
+                        {tool.id}
+                      </Typography.Text>
+                    </Flex>
+                    {tool.description && (
+                      <Typography.Text type="secondary" style={{ fontSize: '13px', marginTop: 4 }}>
+                        {tool.description}
+                      </Typography.Text>
+                    )}
                   </Flex>
-                  {tool.description && (
-                    <Typography.Text type="secondary" style={{ fontSize: '13px', marginTop: 4 }}>
-                      {tool.description}
-                    </Typography.Text>
-                  )}
+                  <Switch checked={isToolEnabled(tool)} onChange={(checked) => handleToggle(tool, checked)} />
                 </Flex>
               }>
               <SelectableContent>{renderToolProperties(tool)}</SelectableContent>

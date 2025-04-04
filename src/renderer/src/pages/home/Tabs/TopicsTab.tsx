@@ -204,7 +204,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 allowClear: true
               }
             })
-            prompt !== null && updateTopic({ ...topic, prompt: prompt.trim() })
+
+            prompt !== null &&
+              (() => {
+                const updatedTopic = { ...topic, prompt: prompt.trim() }
+                updateTopic(updatedTopic)
+                topic.id === activeTopic.id && setActiveTopic(updatedTopic)
+              })()
           }
         },
         {
@@ -339,7 +345,18 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
       return menus
     },
-    [assistant, assistants, onClearMessages, onDeleteTopic, onPinTopic, onMoveTopic, t, updateTopic]
+    [
+      t,
+      assistants,
+      assistant,
+      updateTopic,
+      activeTopic.id,
+      setActiveTopic,
+      onPinTopic,
+      onClearMessages,
+      onMoveTopic,
+      onDeleteTopic
+    ]
   )
 
   return (

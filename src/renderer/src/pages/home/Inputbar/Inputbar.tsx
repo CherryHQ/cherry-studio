@@ -224,7 +224,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       console.error('Failed to send message:', error)
     }
   }, [
-    activedMcpServers,
     assistant,
     dispatch,
     enabledMCPs,
@@ -236,7 +235,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     resizeTextArea,
     selectedKnowledgeBases,
     text,
-    topic
+    topic,
+    enabledMCPs,
+    activedMcpServers
   ])
 
   const translate = useCallback(async () => {
