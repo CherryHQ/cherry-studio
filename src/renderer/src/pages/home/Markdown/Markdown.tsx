@@ -41,7 +41,7 @@ const remarkPlugins = [remarkMath, remarkGfm, remarkCjkFriendly]
 const disallowedElements = ['iframe']
 const Markdown: FC<Props> = ({ message, citationsData }) => {
   const { t } = useTranslation()
-  const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
+  const { renderInputMessageAsMarkdown, renderHtmlInMarkdown, mathEngine } = useSettings()
 
   const rehypeMath = useMemo(() => (mathEngine === 'KaTeX' ? rehypeKatex : rehypeMathjax), [mathEngine])
 
@@ -54,8 +54,8 @@ const Markdown: FC<Props> = ({ message, citationsData }) => {
 
   const rehypePlugins = useMemo(() => {
     const hasElements = ALLOWED_ELEMENTS.test(messageContent)
-    return hasElements ? [rehypeRaw, rehypeMath] : [rehypeMath]
-  }, [messageContent, rehypeMath])
+    return hasElements && renderHtmlInMarkdown ? [rehypeRaw, rehypeMath] : [rehypeMath]
+  }, [messageContent, rehypeMath, renderHtmlInMarkdown])
 
   const components = useMemo(() => {
     const baseComponents = {
