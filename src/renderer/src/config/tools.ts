@@ -1,5 +1,5 @@
 import { Model } from '@renderer/types'
-import { ChatCompletionTool } from 'openai/resources/chat/completions.mjs'
+import { ChatCompletionTool } from 'openai/resources'
 
 export function getWebSearchTools(model: Model): ChatCompletionTool[] {
   if (model?.provider === 'zhipu') {
