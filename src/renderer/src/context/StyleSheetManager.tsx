@@ -1,14 +1,20 @@
 import isPropValid from '@emotion/is-prop-valid'
 import type { ReactNode } from 'react'
 import { StyleSheetManager as StyledComponentsStyleSheetManager } from 'styled-components'
+import rtlPlugin from 'stylis-plugin-rtl'
+
+import { useLayoutDirection } from './LayoutDirection'
 
 interface StyleSheetManagerProps {
   children: ReactNode
 }
 
 const StyleSheetManager = ({ children }: StyleSheetManagerProps): React.ReactElement => {
+  const { isRTL } = useLayoutDirection()
   return (
     <StyledComponentsStyleSheetManager
+      enableVendorPrefixes
+      stylisPlugins={isRTL ? [rtlPlugin] : []}
       shouldForwardProp={(prop, element) => {
         // 对于 HTML 元素，使用 isPropValid 检查
         if (typeof element === 'string') {

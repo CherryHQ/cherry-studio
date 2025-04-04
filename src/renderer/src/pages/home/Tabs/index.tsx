@@ -38,7 +38,7 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
 
   const borderStyle = '0.5px solid var(--color-border)'
   const border =
-    position === 'left' ? { borderRight: borderStyle } : { borderLeft: borderStyle, borderTopLeftRadius: 0 }
+    position === 'left' ? { borderInlineEnd: borderStyle } : { borderInlineStart: borderStyle, borderTopLeftRadius: 0 }
 
   if (position === 'left' && topicPosition === 'left') {
     _tab = tab
@@ -98,7 +98,7 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
       {showTab && (
         <Segmented
           value={tab}
-          style={{ borderRadius: 16, paddingTop: 10, margin: '0 10px', gap: 2 }}
+          style={{ borderRadius: 16, paddingTop: 10, marginInline: 10, gap: 2 }}
           options={
             [
               position === 'left' && topicPosition === 'left' ? assistantTab : undefined,
@@ -190,16 +190,16 @@ const Segmented = styled(AntSegmented)`
   }
   .iconfont {
     font-size: 13px;
-    margin-left: -2px;
+    margin-line-start: -2px;
   }
   .anticon-setting {
     font-size: 12px;
   }
   .icon-business-smart-assistant {
-    margin-right: -2px;
+    margin-inline-end: -2px;
   }
   .ant-segmented-item-icon + * {
-    margin-left: 4px;
+    margin-line-start: 4px;
   }
   .ant-segmented-thumb {
     transition: none !important;

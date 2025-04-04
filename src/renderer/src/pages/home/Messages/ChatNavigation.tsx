@@ -6,6 +6,7 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
+import { useLayoutDirection } from '@renderer/context/LayoutDirection'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { RootState } from '@renderer/store'
 import { selectCurrentTopicId } from '@renderer/store/messages'
@@ -32,6 +33,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const lastMoveTime = useRef(0)
   const { topicPosition, showTopics } = useSettings()
   const showRightTopics = topicPosition === 'right' && showTopics
+  const { isRTL } = useLayoutDirection()
 
   // Reset hide timer and make buttons visible
   const resetHideTimer = useCallback(() => {
@@ -307,7 +309,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     <>
       <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
-          <Tooltip title={t('chat.navigation.close')} placement="left">
+          <Tooltip title={t('chat.navigation.close')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
               icon={<CloseOutlined />}
@@ -316,7 +318,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.top')} placement="left">
+          <Tooltip title={t('chat.navigation.top')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignTopOutlined />}
@@ -325,7 +327,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.prev')} placement="left">
+          <Tooltip title={t('chat.navigation.prev')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
               icon={<ArrowUpOutlined />}
@@ -334,7 +336,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.next')} placement="left">
+          <Tooltip title={t('chat.navigation.next')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
               icon={<ArrowDownOutlined />}
@@ -343,7 +345,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.bottom')} placement="left">
+          <Tooltip title={t('chat.navigation.bottom')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignBottomOutlined />}
@@ -352,7 +354,16 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.history')} placement="left">
+          <Tooltip title={t('chat.navigation.bottom')} placement={isRTL ? 'right' : 'left'}>
+            <NavigationButton
+              type="text"
+              icon={<VerticalAlignBottomOutlined />}
+              onClick={handleScrollToBottom}
+              aria-label={t('chat.navigation.bottom')}
+            />
+          </Tooltip>
+          <Divider />
+          <Tooltip title={t('chat.navigation.history')} placement={isRTL ? 'right' : 'left'}>
             <NavigationButton
               type="text"
               icon={<HistoryOutlined />}
@@ -365,7 +376,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
       <Drawer
         title={t('chat.history.title')}
-        placement="right"
+        placement={isRTL ? 'right' : 'left'}
         onClose={handleDrawerClose}
         open={showChatHistory}
         width={680}
@@ -388,7 +399,7 @@ interface NavigationContainerProps {
 
 const NavigationContainer = styled.div<NavigationContainerProps>`
   position: fixed;
-  right: 16px;
+  inset-inline-end: 16px;
   top: 50%;
   transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? 0 : '100%')});
   z-index: 999;

@@ -16,7 +16,6 @@ import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
 import { FileType, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import type { MenuProps } from 'antd'
 import { Button, Empty, Flex, Menu, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -144,21 +143,37 @@ const FilesPage: FC = () => {
   })
 
   const menuItems = [
-    { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FilePdfOutlined /> },
-    { key: FileTypes.IMAGE, label: t('files.image'), icon: <FileImageOutlined /> },
-    { key: FileTypes.TEXT, label: t('files.text'), icon: <FileTextOutlined /> },
+    {
+      key: FileTypes.DOCUMENT,
+      icon: <FilePdfOutlined />,
+      label: t('files.document')
+    },
+    {
+      key: FileTypes.IMAGE,
+      icon: <FileImageOutlined />,
+      label: t('files.image')
+    },
+    {
+      key: FileTypes.TEXT,
+      icon: <FileTextOutlined />,
+      label: t('files.text')
+    },
     ...geminiProviders.map((provider) => ({
       key: 'gemini_' + provider.id,
-      label: provider.name,
-      icon: <FilePdfOutlined />
+      icon: <FilePdfOutlined />,
+      label: provider.name
     })),
-    { key: 'all', label: t('files.all'), icon: <FileTextOutlined /> }
-  ].filter(Boolean) as MenuProps['items']
+    {
+      key: 'all',
+      icon: <FileTextOutlined />,
+      label: t('files.all')
+    }
+  ].filter(Boolean)
 
   return (
     <Container>
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('files.title')}</NavbarCenter>
+        <NavbarCenter style={{ borderBlockEnd: 'none' }}>{t('files.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
         <SideNav>
@@ -224,8 +239,11 @@ const ContentContainer = styled.div`
 
 const SideNav = styled.div`
   width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
-  padding: 7px 12px;
+  border-inline-end: 0.5px solid var(--color-border);
+  padding-block: 7px;
+  padding-inline: 12px;
+  display: flex;
+  flex-direction: column;
   user-select: none;
 
   .ant-menu {

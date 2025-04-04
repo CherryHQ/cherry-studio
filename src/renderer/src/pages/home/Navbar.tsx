@@ -4,6 +4,7 @@ import { HStack } from '@renderer/components/Layout'
 import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
+import { useLayoutDirection } from '@renderer/context/LayoutDirection'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -32,6 +33,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { topicPosition, sidebarIcons, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
+  const { isRTL } = useLayoutDirection()
   const dispatch = useAppDispatch()
 
   useShortcut('toggle_show_assistants', () => {
@@ -60,8 +62,12 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
       {showAssistants && (
         <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac ? 16 : 0 }}>
-              <i className="iconfont icon-hide-sidebar" />
+            <NavbarIcon
+              onClick={() => {
+                toggleShowAssistants()
+              }}
+              style={{ marginInlineStart: isMac ? 16 : 0 }}>
+              <i className={`iconfont icon-${isRTL ? 'show' : 'hide'}-sidebar`} />
             </NavbarIcon>
           </Tooltip>
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
@@ -77,8 +83,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
               <NavbarIcon
                 onClick={() => toggleShowAssistants()}
-                style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
-                <i className="iconfont icon-show-sidebar" />
+                style={{ marginInlineEnd: 8, marginInlineStart: isMac ? 4 : -12 }}>
+                <i className={`iconfont icon-${isRTL ? 'hide' : 'show'}-sidebar`} />
               </NavbarIcon>
             </Tooltip>
           )}

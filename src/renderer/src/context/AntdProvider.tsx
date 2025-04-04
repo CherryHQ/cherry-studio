@@ -1,6 +1,7 @@
 import { useSettings } from '@renderer/hooks/useSettings'
 import { LanguageVarious } from '@renderer/types'
 import { ConfigProvider, theme } from 'antd'
+import arEG from 'antd/locale/ar_EG'
 import elGR from 'antd/locale/el_GR'
 import enUS from 'antd/locale/en_US'
 import esES from 'antd/locale/es_ES'
@@ -12,14 +13,17 @@ import zhCN from 'antd/locale/zh_CN'
 import zhTW from 'antd/locale/zh_TW'
 import { FC, PropsWithChildren } from 'react'
 
+import { useLayoutDirection } from './LayoutDirection'
 import { useTheme } from './ThemeProvider'
 
 const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
   const { language } = useSettings()
   const { theme: _theme } = useTheme()
+  const { isRTL } = useLayoutDirection()
 
   return (
     <ConfigProvider
+      direction={isRTL ? 'rtl' : undefined}
       locale={getAntdLocale(language)}
       theme={{
         algorithm: [_theme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm],
@@ -65,6 +69,9 @@ function getAntdLocale(language: LanguageVarious) {
       return frFR
     case 'pt-PT':
       return ptPT
+    case 'ar-EG':
+      return arEG
+
     default:
       return zhCN
   }

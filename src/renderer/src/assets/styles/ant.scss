@@ -29,13 +29,13 @@
     position: absolute;
     -webkit-app-region: drag;
     min-height: calc(var(--navbar-height) + 0.5px);
-    width: calc(100vw - var(--sidebar-width));
-    margin-top: -0.5px;
+    inline-size: calc(100vw - var(--sidebar-width));
+    margin-block-start: -0.5px;
     border-bottom: none;
   }
   .ant-drawer-body {
     padding: 0;
-    margin-top: var(--navbar-height);
+    margin-block-start: var(--navbar-height);
     overflow: hidden;
     @extend #content-container;
   }
@@ -73,11 +73,11 @@
   }
 
   .ant-dropdown-menu {
-    /* 保持原有的下拉菜单样式，但限定在 mention-models-dropdown 类下 */
-    max-height: 400px;
+    max-block-size: 400px;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 4px 12px;
+    padding-block: 4px;
+    padding-inline: 12px;
     position: relative;
     background: rgba(var(--color-base-rgb), 0.65) !important;
     backdrop-filter: blur(35px) saturate(150%) !important;
@@ -88,23 +88,23 @@
       0 4px 16px rgba(0, 0, 0, 0.15),
       0 2px 8px rgba(0, 0, 0, 0.12),
       inset 0 0 0 0.5px rgba(255, 255, 255, var(--inner-glow-opacity, 0.1));
-    transform-origin: top;
+    transform-origin: start;
     will-change: transform, opacity;
     transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-    margin-bottom: 0;
+    margin-block-end: 0;
 
     &.no-scrollbar {
-      padding-right: 12px;
+      padding-inline-end: 12px;
     }
 
     &.has-scrollbar {
-      padding-right: 2px;
+      padding-inline-end: 2px;
     }
 
     // Scrollbar styles
     &::-webkit-scrollbar {
-      width: 14px;
-      height: 6px;
+      inline-size: 14px;
+      block-size: 6px;
     }
 
     &::-webkit-scrollbar-thumb {
@@ -112,7 +112,7 @@
       background-clip: padding-box;
       border-radius: 7px;
       background-color: var(--color-scrollbar-thumb);
-      min-height: 50px;
+      min-block-size: 50px;
       transition: all 0.2s;
     }
 
@@ -135,14 +135,15 @@
   }
 
   .ant-dropdown-menu-item-group {
-    margin-bottom: 4px;
+    margin-block-end: 4px;
 
     &:not(:first-child) {
-      margin-top: 4px;
+      margin-block-start: 4px;
     }
 
     .ant-dropdown-menu-item-group-title {
-      padding: 5px 12px;
+      padding-block: 5px;
+      padding-inline: 12px;
       color: var(--color-text-3);
       font-size: 12px;
       font-weight: 500;
@@ -167,8 +168,9 @@
   }
 
   .ant-dropdown-menu-item {
-    padding: 5px 12px;
-    margin: 0 -12px;
+    padding-block: 5px;
+    padding-inline: 12px;
+    margin-inline: -12px;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
@@ -187,7 +189,7 @@
     }
 
     .ant-dropdown-menu-item-icon {
-      margin-right: 0;
+      margin-inline-end: 0;
       opacity: 0.9;
     }
   }

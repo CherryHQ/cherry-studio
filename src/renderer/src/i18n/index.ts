@@ -8,6 +8,7 @@ import ruRU from './locales/ru-ru.json'
 import zhCN from './locales/zh-cn.json'
 import zhTW from './locales/zh-tw.json'
 // Machine translation
+import arEG from './translate/ar-eg.json'
 import elGR from './translate/el-gr.json'
 import esES from './translate/es-es.json'
 import frFR from './translate/fr-fr.json'
@@ -22,7 +23,8 @@ const resources = {
   'pt-PT': ptPT,
   'ru-RU': ruRU,
   'zh-CN': zhCN,
-  'zh-TW': zhTW
+  'zh-TW': zhTW,
+  'ar-EG': arEG
 }
 
 export const getLanguage = () => {

@@ -187,7 +187,10 @@ const AssistantNameRow = styled.div`
   gap: 5px;
 `
 
-const AssistantName = styled.div``
+const AssistantName = styled.div`
+  text-align: start;
+  unicode-bidi: isolate;
+`
 
 const MenuButton = styled.div`
   display: flex;
@@ -199,7 +202,7 @@ const MenuButton = styled.div`
   min-width: 22px;
   min-height: 22px;
   border-radius: 11px;
-  position: absolute;
+  // position: absolute;
   background-color: var(--color-background);
   right: 9px;
   top: 6px;

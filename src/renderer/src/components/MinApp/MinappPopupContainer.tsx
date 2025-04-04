@@ -331,7 +331,7 @@ const MinappPopupContainer: React.FC = () => {
       height={'100%'}
       maskClosable={false}
       closeIcon={null}
-      style={{ marginLeft: 'var(--sidebar-width)' }}>
+      style={{ marginInlineStart: 'var(--sidebar-width)' }}>
       {!isReady && (
         <EmptyView>
           <Avatar

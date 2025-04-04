@@ -42,7 +42,6 @@ export class TrayService {
     }
 
     this.tray = tray
-
     const locale = locales[configManager.getLanguage()]
     const { tray: trayLocale } = locale.translation
 

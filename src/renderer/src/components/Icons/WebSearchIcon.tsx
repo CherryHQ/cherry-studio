@@ -25,7 +25,7 @@ const Container = styled.div`
 const Icon = styled(GlobalOutlined)`
   color: var(--color-link);
   font-size: 15px;
-  margin-right: 6px;
+  margin-inline-end: 6px;
 `
 
 export default WebSearchIcon

@@ -476,6 +476,8 @@ const TopicName = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+  text-align: start;
+  unicode-bidi: isolate;
 `
 
 const PendingIndicator = styled.div.attrs({
@@ -516,7 +518,7 @@ const MenuButton = styled.div`
   min-width: 22px;
   min-height: 22px;
   position: absolute;
-  right: 8px;
+  inset-inline-end: 8px;
   top: 6px;
   .anticon {
     font-size: 12px;

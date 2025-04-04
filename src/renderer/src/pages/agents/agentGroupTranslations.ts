@@ -1,5 +1,6 @@
 export type GroupTranslations = {
   [key: string]: {
+    'ar-EG': string
     'el-GR': string
     'en-US': string
     'es-ES': string
@@ -14,6 +15,7 @@ export type GroupTranslations = {
 
 export const groupTranslations: GroupTranslations = {
   我的: {
+    'ar-EG': 'أعمالي',
     'el-GR': 'Τα δικά μου',
     'en-US': 'My Agents',
     'es-ES': 'Mis agentes',
@@ -25,6 +27,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Meus Agentes'
   },
   职业: {
+    'ar-EG': 'المهنة',
     'el-GR': 'Επαγγελμα',
     'en-US': 'Career',
     'es-ES': 'Profesional',
@@ -36,6 +39,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Profissional'
   },
   商业: {
+    'ar-EG': 'التجارة',
     'el-GR': 'Εμπορικός',
     'en-US': 'Business',
     'es-ES': 'Negocio',
@@ -47,6 +51,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Negócio'
   },
   工具: {
+    'ar-EG': 'أدوات',
     'el-GR': 'Εργαλεία',
     'en-US': 'Tools',
     'es-ES': 'Herramientas',
@@ -58,6 +63,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Ferramentas'
   },
   语言: {
+    'ar-EG': 'اللغة',
     'el-GR': 'Γλώσσα',
     'en-US': 'Language',
     'es-ES': 'Idioma',
@@ -69,6 +75,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Idioma'
   },
   办公: {
+    'ar-EG': 'مكتب',
     'el-GR': 'Γραφείο',
     'en-US': 'Office',
     'es-ES': 'Oficina',
@@ -80,6 +87,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Escritório'
   },
   通用: {
+    'ar-EG': 'عام',
     'el-GR': 'Γενικά',
     'en-US': 'General',
     'es-ES': 'General',
@@ -91,6 +99,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Geral'
   },
   写作: {
+    'ar-EG': 'كتابة',
     'el-GR': 'Γράφημα',
     'en-US': 'Writing',
     'es-ES': 'Escritura',
@@ -102,6 +111,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Escrita'
   },
   精选: {
+    'ar-EG': 'مناسبة',
     'el-GR': 'Επιλεγμένο',
     'en-US': 'Featured',
     'es-ES': 'Destacado',
@@ -113,6 +123,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Destaque'
   },
   编程: {
+    'ar-EG': 'برمجة',
     'el-GR': 'Προγραμματισμός',
     'en-US': 'Programming',
     'es-ES': 'Programación',
@@ -124,6 +135,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Programação'
   },
   情感: {
+    'ar-EG': 'عاطفي',
     'el-GR': 'Αίσθημα',
     'en-US': 'Emotion',
     'es-ES': 'Emoción',
@@ -135,6 +147,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Emoção'
   },
   教育: {
+    'ar-EG': 'تعليم',
     'el-GR': 'Εκπαίδευση',
     'en-US': 'Education',
     'es-ES': 'Educación',
@@ -146,6 +159,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Educação'
   },
   创意: {
+    'ar-EG': 'إبداع',
     'el-GR': 'Κreativiteit',
     'en-US': 'Creative',
     'es-ES': 'Creativo',
@@ -157,6 +171,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Criativo'
   },
   学术: {
+    'ar-EG': 'علمي',
     'el-GR': 'Ακαδημικός',
     'en-US': 'Academic',
     'es-ES': 'Académico',
@@ -168,6 +183,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Académico'
   },
   设计: {
+    'ar-EG': 'تصميم',
     'el-GR': 'Δημιουργικό',
     'en-US': 'Design',
     'es-ES': 'Diseño',
@@ -179,6 +195,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Design'
   },
   艺术: {
+    'ar-EG': 'فن',
     'el-GR': 'Τέχνη',
     'en-US': 'Art',
     'es-ES': 'Arte',
@@ -190,6 +207,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Arte'
   },
   娱乐: {
+    'ar-EG': 'ترفيه',
     'el-GR': 'Αναψυχή',
     'en-US': 'Entertainment',
     'es-ES': 'Entretenimiento',
@@ -201,6 +219,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Entretenimento'
   },
   生活: {
+    'ar-EG': 'حياة',
     'el-GR': 'Ζωή',
     'en-US': 'Life',
     'es-ES': 'Vida',
@@ -212,6 +231,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Vida'
   },
   医疗: {
+    'ar-EG': 'طب',
     'el-GR': 'Υγεία',
     'en-US': 'Medical',
     'es-ES': 'Médico',
@@ -223,6 +243,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Saúde'
   },
   游戏: {
+    'ar-EG': 'ألعاب',
     'el-GR': 'Παιχνίδια',
     'en-US': 'Games',
     'es-ES': 'Juegos',
@@ -234,6 +255,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Jogos'
   },
   翻译: {
+    'ar-EG': 'ترجمة',
     'el-GR': 'Γραφήματα',
     'en-US': 'Translation',
     'es-ES': 'Traducción',
@@ -245,6 +267,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Tradução'
   },
   音乐: {
+    'ar-EG': 'موسيقى',
     'el-GR': 'Μουσική',
     'en-US': 'Music',
     'es-ES': 'Música',
@@ -256,6 +279,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Música'
   },
   点评: {
+    'ar-EG': 'تقييم',
     'el-GR': 'Αξιολόγηση',
     'en-US': 'Review',
     'es-ES': 'Revisión',
@@ -267,6 +291,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Revisão'
   },
   文案: {
+    'ar-EG': 'كتابة المحتوى',
     'el-GR': 'Γραφήματα',
     'en-US': 'Copywriting',
     'es-ES': 'Redacción',
@@ -278,6 +303,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Escrita'
   },
   百科: {
+    'ar-EG': 'إنكلوبيديا',
     'el-GR': 'Εγκυκλοπαίδεια',
     'en-US': 'Encyclopedia',
     'es-ES': 'Enciclopedia',
@@ -289,6 +315,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Enciclopédia'
   },
   健康: {
+    'ar-EG': 'صحة',
     'el-GR': 'Υγεία',
     'en-US': 'Health',
     'es-ES': 'Salud',
@@ -300,6 +327,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Saúde'
   },
   营销: {
+    'ar-EG': 'تسويق',
     'el-GR': 'Μάρκετινγκ',
     'en-US': 'Marketing',
     'es-ES': 'Marketing',
@@ -311,6 +339,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Marketing'
   },
   科学: {
+    'ar-EG': 'علم',
     'el-GR': 'Επιστήμη',
     'en-US': 'Science',
     'es-ES': 'Ciencia',
@@ -322,6 +351,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Ciência'
   },
   分析: {
+    'ar-EG': 'تحليل',
     'el-GR': 'Ανάλυση',
     'en-US': 'Analysis',
     'es-ES': 'Análisis',
@@ -333,6 +363,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Análise'
   },
   法律: {
+    'ar-EG': 'قانون',
     'el-GR': 'Νόμος',
     'en-US': 'Legal',
     'es-ES': 'Legal',
@@ -344,6 +375,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Legal'
   },
   咨询: {
+    'ar-EG': 'استشارة',
     'el-GR': 'Συμβουλή',
     'en-US': 'Consulting',
     'es-ES': 'Consultoría',
@@ -355,6 +387,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Consultoria'
   },
   金融: {
+    'ar-EG': 'مالية',
     'el-GR': 'Φορολογία',
     'en-US': 'Finance',
     'es-ES': 'Finanzas',
@@ -366,6 +399,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Finanças'
   },
   旅游: {
+    'ar-EG': 'سياحة',
     'el-GR': 'Τουρισμός',
     'en-US': 'Travel',
     'es-ES': 'Viajes',
@@ -377,6 +411,7 @@ export const groupTranslations: GroupTranslations = {
     'pt-PT': 'Viagens'
   },
   管理: {
+    'ar-EG': 'إدارة',
     'el-GR': 'Διοίκηση',
     'en-US': 'Management',
     'es-ES': 'Gestión',

@@ -3500,6 +3500,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/stylis@npm:^4":
+  version: 4.2.7
+  resolution: "@types/stylis@npm:4.2.7"
+  checksum: 10c0/01a9679addb3f63951a9c09729564e2205581f2db40875a28b25cc461efc52ba17a711cc50cdb5e7d3a67c5f2cd60580e078c8a69b8df7b67699d89060d2a977
+  languageName: node
+  linkType: hard
+
 "@types/tinycolor2@npm:^1":
   version: 1.4.6
   resolution: "@types/tinycolor2@npm:1.4.6"
@@ -3786,6 +3793,7 @@ __metadata:
     "@types/react": "npm:^19.0.12"
     "@types/react-dom": "npm:^19.0.4"
     "@types/react-infinite-scroll-component": "npm:^5.0.0"
+    "@types/stylis": "npm:^4"
     "@types/tinycolor2": "npm:^1"
     "@vitejs/plugin-react": "npm:^4.2.1"
     "@xyflow/react": "npm:^12.4.4"
@@ -3856,6 +3864,8 @@ __metadata:
     shiki: "npm:^1.22.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
+    stylis: "npm:^4.3.6"
+    stylis-plugin-rtl: "npm:^2.1.1"
     tar: "npm:^7.4.3"
     tinycolor2: "npm:^1.6.0"
     tokenx: "npm:^0.4.1"
@@ -5432,6 +5442,13 @@ __metadata:
     css-color-keywords: "npm:^1.0.0"
     postcss-value-parser: "npm:^4.0.2"
   checksum: 10c0/fde850a511d5d3d7c55a1e9b8ed26b69a8ad4868b3487e36ebfbfc0b96fc34bc977d9cd1d61a289d0c74d3f9a662d8cee297da53d4433bf2e27d6acdff8e1003
+  languageName: node
+  linkType: hard
+
+"cssjanus@npm:^2.0.1":
+  version: 2.3.0
+  resolution: "cssjanus@npm:2.3.0"
+  checksum: 10c0/b410c6f31c80947cc4508f232bab13beb3de6c38f1824962d12ef64b754d0191230efc2211815bc144ddbf50e509d63d0f120fc2402f657762e1f6bd60edf6a3
   languageName: node
   linkType: hard
 
@@ -14983,6 +15000,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"stylis-plugin-rtl@npm:^2.1.1":
+  version: 2.1.1
+  resolution: "stylis-plugin-rtl@npm:2.1.1"
+  dependencies:
+    cssjanus: "npm:^2.0.1"
+  peerDependencies:
+    stylis: 4.x
+  checksum: 10c0/706640bba51ca75e3a824f781b59e8d8b8d034a10b839aa93daea166aac6cc67a4e7c063496ea8a09c396b639cff9859a42f5d03937d8f89f8922fd6c7435739
+  languageName: node
+  linkType: hard
+
 "stylis@npm:4.3.2":
   version: 4.3.2
   resolution: "stylis@npm:4.3.2"
@@ -14990,7 +15018,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"stylis@npm:^4.3.4":
+"stylis@npm:^4.3.4, stylis@npm:^4.3.6":
   version: 4.3.6
   resolution: "stylis@npm:4.3.6"
   checksum: 10c0/e736d484983a34f7c65d362c67dc79b7bce388054b261c2b7b23d02eaaf280617033f65d44b1ea341854f4331a5074b885668ac8741f98c13a6cfd6443ae85d0

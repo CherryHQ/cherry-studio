@@ -85,10 +85,10 @@ export const Box = styled.div<BoxProps>`
   background: ${(props) => props.background || 'default'};
   flex: ${(props) => props.flex || 'none'};
   position: ${(props) => props.position || 'default'};
-  left: ${(props) => getElementValue(props.left) || 'auto'};
-  right: ${(props) => getElementValue(props.right) || 'auto'};
-  bottom: ${(props) => getElementValue(props.bottom) || 'auto'};
-  top: ${(props) => getElementValue(props.top) || 'auto'};
+  inset-inline-start: ${(props) => getElementValue(props.left) || 'auto'};
+  inset-inline-end: ${(props) => getElementValue(props.right) || 'auto'};
+  inset-block-end: ${(props) => getElementValue(props.bottom) || 'auto'};
+  inset-block-start: ${(props) => getElementValue(props.top) || 'auto'};
   gap: ${(p) => (p.gap ? getElementValue(p.gap) : 0)};
   opacity: ${(props) => props.opacity ?? 1};
   border-radius: ${(props) => getElementValue(props.borderRadius) || 0};
@@ -96,18 +96,22 @@ export const Box = styled.div<BoxProps>`
   border: ${(props) => props?.border || 'none'};
   gap: ${(p) => (p.gap ? getElementValue(p.gap) : 0)};
   margin: ${(props) => (props.m || props.margin ? (props.m ?? props.margin) : 'none')};
-  margin-top: ${(props) => (props.mt || props.marginTop ? getElementValue(props.mt || props.marginTop) : 'default')};
-  margin-bottom: ${(props) =>
+  margin-block-start: ${(props) =>
+    props.mt || props.marginTop ? getElementValue(props.mt || props.marginTop) : 'default'};
+  margin-block-end: ${(props) =>
     props.mb || props.marginBottom ? getElementValue(props.mb ?? props.marginBottom) : 'default'};
-  margin-left: ${(props) => (props.ml || props.marginLeft ? getElementValue(props.ml ?? props.marginLeft) : 'default')};
-  margin-right: ${(props) =>
+  margin-inline-start: ${(props) =>
+    props.ml || props.marginLeft ? getElementValue(props.ml ?? props.marginLeft) : 'default'};
+  margin-inline-end: ${(props) =>
     props.mr || props.marginRight ? getElementValue(props.mr ?? props.marginRight) : 'default'};
   padding: ${(props) => (props.p || props.padding ? (props.p ?? props.padding) : 'none')};
-  padding-top: ${(props) => (props.pt || props.paddingTop ? getElementValue(props.pt ?? props.paddingTop) : 'auto')};
-  padding-bottom: ${(props) =>
+  padding-block-start: ${(props) =>
+    props.pt || props.paddingTop ? getElementValue(props.pt ?? props.paddingTop) : 'auto'};
+  padding-block-end: ${(props) =>
     props.pb || props.paddingBottom ? getElementValue(props.pb ?? props.paddingBottom) : 'auto'};
-  padding-left: ${(props) => (props.pl || props.paddingLeft ? getElementValue(props.pl ?? props.paddingLeft) : 'auto')};
-  padding-right: ${(props) =>
+  padding-inline-start: ${(props) =>
+    props.pl || props.paddingLeft ? getElementValue(props.pl ?? props.paddingLeft) : 'auto'};
+  padding-inline-end: ${(props) =>
     props.pr || props.paddingRight ? getElementValue(props.pr ?? props.paddingRight) : 'auto'};
 `
 

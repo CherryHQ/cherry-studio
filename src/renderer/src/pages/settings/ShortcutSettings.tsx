@@ -269,7 +269,7 @@ const ShortcutSettings: FC = () => {
       title: t('settings.shortcuts.key'),
       dataIndex: 'shortcut',
       key: 'shortcut',
-      align: 'right',
+      align: 'end',
       render: (shortcut: string[], record: Shortcut) => {
         const isEditing = editingKey === record.key
         const shortcutConfig = shortcuts.find((s) => s.key === record.key)
@@ -308,7 +308,7 @@ const ShortcutSettings: FC = () => {
     {
       title: t('settings.shortcuts.actions'),
       key: 'actions',
-      align: 'right',
+      align: 'end',
       width: '70px',
       render: (record: Shortcut) => (
         <HStack style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -334,7 +334,7 @@ const ShortcutSettings: FC = () => {
     {
       title: t('settings.shortcuts.enabled'),
       key: 'enabled',
-      align: 'right',
+      align: 'end',
       width: '50px',
       render: (record: Shortcut) => (
         <Switch size="small" checked={record.enabled} onChange={() => dispatch(toggleShortcut(record.key))} />

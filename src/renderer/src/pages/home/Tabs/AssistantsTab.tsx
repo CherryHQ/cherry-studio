@@ -87,7 +87,7 @@ const AssistantAddItem = styled.div`
   justify-content: space-between;
   padding: 7px 12px;
   position: relative;
-  padding-right: 35px;
+  padding-inline-end: 35px;
   font-family: Ubuntu;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;

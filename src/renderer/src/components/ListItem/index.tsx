@@ -88,7 +88,7 @@ const SubtitleText = styled.div`
 `
 
 const RightContentWrapper = styled.div`
-  margin-left: auto;
+  margin-inline-start: auto;
 `
 
 export default ListItem

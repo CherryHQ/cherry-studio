@@ -251,7 +251,7 @@ const CheckUpdateButton = styled(Button)``
 const AvatarWrapper = styled.div`
   position: relative;
   cursor: pointer;
-  margin-right: 15px;
+  margin-inline-end: 15px;
 `
 
 const ProgressCircle = styled(Progress)`
