@@ -32,7 +32,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const [shouldShowExpandButton, setShouldShowExpandButton] = useState(false)
   const codeContentRef = useRef<HTMLDivElement>(null)
-  const childrenLengthRef = useRef(children?.length)
+  const childrenLengthRef = useRef(0)
   const isStreamingRef = useRef(false)
 
   const showFooterCopyButton = children && children.length > 500 && !codeCollapsible
@@ -47,34 +47,30 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   }, [])
 
   const highlightCode = useCallback(async () => {
-    // 跳过非文本代码块
-    if (!shouldHighlight(language)) return
-
-    setTimeout(async () => {
+    if (codeContentRef.current) {
       // 只在非流式输出状态才尝试启用cache
       const highlightedHtml = await codeToHtml(children, language, !isStreamingRef.current)
-      if (codeContentRef.current) {
-        codeContentRef.current.innerHTML = highlightedHtml
-        codeContentRef.current.style.opacity = '1'
-        const isShowExpandButton = codeContentRef.current.scrollHeight > 350
-        if (shouldShowExpandButtonRef.current === isShowExpandButton) return
-        shouldShowExpandButtonRef.current = isShowExpandButton
-        setShouldShowExpandButton(shouldShowExpandButtonRef.current)
-      }
-    }, 0)
-  }, [shouldHighlight, language, codeToHtml, children])
+      codeContentRef.current.innerHTML = highlightedHtml
+      codeContentRef.current.style.opacity = '1'
+
+      const isShowExpandButton = codeContentRef.current.scrollHeight > 350
+      if (shouldShowExpandButtonRef.current === isShowExpandButton) return
+      shouldShowExpandButtonRef.current = isShowExpandButton
+      setShouldShowExpandButton(shouldShowExpandButtonRef.current)
+    }
+  }, [language, codeToHtml, children])
 
   useEffect(() => {
+    // 跳过非文本代码块
+    if (!codeContentRef.current || !shouldHighlight(language)) return
+
     let isMounted = true
     const codeElement = codeContentRef.current
 
-    if (!codeElement) return
-
-    if (childrenLengthRef.current !== children?.length) {
+    if (childrenLengthRef.current > 0 && childrenLengthRef.current !== children?.length) {
       isStreamingRef.current = true
     }
 
-    // 非流式输出时，改变不透明度表示正在渲染代码
     if (!isStreamingRef.current) {
       codeElement.style.opacity = '0.1'
       codeElement.textContent = children
@@ -82,7 +78,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
     const observer = new IntersectionObserver(async (entries) => {
       if (entries[0].isIntersecting && isMounted) {
-        highlightCode()
+        setTimeout(highlightCode, 0)
         observer.disconnect()
       }
     })
@@ -92,6 +88,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
     }
 
     return () => {
+      childrenLengthRef.current = children?.length ?? 0
       isMounted = false
       observer.disconnect()
     }
