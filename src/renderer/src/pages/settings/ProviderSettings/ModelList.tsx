@@ -16,11 +16,11 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
-import { Model, Provider } from '@renderer/types'
+import { Model } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Card, Flex, Space, Tooltip, Typography } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -36,7 +36,7 @@ const STATUS_COLORS = {
 }
 
 interface ModelListProps {
-  provider: Provider
+  providerId: string
   modelStatuses?: ModelStatus[]
   searchText?: string
 }
@@ -166,10 +166,9 @@ function useModelStatusRendering() {
   return { renderStatusIndicator, renderLatencyText }
 }
 
-const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuses = [], searchText = '' }) => {
+const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], searchText = '' }) => {
   const { t } = useTranslation()
-  const { provider } = useProvider(_provider.id)
-  const { updateProvider, models, removeModel } = useProvider(_provider.id)
+  const { provider, updateProvider, models, removeModel } = useProvider(providerId)
   const { assistants } = useAssistants()
   const dispatch = useAppDispatch()
   const { defaultModel, setDefaultModel } = useDefaultModel()
@@ -180,59 +179,64 @@ const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuse
   const modelsWebsite = providerConfig?.websites?.models
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
-  const [debouncedSearchText, setDebouncedSearchText] = useState(searchText)
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchText(searchText)
-    }, 50)
+  const modelGroups = useMemo(() => {
+    const filteredModels = searchText
+      ? models.filter((model) => model.name.toLowerCase().includes(searchText.toLowerCase()))
+      : models
+    return groupBy(filteredModels, 'group')
+  }, [searchText, models])
 
-    return () => clearTimeout(timer)
-  }, [searchText])
+  const sortedModelGroups = useMemo(() => {
+    return sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
+      acc[key] = value
+      return acc
+    }, {})
+  }, [modelGroups])
 
-  const filteredModels = debouncedSearchText
-    ? models.filter((model) => model.name.toLowerCase().includes(debouncedSearchText.toLowerCase()))
-    : models
+  const onManageModel = useCallback(() => {
+    EditModelsPopup.show({ provider })
+  }, [provider])
 
-  const modelGroups = groupBy(filteredModels, 'group')
-  const sortedModelGroups = sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
-    acc[key] = value
-    return acc
-  }, {})
+  const onAddModel = useCallback(
+    () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider }),
+    [provider, t]
+  )
 
-  const onManageModel = () => EditModelsPopup.show({ provider })
-  const onAddModel = () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
-  const onEditModel = (model: Model) => {
+  const onEditModel = useCallback((model: Model) => {
     setEditingModel(model)
-  }
+  }, [])
 
-  const onUpdateModel = (updatedModel: Model) => {
-    const updatedModels = models.map((m) => {
-      if (m.id === updatedModel.id) {
-        return updatedModel
+  const onUpdateModel = useCallback(
+    (updatedModel: Model) => {
+      const updatedModels = models.map((m) => {
+        if (m.id === updatedModel.id) {
+          return updatedModel
+        }
+        return m
+      })
+
+      updateProvider({ ...provider, models: updatedModels })
+
+      // Update assistants using this model
+      assistants.forEach((assistant) => {
+        if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
+          dispatch(
+            setModel({
+              assistantId: assistant.id,
+              model: updatedModel
+            })
+          )
+        }
+      })
+
+      // Update default model if needed
+      if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
+        setDefaultModel(updatedModel)
       }
-      return m
-    })
-
-    updateProvider({ ...provider, models: updatedModels })
-
-    // Update assistants using this model
-    assistants.forEach((assistant) => {
-      if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
-        dispatch(
-          setModel({
-            assistantId: assistant.id,
-            model: updatedModel
-          })
-        )
-      }
-    })
-
-    // Update default model if needed
-    if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
-      setDefaultModel(updatedModel)
-    }
-  }
+    },
+    [models, updateProvider, provider, assistants, defaultModel?.id, defaultModel?.provider, dispatch, setDefaultModel]
+  )
 
   return (
     <>
@@ -396,4 +400,4 @@ const ModelLatencyText = styled(Typography.Text)`
   color: var(--color-text-secondary);
 `
 
-export default ModelList
+export default memo(ModelList)

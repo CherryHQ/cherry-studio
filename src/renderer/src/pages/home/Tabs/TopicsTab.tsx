@@ -37,7 +37,7 @@ import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import { FC, startTransition, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -146,7 +146,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const onSwitchTopic = useCallback(
     async (topic: Topic) => {
       // await modelGenerating()
-      setActiveTopic(topic)
+      startTransition(() => {
+        setActiveTopic(topic)
+      })
     },
     [setActiveTopic]
   )
@@ -202,7 +204,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 allowClear: true
               }
             })
-            prompt !== null && updateTopic({ ...topic, prompt: prompt.trim() })
+
+            prompt !== null &&
+              (() => {
+                const updatedTopic = { ...topic, prompt: prompt.trim() }
+                updateTopic(updatedTopic)
+                topic.id === activeTopic.id && setActiveTopic(updatedTopic)
+              })()
           }
         },
         {
@@ -337,7 +345,18 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
       return menus
     },
-    [assistant, assistants, onClearMessages, onDeleteTopic, onPinTopic, onMoveTopic, t, updateTopic]
+    [
+      t,
+      assistants,
+      assistant,
+      updateTopic,
+      activeTopic.id,
+      setActiveTopic,
+      onPinTopic,
+      onClearMessages,
+      onMoveTopic,
+      onDeleteTopic
+    ]
   )
 
   return (

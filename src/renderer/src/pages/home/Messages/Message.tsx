@@ -143,7 +143,7 @@ const MessageItem: FC<Props> = ({
       <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
       <MessageContentContainer
         className="message-content-container"
-        style={{ fontFamily, fontSize, background: messageBackground }}>
+        style={{ fontFamily, fontSize, background: messageBackground, overflowY: 'visible' }}>
         <MessageErrorBoundary>
           <MessageContent message={message} model={model} />
         </MessageErrorBoundary>

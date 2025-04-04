@@ -361,6 +361,7 @@ const Icon = styled.div<{ theme: string }>`
   justify-content: center;
   align-items: center;
   border-radius: 50%;
+  box-sizing: border-box;
   -webkit-app-region: none;
   border: 0.5px solid transparent;
   .iconfont,
@@ -392,18 +393,34 @@ const Icon = styled.div<{ theme: string }>`
 
   @keyframes borderBreath {
     0% {
-      border-color: var(--color-primary-mute);
+      opacity: 0.1;
     }
     50% {
-      border-color: var(--color-primary);
+      opacity: 1;
     }
     100% {
-      border-color: var(--color-primary-mute);
+      opacity: 0.1;
     }
   }
 
   &.opened-animation {
+    position: relative;
+  }
+
+  &.opened-animation::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    border-radius: inherit;
+    opacity: 0;
+    will-change: opacity;
     border: 0.5px solid var(--color-primary);
+    /* NOTICE: although we have optimized for the performance, 
+     * the infinite animation will still consume a little GPU resources,
+     * it's a trade-off balance between performance and animation smoothness*/
     animation: borderBreath 4s ease-in-out infinite;
   }
 `

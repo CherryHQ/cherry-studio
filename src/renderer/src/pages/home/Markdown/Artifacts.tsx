@@ -75,6 +75,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   gap: 8px;
+  padding-bottom: 10px;
 `
 
 export default Artifacts

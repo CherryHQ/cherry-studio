@@ -12,6 +12,7 @@ import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
+import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS } from './settings'
 
 // remove logo base64 data to reduce the size of the state
@@ -20,6 +21,13 @@ function removeMiniAppIconsFromState(state: RootState) {
     state.minapps.enabled = state.minapps.enabled.map((app) => ({ ...app, logo: undefined }))
     state.minapps.disabled = state.minapps.disabled.map((app) => ({ ...app, logo: undefined }))
     state.minapps.pinned = state.minapps.pinned.map((app) => ({ ...app, logo: undefined }))
+  }
+}
+
+function removeMiniAppFromState(state: RootState, id: string) {
+  if (state.minapps) {
+    state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== id)
+    state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== id)
   }
 }
 
@@ -1144,6 +1152,28 @@ const migrateConfig = {
     try {
       state.settings.maxKeepAliveMinapps = 3
       state.settings.showOpenedMinappsInSidebar = true
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '88': (state: RootState) => {
+    try {
+      if (state?.mcp?.servers) {
+        const hasAutoInstall = state.mcp.servers.some((server) => server.name === 'mcp-auto-install')
+        if (!hasAutoInstall) {
+          const defaultServer = mcpSlice.getInitialState().servers[0]
+          state.mcp.servers = [{ ...defaultServer, id: nanoid() }, ...state.mcp.servers]
+        }
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '89': (state: RootState) => {
+    try {
+      removeMiniAppFromState(state, 'aistudio')
       return state
     } catch (error) {
       return state

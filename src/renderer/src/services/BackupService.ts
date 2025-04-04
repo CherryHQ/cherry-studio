@@ -60,14 +60,25 @@ export async function reset() {
 }
 
 // 备份到 webdav
+/**
+ * @param autoBackupProcess
+ * if call in auto backup process, not show any message, any error will be thrown
+ */
 export async function backupToWebdav({
   showMessage = false,
-  customFileName = ''
-}: { showMessage?: boolean; customFileName?: string } = {}) {
+  customFileName = '',
+  autoBackupProcess = false
+}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
   if (isManualBackupRunning) {
     Logger.log('[Backup] Manual backup already in progress')
     return
   }
+  // force set showMessage to false when auto backup process
+  if (autoBackupProcess) {
+    showMessage = false
+  }
+
+  isManualBackupRunning = true
 
   store.dispatch(setWebDAVSyncState({ syncing: true, lastSyncError: null }))
 
@@ -98,25 +109,41 @@ export async function backupToWebdav({
           lastSyncError: null
         })
       )
-      showMessage && window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
+      if (showMessage && !autoBackupProcess) {
+        window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
+      }
     } else {
+      // if auto backup process, throw error
+      if (autoBackupProcess) {
+        throw new Error(i18n.t('message.backup.failed'))
+      }
+
       store.dispatch(setWebDAVSyncState({ lastSyncError: 'Backup failed' }))
-      window.message.error({ content: i18n.t('message.backup.failed'), key: 'backup' })
+      showMessage && window.message.error({ content: i18n.t('message.backup.failed'), key: 'backup' })
     }
   } catch (error: any) {
+    // if auto backup process, throw error
+    if (autoBackupProcess) {
+      throw error
+    }
+
     store.dispatch(setWebDAVSyncState({ lastSyncError: error.message }))
     console.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
-    window.modal.error({
-      title: i18n.t('message.backup.failed'),
-      content: error.message
-    })
-  } finally {
-    store.dispatch(
-      setWebDAVSyncState({
-        lastSyncTime: Date.now(),
-        syncing: false
+    showMessage &&
+      window.modal.error({
+        title: i18n.t('message.backup.failed'),
+        content: error.message
       })
-    )
+    throw error
+  } finally {
+    if (!autoBackupProcess) {
+      store.dispatch(
+        setWebDAVSyncState({
+          lastSyncTime: Date.now(),
+          syncing: false
+        })
+      )
+    }
     isManualBackupRunning = false
   }
 }
@@ -149,7 +176,7 @@ let syncTimeout: NodeJS.Timeout | null = null
 let isAutoBackupRunning = false
 let isManualBackupRunning = false
 
-export function startAutoSync() {
+export function startAutoSync(immediate = false) {
   if (autoSyncStarted) {
     return
   }
@@ -165,9 +192,15 @@ export function startAutoSync() {
 
   stopAutoSync()
 
-  scheduleNextBackup()
+  scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime')
 
-  function scheduleNextBackup() {
+  /**
+   * @param type 'immediate' | 'fromLastSyncTime' | 'fromNow'
+   *  'immediate', first backup right now
+   *  'fromLastSyncTime', schedule next backup from last sync time
+   *  'fromNow', schedule next backup from now
+   */
+  function scheduleNextBackup(type: 'immediate' | 'fromLastSyncTime' | 'fromNow' = 'fromLastSyncTime') {
     if (syncTimeout) {
       clearTimeout(syncTimeout)
       syncTimeout = null
@@ -185,10 +218,15 @@ export function startAutoSync() {
     // 用户指定的自动备份时间间隔（毫秒）
     const requiredInterval = webdavSyncInterval * 60 * 1000
 
-    // 如果存在最后一次同步WebDAV的时间，以它为参考计算下一次同步的时间
-    const timeUntilNextSync = webdavSync?.lastSyncTime
-      ? Math.max(1000, webdavSync.lastSyncTime + requiredInterval - Date.now())
-      : requiredInterval
+    let timeUntilNextSync = 1000 //also immediate
+    switch (type) {
+      case 'fromLastSyncTime': // 如果存在最后一次同步WebDAV的时间，以它为参考计算下一次同步的时间
+        timeUntilNextSync = Math.max(1000, (webdavSync?.lastSyncTime || 0) + requiredInterval - Date.now())
+        break
+      case 'fromNow':
+        timeUntilNextSync = requiredInterval
+        break
+    }
 
     syncTimeout = setTimeout(performAutoBackup, timeUntilNextSync)
 
@@ -207,14 +245,62 @@ export function startAutoSync() {
     }
 
     isAutoBackupRunning = true
-    try {
-      console.log('[AutoSync] Starting auto backup...')
-      await backupToWebdav({ showMessage: false })
-    } catch (error) {
-      console.error('[AutoSync] Auto backup failed:', error)
-    } finally {
-      isAutoBackupRunning = false
-      scheduleNextBackup()
+    const maxRetries = 4
+    let retryCount = 0
+
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`[AutoSync] Starting auto backup... (attempt ${retryCount + 1}/${maxRetries})`)
+
+        await backupToWebdav({ autoBackupProcess: true })
+
+        store.dispatch(
+          setWebDAVSyncState({
+            lastSyncError: null,
+            lastSyncTime: Date.now(),
+            syncing: false
+          })
+        )
+
+        isAutoBackupRunning = false
+        scheduleNextBackup()
+
+        break
+      } catch (error: any) {
+        retryCount++
+        if (retryCount === maxRetries) {
+          console.error('[AutoSync] Auto backup failed after all retries:', error)
+
+          store.dispatch(
+            setWebDAVSyncState({
+              lastSyncError: 'Auto backup failed',
+              lastSyncTime: Date.now(),
+              syncing: false
+            })
+          )
+
+          //only show 1 time error modal, and autoback stopped until user click ok
+          await window.modal.error({
+            title: i18n.t('message.backup.failed'),
+            content: `[WebDAV Auto Backup] ${new Date().toLocaleString()} ` + error.message
+          })
+
+          scheduleNextBackup('fromNow')
+          isAutoBackupRunning = false
+        } else {
+          //Exponential Backoff with Base 2： 7s、17s、37s
+          const backoffDelay = Math.pow(2, retryCount - 1) * 10000 - 3000
+          console.log(`[AutoSync] Failed, retry ${retryCount}/${maxRetries} after ${backoffDelay / 1000}s`)
+
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay))
+
+          //in case auto backup is stopped by user
+          if (!isAutoBackupRunning) {
+            console.log('[AutoSync] retry cancelled by user, exit')
+            break
+          }
+        }
+      }
     }
   }
 }

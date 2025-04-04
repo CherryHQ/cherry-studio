@@ -2,6 +2,7 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { DEFAULT_CONTEXTCOUNT } from '@renderer/config/constant'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
+import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { Assistant, Message, Model, Topic } from '@renderer/types'
 import { getTitleFromString, uuid } from '@renderer/utils'
@@ -214,7 +215,22 @@ export function resetAssistantMessage(message: Message, model?: Model): Message 
   }
 }
 
-export function getMessageTitle(message: Message, length = 30) {
+export async function getMessageTitle(message: Message, length = 30): Promise<string> {
+  // 检查 Redux 设置，若开启话题命名则调用 summaries 方法
+  if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
+    try {
+      window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
+      const title = await fetchMessagesSummary({ messages: [message], assistant: {} as Assistant })
+      if (title) {
+        window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
+        return title
+      }
+    } catch (e) {
+      window.message.error({ content: t('chat.topics.export.title_naming_failed'), key: 'message-title-naming' })
+      console.error('Failed to generate title using topic naming, downgraded to default logic', e)
+    }
+  }
+
   let title = getTitleFromString(message.content, length)
 
   if (!title) {
@@ -223,6 +239,7 @@ export function getMessageTitle(message: Message, length = 30) {
 
   return title
 }
+
 export function checkRateLimit(assistant: Assistant): boolean {
   const provider = getAssistantProvider(assistant)
 

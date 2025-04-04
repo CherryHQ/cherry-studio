@@ -11,12 +11,14 @@ const WebviewContainer = memo(
     appid,
     url,
     onSetRefCallback,
-    onLoadedCallback
+    onLoadedCallback,
+    onNavigateCallback
   }: {
     appid: string
     url: string
     onSetRefCallback: (appid: string, element: WebviewTag | null) => void
     onLoadedCallback: (appid: string) => void
+    onNavigateCallback: (appid: string, url: string) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
 
@@ -47,8 +49,13 @@ const WebviewContainer = memo(
         onLoadedCallback(appid)
       }
 
+      const handleNavigate = (event: any) => {
+        onNavigateCallback(appid, event.url)
+      }
+
       webviewRef.current.addEventListener('new-window', handleNewWindow)
       webviewRef.current.addEventListener('did-finish-load', handleLoaded)
+      webviewRef.current.addEventListener('did-navigate-in-page', handleNavigate)
 
       // we set the url when the webview is ready
       webviewRef.current.src = url
@@ -56,6 +63,7 @@ const WebviewContainer = memo(
       return () => {
         webviewRef.current?.removeEventListener('new-window', handleNewWindow)
         webviewRef.current?.removeEventListener('did-finish-load', handleLoaded)
+        webviewRef.current?.removeEventListener('did-navigate-in-page', handleNavigate)
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps

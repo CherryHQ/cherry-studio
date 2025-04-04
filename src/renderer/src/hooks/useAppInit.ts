@@ -15,6 +15,8 @@ import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
 
+import { defaultLanguage } from '@shared/config/constant'
+
 export function useAppInit() {
   const dispatch = useAppDispatch()
   const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss } = useSettings()
@@ -53,7 +55,7 @@ export function useAppInit() {
   }, [proxyUrl, proxyMode])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || 'en-US')
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   useEffect(() => {

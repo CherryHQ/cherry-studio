@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebDAVSyncState } from './backup'
 
@@ -85,6 +86,7 @@ export interface SettingsState {
   notionPageNameKey: string | null
   markdownExportPath: string | null
   forceDollarMathInMarkdown: boolean
+  useTopicNamingForMessageTitle: boolean
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
@@ -129,7 +131,7 @@ const initialState: SettingsState = {
   showAssistantIcon: false,
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
-  clickAssistantToShowTopic: false,
+  clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
   codeShowLineNumbers: false,
@@ -167,6 +169,7 @@ const initialState: SettingsState = {
   notionPageNameKey: 'Name',
   markdownExportPath: null,
   forceDollarMathInMarkdown: false,
+  useTopicNamingForMessageTitle: false,
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
   notionSplitSize: 90,
@@ -206,7 +209,7 @@ const settingsSlice = createSlice({
     },
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
-      window.electron.ipcRenderer.send('miniwindow-reload')
+      window.electron.ipcRenderer.send(IpcChannel.MiniWindowReload)
     },
     setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
       state.targetLanguage = action.payload
@@ -372,6 +375,9 @@ const settingsSlice = createSlice({
     setForceDollarMathInMarkdown: (state, action: PayloadAction<boolean>) => {
       state.forceDollarMathInMarkdown = action.payload
     },
+    setUseTopicNamingForMessageTitle: (state, action: PayloadAction<boolean>) => {
+      state.useTopicNamingForMessageTitle = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
@@ -483,6 +489,7 @@ export const {
   setNotionPageNameKey,
   setmarkdownExportPath,
   setForceDollarMathInMarkdown,
+  setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
   setNotionAutoSplit,
   setNotionSplitSize,

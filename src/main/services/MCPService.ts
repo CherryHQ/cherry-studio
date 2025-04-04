@@ -2,10 +2,11 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { isLinux, isMac, isWin } from '@main/constant'
+import { makeSureDirExists } from '@main/utils'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { nanoid } from '@reduxjs/toolkit'
 import { MCPServer, MCPTool } from '@types'
 import { app } from 'electron'
@@ -21,6 +22,7 @@ class McpService {
       baseUrl: server.baseUrl,
       command: server.command,
       args: server.args,
+      registryUrl: server.registryUrl,
       env: server.env,
       id: server.id
     })
@@ -68,13 +70,8 @@ class McpService {
       } else if (server.command) {
         let cmd = server.command
 
-        if (server.command === 'npx') {
+        if (server.command === 'npx' || server.command === 'bun' || server.command === 'bunx') {
           cmd = await getBinaryPath('bun')
-
-          if (cmd === 'bun') {
-            cmd = 'npx'
-          }
-
           Logger.info(`[MCP] Using command: ${cmd}`)
 
           // add -x to args if args exist
@@ -82,22 +79,42 @@ class McpService {
             if (!args.includes('-y')) {
               !args.includes('-y') && args.unshift('-y')
             }
-            if (cmd.includes('bun') && !args.includes('x')) {
+            if (!args.includes('x')) {
               args.unshift('x')
+            }
+          }
+          if (server.registryUrl) {
+            server.env = {
+              ...server.env,
+              NPM_CONFIG_REGISTRY: server.registryUrl
+            }
+
+            // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
+            if (server.name === 'mcp-auto-install') {
+              const binPath = await getBinaryPath()
+              makeSureDirExists(binPath)
+              server.env.MCP_REGISTRY_PATH = path.join(binPath, 'mcp-registry.json')
+            }
+          }
+        } else if (server.command === 'uvx' || server.command === 'uv') {
+          cmd = await getBinaryPath(server.command)
+          if (server.registryUrl) {
+            server.env = {
+              ...server.env,
+              UV_DEFAULT_INDEX: server.registryUrl,
+              PIP_INDEX_URL: server.registryUrl
             }
           }
         }
 
-        if (server.command === 'uvx') {
-          cmd = await getBinaryPath('uvx')
-        }
-
         Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
+        // Logger.info(`[MCP] Environment variables for server:`, server.env)
 
         transport = new StdioClientTransport({
           command: cmd,
           args,
           env: {
+            ...getDefaultEnvironment(),
             PATH: this.getEnhancedPath(process.env.PATH || ''),
             ...server.env
           }
@@ -233,6 +250,7 @@ class McpService {
         `${homeDir}/.npm-global/bin`,
         `${homeDir}/.yarn/bin`,
         `${homeDir}/.cargo/bin`,
+        `${homeDir}/.cherrystudio/bin`,
         '/opt/local/bin'
       )
     }
@@ -246,12 +264,18 @@ class McpService {
         `${homeDir}/.npm-global/bin`,
         `${homeDir}/.yarn/bin`,
         `${homeDir}/.cargo/bin`,
+        `${homeDir}/.cherrystudio/bin`,
         '/snap/bin'
       )
     }
 
     if (isWin) {
-      newPaths.push(`${process.env.APPDATA}\\npm`, `${homeDir}\\AppData\\Local\\Yarn\\bin`, `${homeDir}\\.cargo\\bin`)
+      newPaths.push(
+        `${process.env.APPDATA}\\npm`,
+        `${homeDir}\\AppData\\Local\\Yarn\\bin`,
+        `${homeDir}\\.cargo\\bin`,
+        `${homeDir}\\.cherrystudio\\bin`
+      )
     }
 
     // 只添加不存在的路径

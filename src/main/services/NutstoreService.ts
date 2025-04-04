@@ -112,10 +112,10 @@ function convertToFileStat(serverBase: string, item: WebDAVResponse['multistatus
   const props = item.propstat.prop
   const isDir = !isNil(props.resourcetype?.collection)
   const href = decodeURIComponent(item.href)
-  const filename = serverBase === '/' ? href : path.join('/', href.replace(serverBase, ''))
+  const filename = serverBase === '/' ? href : path.posix.join('/', href.replace(serverBase, ''))
 
   return {
-    filename,
+    filename: filename.endsWith('/') ? filename.slice(0, -1) : filename,
     basename: path.basename(filename),
     lastmod: props.getlastmodified || '',
     size: props.getcontentlength ? parseInt(props.getcontentlength, 10) : 0,

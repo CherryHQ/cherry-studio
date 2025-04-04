@@ -17,6 +17,7 @@ import {
 } from '@renderer/store/assistants'
 import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
+import { useCallback } from 'react'
 
 import { TopicManager } from './useTopic'
 
@@ -69,7 +70,10 @@ export function useAssistant(id: string) {
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
     removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
-    setModel: (model: Model) => dispatch(setModel({ assistantId: assistant.id, model })),
+    setModel: useCallback(
+      (model: Model) => dispatch(setModel({ assistantId: assistant.id, model })),
+      [dispatch, assistant.id]
+    ),
     updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
     updateAssistantSettings: (settings: Partial<AssistantSettings>) => {
       dispatch(updateAssistantSettings({ assistantId: assistant.id, settings }))

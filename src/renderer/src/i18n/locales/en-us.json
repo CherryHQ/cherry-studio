@@ -46,6 +46,11 @@
       "search": "Search assistants...",
       "settings.default_model": "Default Model",
       "settings.knowledge_base": "Knowledge Base Settings",
+      "settings.mcp": "MCP Servers",
+      "settings.mcp.enableFirst": "Enable this server in MCP settings first",
+      "settings.mcp.title": "MCP Settings",
+      "settings.mcp.noServersAvailable": "No MCP servers available. Add servers in settings",
+      "settings.mcp.description": "Default enabled MCP servers",
       "settings.model": "Model Settings",
       "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
@@ -145,7 +150,10 @@
         "history": "Chat History",
         "last": "Already at the last message",
         "next": "Next Message",
-        "prev": "Previous Message"
+        "prev": "Previous Message",
+        "top": "Back to top",
+        "bottom": "Back to bottom",
+        "close": "Close"
       },
       "resend": "Resend",
       "save": "Save",
@@ -224,7 +232,10 @@
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
       "translate": "Translate",
-      "topics.export.siyuan": "Export to Siyuan Note"
+      "topics.export.siyuan": "Export to Siyuan Note",
+      "topics.export.wait_for_title_naming": "Generating title...",
+      "topics.export.title_naming_success": "Title generated successfully",
+      "topics.export.title_naming_failed": "Failed to generate title, using default title"
     },
     "code_block": {
       "collapse": "Collapse",
@@ -547,7 +558,8 @@
         "close": "Close MinApp",
         "minimize": "Minimize MinApp",
         "devtools": "Developer Tools",
-        "openExternal": "Open in Browser"
+        "openExternal": "Open in Browser",
+        "rightclick_copyurl": "Right-click to copy URL"
       },
       "sidebar.add.title": "Add to sidebar",
       "sidebar.remove.title": "Remove from sidebar",
@@ -568,15 +580,19 @@
       },
       "footer": {
         "copy_last_message": "Press C to copy",
-        "esc": "Press ESC {{action}}",
-        "esc_back": "back",
-        "esc_close": "close the window"
+        "backspace_clear": "Backspace to clear",
+        "esc": "ESC to {{action}}",
+        "esc_back": "return",
+        "esc_close": "close"
       },
       "input": {
         "placeholder": {
           "empty": "Ask {{model}} for help...",
           "title": "What do you want to do with this text?"
         }
+      },
+      "tooltip": {
+        "pin": "Keep Window on Top"
       }
     },
     "models": {
@@ -913,7 +929,9 @@
           "new_folder.button.confirm": "Confirm",
           "new_folder.button.cancel": "Cancel",
           "new_folder.button": "New Folder"
-        }
+        },
+        "message_title.use_topic_naming.title": "Use topic naming model to create titles for exported messages",
+        "message_title.use_topic_naming.help": "When enabled, use topic naming model to create titles for exported messages. This will also affect all Markdown export methods."
       },
       "display.assistant.title": "Assistant Settings",
       "display.custom.css": "Custom CSS",
@@ -1039,7 +1057,10 @@
           "noToolsAvailable": "No tools available"
         },
         "deleteServer": "Delete Server",
-        "deleteServerConfirm": "Are you sure you want to delete this server?"
+        "deleteServerConfirm": "Are you sure you want to delete this server?",
+        "registry": "Package Registry",
+        "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
+        "registryDefault": "Default"
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
@@ -1189,7 +1210,7 @@
         "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
         "reset_to_default": "Reset to Default",
         "search_message": "Search Message",
-        "show_app": "Show App",
+        "show_app": "Show/Hide App",
         "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",
         "toggle_new_context": "Clear Context",

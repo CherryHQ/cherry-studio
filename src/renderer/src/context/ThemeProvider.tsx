@@ -4,6 +4,7 @@ import store from '@renderer/store'
 import { setCustomCss } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
+import { IpcChannel } from '@shared/IpcChannel'
 
 interface ThemeContextType {
   theme: ThemeMode
@@ -51,7 +52,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
 
     // listen theme change from main process from other windows
-    const themeChangeListenerRemover = window.electron.ipcRenderer.on('theme:change', (_, newTheme) => {
+    const themeChangeListenerRemover = window.electron.ipcRenderer.on(IpcChannel.ThemeChange, (_, newTheme) => {
       setTheme(newTheme)
     })
     return () => {

@@ -11,6 +11,7 @@ import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+import { defaultLanguage } from '@shared/config/constant'
 
 const GeneralSettings: FC = () => {
   const {
@@ -112,7 +113,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Select defaultValue={language || 'en-US'} style={{ width: 180 }} onChange={onSelectLanguage}>
+          <Select defaultValue={language || defaultLanguage} style={{ width: 180 }} onChange={onSelectLanguage}>
             {languagesOptions.map((lang) => (
               <Select.Option key={lang.value} value={lang.value}>
                 <Space.Compact direction="horizontal" block>
@@ -175,7 +176,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
-          <Switch checked={trayOnClose} onChange={(checked) => updateTrayOnClose(checked)} disabled={!tray} />
+          <Switch checked={trayOnClose} onChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

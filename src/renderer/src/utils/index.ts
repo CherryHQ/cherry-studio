@@ -7,6 +7,7 @@ import * as htmlToImage from 'html-to-image'
 import { v4 as uuidv4 } from 'uuid'
 
 import { classNames } from './style'
+import { KB, MB } from '@shared/config/constant'
 
 export const runAsyncFunction = async (fn: () => void) => {
   await fn()
@@ -421,15 +422,15 @@ export function hasPath(url: string): boolean {
 }
 
 export function formatFileSize(size: number) {
-  if (size > 1024 * 1024) {
-    return (size / 1024 / 1024).toFixed(1) + ' MB'
+  if (size > MB) {
+    return (size / MB).toFixed(1) + ' MB'
   }
 
-  if (size > 1024) {
-    return (size / 1024).toFixed(0) + ' KB'
+  if (size > KB) {
+    return (size / KB).toFixed(0) + ' KB'
   }
 
-  return (size / 1024).toFixed(2) + ' KB'
+  return (size / KB).toFixed(2) + ' KB'
 }
 
 export function sortByEnglishFirst(a: string, b: string) {

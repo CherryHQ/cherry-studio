@@ -1,7 +1,7 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app, ipcMain } from 'electron'
-import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
+import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
@@ -9,6 +9,7 @@ import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } fro
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import { IpcChannel } from '@shared/IpcChannel'
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -48,11 +49,11 @@ if (!app.requestSingleInstanceLock()) {
     replaceDevtoolsFont(mainWindow)
 
     if (process.env.NODE_ENV === 'development') {
-      installExtension(REDUX_DEVTOOLS)
+      installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
     }
-    ipcMain.handle('system:getDeviceType', () => {
+    ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
       return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
     })
   })

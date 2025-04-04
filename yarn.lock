@@ -1212,10 +1212,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google/generative-ai@npm:^0.21.0":
-  version: 0.21.0
-  resolution: "@google/generative-ai@npm:0.21.0"
-  checksum: 10c0/cff5946c5964f2380e5097d82bd563d79be27a1a5ac604aaaad3f9ba3382992e4f0a371bd255baabfba4e5bdf296d8ce1410cbd65424afa98e64b2590fe49f3b
+"@google/generative-ai@npm:^0.24.0":
+  version: 0.24.0
+  resolution: "@google/generative-ai@npm:0.24.0"
+  checksum: 10c0/31452bf2653cdee7fd61eb209f16ac0ef82c94c4175909ba40e1088e938e3e19e01f628dfb80d429dae3338fc8487e9a0fd8a6ff0164189f2722211175690b0b
   languageName: node
   linkType: hard
 
@@ -3767,7 +3767,7 @@ __metadata:
     "@eslint-react/eslint-plugin": "npm:^1.36.1"
     "@eslint/js": "npm:^9.22.0"
     "@google/genai": "npm:^0.4.0"
-    "@google/generative-ai": "npm:^0.21.0"
+    "@google/generative-ai": "npm:^0.24.0"
     "@hello-pangea/dnd": "npm:^16.6.0"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.36"

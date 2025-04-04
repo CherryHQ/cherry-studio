@@ -44,6 +44,11 @@
       "save.success": "儲存成功",
       "save.title": "儲存到智慧代理人",
       "search": "搜尋助手...",
+      "settings.mcp": "MCP 伺服器",
+      "settings.mcp.enableFirst": "請先在 MCP 設定中啟用此伺服器",
+      "settings.mcp.title": "MCP 設定",
+      "settings.mcp.noServersAvailable": "無可用 MCP 伺服器。請在設定中新增伺服器",
+      "settings.mcp.description": "預設啟用的 MCP 伺服器",
       "settings.default_model": "預設模型",
       "settings.knowledge_base": "知識庫設定",
       "settings.model": "模型設定",
@@ -145,7 +150,10 @@
         "history": "聊天歷史",
         "last": "已經是最後一條訊息",
         "next": "下一條訊息",
-        "prev": "上一條訊息"
+        "prev": "上一條訊息",
+        "top": "回到頂部",
+        "bottom": "回到底部",
+        "close": "關閉"
       },
       "resend": "重新傳送",
       "save": "儲存",
@@ -224,7 +232,10 @@
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
       "translate": "翻譯",
-      "topics.export.siyuan": "匯出到思源筆記"
+      "topics.export.siyuan": "匯出到思源筆記",
+      "topics.export.wait_for_title_naming": "正在生成標題...",
+      "topics.export.title_naming_success": "標題生成成功",
+      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題"
     },
     "code_block": {
       "collapse": "折疊",
@@ -547,7 +558,8 @@
         "close": "關閉小工具",
         "minimize": "最小化小工具",
         "devtools": "開發者工具",
-        "openExternal": "在瀏覽器中開啟"
+        "openExternal": "在瀏覽器中開啟",
+        "rightclick_copyurl": "右鍵複製URL"
       },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
@@ -570,13 +582,17 @@
         "copy_last_message": "按 C 鍵複製",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
-        "esc_close": "關閉視窗"
+        "esc_close": "關閉視窗",
+        "backspace_clear": "按 Backspace 清空"
       },
       "input": {
         "placeholder": {
           "empty": "詢問 {{model}} 取得幫助...",
           "title": "你想對下方文字做什麼"
         }
+      },
+      "tooltip": {
+        "pin": "窗口置頂"
       }
     },
     "models": {
@@ -913,7 +929,9 @@
           "new_folder.button.confirm": "確定",
           "new_folder.button.cancel": "取消",
           "new_folder.button": "新建文件夾"
-        }
+        },
+        "message_title.use_topic_naming.title": "使用話題命名模型為導出的消息創建標題",
+        "message_title.use_topic_naming.help": "此設定會影響所有通過Markdown導出的方式，如Notion、語雀等。"
       },
       "display.assistant.title": "助手設定",
       "display.custom.css": "自訂 CSS",
@@ -1038,7 +1056,10 @@
           "noToolsAvailable": "沒有可用工具"
         },
         "deleteServer": "刪除伺服器",
-        "deleteServerConfirm": "確定要刪除此伺服器嗎？"
+        "deleteServerConfirm": "確定要刪除此伺服器嗎？",
+        "registry": "套件管理源",
+        "registryTooltip": "選擇用於安裝套件的源，以解決預設源的網路問題。",
+        "registryDefault": "預設"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -1188,7 +1209,7 @@
         "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
         "reset_to_default": "重設為預設",
         "search_message": "搜尋訊息",
-        "show_app": "顯示應用程式",
+        "show_app": "顯示/隱藏應用程式",
         "show_settings": "開啟設定",
         "title": "快速方式",
         "toggle_new_context": "清除上下文",

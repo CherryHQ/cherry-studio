@@ -44,7 +44,10 @@ export default class AnthropicProvider extends BaseProvider {
     this.sdk = new Anthropic({
       apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
-      dangerouslyAllowBrowser: true
+      dangerouslyAllowBrowser: true,
+      defaultHeaders: {
+        'anthropic-beta': 'output-128k-2025-02-19'
+      }
     })
   }
 
@@ -221,7 +224,7 @@ export default class AnthropicProvider extends BaseProvider {
       return onChunk({
         text,
         reasoning_content,
-        usage: message.usage,
+        usage: message.usage as any,
         metrics: {
           completion_tokens: message.usage.output_tokens,
           time_completion_millsec,

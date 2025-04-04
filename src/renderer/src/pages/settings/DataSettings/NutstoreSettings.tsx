@@ -252,8 +252,10 @@ const NutstoreSettings: FC = () => {
                 placeholder={t('settings.data.nutstore.path.placeholder')}
                 style={{ width: 250 }}
                 value={nutstorePath}
-                onChange={(e) => setStoragePath(e.target.value)}
-                onBlur={() => dispatch(setNutstorePath(storagePath || ''))}
+                onChange={(e) => {
+                  setStoragePath(e.target.value)
+                  dispatch(setNutstorePath(e.target.value))
+                }}
               />
               <Button type="default" onClick={handleClickPathChange}>
                 <FolderOutlined />

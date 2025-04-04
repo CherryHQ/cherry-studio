@@ -262,7 +262,6 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
   width: 100%;
   display: grid;
   gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
-  overflow-y: auto;
   grid-template-columns: repeat(
     ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
     minmax(550px, 1fr)
@@ -286,6 +285,13 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
       grid-template-rows: auto;
       gap: 16px;
     `}
+  ${({ $layout }) => {
+    return $layout === 'horizontal'
+      ? css`
+          overflow-y: auto;
+        `
+      : 'overflow-y: visible;'
+  }}
 `
 
 interface MessageWrapperProps {
@@ -324,6 +330,9 @@ const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
   }}
 
   ${({ $layout, $isInPopover, $isGrouped }) => {
+    // 如果布局是grid，并且是组消息，则设置最大高度和溢出行为（卡片不可滚动，点击展开后可滚动）
+    // 如果布局是horizontal，则设置溢出行为（卡片可滚动）
+    // 如果布局是fold、vertical，高度不限制，与正常消息流布局一致，则设置卡片不可滚动（visible）
     return $layout === 'grid' && $isGrouped
       ? css`
           max-height: ${$isInPopover ? '50vh' : '300px'};
@@ -334,7 +343,7 @@ const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
           background-color: var(--color-background);
         `
       : css`
-          overflow-y: auto;
+          overflow-y: ${$layout === 'horizontal' ? 'auto' : 'visible'};
           border-radius: 6px;
         `
   }}

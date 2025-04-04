@@ -13,6 +13,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
@@ -91,7 +92,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
-  const [enabledMCPs, setEnabledMCPs] = useState<MCPServer[]>([])
+  const [enabledMCPs, setEnabledMCPs] = useState<MCPServer[]>(assistant.mcpServers || [])
   const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
@@ -101,6 +102,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const navigate = useNavigate()
+  const { activedMcpServers } = useMCPServers()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const showMCPToolsIcon = isFunctionCallingModel(model)
@@ -145,6 +147,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [textareaHeight])
 
+  // Reset to assistant knowledge mcp servers
+  useEffect(() => {
+    setEnabledMCPs(assistant.mcpServers || [])
+  }, [assistant.mcpServers])
+
   const sendMessage = useCallback(async () => {
     if (inputEmpty || loading) {
       return
@@ -174,8 +181,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         userMessage.mentions = mentionModels
       }
 
-      if (enabledMCPs) {
-        userMessage.enabledMCPs = enabledMCPs
+      if (isFunctionCallingModel(model)) {
+        if (!isEmpty(enabledMCPs) && !isEmpty(activedMcpServers)) {
+          userMessage.enabledMCPs = activedMcpServers.filter((server) => enabledMCPs?.some((s) => s.id === server.id))
+        }
       }
 
       userMessage.usage = await estimateMessageUsage(userMessage)
@@ -199,15 +208,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [
     assistant,
     dispatch,
-    enabledMCPs,
     files,
     inputEmpty,
     loading,
     mentionModels,
+    model,
     resizeTextArea,
     selectedKnowledgeBases,
     text,
-    topic
+    topic,
+    enabledMCPs,
+    activedMcpServers
   ])
 
   const translate = async () => {
@@ -323,8 +334,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     await db.topics.add({ id: topic.id, messages: [] })
     await addAssistantMessagesToTopic({ assistant, topic })
 
+    // Clear previous state
     // Reset to assistant default model
     assistant.defaultModel && setModel(assistant.defaultModel)
+    // Reset to assistant knowledge mcp servers
+    setEnabledMCPs(assistant.mcpServers || [])
 
     addTopic(topic)
     setActiveTopic(topic)

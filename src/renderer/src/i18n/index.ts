@@ -13,6 +13,8 @@ import esES from './translate/es-es.json'
 import frFR from './translate/fr-fr.json'
 import ptPT from './translate/pt-pt.json'
 
+import { defaultLanguage } from '@shared/config/constant'
+
 const resources = {
   'el-GR': elGR,
   'en-US': enUS,
@@ -26,7 +28,7 @@ const resources = {
 }
 
 export const getLanguage = () => {
-  return localStorage.getItem('language') || navigator.language || 'en-US'
+  return localStorage.getItem('language') || navigator.language || defaultLanguage
 }
 
 export const getLanguageCode = () => {
@@ -36,7 +38,7 @@ export const getLanguageCode = () => {
 i18n.use(initReactI18next).init({
   resources,
   lng: getLanguage(),
-  fallbackLng: 'en-US',
+  fallbackLng: defaultLanguage,
   interpolation: {
     escapeValue: false
   }
