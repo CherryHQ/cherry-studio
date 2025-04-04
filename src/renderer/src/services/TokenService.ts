@@ -1,6 +1,6 @@
 import { Assistant, FileType, FileTypes, Message } from '@renderer/types'
 import { flatten, takeRight } from 'lodash'
-import { CompletionUsage } from 'openai/resources'
+import { CompletionUsage } from 'openai/resources/completions.mjs'
 import { approximateTokenSize } from 'tokenx'
 
 import { getAssistantSettings } from './AssistantService'

@@ -43,7 +43,7 @@ import {
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
   ChatCompletionToolMessageParam
-} from 'openai/resources'
+} from 'openai/resources/chat/completions.mjs'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'

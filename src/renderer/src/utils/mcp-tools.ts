@@ -19,7 +19,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
-import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
+import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources/chat/completions.mjs'
 
 import { ChunkCallbackData } from '../providers/AiProvider'
 
