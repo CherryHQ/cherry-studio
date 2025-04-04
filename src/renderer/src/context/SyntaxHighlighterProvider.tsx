@@ -3,40 +3,28 @@ import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { CodeCacheService } from '@renderer/services/CodeCacheService'
 import { type CodeStyleVarious, ThemeMode } from '@renderer/types'
-import { LRUCache } from 'lru-cache'
 import type React from 'react'
 import { createContext, type PropsWithChildren, use, useCallback, useMemo } from 'react'
-import type { BundledLanguage } from 'shiki'
 import { bundledLanguages, bundledThemes, createHighlighter, type Highlighter } from 'shiki'
+
+let highlighterPromise: Promise<Highlighter> | null = null
+
+async function getHighlighter() {
+  if (!highlighterPromise) {
+    highlighterPromise = createHighlighter({
+      langs: ['javascript', 'typescript', 'python', 'java', 'markdown'],
+      themes: ['one-light', 'material-theme-darker']
+    })
+  }
+
+  return await highlighterPromise
+}
 
 interface SyntaxHighlighterContextType {
   codeToHtml: (code: string, language: string, enableCache: boolean) => Promise<string>
 }
 
 const SyntaxHighlighterContext = createContext<SyntaxHighlighterContextType | undefined>(undefined)
-
-// 全局高亮器缓存 (LRU, 最多2个实例)
-const highlighterCache = new LRUCache<string, Promise<Highlighter>>({
-  max: 2,
-  ttl: 1000 * 60 * 15, // 缓存过期时间（15分钟）
-  dispose: async (hlPromise) => (await hlPromise)?.dispose()
-})
-
-// 创建高亮器
-async function getHighlighter(theme: string) {
-  const commonLanguages = ['javascript', 'typescript', 'python', 'java', 'markdown']
-
-  const hlCached = highlighterCache.get(theme)
-  if (hlCached) return await hlCached
-
-  const hlPromise = createHighlighter({
-    themes: [theme],
-    langs: commonLanguages
-  })
-
-  highlighterCache.set(theme, hlPromise)
-  return await hlPromise
-}
 
 export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const { theme } = useTheme()
@@ -70,16 +58,23 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
         const escapedCode = code?.replace(/[<>]/g, (char) => ({ '<': '&lt;', '>': '&gt;' })[char]!)
 
         try {
-          const highlighter = await getHighlighter(highlighterTheme)
+          const highlighter = await getHighlighter()
 
-          if (!highlighter.getLoadedLanguages().includes(mappedLanguage as BundledLanguage)) {
-            if (mappedLanguage in bundledLanguages || mappedLanguage === 'text') {
-              await highlighter.loadLanguage(mappedLanguage as BundledLanguage)
-            } else {
-              return `<pre style="padding: 10px"><code>${escapedCode}</code></pre>`
+          if (!highlighter.getLoadedThemes().includes(highlighterTheme)) {
+            const themeImportFn = bundledThemes[highlighterTheme]
+            if (themeImportFn) {
+              await highlighter.loadTheme(await themeImportFn())
             }
           }
 
+          if (!highlighter.getLoadedLanguages().includes(mappedLanguage)) {
+            const languageImportFn = bundledLanguages[mappedLanguage]
+            if (languageImportFn) {
+              await highlighter.loadLanguage(await languageImportFn())
+            }
+          }
+
+          // 生成高亮HTML
           const html = highlighter.codeToHtml(code, {
             lang: mappedLanguage,
             theme: highlighterTheme
@@ -92,7 +87,7 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
 
           return html
         } catch (error) {
-          console.warn(`Error highlighting code for language '${mappedLanguage}':`, error)
+          console.debug(`Error highlighting code for language '${mappedLanguage}':`, error)
           return `<pre style="padding: 10px"><code>${escapedCode}</code></pre>`
         }
       }
