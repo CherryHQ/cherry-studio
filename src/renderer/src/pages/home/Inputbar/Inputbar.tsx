@@ -416,12 +416,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       quickPanel.open({
         title: t('settings.quickPanel.title'),
         list: quickPanelMenu,
-        symbol: '/',
-        beforeAction: ({ searchText }) => {
-          // 清除快捷面板的输入词
-          if (!searchText) return
-          setText((prevText) => prevText.replace(new RegExp(`${searchText}$`), ''))
-        }
+        symbol: '/'
       })
     }
 
@@ -560,20 +555,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value
-
-    // 向快捷面板发送输入词
-    if (quickPanel.isVisible && newText) {
-      const cursorPosition = e.target.selectionStart
-      const textBeforeCursor = newText.slice(0, cursorPosition)
-      const lastSymbolIndex = Math.max(textBeforeCursor.lastIndexOf('/'), textBeforeCursor.lastIndexOf('@'))
-      const searchText = lastSymbolIndex === -1 ? textBeforeCursor : textBeforeCursor.slice(lastSymbolIndex + 1)
-      quickPanel.setSearchText(searchText)
-    }
-
-    if (quickPanel.isVisible && !newText) {
-      quickPanel.close()
-    }
-
     setText(newText)
   }
 

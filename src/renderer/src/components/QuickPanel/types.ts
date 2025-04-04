@@ -52,10 +52,8 @@ export type QuickPanelListItem = {
 export interface QuickPanelContextType {
   readonly open: (options: QuickPanelOpenOptions) => void
   readonly close: (action?: QuickPanelCloseAction) => void
-  readonly setSearchText: (text: string) => void
   readonly isVisible: boolean
   readonly symbol: string
-  readonly searchText: string
   readonly list: QuickPanelListItem[]
   readonly title?: string
   readonly defaultIndex: number

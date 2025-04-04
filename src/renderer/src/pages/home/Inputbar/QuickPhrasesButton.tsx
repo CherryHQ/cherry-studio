@@ -36,46 +36,22 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton 
 
   const handlePhraseSelect = useCallback(
     (phrase: QuickPhrase) => {
-      setInputValue((prev) => {
-        const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+      setTimeout(() => {
+        setInputValue((prev) => {
+          const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+          const cursorPosition = textArea.selectionStart
+          const selectionStart = cursorPosition
+          const selectionEndPosition = cursorPosition + phrase.content.length
+          const newText = prev.slice(0, cursorPosition) + phrase.content + prev.slice(cursorPosition)
 
-        const cursorPosition = textArea.selectionStart
-        const selectionEnd = textArea.selectionEnd
-        const hasSelection = cursorPosition !== selectionEnd
-
-        // 查找最近的 / 符号位置
-        const lastSlashIndex = prev.lastIndexOf('/', cursorPosition)
-        const shouldReplaceSlash = lastSlashIndex !== -1 && lastSlashIndex < cursorPosition
-
-        let newText = prev
-        let selectionStart = cursorPosition
-        let selectionEndPosition = cursorPosition + phrase.content.length
-
-        if (hasSelection) {
-          // 有选中内容时，直接替换选中内容
-          newText = `${prev.slice(0, cursorPosition)}${phrase.content}${prev.slice(selectionEnd)}`
-          selectionStart = cursorPosition
-          selectionEndPosition = cursorPosition + phrase.content.length
-        } else if (shouldReplaceSlash) {
-          // 没有选中内容时，替换从 / 到光标位置的内容
-          newText = `${prev.slice(0, lastSlashIndex)}${phrase.content}${prev.slice(cursorPosition)}`
-          selectionStart = lastSlashIndex
-          selectionEndPosition = lastSlashIndex + phrase.content.length
-        } else {
-          // 既没有选中内容也没有 / 时，在光标位置插入
-          newText = `${prev.slice(0, cursorPosition)}${phrase.content}${prev.slice(cursorPosition)}`
-          selectionStart = cursorPosition
-          selectionEndPosition = cursorPosition + phrase.content.length
-        }
-
-        setTimeout(() => {
-          textArea.focus()
-          // 设置选中范围
-          textArea.setSelectionRange(selectionStart, selectionEndPosition)
-          resizeTextArea()
-        }, 0)
-        return newText
-      })
+          setTimeout(() => {
+            textArea.focus()
+            textArea.setSelectionRange(selectionStart, selectionEndPosition)
+            resizeTextArea()
+          }, 10)
+          return newText
+        })
+      }, 0)
     },
     [setInputValue, resizeTextArea]
   )

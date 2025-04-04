@@ -13,7 +13,6 @@ const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
 export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [symbol, setSymbol] = useState<string>('')
-  const [searchText, setSearchText] = useState<string>('')
 
   const [list, setList] = useState<QuickPanelListItem[]>([])
   const [title, setTitle] = useState<string | undefined>()
@@ -38,7 +37,6 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setBeforeAction(() => options.beforeAction)
     setAfterAction(() => options.afterAction)
 
-    setSearchText('')
     setIsVisible(true)
   }, [])
 
@@ -53,7 +51,6 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setBeforeAction(undefined)
         setAfterAction(undefined)
         setTitle(undefined)
-        setSearchText('')
         setSymbol('')
       }, 200)
     },
@@ -64,11 +61,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     () => ({
       open,
       close,
-      setSearchText,
 
       isVisible,
       symbol,
-      searchText,
 
       list,
       title,
@@ -79,24 +74,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       beforeAction,
       afterAction
     }),
-    [
-      open,
-      close,
-      setSearchText,
-
-      isVisible,
-      symbol,
-      searchText,
-
-      list,
-      title,
-      defaultIndex,
-      pageSize,
-      multiple,
-      onClose,
-      beforeAction,
-      afterAction
-    ]
+    [open, close, isVisible, symbol, list, title, defaultIndex, pageSize, multiple, onClose, beforeAction, afterAction]
   )
 
   return <QuickPanelContext value={value}>{children}</QuickPanelContext>

@@ -3,7 +3,7 @@ import { isMac } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { t } from 'i18next'
-import React, { use, useCallback, useEffect, useRef, useState } from 'react'
+import React, { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { QuickPanelContext } from './provider'
@@ -17,7 +17,7 @@ import { QuickPanelCallBackOptions, QuickPanelCloseAction, QuickPanelListItem, Q
  * 无奈之举，为了清除输入框搜索文本，所以传了个setInputText进来
  */
 export const QuickPanelView: React.FC<{
-  setInputText: (text: string) => void
+  setInputText: React.Dispatch<React.SetStateAction<string>>
 }> = ({ setInputText }) => {
   const ctx = use(QuickPanelContext)
   if (!ctx) {
@@ -29,7 +29,6 @@ export const QuickPanelView: React.FC<{
   // 避免上下翻页时，鼠标干扰
   const [isMouseOver, setIsMouseOver] = useState(false)
 
-  const [list, setList] = useState(ctx.list)
   const [index, setIndex] = useState(ctx.defaultIndex)
   const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
@@ -38,37 +37,80 @@ export const QuickPanelView: React.FC<{
 
   const scrollBlock = useRef<ScrollLogicalPosition>('nearest')
 
+  const [searchText, setSearchText] = useState('')
+  const searchTextRef = useRef('')
+
   // 解决长按上下键时滚动太慢问题
   const keyPressCount = useRef<number>(0)
   const scrollBehavior = useRef<'auto' | 'smooth'>('smooth')
+
+  // 处理搜索，过滤列表
+  const list = useMemo(() => {
+    if (!ctx.isVisible && !ctx.symbol) return []
+    const newList = ctx.list?.filter((item) => {
+      const _searchText = searchText.replace(/^[/@]/, '')
+      if (!_searchText) return true
+
+      let filterText = item.filterText || ''
+      if (typeof item.label === 'string') {
+        filterText += item.label
+      }
+      if (typeof item.description === 'string') {
+        filterText += item.description
+      }
+
+      return filterText.toLowerCase().includes(_searchText.toLowerCase())
+    })
+
+    setIndex(newList.length > 0 ? ctx.defaultIndex || 0 : -1)
+
+    return newList
+  }, [ctx.defaultIndex, ctx.isVisible, ctx.list, ctx.symbol, searchText])
+
+  const canForwardAndBackward = useMemo(() => {
+    return list.some((item) => item.isMenu) || historyPanel.length > 0
+  }, [list, historyPanel])
+
+  const clearSearchText = useCallback(
+    (includeSymbol = false) => {
+      const _searchText = includeSymbol ? searchTextRef.current : searchTextRef.current.replace(/^[/@]/, '')
+      if (!_searchText) return
+
+      if (!['/', '@'].includes(_searchText)) {
+        const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+        const inputText = textArea.value
+        const cursorPosition = textArea.selectionStart
+        let newText = inputText
+        const searchPattern = new RegExp(`${_searchText}$`)
+
+        const match = inputText.slice(0, cursorPosition).match(searchPattern)
+        if (match) {
+          const start = match.index || 0
+          const end = start + match[0].length
+          newText = inputText.slice(0, start) + inputText.slice(end)
+          setInputText(newText)
+
+          setTimeout(() => {
+            textArea.focus()
+            textArea.setSelectionRange(start, start)
+          }, 0)
+        }
+      }
+      setSearchText('')
+    },
+    [setInputText]
+  )
 
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
       ctx.close(action)
       setHistoryPanel([])
 
-      if (ctx.symbol === 'quick-phrases') return // 快捷短语有自己的替换逻辑
-
-      // 删除输入框中匹配的搜索文本
-      const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
-      const inputText = textArea.value
-      const cursorPosition = textArea.selectionStart
-      let newText = inputText
-      const searchPattern = new RegExp(`^[/@]${ctx.searchText}^$`)
-      const match = inputText.slice(0, cursorPosition).match(searchPattern)
-      if (match) {
-        const start = match.index || 0
-        const end = start + match[0].length
-        newText = inputText.slice(0, start) + inputText.slice(end)
-        setInputText(newText)
-
-        setTimeout(() => {
-          textArea.focus()
-          textArea.setSelectionRange(start, start)
-        }, 0)
+      if (action && !['outsideclick', 'esc'].includes(action)) {
+        clearSearchText(true)
       }
     },
-    [ctx, setInputText]
+    [ctx, clearSearchText]
   )
 
   const handleItemAction = useCallback(
@@ -79,7 +121,7 @@ export const QuickPanelView: React.FC<{
         symbol: ctx.symbol,
         action,
         item,
-        searchText: ctx.searchText,
+        searchText: searchText,
         multiple: isAssistiveKeyPressed
       }
       ctx.beforeAction?.(quickPanelCallBackOptions)
@@ -102,6 +144,7 @@ export const QuickPanelView: React.FC<{
             afterAction: ctx.afterAction
           }
         ])
+        clearSearchText(false)
         return
       }
 
@@ -109,28 +152,53 @@ export const QuickPanelView: React.FC<{
 
       handleClose(action)
     },
-    [ctx, handleClose, index, isAssistiveKeyPressed]
+    [ctx, searchText, isAssistiveKeyPressed, handleClose, clearSearchText, index]
   )
 
-  // 处理搜索，过滤列表
   useEffect(() => {
-    setList(
-      ctx.list?.filter((item) => {
-        if (!ctx.searchText) return true
+    searchTextRef.current = searchText
+  }, [searchText])
 
-        let filterText = item.filterText || ''
-        if (typeof item.label === 'string') {
-          filterText += item.label
-        }
-        if (typeof item.description === 'string') {
-          filterText += item.description
-        }
+  // 获取当前输入的搜索词
+  useEffect(() => {
+    if (!ctx.isVisible) return
 
-        return filterText.toLowerCase().includes(ctx.searchText.toLowerCase())
-      })
-    )
-    setIndex(ctx.defaultIndex || 0)
-  }, [ctx.list.length, ctx.searchText, ctx.list, ctx.defaultIndex])
+    const handleInput = (e: Event) => {
+      const target = e.target as HTMLTextAreaElement
+      const cursorPosition = target.selectionStart
+      const textBeforeCursor = target.value.slice(0, cursorPosition)
+      const lastSlashIndex = textBeforeCursor.lastIndexOf('/')
+      const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+      const lastSymbolIndex = Math.max(lastSlashIndex, lastAtIndex)
+
+      if (lastSymbolIndex !== -1) {
+        const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
+        setSearchText(newSearchText)
+      } else {
+        handleClose('delete-symbol')
+      }
+    }
+
+    const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+
+    setTimeout(() => {
+      const cursorPosition = textArea.selectionStart
+      const textBeforeCursor = textArea.value.slice(0, cursorPosition)
+      const textAfterCursor = textArea.value.slice(cursorPosition)
+      if (!textBeforeCursor.endsWith('/') && !textBeforeCursor.endsWith('@')) {
+        setInputText(textBeforeCursor + '/' + textAfterCursor)
+        textArea.focus()
+        textArea.setSelectionRange(cursorPosition + 1, cursorPosition + 1)
+      }
+    }, 10)
+
+    textArea.addEventListener('input', handleInput)
+
+    return () => {
+      textArea.removeEventListener('input', handleInput)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.isVisible])
 
   // 处理上下翻时滚动到选中的元素
   useEffect(() => {
@@ -219,6 +287,7 @@ export const QuickPanelView: React.FC<{
           e.preventDefault()
           e.stopPropagation()
           setIsMouseOver(false)
+          clearSearchText(false)
           if (historyPanel.length > 0) {
             const lastPanel = historyPanel.pop()
             if (lastPanel) {
@@ -230,6 +299,7 @@ export const QuickPanelView: React.FC<{
           e.preventDefault()
           e.stopPropagation()
           setIsMouseOver(false)
+          clearSearchText(false)
           if (list?.[index]?.isMenu) {
             handleItemAction(list[index], 'enter')
           }
@@ -275,7 +345,7 @@ export const QuickPanelView: React.FC<{
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('click', handleClickOutside)
     }
-  }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose])
+  }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose, clearSearchText])
 
   return (
     <QuickPanelContainer $pageSize={ctx.pageSize} className={ctx.isVisible ? 'visible' : ''}>
@@ -328,9 +398,11 @@ export const QuickPanelView: React.FC<{
                 + ▲▼ {t('settings.quickPanel.page')}
               </Flex>
 
-              <Flex align="center" gap={4}>
-                ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
-              </Flex>
+              {canForwardAndBackward && (
+                <Flex align="center" gap={4}>
+                  ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
+                </Flex>
+              )}
 
               <Flex align="center" gap={4}>
                 ↩︎ {t('settings.quickPanel.confirm')}
