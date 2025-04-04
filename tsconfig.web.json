@@ -7,6 +7,7 @@
     "packages/shared/**/*"
   ],
   "compilerOptions": {
+    "moduleResolution": "bundler",
     "composite": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
