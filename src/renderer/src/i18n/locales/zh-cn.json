@@ -1301,6 +1301,9 @@
         "empty": "暂无翻译历史",
         "title": "翻译历史"
       },
+      "menu": {
+        "description": "对当前输入框内容进行翻译"
+      },
       "input.placeholder": "输入文本进行翻译",
       "output.placeholder": "翻译",
       "processing": "翻译中...",

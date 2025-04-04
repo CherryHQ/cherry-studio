@@ -1307,7 +1307,10 @@
       "scroll_sync.disable": "Отключить синхронизацию прокрутки",
       "scroll_sync.enable": "Включить синхронизацию прокрутки",
       "title": "Перевод",
-      "tooltip.newline": "Перевести"
+      "tooltip.newline": "Перевести",
+      "menu": {
+        "description": "Перевести содержимое текущего ввода"
+      }
     },
     "tray": {
       "quit": "Выйти",

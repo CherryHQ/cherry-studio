@@ -372,7 +372,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       },
       {
         label: t('translate.title'),
-        description: '',
+        description: t('translate.menu.description'),
         icon: <TranslationOutlined />,
         action: () => {
           if (!text) return

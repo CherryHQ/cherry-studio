@@ -1307,7 +1307,10 @@
       "scroll_sync.disable": "Disable synced scroll",
       "scroll_sync.enable": "Enable synced scroll",
       "title": "Translation",
-      "tooltip.newline": "Newline"
+      "tooltip.newline": "Newline",
+      "menu": {
+        "description": "Translate the content of the current input box"
+      }
     },
     "tray": {
       "quit": "Quit",
