@@ -37,20 +37,26 @@ export const oauthWithAihubmix = async (setKey) => {
     if (data && data.key === 'cherry_studio_oauth_callback') {
       const { iv, encryptedData } = data.data
 
-      try {
-        const secret = import.meta.env.RENDERER_VITE_AIHUBMIX_SECRET || ''
-        const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
-        const { api_keys } = JSON.parse(decryptedData)
-        if (api_keys && api_keys.length > 0) {
-          setKey(api_keys[0].value)
-          popup?.close()
-          window.removeEventListener('message', messageHandler)
-        }
-      } catch (error) {
-        console.error('[oauthWithAihubmix] error', error)
-        popup?.close()
-        window.message.error(i18n.t('oauth.error'))
+      // 在解密逻辑前添加校验
+      if (!iv || !encryptedData) {
+        throw new Error('Invalid encryption parameters')
       }
+      
+      const secret = await window.api.secureStorage.get('aihubmix-secret') // 使用安全存储
+      const decryptedData = await window.api.aes.decrypt(encryptedData, iv, secret)
+      
+      try {
+        const parsed = JSON.parse(decryptedData)
+        if (!parsed?.api_keys?.[0]?.value) {
+          throw new Error('Invalid decrypted data structure')
+        }
+        setKey(parsed.api_keys[0].value)
+      } catch (e) {
+        console.error('Decryption data validation failed:', e)
+        window.message.error(i18n.t('oauth.invalid_response'))
+      }
+      popup?.close()
+      window.removeEventListener('message', messageHandler)
     }
   }
 
