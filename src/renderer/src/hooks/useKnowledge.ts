@@ -27,6 +27,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { useAgents } from './useAgents'
 import { useAssistants } from './useAssistant'
+import { IpcChannel } from '@shared/IpcChannel'
 
 export const useKnowledge = (baseId: string) => {
   const dispatch = useDispatch()
@@ -207,7 +208,7 @@ export const useKnowledge = (baseId: string) => {
       }
 
       const cleanup = window.electron.ipcRenderer.on(
-        'directory-processing-percent',
+        IpcChannel.DirectoryProcessingPercent,
         (_, { itemId: id, percent }: { itemId: string; percent: number }) => {
           if (itemId === id) {
             setPercent(percent)

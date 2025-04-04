@@ -11,7 +11,7 @@ import { EventEmitter } from '@renderer/services/EventService'
 import { MCPServer } from '@renderer/types'
 import { Dropdown, MenuProps } from 'antd'
 import { isEmpty } from 'lodash'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -88,7 +88,7 @@ const MCPSettings: FC = () => {
     setSelectedMcpServer(_selectedMcpServer || mcpServers[0])
   }, [mcpServers, route, selectedMcpServer])
 
-  const MainContent = useCallback(() => {
+  const MainContent = useMemo(() => {
     if (route === 'npx-search' || isEmpty(mcpServers)) {
       return (
         <SettingContainer theme={theme}>
@@ -104,7 +104,6 @@ const MCPSettings: FC = () => {
         </SettingContainer>
       )
     }
-
     if (selectedMcpServer) {
       return <McpSettings server={selectedMcpServer} />
     }
@@ -153,7 +152,7 @@ const MCPSettings: FC = () => {
           )}
         </DragableList>
       </McpList>
-      <MainContent />
+      {MainContent}
     </Container>
   )
 }

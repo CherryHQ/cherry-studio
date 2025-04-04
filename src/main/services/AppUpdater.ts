@@ -4,6 +4,7 @@ import logger from 'electron-log'
 import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
 
 import icon from '../../../build/icon.png?asset'
+import { IpcChannel } from '@shared/IpcChannel'
 
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
@@ -24,27 +25,27 @@ export default class AppUpdater {
         stack: error.stack,
         time: new Date().toISOString()
       })
-      mainWindow.webContents.send('update-error', error)
+      mainWindow.webContents.send(IpcChannel.UpdateError, error)
     })
 
     autoUpdater.on('update-available', (releaseInfo: UpdateInfo) => {
       logger.info('检测到新版本', releaseInfo)
-      mainWindow.webContents.send('update-available', releaseInfo)
+      mainWindow.webContents.send(IpcChannel.UpdateAvailable, releaseInfo)
     })
 
     // 检测到不需要更新时
     autoUpdater.on('update-not-available', () => {
-      mainWindow.webContents.send('update-not-available')
+      mainWindow.webContents.send(IpcChannel.UpdateNotAvailable)
     })
 
     // 更新下载进度
     autoUpdater.on('download-progress', (progress) => {
-      mainWindow.webContents.send('download-progress', progress)
+      mainWindow.webContents.send(IpcChannel.DownloadProgress, progress)
     })
 
     // 当需要更新的内容下载完成后
     autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
-      mainWindow.webContents.send('update-downloaded', releaseInfo)
+      mainWindow.webContents.send(IpcChannel.UpdateDownloaded, releaseInfo)
       this.releaseInfo = releaseInfo
       logger.info('下载完成', releaseInfo)
     })
@@ -73,7 +74,7 @@ export default class AppUpdater {
           app.isQuitting = true
           setImmediate(() => autoUpdater.quitAndInstall())
         } else {
-          mainWindow.webContents.send('update-downloaded-cancelled')
+          mainWindow.webContents.send(IpcChannel.UpdateDownloadedCancelled)
         }
       })
   }

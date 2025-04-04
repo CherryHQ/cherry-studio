@@ -1,9 +1,21 @@
-import { ZOOM_SHORTCUTS } from '@shared/config/constant'
+import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { LanguageVarious, Shortcut, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
 
 import { locales } from '../utils/locales'
+
+enum ConfigKeys {
+  Language = 'language',
+  Theme = 'theme',
+  LaunchToTray = 'launchToTray',
+  Tray = 'tray',
+  TrayOnClose = 'trayOnClose',
+  ZoomFactor = 'ZoomFactor',
+  Shortcuts = 'shortcuts',
+  ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
+  EnableQuickAssistant = 'enableQuickAssistant'
+}
 
 export class ConfigManager {
   private store: Store
@@ -14,54 +26,54 @@ export class ConfigManager {
   }
 
   getLanguage(): LanguageVarious {
-    const locale = Object.keys(locales).includes(app.getLocale()) ? app.getLocale() : 'en-US'
-    return this.store.get('language', locale) as LanguageVarious
+    const locale = Object.keys(locales).includes(app.getLocale()) ? app.getLocale() : defaultLanguage
+    return this.get(ConfigKeys.Language, locale) as LanguageVarious
   }
 
   setLanguage(theme: LanguageVarious) {
-    this.store.set('language', theme)
+    this.set(ConfigKeys.Language, theme)
   }
 
   getTheme(): ThemeMode {
-    return this.store.get('theme', ThemeMode.light) as ThemeMode
+    return this.get(ConfigKeys.Theme, ThemeMode.light)
   }
 
   setTheme(theme: ThemeMode) {
-    this.store.set('theme', theme)
+    this.set(ConfigKeys.Theme, theme)
   }
 
   getLaunchToTray(): boolean {
-    return !!this.store.get('launchToTray', false)
+    return !!this.get(ConfigKeys.LaunchToTray, false)
   }
 
   setLaunchToTray(value: boolean) {
-    this.store.set('launchToTray', value)
+    this.set(ConfigKeys.LaunchToTray, value)
   }
 
   getTray(): boolean {
-    return !!this.store.get('tray', true)
+    return !!this.get(ConfigKeys.Tray, true)
   }
 
   setTray(value: boolean) {
-    this.store.set('tray', value)
-    this.notifySubscribers('tray', value)
+    this.set(ConfigKeys.Tray, value)
+    this.notifySubscribers(ConfigKeys.Tray, value)
   }
 
   getTrayOnClose(): boolean {
-    return !!this.store.get('trayOnClose', true)
+    return !!this.get(ConfigKeys.TrayOnClose, true)
   }
 
   setTrayOnClose(value: boolean) {
-    this.store.set('trayOnClose', value)
+    this.set(ConfigKeys.TrayOnClose, value)
   }
 
   getZoomFactor(): number {
-    return this.store.get('zoomFactor', 1) as number
+    return this.get<number>(ConfigKeys.ZoomFactor, 1)
   }
 
   setZoomFactor(factor: number) {
-    this.store.set('zoomFactor', factor)
-    this.notifySubscribers('zoomFactor', factor)
+    this.set(ConfigKeys.ZoomFactor, factor)
+    this.notifySubscribers(ConfigKeys.ZoomFactor, factor)
   }
 
   subscribe<T>(key: string, callback: (newValue: T) => void) {
@@ -89,39 +101,39 @@ export class ConfigManager {
   }
 
   getShortcuts() {
-    return this.store.get('shortcuts', ZOOM_SHORTCUTS) as Shortcut[] | []
+    return this.get(ConfigKeys.Shortcuts, ZOOM_SHORTCUTS) as Shortcut[] | []
   }
 
   setShortcuts(shortcuts: Shortcut[]) {
-    this.store.set(
-      'shortcuts',
+    this.set(
+      ConfigKeys.Shortcuts,
       shortcuts.filter((shortcut) => shortcut.system)
     )
-    this.notifySubscribers('shortcuts', shortcuts)
+    this.notifySubscribers(ConfigKeys.Shortcuts, shortcuts)
   }
 
   getClickTrayToShowQuickAssistant(): boolean {
-    return this.store.get('clickTrayToShowQuickAssistant', false) as boolean
+    return this.get<boolean>(ConfigKeys.ClickTrayToShowQuickAssistant, false)
   }
 
   setClickTrayToShowQuickAssistant(value: boolean) {
-    this.store.set('clickTrayToShowQuickAssistant', value)
+    this.set(ConfigKeys.ClickTrayToShowQuickAssistant, value)
   }
 
   getEnableQuickAssistant(): boolean {
-    return this.store.get('enableQuickAssistant', false) as boolean
+    return this.get(ConfigKeys.EnableQuickAssistant, false)
   }
 
   setEnableQuickAssistant(value: boolean) {
-    this.store.set('enableQuickAssistant', value)
+    this.set(ConfigKeys.EnableQuickAssistant, value)
   }
 
-  set(key: string, value: any) {
+  set(key: string, value: unknown) {
     this.store.set(key, value)
   }
 
-  get(key: string) {
-    return this.store.get(key)
+  get<T>(key: string, defaultValue?: T) {
+    return this.store.get(key, defaultValue) as T
   }
 }
 
