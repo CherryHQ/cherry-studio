@@ -47,17 +47,19 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   }, [])
 
   const highlightCode = useCallback(async () => {
-    if (codeContentRef.current) {
-      // 只在非流式输出状态才尝试启用cache
-      const highlightedHtml = await codeToHtml(children, language, !isStreamingRef.current)
-      codeContentRef.current.innerHTML = highlightedHtml
-      codeContentRef.current.style.opacity = '1'
+    if (!codeContentRef.current) return
+    const codeElement = codeContentRef.current
 
-      const isShowExpandButton = codeContentRef.current.scrollHeight > 350
-      if (shouldShowExpandButtonRef.current === isShowExpandButton) return
-      shouldShowExpandButtonRef.current = isShowExpandButton
-      setShouldShowExpandButton(shouldShowExpandButtonRef.current)
-    }
+    // 只在非流式输出状态才尝试启用cache
+    const highlightedHtml = await codeToHtml(children, language, !isStreamingRef.current)
+
+    codeElement.innerHTML = highlightedHtml
+    codeElement.style.opacity = '1'
+
+    const isShowExpandButton = codeElement.scrollHeight > 350
+    if (shouldShowExpandButtonRef.current === isShowExpandButton) return
+    shouldShowExpandButtonRef.current = isShowExpandButton
+    setShouldShowExpandButton(shouldShowExpandButtonRef.current)
   }, [language, codeToHtml, children])
 
   useEffect(() => {
@@ -69,10 +71,13 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
     if (childrenLengthRef.current > 0 && childrenLengthRef.current !== children?.length) {
       isStreamingRef.current = true
+    } else {
+      isStreamingRef.current = false
+      codeElement.style.opacity = '0.1'
     }
 
-    if (!isStreamingRef.current) {
-      codeElement.style.opacity = '0.1'
+    if (childrenLengthRef.current === 0) {
+      // 挂载时显示原始代码
       codeElement.textContent = children
     }
 
@@ -83,12 +88,10 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
       }
     })
 
-    if (codeElement) {
-      observer.observe(codeElement)
-    }
+    observer.observe(codeElement)
 
     return () => {
-      childrenLengthRef.current = children?.length ?? 0
+      childrenLengthRef.current = children?.length
       isMounted = false
       observer.disconnect()
     }
