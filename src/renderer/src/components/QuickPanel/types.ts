@@ -1,6 +1,6 @@
 import React from 'react'
 
-export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'string' | undefined
+export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | string | undefined
 export type QuickPanelCallBackOptions = {
   symbol: string
   action: QuickPanelCloseAction

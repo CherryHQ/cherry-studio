@@ -33,7 +33,9 @@ export const QuickPanelView: React.FC<{
   const [index, setIndex] = useState(ctx.defaultIndex)
   const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
+  const bodyRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+
   const scrollBlock = useRef<ScrollLogicalPosition>('nearest')
 
   const handleClose = useCallback(
@@ -222,18 +224,28 @@ export const QuickPanelView: React.FC<{
       }
     }
 
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target.closest('#inputbar')) return
+      if (bodyRef.current && !bodyRef.current.contains(target)) {
+        handleClose('outsideclick')
+      }
+    }
+
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('click', handleClickOutside)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('click', handleClickOutside)
     }
   }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose])
 
   return (
     <QuickPanelContainer $pageSize={ctx.pageSize} className={ctx.isVisible ? 'visible' : ''}>
-      <QuickPanelBody onMouseMove={() => setIsMouseOver(true)}>
+      <QuickPanelBody ref={bodyRef} onMouseMove={() => setIsMouseOver(true)}>
         <QuickPanelContent ref={contentRef} $pageSize={ctx.pageSize} $isMouseOver={isMouseOver}>
           {list.map((item, i) => (
             <QuickPanelItem
@@ -311,7 +323,7 @@ const QuickPanelContainer = styled.div<{ $pageSize: number }>`
   --selected-color: rgba(0, 0, 0, 0.03);
   max-height: 0;
   position: absolute;
-  top: 0;
+  top: 1px;
   left: 0;
   right: 0;
   width: 100%;
@@ -332,7 +344,7 @@ const QuickPanelContainer = styled.div<{ $pageSize: number }>`
 `
 
 const QuickPanelBody = styled.div`
-  background-color: rgba(255, 255, 255, 0.5);
+  background-color: rgba(240, 240, 240, 0.5);
   backdrop-filter: blur(35px) saturate(150%);
   border-radius: 8px 8px 0 0;
   padding: 5px 0;
@@ -340,7 +352,7 @@ const QuickPanelBody = styled.div`
   border-style: solid;
   border-color: var(--color-border);
   body[theme-mode='dark'] & {
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: rgba(40, 40, 40, 0.4);
   }
 `
 
@@ -359,7 +371,7 @@ const QuickPanelFooterTips = styled.div`
 `
 
 const QuickPanelTitle = styled.div`
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-3);
 `
 
@@ -425,7 +437,7 @@ const QuickPanelItemLabel = styled.span`
 
 const QuickPanelItemRight = styled.div`
   min-width: 20%;
-  font-size: 10px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
