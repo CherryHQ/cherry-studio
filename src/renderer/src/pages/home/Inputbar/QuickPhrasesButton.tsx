@@ -81,11 +81,10 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton 
   )
 
   const phraseItems = useMemo(() => {
-    const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase, index) => ({
+    const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase) => ({
       label: phrase.title,
       description: phrase.content,
       icon: <ThunderboltOutlined />,
-      disabled: index === 4,
       action: () => handlePhraseSelect(phrase)
     }))
     newList.push({
