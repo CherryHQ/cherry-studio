@@ -8,6 +8,7 @@ import { FC, useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import FileItem from './FileItem'
+import { MB } from '@shared/config/constant'
 
 interface GeminiFilesProps {
   id: string
@@ -60,7 +61,7 @@ const GeminiFiles: FC<GeminiFilesProps> = ({ id }) => {
             fileInfo={{
               name: file.displayName,
               ext: `.${file.name.split('.').pop()}`,
-              extra: `${dayjs(file.createTime).format('MM-DD HH:mm')} · ${(parseInt(file.sizeBytes) / 1024 / 1024).toFixed(2)} MB`,
+              extra: `${dayjs(file.createTime).format('MM-DD HH:mm')} · ${(parseInt(file.sizeBytes) / MB).toFixed(2)} MB`,
               actions: (
                 <DeleteOutlined
                   style={{ cursor: 'pointer', color: 'var(--color-error)' }}

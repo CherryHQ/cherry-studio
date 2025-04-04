@@ -18,6 +18,9 @@ import ClipboardPreview from './components/ClipboardPreview'
 import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+import { IpcChannel } from '@shared/IpcChannel'
+
+import { defaultLanguage } from '@shared/config/constant'
 
 const HomeWindow: FC = () => {
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
@@ -68,7 +71,7 @@ const HomeWindow: FC = () => {
   }, [readClipboard])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || 'en-US')
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   const onCloseWindow = () => window.api.miniWindow.hide()
@@ -181,16 +184,16 @@ const HomeWindow: FC = () => {
   })
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('show-mini-window', onWindowShow)
-    window.electron.ipcRenderer.on('selection-action', (_, { action, selectedText }) => {
+    window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
+    window.electron.ipcRenderer.on(IpcChannel.SelectionAction, (_, { action, selectedText }) => {
       selectedText && setSelectedText(selectedText)
       action && setRoute(action)
       action === 'chat' && onSendMessage()
     })
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners('show-mini-window')
-      window.electron.ipcRenderer.removeAllListeners('selection-action')
+      window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
+      window.electron.ipcRenderer.removeAllListeners(IpcChannel.SelectionAction)
     }
   }, [onWindowShow, onSendMessage, setRoute])
 
