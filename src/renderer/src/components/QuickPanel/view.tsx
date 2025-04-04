@@ -54,7 +54,7 @@ export const QuickPanelView: React.FC<{
       const inputText = textArea.value
       const cursorPosition = textArea.selectionStart
       let newText = inputText
-      const searchPattern = new RegExp(`[/@]${ctx.searchText}$`)
+      const searchPattern = new RegExp(`^[/@]${ctx.searchText}^$`)
       const match = inputText.slice(0, cursorPosition).match(searchPattern)
       if (match) {
         const start = match.index || 0

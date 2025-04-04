@@ -236,7 +236,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     selectedKnowledgeBases,
     text,
     topic,
-    enabledMCPs,
     activedMcpServers
   ])
 
