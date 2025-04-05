@@ -51,7 +51,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton 
           }, 10)
           return newText
         })
-      }, 0)
+      }, 10)
     },
     [setInputValue, resizeTextArea]
   )

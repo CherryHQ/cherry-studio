@@ -412,18 +412,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (event.key === '/') {
-      quickPanel.open({
-        title: t('settings.quickPanel.title'),
-        list: quickPanelMenu,
-        symbol: '/'
-      })
-    }
-
-    if (event.key === '@') {
-      mentionModelsButtonRef.current?.openQuickPanel()
-    }
-
     if (autoTranslateWithSpace) {
       if (event.key === ' ') {
         setSpaceClickCount((prev) => prev + 1)
@@ -556,6 +544,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value
     setText(newText)
+
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    const cursorPosition = textArea?.selectionStart ?? 0
+    const lastSymbol = newText[cursorPosition - 1]
+
+    if (!quickPanel.isVisible && lastSymbol === '/') {
+      quickPanel.open({
+        title: t('settings.quickPanel.title'),
+        list: quickPanelMenu,
+        symbol: '/'
+      })
+    }
+
+    if (!quickPanel.isVisible && lastSymbol === '@') {
+      mentionModelsButtonRef.current?.openQuickPanel()
+    }
   }
 
   const onPaste = useCallback(

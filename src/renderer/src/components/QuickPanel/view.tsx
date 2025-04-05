@@ -73,28 +73,31 @@ export const QuickPanelView: React.FC<{
 
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
+      const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+      const cursorPosition = textArea.selectionStart ?? 0
+      const prevChar = textArea.value[cursorPosition - 1]
+      if ((prevChar === '/' || prevChar === '@') && !searchTextRef.current) {
+        searchTextRef.current = prevChar
+      }
+
       const _searchText = includeSymbol ? searchTextRef.current : searchTextRef.current.replace(/^[/@]/, '')
       if (!_searchText) return
 
-      if (!['/', '@'].includes(_searchText)) {
-        const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
-        const inputText = textArea.value
-        const cursorPosition = textArea.selectionStart
-        let newText = inputText
-        const searchPattern = new RegExp(`${_searchText}$`)
+      const inputText = textArea.value
+      let newText = inputText
+      const searchPattern = new RegExp(`${_searchText}$`)
 
-        const match = inputText.slice(0, cursorPosition).match(searchPattern)
-        if (match) {
-          const start = match.index || 0
-          const end = start + match[0].length
-          newText = inputText.slice(0, start) + inputText.slice(end)
-          setInputText(newText)
+      const match = inputText.slice(0, cursorPosition).match(searchPattern)
+      if (match) {
+        const start = match.index || 0
+        const end = start + match[0].length
+        newText = inputText.slice(0, start) + inputText.slice(end)
+        setInputText(newText)
 
-          setTimeout(() => {
-            textArea.focus()
-            textArea.setSelectionRange(start, start)
-          }, 0)
-        }
+        setTimeout(() => {
+          textArea.focus()
+          textArea.setSelectionRange(start, start)
+        }, 0)
       }
       setSearchText('')
     },
@@ -106,11 +109,16 @@ export const QuickPanelView: React.FC<{
       ctx.close(action)
       setHistoryPanel([])
 
-      if (action && !['outsideclick', 'esc'].includes(action)) {
+      if (action === 'delete-symbol') {
+        const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+        if (textArea) {
+          setInputText(textArea.value)
+        }
+      } else if (action && !['outsideclick', 'esc'].includes(action)) {
         clearSearchText(true)
       }
     },
-    [ctx, clearSearchText]
+    [ctx, clearSearchText, setInputText]
   )
 
   const handleItemAction = useCallback(
@@ -163,6 +171,8 @@ export const QuickPanelView: React.FC<{
   useEffect(() => {
     if (!ctx.isVisible) return
 
+    const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+
     const handleInput = (e: Event) => {
       const target = e.target as HTMLTextAreaElement
       const cursorPosition = target.selectionStart
@@ -179,30 +189,18 @@ export const QuickPanelView: React.FC<{
       }
     }
 
-    const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
-
-    setTimeout(() => {
-      const cursorPosition = textArea.selectionStart
-      const textBeforeCursor = textArea.value.slice(0, cursorPosition)
-      const textAfterCursor = textArea.value.slice(cursorPosition)
-      if (!textBeforeCursor.endsWith('/') && !textBeforeCursor.endsWith('@')) {
-        setInputText(textBeforeCursor + '/' + textAfterCursor)
-        textArea.focus()
-        textArea.setSelectionRange(cursorPosition + 1, cursorPosition + 1)
-      }
-    }, 10)
-
     textArea.addEventListener('input', handleInput)
 
     return () => {
       textArea.removeEventListener('input', handleInput)
+      setSearchText('')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.isVisible])
 
   // 处理上下翻时滚动到选中的元素
   useEffect(() => {
-    if (!ctx.isVisible || !contentRef.current || ctx.list.length === 0) return
+    if (!contentRef.current) return
 
     const selectedElement = contentRef.current.children[index] as HTMLElement
     if (selectedElement) {
@@ -212,7 +210,7 @@ export const QuickPanelView: React.FC<{
       })
       scrollBlock.current = 'nearest'
     }
-  }, [index, ctx.isVisible, ctx.list.length])
+  }, [index])
 
   // 处理键盘事件
   useEffect(() => {
@@ -223,6 +221,7 @@ export const QuickPanelView: React.FC<{
         setIsAssistiveKeyPressed(true)
       }
 
+      // 处理上下翻页时，滚动太慢问题
       if (['ArrowUp', 'ArrowDown'].includes(e.key)) {
         keyPressCount.current++
         if (keyPressCount.current > 5) {
@@ -230,11 +229,19 @@ export const QuickPanelView: React.FC<{
         }
       }
 
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'Escape'].includes(e.key)) {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsMouseOver(false)
+      }
+      if (['ArrowLeft', 'ArrowRight'].includes(e.key) && isAssistiveKeyPressed) {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsMouseOver(false)
+      }
+
       switch (e.key) {
         case 'ArrowUp':
-          e.preventDefault()
-          e.stopPropagation()
-          setIsMouseOver(false)
           if (isAssistiveKeyPressed) {
             scrollBlock.current = 'start'
             setIndex((prev) => {
@@ -247,10 +254,8 @@ export const QuickPanelView: React.FC<{
             setIndex((prev) => (prev > 0 ? prev - 1 : list.length - 1))
           }
           break
+
         case 'ArrowDown':
-          e.preventDefault()
-          e.stopPropagation()
-          setIsMouseOver(false)
           if (isAssistiveKeyPressed) {
             scrollBlock.current = 'start'
             setIndex((prev) => {
@@ -263,30 +268,26 @@ export const QuickPanelView: React.FC<{
             setIndex((prev) => (prev < list.length - 1 ? prev + 1 : 0))
           }
           break
+
         case 'PageUp':
-          e.preventDefault()
-          e.stopPropagation()
-          setIsMouseOver(false)
           scrollBlock.current = 'start'
           setIndex((prev) => {
             const newIndex = prev - ctx.pageSize
             return newIndex < 0 ? 0 : newIndex
           })
           break
+
         case 'PageDown':
-          e.preventDefault()
-          e.stopPropagation()
-          setIsMouseOver(false)
           scrollBlock.current = 'start'
           setIndex((prev) => {
             const newIndex = prev + ctx.pageSize
             return newIndex >= list.length ? list.length - 1 : newIndex
           })
           break
+
         case 'ArrowLeft':
-          e.preventDefault()
-          e.stopPropagation()
-          setIsMouseOver(false)
+          if (!isAssistiveKeyPressed) return
+          if (!historyPanel.length) return
           clearSearchText(false)
           if (historyPanel.length > 0) {
             const lastPanel = historyPanel.pop()
@@ -295,25 +296,20 @@ export const QuickPanelView: React.FC<{
             }
           }
           break
+
         case 'ArrowRight':
-          e.preventDefault()
-          e.stopPropagation()
-          setIsMouseOver(false)
+          if (!isAssistiveKeyPressed) return
+          if (!list?.[index]?.isMenu) return
           clearSearchText(false)
-          if (list?.[index]?.isMenu) {
-            handleItemAction(list[index], 'enter')
-          }
+          handleItemAction(list[index], 'enter')
           break
+
         case 'Enter':
-          e.preventDefault()
-          e.stopPropagation()
           if (list?.[index]) {
             handleItemAction(list[index], 'enter')
           }
           break
         case 'Escape':
-          e.preventDefault()
-          e.stopPropagation()
           handleClose('esc')
           break
       }
@@ -400,7 +396,10 @@ export const QuickPanelView: React.FC<{
 
               {canForwardAndBackward && (
                 <Flex align="center" gap={4}>
-                  ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
+                  <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
+                    {ASSISTIVE_KEY}
+                  </span>
+                  + ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
                 </Flex>
               )}
 
