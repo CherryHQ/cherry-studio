@@ -7,7 +7,7 @@ import { setAvatar } from '@renderer/store/runtime'
 import { setUserName } from '@renderer/store/settings'
 import { compressImage, isEmoji } from '@renderer/utils'
 import { Avatar, Dropdown, Input, Modal, Popover, Upload } from 'antd'
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
