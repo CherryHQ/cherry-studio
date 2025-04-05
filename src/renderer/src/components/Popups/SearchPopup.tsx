@@ -1,6 +1,7 @@
 import HistoryPage from '@renderer/pages/history/HistoryPage'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Modal } from 'antd'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { TopView } from '../TopView'
 
@@ -22,6 +23,26 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const onClose = () => {
     resolve({})
   }
+
+  useEffect(() => {
+    const focusSearchInput = () => {
+      if (open) {
+        // 通过事件系统广播焦点恢复事件
+        EventEmitter.emit(EVENT_NAMES.FOCUS_SEARCH_INPUT)
+      }
+    }
+
+    // 添加窗口聚焦事件监听器
+    const handleWindowFocus = () => {
+      focusSearchInput()
+    }
+
+    window.addEventListener('focus', handleWindowFocus)
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus)
+    }
+  }, [open])
 
   SearchPopup.hide = onCancel
 
