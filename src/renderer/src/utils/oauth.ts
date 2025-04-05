@@ -42,7 +42,7 @@ export const oauthWithAihubmix = async (setKey) => {
         throw new Error('Invalid encryption parameters')
       }
       
-      const secret = await window.api.secureStorage.get('aihubmix-secret') // 使用安全存储
+      const secret = localStorage.getItem('aihubmix-secret');
       const decryptedData = await window.api.aes.decrypt(encryptedData, iv, secret)
       
       try {
