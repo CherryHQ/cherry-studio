@@ -36,7 +36,7 @@ const KnowledgeBaseInput: FC<{
 
 const Container = styled(Flex)`
   width: 100%;
-  padding: 5px 15px 0;
+  padding: 5px 15px 0 10px;
 `
 
 export default KnowledgeBaseInput

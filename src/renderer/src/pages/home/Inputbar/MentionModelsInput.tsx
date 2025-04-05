@@ -46,7 +46,7 @@ const MentionModelsInput: FC<{
 
 const Container = styled(Flex)`
   width: 100%;
-  padding: 5px 15px 0;
+  padding: 5px 15px 10px;
   i.iconfont {
     font-size: 12px;
     margin-inline-end: 7px;

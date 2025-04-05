@@ -128,6 +128,10 @@ const McpSettings: React.FC<Props> = ({ server }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, server.isActive])
 
+  useEffect(() => {
+    setIsFormChanged(false)
+  }, [server.id])
+
   // Save the form data
   const onSave = async () => {
     setLoading(true)
@@ -347,6 +351,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
           <Form.Item name="serverType" label={t('settings.mcp.type')} rules={[{ required: true }]} initialValue="stdio">
             <Radio.Group
               onChange={(e) => setServerType(e.target.value)}
+              disabled={server.type === 'inMemory'}
               options={[
                 { label: t('settings.mcp.stdio'), value: 'stdio' },
                 { label: t('settings.mcp.sse'), value: 'sse' },

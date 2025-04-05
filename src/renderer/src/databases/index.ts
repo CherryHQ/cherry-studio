@@ -44,9 +44,17 @@ db.version(5)
     topics: '&id, messages',
     settings: '&id, value',
     knowledge_notes: '&id, baseId, type, content, created_at, updated_at',
-    translate_history: '&id, sourceText, targetText, sourceLanguage, targetLanguage, createdAt',
-    quick_phrases: 'id'
+    translate_history: '&id, sourceText, targetText, sourceLanguage, targetLanguage, createdAt'
   })
   .upgrade((tx) => upgradeToV5(tx))
+
+db.version(6).stores({
+  files: 'id, name, origin_name, path, size, ext, type, created_at, count',
+  topics: '&id, messages',
+  settings: '&id, value',
+  knowledge_notes: '&id, baseId, type, content, created_at, updated_at',
+  translate_history: '&id, sourceText, targetText, sourceLanguage, targetLanguage, createdAt',
+  quick_phrases: 'id'
+})
 
 export default db

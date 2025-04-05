@@ -1,7 +1,6 @@
 import {
   ClearOutlined,
   CodeOutlined,
-  ColumnHeightOutlined,
   FileSearchOutlined,
   FormOutlined,
   FullscreenExitOutlined,
@@ -479,6 +478,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         return newSelectedKnowledgeBases
       })
       return event.preventDefault()
+
+      if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+        setFiles((prev) => prev.slice(0, -1))
+        return event.preventDefault()
+      }
     }
   }
 
@@ -520,22 +524,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       return
     }
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
-  }
-
-  const onToggleExpended = () => {
-    const isExpended = !expended
-    setExpend(isExpended)
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-
-    if (textArea) {
-      if (isExpended) {
-        textArea.style.height = '70vh'
-      } else {
-        resetHeight()
-      }
-    }
-
-    textareaRef.current?.focus()
   }
 
   const onInput = () => !expended && resizeTextArea()
@@ -612,7 +600,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               const selectedFile = await window.api.file.get(tempFilePath)
               selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
               setText(text)
-              setTimeout(() => resizeTextArea(), 0)
+              setTimeout(() => resizeTextArea(), 50)
             }
           })
         }
@@ -669,6 +657,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       const newHeight = Math.min(maxHeightInPixels, Math.max(startHeight.current + delta, 30))
       const textArea = textareaRef.current?.resizableTextArea?.textArea
+
       if (textArea) {
         textArea.style.height = `${newHeight}px`
         setExpend(newHeight == maxHeightInPixels)
@@ -814,11 +803,49 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [assistant, model, updateAssistant])
 
+  const onMentionModel = (model: Model) => {
+    setMentionModels((prev) => {
+      const modelId = getModelUniqId(model)
+      const exists = prev.some((m) => getModelUniqId(m) === modelId)
+      return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
+    })
+  }
+
+  const onToggleExpended = () => {
+    if (textareaHeight) {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        textArea.style.height = 'auto'
+        setTextareaHeight(undefined)
+        setTimeout(() => {
+          textArea.style.height = `${textArea.scrollHeight}px`
+        }, 200)
+        return
+      }
+    }
+
+    const isExpended = !expended
+    setExpend(isExpended)
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+
+    if (textArea) {
+      if (isExpended) {
+        textArea.style.height = '70vh'
+      } else {
+        resetHeight()
+      }
+    }
+
+    textareaRef.current?.focus()
+  }
+
   const resetHeight = () => {
     if (expended) {
       setExpend(false)
     }
+
     setTextareaHeight(undefined)
+
     requestAnimationFrame(() => {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
       if (textArea) {
@@ -828,13 +855,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     })
   }
-  const onMentionModel = (model: Model) => {
-    setMentionModels((prev) => {
-      const modelId = getModelUniqId(model)
-      const exists = prev.some((m) => getModelUniqId(m) === modelId)
-      return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
-    })
-  }
+
+  const isExpended = expended || !!textareaHeight
 
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
@@ -952,18 +974,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   </ToolbarButton>
                 </Popconfirm>
               </Tooltip>
-              <Tooltip placement="top" title={expended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
+              <Tooltip placement="top" title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
                 <ToolbarButton type="text" onClick={onToggleExpended}>
-                  {expended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                  {isExpended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
                 </ToolbarButton>
               </Tooltip>
-              {textareaHeight && (
-                <Tooltip placement="top" title={t('chat.input.auto_resize')} arrow>
-                  <ToolbarButton type="text" onClick={resetHeight}>
-                    <ColumnHeightOutlined />
-                  </ToolbarButton>
-                </Tooltip>
-              )}
               <NewContextButton onNewContext={onNewContext} ToolbarButton={ToolbarButton} />
               <TokenCount
                 estimateTokenCount={estimateTokenCount}
@@ -1025,7 +1040,7 @@ const Container = styled.div`
 
 const InputBarContainer = styled.div`
   border: 0.5px solid var(--color-border);
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   position: relative;
   margin: 14px 20px;
   margin-top: 0;
@@ -1036,7 +1051,7 @@ const InputBarContainer = styled.div`
 
 const TextareaStyle: CSSProperties = {
   paddingLeft: 0,
-  padding: '4px 15px 8px' // 减小顶部padding
+  padding: '6px 15px 8px' // 减小顶部padding
 }
 
 const Textarea = styled(TextArea)`
