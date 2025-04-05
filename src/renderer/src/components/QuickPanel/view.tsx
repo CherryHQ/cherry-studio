@@ -3,7 +3,7 @@ import { isMac } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { t } from 'i18next'
-import React, { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { QuickPanelContext } from './provider'
@@ -42,7 +42,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   const scrollBlock = useRef<ScrollLogicalPosition>('nearest')
 
-  const [searchText, setSearchText] = useState('')
+  const [_searchText, setSearchText] = useState('')
+  const searchText = useDeferredValue(_searchText)
   const searchTextRef = useRef('')
 
   // 解决长按上下键时滚动太慢问题
