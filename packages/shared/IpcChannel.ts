@@ -146,5 +146,5 @@ export enum IpcChannel {
   MiniWindowReload = 'miniwindow-reload',
 
   ReduxStateChange = 'redux-state-change',
-  ReduxStoreReady = 'redux-store-ready',
+  ReduxStoreReady = 'redux-store-ready'
 }

@@ -2,13 +2,13 @@ import { DeleteOutlined } from '@ant-design/icons'
 import type { FileMetadataResponse } from '@google/generative-ai/server'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { runAsyncFunction } from '@renderer/utils'
+import { MB } from '@shared/config/constant'
 import { Spin } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import FileItem from './FileItem'
-import { MB } from '@shared/config/constant'
 
 interface GeminiFilesProps {
   id: string

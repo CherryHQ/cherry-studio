@@ -6,12 +6,12 @@ import { setLanguage } from '@renderer/store/settings'
 import { setProxyMode, setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
 import { LanguageVarious } from '@renderer/types'
 import { isValidProxyUrl } from '@renderer/utils'
+import { defaultLanguage } from '@shared/config/constant'
 import { Input, Select, Space, Switch } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
-import { defaultLanguage } from '@shared/config/constant'
 
 const GeneralSettings: FC = () => {
   const {

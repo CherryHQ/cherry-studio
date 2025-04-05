@@ -2,6 +2,7 @@ import fs from 'node:fs'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
@@ -27,7 +28,6 @@ import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
-import { IpcChannel } from '@shared/IpcChannel'
 
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
@@ -303,11 +303,3 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     NutstoreService.getDirectoryContents(token, path)
   )
 }
-
-  // Listen for changes in MCP servers and notify renderer
-  mcpService.on('servers-updated', (servers) => {
-    mainWindow?.webContents.send(IpcChannel.Mcp_ServersUpdated, servers)
-  })
-
-app.on('before-quit', () => mcpService.cleanup())
-  

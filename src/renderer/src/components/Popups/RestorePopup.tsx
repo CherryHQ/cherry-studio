@@ -1,10 +1,10 @@
 import { restore } from '@renderer/services/BackupService'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
-import { IpcChannel } from '@shared/IpcChannel'
 
 interface Props {
   resolve: (data: any) => void
