@@ -27,6 +27,8 @@ const HomeWindow: FC = () => {
   const [clipboardText, setClipboardText] = useState('')
   const [selectedText, setSelectedText] = useState('')
   const [text, setText] = useState('')
+  const [referenceText, setReferenceText] = useState('')
+  const [content, setContent] = useState('')
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
@@ -35,10 +37,6 @@ const HomeWindow: FC = () => {
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
-
-  const referenceText = selectedText || clipboardText || text
-
-  const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
   const readClipboard = useCallback(async () => {
     if (!readClipboardAtStartup) return
@@ -72,6 +70,14 @@ const HomeWindow: FC = () => {
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
+
+  useEffect(() => {
+    setReferenceText(selectedText || clipboardText)
+  }, [selectedText, clipboardText])
+
+  useEffect(() => {
+    setContent(isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim())
+  }, [isFirstMessage, referenceText, text])
 
   const onCloseWindow = () => window.api.miniWindow.hide()
 
@@ -250,7 +256,7 @@ const HomeWindow: FC = () => {
   if (route === 'translate') {
     return (
       <Container style={{ backgroundColor: backgroundColor() }}>
-        <TranslateWindow text={referenceText} />
+        <TranslateWindow text={content} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
       </Container>
@@ -273,7 +279,9 @@ const HomeWindow: FC = () => {
         ref={inputBarRef}
       />
       <Divider style={{ margin: '10px 0' }} />
-      <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
+      {readClipboardAtStartup && (
+        <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
+      )}
       <Main>
         <FeatureMenus setRoute={setRoute} onSendMessage={onSendMessage} text={content} ref={featureMenusRef} />
       </Main>

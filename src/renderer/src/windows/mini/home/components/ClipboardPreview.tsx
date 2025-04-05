@@ -18,11 +18,10 @@ const ClipboardPreview: FC<ClipboardPreviewProps> = ({ referenceText, clearClipb
   return (
     <Container>
       <ClipboardContent>
-        <CopyIcon style={{ fontSize: '14px', flexShrink: 0, cursor: 'pointer' }} className="nodrag" />
+        <CopyIcon style={{ fontSize: '14px', flexShrink: 0, cursor: 'pointer' }} />
         <Paragraph
           ellipsis={{ rows: 2 }}
-          style={{ margin: '0 12px', fontSize: 12, flex: 1, minWidth: 0 }}
-          className="nodrag">
+          style={{ margin: '0 12px', fontSize: 12, flex: 1, minWidth: 0 }}>
           {referenceText || t('miniwindow.clipboard.empty')}
         </Paragraph>
         <CloseButton onClick={clearClipboard} className="nodrag">
