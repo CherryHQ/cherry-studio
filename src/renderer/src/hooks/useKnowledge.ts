@@ -21,13 +21,13 @@ import {
 } from '@renderer/store/knowledge'
 import { FileType, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
+import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { v4 as uuidv4 } from 'uuid'
 
 import { useAgents } from './useAgents'
 import { useAssistants } from './useAssistant'
-import { IpcChannel } from '@shared/IpcChannel'
 
 export const useKnowledge = (baseId: string) => {
   const dispatch = useDispatch()

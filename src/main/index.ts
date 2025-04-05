@@ -1,5 +1,6 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app, ipcMain } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
@@ -9,7 +10,6 @@ import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } fro
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
-import { IpcChannel } from '@shared/IpcChannel'
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {

@@ -1,5 +1,6 @@
 import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
+import { KB, MB } from '@shared/config/constant'
 import { ModalFuncProps } from 'antd/es/modal/interface'
 import imageCompression from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
@@ -7,7 +8,6 @@ import * as htmlToImage from 'html-to-image'
 import { v4 as uuidv4 } from 'uuid'
 
 import { classNames } from './style'
-import { KB, MB } from '@shared/config/constant'
 
 export const runAsyncFunction = async (fn: () => void) => {
   await fn()

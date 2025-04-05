@@ -1,3 +1,4 @@
+import { defaultLanguage } from '@shared/config/constant'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
@@ -12,8 +13,6 @@ import elGR from './translate/el-gr.json'
 import esES from './translate/es-es.json'
 import frFR from './translate/fr-fr.json'
 import ptPT from './translate/pt-pt.json'
-
-import { defaultLanguage } from '@shared/config/constant'
 
 const resources = {
   'el-GR': elGR,

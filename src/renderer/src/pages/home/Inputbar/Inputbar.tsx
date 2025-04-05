@@ -1,18 +1,25 @@
 import {
   ClearOutlined,
+  CodeOutlined,
   ColumnHeightOutlined,
+  FileSearchOutlined,
   FormOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
   GlobalOutlined,
   HolderOutlined,
+  PaperClipOutlined,
   PauseCircleOutlined,
-  QuestionCircleOutlined
+  QuestionCircleOutlined,
+  ThunderboltOutlined,
+  TranslationOutlined
 } from '@ant-design/icons'
+import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
@@ -23,18 +30,20 @@ import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/messages'
 import { setSearching } from '@renderer/store/runtime'
-import { Assistant, FileType, KnowledgeBase, MCPServer, Message, Model, Topic } from '@renderer/types'
-import { classNames, delay, getFileExtension } from '@renderer/utils'
+import { Assistant, FileType, KnowledgeBase, KnowledgeItem, MCPServer, Message, Model, Topic } from '@renderer/types'
+import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Popconfirm, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import dayjs from 'dayjs'
 import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -43,16 +52,19 @@ import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
-import AttachmentButton from './AttachmentButton'
+import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
 import GenerateImageButton from './GenerateImageButton'
-import KnowledgeBaseButton from './KnowledgeBaseButton'
-import MCPToolsButton from './MCPToolsButton'
-import MentionModelsButton from './MentionModelsButton'
+import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
+import KnowledgeBaseInput from './KnowledgeBaseInput'
+import MCPToolsButton, { MCPToolsButtonRef } from './MCPToolsButton'
+import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
 import NewContextButton from './NewContextButton'
+import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
+
 interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
@@ -93,7 +105,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
   const [enabledMCPs, setEnabledMCPs] = useState<MCPServer[]>(assistant.mcpServers || [])
-  const [isMentionPopupOpen, setIsMentionPopupOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
@@ -103,13 +114,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const navigate = useNavigate()
   const { activedMcpServers } = useMCPServers()
+  const { bases: knowledgeBases } = useKnowledgeBases()
+
+  const quickPanel = useQuickPanel()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const showMCPToolsIcon = isFunctionCallingModel(model)
 
   const [tokenCount, setTokenCount] = useState(0)
 
-  const [mentionFromKeyboard, setMentionFromKeyboard] = useState(false)
+  const quickPhrasesButtonRef = useRef<QuickPhrasesButtonRef>(null)
+  const mentionModelsButtonRef = useRef<MentionModelsButtonRef>(null)
+  const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
+  const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
+  const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -208,6 +226,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [
     assistant,
     dispatch,
+    enabledMCPs,
     files,
     inputEmpty,
     loading,
@@ -217,11 +236,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     selectedKnowledgeBases,
     text,
     topic,
-    enabledMCPs,
     activedMcpServers
   ])
 
-  const translate = async () => {
+  const translate = useCallback(async () => {
     if (isTranslating) {
       return
     }
@@ -236,28 +254,161 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } finally {
       setIsTranslating(false)
     }
-  }
+  }, [isTranslating, text, targetLanguage, resizeTextArea])
+
+  const openKnowledgeFileList = useCallback(
+    (base: KnowledgeBase) => {
+      quickPanel.open({
+        title: base.name,
+        list: base.items
+          .filter((file): file is KnowledgeItem => ['file'].includes(file.type))
+          .map((file) => {
+            const fileContent = file.content as FileType
+            return {
+              label: fileContent.origin_name || fileContent.name,
+              description:
+                formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
+              icon: <FileSearchOutlined />,
+              isSelected: files.some((f) => f.path === fileContent.path),
+              action: async ({ item }) => {
+                item.isSelected = !item.isSelected
+                if (fileContent.path) {
+                  setFiles((prevFiles) => {
+                    const fileExists = prevFiles.some((f) => f.path === fileContent.path)
+                    if (fileExists) {
+                      return prevFiles.filter((f) => f.path !== fileContent.path)
+                    } else {
+                      return fileContent ? [...prevFiles, fileContent] : prevFiles
+                    }
+                  })
+                }
+              }
+            }
+          }),
+        symbol: 'file',
+        multiple: true
+      })
+    },
+    [files, quickPanel]
+  )
+
+  const openSelectFileMenu = useCallback(() => {
+    quickPanel.open({
+      title: t('chat.input.upload'),
+      list: [
+        {
+          label: t('chat.input.upload.upload_from_local'),
+          description: '',
+          icon: <PaperClipOutlined />,
+          action: () => {
+            attachmentButtonRef.current?.openQuickPanel()
+          }
+        },
+        ...knowledgeBases.map((base) => {
+          const length = base.items?.filter(
+            (item): item is KnowledgeItem => ['file', 'note'].includes(item.type) && typeof item.content !== 'string'
+          ).length
+          return {
+            label: base.name,
+            description: `${length} ${t('files.count')}`,
+            icon: <FileSearchOutlined />,
+            disabled: length === 0,
+            isMenu: true,
+            action: () => openKnowledgeFileList(base)
+          }
+        })
+      ],
+      symbol: 'file'
+    })
+  }, [knowledgeBases, openKnowledgeFileList, quickPanel, t])
+
+  const quickPanelMenu = useMemo<QuickPanelListItem[]>(() => {
+    return [
+      {
+        label: t('settings.quickPhrase.title'),
+        description: '',
+        icon: <ThunderboltOutlined />,
+        isMenu: true,
+        action: () => {
+          quickPhrasesButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
+        label: t('agents.edit.model.select.title'),
+        description: '',
+        icon: '@',
+        isMenu: true,
+        action: () => {
+          mentionModelsButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
+        label: t('chat.input.knowledge_base'),
+        description: '',
+        icon: <FileSearchOutlined />,
+        isMenu: true,
+        disabled: !showKnowledgeIcon || files.length > 0,
+        action: () => {
+          knowledgeBaseButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
+        label: t('settings.mcp.title'),
+        description: showMCPToolsIcon ? '' : t('settings.mcp.not_support'),
+        icon: <CodeOutlined />,
+        isMenu: true,
+        disabled: !showMCPToolsIcon,
+        action: () => {
+          mcpToolsButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
+        label: isVisionModel(model) ? t('chat.input.upload') : t('chat.input.upload.document'),
+        description: '',
+        icon: <PaperClipOutlined />,
+        isMenu: true,
+        action: openSelectFileMenu
+      },
+      {
+        label: t('translate.title'),
+        description: t('translate.menu.description'),
+        icon: <TranslationOutlined />,
+        action: () => {
+          if (!text) return
+          translate()
+        }
+      }
+    ]
+  }, [files.length, model, openSelectFileMenu, showKnowledgeIcon, showMCPToolsIcon, t, text, translate])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
 
-    if (event.key === '@') {
+    // 按下Tab键，自动选中${xxx}
+    if (event.key === 'Tab' && inputFocus) {
+      event.preventDefault()
       const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        const cursorPosition = textArea.selectionStart
-        const textBeforeCursor = text.substring(0, cursorPosition)
-        if (cursorPosition === 0 || textBeforeCursor.endsWith(' ')) {
-          setMentionFromKeyboard(true)
-          EventEmitter.emit(EVENT_NAMES.SHOW_MODEL_SELECTOR)
-          setIsMentionPopupOpen(true)
-          return
-        }
-      }
-    }
+      if (!textArea) return
 
-    if (event.key === 'Escape' && isMentionPopupOpen) {
-      setIsMentionPopupOpen(false)
-      return
+      const cursorPosition = textArea.selectionStart
+      const selectionLength = textArea.selectionEnd - textArea.selectionStart
+      const text = textArea.value
+
+      let match = text.slice(cursorPosition + selectionLength).match(/\$\{[^}]+\}/)
+      let startIndex = -1
+
+      if (!match) {
+        match = text.match(/\$\{[^}]+\}/)
+        startIndex = match?.index ?? -1
+      } else {
+        startIndex = cursorPosition + selectionLength + match.index!
+      }
+
+      if (startIndex !== -1) {
+        const endIndex = startIndex + match![0].length
+        textArea.setSelectionRange(startIndex, endIndex)
+        return
+      }
     }
 
     if (autoTranslateWithSpace) {
@@ -289,39 +440,44 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
 
     if (isEnterPressed && !event.shiftKey && sendMessageShortcut === 'Enter') {
-      if (isMentionPopupOpen) {
-        return event.preventDefault()
-      }
+      if (quickPanel.isVisible) return event.preventDefault()
+
       sendMessage()
       return event.preventDefault()
     }
 
     if (sendMessageShortcut === 'Shift+Enter' && isEnterPressed && event.shiftKey) {
-      if (isMentionPopupOpen) {
-        return event.preventDefault()
-      }
+      if (quickPanel.isVisible) return event.preventDefault()
+
       sendMessage()
       return event.preventDefault()
     }
 
     if (sendMessageShortcut === 'Ctrl+Enter' && isEnterPressed && event.ctrlKey) {
-      if (isMentionPopupOpen) {
-        return event.preventDefault()
-      }
+      if (quickPanel.isVisible) return event.preventDefault()
+
       sendMessage()
       return event.preventDefault()
     }
 
     if (sendMessageShortcut === 'Command+Enter' && isEnterPressed && event.metaKey) {
-      if (isMentionPopupOpen) {
-        return event.preventDefault()
-      }
+      if (quickPanel.isVisible) return event.preventDefault()
+
       sendMessage()
       return event.preventDefault()
     }
 
     if (event.key === 'Backspace' && text.trim() === '' && mentionModels.length > 0) {
       setMentionModels((prev) => prev.slice(0, -1))
+      return event.preventDefault()
+    }
+
+    if (event.key === 'Backspace' && text.trim() === '' && selectedKnowledgeBases.length > 0) {
+      setSelectedKnowledgeBases((prev) => {
+        const newSelectedKnowledgeBases = prev.slice(0, -1)
+        updateAssistant({ ...assistant, knowledge_bases: newSelectedKnowledgeBases })
+        return newSelectedKnowledgeBases
+      })
       return event.preventDefault()
     }
   }
@@ -388,16 +544,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     const newText = e.target.value
     setText(newText)
 
-    // Check if @ was deleted
     const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      const cursorPosition = textArea.selectionStart
-      const textBeforeCursor = newText.substring(0, cursorPosition)
-      const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+    const cursorPosition = textArea?.selectionStart ?? 0
+    const lastSymbol = newText[cursorPosition - 1]
 
-      if (lastAtIndex === -1 || textBeforeCursor.slice(lastAtIndex + 1).includes(' ')) {
-        setIsMentionPopupOpen(false)
-      }
+    if (!quickPanel.isVisible && lastSymbol === '/') {
+      quickPanel.open({
+        title: t('settings.quickPanel.title'),
+        list: quickPanelMenu,
+        symbol: '/'
+      })
+    }
+
+    if (!quickPanel.isVisible && lastSymbol === '@') {
+      mentionModelsButtonRef.current?.openQuickPanel()
     }
   }
 
@@ -603,31 +763,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(bases ?? [])
   }
 
-  const onMentionModel = (model: Model, fromKeyboard: boolean = false) => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      if (fromKeyboard) {
-        const cursorPosition = textArea.selectionStart
-        const textBeforeCursor = text.substring(0, cursorPosition)
-        const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-
-        if (lastAtIndex !== -1) {
-          const newText = text.substring(0, lastAtIndex) + text.substring(cursorPosition)
-          setText(newText)
-        }
-      }
-
-      setMentionModels((prev) => [...prev, model])
-      setIsMentionPopupOpen(false)
-      setTimeout(() => {
-        textareaRef.current?.focus()
-      }, 0)
-      setMentionFromKeyboard(false)
-    }
-  }
-
   const handleRemoveModel = (model: Model) => {
     setMentionModels(mentionModels.filter((m) => m.id !== model.id))
+  }
+
+  const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
+    setSelectedKnowledgeBases(selectedKnowledgeBases.filter((kb) => kb.id !== knowledgeBase.id))
   }
 
   const toggelEnableMCP = (mcp: MCPServer) => {
@@ -687,15 +828,27 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     })
   }
+  const onMentionModel = (model: Model) => {
+    setMentionModels((prev) => {
+      const modelId = getModelUniqId(model)
+      const exists = prev.some((m) => getModelUniqId(m) === modelId)
+      return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
+    })
+  }
 
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
+        <QuickPanelView setInputText={setText} />
         <InputBarContainer
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus')}
           ref={containerRef}>
           <AttachmentPreview files={files} setFiles={setFiles} />
+          <KnowledgeBaseInput
+            selectedKnowledgeBases={selectedKnowledgeBases}
+            onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
+          />
           <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
           <Textarea
             value={text}
@@ -710,7 +863,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             ref={textareaRef}
             style={{
               fontSize,
-              height: textareaHeight ? `${textareaHeight}px` : undefined
+              minHeight: textareaHeight ? `${textareaHeight}px` : undefined
             }}
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
@@ -737,7 +890,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   <FormOutlined />
                 </ToolbarButton>
               </Tooltip>
-              <AttachmentButton model={model} files={files} setFiles={setFiles} ToolbarButton={ToolbarButton} />
+              <AttachmentButton
+                ref={attachmentButtonRef}
+                model={model}
+                files={files}
+                setFiles={setFiles}
+                ToolbarButton={ToolbarButton}
+              />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
                 <ToolbarButton type="text" onClick={onEnableWebSearch}>
                   <GlobalOutlined
@@ -747,6 +906,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               </Tooltip>
               {showKnowledgeIcon && (
                 <KnowledgeBaseButton
+                  ref={knowledgeBaseButtonRef}
                   selectedBases={selectedKnowledgeBases}
                   onSelect={handleKnowledgeBaseSelect}
                   ToolbarButton={ToolbarButton}
@@ -755,6 +915,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               )}
               {showMCPToolsIcon && (
                 <MCPToolsButton
+                  ref={mcpToolsButtonRef}
                   enabledMCPs={enabledMCPs}
                   toggelEnableMCP={toggelEnableMCP}
                   ToolbarButton={ToolbarButton}
@@ -767,8 +928,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 ToolbarButton={ToolbarButton}
               />
               <MentionModelsButton
+                ref={mentionModelsButtonRef}
                 mentionModels={mentionModels}
-                onMentionModel={(model) => onMentionModel(model, mentionFromKeyboard)}
+                onMentionModel={onMentionModel}
+                ToolbarButton={ToolbarButton}
+              />
+              <QuickPhrasesButton
+                ref={quickPhrasesButtonRef}
+                setInputValue={setText}
+                resizeTextArea={resizeTextArea}
                 ToolbarButton={ToolbarButton}
               />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
@@ -852,6 +1020,7 @@ const DragHandle = styled.div`
 const Container = styled.div`
   display: flex;
   flex-direction: column;
+  position: relative;
 `
 
 const InputBarContainer = styled.div`
@@ -859,7 +1028,7 @@ const InputBarContainer = styled.div`
   transition: all 0.3s ease;
   position: relative;
   margin: 14px 20px;
-  margin-top: 12px;
+  margin-top: 0;
   border-radius: 15px;
   padding-top: 6px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);

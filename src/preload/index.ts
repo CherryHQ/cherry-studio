@@ -1,9 +1,9 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
+import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
 import { CreateDirectoryOptions } from 'webdav'
-import { IpcChannel } from '@shared/IpcChannel'
 
 // Custom APIs for renderer
 const api = {
@@ -35,9 +35,12 @@ const api = {
     restore: (backupPath: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
-    restoreFromWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig),
-    listWebdavFiles: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_ListWebdavFiles, webdavConfig),
-    checkConnection: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
+    restoreFromWebdav: (webdavConfig: WebDavConfig) =>
+      ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig),
+    listWebdavFiles: (webdavConfig: WebDavConfig) =>
+      ipcRenderer.invoke(IpcChannel.Backup_ListWebdavFiles, webdavConfig),
+    checkConnection: (webdavConfig: WebDavConfig) =>
+      ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
     createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options)
   },
@@ -114,7 +117,7 @@ const api = {
     show: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Show),
     hide: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Hide),
     close: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Close),
-    toggle: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Toggle)
+    toggle: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Toggle),
     setPin: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.MiniWindow_SetPin, isPinned)
   },
   aes: {
@@ -150,7 +153,7 @@ const api = {
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
   installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
-  installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary)
+  installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {

@@ -88,7 +88,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
             fileInfo={{
               name: item.file,
               ext: item.ext,
-              extra: `${item.created_at} · ${t('files.count')} ${item.count} · ${item.size}`,
+              extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
               actions: item.actions
             }}
           />
