@@ -261,9 +261,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       quickPanel.open({
         title: base.name,
         list: base.items
-          .filter((item): item is KnowledgeItem => ['file'].includes(item.type))
-          .map((item) => {
-            const fileContent = item.content as FileType
+          .filter((file): file is KnowledgeItem => ['file'].includes(file.type))
+          .map((file) => {
+            const fileContent = file.content as FileType
             return {
               label: fileContent.origin_name || fileContent.name,
               description:
@@ -273,13 +273,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               action: async ({ item }) => {
                 item.isSelected = !item.isSelected
                 if (fileContent.path) {
-                  const file = await window.api.file.get(fileContent.path)
                   setFiles((prevFiles) => {
                     const fileExists = prevFiles.some((f) => f.path === fileContent.path)
                     if (fileExists) {
                       return prevFiles.filter((f) => f.path !== fileContent.path)
                     } else {
-                      return file ? [...prevFiles, file] : prevFiles
+                      return fileContent ? [...prevFiles, fileContent] : prevFiles
                     }
                   })
                 }
