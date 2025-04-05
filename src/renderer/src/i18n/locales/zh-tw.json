@@ -1141,7 +1141,6 @@
         "api.url.tip": "/結尾忽略 v1 版本，#結尾強制使用輸入位址",
         "api_host": "API 主機地址",
         "api_key": "API 金鑰",
-        "api_key.tip": "多個金鑰使用逗號分隔",
         "api_version": "API 版本",
         "charge": "儲值",
         "check": "檢查",
@@ -1178,12 +1177,15 @@
         "get_api_key": "點選這裡取得金鑰",
         "is_not_support_array_content": "開啟相容模式",
         "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",
-        "not_checked": "未檢查",
         "remove_duplicate_keys": "移除重複金鑰",
         "remove_invalid_keys": "刪除無效金鑰",
+        "invalid_key": "無效的 API 金鑰",
         "search": "搜尋模型平臺...",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "enter_new_api_key": "輸入新的API密鑰",
+        "key_already_exists": "API密鑰已存在",
+        "check_tooltip.latency": "耗時"
       },
       "proxy": {
         "mode": {
