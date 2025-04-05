@@ -243,7 +243,9 @@
       "topics.export.siyuan": "思源笔记にエクスポート",
       "topics.export.wait_for_title_naming": "タイトルを生成中...",
       "topics.export.title_naming_success": "タイトルの生成に成功しました",
-      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します"
+      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",
+      "input.translating": "翻訳中...",
+      "input.upload.upload_from_local": "ローカルファイルをアップロード..."
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -336,7 +338,7 @@
     "files": {
       "actions": "操作",
       "all": "すべてのファイル",
-      "count": "数",
+      "count": "ファイル",
       "created_at": "作成日",
       "delete": "削除",
       "delete.content": "ファイルを削除すると、ファイルがすべてのメッセージで参照されることを削除します。このファイルを削除してもよろしいですか？",
@@ -1006,6 +1008,9 @@
         "argsTooltip": "1行に1つの引数を入力してください",
         "baseUrlTooltip": "リモートURLアドレス",
         "command": "コマンド",
+        "sse": "サーバー送信イベント(sse)",
+        "stdio": "標準入力/出力(stdio)",
+        "inMemory": "メモリ",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
         "deleteError": "サーバーの削除に失敗しました",
         "deleteSuccess": "サーバーが正常に削除されました",
@@ -1067,7 +1072,8 @@
         "deleteServerConfirm": "このサーバーを削除してもよろしいですか？",
         "registry": "パッケージ管理レジストリ",
         "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
-        "registryDefault": "デフォルト"
+        "registryDefault": "デフォルト",
+        "not_support": "モデルはサポートされていません"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -1266,7 +1272,32 @@
         },
         "title": "ウェブ検索"
       },
-      "general.auto_check_update.title": "自動更新チェックを有効にする"
+      "general.auto_check_update.title": "自動更新チェックを有効にする",
+      "quickPhrase": {
+        "title": "クイックフレーズ",
+        "add": "フレーズを追加",
+        "edit": "フレーズを編集",
+        "titleLabel": "タイトル",
+        "contentLabel": "内容",
+        "titlePlaceholder": "フレーズのタイトルを入力してください",
+        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
+        "delete": "フレーズを削除",
+        "deleteConfirm": "削除後は復元できません。続行しますか？"
+      },
+      "quickPanel": {
+        "title": "クイックメニュー",
+        "close": "閉じる",
+        "select": "選択",
+        "page": "ページ",
+        "confirm": "確認",
+        "back": "戻る",
+        "forward": "進む",
+        "multiple": "複数選択"
+      },
+      "privacy": {
+        "title": "プライバシー設定",
+        "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
+      }
     },
     "translate": {
       "any.language": "任意の言語",
@@ -1291,7 +1322,10 @@
       "scroll_sync.disable": "關閉滾動同步",
       "scroll_sync.enable": "開啟滾動同步",
       "title": "翻訳",
-      "tooltip.newline": "改行"
+      "tooltip.newline": "改行",
+      "menu": {
+        "description": "對當前輸入框內容進行翻譯"
+      }
     },
     "tray": {
       "quit": "終了",

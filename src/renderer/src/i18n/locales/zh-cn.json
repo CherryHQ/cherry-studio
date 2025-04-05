@@ -129,11 +129,13 @@
       "input.new_topic": "新话题 {{Command}}",
       "input.pause": "暂停",
       "input.placeholder": "在这里输入消息...",
+      "input.translating": "翻译中...",
       "input.send": "发送",
       "input.settings": "设置",
       "input.topics": " 话题 ",
       "input.translate": "翻译成{{target_language}}",
       "input.upload": "上传图片或文档",
+      "input.upload.upload_from_local": "上传本地文件...",
       "input.upload.document": "上传文档（模型不支持图片）",
       "input.web_search": "开启网络搜索",
       "input.web_search.button.ok": "去设置",
@@ -336,7 +338,7 @@
     "files": {
       "actions": "操作",
       "all": "所有文件",
-      "count": "文件数",
+      "count": "个文件",
       "created_at": "创建时间",
       "delete": "删除",
       "delete.content": "删除文件会删除文件在所有消息中的引用，确定要删除此文件吗?",
@@ -1007,6 +1009,9 @@
         "argsTooltip": "每个参数占一行",
         "baseUrlTooltip": "远程 URL 地址",
         "command": "命令",
+        "sse": "服务器发送事件(sse)",
+        "stdio": "标准输入/输出(stdio)",
+        "inMemory": "内存",
         "config_description": "配置模型上下文协议服务器",
         "deleteError": "删除服务器失败",
         "deleteSuccess": "服务器删除成功",
@@ -1068,7 +1073,8 @@
         "deleteServerConfirm": "确定要删除此服务器吗？",
         "registry": "包管理源",
         "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题。",
-        "registryDefault": "默认"
+        "registryDefault": "默认",
+        "not_support": "模型不支持"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
@@ -1266,6 +1272,31 @@
           "title": "Tavily"
         },
         "title": "网络搜索"
+      },
+      "quickPhrase": {
+        "title": "快捷短语",
+        "add": "添加短语",
+        "edit": "编辑短语",
+        "titleLabel": "标题",
+        "contentLabel": "内容",
+        "titlePlaceholder": "请输入短语标题",
+        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}。",
+        "delete": "删除短语",
+        "deleteConfirm": "删除短语后将无法恢复，是否继续？"
+      },
+      "quickPanel": {
+        "title": "快捷菜单",
+        "close": "关闭",
+        "select": "选择",
+        "page": "翻页",
+        "confirm": "确认",
+        "back": "后退",
+        "forward": "前进",
+        "multiple": "多选"
+      },
+      "privacy": {
+        "title": "隐私设置",
+        "enable_privacy_mode": "匿名发送错误报告和数据统计"
       }
     },
     "translate": {
@@ -1284,6 +1315,9 @@
         "delete": "删除",
         "empty": "暂无翻译历史",
         "title": "翻译历史"
+      },
+      "menu": {
+        "description": "对当前输入框内容进行翻译"
       },
       "input.placeholder": "输入文本进行翻译",
       "output.placeholder": "翻译",

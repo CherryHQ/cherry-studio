@@ -2,11 +2,13 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { isLinux, isMac, isWin } from '@main/constant'
+import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists } from '@main/utils'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
 import { MCPServer, MCPTool } from '@types'
 import { app } from 'electron'
@@ -61,11 +63,25 @@ class McpService {
 
     const args = [...(server.args || [])]
 
-    let transport: StdioClientTransport | SSEClientTransport
+    let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport
 
     try {
       // Create appropriate transport based on configuration
-      if (server.baseUrl) {
+      if (server.type === 'inMemory') {
+        Logger.info(`[MCP] Using in-memory transport for server: ${server.name}`)
+        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+        // start the in-memory server with the given name and environment variables
+        const inMemoryServer = createInMemoryMCPServer(server.name, args, server.env || {})
+        try {
+          await inMemoryServer.connect(serverTransport)
+          Logger.info(`[MCP] In-memory server started: ${server.name}`)
+        } catch (error) {
+          Logger.error(`[MCP] Error starting in-memory server: ${error}`)
+          throw new Error(`Failed to start in-memory server: ${error}`)
+        }
+        // set the client transport to the client
+        transport = clientTransport
+      } else if (server.baseUrl) {
         transport = new SSEClientTransport(new URL(server.baseUrl))
       } else if (server.command) {
         let cmd = server.command

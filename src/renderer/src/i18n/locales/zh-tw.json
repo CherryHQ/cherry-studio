@@ -243,7 +243,9 @@
       "topics.export.siyuan": "匯出到思源筆記",
       "topics.export.wait_for_title_naming": "正在生成標題...",
       "topics.export.title_naming_success": "標題生成成功",
-      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題"
+      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
+      "input.translating": "翻譯中...",
+      "input.upload.upload_from_local": "上傳本地文件..."
     },
     "code_block": {
       "collapse": "折疊",
@@ -336,7 +338,7 @@
     "files": {
       "actions": "操作",
       "all": "所有檔案",
-      "count": "數量",
+      "count": "個檔案",
       "created_at": "建立時間",
       "delete": "刪除",
       "delete.content": "刪除檔案會刪除檔案在所有訊息中的引用，確定要刪除此檔案嗎？",
@@ -1006,6 +1008,9 @@
         "argsTooltip": "每個參數佔一行",
         "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
+        "sse": "伺服器傳送事件(sse)",
+        "stdio": "標準輸入/輸出(stdio)",
+        "inMemory": "記憶體",
         "config_description": "設定模型上下文協議伺服器",
         "deleteError": "刪除伺服器失敗",
         "deleteSuccess": "伺服器刪除成功",
@@ -1067,7 +1072,8 @@
         "deleteServerConfirm": "確定要刪除此伺服器嗎？",
         "registry": "套件管理源",
         "registryTooltip": "選擇用於安裝套件的源，以解決預設源的網路問題。",
-        "registryDefault": "預設"
+        "registryDefault": "預設",
+        "not_support": "不支援此模型"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -1266,7 +1272,32 @@
         },
         "title": "網路搜尋"
       },
-      "general.auto_check_update.title": "啟用自動更新檢查"
+      "general.auto_check_update.title": "啟用自動更新檢查",
+      "quickPhrase": {
+        "title": "快捷短語",
+        "add": "新增短語",
+        "edit": "編輯短語",
+        "titleLabel": "標題",
+        "contentLabel": "內容",
+        "titlePlaceholder": "請輸入短語標題",
+        "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。",
+        "delete": "刪除短語",
+        "deleteConfirm": "刪除後無法復原，是否繼續？"
+      },
+      "quickPanel": {
+        "title": "快捷選單",
+        "close": "關閉",
+        "select": "選擇",
+        "page": "翻頁",
+        "confirm": "確認",
+        "back": "後退",
+        "forward": "前進",
+        "multiple": "多選"
+      },
+      "privacy": {
+        "title": "隱私設定",
+        "enable_privacy_mode": "匿名發送錯誤報告和資料統計"
+      }
     },
     "translate": {
       "any.language": "任意語言",
@@ -1291,7 +1322,10 @@
       "scroll_sync.disable": "關閉滾動同步",
       "scroll_sync.enable": "開啟滾動同步",
       "title": "翻譯",
-      "tooltip.newline": "換行"
+      "tooltip.newline": "換行",
+      "menu": {
+        "description": "對當前輸入框內容進行翻譯"
+      }
     },
     "tray": {
       "quit": "結束",

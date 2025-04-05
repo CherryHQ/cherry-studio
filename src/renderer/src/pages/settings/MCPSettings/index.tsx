@@ -8,11 +8,13 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { EventEmitter } from '@renderer/services/EventService'
+import { initializeMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { Dropdown, MenuProps } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useDispatch } from 'react-redux'
 import styled from 'styled-components'
 
 import { SettingContainer } from '..'
@@ -26,6 +28,7 @@ const MCPSettings: FC = () => {
   const [selectedMcpServer, setSelectedMcpServer] = useState<MCPServer | null>(mcpServers[0])
   const [route, setRoute] = useState<'npx-search' | 'mcp-install' | null>(null)
   const { theme } = useTheme()
+  const dispatch = useDispatch()
 
   useEffect(() => {
     const unsubs = [
@@ -34,6 +37,11 @@ const MCPSettings: FC = () => {
     ]
     return () => unsubs.forEach((unsub) => unsub())
   }, [])
+
+  useEffect(() => {
+    initializeMCPServers(mcpServers, dispatch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty dependency array to run only once
 
   const onAddMcpServer = async () => {
     const newServer = {

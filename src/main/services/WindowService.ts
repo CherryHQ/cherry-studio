@@ -1,6 +1,7 @@
 import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
@@ -10,7 +11,6 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
-import { IpcChannel } from '@shared/IpcChannel'
 
 export class WindowService {
   private static instance: WindowService | null = null

@@ -108,6 +108,8 @@ export interface SettingsState {
   siyuanRootPath: string | null
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
+  // 隐私设置
+  enableDataCollection: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -188,13 +190,13 @@ const initialState: SettingsState = {
   joplinToken: '',
   joplinUrl: '',
   defaultObsidianVault: null,
-  // 思源笔记配置初始值
   siyuanApiUrl: null,
   siyuanToken: null,
   siyuanBoxId: null,
   siyuanRootPath: null,
   maxKeepAliveMinapps: 3,
-  showOpenedMinappsInSidebar: true
+  showOpenedMinappsInSidebar: true,
+  enableDataCollection: false
 }
 
 const settingsSlice = createSlice({
@@ -446,6 +448,9 @@ const settingsSlice = createSlice({
     },
     setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
       state.showOpenedMinappsInSidebar = action.payload
+    },
+    setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
+      state.enableDataCollection = action.payload
     }
   }
 })
@@ -530,7 +535,8 @@ export const {
   setSiyuanBoxId,
   setSiyuanRootPath,
   setMaxKeepAliveMinapps,
-  setShowOpenedMinappsInSidebar
+  setShowOpenedMinappsInSidebar,
+  setEnableDataCollection
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

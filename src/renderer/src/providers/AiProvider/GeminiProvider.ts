@@ -38,13 +38,13 @@ import {
   mcpToolsToGeminiTools,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
+import { MB } from '@shared/config/constant'
 import axios from 'axios'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { ChunkCallbackData, CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-import { MB } from '@shared/config/constant'
 
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenerativeAI

@@ -25,7 +25,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
               uid: file.id,
               url: 'file://' + FileManager.getSafePath(file),
               status: 'done',
-              name: file.name
+              name: file.origin_name || file.name
             }) as UploadFile
         )}
         onRemove={(item) => setFiles(files.filter((file) => item.uid !== file.id))}
