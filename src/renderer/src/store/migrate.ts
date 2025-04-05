@@ -5,7 +5,7 @@ import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant } from '@renderer/types'
+import { Topic } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
@@ -97,12 +97,12 @@ const migrateConfig = {
   },
   '8': (state: RootState) => {
     try {
-      const fixAssistantName = (assistant: Assistant) => {
+      const fixAssistantName = (assistant: any) => {
         if (isEmpty(assistant.name)) {
           assistant.name = i18n.t(`assistant.${assistant.id}.name`)
         }
 
-        assistant.topics = assistant.topics.map((topic) => {
+        assistant.topics = assistant.topics.map((topic: any) => {
           if (isEmpty(topic.name)) {
             topic.name = i18n.t(`assistant.${assistant.id}.topic.name`)
           }
@@ -311,13 +311,14 @@ const migrateConfig = {
         ...state,
         assistants: {
           ...state.assistants,
-          assistants: state.assistants.assistants.map((assistant) => ({
+          assistants: state.assistants.assistants.map((assistant: any) => ({
             ...assistant,
-            topics: assistant.topics.map((topic) => ({
-              ...topic,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }))
+            topics:
+              assistant.topics.map((topic: any) => ({
+                ...topic,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              })) || []
           }))
         },
         settings: {
@@ -376,8 +377,8 @@ const migrateConfig = {
         ...state,
         assistants: {
           ...state.assistants,
-          assistants: state.assistants.assistants.map((assistant) => {
-            assistant.topics = assistant.topics.map((topic) => ({
+          assistants: state.assistants.assistants.map((assistant: any) => {
+            assistant.topics = assistant.topics.map((topic: any) => ({
               ...topic,
               assistantId: assistant.id
             }))
@@ -454,8 +455,8 @@ const migrateConfig = {
   },
   '34': (state: RootState) => {
     try {
-      state.assistants.assistants.forEach((assistant) => {
-        assistant.topics.forEach((topic) => {
+      state.assistants.assistants.forEach((assistant: any) => {
+        assistant.topics.forEach((topic: any) => {
           topic.assistantId = assistant.id
           runAsyncFunction(async () => {
             const _topic = await db.topics.get(topic.id)
@@ -1184,6 +1185,103 @@ const migrateConfig = {
       state.settings.enableDataCollection = true
       return state
     } catch (error) {
+      return state
+    }
+  },
+  '91': (state: RootState) => {
+    if (!state.assistants?.assistants && !state.assistants?.defaultAssistant) {
+      return state
+    }
+
+    if (!state.topics) {
+      state.topics = { topics: [], activeTopic: null }
+    }
+
+    try {
+      const allTopics: any[] = []
+
+      // Handle default assistant topics
+      // @ts-ignore eslint-disable-next-line
+      const defaultTopics = state.assistants?.defaultAssistant?.topics || []
+      if (defaultTopics.length > 0) {
+        const defaultAssistantId = state.assistants.defaultAssistant.id
+        const defaultAssistantTopics = defaultTopics.map((topic) => ({
+          ...topic,
+          id: topic.id || uuid(),
+          assistantId: topic.assistantId || defaultAssistantId
+        }))
+        allTopics.push(...defaultAssistantTopics)
+      }
+
+      // Handle topics from other assistants
+      if (state.assistants?.assistants?.length > 0) {
+        state.assistants.assistants.forEach((assistant) => {
+          // @ts-ignore eslint-disable-next-line
+          const assistantTopics = assistant.topics || []
+          if (assistantTopics.length > 0) {
+            const topicsWithId = assistantTopics.map((topic) => ({
+              ...topic,
+              id: topic.id || uuid(),
+              assistantId: topic.assistantId || assistant.id
+            }))
+            allTopics.push(...topicsWithId)
+          }
+        })
+      }
+
+      // Use Map to remove duplicate topics
+      const uniqueTopicsMap = new Map()
+
+      // Get a unique key for a topic
+      const getTopicKey = (topic: Topic) => `${topic.id}_${topic.assistantId}`
+
+      // First process topics collected from assistants (prioritize retention)
+      allTopics.forEach((topic) => {
+        if (topic.assistantId.trim() === '') {
+          topic.assistantId = state.assistants.defaultAssistant.id
+        }
+        const topicKey = getTopicKey(topic)
+        if (topic.id) {
+          uniqueTopicsMap.set(topicKey, topic)
+        }
+      })
+
+      // Then process existing topics
+      const existingTopics = state.topics.topics || []
+      existingTopics.forEach((topic) => {
+        if (topic.assistantId.trim() === '') {
+          topic.assistantId = state.assistants.defaultAssistant.id
+        }
+        const topicKey = getTopicKey(topic)
+        if (topic.id && !uniqueTopicsMap.has(topicKey)) {
+          uniqueTopicsMap.set(topicKey, topic)
+        }
+      })
+
+      // Update state
+      state.topics.topics = Array.from(uniqueTopicsMap.values())
+
+      // If there is no activeTopic but there are topics, set the first one as activeTopic
+      if (!state.topics.activeTopic && state.topics.topics.length > 0) {
+        state.topics.activeTopic = state.topics.topics[0]
+      }
+
+      if (state.assistants.defaultAssistant) {
+        // @ts-ignore eslint-disable-next-line
+        if ((state.assistants.defaultAssistant as any).topics) {
+          delete (state.assistants.defaultAssistant as any).topics
+        }
+      }
+
+      state.assistants.assistants?.forEach((assistant) => {
+        // @ts-ignore eslint-disable-next-line
+        if ((assistant as any).topics) {
+          delete (assistant as any).topics
+        }
+      })
+      return state
+    } catch (error) {
+      console.error(error)
       return state
     }
   }
