@@ -26,7 +26,7 @@ import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getFilesDir } from './utils/file'
+import { getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -42,6 +42,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
     filesPath: getFilesDir(),
+    configPath: getConfigDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
     logsPath: log.transports.file.getFile().path

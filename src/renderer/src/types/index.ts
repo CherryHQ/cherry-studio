@@ -227,6 +227,7 @@ export type AppInfo = {
   version: string
   isPackaged: boolean
   appPath: string
+  configPath: string
   appDataPath: string
   resourcesPath: string
   filesPath: string
@@ -365,6 +366,7 @@ export interface MCPServerParameter {
 export interface MCPServer {
   id: string
   name: string
+  type?: 'stdio' | 'sse' | 'inMemory'
   description?: string
   baseUrl?: string
   command?: string

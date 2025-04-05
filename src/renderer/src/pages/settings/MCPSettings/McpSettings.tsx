@@ -17,7 +17,7 @@ interface Props {
 interface MCPFormValues {
   name: string
   description?: string
-  serverType: 'sse' | 'stdio'
+  serverType: MCPServer['type']
   baseUrl?: string
   command?: string
   registryUrl?: string
@@ -42,19 +42,19 @@ const PipRegistry: Registry[] = [
 
 const McpSettings: React.FC<Props> = ({ server }) => {
   const { t } = useTranslation()
-  const { deleteMCPServer } = useMCPServers()
-  const [serverType, setServerType] = useState<'sse' | 'stdio'>('stdio')
+  const { deleteMCPServer, updateMCPServer } = useMCPServers()
+  const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
   const [loading, setLoading] = useState(false)
   const [isFormChanged, setIsFormChanged] = useState(false)
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
-  const { updateMCPServer } = useMCPServers()
+
   const [tools, setTools] = useState<MCPTool[]>([])
   const [isShowRegistry, setIsShowRegistry] = useState(false)
   const [registry, setRegistry] = useState<Registry[]>()
 
   useEffect(() => {
-    const serverType = server.baseUrl ? 'sse' : 'stdio'
+    const serverType: MCPServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
     setServerType(serverType)
 
     // Set registry UI state based on command and registryUrl
@@ -103,7 +103,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.getFieldValue('serverType')])
 
-  const fetchTools = useCallback(async () => {
+  const fetchTools = async () => {
     if (server.isActive) {
       try {
         setLoadingServer(server.id)
@@ -119,15 +119,14 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         setLoadingServer(null)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [server.id])
+  }
 
   useEffect(() => {
-    console.log('Loading tools for server:', server.id, 'Active:', server.isActive)
     if (server.isActive) {
       fetchTools()
     }
-  }, [server.id, server.isActive, fetchTools])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [server.id, server.isActive])
 
   // Save the form data
   const onSave = async () => {
@@ -139,6 +138,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
       const mcpServer: MCPServer = {
         id: server.id,
         name: values.name,
+        type: values.serverType,
         description: values.description,
         isActive: values.isActive,
         registryUrl: values.registryUrl
@@ -171,7 +171,6 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         await window.api.mcp.restartServer(mcpServer)
         updateMCPServer({ ...mcpServer, isActive: true })
         window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
-        await fetchTools()
         setLoading(false)
         setIsFormChanged(false)
       } catch (error: any) {
@@ -312,7 +311,9 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         <SettingTitle>
           <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
             <ServerName className="text-nowrap">{server?.name}</ServerName>
-            <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
+            {!(server.type === 'inMemory') && (
+              <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
+            )}
           </Flex>
           <Flex align="center" gap={16}>
             <Switch
@@ -347,8 +348,9 @@ const McpSettings: React.FC<Props> = ({ server }) => {
             <Radio.Group
               onChange={(e) => setServerType(e.target.value)}
               options={[
-                { label: 'STDIO', value: 'stdio' },
-                { label: 'SSE', value: 'sse' }
+                { label: t('settings.mcp.stdio'), value: 'stdio' },
+                { label: t('settings.mcp.sse'), value: 'sse' },
+                { label: t('settings.mcp.inMemory'), value: 'inMemory' }
               ]}
             />
           </Form.Item>
@@ -398,6 +400,17 @@ const McpSettings: React.FC<Props> = ({ server }) => {
                 </Form.Item>
               )}
 
+              <Form.Item name="args" label={t('settings.mcp.args')} tooltip={t('settings.mcp.argsTooltip')}>
+                <TextArea rows={3} placeholder={`arg1\narg2`} style={{ fontFamily: 'monospace' }} />
+              </Form.Item>
+
+              <Form.Item name="env" label={t('settings.mcp.env')} tooltip={t('settings.mcp.envTooltip')}>
+                <TextArea rows={3} placeholder={`KEY1=value1\nKEY2=value2`} style={{ fontFamily: 'monospace' }} />
+              </Form.Item>
+            </>
+          )}
+          {serverType === 'inMemory' && (
+            <>
               <Form.Item name="args" label={t('settings.mcp.args')} tooltip={t('settings.mcp.argsTooltip')}>
                 <TextArea rows={3} placeholder={`arg1\narg2`} style={{ fontFamily: 'monospace' }} />
               </Form.Item>

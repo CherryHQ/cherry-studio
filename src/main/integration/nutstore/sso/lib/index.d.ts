@@ -1,8 +1,8 @@
-declare function decrypt(app: string, s: string): string;
+declare function decrypt(app: string, s: string): string
 
 interface Secret {
-    app: string;
+  app: string
 }
-declare function createOAuthUrl(secret: Secret): string;
+declare function createOAuthUrl(secret: Secret): string
 
-export { type Secret, createOAuthUrl, decrypt };
+export { type Secret, createOAuthUrl, decrypt }

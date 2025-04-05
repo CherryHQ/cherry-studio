@@ -1,10 +1,12 @@
 import { CodeOutlined, PlusOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { initializeMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { FC, useCallback, useImperativeHandle, useMemo } from 'react'
+import { FC, useCallback, useEffect, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router'
 
 export interface MCPToolsButtonRef {
@@ -19,10 +21,11 @@ interface Props {
 }
 
 const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarButton }) => {
-  const { activedMcpServers } = useMCPServers()
+  const { activedMcpServers, mcpServers } = useMCPServers()
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const navigate = useNavigate()
+  const dispatch = useDispatch()
 
   const availableMCPs = activedMcpServers.filter((server) => enabledMCPs.some((s) => s.id === server.id))
 
@@ -36,13 +39,19 @@ const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarB
       action: () => toggelEnableMCP(server),
       isSelected: enabledMCPs.some((s) => s.id === server.id)
     }))
+
     newList.push({
       label: t('settings.mcp.addServer') + '...',
       icon: <PlusOutlined />,
       action: () => navigate('/settings/mcp')
     })
     return newList
-  }, [activedMcpServers, enabledMCPs, toggelEnableMCP, t, navigate])
+  }, [activedMcpServers, t, enabledMCPs, toggelEnableMCP, navigate])
+
+  useEffect(() => {
+    initializeMCPServers(mcpServers, dispatch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
