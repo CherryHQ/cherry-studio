@@ -1,4 +1,9 @@
-import { getOpenAIWebSearchParams } from '@renderer/config/models'
+import {
+  getOpenAIWebSearchParams,
+  isHunyuanSearchModel,
+  isOpenAIWebSearch,
+  isZhipuModel
+} from '@renderer/config/models'
 import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -6,6 +11,15 @@ import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
 import { withGenerateImage } from '@renderer/utils/formats'
+import {
+  cleanLinkCommas,
+  completeLinks,
+  convertLinks,
+  convertLinksToHunyuan,
+  convertLinksToOpenRouter,
+  convertLinksToZhipu,
+  extractUrlsFromMarkdown
+} from '@renderer/utils/linkConverter'
 import { cloneDeep, findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -46,7 +60,7 @@ export async function fetchChatCompletion({
     if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
       const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
 
-      if (isEmpty(webSearchParams)) {
+      if (isEmpty(webSearchParams) && !isOpenAIWebSearch(assistant.model)) {
         const lastMessage = findLast(messages, (m) => m.role === 'user')
         const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
         const hasKnowledgeBase = !isEmpty(lastMessage?.knowledgeBaseIds)
@@ -115,17 +129,40 @@ export async function fetchChatCompletion({
       messages: filterUsefulMessages(filterContextMessages(messages)),
       assistant,
       onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({ text, reasoning_content, usage, metrics, search, citations, mcpToolResponse, generateImage }) => {
+      onChunk: ({
+        text,
+        reasoning_content,
+        usage,
+        metrics,
+        webSearch,
+        search,
+        annotations,
+        citations,
+        mcpToolResponse,
+        generateImage
+      }) => {
+        if (assistant.model) {
+          if (isOpenAIWebSearch(assistant.model)) {
+            text = convertLinks(text || '', isFirstChunk)
+          } else if (assistant.model.provider === 'openrouter' && assistant.enableWebSearch) {
+            text = convertLinksToOpenRouter(text || '', isFirstChunk)
+          } else if (assistant.enableWebSearch) {
+            if (isZhipuModel(assistant.model)) {
+              text = convertLinksToZhipu(text || '', isFirstChunk)
+            } else if (isHunyuanSearchModel(assistant.model)) {
+              text = convertLinksToHunyuan(text || '', webSearch || [], isFirstChunk)
+            }
+          }
+        }
+        if (isFirstChunk) {
+          isFirstChunk = false
+        }
         message.content = message.content + text || ''
         message.usage = usage
         message.metrics = metrics
 
         if (reasoning_content) {
           message.reasoning_content = (message.reasoning_content || '') + reasoning_content
-        }
-
-        if (search) {
-          message.metadata = { ...message.metadata, groundingMetadata: search }
         }
 
         if (mcpToolResponse) {
@@ -143,12 +180,49 @@ export async function fetchChatCompletion({
         }
 
         // Handle citations from Perplexity API
-        if (isFirstChunk && citations) {
+        if (citations) {
           message.metadata = {
             ...message.metadata,
             citations
           }
-          isFirstChunk = false
+        }
+
+        // Handle web search from Gemini
+        if (search) {
+          message.metadata = { ...message.metadata, groundingMetadata: search }
+        }
+
+        // Handle annotations from OpenAI
+        if (annotations) {
+          message.metadata = {
+            ...message.metadata,
+            annotations: annotations
+          }
+        }
+
+        // Handle web search from Zhipu or Hunyuan
+        if (webSearch) {
+          message.metadata = {
+            ...message.metadata,
+            webSearchInfo: webSearch
+          }
+        }
+
+        // Handle citations from Openrouter
+        if (assistant.model?.provider === 'openrouter' && assistant.enableWebSearch) {
+          const extractedUrls = extractUrlsFromMarkdown(message.content)
+          if (extractedUrls.length > 0) {
+            message.metadata = {
+              ...message.metadata,
+              citations: extractedUrls
+            }
+          }
+        }
+        if (assistant.enableWebSearch) {
+          message.content = cleanLinkCommas(message.content)
+          if (webSearch && isZhipuModel(assistant.model)) {
+            message.content = completeLinks(message.content, webSearch)
+          }
         }
 
         onResponse({ ...message, status: 'pending' })

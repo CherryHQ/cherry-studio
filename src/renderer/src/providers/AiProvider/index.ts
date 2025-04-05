@@ -20,7 +20,13 @@ export interface ChunkCallbackData {
   reasoning_content?: string
   usage?: OpenAI.Completions.CompletionUsage
   metrics?: Metrics
+  // Zhipu web search
+  webSearch?: any[]
+  // Gemini web search
   search?: GroundingMetadata
+  // Openai web search
+  annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
+  // Openrouter web search or Knowledge base
   citations?: string[]
   mcpToolResponse?: MCPToolResponse[]
   generateImage?: GenerateImageResponse
@@ -34,7 +40,9 @@ export interface CompletionsParams {
     reasoning_content,
     usage,
     metrics,
+    webSearch,
     search,
+    annotations,
     citations,
     mcpToolResponse,
     generateImage
