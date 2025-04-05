@@ -19,6 +19,10 @@ import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
   setAutoTranslateWithSpace,
+  setCodeCacheable,
+  setCodeCacheMaxSize,
+  setCodeCacheThreshold,
+  setCodeCacheTTL,
   setCodeCollapsible,
   setCodeShowLineNumbers,
   setCodeStyle,
@@ -75,6 +79,10 @@ const SettingsTab: FC<Props> = (props) => {
     codeShowLineNumbers,
     codeCollapsible,
     codeWrappable,
+    codeCacheable,
+    codeCacheMaxSize,
+    codeCacheTTL,
+    codeCacheThreshold,
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
@@ -330,6 +338,74 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
           <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>
+            {t('chat.settings.code_cacheable')}{' '}
+            <Tooltip title={t('chat.settings.code_cacheable.tip')}>
+              <QuestionIcon style={{ marginLeft: 4 }} />
+            </Tooltip>
+          </SettingRowTitleSmall>
+          <Switch size="small" checked={codeCacheable} onChange={(checked) => dispatch(setCodeCacheable(checked))} />
+        </SettingRow>
+        {codeCacheable && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_cache_max_size')}
+                <Tooltip title={t('chat.settings.code_cache_max_size.tip')}>
+                  <QuestionIcon style={{ marginLeft: 4 }} />
+                </Tooltip>
+              </SettingRowTitleSmall>
+              <InputNumber
+                size="small"
+                min={1000}
+                max={10000}
+                step={1000}
+                value={codeCacheMaxSize}
+                onChange={(value) => dispatch(setCodeCacheMaxSize(value ?? 1000))}
+                style={{ width: 80 }}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_cache_ttl')}
+                <Tooltip title={t('chat.settings.code_cache_ttl.tip')}>
+                  <QuestionIcon style={{ marginLeft: 4 }} />
+                </Tooltip>
+              </SettingRowTitleSmall>
+              <InputNumber
+                size="small"
+                min={15}
+                max={720}
+                step={15}
+                value={codeCacheTTL}
+                onChange={(value) => dispatch(setCodeCacheTTL(value ?? 15))}
+                style={{ width: 80 }}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_cache_threshold')}
+                <Tooltip title={t('chat.settings.code_cache_threshold.tip')}>
+                  <QuestionIcon style={{ marginLeft: 4 }} />
+                </Tooltip>
+              </SettingRowTitleSmall>
+              <InputNumber
+                size="small"
+                min={0}
+                max={50}
+                step={1}
+                value={codeCacheThreshold}
+                onChange={(value) => dispatch(setCodeCacheThreshold(value ?? 2))}
+                style={{ width: 80 }}
+              />
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>

@@ -1186,6 +1186,17 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '91': (state: RootState) => {
+    try {
+      state.settings.codeCacheable = false
+      state.settings.codeCacheMaxSize = 1000
+      state.settings.codeCacheTTL = 15
+      state.settings.codeCacheThreshold = 2
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
