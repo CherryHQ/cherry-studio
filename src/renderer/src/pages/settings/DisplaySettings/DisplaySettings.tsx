@@ -1,4 +1,4 @@
-import { SyncOutlined } from '@ant-design/icons'
+import { ExpandOutlined, ExportOutlined, SyncOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -41,6 +41,11 @@ const DisplaySettings: FC = () => {
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
 
+  const handleExpandClick = () => {
+    //setIsCssEditorExpanded(true)
+    window.api.cssEditor.open()
+  }
+  
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
       setWindowStyle(checked ? 'transparent' : 'opaque')
@@ -166,10 +171,25 @@ const DisplaySettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.display.custom.css')}
-          <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
-            {t('settings.display.custom.css.cherrycss')}
-          </TitleExtra>
+          <Button
+            icon={<ExpandOutlined />}
+            size="small"
+            onClick={handleExpandClick}
+          >
+          </Button>
         </SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            {t('settings.display.custom.css.cherrycss')}
+          </SettingRowTitle>
+          <Button
+            icon={<ExportOutlined />}
+            size="small"
+            onClick={() => window.api.openWebsite('https://cherrycss.com/')}
+          >
+          </Button>
+        </SettingRow>
         <SettingDivider />
         <Input.TextArea
           value={customCss}
@@ -185,12 +205,6 @@ const DisplaySettings: FC = () => {
   )
 }
 
-const TitleExtra = styled.div`
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-  opacity: 0.7;
-`
 const ResetButtonWrapper = styled.div`
   display: flex;
   align-items: center;

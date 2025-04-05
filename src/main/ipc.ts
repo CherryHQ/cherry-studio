@@ -259,6 +259,23 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.MiniWindow_Toggle, () => windowService.toggleMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_SetPin, (_, isPinned) => windowService.setPinMiniWindow(isPinned))
 
+  // css editor
+  ipcMain.handle('css-editor:open', () => windowService.createCssEditorWindow())
+  ipcMain.handle('css-editor:close', () => windowService.closeCssEditorWindow())
+  ipcMain.handle('css-editor:pin', () => {
+    const window = windowService.getCssEditorWindow()
+    if (window) {
+      const isAlwaysOnTop = window.isAlwaysOnTop()
+      window.setAlwaysOnTop(!isAlwaysOnTop, "screen-saver")
+      window.setVisibleOnAllWorkspaces(!isAlwaysOnTop)
+      return !isAlwaysOnTop
+    }
+    return false
+  })
+  ipcMain.on('css-editor:update', (_event, value) => {
+    windowService.getMainWindow()?.webContents.send('css-editor:set', value)
+  })
+
   // aes
   ipcMain.handle(IpcChannel.Aes_Encrypt, (_, text: string, secretKey: string, iv: string) =>
     encrypt(text, secretKey, iv)
