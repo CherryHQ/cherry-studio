@@ -1,8 +1,9 @@
+import { FileOutlined } from '@ant-design/icons'
 import FileManager from '@renderer/services/FileManager'
 import { FileType } from '@renderer/types'
-import { Upload as AntdUpload, UploadFile } from 'antd'
+import { ConfigProvider, Image, Tag } from 'antd'
 import { isEmpty } from 'lodash'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -11,39 +12,79 @@ interface Props {
 }
 
 const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
+  const [visibleId, setVisibleId] = useState('')
+
+  const isImage = (ext: string) => {
+    return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)
+  }
+
   if (isEmpty(files)) {
     return null
   }
 
   return (
     <ContentContainer>
-      <Upload
-        listType={files.length > 20 ? 'text' : 'picture-card'}
-        fileList={files.map(
-          (file) =>
-            ({
-              uid: file.id,
-              url: 'file://' + FileManager.getSafePath(file),
-              status: 'done',
-              name: file.origin_name || file.name
-            }) as UploadFile
-        )}
-        onRemove={(item) => setFiles(files.filter((file) => item.uid !== file.id))}
-      />
+      <ConfigProvider
+        theme={{
+          components: {
+            Tag: {
+              borderRadiusSM: 100
+            }
+          }
+        }}>
+        {files.map((file) => (
+          <Tag
+            key={file.id}
+            icon={<FileOutlined />}
+            bordered={false}
+            color="cyan"
+            closable
+            onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
+            <FileName
+              onClick={() => {
+                if (isImage(file.ext)) {
+                  setVisibleId(file.id)
+                  return
+                }
+                const path = FileManager.getSafePath(file)
+                if (path) {
+                  window.api.file.openPath(path)
+                }
+              }}>
+              {file.origin_name || file.name}
+              {isImage(file.ext) && (
+                <Image
+                  style={{ display: 'none' }}
+                  src={'file://' + FileManager.getSafePath(file)}
+                  preview={{
+                    visible: visibleId === file.id,
+                    src: 'file://' + FileManager.getSafePath(file),
+                    onVisibleChange: (value) => {
+                      setVisibleId(value ? file.id : '')
+                    }
+                  }}
+                />
+              )}
+            </FileName>
+          </Tag>
+        ))}
+      </ConfigProvider>
     </ContentContainer>
   )
 }
 
 const ContentContainer = styled.div`
-  max-height: 40vh;
-  overflow-y: auto;
   width: 100%;
-  padding: 10px 15px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  padding: 5px 15px 0;
 `
 
-const Upload = styled(AntdUpload)`
-  .ant-upload-list-item {
-    background-color: var(--color-background);
+const FileName = styled.span`
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
   }
 `
 

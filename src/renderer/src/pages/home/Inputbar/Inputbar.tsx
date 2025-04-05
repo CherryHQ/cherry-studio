@@ -479,6 +479,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         return newSelectedKnowledgeBases
       })
       return event.preventDefault()
+
+      if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+        setFiles((prev) => prev.slice(0, -1))
+        return event.preventDefault()
+      }
     }
   }
 

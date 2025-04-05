@@ -34,6 +34,7 @@ export const QuickPanelView: React.FC<{
 
   const bodyRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const footerRef = useRef<HTMLDivElement>(null)
 
   const scrollBlock = useRef<ScrollLogicalPosition>('nearest')
 
@@ -343,6 +344,20 @@ export const QuickPanelView: React.FC<{
     }
   }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose, clearSearchText])
 
+  const [footerWidth, setFooterWidth] = useState(0)
+  useEffect(() => {
+    if (!footerRef.current || !ctx.isVisible) return
+    const footerWidth = footerRef.current.clientWidth
+    setFooterWidth(footerWidth)
+
+    const handleResize = () => {
+      const footerWidth = footerRef.current!.clientWidth
+      setFooterWidth(footerWidth)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [ctx.isVisible])
+
   return (
     <QuickPanelContainer $pageSize={ctx.pageSize} className={ctx.isVisible ? 'visible' : ''}>
       <QuickPanelBody ref={bodyRef} onMouseMove={() => setIsMouseOver(true)}>
@@ -355,7 +370,10 @@ export const QuickPanelView: React.FC<{
                 disabled: item.disabled
               })}
               key={i}
-              onClick={() => handleItemAction(item, 'click')}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleItemAction(item, 'click')
+              }}
               onMouseEnter={() => setIndex(i)}>
               <QuickPanelItemLeft>
                 <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
@@ -377,45 +395,47 @@ export const QuickPanelView: React.FC<{
             </QuickPanelItem>
           ))}
         </QuickPanelContent>
-        <QuickPanelFooter>
-          <QuickPanelFooterTips>
-            <QuickPanelTitle>{ctx.title || ''}</QuickPanelTitle>
-            <Flex align="center" gap={16}>
-              <span>ESC {t('settings.quickPanel.close')}</span>
+        <QuickPanelFooter ref={footerRef}>
+          <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
+          <QuickPanelFooterTips $footerWidth={footerWidth}>
+            <span>ESC {t('settings.quickPanel.close')}</span>
 
-              <Flex align="center" gap={4}>
-                ▲▼ {t('settings.quickPanel.select')}
-              </Flex>
+            <Flex align="center" gap={4}>
+              ▲▼ {t('settings.quickPanel.select')}
+            </Flex>
 
+            {footerWidth >= 500 && (
+              <>
+                <Flex align="center" gap={4}>
+                  <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
+                    {ASSISTIVE_KEY}
+                  </span>
+                  + ▲▼ {t('settings.quickPanel.page')}
+                </Flex>
+
+                {canForwardAndBackward && (
+                  <Flex align="center" gap={4}>
+                    <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
+                      {ASSISTIVE_KEY}
+                    </span>
+                    + ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
+                  </Flex>
+                )}
+              </>
+            )}
+
+            <Flex align="center" gap={4}>
+              ↩︎ {t('settings.quickPanel.confirm')}
+            </Flex>
+
+            {ctx.multiple && (
               <Flex align="center" gap={4}>
                 <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
                   {ASSISTIVE_KEY}
                 </span>
-                + ▲▼ {t('settings.quickPanel.page')}
+                + ↩︎ {t('settings.quickPanel.multiple')}
               </Flex>
-
-              {canForwardAndBackward && (
-                <Flex align="center" gap={4}>
-                  <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
-                    {ASSISTIVE_KEY}
-                  </span>
-                  + ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
-                </Flex>
-              )}
-
-              <Flex align="center" gap={4}>
-                ↩︎ {t('settings.quickPanel.confirm')}
-              </Flex>
-
-              {ctx.multiple && (
-                <Flex align="center" gap={4}>
-                  <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
-                    {ASSISTIVE_KEY}
-                  </span>
-                  + ↩︎ {t('settings.quickPanel.multiple')}
-                </Flex>
-              )}
-            </Flex>
+            )}
           </QuickPanelFooterTips>
         </QuickPanelFooter>
       </QuickPanelBody>
@@ -462,22 +482,30 @@ const QuickPanelBody = styled.div`
 `
 
 const QuickPanelFooter = styled.div`
-  width: 100%;
-`
-
-const QuickPanelFooterTips = styled.div`
   display: flex;
-  align-items: center;
+  width: 100%;
   justify-content: space-between;
-  gap: 8px;
-  font-size: 10px;
-  color: var(--color-text-3);
+  align-items: center;
+  gap: 16px;
   padding: 8px 12px 5px;
 `
 
-const QuickPanelTitle = styled.div`
+const QuickPanelFooterTips = styled.div<{ $footerWidth: number }>`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  gap: 16px;
+  font-size: 10px;
+  color: var(--color-text-3);
+`
+
+const QuickPanelFooterTitle = styled.div`
   font-size: 11px;
   color: var(--color-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 const QuickPanelContent = styled.div<{ $pageSize: number; $isMouseOver: boolean }>`
