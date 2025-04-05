@@ -1,4 +1,11 @@
-import { InfoCircleOutlined, SearchOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import {
+  DownOutlined,
+  InfoCircleOutlined,
+  RightOutlined,
+  SearchOutlined,
+  SyncOutlined,
+  TranslationOutlined
+} from '@ant-design/icons'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -29,6 +36,9 @@ interface Props {
 const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const { t } = useTranslation()
   const message = withMessageThought(clone(_message))
+  // 添加引用内容折叠状态
+  const [citationsExpanded, setCitationsExpanded] = React.useState(false)
+  const [webSearchExpanded, setWebSearchExpanded] = React.useState(false)
 
   // HTML实体编码辅助函数
   const encodeHTML = (str: string) => {
@@ -167,32 +177,48 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       <MessageSearchResults message={message} />
       {formattedCitations && (
         <CitationsContainer>
-          <CitationsTitle>
-            {t('message.citations')}
-            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-          </CitationsTitle>
-          {formattedCitations.map(({ number, url, hostname }) => (
-            <CitationLink key={number} href={url} target="_blank" rel="noopener noreferrer">
-              {number}. <span className="hostname">{hostname}</span>
-            </CitationLink>
-          ))}
+          <CitationsHeader onClick={() => setCitationsExpanded(!citationsExpanded)}>
+            <CitationsTitle>
+              {t('message.citations')}
+              <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
+            </CitationsTitle>
+            {citationsExpanded ? (
+              <DownOutlined style={{ fontSize: '12px' }} />
+            ) : (
+              <RightOutlined style={{ fontSize: '12px' }} />
+            )}
+          </CitationsHeader>
+          {citationsExpanded &&
+            formattedCitations.map(({ number, url, hostname }) => (
+              <CitationLink key={number} href={url} target="_blank" rel="noopener noreferrer">
+                {number}. <span className="hostname">{hostname}</span>
+              </CitationLink>
+            ))}
         </CitationsContainer>
       )}
       {message?.metadata?.webSearch && message.status === 'success' && (
         <CitationsContainer className="footnotes">
-          <CitationsTitle>
-            {t('message.citations')}
-            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-          </CitationsTitle>
-          {message.metadata.webSearch.results.map((result, index) => (
-            <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
-              <Favicon hostname={new URL(result.url).hostname} alt={result.title} />
-              <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
-                {result.title}
-              </CitationLink>
-            </HStack>
-          ))}
+          <CitationsHeader onClick={() => setWebSearchExpanded(!webSearchExpanded)}>
+            <CitationsTitle>
+              {t('message.citations')}
+              <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
+            </CitationsTitle>
+            {webSearchExpanded ? (
+              <DownOutlined style={{ fontSize: '12px' }} />
+            ) : (
+              <RightOutlined style={{ fontSize: '12px' }} />
+            )}
+          </CitationsHeader>
+          {webSearchExpanded &&
+            message.metadata.webSearch.results.map((result, index) => (
+              <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
+                <Favicon hostname={new URL(result.url).hostname} alt={result.title} />
+                <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
+                  {result.title}
+                </CitationLink>
+              </HStack>
+            ))}
         </CitationsContainer>
       )}
       <MessageAttachments message={message} />
@@ -238,10 +264,24 @@ const CitationsContainer = styled.div`
   }
 `
 
+const CitationsHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    opacity: 0.8;
+  }
+`
+
 const CitationsTitle = styled.div`
   font-weight: 500;
   margin-bottom: 4px;
   color: var(--color-text-1);
+  display: flex;
+  align-items: center;
 `
 
 const CitationLink = styled.a`
