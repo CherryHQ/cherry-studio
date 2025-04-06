@@ -82,36 +82,6 @@ export class WindowService {
     return this.mainWindow
   }
 
-  public createMinappWindow({
-    url,
-    parent,
-    windowOptions
-  }: {
-    url: string
-    parent?: BrowserWindow
-    windowOptions?: Electron.BrowserWindowConstructorOptions
-  }): BrowserWindow {
-    const width = windowOptions?.width || 1000
-    const height = windowOptions?.height || 680
-
-    const minappWindow = new BrowserWindow({
-      width,
-      height,
-      autoHideMenuBar: true,
-      title: 'Cherry Studio',
-      ...windowOptions,
-      parent,
-      webPreferences: {
-        preload: join(__dirname, '../preload/minapp.js'),
-        sandbox: false,
-        contextIsolation: false
-      }
-    })
-
-    minappWindow.loadURL(url)
-    return minappWindow
-  }
-
   private setupMainWindow(mainWindow: BrowserWindow, mainWindowState: any) {
     mainWindowState.manage(mainWindow)
 

@@ -19,7 +19,6 @@ const api = {
   restartTray: () => ipcRenderer.invoke('app:restart-tray'),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke('app:set-theme', theme),
   openWebsite: (url: string) => ipcRenderer.invoke('open:website', url),
-  minApp: (url: string) => ipcRenderer.invoke('minapp', url),
   clearCache: () => ipcRenderer.invoke('app:clear-cache'),
   system: {
     getDeviceType: () => ipcRenderer.invoke('system:getDeviceType')
