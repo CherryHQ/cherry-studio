@@ -1,5 +1,5 @@
 import store from '@renderer/store'
-import LRUCache from 'lru-cache'
+import { LRUCache } from 'lru-cache'
 
 /**
  * FNV-1a哈希函数，用于计算字符串哈希值

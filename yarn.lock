@@ -3471,15 +3471,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/lru-cache@npm:^7.10.10":
-  version: 7.10.10
-  resolution: "@types/lru-cache@npm:7.10.10"
-  dependencies:
-    lru-cache: "npm:*"
-  checksum: 10c0/ab85558867cb059bebd42074c1cd517eb41efb1db22b9d26dfdc58df01c83ff9c212a562b4ec3d5936418ffb03e626a0f30463026aa5fb5ced41e3b4b4af057f
-  languageName: node
-  linkType: hard
-
 "@types/markdown-it@npm:^14":
   version: 14.1.2
   resolution: "@types/markdown-it@npm:14.1.2"
@@ -3929,7 +3920,6 @@ __metadata:
     "@types/diff": "npm:^7"
     "@types/fs-extra": "npm:^11"
     "@types/lodash": "npm:^4.17.5"
-    "@types/lru-cache": "npm:^7.10.10"
     "@types/markdown-it": "npm:^14"
     "@types/md5": "npm:^2.3.5"
     "@types/node": "npm:^18.19.9"
@@ -3979,6 +3969,7 @@ __metadata:
     jsdom: "npm:^26.0.0"
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
+    lru-cache: "npm:^11.1.0"
     markdown-it: "npm:^14.1.0"
     mime: "npm:^4.0.4"
     npx-scope-finder: "npm:^1.2.0"
@@ -10174,17 +10165,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lru-cache@npm:*":
-  version: 11.1.0
-  resolution: "lru-cache@npm:11.1.0"
-  checksum: 10c0/85c312f7113f65fae6a62de7985348649937eb34fb3d212811acbf6704dc322a421788aca253b62838f1f07049a84cc513d88f494e373d3756514ad263670a64
-  languageName: node
-  linkType: hard
-
 "lru-cache@npm:^10.2.0, lru-cache@npm:^10.4.3":
   version: 10.4.3
   resolution: "lru-cache@npm:10.4.3"
   checksum: 10c0/ebd04fbca961e6c1d6c0af3799adcc966a1babe798f685bb84e6599266599cd95d94630b10262f5424539bc4640107e8a33aa28585374abf561d30d16f4b39fb
+  languageName: node
+  linkType: hard
+
+"lru-cache@npm:^11.1.0":
+  version: 11.1.0
+  resolution: "lru-cache@npm:11.1.0"
+  checksum: 10c0/85c312f7113f65fae6a62de7985348649937eb34fb3d212811acbf6704dc322a421788aca253b62838f1f07049a84cc513d88f494e373d3756514ad263670a64
   languageName: node
   linkType: hard
 
