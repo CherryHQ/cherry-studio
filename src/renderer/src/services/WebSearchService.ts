@@ -95,9 +95,7 @@ class WebSearchService {
       return await webSearchEngine.search(formattedQuery, maxResults, excludeDomains)
     } catch (error) {
       console.error('Search failed:', error)
-      return {
-        results: []
-      }
+      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -110,9 +108,9 @@ class WebSearchService {
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
-
+      console.log('Search response:', response)
       // 优化的判断条件：检查结果是否有效且没有错误
-      return { valid: response.results.length > 0, error: undefined }
+      return { valid: response.results !== undefined, error: undefined }
     } catch (error) {
       return { valid: false, error }
     }
