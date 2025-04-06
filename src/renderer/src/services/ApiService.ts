@@ -106,8 +106,8 @@ export async function fetchChatCompletion({
     if (enabledMCPs && enabledMCPs.length > 0) {
       for (const mcpServer of enabledMCPs) {
         const tools = await window.api.mcp.listTools(mcpServer)
-        console.debug('tools', tools)
-        mcpTools.push(...tools)
+        const availableTools = tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+        mcpTools.push(...availableTools)
       }
     }
 
@@ -286,10 +286,6 @@ export async function fetchSuggestions({
 }): Promise<Suggestion[]> {
   const model = assistant.model
   if (!model) {
-    return []
-  }
-
-  if (model.owned_by !== 'graphrag') {
     return []
   }
 

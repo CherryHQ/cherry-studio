@@ -83,7 +83,8 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    小程序支持多开
-    支持 GPT-4o 图像生成
-    修复 MCP 服务器无法使用问题
-    修复升级导致旧版本数据丢失问题
+    新增助手级别的 MCP 能力支持
+    改进 MCP 包的安装与管理
+    导出单条消息时，增加生成消息标题的功能
+    快捷助手窗口新增钉住和调整大小的功能
+    小程序现在支持显示、复制当前实际 URL

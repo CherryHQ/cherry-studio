@@ -1,3 +1,4 @@
+import { defaultLanguage } from '@shared/config/constant'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
@@ -26,7 +27,7 @@ const resources = {
 }
 
 export const getLanguage = () => {
-  return localStorage.getItem('language') || navigator.language || 'en-US'
+  return localStorage.getItem('language') || navigator.language || defaultLanguage
 }
 
 export const getLanguageCode = () => {
@@ -36,7 +37,7 @@ export const getLanguageCode = () => {
 i18n.use(initReactI18next).init({
   resources,
   lng: getLanguage(),
-  fallbackLng: 'en-US',
+  fallbackLng: defaultLanguage,
   interpolation: {
     escapeValue: false
   }

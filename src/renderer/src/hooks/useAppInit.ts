@@ -6,6 +6,8 @@ import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
+import { disableAnalytics, initAnalytics } from '@renderer/utils/analytics'
+import { defaultLanguage } from '@shared/config/constant'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
@@ -17,7 +19,7 @@ import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss } = useSettings()
+  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -53,7 +55,7 @@ export function useAppInit() {
   }, [proxyUrl, proxyMode])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || 'en-US')
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   useEffect(() => {
@@ -102,4 +104,8 @@ export function useAppInit() {
       document.head.appendChild(style)
     }
   }, [customCss])
+
+  useEffect(() => {
+    enableDataCollection ? initAnalytics() : disableAnalytics()
+  }, [enableDataCollection])
 }
