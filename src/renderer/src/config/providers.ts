@@ -14,7 +14,6 @@ import GiteeAIProviderLogo from '@renderer/assets/images/providers/gitee-ai.png'
 import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
 import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
 import GPUStackProviderLogo from '@renderer/assets/images/providers/gpustack.svg'
-import GraphRagProviderLogo from '@renderer/assets/images/providers/graph-rag.png'
 import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
@@ -33,6 +32,7 @@ import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
 import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity.png'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
+import QiniuProviderLogo from '@renderer/assets/images/providers/qiniu.webp'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
@@ -64,7 +64,6 @@ const PROVIDER_LOGO_MAP = {
   gemini: GoogleProviderLogo,
   stepfun: StepProviderLogo,
   doubao: BytedanceProviderLogo,
-  'graphrag-kylin-mountain': GraphRagProviderLogo,
   minimax: MinimaxProviderLogo,
   github: GithubProviderLogo,
   copilot: GithubProviderLogo,
@@ -88,7 +87,8 @@ const PROVIDER_LOGO_MAP = {
   'tencent-cloud-ti': TencentCloudProviderLogo,
   gpustack: GPUStackProviderLogo,
   alayanew: AlayaNewProviderLogo,
-  voyageai: VoyageAIProviderLogo
+  voyageai: VoyageAIProviderLogo,
+  qiniu: QiniuProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -125,10 +125,9 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.ppinfra.com/v3/openai'
     },
     websites: {
-      official:
-        'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link',
-      apiKey: 'https://ppinfra.com/settings/key-management',
-      docs: 'https://ppinfra.com/docs/model-api/reference/llm/llm.html',
+      official: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      apiKey: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      docs: 'https://docs.cherry-ai.com/pre-basic/providers/ppio?invited_by=JYT9GD&utm_source=github_cherry-studio',
       models:
         'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link'
     }
@@ -150,7 +149,7 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://www.siliconflow.cn/',
-      apiKey: 'https://cloud.siliconflow.cn/account/ak?referrer=clxty1xuy0014lvqwh5z50i88',
+      apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
       docs: 'https://docs.siliconflow.cn/',
       models: 'https://docs.siliconflow.cn/docs/model-names'
     }
@@ -572,6 +571,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://dashboard.voyageai.com/organization/api-keys',
       docs: 'https://docs.voyageai.com/docs',
       models: 'https://docs.voyageai.com/docs'
+    }
+  },
+  qiniu: {
+    api: {
+      url: 'https://api.qnaigc.com'
+    },
+    websites: {
+      official: 'https://qiniu.com',
+      apiKey: 'https://marketing.qiniu.com/activity/2025_newspring?cps_key=1h4vzfbkxobiq#deepseek-title',
+      docs: 'https://developer.qiniu.com/aitokenapi',
+      models: 'https://developer.qiniu.com/aitokenapi/12883/model-list'
     }
   }
 }

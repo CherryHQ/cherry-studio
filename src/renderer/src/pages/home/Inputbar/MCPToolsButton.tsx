@@ -1,188 +1,93 @@
-import { CodeOutlined } from '@ant-design/icons'
+import { CodeOutlined, PlusOutlined } from '@ant-design/icons'
+import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { initializeMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
-import { Dropdown, Switch, Tooltip } from 'antd'
-import { FC, useRef, useState } from 'react'
+import { Tooltip } from 'antd'
+import { FC, useCallback, useEffect, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import { useDispatch } from 'react-redux'
+import { useNavigate } from 'react-router'
+
+export interface MCPToolsButtonRef {
+  openQuickPanel: () => void
+}
 
 interface Props {
+  ref?: React.RefObject<MCPToolsButtonRef | null>
   enabledMCPs: MCPServer[]
   toggelEnableMCP: (server: MCPServer) => void
   ToolbarButton: any
 }
 
-const MCPToolsButton: FC<Props> = ({ enabledMCPs, toggelEnableMCP, ToolbarButton }) => {
-  const { activedMcpServers } = useMCPServers()
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef<any>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarButton }) => {
+  const { activedMcpServers, mcpServers } = useMCPServers()
   const { t } = useTranslation()
+  const quickPanel = useQuickPanel()
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
 
   const availableMCPs = activedMcpServers.filter((server) => enabledMCPs.some((s) => s.id === server.id))
 
   const buttonEnabled = availableMCPs.length > 0
 
-  const truncateText = (text: string, maxLength: number = 50) => {
-    if (!text || text.length <= maxLength) return text
-    return text.substring(0, maxLength) + '...'
-  }
+  const menuItems = useMemo(() => {
+    const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
+      label: server.name,
+      description: server.description || server.baseUrl,
+      icon: <CodeOutlined />,
+      action: () => toggelEnableMCP(server),
+      isSelected: enabledMCPs.some((s) => s.id === server.id)
+    }))
 
-  // Check if all active servers are enabled
-
-  const anyEnable = activedMcpServers.some((server) =>
-    enabledMCPs.some((enabledServer) => enabledServer.id === server.id)
-  )
-
-  const enableAll = () => activedMcpServers.forEach(toggelEnableMCP)
-
-  const disableAll = () =>
-    activedMcpServers.forEach((s) => {
-      enabledMCPs.forEach((enabledServer) => {
-        if (enabledServer.id === s.id) {
-          toggelEnableMCP(s)
-        }
-      })
+    newList.push({
+      label: t('settings.mcp.addServer') + '...',
+      icon: <PlusOutlined />,
+      action: () => navigate('/settings/mcp')
     })
+    return newList
+  }, [activedMcpServers, t, enabledMCPs, toggelEnableMCP, navigate])
 
-  const toggelAll = () => {
-    if (anyEnable) {
-      disableAll()
+  useEffect(() => {
+    initializeMCPServers(mcpServers, dispatch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openQuickPanel = useCallback(() => {
+    quickPanel.open({
+      title: t('settings.mcp.title'),
+      list: menuItems,
+      symbol: 'mcp',
+      multiple: true,
+      afterAction({ item }) {
+        item.isSelected = !item.isSelected
+      }
+    })
+  }, [menuItems, quickPanel, t])
+
+  const handleOpenQuickPanel = useCallback(() => {
+    if (quickPanel.isVisible && quickPanel.symbol === 'mcp') {
+      quickPanel.close()
     } else {
-      enableAll()
+      openQuickPanel()
     }
-  }
+  }, [openQuickPanel, quickPanel])
 
-  const menu = (
-    <div ref={menuRef} className="ant-dropdown-menu">
-      <DropdownHeader className="dropdown-header">
-        <div className="header-content">
-          <h4>{t('settings.mcp.title')}</h4>
-          <div className="enable-all-container">
-            {/* <span className="enable-all-label">{t('mcp.enable_all')}</span> */}
-            <Switch size="small" checked={anyEnable} onChange={toggelAll} />
-          </div>
-        </div>
-      </DropdownHeader>
-      <DropdownBody>
-        {activedMcpServers.length > 0 ? (
-          activedMcpServers.map((server) => (
-            <McpServerItems key={server.id} className="ant-dropdown-menu-item">
-              <div className="server-info">
-                <div className="server-name">{server.name}</div>
-                {server.description && (
-                  <Tooltip title={server.description} placement="bottom">
-                    <div className="server-description">{truncateText(server.description)}</div>
-                  </Tooltip>
-                )}
-                {server.baseUrl && <div className="server-url">{server.baseUrl}</div>}
-              </div>
-              <Switch
-                size="small"
-                checked={enabledMCPs.some((s) => s.id === server.id)}
-                onChange={() => toggelEnableMCP(server)}
-              />
-            </McpServerItems>
-          ))
-        ) : (
-          <div className="ant-dropdown-menu-item-group">
-            <div className="ant-dropdown-menu-item no-results">{t('settings.mcp.noServers')}</div>
-          </div>
-        )}
-      </DropdownBody>
-    </div>
-  )
+  useImperativeHandle(ref, () => ({
+    openQuickPanel
+  }))
 
   if (activedMcpServers.length === 0) {
     return null
   }
 
   return (
-    <Dropdown
-      dropdownRender={() => menu}
-      trigger={['click']}
-      open={isOpen}
-      onOpenChange={setIsOpen}
-      overlayClassName="mention-models-dropdown">
-      <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
-        <ToolbarButton type="text" ref={dropdownRef}>
-          <CodeOutlined style={{ color: buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)' }} />
-        </ToolbarButton>
-      </Tooltip>
-    </Dropdown>
+    <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
+      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+        <CodeOutlined style={{ color: buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)' }} />
+      </ToolbarButton>
+    </Tooltip>
   )
 }
-
-const McpServerItems = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-
-  .server-info {
-    flex: 1;
-    overflow: hidden;
-
-    .server-name {
-      font-weight: 500;
-      font-size: 14px;
-      color: var(--color-text-1);
-      max-width: 400px;
-      text-overflow: ellipsis;
-      overflow: hidden;
-      white-space: nowrap;
-    }
-
-    .server-description {
-      font-size: 12px;
-      color: var(--color-text-3);
-      margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .server-url {
-      font-size: 11px;
-      color: var(--color-text-4);
-      margin-top: 2px;
-    }
-  }
-`
-
-const DropdownHeader = styled.div`
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--color-border);
-  margin-bottom: 4px;
-
-  .header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-  }
-
-  h4 {
-    margin: 0;
-    color: var(--color-text-1);
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .enable-all-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    .enable-all-label {
-      font-size: 12px;
-      color: var(--color-text-3);
-    }
-  }
-`
-
-const DropdownBody = styled.div`
-  padding-bottom: 10px;
-`
 
 export default MCPToolsButton

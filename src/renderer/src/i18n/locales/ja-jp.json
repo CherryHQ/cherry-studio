@@ -159,6 +159,14 @@
       "save": "保存",
       "settings.code_collapsible": "コードブロック折り畳み",
       "settings.code_wrappable": "コードブロック折り返し",
+      "settings.code_cacheable": "コードブロックキャッシュ",
+      "settings.code_cacheable.tip": "コードブロックのキャッシュは長いコードブロックのレンダリング時間を短縮できますが、メモリ使用量が増加します",
+      "settings.code_cache_max_size": "キャッシュ上限",
+      "settings.code_cache_max_size.tip": "キャッシュできる文字数の上限（千字符）。ハイライトされたコードの長さは純粋なテキストよりもはるかに長くなります。",
+      "settings.code_cache_ttl": "キャッシュ期限",
+      "settings.code_cache_ttl.tip": "キャッシュの有効期限（分単位）。",
+      "settings.code_cache_threshold": "キャッシュ閾値",
+      "settings.code_cache_threshold.tip": "キャッシュできる最小のコード長（千字符）。キャッシュできる最小のコード長を超えたコードブロックのみがキャッシュされます。",
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
@@ -188,6 +196,7 @@
       "topics.export.image": "画像としてエクスポート",
       "topics.export.joplin": "Joplin にエクスポート",
       "topics.export.md": "Markdownとしてエクスポート",
+      "topics.export.md.reason": "Markdown としてエクスポート (思考内容を含む)",
       "topics.export.notion": "Notion にエクスポート",
       "topics.export.obsidian": "Obsidian にエクスポート",
       "topics.export.obsidian_vault": "保管庫",
@@ -235,7 +244,9 @@
       "topics.export.siyuan": "思源笔记にエクスポート",
       "topics.export.wait_for_title_naming": "タイトルを生成中...",
       "topics.export.title_naming_success": "タイトルの生成に成功しました",
-      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します"
+      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",
+      "input.translating": "翻訳中...",
+      "input.upload.upload_from_local": "ローカルファイルをアップロード..."
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -286,7 +297,8 @@
       "select": "選択",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた"
+      "you": "あなた",
+      "reasoning_content": "深く考察済み"
     },
     "docs": {
       "title": "ドキュメント"
@@ -328,7 +340,7 @@
     "files": {
       "actions": "操作",
       "all": "すべてのファイル",
-      "count": "数",
+      "count": "ファイル",
       "created_at": "作成日",
       "delete": "削除",
       "delete.content": "ファイルを削除すると、ファイルがすべてのメッセージで参照されることを削除します。このファイルを削除してもよろしいですか？",
@@ -697,7 +709,6 @@
       "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "腾讯混元",
@@ -726,7 +737,8 @@
       "yi": "零一万物",
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
-      "voyageai": "Voyage AI"
+      "voyageai": "Voyage AI",
+      "qiniu": "七牛云"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -786,8 +798,24 @@
           "title": "キャッシュをクリア"
         },
         "data.title": "データディレクトリ",
+        "divider.basic": "基本データ設定",
+        "divider.cloud_storage": "クラウドバックアップ設定",
+        "divider.export_settings": "エクスポート設定",
+        "divider.third_party": "サードパーティー連携",
         "hour_interval_one": "{{count}} 時間",
         "hour_interval_other": "{{count}} 時間",
+        "export_menu": {
+          "title": "エクスポートメニュー設定",
+          "image": "画像としてエクスポート",
+          "markdown": "Markdownとしてエクスポート",
+          "markdown_reason": "Markdownとしてエクスポート（思考内容を含む）",
+          "notion": "Notionにエクスポート",
+          "yuque": "語雀にエクスポート",
+          "obsidian": "Obsidianにエクスポート",
+          "siyuan": "思源ノートにエクスポート",
+          "joplin": "Joplinにエクスポート",
+          "docx": "Wordとしてエクスポート"
+        },
         "joplin": {
           "check": {
             "button": "確認",
@@ -998,6 +1026,9 @@
         "argsTooltip": "1行に1つの引数を入力してください",
         "baseUrlTooltip": "リモートURLアドレス",
         "command": "コマンド",
+        "sse": "サーバー送信イベント(sse)",
+        "stdio": "標準入力/出力(stdio)",
+        "inMemory": "メモリ",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
         "deleteError": "サーバーの削除に失敗しました",
         "deleteSuccess": "サーバーが正常に削除されました",
@@ -1059,7 +1090,10 @@
         "deleteServerConfirm": "このサーバーを削除してもよろしいですか？",
         "registry": "パッケージ管理レジストリ",
         "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
-        "registryDefault": "デフォルト"
+        "registryDefault": "デフォルト",
+        "not_support": "モデルはサポートされていません",
+        "user": "ユーザー",
+        "system": "システム"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -1258,7 +1292,32 @@
         },
         "title": "ウェブ検索"
       },
-      "general.auto_check_update.title": "自動更新チェックを有効にする"
+      "general.auto_check_update.title": "自動更新チェックを有効にする",
+      "quickPhrase": {
+        "title": "クイックフレーズ",
+        "add": "フレーズを追加",
+        "edit": "フレーズを編集",
+        "titleLabel": "タイトル",
+        "contentLabel": "内容",
+        "titlePlaceholder": "フレーズのタイトルを入力してください",
+        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
+        "delete": "フレーズを削除",
+        "deleteConfirm": "削除後は復元できません。続行しますか？"
+      },
+      "quickPanel": {
+        "title": "クイックメニュー",
+        "close": "閉じる",
+        "select": "選択",
+        "page": "ページ",
+        "confirm": "確認",
+        "back": "戻る",
+        "forward": "進む",
+        "multiple": "複数選択"
+      },
+      "privacy": {
+        "title": "プライバシー設定",
+        "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
+      }
     },
     "translate": {
       "any.language": "任意の言語",
@@ -1283,7 +1342,10 @@
       "scroll_sync.disable": "關閉滾動同步",
       "scroll_sync.enable": "開啟滾動同步",
       "title": "翻訳",
-      "tooltip.newline": "改行"
+      "tooltip.newline": "改行",
+      "menu": {
+        "description": "對當前輸入框內容進行翻譯"
+      }
     },
     "tray": {
       "quit": "終了",

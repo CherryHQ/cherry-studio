@@ -1,3 +1,4 @@
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
@@ -31,7 +32,9 @@ const Chat: FC<Props> = (props) => {
           topic={props.activeTopic}
           setActiveTopic={props.setActiveTopic}
         />
-        <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+        <QuickPanelProvider>
+          <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+        </QuickPanelProvider>
       </Main>
       {topicPosition === 'right' && showTopics && (
         <Tabs

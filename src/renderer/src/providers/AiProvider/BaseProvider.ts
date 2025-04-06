@@ -9,12 +9,12 @@ import type {
   Message,
   Model,
   Provider,
-  Suggestion
+  Suggestion,
+  WebSearchResponse
 } from '@renderer/types'
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
-import { TavilySearchResponse } from '@tavily/core'
 import { t } from 'i18next'
 import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
@@ -123,7 +123,7 @@ export default abstract class BaseProvider {
     if (isEmpty(message.content)) {
       return []
     }
-    const webSearch: TavilySearchResponse = window.keyv.get(`web-search-${message.id}`)
+    const webSearch: WebSearchResponse = window.keyv.get(`web-search-${message.id}`)
 
     if (webSearch) {
       return webSearch.results.map(

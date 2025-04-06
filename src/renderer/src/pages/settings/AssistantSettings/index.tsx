@@ -90,8 +90,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
         content: {
           padding: 0,
           overflow: 'hidden',
-          background: 'var(--color-background)',
-          border: `1px solid var(--color-frame-border)`
+          background: 'var(--color-background)'
         },
         header: { padding: '10px 15px', borderBottom: '0.5px solid var(--color-border)', margin: 0 }
       }}
@@ -100,8 +99,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       centered>
       <HStack>
         <LeftMenu>
-          <Menu
-            style={{ width: 220, padding: 5, background: 'transparent' }}
+          <StyledMenu
             defaultSelectedKeys={[tab || 'prompt']}
             mode="vertical"
             items={items}
@@ -114,7 +112,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
               assistant={assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
-              onOk={onOk}
             />
           )}
           {menu === 'model' && (
@@ -193,6 +190,16 @@ const StyledModal = styled(Modal)`
       color: var(--color-text-1);
       font-weight: 500;
     }
+  }
+`
+
+const StyledMenu = styled(Menu)`
+  width: 220px;
+  padding: 5px;
+  background: transparent;
+  margin-top: 2px;
+  .ant-menu-item {
+    margin-bottom: 7px;
   }
 `
 

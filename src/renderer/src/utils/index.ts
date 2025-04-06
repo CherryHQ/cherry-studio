@@ -1,5 +1,6 @@
 import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
+import { KB, MB } from '@shared/config/constant'
 import { ModalFuncProps } from 'antd/es/modal/interface'
 import imageCompression from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
@@ -421,15 +422,15 @@ export function hasPath(url: string): boolean {
 }
 
 export function formatFileSize(size: number) {
-  if (size > 1024 * 1024) {
-    return (size / 1024 / 1024).toFixed(1) + ' MB'
+  if (size > MB) {
+    return (size / MB).toFixed(1) + ' MB'
   }
 
-  if (size > 1024) {
-    return (size / 1024).toFixed(0) + ' KB'
+  if (size > KB) {
+    return (size / KB).toFixed(0) + ' KB'
   }
 
-  return (size / 1024).toFixed(2) + ' KB'
+  return (size / KB).toFixed(2) + ' KB'
 }
 
 export function sortByEnglishFirst(a: string, b: string) {

@@ -1,8 +1,8 @@
 diff --git a/core.js b/core.js
-index e75a18281ce8f051990c5a50bc1076afdddf91a3..e62f796791a155f23d054e74a429516c14d6e11b 100644
+index ebb071d31cd5a14792b62814df072c5971e83300..31e1062d4a7f2422ffec79cf96a35dbb69fe89cb 100644
 --- a/core.js
 +++ b/core.js
-@@ -156,7 +156,7 @@ class APIClient {
+@@ -157,7 +157,7 @@ class APIClient {
              Accept: 'application/json',
              'Content-Type': 'application/json',
              'User-Agent': this.getUserAgent(),
@@ -12,10 +12,10 @@ index e75a18281ce8f051990c5a50bc1076afdddf91a3..e62f796791a155f23d054e74a429516c
          };
      }
 diff --git a/core.mjs b/core.mjs
-index fcef58eb502664c41a77483a00db8adaf29b2817..18c5d6ed4be86b3640931277bdc27700006764d7 100644
+index 9c1a0264dcd73a85de1cf81df4efab9ce9ee2ab7..33f9f1f237f2eb2667a05dae1a7e3dc916f6bfff 100644
 --- a/core.mjs
 +++ b/core.mjs
-@@ -149,7 +149,7 @@ export class APIClient {
+@@ -150,7 +150,7 @@ export class APIClient {
              Accept: 'application/json',
              'Content-Type': 'application/json',
              'User-Agent': this.getUserAgent(),

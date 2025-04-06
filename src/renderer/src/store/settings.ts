@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebDAVSyncState } from './backup'
 
@@ -50,6 +51,11 @@ export interface SettingsState {
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
+  // 代码块缓存
+  codeCacheable: boolean
+  codeCacheMaxSize: number
+  codeCacheTTL: number
+  codeCacheThreshold: number
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
@@ -102,6 +108,19 @@ export interface SettingsState {
   siyuanRootPath: string | null
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
+  // 隐私设置
+  enableDataCollection: boolean
+  exportMenuOptions: {
+    image: boolean
+    markdown: boolean
+    markdown_reason: boolean
+    notion: boolean
+    yuque: boolean
+    joplin: boolean
+    obsidian: boolean
+    siyuan: boolean
+    docx: boolean
+  }
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -136,6 +155,10 @@ const initialState: SettingsState = {
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
+  codeCacheable: false,
+  codeCacheMaxSize: 1000, // 缓存最大容量，千字符数
+  codeCacheTTL: 15, // 缓存过期时间，分钟
+  codeCacheThreshold: 2, // 允许缓存的最小代码长度，千字符数
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',
@@ -178,13 +201,24 @@ const initialState: SettingsState = {
   joplinToken: '',
   joplinUrl: '',
   defaultObsidianVault: null,
-  // 思源笔记配置初始值
   siyuanApiUrl: null,
   siyuanToken: null,
   siyuanBoxId: null,
   siyuanRootPath: null,
   maxKeepAliveMinapps: 3,
-  showOpenedMinappsInSidebar: true
+  showOpenedMinappsInSidebar: true,
+  enableDataCollection: false,
+  exportMenuOptions: {
+    image: true,
+    markdown: true,
+    markdown_reason: true,
+    notion: true,
+    yuque: true,
+    joplin: true,
+    obsidian: true,
+    siyuan: true,
+    docx: true
+  }
 }
 
 const settingsSlice = createSlice({
@@ -208,7 +242,7 @@ const settingsSlice = createSlice({
     },
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
-      window.electron.ipcRenderer.send('miniwindow-reload')
+      window.electron.ipcRenderer.send(IpcChannel.MiniWindowReload)
     },
     setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
       state.targetLanguage = action.payload
@@ -299,6 +333,18 @@ const settingsSlice = createSlice({
     },
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
+    },
+    setCodeCacheable: (state, action: PayloadAction<boolean>) => {
+      state.codeCacheable = action.payload
+    },
+    setCodeCacheMaxSize: (state, action: PayloadAction<number>) => {
+      state.codeCacheMaxSize = action.payload
+    },
+    setCodeCacheTTL: (state, action: PayloadAction<number>) => {
+      state.codeCacheTTL = action.payload
+    },
+    setCodeCacheThreshold: (state, action: PayloadAction<number>) => {
+      state.codeCacheThreshold = action.payload
     },
     setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
       state.mathEngine = action.payload
@@ -424,6 +470,12 @@ const settingsSlice = createSlice({
     },
     setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
       state.showOpenedMinappsInSidebar = action.payload
+    },
+    setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
+      state.enableDataCollection = action.payload
+    },
+    setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
+      state.exportMenuOptions = action.payload
     }
   }
 })
@@ -465,6 +517,10 @@ export const {
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
+  setCodeCacheable,
+  setCodeCacheMaxSize,
+  setCodeCacheTTL,
+  setCodeCacheThreshold,
   setMathEngine,
   setFoldDisplayMode,
   setGridColumns,
@@ -504,7 +560,9 @@ export const {
   setSiyuanBoxId,
   setSiyuanRootPath,
   setMaxKeepAliveMinapps,
-  setShowOpenedMinappsInSidebar
+  setShowOpenedMinappsInSidebar,
+  setEnableDataCollection,
+  setExportMenuOptions
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

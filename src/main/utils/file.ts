@@ -1,4 +1,5 @@
 import * as fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
@@ -73,4 +74,8 @@ export function getTempDir() {
 
 export function getFilesDir() {
   return path.join(app.getPath('userData'), 'Data', 'Files')
+}
+
+export function getConfigDir() {
+  return path.join(os.homedir(), '.cherrystudio', 'config')
 }

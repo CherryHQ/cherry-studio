@@ -73,8 +73,12 @@ export type Message = {
   metadata?: {
     // Gemini
     groundingMetadata?: any
-    // Perplexity
+    // Perplexity Or Openrouter
     citations?: string[]
+    // OpenAI
+    annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
+    // Zhipu or Hunyuan
+    webSearchInfo?: any[]
     // Web search
     webSearch?: WebSearchResponse
     // MCP Tools
@@ -227,6 +231,7 @@ export type AppInfo = {
   version: string
   isPackaged: boolean
   appPath: string
+  configPath: string
   appDataPath: string
   resourcesPath: string
   filesPath: string
@@ -365,6 +370,7 @@ export interface MCPServerParameter {
 export interface MCPServer {
   id: string
   name: string
+  type?: 'stdio' | 'sse' | 'inMemory'
   description?: string
   baseUrl?: string
   command?: string
@@ -372,6 +378,7 @@ export interface MCPServer {
   args?: string[]
   env?: Record<string, string>
   isActive: boolean
+  disabledTools?: string[] // List of tool names that are disabled for this server
 }
 
 export interface MCPToolInputSchema {
@@ -400,4 +407,13 @@ export interface MCPToolResponse {
   tool: MCPTool // tool info
   status: string // 'invoking' | 'done'
   response?: any
+}
+
+export interface QuickPhrase {
+  id: string
+  title: string
+  content: string
+  createdAt: number
+  updatedAt: number
+  order?: number
 }

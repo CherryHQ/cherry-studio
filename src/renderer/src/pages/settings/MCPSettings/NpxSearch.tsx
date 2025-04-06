@@ -6,7 +6,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { Button, Card, Flex, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
-import { type FC, useState } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
@@ -21,7 +21,7 @@ interface SearchResult {
   fullName: string
 }
 
-const npmScopes = ['@mcpmarket', '@modelcontextprotocol', '@gongrzhe']
+const npmScopes = ['@modelcontextprotocol', '@gongrzhe', '@mcpmarket']
 
 let _searchResults: SearchResult[] = []
 
@@ -91,6 +91,11 @@ const NpxSearch: FC = () => {
     }
   }
 
+  useEffect(() => {
+    handleNpmSearch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <SettingGroup theme={theme} css={SettingGroupCss}>
       <div>
@@ -138,7 +143,7 @@ const NpxSearch: FC = () => {
               size="small"
               key={record.npmLink}
               title={
-                <Typography.Title level={5} style={{ margin: 0 }}>
+                <Typography.Title level={5} style={{ margin: 0 }} className="selectable">
                   {record.name}
                 </Typography.Title>
               }
@@ -167,8 +172,8 @@ const NpxSearch: FC = () => {
                 </Flex>
               }>
               <Space direction="vertical" size="small">
-                <Text>{record.description}</Text>
-                <Text type="secondary">
+                <Text className="selectable">{record.description}</Text>
+                <Text type="secondary" className="selectable">
                   {t('settings.mcp.npx_list.usage')}: {record.usage}
                 </Text>
                 <Link href={record.npmLink} target="_blank" rel="noopener noreferrer">

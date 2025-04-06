@@ -31,7 +31,6 @@ import {
 import ApiCheckPopup from './ApiCheckPopup'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
-import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
@@ -380,9 +379,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'ollama' && <OllamSettings />}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
-      {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
-        <GraphRAGSettings provider={provider} />
-      )}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>

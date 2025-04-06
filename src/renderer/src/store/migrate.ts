@@ -24,6 +24,13 @@ function removeMiniAppIconsFromState(state: RootState) {
   }
 }
 
+function removeMiniAppFromState(state: RootState, id: string) {
+  if (state.minapps) {
+    state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== id)
+    state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== id)
+  }
+}
+
 // add provider to state
 function addProvider(state: RootState, id: string) {
   if (!state.llm.providers.find((p) => p.id === id)) {
@@ -1159,12 +1166,38 @@ const migrateConfig = {
           state.mcp.servers = [{ ...defaultServer, id: nanoid() }, ...state.mcp.servers]
         }
       }
+      return state
     } catch (error) {
-      console.error(error)
       return state
     }
-
-    return state
+  },
+  '89': (state: RootState) => {
+    try {
+      removeMiniAppFromState(state, 'aistudio')
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '90': (state: RootState) => {
+    try {
+      state.settings.enableDataCollection = true
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '91': (state: RootState) => {
+    try {
+      state.settings.codeCacheable = false
+      state.settings.codeCacheMaxSize = 1000
+      state.settings.codeCacheTTL = 15
+      state.settings.codeCacheThreshold = 2
+      addProvider(state, 'qiniu')
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
