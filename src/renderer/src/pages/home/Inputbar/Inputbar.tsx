@@ -478,11 +478,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         return newSelectedKnowledgeBases
       })
       return event.preventDefault()
+    }
 
-      if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
-        setFiles((prev) => prev.slice(0, -1))
-        return event.preventDefault()
-      }
+    if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+      setFiles((prev) => prev.slice(0, -1))
+      return event.preventDefault()
     }
   }
 
@@ -757,7 +757,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
-    setSelectedKnowledgeBases(selectedKnowledgeBases.filter((kb) => kb.id !== knowledgeBase.id))
+    const newKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
+    updateAssistant({
+      ...assistant,
+      knowledge_bases: newKnowledgeBases
+    })
+    setSelectedKnowledgeBases(newKnowledgeBases ?? [])
   }
 
   const toggelEnableMCP = (mcp: MCPServer) => {
