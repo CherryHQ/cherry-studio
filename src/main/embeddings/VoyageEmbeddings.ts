@@ -1,5 +1,5 @@
+import { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { VoyageEmbeddings as _VoyageEmbeddings } from '@langchain/community/embeddings/voyage'
-import { BaseEmbeddings } from '@llm-tools/embedjs-interfaces'
 
 export default class VoyageEmbeddings extends BaseEmbeddings {
   private model: _VoyageEmbeddings

@@ -1,3 +1,4 @@
+import { IpcChannel } from '@shared/IpcChannel'
 import { WebDavConfig } from '@types'
 import AdmZip from 'adm-zip'
 import { exec } from 'child_process'
@@ -5,7 +6,7 @@ import { app } from 'electron'
 import Logger from 'electron-log'
 import * as fs from 'fs-extra'
 import * as path from 'path'
-import { createClient, FileStat } from 'webdav'
+import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
 
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -15,6 +16,7 @@ class BackupManager {
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
 
   constructor() {
+    this.checkConnection = this.checkConnection.bind(this)
     this.backup = this.backup.bind(this)
     this.restore = this.restore.bind(this)
     this.backupToWebdav = this.backupToWebdav.bind(this)
@@ -78,7 +80,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('backup-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
       Logger.log('[BackupManager] backup progress', processData)
     }
 
@@ -86,9 +88,16 @@ class BackupManager {
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
-      // 将 data 写入临时文件
+      // 使用流的方式写入 data.json
       const tempDataPath = path.join(this.tempDir, 'data.json')
-      await fs.writeFile(tempDataPath, data)
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(tempDataPath)
+        writeStream.write(data)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
       // 复制 Data 目录到临时目录
@@ -131,7 +140,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('restore-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
       Logger.log('[BackupManager] restore progress', processData)
     }
 
@@ -207,8 +216,15 @@ class BackupManager {
         fs.mkdirSync(this.backupDir, { recursive: true })
       }
 
-      // sync为同步写，无须await
-      fs.writeFileSync(backupedFilePath, retrievedFile as Buffer)
+      // 使用流的方式写入文件
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(backupedFilePath)
+        writeStream.write(retrievedFile as Buffer)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
 
       return await this.restore(_, backupedFilePath)
     } catch (error: any) {
@@ -277,6 +293,21 @@ class BackupManager {
         onProgress(stats.size)
       }
     }
+  }
+
+  async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
+    const webdavClient = new WebDav(webdavConfig)
+    return await webdavClient.checkConnection()
+  }
+
+  async createDirectory(
+    _: Electron.IpcMainInvokeEvent,
+    webdavConfig: WebDavConfig,
+    path: string,
+    options?: CreateDirectoryOptions
+  ) {
+    const webdavClient = new WebDav(webdavConfig)
+    return await webdavClient.createDirectory(path, options)
   }
 }
 

@@ -1,5 +1,5 @@
 import { getFilesDir, getFileType, getTempDir } from '@main/utils/file'
-import { documentExts, imageExts } from '@shared/config/constant'
+import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileType } from '@types'
 import * as crypto from 'crypto'
 import {
@@ -122,7 +122,7 @@ class FileStorage {
   private async compressImage(sourcePath: string, destPath: string): Promise<void> {
     try {
       const stats = fs.statSync(sourcePath)
-      const fileSizeInMB = stats.size / (1024 * 1024)
+      const fileSizeInMB = stats.size / MB
 
       // 如果图片大于1MB才进行压缩
       if (fileSizeInMB > 1) {

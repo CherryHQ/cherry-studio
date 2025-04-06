@@ -7,13 +7,14 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import type { Message } from '@renderer/types'
 import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
 import { isEmpty } from 'lodash'
-import { type FC, useCallback, useMemo } from 'react'
+import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 // @ts-ignore next-line
 import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
+import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 
@@ -26,17 +27,11 @@ const ALLOWED_ELEMENTS =
 
 interface Props {
   message: Message
-  citationsData?: Map<
-    string,
-    {
-      url: string
-      title?: string
-      content?: string
-    }
-  >
 }
 
-const Markdown: FC<Props> = ({ message, citationsData }) => {
+const remarkPlugins = [remarkMath, remarkGfm, remarkCjkFriendly]
+const disallowedElements = ['iframe']
+const Markdown: FC<Props> = ({ message }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
 
@@ -54,35 +49,62 @@ const Markdown: FC<Props> = ({ message, citationsData }) => {
     return hasElements ? [rehypeRaw, rehypeMath] : [rehypeMath]
   }, [messageContent, rehypeMath])
 
-  const components = useCallback(() => {
+  const components = useMemo(() => {
     const baseComponents = {
       a: (props: any) => {
-        if (props.href && citationsData?.has(props.href)) {
-          return <Link {...props} citationData={citationsData.get(props.href)} />
+        // 更彻底的查找方法，递归搜索所有子元素
+        const findCitationInChildren = (children) => {
+          if (!children) return null
+
+          // 直接搜索子元素
+          for (const child of Array.isArray(children) ? children : [children]) {
+            if (typeof child === 'object' && child?.props?.['data-citation']) {
+              return child.props['data-citation']
+            }
+
+            // 递归查找更深层次
+            if (typeof child === 'object' && child?.props?.children) {
+              const found = findCitationInChildren(child.props.children)
+              if (found) return found
+            }
+          }
+
+          return null
+        }
+
+        // 然后在组件中使用
+        const citationData = findCitationInChildren(props.children)
+        if (citationData) {
+          try {
+            return <Link {...props} citationData={JSON.parse(citationData)} />
+          } catch (e) {
+            console.error('Failed to parse citation data', e)
+          }
         }
         return <Link {...props} />
       },
       code: CodeBlock,
-      img: ImagePreview
+      img: ImagePreview,
+      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />
     } as Partial<Components>
-
-    if (messageContent.includes('<style>')) {
-      baseComponents.style = MarkdownShadowDOMRenderer as any
-    }
-
     return baseComponents
-  }, [messageContent, citationsData])
+  }, [messageContent])
 
   if (message.role === 'user' && !renderInputMessageAsMarkdown) {
     return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
   }
 
+  if (messageContent.includes('<style>')) {
+    components.style = MarkdownShadowDOMRenderer as any
+  }
+
   return (
     <ReactMarkdown
       rehypePlugins={rehypePlugins}
-      remarkPlugins={[remarkMath, remarkGfm]}
+      remarkPlugins={remarkPlugins}
       className="markdown"
-      components={components()}
+      components={components}
+      disallowedElements={disallowedElements}
       remarkRehypeOptions={{
         footnoteLabel: t('common.footnotes'),
         footnoteLabelTagName: 'h4',

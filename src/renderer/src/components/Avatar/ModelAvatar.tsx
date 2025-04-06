@@ -8,9 +8,10 @@ interface Props {
   model: Model
   size: number
   props?: AvatarProps
+  className?: string
 }
 
-const ModelAvatar: FC<Props> = ({ model, size, props }) => {
+const ModelAvatar: FC<Props> = ({ model, size, props, className }) => {
   return (
     <Avatar
       src={getModelLogo(model?.id || '')}
@@ -23,7 +24,8 @@ const ModelAvatar: FC<Props> = ({ model, size, props }) => {
         alignItems: 'center',
         justifyContent: 'center'
       }}
-      {...props}>
+      {...props}
+      className={className}>
       {first(model?.name)}
     </Avatar>
   )

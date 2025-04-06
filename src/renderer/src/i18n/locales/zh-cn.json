@@ -32,7 +32,9 @@
       "title": "智能体"
     },
     "assistants": {
+      "title": "助手",
       "abbr": "助手",
+      "settings.title": "助手设置",
       "clear.content": "清空话题会删除助手下所有话题和文件，确定要继续吗？",
       "clear.title": "清空话题",
       "copy.title": "复制助手",
@@ -42,6 +44,11 @@
       "save.success": "保存成功",
       "save.title": "保存到智能体",
       "search": "搜索助手",
+      "settings.mcp": "MCP 服务器",
+      "settings.mcp.enableFirst": "请先在 MCP 设置中启用此服务器",
+      "settings.mcp.title": "MCP 设置",
+      "settings.mcp.noServersAvailable": "无可用 MCP 服务器。请在设置中添加服务器",
+      "settings.mcp.description": "默认启用的 MCP 服务器",
       "settings.default_model": "默认模型",
       "settings.knowledge_base": "知识库设置",
       "settings.model": "模型设置",
@@ -53,7 +60,7 @@
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "关",
       "settings.reasoning_effort.tip": "仅支持 OpenAI o-series 和 Anthropic 推理模型",
-      "title": "助手"
+      "settings.more": "助手设置"
     },
     "auth": {
       "error": "自动获取密钥失败，请手动获取",
@@ -122,11 +129,13 @@
       "input.new_topic": "新话题 {{Command}}",
       "input.pause": "暂停",
       "input.placeholder": "在这里输入消息...",
+      "input.translating": "翻译中...",
       "input.send": "发送",
       "input.settings": "设置",
       "input.topics": " 话题 ",
       "input.translate": "翻译成{{target_language}}",
       "input.upload": "上传图片或文档",
+      "input.upload.upload_from_local": "上传本地文件...",
       "input.upload.document": "上传文档（模型不支持图片）",
       "input.web_search": "开启网络搜索",
       "input.web_search.button.ok": "去设置",
@@ -143,12 +152,23 @@
         "history": "聊天历史",
         "last": "已经是最后一条消息",
         "next": "下一条消息",
-        "prev": "上一条消息"
+        "prev": "上一条消息",
+        "top": "回到顶部",
+        "bottom": "回到底部",
+        "close": "关闭"
       },
       "resend": "重新发送",
       "save": "保存",
       "settings.code_collapsible": "代码块可折叠",
       "settings.code_wrappable": "代码块可换行",
+      "settings.code_cacheable": "代码块缓存",
+      "settings.code_cacheable.tip": "缓存代码块可以减少长代码块的渲染时间，但会增加内存占用",
+      "settings.code_cache_max_size": "缓存上限",
+      "settings.code_cache_max_size.tip": "允许缓存的字符数上限（千字符），按照高亮后的代码计算。高亮后的代码长度相比于纯文本会长很多。",
+      "settings.code_cache_ttl": "缓存期限",
+      "settings.code_cache_ttl.tip": "缓存过期时间（分钟）",
+      "settings.code_cache_threshold": "缓存阈值",
+      "settings.code_cache_threshold.tip": "允许缓存的最小代码长度（千字符），超过阈值的代码块才会被缓存",
       "settings.context_count": "上下文数",
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
@@ -178,15 +198,19 @@
       "topics.export.image": "导出为图片",
       "topics.export.joplin": "导出到 Joplin",
       "topics.export.md": "导出为 Markdown",
+      "topics.export.md.reason": "导出为 Markdown (包含思考)",
       "topics.export.notion": "导出到 Notion",
       "topics.export.obsidian": "导出到 Obsidian",
+      "topics.export.obsidian_vault": "保管库",
+      "topics.export.obsidian_vault_placeholder": "请选择保管库名称",
+      "topics.export.obsidian_path": "路径",
+      "topics.export.obsidian_path_placeholder": "请选择路径",
       "topics.export.obsidian_atributes": "配置笔记属性",
       "topics.export.obsidian_btn": "确定",
       "topics.export.obsidian_created": "创建时间",
       "topics.export.obsidian_created_placeholder": "请选择创建时间",
-      "topics.export.obsidian_export_failed": "导出失败",
-      "topics.export.obsidian_export_success": "导出成功",
-      "topics.export.obsidian_not_configured": "Obsidian 未配置",
+      "topics.export.obsidian_export_failed": "导出到Obsidian失败",
+      "topics.export.obsidian_export_success": "导出到Obsidian成功",
       "topics.export.obsidian_operate": "处理方式",
       "topics.export.obsidian_operate_append": "追加",
       "topics.export.obsidian_operate_new_or_overwrite": "新建（如果存在就覆盖）",
@@ -199,6 +223,13 @@
       "topics.export.obsidian_title": "标题",
       "topics.export.obsidian_title_placeholder": "请输入标题",
       "topics.export.obsidian_title_required": "标题不能为空",
+      "topics.export.obsidian_no_vaults": "未找到Obsidian保管库",
+      "topics.export.obsidian_loading": "加载中...",
+      "topics.export.obsidian_fetch_error": "获取Obsidian保管库失败",
+      "topics.export.obsidian_fetch_folders_error": "获取文件夹结构失败",
+      "topics.export.obsidian_no_vault_selected": "请先选择一个保管库",
+      "topics.export.obsidian_select_vault_first": "请先选择保管库",
+      "topics.export.obsidian_root_directory": "根目录",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
       "topics.export.yuque": "导出到语雀",
@@ -211,7 +242,11 @@
       "topics.prompt.tips": "话题提示词: 针对当前话题提供额外的补充提示词",
       "topics.title": "话题",
       "topics.unpinned": "取消固定",
-      "translate": "翻译"
+      "translate": "翻译",
+      "topics.export.siyuan": "导出到思源笔记",
+      "topics.export.wait_for_title_naming": "正在生成标题...",
+      "topics.export.title_naming_success": "标题生成成功",
+      "topics.export.title_naming_failed": "标题生成失败，使用默认标题"
     },
     "code_block": {
       "collapse": "收起",
@@ -262,7 +297,8 @@
       "select": "选择",
       "topics": "话题",
       "warning": "警告",
-      "you": "用户"
+      "you": "用户",
+      "reasoning_content": "已深度思考"
     },
     "docs": {
       "title": "帮助文档"
@@ -288,7 +324,8 @@
         "description": "渲染公式失败，请检查公式格式是否正确",
         "title": "渲染错误"
       },
-      "user_message_not_found": "无法找到原始用户消息"
+      "user_message_not_found": "无法找到原始用户消息",
+      "unknown": "未知错误"
     },
     "export": {
       "assistant": "助手",
@@ -303,7 +340,7 @@
     "files": {
       "actions": "操作",
       "all": "所有文件",
-      "count": "文件数",
+      "count": "个文件",
       "created_at": "创建时间",
       "delete": "删除",
       "delete.content": "删除文件会删除文件在所有消息中的引用，确定要删除此文件吗?",
@@ -469,6 +506,8 @@
       "error.invalid.webdav": "无效的 WebDAV 设置",
       "error.joplin.export": "导出 Joplin 失败，请保持 Joplin 已运行并检查连接状态或检查配置",
       "error.joplin.no_config": "未配置 Joplin 授权令牌 或 URL",
+      "error.invalid.nutstore": "无效的坚果云设置",
+      "error.invalid.nutstore_token": "无效的坚果云 Token",
       "error.markdown.export.preconf": "导出Markdown文件到预先设定的路径失败",
       "error.markdown.export.specified": "导出Markdown文件失败",
       "error.notion.export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
@@ -518,11 +557,27 @@
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
       "warn.notion.exporting": "正在导出到 Notion, 请勿重复请求导出!",
-      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
+      "warning.rate.limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试",
+      "error.siyuan.export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
+      "error.siyuan.no_config": "未配置思源笔记API地址或令牌",
+      "success.siyuan.export": "导出到思源笔记成功",
+      "warn.yuque.exporting": "正在导出语雀, 请勿重复请求导出!",
+      "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!"
     },
     "minapp": {
+      "popup": {
+        "refresh": "刷新",
+        "close": "关闭小程序",
+        "minimize": "最小化小程序",
+        "devtools": "开发者工具",
+        "openExternal": "在浏览器中打开",
+        "rightclick_copyurl": "右键复制URL"
+      },
       "sidebar.add.title": "添加到侧边栏",
       "sidebar.remove.title": "从侧边栏移除",
+      "sidebar.close.title": "关闭",
+      "sidebar.closeall.title": "全部关闭",
+      "sidebar.hide.title": "隐藏小程序",
       "title": "小程序"
     },
     "miniwindow": {
@@ -537,15 +592,19 @@
       },
       "footer": {
         "copy_last_message": "按 C 键复制",
+        "backspace_clear": "按 Backspace 清空",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
-        "esc_close": "关闭窗口"
+        "esc_close": "关闭"
       },
       "input": {
         "placeholder": {
           "empty": "询问 {{model}} 获取帮助...",
           "title": "你想对下方文字做什么"
         }
+      },
+      "tooltip": {
+        "pin": "窗口置顶"
       }
     },
     "models": {
@@ -650,7 +709,6 @@
       "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "腾讯混元",
@@ -679,7 +737,7 @@
       "yi": "零一万物",
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
-      "voyageai":"Voyage AI"
+      "voyageai": "Voyage AI"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -739,8 +797,24 @@
           "title": "清除缓存"
         },
         "data.title": "数据目录",
+        "divider.basic": "基础数据设置",
+        "divider.cloud_storage": "云备份设置",
+        "divider.export_settings": "导出设置",
+        "divider.third_party": "第三方连接",
         "hour_interval_one": "{{count}} 小时",
         "hour_interval_other": "{{count}} 小时",
+        "export_menu": {
+          "title": "导出菜单设置",
+          "image": "导出为图片",
+          "markdown": "导出为Markdown",
+          "markdown_reason": "导出为Markdown（包含思考）",
+          "notion": "导出到Notion",
+          "yuque": "导出到语雀",
+          "obsidian": "导出到Obsidian",
+          "siyuan": "导出到思源笔记",
+          "joplin": "导出到Joplin",
+          "docx": "导出为Word"
+        },
         "joplin": {
           "check": {
             "button": "检查",
@@ -763,6 +837,8 @@
         "markdown_export.path_placeholder": "导出路径",
         "markdown_export.select": "选择",
         "markdown_export.title": "Markdown 导出",
+        "message_title.use_topic_naming.title": "使用话题命名模型为导出的消息创建标题",
+        "message_title.use_topic_naming.help": "开启后，使用话题命名模型为导出的消息创建标题。该项也会影响所有通过Markdown导出的方式。",
         "minute_interval_one": "{{count}} 分钟",
         "minute_interval_other": "{{count}} 分钟",
         "notion.api_key": "Notion 密钥",
@@ -786,15 +862,6 @@
         "notion.split_size_help": "Notion免费版用户建议设置为90，高级版用户建议设置为24990，默认值为90",
         "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
         "notion.title": "Notion 配置",
-        "obsidian": {
-          "folder": "文件夹",
-          "folder_placeholder": "请输入文件夹名称",
-          "tags": "全局标签",
-          "tags_placeholder": "请输入标签名称, 多个标签用英文逗号分隔",
-          "title": "Obsidian 配置",
-          "vault": "保管库",
-          "vault_placeholder": "请输入保管库名称"
-        },
         "title": "数据设置",
         "webdav": {
           "autoSync": "自动备份",
@@ -839,16 +906,64 @@
           "title": "语雀配置",
           "token": "语雀 Token",
           "token_placeholder": "请输入语雀Token"
+        },
+        "obsidian": {
+          "title": "Obsidian 配置",
+          "default_vault": "默认 Obsidian 仓库",
+          "default_vault_placeholder": "请选择默认 Obsidian 仓库",
+          "default_vault_loading": "正在获取 Obsidian 仓库...",
+          "default_vault_no_vaults": "未找到 Obsidian 仓库",
+          "default_vault_fetch_error": "获取 Obsidian 仓库失败",
+          "default_vault_export_failed": "导出失败"
+        },
+        "siyuan": {
+          "title": "思源笔记配置",
+          "api_url": "API地址",
+          "api_url_placeholder": "例如：http://127.0.0.1:6806",
+          "token": "API令牌",
+          "token.help": "在思源笔记->设置->关于中获取",
+          "token_placeholder": "请输入思源笔记令牌",
+          "box_id": "笔记本ID",
+          "box_id_placeholder": "请输入笔记本ID",
+          "root_path": "文档根路径",
+          "root_path_placeholder": "例如：/CherryStudio",
+          "check": {
+            "title": "连接检查",
+            "button": "检查",
+            "empty_config": "请填写API地址和令牌",
+            "success": "连接成功",
+            "fail": "连接失败，请检查API地址和令牌",
+            "error": "连接异常，请检查网络连接"
+          }
+        },
+        "nutstore": {
+          "title": "坚果云配置",
+          "isLogin": "已登录",
+          "notLogin": "未登录",
+          "login.button": "登录",
+          "logout.button": "退出登录",
+          "logout.title": "确定要退出坚果云登录？",
+          "logout.content": "退出后将无法备份至坚果云和从坚果云恢复",
+          "checkConnection.name": "检查连接",
+          "checkConnection.success": "已连接坚果云",
+          "checkConnection.fail": "坚果云连接失败",
+          "username": "坚果云用户名",
+          "path": "坚果云存储路径",
+          "path.placeholder": "请输入坚果云的存储路径",
+          "backup.button": "备份到坚果云",
+          "restore.button": "从坚果云恢复",
+          "pathSelector.title": "坚果云存储路径",
+          "pathSelector.return": "返回",
+          "pathSelector.currentPath": "当前路径",
+          "new_folder.button.confirm": "确定",
+          "new_folder.button.cancel": "取消",
+          "new_folder.button": "新建文件夹"
         }
       },
       "display.assistant.title": "助手设置",
       "display.custom.css": "自定义 CSS",
       "display.custom.css.cherrycss": "从 cherrycss.com 获取",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
-      "display.minApp.disabled": "隐藏的小程序",
-      "display.minApp.empty": "把要隐藏的小程序从左侧拖拽到这里",
-      "display.minApp.title": "小程序显示设置",
-      "display.minApp.visible": "显示的小程序",
       "display.sidebar.chat.hiddenMessage": "助手是基础功能，不支持隐藏",
       "display.sidebar.disabled": "隐藏的图标",
       "display.sidebar.empty": "把要隐藏的功能从左侧拖拽到这里",
@@ -861,6 +976,20 @@
       "display.sidebar.visible": "显示的图标",
       "display.title": "显示设置",
       "display.topic.title": "话题设置",
+      "miniapps": {
+        "title": "小程序设置",
+        "disabled": "隐藏的小程序",
+        "empty": "把要隐藏的小程序从左侧拖拽到这里",
+        "visible": "显示的小程序",
+        "cache_settings": "缓存设置",
+        "cache_title": "小程序缓存数量",
+        "cache_description": "设置同时保持活跃状态的小程序最大数量",
+        "reset_tooltip": "重置为默认值",
+        "display_title": "小程序显示设置",
+        "sidebar_title": "侧边栏活跃小程序显示设置",
+        "sidebar_description": "设置侧边栏是否显示活跃的小程序",
+        "cache_change_notice": "更改将在打开的小程序增减至设定值后生效"
+      },
       "font_size.title": "消息字体大小",
       "general": "常规设置",
       "general.avatar.reset": "重置头像",
@@ -869,7 +998,7 @@
       "general.display.title": "显示设置",
       "general.emoji_picker": "表情选择器",
       "general.image_upload": "图片上传",
-      "general.manually_check_update.title": "关闭更新检测",
+      "general.auto_check_update.title": "自动检测更新",
       "general.reset.button": "重置",
       "general.reset.title": "重置数据",
       "general.restore.button": "恢复",
@@ -897,10 +1026,10 @@
         "argsTooltip": "每个参数占一行",
         "baseUrlTooltip": "远程 URL 地址",
         "command": "命令",
-        "commandRequired": "请输入命令",
+        "sse": "服务器发送事件(sse)",
+        "stdio": "标准输入/输出(stdio)",
+        "inMemory": "内存",
         "config_description": "配置模型上下文协议服务器",
-        "confirmDelete": "删除服务器",
-        "confirmDeleteMessage": "您确定要删除该服务器吗？",
         "deleteError": "删除服务器失败",
         "deleteSuccess": "服务器删除成功",
         "dependenciesInstall": "安装依赖项",
@@ -911,7 +1040,8 @@
         "editServer": "编辑服务器",
         "env": "环境变量",
         "envTooltip": "格式：KEY=value，每行一个",
-        "findMore": "更多 MCP 服务器",
+        "findMore": "更多 MCP",
+        "searchNpx": "搜索 MCP",
         "install": "安装",
         "installError": "安装依赖项失败",
         "installSuccess": "依赖项安装成功",
@@ -921,8 +1051,8 @@
         "jsonSaveSuccess": "JSON配置已保存",
         "missingDependencies": "缺失，请安装它以继续",
         "name": "名称",
-        "nameRequired": "请输入服务器名称",
         "noServers": "未配置服务器",
+        "newServer": "MCP 服务器",
         "npx_list": {
           "actions": "操作",
           "desc": "搜索并添加 npm 包作为 MCP 服务",
@@ -938,14 +1068,30 @@
           "usage": "用法",
           "version": "版本"
         },
+        "errors": {
+          "32000": "MCP 服务器启动失败，请根据教程检查参数是否填写完整"
+        },
         "serverPlural": "服务器",
         "serverSingular": "服务器",
         "title": "MCP 服务器",
-        "toggleError": "切换失败",
+        "startError": "启动失败",
         "type": "类型",
         "updateError": "更新服务器失败",
         "updateSuccess": "服务器更新成功",
-        "url": "URL"
+        "url": "URL",
+        "editMcpJson": "编辑 MCP 配置",
+        "installHelp": "获取安装帮助",
+        "tools": {
+          "inputSchema": "输入参数",
+          "availableTools": "可用工具",
+          "noToolsAvailable": "没有可用工具"
+        },
+        "deleteServer": "删除服务器",
+        "deleteServerConfirm": "确定要删除此服务器吗？",
+        "registry": "包管理源",
+        "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题。",
+        "registryDefault": "默认",
+        "not_support": "模型不支持"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
@@ -1057,7 +1203,7 @@
         "docs_more_details": "获取更多详情",
         "get_api_key": "点击这里获取密钥",
         "is_not_support_array_content": "开启兼容模式",
-        "no_models": "请先添加模型再检查 API 连接",
+        "no_models_for_check": "没有可以被检查的模型（例如对话模型）",
         "not_checked": "未检查",
         "remove_duplicate_keys": "移除重复密钥",
         "remove_invalid_keys": "删除无效密钥",
@@ -1095,7 +1241,7 @@
         "reset_defaults_confirm": "确定要重置所有快捷键吗？",
         "reset_to_default": "重置为默认",
         "search_message": "搜索消息",
-        "show_app": "显示应用",
+        "show_app": "显示/隐藏应用",
         "show_settings": "打开设置",
         "title": "快捷方式",
         "toggle_new_context": "清除上下文",
@@ -1143,6 +1289,31 @@
           "title": "Tavily"
         },
         "title": "网络搜索"
+      },
+      "quickPhrase": {
+        "title": "快捷短语",
+        "add": "添加短语",
+        "edit": "编辑短语",
+        "titleLabel": "标题",
+        "contentLabel": "内容",
+        "titlePlaceholder": "请输入短语标题",
+        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}。",
+        "delete": "删除短语",
+        "deleteConfirm": "删除短语后将无法恢复，是否继续？"
+      },
+      "quickPanel": {
+        "title": "快捷菜单",
+        "close": "关闭",
+        "select": "选择",
+        "page": "翻页",
+        "confirm": "确认",
+        "back": "后退",
+        "forward": "前进",
+        "multiple": "多选"
+      },
+      "privacy": {
+        "title": "隐私设置",
+        "enable_privacy_mode": "匿名发送错误报告和数据统计"
       }
     },
     "translate": {
@@ -1161,6 +1332,9 @@
         "delete": "删除",
         "empty": "暂无翻译历史",
         "title": "翻译历史"
+      },
+      "menu": {
+        "description": "对当前输入框内容进行翻译"
       },
       "input.placeholder": "输入文本进行翻译",
       "output.placeholder": "翻译",

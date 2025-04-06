@@ -1,6 +1,6 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { MCPToolResponse, Message } from '@renderer/types'
+import { Message } from '@renderer/types'
 import { Collapse, message as antdMessage, Modal, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useMemo, useState } from 'react'
@@ -42,9 +42,9 @@ const MessageTools: FC<Props> = ({ message }) => {
 
   // Format tool responses for collapse items
   const getCollapseItems = () => {
-    const items: { key: string; label: JSX.Element; children: React.ReactNode }[] = []
+    const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
     // Add tool responses
-    toolResponses.forEach((toolResponse: MCPToolResponse) => {
+    for (const toolResponse of toolResponses) {
       const { id, tool, status, response } = toolResponse
       const isInvoking = status === 'invoking'
       const isDone = status === 'done'
@@ -100,12 +100,12 @@ const MessageTools: FC<Props> = ({ message }) => {
           </MessageTitleLabel>
         ),
         children: isDone && result && (
-          <ToolResponseContainer style={{ fontFamily, fontSize }}>
-            <pre>{JSON.stringify(result, null, 2)}</pre>
+          <ToolResponseContainer style={{ fontFamily, fontSize: '12px' }}>
+            <CodeBlock>{JSON.stringify(result, null, 2)}</CodeBlock>
           </ToolResponseContainer>
         )
       })
-    })
+    }
 
     return items
   }
@@ -129,7 +129,8 @@ const MessageTools: FC<Props> = ({ message }) => {
         onCancel={() => setExpandedResponse(null)}
         footer={null}
         width="80%"
-        bodyStyle={{ maxHeight: '80vh', overflow: 'auto' }}>
+        centered
+        styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
         {expandedResponse && (
           <ExpandedResponseContainer style={{ fontFamily, fontSize }}>
             <ActionButton
@@ -143,7 +144,7 @@ const MessageTools: FC<Props> = ({ message }) => {
               aria-label={t('common.copy')}>
               <i className="iconfont icon-copy"></i>
             </ActionButton>
-            <pre>{expandedResponse.content}</pre>
+            <CodeBlock>{expandedResponse.content}</CodeBlock>
           </ExpandedResponseContainer>
         )}
       </Modal>
@@ -155,7 +156,6 @@ const CollapseContainer = styled(Collapse)`
   margin-bottom: 15px;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   .ant-collapse-header {
     background-color: var(--color-bg-2);
@@ -255,13 +255,14 @@ const ToolResponseContainer = styled.div`
   max-height: 300px;
   border-top: 1px solid var(--color-border);
   position: relative;
+`
 
-  pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: var(--color-text);
-  }
+const CodeBlock = styled.pre`
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text);
+  font-family: ubuntu;
 `
 
 const ExpandedResponseContainer = styled.div`

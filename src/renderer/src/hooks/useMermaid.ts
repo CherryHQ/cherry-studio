@@ -40,7 +40,6 @@ export const useMermaid = () => {
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
-        e.preventDefault()
         const mermaidElement = (e.target as HTMLElement).closest('.mermaid')
         if (!mermaidElement) return
 
@@ -61,7 +60,7 @@ export const useMermaid = () => {
       }
     }
 
-    document.addEventListener('wheel', handleWheel, { passive: false })
+    document.addEventListener('wheel', handleWheel, { passive: true })
     return () => document.removeEventListener('wheel', handleWheel)
   }, [])
 }

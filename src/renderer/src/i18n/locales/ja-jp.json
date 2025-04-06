@@ -32,7 +32,9 @@
       "title": "エージェント"
     },
     "assistants": {
+      "title": "アシスタント",
       "abbr": "アシスタント",
+      "settings.title": "アシスタント設定",
       "clear.content": "トピックをクリアすると、アシスタント内のすべてのトピックとファイルが削除されます。続行しますか？",
       "clear.title": "トピックをクリア",
       "copy.title": "アシスタントをコピー",
@@ -42,6 +44,11 @@
       "save.success": "保存に成功しました",
       "save.title": "エージェントに保存",
       "search": "アシスタントを検索...",
+      "settings.mcp": "MCP サーバー",
+      "settings.mcp.enableFirst": "まず MCP 設定でこのサーバーを有効にしてください",
+      "settings.mcp.title": "MCP 設定",
+      "settings.mcp.noServersAvailable": "利用可能な MCP サーバーがありません。設定でサーバーを追加してください",
+      "settings.mcp.description": "デフォルトで有効な MCP サーバー",
       "settings.default_model": "デフォルトモデル",
       "settings.knowledge_base": "ナレッジベース設定",
       "settings.model": "モデル設定",
@@ -53,7 +60,7 @@
       "settings.reasoning_effort.medium": "中程度",
       "settings.reasoning_effort.off": "オフ",
       "settings.reasoning_effort.tip": "OpenAIのoシリーズとAnthropicの推論モデルのみサポートしています",
-      "title": "アシスタント"
+      "settings.more": "アシスタント設定"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -143,12 +150,23 @@
         "history": "チャット履歴",
         "last": "最後のメッセージです",
         "next": "次のメッセージ",
-        "prev": "前のメッセージ"
+        "prev": "前のメッセージ",
+        "top": "トップに戻る",
+        "bottom": "下部に戻る",
+        "close": "閉じる"
       },
       "resend": "再送信",
       "save": "保存",
       "settings.code_collapsible": "コードブロック折り畳み",
       "settings.code_wrappable": "コードブロック折り返し",
+      "settings.code_cacheable": "コードブロックキャッシュ",
+      "settings.code_cacheable.tip": "コードブロックのキャッシュは長いコードブロックのレンダリング時間を短縮できますが、メモリ使用量が増加します",
+      "settings.code_cache_max_size": "キャッシュ上限",
+      "settings.code_cache_max_size.tip": "キャッシュできる文字数の上限（千字符）。ハイライトされたコードの長さは純粋なテキストよりもはるかに長くなります。",
+      "settings.code_cache_ttl": "キャッシュ期限",
+      "settings.code_cache_ttl.tip": "キャッシュの有効期限（分単位）。",
+      "settings.code_cache_threshold": "キャッシュ閾値",
+      "settings.code_cache_threshold.tip": "キャッシュできる最小のコード長（千字符）。キャッシュできる最小のコード長を超えたコードブロックのみがキャッシュされます。",
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
@@ -178,15 +196,19 @@
       "topics.export.image": "画像としてエクスポート",
       "topics.export.joplin": "Joplin にエクスポート",
       "topics.export.md": "Markdownとしてエクスポート",
+      "topics.export.md.reason": "Markdown としてエクスポート (思考内容を含む)",
       "topics.export.notion": "Notion にエクスポート",
       "topics.export.obsidian": "Obsidian にエクスポート",
+      "topics.export.obsidian_vault": "保管庫",
+      "topics.export.obsidian_vault_placeholder": "保管庫名を選択してください",
+      "topics.export.obsidian_path": "パス",
+      "topics.export.obsidian_path_placeholder": "パスを選択してください",
       "topics.export.obsidian_atributes": "ノートの属性を設定",
       "topics.export.obsidian_btn": "確定",
       "topics.export.obsidian_created": "作成日時",
       "topics.export.obsidian_created_placeholder": "作成日時を選択してください",
       "topics.export.obsidian_export_failed": "エクスポート失敗",
       "topics.export.obsidian_export_success": "エクスポート成功",
-      "topics.export.obsidian_not_configured": "Obsidian 未設定",
       "topics.export.obsidian_operate": "処理方法",
       "topics.export.obsidian_operate_append": "追加",
       "topics.export.obsidian_operate_new_or_overwrite": "新規作成（既に存在する場合は上書き）",
@@ -199,6 +221,13 @@
       "topics.export.obsidian_title": "タイトル",
       "topics.export.obsidian_title_placeholder": "タイトルを入力してください",
       "topics.export.obsidian_title_required": "タイトルは空白にできません",
+      "topics.export.obsidian_no_vaults": "Obsidianの保管庫が見つかりません",
+      "topics.export.obsidian_loading": "読み込み中...",
+      "topics.export.obsidian_fetch_error": "Obsidianの保管庫の取得に失敗しました",
+      "topics.export.obsidian_fetch_folders_error": "フォルダ構造の取得に失敗しました",
+      "topics.export.obsidian_no_vault_selected": "保管庫を選択してください",
+      "topics.export.obsidian_select_vault_first": "最初に保管庫を選択してください",
+      "topics.export.obsidian_root_directory": "ルートディレクトリ",
       "topics.export.title": "エクスポート",
       "topics.export.word": "Wordとしてエクスポート",
       "topics.export.yuque": "語雀にエクスポート",
@@ -211,7 +240,13 @@
       "topics.prompt.tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供",
       "topics.title": "トピック",
       "topics.unpinned": "固定解除",
-      "translate": "翻訳"
+      "translate": "翻訳",
+      "topics.export.siyuan": "思源笔记にエクスポート",
+      "topics.export.wait_for_title_naming": "タイトルを生成中...",
+      "topics.export.title_naming_success": "タイトルの生成に成功しました",
+      "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",
+      "input.translating": "翻訳中...",
+      "input.upload.upload_from_local": "ローカルファイルをアップロード..."
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -262,7 +297,8 @@
       "select": "選択",
       "topics": "トピック",
       "warning": "警告",
-      "you": "あなた"
+      "you": "あなた",
+      "reasoning_content": "深く考察済み"
     },
     "docs": {
       "title": "ドキュメント"
@@ -288,7 +324,8 @@
         "description": "数式のレンダリングに失敗しました。数式の形式が正しいか確認してください",
         "title": "レンダリングエラー"
       },
-      "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした"
+      "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
+      "unknown": "不明なエラー"
     },
     "export": {
       "assistant": "アシスタント",
@@ -303,7 +340,7 @@
     "files": {
       "actions": "操作",
       "all": "すべてのファイル",
-      "count": "数",
+      "count": "ファイル",
       "created_at": "作成日",
       "delete": "削除",
       "delete.content": "ファイルを削除すると、ファイルがすべてのメッセージで参照されることを削除します。このファイルを削除してもよろしいですか？",
@@ -469,12 +506,13 @@
       "error.invalid.webdav": "無効なWebDAV設定",
       "error.joplin.export": "Joplin へのエクスポートに失敗しました。Joplin が実行中であることを確認してください",
       "error.joplin.no_config": "Joplin 認証トークン または URL が設定されていません",
+      "error.invalid.nutstore": "無効なNutstore設定です",
+      "error.invalid.nutstore_token": "無効なNutstoreトークンです",
       "error.markdown.export.preconf": "Markdown ファイルを事前設定されたパスにエクスポートできませんでした",
       "error.markdown.export.specified": "Markdown ファイルのエクスポートに失敗しました",
       "error.notion.export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
       "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
-      "error.yuque.no_config": "語雀Token または 知識ベースID が設定されていません",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
       "ignore.knowledge.base": "インターネットモードが有効になっています。ナレッジベースを無視します",
@@ -518,11 +556,28 @@
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
       "warn.notion.exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! ",
-      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"
+      "warning.rate.limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。",
+      "error.siyuan.export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
+      "error.siyuan.no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません",
+      "success.siyuan.export": "思源ノートへのエクスポートに成功しました",
+      "warn.yuque.exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!",
+      "warn.siyuan.exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!",
+      "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません"
     },
     "minapp": {
+      "popup": {
+        "refresh": "更新",
+        "close": "ミニアプリを閉じる",
+        "minimize": "ミニアプリを最小化",
+        "devtools": "開発者ツール",
+        "openExternal": "ブラウザで開く",
+        "rightclick_copyurl": "右クリックでURLをコピー"
+      },
       "sidebar.add.title": "サイドバーに追加",
       "sidebar.remove.title": "サイドバーから削除",
+      "sidebar.close.title": "閉じる",
+      "sidebar.closeall.title": "すべて閉じる",
+      "sidebar.hide.title": "ミニアプリを隠す",
       "title": "ミニアプリ"
     },
     "miniwindow": {
@@ -539,13 +594,17 @@
         "copy_last_message": "C キーを押してコピー",
         "esc": "ESC キーを押して{{action}}",
         "esc_back": "戻る",
-        "esc_close": "ウィンドウを閉じる"
+        "esc_close": "ウィンドウを閉じる",
+        "backspace_clear": "バックスペースを押してクリアします"
       },
       "input": {
         "placeholder": {
           "empty": "{{model}} に質問してください...",
           "title": "下のテキストに対して何をしますか？"
         }
+      },
+      "tooltip": {
+        "pin": "上部ウィンドウ"
       }
     },
     "models": {
@@ -650,7 +709,6 @@
       "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "腾讯混元",
@@ -739,8 +797,24 @@
           "title": "キャッシュをクリア"
         },
         "data.title": "データディレクトリ",
+        "divider.basic": "基本データ設定",
+        "divider.cloud_storage": "クラウドバックアップ設定",
+        "divider.export_settings": "エクスポート設定",
+        "divider.third_party": "サードパーティー連携",
         "hour_interval_one": "{{count}} 時間",
         "hour_interval_other": "{{count}} 時間",
+        "export_menu": {
+          "title": "エクスポートメニュー設定",
+          "image": "画像としてエクスポート",
+          "markdown": "Markdownとしてエクスポート",
+          "markdown_reason": "Markdownとしてエクスポート（思考内容を含む）",
+          "notion": "Notionにエクスポート",
+          "yuque": "語雀にエクスポート",
+          "obsidian": "Obsidianにエクスポート",
+          "siyuan": "思源ノートにエクスポート",
+          "joplin": "Joplinにエクスポート",
+          "docx": "Wordとしてエクスポート"
+        },
         "joplin": {
           "check": {
             "button": "確認",
@@ -786,15 +860,6 @@
         "notion.split_size_help": "Notion無料版ユーザーは90、有料版ユーザーは24990、デフォルトは90",
         "notion.split_size_placeholder": "ページごとのブロック数制限を入力してください(デフォルト90)",
         "notion.title": "Notion 設定",
-        "obsidian": {
-          "folder": "フォルダー",
-          "folder_placeholder": "フォルダーの名前を入力してください",
-          "tags": "グローバルタグ",
-          "tags_placeholder": "タグの名前を入力してください。複数のタグは英語のコンマで区切ってください",
-          "title": "Obsidian の設定",
-          "vault": "ヴォールト（保管庫）",
-          "vault_placeholder": "保管庫の名前を入力してください"
-        },
         "title": "データ設定",
         "webdav": {
           "autoSync": "自動バックアップ",
@@ -839,16 +904,66 @@
           "title": "Yuque設定",
           "token": "Yuqueトークン",
           "token_placeholder": "Yuqueトークンを入力してください"
-        }
+        },
+        "obsidian": {
+          "title": "Obsidian 設定",
+          "default_vault": "デフォルトの Obsidian 保管庫",
+          "default_vault_placeholder": "デフォルトの Obsidian 保管庫を選択してください",
+          "default_vault_loading": "Obsidian 保管庫を取得中...",
+          "default_vault_no_vaults": "Obsidian 保管庫が見つかりません",
+          "default_vault_fetch_error": "Obsidian 保管庫の取得に失敗しました",
+          "default_vault_export_failed": "エクスポートに失敗しました"
+        },
+        "siyuan": {
+          "title": "思源ノート設定",
+          "api_url": "APIアドレス",
+          "api_url_placeholder": "例：http://127.0.0.1:6806",
+          "token": "APIトークン",
+          "token.help": "思源ノート->設定->について で取得",
+          "token_placeholder": "思源ノートトークンを入力してください",
+          "box_id": "ノートブックID",
+          "box_id_placeholder": "ノートブックIDを入力してください",
+          "root_path": "ドキュメントルートパス",
+          "root_path_placeholder": "例：/CherryStudio",
+          "check": {
+            "title": "接続チェック",
+            "button": "チェック",
+            "empty_config": "APIアドレスとトークンを入力してください",
+            "success": "接続成功",
+            "fail": "接続失敗、APIアドレスとトークンを確認してください",
+            "error": "接続エラー、ネットワーク接続を確認してください"
+          }
+        },
+        "nutstore": {
+          "title": "Nutstore設定",
+          "isLogin": "ログイン済み",
+          "notLogin": "未ログイン",
+          "login.button": "ログイン",
+          "logout.button": "ログアウト",
+          "logout.title": "Nutstoreからログアウトしますか？",
+          "logout.content": "ログアウト後、Nutstoreへのバックアップや復元ができなくなります。",
+          "checkConnection.name": "接続確認",
+          "checkConnection.success": "Nutstoreに接続しました",
+          "checkConnection.fail": "Nutstore接続に失敗しました",
+          "username": "Nutstoreユーザー名",
+          "path": "Nutstoreストレージパス",
+          "path.placeholder": "Nutstoreストレージパスを入力",
+          "backup.button": "Nutstoreにバックアップ",
+          "restore.button": "Nutstoreから復元",
+          "pathSelector.title": "Nutstoreストレージパス",
+          "pathSelector.return": "戻る",
+          "pathSelector.currentPath": "現在のパス",
+          "new_folder.button.confirm": "確認",
+          "new_folder.button.cancel": "キャンセル",
+          "new_folder.button": "新しいフォルダー"
+        },
+        "message_title.use_topic_naming.title": "トピック命名モデルを使用してメッセージのタイトルを作成",
+        "message_title.use_topic_naming.help": "この設定は、すべてのMarkdownエクスポート方法に影響します。"
       },
       "display.assistant.title": "アシスタント設定",
       "display.custom.css": "カスタムCSS",
       "display.custom.css.cherrycss": "cherrycss.comから取得",
       "display.custom.css.placeholder": "/* ここにカスタムCSSを入力 */",
-      "display.minApp.disabled": "非表示ミニプログラム",
-      "display.minApp.empty": "非表示にしたいアプレットを左からここまでドラッグします",
-      "display.minApp.title": "ミニプログラム表示設定",
-      "display.minApp.visible": "表示中ミニプログラム",
       "display.sidebar.chat.hiddenMessage": "アシスタントは基本的な機能であり、非表示はサポートされていません",
       "display.sidebar.disabled": "アイコンを非表示",
       "display.sidebar.empty": "非表示にする機能を左側からここにドラッグ",
@@ -861,6 +976,20 @@
       "display.sidebar.visible": "アイコンを表示",
       "display.title": "表示設定",
       "display.topic.title": "トピック設定",
+      "miniapps": {
+        "title": "ミニアプリ設定",
+        "disabled": "非表示のミニアプリ",
+        "empty": "非表示にするミニアプリを左側からここにドラッグしてください",
+        "visible": "表示するミニアプリ",
+        "cache_settings": "キャッシュ設定",
+        "cache_title": "ミニアプリのキャッシュ数",
+        "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
+        "reset_tooltip": "デフォルト値にリセット",
+        "display_title": "ミニアプリ表示設定",
+        "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
+        "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
+        "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます"
+      },
       "font_size.title": "メッセージのフォントサイズ",
       "general": "一般設定",
       "general.avatar.reset": "アバターをリセット",
@@ -869,7 +998,6 @@
       "general.display.title": "表示設定",
       "general.emoji_picker": "絵文字ピッカー",
       "general.image_upload": "画像アップロード",
-      "general.manually_check_update.title": "更新チェックを無効にする",
       "general.reset.button": "リセット",
       "general.reset.title": "データをリセット",
       "general.restore.button": "復元",
@@ -897,10 +1025,10 @@
         "argsTooltip": "1行に1つの引数を入力してください",
         "baseUrlTooltip": "リモートURLアドレス",
         "command": "コマンド",
-        "commandRequired": "コマンドを入力してください",
+        "sse": "サーバー送信イベント(sse)",
+        "stdio": "標準入力/出力(stdio)",
+        "inMemory": "メモリ",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
-        "confirmDelete": "サーバーを削除",
-        "confirmDeleteMessage": "本当にこのサーバーを削除しますか？",
         "deleteError": "サーバーの削除に失敗しました",
         "deleteSuccess": "サーバーが正常に削除されました",
         "dependenciesInstall": "依存関係をインストール",
@@ -911,7 +1039,8 @@
         "editServer": "サーバーを編集",
         "env": "環境変数",
         "envTooltip": "形式: KEY=value, 1行に1つ",
-        "findMore": "MCP サーバーを見つける",
+        "findMore": "MCP を見つける",
+        "searchNpx": "MCP を検索",
         "install": "インストール",
         "installError": "依存関係のインストールに失敗しました",
         "installSuccess": "依存関係のインストールに成功しました",
@@ -921,8 +1050,8 @@
         "jsonSaveSuccess": "JSON設定が保存されました。",
         "missingDependencies": "が不足しています。続行するにはインストールしてください。",
         "name": "名前",
-        "nameRequired": "サーバー名を入力してください",
         "noServers": "サーバーが設定されていません",
+        "newServer": "MCP サーバー",
         "npx_list": {
           "actions": "アクション",
           "desc": "npm パッケージを検索して MCP サーバーとして追加",
@@ -941,11 +1070,27 @@
         "serverPlural": "サーバー",
         "serverSingular": "サーバー",
         "title": "MCP サーバー",
-        "toggleError": "切り替えに失敗しました",
+        "startError": "起動に失敗しました",
         "type": "タイプ",
         "updateError": "サーバーの更新に失敗しました",
         "updateSuccess": "サーバーが正常に更新されました",
-        "url": "URL"
+        "url": "URL",
+        "errors": {
+          "32000": "MCP サーバーが起動しませんでした。パラメーターを確認してください"
+        },
+        "editMcpJson": "MCP 設定を編集",
+        "installHelp": "インストールヘルプを取得",
+        "tools": {
+          "inputSchema": "入力スキーマ",
+          "availableTools": "利用可能なツール",
+          "noToolsAvailable": "利用可能なツールはありません"
+        },
+        "deleteServer": "サーバーを削除",
+        "deleteServerConfirm": "このサーバーを削除してもよろしいですか？",
+        "registry": "パッケージ管理レジストリ",
+        "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
+        "registryDefault": "デフォルト",
+        "not_support": "モデルはサポートされていません"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -1057,7 +1202,7 @@
         "docs_more_details": "詳細を確認",
         "get_api_key": "APIキーを取得",
         "is_not_support_array_content": "互換モードを有効にする",
-        "no_models": "API接続をチェックする前に、モデルを追加してください",
+        "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
         "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
         "remove_invalid_keys": "無効なキーを削除",
@@ -1095,7 +1240,7 @@
         "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
         "reset_to_default": "デフォルトにリセット",
         "search_message": "メッセージを検索",
-        "show_app": "アプリを表示",
+        "show_app": "アプリを表示/非表示",
         "show_settings": "設定を開く",
         "title": "ショートカット",
         "toggle_new_context": "コンテキストをクリア",
@@ -1143,6 +1288,32 @@
           "title": "Tavily"
         },
         "title": "ウェブ検索"
+      },
+      "general.auto_check_update.title": "自動更新チェックを有効にする",
+      "quickPhrase": {
+        "title": "クイックフレーズ",
+        "add": "フレーズを追加",
+        "edit": "フレーズを編集",
+        "titleLabel": "タイトル",
+        "contentLabel": "内容",
+        "titlePlaceholder": "フレーズのタイトルを入力してください",
+        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
+        "delete": "フレーズを削除",
+        "deleteConfirm": "削除後は復元できません。続行しますか？"
+      },
+      "quickPanel": {
+        "title": "クイックメニュー",
+        "close": "閉じる",
+        "select": "選択",
+        "page": "ページ",
+        "confirm": "確認",
+        "back": "戻る",
+        "forward": "進む",
+        "multiple": "複数選択"
+      },
+      "privacy": {
+        "title": "プライバシー設定",
+        "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
       }
     },
     "translate": {
@@ -1168,7 +1339,10 @@
       "scroll_sync.disable": "關閉滾動同步",
       "scroll_sync.enable": "開啟滾動同步",
       "title": "翻訳",
-      "tooltip.newline": "改行"
+      "tooltip.newline": "改行",
+      "menu": {
+        "description": "對當前輸入框內容進行翻譯"
+      }
     },
     "tray": {
       "quit": "終了",

@@ -1,6 +1,6 @@
+import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from '@google/generative-ai/server'
-import { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
 import type { LoaderReturn } from '@shared/config/types'
@@ -45,6 +45,8 @@ declare global {
         backupToWebdav: (data: string, webdavConfig: WebDavConfig) => Promise<boolean>
         restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
         listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
+        checkConnection: (webdavConfig: WebDavConfig) => Promise<boolean>
+        createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) => Promise<void>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
@@ -135,6 +137,7 @@ declare global {
         hide: () => Promise<void>
         close: () => Promise<void>
         toggle: () => Promise<void>
+        setPin: (isPinned: boolean) => Promise<void>
       }
       aes: {
         encrypt: (text: string, secretKey: string, iv: string) => Promise<{ iv: string; encryptedData: string }>
@@ -144,17 +147,12 @@ declare global {
         openExternal: (url: string, options?: OpenExternalOptions) => Promise<void>
       }
       mcp: {
-        // servers
-        listServers: () => Promise<MCPServer[]>
-        addServer: (server: MCPServer) => Promise<void>
-        updateServer: (server: MCPServer) => Promise<void>
-        deleteServer: (serverName: string) => Promise<void>
-        setServerActive: (name: string, isActive: boolean) => Promise<void>
-        // tools
-        listTools: () => Promise<MCPTool[]>
-        callTool: ({ client, name, args }: { client: string; name: string; args: any }) => Promise<any>
-        // status
-        cleanup: () => Promise<void>
+        removeServer: (server: MCPServer) => Promise<void>
+        restartServer: (server: MCPServer) => Promise<void>
+        stopServer: (server: MCPServer) => Promise<void>
+        listTools: (server: MCPServer) => Promise<MCPTool[]>
+        callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) => Promise<any>
+        getInstallInfo: () => Promise<{ dir: string; uvPath: string; bunPath: string }>
       }
       copilot: {
         getAuthMessage: (
@@ -170,6 +168,14 @@ declare global {
       getBinaryPath: (name: string) => Promise<string>
       installUVBinary: () => Promise<void>
       installBunBinary: () => Promise<void>
+      protocol: {
+        onReceiveData: (callback: (data: { url: string; params: any }) => void) => () => void
+      }
+      nutstore: {
+        getSSOUrl: () => Promise<string>
+        decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
+        getDirectoryContents: (token: string, path: string) => Promise<any>
+      }
     }
   }
 }

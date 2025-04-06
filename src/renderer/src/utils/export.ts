@@ -8,6 +8,7 @@ import { Message, Topic } from '@renderer/types'
 import { convertMathFormula, removeSpecialCharactersForFileName } from '@renderer/utils/index'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
+//TODO: 添加对思考内容的支持
 
 export const messageToMarkdown = (message: Message) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
@@ -18,27 +19,63 @@ export const messageToMarkdown = (message: Message) => {
   return [titleSection, '', contentSection].join('\n')
 }
 
-export const messagesToMarkdown = (messages: Message[]) => {
-  return messages.map((message) => messageToMarkdown(message)).join('\n\n---\n\n')
+// 保留接口用于其它导出方法使用
+export const messageToMarkdownWithReasoning = (message: Message) => {
+  const { forceDollarMathInMarkdown } = store.getState().settings
+  const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
+  const titleSection = `### ${roleText}`
+
+  // 处理思考内容
+  let reasoningSection = ''
+  if (message.reasoning_content) {
+    // 移除开头的<think>标记和换行符，并将所有换行符替换为<br>
+    let reasoningContent = message.reasoning_content
+    if (reasoningContent.startsWith('<think>\n')) {
+      reasoningContent = reasoningContent.substring(8)
+    } else if (reasoningContent.startsWith('<think>')) {
+      reasoningContent = reasoningContent.substring(7)
+    }
+    reasoningContent = reasoningContent.replace(/\n/g, '<br>')
+
+    // 应用数学公式转换（如果启用）
+    if (forceDollarMathInMarkdown) {
+      reasoningContent = convertMathFormula(reasoningContent)
+    }
+    // 添加思考内容的Markdown格式
+    reasoningSection = `<details style="background-color: #f5f5f5; padding: 5px; border-radius: 10px; margin-bottom: 10px;">
+      <summary>${i18n.t('common.reasoning_content')}</summary><hr>
+    ${reasoningContent}
+</details>`
+  }
+
+  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(message.content) : message.content
+
+  return [titleSection, '', reasoningSection + contentSection].join('\n')
 }
 
-export const topicToMarkdown = async (topic: Topic) => {
+export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolean) => {
+  return messages
+    .map((message) => (exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)))
+    .join('\n\n---\n\n')
+}
+
+export const topicToMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
   const topicName = `# ${topic.name}`
   const topicMessages = await db.topics.get(topic.id)
 
   if (topicMessages) {
-    return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages)
+    return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages, exportReasoning)
   }
 
   return ''
 }
 
-export const exportTopicAsMarkdown = async (topic: Topic) => {
+export const exportTopicAsMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
-      const markdown = await topicToMarkdown(topic)
+      const markdown = await topicToMarkdown(topic, exportReasoning)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
         window.message.success({
@@ -53,7 +90,7 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
-      const markdown = await topicToMarkdown(topic)
+      const markdown = await topicToMarkdown(topic, exportReasoning)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
@@ -62,12 +99,13 @@ export const exportTopicAsMarkdown = async (topic: Topic) => {
   }
 }
 
-export const exportMessageAsMarkdown = async (message: Message) => {
+export const exportMessageAsMarkdown = async (message: Message, exportReasoning?: boolean) => {
   const { markdownExportPath } = store.getState().settings
   if (!markdownExportPath) {
     try {
-      const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + '.md'
-      const markdown = messageToMarkdown(message)
+      const title = await getMessageTitle(message)
+      const fileName = removeSpecialCharactersForFileName(title) + '.md'
+      const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
       const result = await window.api.file.save(fileName, markdown)
       if (result) {
         window.message.success({
@@ -81,8 +119,9 @@ export const exportMessageAsMarkdown = async (message: Message) => {
   } else {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const fileName = removeSpecialCharactersForFileName(getMessageTitle(message)) + ` ${timestamp}.md`
-      const markdown = messageToMarkdown(message)
+      const title = await getMessageTitle(message)
+      const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
+      const markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
       await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
       window.message.success({ content: i18n.t('message.success.markdown.export.preconf'), key: 'markdown-success' })
     } catch (error: any) {
@@ -326,31 +365,49 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
  * @param attributes.source 来源
  * @param attributes.tags 标签
  * @param attributes.processingMethod 处理方式
+ * @param attributes.folder 选择的文件夹路径或文件路径
+ * @param attributes.vault 选择的Vault名称
  */
 export const exportMarkdownToObsidian = async (attributes: any) => {
   try {
-    const obsidianValut = store.getState().settings.obsidianValut
-    const obsidianFolder = store.getState().settings.obsidianFolder
+    // 从参数获取Vault名称
+    const obsidianValut = attributes.vault
+    let obsidianFolder = attributes.folder || ''
+    let isMarkdownFile = false
 
-    if (!obsidianValut || !obsidianFolder) {
+    if (!obsidianValut) {
       window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
       return
     }
-    let path = ''
 
     if (!attributes.title) {
       window.message.error(i18n.t('chat.topics.export.obsidian_title_required'))
       return
     }
 
-    //构建保存路径添加以 / 结尾
-    if (!obsidianFolder.endsWith('/')) {
-      path = obsidianFolder + '/'
+    // 检查是否选择了.md文件
+    if (obsidianFolder && obsidianFolder.endsWith('.md')) {
+      isMarkdownFile = true
     }
-    //构建文件名
-    const fileName = transformObsidianFileName(attributes.title)
 
-    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(path + fileName)}&vault=${encodeURIComponent(obsidianValut)}&clipboard`
+    let filePath = ''
+
+    // 如果是.md文件，直接使用该文件路径
+    if (isMarkdownFile) {
+      filePath = obsidianFolder
+    } else {
+      // 否则构建路径
+      //构建保存路径添加以 / 结尾
+      if (obsidianFolder && !obsidianFolder.endsWith('/')) {
+        obsidianFolder = obsidianFolder + '/'
+      }
+
+      //构建文件名
+      const fileName = transformObsidianFileName(attributes.title)
+      filePath = obsidianFolder + fileName + '.md'
+    }
+
+    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(filePath)}&vault=${encodeURIComponent(obsidianValut)}&clipboard`
 
     if (attributes.processingMethod === '3') {
       obsidianUrl += '&overwrite=true'
@@ -359,6 +416,7 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
     } else if (attributes.processingMethod === '1') {
       obsidianUrl += '&append=true'
     }
+
     window.open(obsidianUrl)
     window.message.success(i18n.t('chat.topics.export.obsidian_export_success'))
   } catch (error) {
@@ -449,4 +507,100 @@ export const exportMarkdownToJoplin = async (title: string, content: string) => 
     window.message.error(i18n.t('message.error.joplin.export'))
     return
   }
+}
+
+/**
+ * 导出Markdown到思源笔记
+ * @param title 笔记标题
+ * @param content 笔记内容
+ */
+export const exportMarkdownToSiyuan = async (title: string, content: string) => {
+  const { isExporting } = store.getState().runtime.export
+  const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = store.getState().settings
+
+  if (isExporting) {
+    window.message.warning({ content: i18n.t('message.warn.siyuan.exporting'), key: 'siyuan-exporting' })
+    return
+  }
+
+  if (!siyuanApiUrl || !siyuanToken || !siyuanBoxId) {
+    window.message.error({ content: i18n.t('message.error.siyuan.no_config'), key: 'siyuan-no-config-error' })
+    return
+  }
+
+  setExportState({ isExporting: true })
+
+  try {
+    // test connection
+    const testResponse = await fetch(`${siyuanApiUrl}/api/notebook/lsNotebooks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Token ${siyuanToken}`
+      }
+    })
+
+    if (!testResponse.ok) {
+      throw new Error('API请求失败')
+    }
+
+    const testData = await testResponse.json()
+    if (testData.code !== 0) {
+      throw new Error(`${testData.msg || i18n.t('message.error.unknown')}`)
+    }
+
+    // 确保根路径以/开头
+    const rootPath = siyuanRootPath?.startsWith('/') ? siyuanRootPath : `/${siyuanRootPath || 'CherryStudio'}`
+
+    // 创建文档
+    const docTitle = `${title.replace(/[#|\\^\\[\]]/g, '')}`
+    const docPath = `${rootPath}/${docTitle}`
+
+    // 创建文档
+    await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, content)
+
+    window.message.success({
+      content: i18n.t('message.success.siyuan.export'),
+      key: 'siyuan-success'
+    })
+  } catch (error) {
+    console.error('导出到思源笔记失败:', error)
+    window.message.error({
+      content: i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''),
+      key: 'siyuan-error'
+    })
+  } finally {
+    setExportState({ isExporting: false })
+  }
+}
+
+/**
+ * 创建思源笔记文档
+ */
+async function createSiyuanDoc(
+  apiUrl: string,
+  token: string,
+  boxId: string,
+  path: string,
+  markdown: string
+): Promise<string> {
+  const response = await fetch(`${apiUrl}/api/filetree/createDocWithMd`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Token ${token}`
+    },
+    body: JSON.stringify({
+      notebook: boxId,
+      path: path,
+      markdown: markdown
+    })
+  })
+
+  const data = await response.json()
+  if (data.code !== 0) {
+    throw new Error(`${data.msg || i18n.t('message.error.unknown')}`)
+  }
+
+  return data.data
 }
