@@ -192,3 +192,10 @@
     }
   }
 }
+
+.ant-dropdown-menu .ant-dropdown-menu-sub {
+  max-height: 350px;
+  width: max-content;
+  overflow-y: auto;
+  overflow-x: hidden;
+}

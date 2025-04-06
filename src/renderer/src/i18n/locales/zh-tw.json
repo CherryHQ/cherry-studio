@@ -44,6 +44,11 @@
       "save.success": "儲存成功",
       "save.title": "儲存到智慧代理人",
       "search": "搜尋助手...",
+      "settings.mcp": "MCP 伺服器",
+      "settings.mcp.enableFirst": "請先在 MCP 設定中啟用此伺服器",
+      "settings.mcp.title": "MCP 設定",
+      "settings.mcp.noServersAvailable": "無可用 MCP 伺服器。請在設定中新增伺服器",
+      "settings.mcp.description": "預設啟用的 MCP 伺服器",
       "settings.default_model": "預設模型",
       "settings.knowledge_base": "知識庫設定",
       "settings.model": "模型設定",
@@ -145,12 +150,23 @@
         "history": "聊天歷史",
         "last": "已經是最後一條訊息",
         "next": "下一條訊息",
-        "prev": "上一條訊息"
+        "prev": "上一條訊息",
+        "top": "回到頂部",
+        "bottom": "回到底部",
+        "close": "關閉"
       },
       "resend": "重新傳送",
       "save": "儲存",
       "settings.code_collapsible": "程式碼區塊可折疊",
       "settings.code_wrappable": "程式碼區塊可自動換行",
+      "settings.code_cacheable": "程式碼區塊快取",
+      "settings.code_cacheable.tip": "快取程式碼區塊可以減少長程式碼區塊的渲染時間，但會增加記憶體使用量",
+      "settings.code_cache_max_size": "快取上限",
+      "settings.code_cache_max_size.tip": "允許快取的字元數上限（千字符），按照高亮後的程式碼計算。高亮後的程式碼長度相比純文字會長很多。",
+      "settings.code_cache_ttl": "快取期限",
+      "settings.code_cache_ttl.tip": "快取的存活時間（分鐘）",
+      "settings.code_cache_threshold": "快取門檻",
+      "settings.code_cache_threshold.tip": "允許快取的最小程式碼長度（千字符），超過門檻的程式碼區塊才會被快取",
       "settings.context_count": "上下文",
       "settings.context_count.tip": "在上下文中保留的前幾則訊息。",
       "settings.max": "最大",
@@ -180,6 +196,7 @@
       "topics.export.image": "匯出為圖片",
       "topics.export.joplin": "匯出到 Joplin",
       "topics.export.md": "匯出為 Markdown",
+      "topics.export.md.reason": "匯出為 Markdown (包含思考)",
       "topics.export.notion": "匯出到 Notion",
       "topics.export.obsidian": "匯出到 Obsidian",
       "topics.export.obsidian_vault": "保管庫",
@@ -224,7 +241,12 @@
       "topics.title": "話題",
       "topics.unpinned": "取消固定",
       "translate": "翻譯",
-      "topics.export.siyuan": "匯出到思源筆記"
+      "topics.export.siyuan": "匯出到思源筆記",
+      "topics.export.wait_for_title_naming": "正在生成標題...",
+      "topics.export.title_naming_success": "標題生成成功",
+      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
+      "input.translating": "翻譯中...",
+      "input.upload.upload_from_local": "上傳本地文件..."
     },
     "code_block": {
       "collapse": "折疊",
@@ -275,7 +297,8 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "reasoning_content": "已深度思考"
     },
     "docs": {
       "title": "說明文件"
@@ -317,7 +340,7 @@
     "files": {
       "actions": "操作",
       "all": "所有檔案",
-      "count": "數量",
+      "count": "個檔案",
       "created_at": "建立時間",
       "delete": "刪除",
       "delete.content": "刪除檔案會刪除檔案在所有訊息中的引用，確定要刪除此檔案嗎？",
@@ -542,8 +565,18 @@
       "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！"
     },
     "minapp": {
+      "popup": {
+        "refresh": "重新整理",
+        "close": "關閉小工具",
+        "minimize": "最小化小工具",
+        "devtools": "開發者工具",
+        "openExternal": "在瀏覽器中開啟",
+        "rightclick_copyurl": "右鍵複製URL"
+      },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
+      "sidebar.close.title": "關閉",
+      "sidebar.closeall.title": "全部關閉",
       "sidebar.hide.title": "隱藏小工具",
       "title": "小工具"
     },
@@ -561,13 +594,17 @@
         "copy_last_message": "按 C 鍵複製",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
-        "esc_close": "關閉視窗"
+        "esc_close": "關閉視窗",
+        "backspace_clear": "按 Backspace 清空"
       },
       "input": {
         "placeholder": {
           "empty": "詢問 {{model}} 取得幫助...",
           "title": "你想對下方文字做什麼"
         }
+      },
+      "tooltip": {
+        "pin": "窗口置頂"
       }
     },
     "models": {
@@ -672,7 +709,6 @@
       "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "騰訊混元",
@@ -761,8 +797,24 @@
           "title": "清除快取"
         },
         "data.title": "資料目錄",
+        "divider.basic": "基礎數據設定",
+        "divider.cloud_storage": "雲備份設定",
+        "divider.export_settings": "匯出設定",
+        "divider.third_party": "第三方連接",
         "hour_interval_one": "{{count}} 小時",
         "hour_interval_other": "{{count}} 小時",
+        "export_menu": {
+          "title": "匯出選單設定",
+          "image": "匯出為圖片",
+          "markdown": "匯出為Markdown",
+          "markdown_reason": "匯出為Markdown（包含思考）",
+          "notion": "匯出到Notion",
+          "yuque": "匯出到語雀",
+          "obsidian": "匯出到Obsidian",
+          "siyuan": "匯出到思源筆記",
+          "joplin": "匯出到Joplin",
+          "docx": "匯出為Word"
+        },
         "joplin": {
           "check": {
             "button": "檢查",
@@ -902,17 +954,16 @@
           "pathSelector.return": "返回",
           "pathSelector.currentPath": "當前路徑",
           "new_folder.button.confirm": "確定",
-          "new_folder.button.cancel": "取消"
-        }
+          "new_folder.button.cancel": "取消",
+          "new_folder.button": "新建文件夾"
+        },
+        "message_title.use_topic_naming.title": "使用話題命名模型為導出的消息創建標題",
+        "message_title.use_topic_naming.help": "此設定會影響所有通過Markdown導出的方式，如Notion、語雀等。"
       },
       "display.assistant.title": "助手設定",
       "display.custom.css": "自訂 CSS",
       "display.custom.css.cherrycss": "從 cherrycss.com 取得",
       "display.custom.css.placeholder": "/* 這裡寫自訂 CSS */",
-      "display.minApp.disabled": "隱藏的小工具",
-      "display.minApp.empty": "把要隱藏的小工具從左側拖拽到這裡",
-      "display.minApp.title": "小工具顯示設定",
-      "display.minApp.visible": "顯示的小工具",
       "display.sidebar.chat.hiddenMessage": "助手是基礎功能，不支援隱藏",
       "display.sidebar.disabled": "隱藏的圖示",
       "display.sidebar.empty": "把要隱藏的功能從左側拖拽到這裡",
@@ -925,6 +976,20 @@
       "display.sidebar.visible": "顯示的圖示",
       "display.title": "顯示設定",
       "display.topic.title": "話題設定",
+      "miniapps": {
+        "title": "小程式設置",
+        "disabled": "隱藏的小程式",
+        "empty": "把要隱藏的小程式從左側拖拽到這裡",
+        "visible": "顯示的小程式",
+        "cache_settings": "緩存設置",
+        "cache_title": "小程式緩存數量",
+        "cache_description": "設置同時保持活躍狀態的小程式最大數量",
+        "reset_tooltip": "重置為預設值",
+        "display_title": "小程式顯示設置",
+        "sidebar_title": "側邊欄活躍小程式顯示設置",
+        "sidebar_description": "設置側邊欄是否顯示活躍的小程式",
+        "cache_change_notice": "更改將在打開的小程式增減至設定值後生效"
+      },
       "font_size.title": "訊息字型大小",
       "general": "一般設定",
       "general.avatar.reset": "重設頭像",
@@ -960,10 +1025,10 @@
         "argsTooltip": "每個參數佔一行",
         "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
-        "commandRequired": "請輸入指令",
+        "sse": "伺服器傳送事件(sse)",
+        "stdio": "標準輸入/輸出(stdio)",
+        "inMemory": "記憶體",
         "config_description": "設定模型上下文協議伺服器",
-        "confirmDelete": "刪除伺服器",
-        "confirmDeleteMessage": "您確定要刪除該伺服器嗎？",
         "deleteError": "刪除伺服器失敗",
         "deleteSuccess": "伺服器刪除成功",
         "dependenciesInstall": "安裝相依套件",
@@ -974,7 +1039,8 @@
         "editServer": "編輯伺服器",
         "env": "環境變數",
         "envTooltip": "格式：KEY=value，每行一個",
-        "findMore": "更多 MCP 伺服器",
+        "findMore": "更多 MCP",
+        "searchNpx": "搜索 MCP",
         "install": "安裝",
         "installError": "安裝相依套件失敗",
         "installSuccess": "相依套件安裝成功",
@@ -984,8 +1050,8 @@
         "jsonSaveSuccess": "JSON配置已儲存",
         "missingDependencies": "缺失，請安裝它以繼續",
         "name": "名稱",
-        "nameRequired": "請輸入伺服器名稱",
         "noServers": "未設定伺服器",
+        "newServer": "MCP 伺服器",
         "npx_list": {
           "actions": "操作",
           "desc": "搜索並添加 npm 包作為 MCP 服務",
@@ -1001,14 +1067,30 @@
           "usage": "用法",
           "version": "版本"
         },
+        "errors": {
+          "32000": "MCP 伺服器啟動失敗，請根據教程檢查參數是否填寫完整"
+        },
         "serverPlural": "伺服器",
         "serverSingular": "伺服器",
         "title": "MCP 伺服器",
-        "toggleError": "切換失敗",
+        "startError": "啟動失敗",
         "type": "類型",
         "updateError": "更新伺服器失敗",
         "updateSuccess": "伺服器更新成功",
-        "url": "URL"
+        "url": "URL",
+        "editMcpJson": "編輯 MCP 配置",
+        "installHelp": "獲取安裝幫助",
+        "tools": {
+          "inputSchema": "輸入參數",
+          "availableTools": "可用工具",
+          "noToolsAvailable": "沒有可用工具"
+        },
+        "deleteServer": "刪除伺服器",
+        "deleteServerConfirm": "確定要刪除此伺服器嗎？",
+        "registry": "套件管理源",
+        "registryTooltip": "選擇用於安裝套件的源，以解決預設源的網路問題。",
+        "registryDefault": "預設",
+        "not_support": "不支援此模型"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -1158,7 +1240,7 @@
         "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
         "reset_to_default": "重設為預設",
         "search_message": "搜尋訊息",
-        "show_app": "顯示應用程式",
+        "show_app": "顯示/隱藏應用程式",
         "show_settings": "開啟設定",
         "title": "快速方式",
         "toggle_new_context": "清除上下文",
@@ -1216,7 +1298,32 @@
         "subscribe_delete": "刪除訂閱源",
         "title": "網路搜尋"
       },
-      "general.auto_check_update.title": "啟用自動更新檢查"
+      "general.auto_check_update.title": "啟用自動更新檢查",
+      "quickPhrase": {
+        "title": "快捷短語",
+        "add": "新增短語",
+        "edit": "編輯短語",
+        "titleLabel": "標題",
+        "contentLabel": "內容",
+        "titlePlaceholder": "請輸入短語標題",
+        "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。",
+        "delete": "刪除短語",
+        "deleteConfirm": "刪除後無法復原，是否繼續？"
+      },
+      "quickPanel": {
+        "title": "快捷選單",
+        "close": "關閉",
+        "select": "選擇",
+        "page": "翻頁",
+        "confirm": "確認",
+        "back": "後退",
+        "forward": "前進",
+        "multiple": "多選"
+      },
+      "privacy": {
+        "title": "隱私設定",
+        "enable_privacy_mode": "匿名發送錯誤報告和資料統計"
+      }
     },
     "translate": {
       "any.language": "任意語言",
@@ -1241,7 +1348,10 @@
       "scroll_sync.disable": "關閉滾動同步",
       "scroll_sync.enable": "開啟滾動同步",
       "title": "翻譯",
-      "tooltip.newline": "換行"
+      "tooltip.newline": "換行",
+      "menu": {
+        "description": "對當前輸入框內容進行翻譯"
+      }
     },
     "tray": {
       "quit": "結束",

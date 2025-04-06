@@ -14,7 +14,6 @@ import GiteeAIProviderLogo from '@renderer/assets/images/providers/gitee-ai.png'
 import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
 import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
 import GPUStackProviderLogo from '@renderer/assets/images/providers/gpustack.svg'
-import GraphRagProviderLogo from '@renderer/assets/images/providers/graph-rag.png'
 import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
@@ -64,7 +63,6 @@ const PROVIDER_LOGO_MAP = {
   gemini: GoogleProviderLogo,
   stepfun: StepProviderLogo,
   doubao: BytedanceProviderLogo,
-  'graphrag-kylin-mountain': GraphRagProviderLogo,
   minimax: MinimaxProviderLogo,
   github: GithubProviderLogo,
   copilot: GithubProviderLogo,

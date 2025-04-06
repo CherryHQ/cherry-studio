@@ -1,3 +1,4 @@
+import { DownOutlined } from '@ant-design/icons'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -33,9 +34,6 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const messageItemsRef = useRef<Map<string, HTMLDivElement>>(new Map())
   const containerRef = useRef<HTMLDivElement>(null)
   const [mouseY, setMouseY] = useState<number | null>(null)
-  const { topicPosition, showTopics } = useSettings()
-  const showRightTopics = topicPosition === 'right' && showTopics
-  const right = showRightTopics ? 'calc(var(--topic-list-width) + 15px)' : '15px'
 
   const [listOffsetY, setListOffsetY] = useState(0)
   const [containerHeight, setContainerHeight] = useState<number | null>(null)
@@ -132,6 +130,13 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
     [setSelectedMessage]
   )
 
+  const scrollToBottom = useCallback(() => {
+    const messagesContainer = document.getElementById('messages')
+    if (messagesContainer) {
+      messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' })
+    }
+  }, [])
+
   if (messages.length === 0) return null
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -160,9 +165,30 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      $right={right}
       $height={containerHeight}>
       <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
+        <MessageItem
+          key="bottom-anchor"
+          ref={(el) => {
+            if (el) messageItemsRef.current.set('bottom-anchor', el)
+            else messageItemsRef.current.delete('bottom-anchor')
+          }}
+          style={{
+            opacity: mouseY ? 0.5 + calculateValueByDistance('bottom-anchor', 1) : 0.6
+          }}
+          onClick={scrollToBottom}>
+          <MessageItemContainer
+            style={{ transform: `scale(${1 + calculateValueByDistance('bottom-anchor', 1)})` }}></MessageItemContainer>
+          <Avatar
+            icon={<DownOutlined style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }} />}
+            size={10 + calculateValueByDistance('bottom-anchor', 20)}
+            style={{
+              backgroundColor: theme === 'dark' ? 'var(--color-background-soft)' : 'var(--color-primary-light)',
+              border: `1px solid ${theme === 'dark' ? 'var(--color-border-soft)' : 'var(--color-primary-soft)'}`,
+              opacity: 0.9
+            }}
+          />
+        </MessageItem>
         {messages.map((message, index) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
           const scale = 1 + calculateValueByDistance(message.id, 1)
@@ -226,11 +252,11 @@ const MessageItemContainer = styled.div`
   transform-origin: right center;
 `
 
-const MessageLineContainer = styled.div<{ $right: string; $height: number | null }>`
+const MessageLineContainer = styled.div<{ $height: number | null }>`
   width: 14px;
   position: fixed;
   top: ${(props) => (props.$height ? `calc(${props.$height / 2}px + var(--status-bar-height))` : '50%')};
-  right: ${(props) => props.$right};
+  right: 13px;
   max-height: ${(props) => (props.$height ? `${props.$height}px` : 'calc(100% - var(--status-bar-height) * 2)')};
   transform: translateY(-50%);
   z-index: 0;

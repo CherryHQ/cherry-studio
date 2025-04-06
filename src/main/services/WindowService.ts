@@ -1,6 +1,7 @@
 import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
@@ -15,7 +16,11 @@ export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
+  private isPinnedMiniWindow: boolean = false
   private wasFullScreen: boolean = false
+  //hacky-fix: store the focused status of mainWindow before miniWindow shows
+  //to restore the focus status when miniWindow hides
+  private wasMainWindowFocused: boolean = false
   private selectionMenuWindow: BrowserWindow | null = null
   private lastSelectedText: string = ''
   private contextMenu: Menu | null = null
@@ -30,6 +35,7 @@ export class WindowService {
   public createMainWindow(): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.show()
+      this.mainWindow.focus()
       return this.mainWindow
     }
 
@@ -56,7 +62,7 @@ export class WindowService {
       titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
       trafficLightPosition: { x: 8, y: 12 },
-      ...(process.platform === 'linux' ? { icon } : {}),
+      ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -67,6 +73,12 @@ export class WindowService {
     })
 
     this.setupMainWindow(this.mainWindow, mainWindowState)
+
+    //preload miniWindow to resolve series of issues about miniWindow in Mac
+    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+    if (enableQuickAssistant && !this.miniWindow) {
+      this.miniWindow = this.createMiniWindow(true)
+    }
 
     return this.mainWindow
   }
@@ -148,6 +160,8 @@ export class WindowService {
       // show window only when laucn to tray not set
       const isLaunchToTray = configManager.getLaunchToTray()
       if (!isLaunchToTray) {
+        //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
+        app.dock?.show()
         mainWindow.show()
       }
     })
@@ -155,13 +169,32 @@ export class WindowService {
     // 处理全屏相关事件
     mainWindow.on('enter-full-screen', () => {
       this.wasFullScreen = true
-      mainWindow.webContents.send('fullscreen-status-changed', true)
+      mainWindow.webContents.send(IpcChannel.FullscreenStatusChanged, true)
     })
 
     mainWindow.on('leave-full-screen', () => {
       this.wasFullScreen = false
-      mainWindow.webContents.send('fullscreen-status-changed', false)
+      mainWindow.webContents.send(IpcChannel.FullscreenStatusChanged, false)
     })
+
+    // set the zoom factor again when the window is going to resize
+    //
+    // this is a workaround for the known bug that
+    // the zoom factor is reset to cached value when window is resized after routing to other page
+    // see: https://github.com/electron/electron/issues/10572
+    //
+    mainWindow.on('will-resize', () => {
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+    })
+
+    // ARCH: as `will-resize` is only for Win & Mac,
+    // linux has the same problem, use `resize` listener instead
+    // but `resize` will fliker the ui
+    if (isLinux) {
+      mainWindow.on('resize', () => {
+        mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      })
+    }
 
     // 添加Escape键退出全屏的支持
     mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -286,9 +319,8 @@ export class WindowService {
       event.preventDefault()
       mainWindow.hide()
 
-      if (isMac && isTrayOnClose) {
-        app.dock?.hide() //for mac to hide to tray
-      }
+      //for mac users, should hide dock icon if close to tray
+      app.dock?.hide()
     })
 
     mainWindow.on('closed', () => {
@@ -309,17 +341,120 @@ export class WindowService {
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (this.mainWindow.isMinimized()) {
-        return this.mainWindow.restore()
+        this.mainWindow.restore()
+        return
       }
+      //[macOS] Known Issue
+      // setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
+      // AppleScript may be a solution, but it's not worth
+      this.mainWindow.setVisibleOnAllWorkspaces(true)
       this.mainWindow.show()
       this.mainWindow.focus()
+      this.mainWindow.setVisibleOnAllWorkspaces(false)
     } else {
       this.mainWindow = this.createMainWindow()
-      this.mainWindow.focus()
+    }
+  }
+
+  public toggleMainWindow() {
+    // should not toggle main window when in full screen
+    if (this.wasFullScreen) {
+      return
     }
 
-    //for mac users, when window is shown, should show dock icon (dock may be set to hide when launch)
-    app.dock?.show()
+    if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
+      if (this.mainWindow.isFocused()) {
+        // if tray is enabled, hide the main window, else do nothing
+        if (configManager.getTray()) {
+          this.mainWindow.hide()
+          app.dock?.hide()
+        }
+      } else {
+        this.mainWindow.focus()
+      }
+      return
+    }
+
+    this.showMainWindow()
+  }
+
+  public createMiniWindow(isPreload: boolean = false): BrowserWindow {
+    this.miniWindow = new BrowserWindow({
+      width: 550,
+      height: 400,
+      minWidth: 350,
+      minHeight: 380,
+      maxWidth: 1024,
+      maxHeight: 768,
+      show: false,
+      autoHideMenuBar: true,
+      transparent: isMac,
+      vibrancy: 'under-window',
+      visualEffectState: 'followWindow',
+      center: true,
+      frame: false,
+      alwaysOnTop: true,
+      resizable: true,
+      useContentSize: true,
+      ...(isMac ? { type: 'panel' } : {}),
+      skipTaskbar: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true
+      }
+    })
+
+    //miniWindow should show in current desktop
+    this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    //make miniWindow always on top of fullscreen apps with level set
+    this.miniWindow.setAlwaysOnTop(true, 'screen-saver', 1)
+
+    this.miniWindow.on('ready-to-show', () => {
+      if (isPreload) {
+        return
+      }
+
+      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
+      this.miniWindow?.center()
+      this.miniWindow?.show()
+    })
+
+    this.miniWindow.on('blur', () => {
+      if (!this.isPinnedMiniWindow) {
+        this.hideMiniWindow()
+      }
+    })
+
+    this.miniWindow.on('closed', () => {
+      this.miniWindow = null
+    })
+
+    this.miniWindow.on('hide', () => {
+      this.miniWindow?.webContents.send(IpcChannel.HideMiniWindow)
+    })
+
+    this.miniWindow.on('show', () => {
+      this.miniWindow?.webContents.send(IpcChannel.ShowMiniWindow)
+    })
+
+    ipcMain.on(IpcChannel.MiniWindowReload, () => {
+      this.miniWindow?.reload()
+    })
+
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/mini')
+    } else {
+      this.miniWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+        hash: '#/mini'
+      })
+    }
+
+    return this.miniWindow
   }
 
   public showMiniWindow() {
@@ -334,66 +469,32 @@ export class WindowService {
     }
 
     if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
+
       if (this.miniWindow.isMinimized()) {
         this.miniWindow.restore()
       }
       this.miniWindow.show()
-      this.miniWindow.center()
-      this.miniWindow.focus()
       return
     }
 
-    this.miniWindow = new BrowserWindow({
-      width: 500,
-      height: 520,
-      show: true,
-      autoHideMenuBar: true,
-      transparent: isMac,
-      vibrancy: 'under-window',
-      visualEffectState: 'followWindow',
-      center: true,
-      frame: false,
-      alwaysOnTop: true,
-      resizable: false,
-      useContentSize: true,
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        sandbox: false,
-        webSecurity: false,
-        webviewTag: true
-      }
-    })
-
-    this.miniWindow.on('blur', () => {
-      this.miniWindow?.hide()
-    })
-
-    this.miniWindow.on('closed', () => {
-      this.miniWindow = null
-    })
-
-    this.miniWindow.on('hide', () => {
-      this.miniWindow?.webContents.send('hide-mini-window')
-    })
-
-    this.miniWindow.on('show', () => {
-      this.miniWindow?.webContents.send('show-mini-window')
-    })
-
-    ipcMain.on('miniwindow-reload', () => {
-      this.miniWindow?.reload()
-    })
-
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/mini')
-    } else {
-      this.miniWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        hash: '#/mini'
-      })
-    }
+    this.miniWindow = this.createMiniWindow()
   }
 
   public hideMiniWindow() {
+    //hacky-fix:[mac/win] previous window(not self-app) should be focused again after miniWindow hide
+    if (isWin) {
+      this.miniWindow?.minimize()
+      this.miniWindow?.hide()
+      return
+    } else if (isMac) {
+      this.miniWindow?.hide()
+      if (!this.wasMainWindowFocused) {
+        app.hide()
+      }
+      return
+    }
+
     this.miniWindow?.hide()
   }
 
@@ -402,11 +503,16 @@ export class WindowService {
   }
 
   public toggleMiniWindow() {
-    if (this.miniWindow) {
-      this.miniWindow.isVisible() ? this.miniWindow.hide() : this.miniWindow.show()
-    } else {
-      this.showMiniWindow()
+    if (this.miniWindow && !this.miniWindow.isDestroyed() && this.miniWindow.isVisible()) {
+      this.hideMiniWindow()
+      return
     }
+
+    this.showMiniWindow()
+  }
+
+  public setPinMiniWindow(isPinned) {
+    this.isPinnedMiniWindow = isPinned
   }
 
   public showSelectionMenu(bounds: { x: number; y: number }) {
@@ -442,7 +548,7 @@ export class WindowService {
     // 点击其他地方时隐藏窗口
     this.selectionMenuWindow.on('blur', () => {
       this.selectionMenuWindow?.hide()
-      this.miniWindow?.webContents.send('selection-action', {
+      this.miniWindow?.webContents.send(IpcChannel.SelectionAction, {
         action: 'home',
         selectedText: this.lastSelectedText
       })
@@ -460,12 +566,12 @@ export class WindowService {
   private setupSelectionMenuEvents() {
     if (!this.selectionMenuWindow) return
 
-    ipcMain.removeHandler('selection-menu:action')
-    ipcMain.handle('selection-menu:action', (_, action) => {
+    ipcMain.removeHandler(IpcChannel.SelectionMenu_Action)
+    ipcMain.handle(IpcChannel.SelectionMenu_Action, (_, action) => {
       this.selectionMenuWindow?.hide()
       this.showMiniWindow()
       setTimeout(() => {
-        this.miniWindow?.webContents.send('selection-action', {
+        this.miniWindow?.webContents.send(IpcChannel.SelectionAction, {
           action,
           selectedText: this.lastSelectedText
         })

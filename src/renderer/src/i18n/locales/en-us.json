@@ -46,6 +46,11 @@
       "search": "Search assistants...",
       "settings.default_model": "Default Model",
       "settings.knowledge_base": "Knowledge Base Settings",
+      "settings.mcp": "MCP Servers",
+      "settings.mcp.enableFirst": "Enable this server in MCP settings first",
+      "settings.mcp.title": "MCP Settings",
+      "settings.mcp.noServersAvailable": "No MCP servers available. Add servers in settings",
+      "settings.mcp.description": "Default enabled MCP servers",
       "settings.model": "Model Settings",
       "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
@@ -145,12 +150,23 @@
         "history": "Chat History",
         "last": "Already at the last message",
         "next": "Next Message",
-        "prev": "Previous Message"
+        "prev": "Previous Message",
+        "top": "Back to top",
+        "bottom": "Back to bottom",
+        "close": "Close"
       },
       "resend": "Resend",
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
       "settings.code_wrappable": "Code block wrappable",
+      "settings.code_cacheable": "Code block cache",
+      "settings.code_cacheable.tip": "Caching code blocks can reduce the rendering time of long code blocks, but it will increase memory usage",
+      "settings.code_cache_max_size": "Max cache size",
+      "settings.code_cache_max_size.tip": "The maximum number of characters allowed to be cached (thousand characters), calculated according to the highlighted code. The length of the highlighted code is much longer than the pure text.",
+      "settings.code_cache_ttl": "Cache TTL",
+      "settings.code_cache_ttl.tip": "Cache expiration time (minutes)",
+      "settings.code_cache_threshold": "Cache threshold",
+      "settings.code_cache_threshold.tip": "The minimum number of characters allowed to be cached (thousand characters), calculated according to the actual code. Only code blocks exceeding the threshold will be cached.",
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
@@ -180,6 +196,7 @@
       "topics.export.image": "Export as image",
       "topics.export.joplin": "Export to Joplin",
       "topics.export.md": "Export as markdown",
+      "topics.export.md.reason": "Export as Markdown (with reasoning)",
       "topics.export.notion": "Export to Notion",
       "topics.export.obsidian": "Export to Obsidian",
       "topics.export.obsidian_vault": "Vault",
@@ -224,7 +241,12 @@
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
       "translate": "Translate",
-      "topics.export.siyuan": "Export to Siyuan Note"
+      "topics.export.siyuan": "Export to Siyuan Note",
+      "topics.export.wait_for_title_naming": "Generating title...",
+      "topics.export.title_naming_success": "Title generated successfully",
+      "topics.export.title_naming_failed": "Failed to generate title, using default title",
+      "input.translating": "Translating...",
+      "input.upload.upload_from_local": "Upload local file..."
     },
     "code_block": {
       "collapse": "Collapse",
@@ -275,7 +297,8 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "reasoning_content": "Deep reasoning"
     },
     "docs": {
       "title": "Docs"
@@ -317,7 +340,7 @@
     "files": {
       "actions": "Actions",
       "all": "All Files",
-      "count": "Count",
+      "count": "files",
       "created_at": "Created At",
       "delete": "Delete",
       "delete.content": "Deleting a file will delete its reference from all messages. Are you sure you want to delete this file?",
@@ -542,10 +565,20 @@
       "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
     },
     "minapp": {
+      "popup": {
+        "refresh": "Refresh",
+        "close": "Close MinApp",
+        "minimize": "Minimize MinApp",
+        "devtools": "Developer Tools",
+        "openExternal": "Open in Browser",
+        "rightclick_copyurl": "Right-click to copy URL"
+      },
       "sidebar.add.title": "Add to sidebar",
       "sidebar.remove.title": "Remove from sidebar",
-      "title": "MinApp",
-      "sidebar.hide.title": "Hide MinApp"
+      "sidebar.close.title": "Close",
+      "sidebar.closeall.title": "Close All",
+      "sidebar.hide.title": "Hide MinApp",
+      "title": "MinApp"
     },
     "miniwindow": {
       "clipboard": {
@@ -559,15 +592,19 @@
       },
       "footer": {
         "copy_last_message": "Press C to copy",
-        "esc": "Press ESC {{action}}",
-        "esc_back": "back",
-        "esc_close": "close the window"
+        "backspace_clear": "Backspace to clear",
+        "esc": "ESC to {{action}}",
+        "esc_back": "return",
+        "esc_close": "close"
       },
       "input": {
         "placeholder": {
           "empty": "Ask {{model}} for help...",
           "title": "What do you want to do with this text?"
         }
+      },
+      "tooltip": {
+        "pin": "Keep Window on Top"
       }
     },
     "models": {
@@ -672,7 +709,6 @@
       "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "Tencent Hunyuan",
@@ -761,8 +797,24 @@
           "title": "Clear Cache"
         },
         "data.title": "Data Directory",
+        "divider.basic": "Basic Data Settings",
+        "divider.cloud_storage": "Cloud Backup Settings",
+        "divider.export_settings": "Export Settings",
+        "divider.third_party": "Third-party Connections",
         "hour_interval_one": "{{count}} hour",
         "hour_interval_other": "{{count}} hours",
+        "export_menu": {
+          "title": "Export Menu Settings",
+          "image": "Export as Image",
+          "markdown": "Export as Markdown",
+          "markdown_reason": "Export as Markdown (with reasoning)",
+          "notion": "Export to Notion",
+          "yuque": "Export to Yuque",
+          "obsidian": "Export to Obsidian",
+          "siyuan": "Export to SiYuan Note",
+          "joplin": "Export to Joplin",
+          "docx": "Export as Word"
+        },
         "joplin": {
           "check": {
             "button": "Check",
@@ -902,17 +954,16 @@
           "pathSelector.return": "Return",
           "pathSelector.currentPath": "Current Path",
           "new_folder.button.confirm": "Confirm",
-          "new_folder.button.cancel": "Cancel"
-        }
+          "new_folder.button.cancel": "Cancel",
+          "new_folder.button": "New Folder"
+        },
+        "message_title.use_topic_naming.title": "Use topic naming model to create titles for exported messages",
+        "message_title.use_topic_naming.help": "When enabled, use topic naming model to create titles for exported messages. This will also affect all Markdown export methods."
       },
       "display.assistant.title": "Assistant Settings",
       "display.custom.css": "Custom CSS",
       "display.custom.css.cherrycss": "Get from cherrycss.com",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
-      "display.minApp.disabled": "Hidden MinApp",
-      "display.minApp.empty": "Drag minApp from the left to hide them here",
-      "display.minApp.title": "MinApp  Settings",
-      "display.minApp.visible": "Visible MinApp",
       "display.sidebar.chat.hiddenMessage": "Assistants are basic functions, not supported for hiding",
       "display.sidebar.disabled": "Hide icons",
       "display.sidebar.empty": "Drag the hidden feature from the left side here",
@@ -925,6 +976,20 @@
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
       "display.topic.title": "Topic Settings",
+      "miniapps": {
+        "title": "Mini Apps Settings",
+        "disabled": "Hidden Mini Apps",
+        "empty": "Drag mini apps from the left to hide them",
+        "visible": "Visible Mini Apps",
+        "cache_settings": "Cache Settings",
+        "cache_title": "Mini App Cache Limit",
+        "cache_description": "Set the maximum number of active mini apps to keep in memory",
+        "reset_tooltip": "Reset to default",
+        "display_title": "Mini App Display Settings",
+        "sidebar_title": "Sidebar Active Mini Apps Display",
+        "sidebar_description": "Show active mini apps in the sidebar",
+        "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value"
+      },
       "font_size.title": "Message font size",
       "general": "General Settings",
       "general.avatar.reset": "Reset Avatar",
@@ -961,10 +1026,10 @@
         "argsTooltip": "Each argument on a new line",
         "baseUrlTooltip": "Remote server base URL",
         "command": "Command",
-        "commandRequired": "Please enter a command",
+        "sse": "Server-Sent Events(sse)",
+        "stdio": "Standard Input/Output(stdio)",
+        "inMemory": "Memory",
         "config_description": "Configure Model Context Protocol servers",
-        "confirmDelete": "Delete Server",
-        "confirmDeleteMessage": "Are you sure you want to delete the server?",
         "deleteError": "Failed to delete server",
         "deleteSuccess": "Server deleted successfully",
         "dependenciesInstall": "Install Dependencies",
@@ -975,7 +1040,8 @@
         "editServer": "Edit Server",
         "env": "Environment Variables",
         "envTooltip": "Format: KEY=value, one per line",
-        "findMore": "Find More MCP Servers",
+        "findMore": "Find More MCP",
+        "searchNpx": "Search MCP",
         "install": "Install",
         "installError": "Failed to install dependencies",
         "installSuccess": "Dependencies installed successfully",
@@ -985,8 +1051,8 @@
         "jsonSaveSuccess": "JSON configuration has been saved.",
         "missingDependencies": "is Missing, please install it to continue.",
         "name": "Name",
-        "nameRequired": "Please enter a server name",
         "noServers": "No servers configured",
+        "newServer": "MCP Server",
         "npx_list": {
           "actions": "Actions",
           "desc": "Search and add npm packages as MCP servers",
@@ -1002,14 +1068,30 @@
           "usage": "Usage",
           "version": "Version"
         },
+        "errors": {
+          "32000": "MCP server failed to start, please check the parameters according to the tutorial"
+        },
         "serverPlural": "servers",
         "serverSingular": "server",
         "title": "MCP Servers",
-        "toggleError": "Toggle failed",
+        "startError": "Start failed",
         "type": "Type",
         "updateError": "Failed to update server",
         "updateSuccess": "Server updated successfully",
-        "url": "URL"
+        "url": "URL",
+        "editMcpJson": "Edit MCP Configuration",
+        "installHelp": "Get Installation Help",
+        "tools": {
+          "inputSchema": "Input Schema",
+          "availableTools": "Available Tools",
+          "noToolsAvailable": "No tools available"
+        },
+        "deleteServer": "Delete Server",
+        "deleteServerConfirm": "Are you sure you want to delete this server?",
+        "registry": "Package Registry",
+        "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
+        "registryDefault": "Default",
+        "not_support": "Model not supported"
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
@@ -1159,7 +1241,7 @@
         "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
         "reset_to_default": "Reset to Default",
         "search_message": "Search Message",
-        "show_app": "Show App",
+        "show_app": "Show/Hide App",
         "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",
         "toggle_new_context": "Clear Context",
@@ -1206,7 +1288,7 @@
           "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
           "title": "Tavily"
         },
-        "title": "Web Search",
+       "title": "Web Search",
         "subscribe": "Subscribe",
         "subscribe_tooltip": "Subscribe to the blacklist.",
         "subscribe_update": "Update now",
@@ -1216,6 +1298,31 @@
         "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
         "subscribe_add_success": "Subscription feed added successfully!",
         "subscribe_delete": "Delete subscription source"
+      },
+      "quickPhrase": {
+        "title": "Quick Phrases",
+        "add": "Add Phrase",
+        "edit": "Edit Phrase",
+        "titleLabel": "Title",
+        "contentLabel": "Content",
+        "titlePlaceholder": "Please enter phrase title",
+        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "delete": "Delete Phrase",
+        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?"
+      },
+      "quickPanel": {
+        "title": "Quick Menu",
+        "close": "Close",
+        "select": "Select",
+        "page": "Page",
+        "confirm": "Confirm",
+        "back": "Back",
+        "forward": "Forward",
+        "multiple": "Multiple Select"
+      },
+      "privacy": {
+        "title": "Privacy Settings",
+        "enable_privacy_mode": "Anonymous reporting of errors and statistics"
       }
     },
     "translate": {
@@ -1241,7 +1348,10 @@
       "scroll_sync.disable": "Disable synced scroll",
       "scroll_sync.enable": "Enable synced scroll",
       "title": "Translation",
-      "tooltip.newline": "Newline"
+      "tooltip.newline": "Newline",
+      "menu": {
+        "description": "Translate the content of the current input box"
+      }
     },
     "tray": {
       "quit": "Quit",

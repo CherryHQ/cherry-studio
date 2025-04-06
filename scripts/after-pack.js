@@ -27,7 +27,7 @@ exports.default = async function (context) {
     removeDifferentArchNodeFiles(node_modules_path, '@libsql', _arch)
   }
 
-  if (platform === 'windows') {
+  if (platform === 'windows' && arch !== Arch.arm64) {
     const node_modules_path = path.join(context.appOutDir, 'resources', 'app.asar.unpacked', 'node_modules')
     removeDifferentArchNodeFiles(node_modules_path, '@libsql', ['win32-x64-msvc'])
   }

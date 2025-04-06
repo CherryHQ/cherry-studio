@@ -1,8 +1,8 @@
+import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
 import { setDefaultProvider, WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import WebSearchEngineProvider from '@renderer/webSearchProvider/WebSearchEngineProvider'
 import dayjs from 'dayjs'
 
 /**
