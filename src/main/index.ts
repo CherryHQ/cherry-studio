@@ -1,7 +1,7 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, ipcMain } from 'electron'
+import { app, ipcMain, shell } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
@@ -66,14 +66,6 @@ if (!app.requestSingleInstanceLock()) {
     handleProtocolUrl(url)
   })
 
-  registerProtocolClient(app)
-
-  // macOS specific: handle protocol when app is already running
-  app.on('open-url', (event, url) => {
-    event.preventDefault()
-    handleProtocolUrl(url)
-  })
-
   // Listen for second instance
   app.on('second-instance', (_event, argv) => {
     windowService.showMainWindow()
@@ -86,6 +78,17 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+  })
+
+  app.on('web-contents-created', (_, wc) => {
+    /** handle the url link of using window.open and target='_blank' to open
+     * we will open the link in the external browser instead of electron default window
+     * This will affect all the webContents including mainWindow and all the <webview> created contents
+     * see https://www.electronjs.org/docs/latest/api/window-open */
+    wc.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url)
+      return { action: 'deny' } // deny or allow
+    })
   })
 
   app.on('before-quit', () => {
