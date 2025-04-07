@@ -155,11 +155,11 @@ const NpxSearch: FC = () => {
           <div style={{ textAlign: 'center', padding: '20px' }}>
             <Spin />
           </div>
-        ) : searchResults.length > 0 ? (
-          searchResults.map((record) => (
+        ) : (
+          searchResults?.map((record) => (
             <Card
               size="small"
-              key={record.npmLink}
+              key={record.name}
               title={
                 <Typography.Title level={5} style={{ margin: 0 }} className="selectable">
                   {record.name}
@@ -206,7 +206,7 @@ const NpxSearch: FC = () => {
               </Space>
             </Card>
           ))
-        ) : null}
+        )}
       </ResultList>
     </SettingGroup>
   )
