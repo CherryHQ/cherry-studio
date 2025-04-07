@@ -45,7 +45,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         id: 'new',
         name: searchText.trim(),
         prompt: '',
-        topics: [],
         type: 'assistant',
         emoji: '⭐️'
       }

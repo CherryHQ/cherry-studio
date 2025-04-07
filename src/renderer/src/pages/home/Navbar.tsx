@@ -1,10 +1,9 @@
-import { SearchOutlined } from '@ant-design/icons'
+import { MoreOutlined, RightOutlined, SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -12,27 +11,21 @@ import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
-import { Assistant, Topic } from '@renderer/types'
-import { Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import { t } from 'i18next'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 import styled from 'styled-components'
 
+import SelectAssistantButton from './components/SelectAssistantButton'
 import SelectModelButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
-interface Props {
-  activeAssistant: Assistant
-  activeTopic: Topic
-  setActiveTopic: (topic: Topic) => void
-}
-
-const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
-  const { assistant } = useAssistant(activeAssistant.id)
+const HeaderNavbar: FC = () => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { topicPosition, sidebarIcons, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
+  const [showModelSelector, setShowModelSelector] = useState(false)
 
   useShortcut('toggle_show_assistants', () => {
     toggleShowAssistants()
@@ -82,7 +75,20 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
               </NavbarIcon>
             </Tooltip>
           )}
-          <SelectModelButton assistant={assistant} />
+          <HStack alignItems="center" gap={2}>
+            <SelectAssistantButton />
+            <Tooltip
+              title={showModelSelector ? t('navbar.hide_select_model') : t('navbar.show_select_model')}
+              mouseEnterDelay={0.8}>
+              <ShowModelSelectorButton
+                size="small"
+                type="text"
+                icon={showModelSelector ? <RightOutlined /> : <MoreOutlined />}
+                onClick={() => setShowModelSelector(!showModelSelector)}
+              />
+            </Tooltip>
+            {showModelSelector && <SelectModelButton />}
+          </HStack>
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />
@@ -148,6 +154,17 @@ export const NavbarIcon = styled.div`
 const NarrowIcon = styled(NavbarIcon)`
   @media (max-width: 1000px) {
     display: none;
+  }
+`
+
+const ShowModelSelectorButton = styled(Button)`
+  -webkit-app-region: none;
+  width: 18px !important;
+  color: var(--color-text-3);
+
+  &:hover {
+    background-color: transparent !important;
+    color: var(--color-primary) !important;
   }
 `
 
