@@ -102,18 +102,14 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>
-          <Flex justify="center" align="center" style={{ position: 'relative' }}>
-            <div>
-              <Button type="primary" htmlType="submit" size="middle">
-                {t('common.save')}
-              </Button>
-            </div>
-            <MoreSettingsRow
-              onClick={() => setShowModelTypes(!showModelTypes)}
-              style={{ position: 'absolute', right: 0 }}>
+          <Flex justify="space-between" align="center" style={{ position: 'relative' }}>
+            <MoreSettingsRow onClick={() => setShowModelTypes(!showModelTypes)}>
               {t('settings.moresetting')}
               <ExpandIcon>{showModelTypes ? <UpOutlined /> : <DownOutlined />}</ExpandIcon>
             </MoreSettingsRow>
+            <Button type="primary" htmlType="submit" size="middle">
+              {t('common.save')}
+            </Button>
           </Flex>
         </Form.Item>
         {showModelTypes && (

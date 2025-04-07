@@ -7,6 +7,7 @@ import {
   SearchOutlined,
   SettingOutlined
 } from '@ant-design/icons'
+import CustomTag from '@renderer/components/CustomTag'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -269,8 +270,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           ) : (
             <VirtualList
               data={fileItems.reverse()}
-              height={fileItems.length > 5 ? 400 : fileItems.length * 80}
-              itemHeight={80}
+              height={fileItems.length > 5 ? 400 : fileItems.length * 75}
+              itemHeight={75}
               itemKey="id"
               styles={{
                 verticalScrollBar: {
@@ -283,7 +284,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               {(item) => {
                 const file = item.content as FileType
                 return (
-                  <div style={{ height: '80px', paddingTop: '12px' }}>
+                  <div style={{ height: '75px', paddingTop: '12px' }}>
                     <FileItem
                       key={item.id}
                       fileInfo={{
@@ -588,9 +589,9 @@ const CollapseLabel = ({ label, count }: { label: string; count: number }) => {
   return (
     <HStack alignItems="center" gap={10}>
       <label>{label}</label>
-      <Tag style={{ borderRadius: 100, padding: '0 10px' }} color={count ? 'green' : 'default'}>
+      <CustomTag size={12} color={count ? '#008001' : '#cccccc'}>
         {count}
-      </Tag>
+      </CustomTag>
     </HStack>
   )
 }

@@ -1,4 +1,5 @@
-import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
+import { CheckOutlined, ExportOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -383,7 +384,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
-            <span>{t('common.models')}</span>
+            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
           </Space>
           {!isEmpty(models) && (
@@ -391,7 +392,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
               <Button
                 type="text"
                 size="small"
-                icon={<HeartOutlined />}
+                icon={<StreamlineGoodHealthAndWellBeing />}
                 onClick={onHealthCheck}
                 loading={isHealthChecking}
               />

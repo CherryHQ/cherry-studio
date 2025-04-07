@@ -80,7 +80,7 @@ body {
 
 body[theme-mode='light'] {
   --color-white: #ffffff;
-  --color-white-soft: #f2f2f2;
+  --color-white-soft: rgba(0, 0, 0, 0.04);
   --color-white-mute: #eee;
 
   --color-black: #1b1b1f;

@@ -18,6 +18,7 @@ import styled from 'styled-components'
 
 interface FileItemProps {
   fileInfo: {
+    icon?: React.ReactNode
     name: React.ReactNode | string
     ext: string
     extra?: React.ReactNode | string
@@ -74,17 +75,17 @@ const getFileIcon = (type?: string) => {
 }
 
 const FileItem: React.FC<FileItemProps> = ({ fileInfo }) => {
-  const { name, ext, extra, actions } = fileInfo
+  const { name, ext, extra, actions, icon } = fileInfo
 
   return (
     <FileItemCard>
       <CardContent>
-        <FileIcon>{getFileIcon(ext)}</FileIcon>
-        <Flex vertical gap={0} flex={1} style={{ width: '0px' }}>
+        <FileIcon>{icon || getFileIcon(ext)}</FileIcon>
+        <Flex vertical justify="center" gap={0} flex={1} style={{ width: '0px' }}>
           <FileName>{name}</FileName>
           {extra && <FileInfo>{extra}</FileInfo>}
         </Flex>
-        {actions}
+        <FileActions>{actions}</FileActions>
       </CardContent>
     </FileItemCard>
   )
@@ -109,15 +110,19 @@ const FileItemCard = styled.div`
 `
 
 const CardContent = styled.div`
-  padding: 8px 16px;
+  padding: 8px 8px 8px 16px;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 16px;
 `
 
 const FileIcon = styled.div`
+  max-height: 44px;
   color: var(--color-text-3);
   font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `
 
 const FileName = styled.div`
@@ -138,6 +143,13 @@ const FileName = styled.div`
 const FileInfo = styled.div`
   font-size: 13px;
   color: var(--color-text-2);
+`
+
+const FileActions = styled.div`
+  max-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `
 
 export default memo(FileItem)

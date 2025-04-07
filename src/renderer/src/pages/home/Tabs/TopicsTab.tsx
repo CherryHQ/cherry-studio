@@ -493,7 +493,6 @@ const TopicListItem = styled.div`
     }
     .menu {
       opacity: 1;
-      background-color: var(--color-background-soft);
       &:hover {
         color: var(--color-text-2);
       }
