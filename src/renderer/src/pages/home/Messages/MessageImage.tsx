@@ -39,26 +39,10 @@ const MessageImage: FC<Props> = ({ message }) => {
   // 复制 base64 图片到剪贴板
   const onCopy = async (imageBase64: string) => {
     try {
-      const base64Data = imageBase64.split(',')[1]
-      const mimeType = imageBase64.split(';')[0].split(':')[1]
-
-      const byteCharacters = atob(base64Data)
-      const byteArrays: Uint8Array[] = []
-
-      for (let i = 0; i < byteCharacters.length; i += 512) {
-        const slice = byteCharacters.slice(i, i + 512)
-
-        const byteNumbers = new Array(slice.length)
-        for (let j = 0; j < slice.length; j++) {
-          byteNumbers[j] = slice.charCodeAt(j)
-        }
-
-        const byteArray = new Uint8Array(byteNumbers)
-        byteArrays.push(byteArray)
-      }
-
-      const blob = new Blob(byteArrays, { type: mimeType })
-
+      // 首先尝试直接获取图片并转换为 blob
+      const response = await fetch(imageBase64);
+      const blob = await response.blob();
+      
       await navigator.clipboard.write([
         new ClipboardItem({
           [blob.type]: blob
