@@ -35,7 +35,13 @@ win:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   target:
     - target: nsis
+      arch:
+        - arm64
+        - x64
     - target: portable
+      arch:
+        - arm64
+        - x64
 nsis:
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
