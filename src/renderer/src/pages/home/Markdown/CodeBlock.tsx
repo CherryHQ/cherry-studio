@@ -1,13 +1,14 @@
-import { CheckOutlined, DownloadOutlined, ExpandAltOutlined, ShrinkOutlined } from '@ant-design/icons'
+import { CheckOutlined, DownloadOutlined, ExpandAltOutlined, MenuOutlined, ShrinkOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import UnWrapIcon from '@renderer/components/Icons/UnWrapIcon'
 import WrapIcon from '@renderer/components/Icons/WrapIcon'
 import { HStack } from '@renderer/components/Layout'
 import { useSyntaxHighlighter } from '@renderer/context/SyntaxHighlighterProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Tooltip } from 'antd'
+import { extractTitle } from '@renderer/utils/formats'
+import { Dropdown, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,10 +34,10 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const codeContentRef = useRef<HTMLDivElement>(null)
   const childrenLengthRef = useRef(0)
   const isStreamingRef = useRef(false)
+  const { t } = useTranslation()
 
   const [showExpandButton, setShowExpandButton] = useState(false)
   const showExpandButtonRef = useRef(false)
-  const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 
   const shouldHighlight = useCallback((lang: string) => {
     const NON_HIGHLIGHT_LANGS = ['mermaid', 'plantuml', 'svg']
@@ -103,6 +104,59 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
     setIsUnwrapped(!codeWrappable)
   }, [codeWrappable])
 
+  const renderSourceCode = useCallback(() => {
+    return (
+      <CodeContent
+        ref={codeContentRef}
+        isShowLineNumbers={codeShowLineNumbers}
+        isUnwrapped={isUnwrapped}
+        isCodeWrappable={codeWrappable}
+        // dangerouslySetInnerHTML={{ __html: html }}
+        style={{
+          border: '0.5px solid var(--color-code-background)',
+          borderTopLeftRadius: 0,
+          borderTopRightRadius: 0,
+          marginTop: 0,
+          fontSize: fontSize - 1,
+          maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none',
+          overflow: codeCollapsible && !isExpanded ? 'auto' : 'visible',
+          position: 'relative'
+        }}
+      />
+    )
+  }, [codeShowLineNumbers, codeWrappable, codeCollapsible, isExpanded, isUnwrapped, codeContentRef, fontSize])
+
+  const onDownloadCode = useCallback((children: string, language: string) => {
+    let fileName = ''
+
+    // 尝试提取标题
+    if (language === 'html' && children.includes('</html>')) {
+      const title = extractTitle(children)
+      if (title) {
+        fileName = `${title}.html`
+      }
+    }
+
+    // 默认使用日期格式命名
+    if (!fileName) {
+      fileName = `${dayjs().format('YYYYMMDDHHmm')}.${language}`
+    }
+
+    window.api.file.save(fileName, children)
+  }, [])
+
+  const moreMenuItems = useMemo(
+    () => [
+      {
+        key: 'download',
+        label: t('code_block.download'),
+        icon: <DownloadOutlined />,
+        onClick: () => onDownloadCode(children, language)
+      }
+    ],
+    [t, onDownloadCode, children, language]
+  )
+
   if (language === 'mermaid') {
     return <Mermaid chart={children} />
   }
@@ -124,6 +178,11 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
             alignItems="center"
             style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
             <CopyButton text={children} />
+            <Dropdown menu={{ items: moreMenuItems }} trigger={['click']} placement="topRight" arrow>
+              <CodeBlockStickyTool>
+                <MenuOutlined />
+              </CodeBlockStickyTool>
+            </Dropdown>
           </HStack>
         </StickyWrapper>
         <SvgPreview>{children}</SvgPreview>
@@ -142,29 +201,19 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           gap={12}
           alignItems="center"
           style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
-          {showDownloadButton && <DownloadButton language={language} data={children} />}
           {showExpandButton && <ExpandButton expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />}
           {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           <CopyButton text={children} />
+          <Dropdown menu={{ items: moreMenuItems }} trigger={['click']} placement="topRight" arrow>
+            <Tooltip title={t('code_block.more')}>
+              <CodeBlockStickyTool>
+                <MenuOutlined />
+              </CodeBlockStickyTool>
+            </Tooltip>
+          </Dropdown>
         </HStack>
       </StickyWrapper>
-      <CodeContent
-        ref={codeContentRef}
-        isShowLineNumbers={codeShowLineNumbers}
-        isUnwrapped={isUnwrapped}
-        isCodeWrappable={codeWrappable}
-        // dangerouslySetInnerHTML={{ __html: html }}
-        style={{
-          border: '0.5px solid var(--color-code-background)',
-          borderTopLeftRadius: 0,
-          borderTopRightRadius: 0,
-          marginTop: 0,
-          fontSize: fontSize - 1,
-          maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none',
-          overflow: codeCollapsible && !isExpanded ? 'auto' : 'visible',
-          position: 'relative'
-        }}
-      />
+      {renderSourceCode()}
       {language === 'html' && children?.includes('</html>') && <Artifacts html={children} />}
     </CodeBlockWrapper>
   ) : (
@@ -218,23 +267,6 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
         ) : (
           <CopyIcon className="copy" style={style} onClick={onCopy} />
         )}
-      </CodeBlockStickyTool>
-    </Tooltip>
-  )
-}
-
-const DownloadButton = ({ language, data }: { language: string; data: string }) => {
-  const { t } = useTranslation()
-
-  const onDownload = () => {
-    const fileName = `${dayjs().format('YYYYMMDDHHmm')}.${language}`
-    window.api.file.save(fileName, data)
-  }
-
-  return (
-    <Tooltip title={t('code_block.download')}>
-      <CodeBlockStickyTool onClick={onDownload}>
-        <DownloadOutlined />
       </CodeBlockStickyTool>
     </Tooltip>
   )
