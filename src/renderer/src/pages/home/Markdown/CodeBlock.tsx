@@ -1,4 +1,4 @@
-import { CheckOutlined, DownloadOutlined, DownOutlined, RightOutlined } from '@ant-design/icons'
+import { CheckOutlined, DownloadOutlined, ExpandAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import UnWrapIcon from '@renderer/components/Icons/UnWrapIcon'
 import WrapIcon from '@renderer/components/Icons/WrapIcon'
@@ -34,8 +34,6 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const codeContentRef = useRef<HTMLDivElement>(null)
   const childrenLengthRef = useRef(0)
   const isStreamingRef = useRef(false)
-
-  const showFooterCopyButton = children && children.length > 500 && !codeCollapsible
 
   const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 
@@ -119,8 +117,16 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
       <CodeBlockWrapper className="code-block">
         <CodeHeader>
           <CodeLanguage>{'<SVG>'}</CodeLanguage>
-          <CopyButton text={children} />
         </CodeHeader>
+        <StickyWrapper>
+          <HStack
+            position="absolute"
+            gap={12}
+            alignItems="center"
+            style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
+            <CopyButton text={children} />
+          </HStack>
+        </StickyWrapper>
         <SvgPreview>{children}</SvgPreview>
       </CodeBlockWrapper>
     )
@@ -129,12 +135,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   return match ? (
     <CodeBlockWrapper className="code-block">
       <CodeHeader>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {codeCollapsible && shouldShowExpandButton && (
-            <CollapseIcon expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />
-          )}
-          <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
-        </div>
+        <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
       </CodeHeader>
       <StickyWrapper>
         <HStack
@@ -143,6 +144,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           alignItems="center"
           style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
           {showDownloadButton && <DownloadButton language={language} data={children} />}
+          {codeCollapsible && shouldShowExpandButton && (
+            <ExpandButton expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />
+          )}
           {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           <CopyButton text={children} />
         </HStack>
@@ -164,18 +168,6 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           position: 'relative'
         }}
       />
-      {codeCollapsible && (
-        <ExpandButton
-          isExpanded={isExpanded}
-          onClick={() => setIsExpanded(!isExpanded)}
-          showButton={shouldShowExpandButton}
-        />
-      )}
-      {showFooterCopyButton && (
-        <CodeFooter>
-          <CopyButton text={children} style={{ marginTop: -40, marginRight: 10 }} />
-        </CodeFooter>
-      )}
       {language === 'html' && children?.includes('</html>') && <Artifacts html={children} />}
     </CodeBlockWrapper>
   ) : (
@@ -183,41 +175,28 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   )
 }
 
-const CollapseIcon: React.FC<{ expanded: boolean; onClick: () => void }> = ({ expanded, onClick }) => {
-  return (
-    <CollapseIconWrapper onClick={onClick}>
-      {expanded ? <DownOutlined style={{ fontSize: 12 }} /> : <RightOutlined style={{ fontSize: 12 }} />}
-    </CollapseIconWrapper>
-  )
-}
-
-const ExpandButton: React.FC<{
-  isExpanded: boolean
-  onClick: () => void
-  showButton: boolean
-}> = ({ isExpanded, onClick, showButton }) => {
+const ExpandButton: React.FC<{ expanded: boolean; onClick: () => void }> = ({ expanded, onClick }) => {
   const { t } = useTranslation()
-  if (!showButton) return null
-
   return (
-    <ExpandButtonWrapper onClick={onClick}>
-      <div className="button-text">{isExpanded ? t('code_block.collapse') : t('code_block.expand')}</div>
-    </ExpandButtonWrapper>
+    <Tooltip title={expanded ? t('code_block.collapse') : t('code_block.expand')}>
+      <CodeBlockStickyTool onClick={onClick}>
+        {expanded ? <ExpandAltOutlined /> : <ShrinkOutlined />}
+      </CodeBlockStickyTool>
+    </Tooltip>
   )
 }
 
 const UnwrapButton: React.FC<{ unwrapped: boolean; onClick: () => void }> = ({ unwrapped, onClick }) => {
   const { t } = useTranslation()
-  const unwrapLabel = unwrapped ? t('code_block.enable_wrap') : t('code_block.disable_wrap')
   return (
-    <Tooltip title={unwrapLabel}>
-      <UnwrapButtonWrapper onClick={onClick} title={unwrapLabel}>
+    <Tooltip title={unwrapped ? t('code_block.enable_wrap') : t('code_block.disable_wrap')}>
+      <CodeBlockStickyTool onClick={onClick}>
         {unwrapped ? (
           <UnWrapIcon style={{ width: '100%', height: '100%' }} />
         ) : (
           <WrapIcon style={{ width: '100%', height: '100%' }} />
         )}
-      </UnwrapButtonWrapper>
+      </CodeBlockStickyTool>
     </Tooltip>
   )
 }
@@ -234,23 +213,33 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
     setTimeout(() => setCopied(false), 2000)
   }
 
-  return copied ? (
-    <CheckOutlined style={{ color: 'var(--color-primary)', ...style }} />
-  ) : (
-    <CopyIcon className="copy" style={style} onClick={onCopy} />
+  return (
+    <Tooltip title={t('message.copy')}>
+      <CodeBlockStickyTool>
+        {copied ? (
+          <CheckOutlined style={{ color: 'var(--color-primary)', ...style }} />
+        ) : (
+          <CopyIcon className="copy" style={style} onClick={onCopy} />
+        )}
+      </CodeBlockStickyTool>
+    </Tooltip>
   )
 }
 
 const DownloadButton = ({ language, data }: { language: string; data: string }) => {
+  const { t } = useTranslation()
+
   const onDownload = () => {
     const fileName = `${dayjs().format('YYYYMMDDHHmm')}.${language}`
     window.api.file.save(fileName, data)
   }
 
   return (
-    <DownloadWrapper onClick={onDownload}>
-      <DownloadOutlined />
-    </DownloadWrapper>
+    <Tooltip title={t('common.download')}>
+      <CodeBlockStickyTool onClick={onDownload}>
+        <DownloadOutlined />
+      </CodeBlockStickyTool>
+    </Tooltip>
   )
 }
 
@@ -331,50 +320,7 @@ const CodeLanguage = styled.div`
   font-weight: bold;
 `
 
-const CodeFooter = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  align-items: center;
-  position: relative;
-  .copy {
-    cursor: pointer;
-    color: var(--color-text-3);
-    transition: color 0.3s;
-  }
-  .copy:hover {
-    color: var(--color-text-1);
-  }
-`
-
-const ExpandButtonWrapper = styled.div`
-  position: relative;
-  cursor: pointer;
-  height: 25px;
-  margin-top: -25px;
-
-  .button-text {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    text-align: center;
-    padding: 8px;
-    color: var(--color-text-3);
-    z-index: 1;
-    transition: color 0.2s;
-    font-size: 12px;
-    font-family:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue',
-      sans-serif;
-  }
-
-  &:hover .button-text {
-    color: var(--color-text-1);
-  }
-`
-
-const CollapseIconWrapper = styled.div`
+const CodeBlockStickyTool = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -387,37 +333,6 @@ const CollapseIconWrapper = styled.div`
 
   &:hover {
     background-color: var(--color-background-soft);
-    color: var(--color-text-1);
-  }
-`
-
-const UnwrapButtonWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--color-text-3);
-  transition: all 0.2s ease;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text-1);
-  }
-`
-
-const DownloadWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--color-text-3);
-  transition: color 0.3s;
-  font-size: 16px;
-
-  &:hover {
     color: var(--color-text-1);
   }
 `

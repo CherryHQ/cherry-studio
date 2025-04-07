@@ -490,6 +490,7 @@
       "chat.completion.paused": "会话已停止",
       "citations": "引用内容",
       "copied": "已复制",
+      "copy": "复制",
       "copy.failed": "复制失败",
       "copy.success": "复制成功",
       "error.chunk_overlap_too_large": "分段重叠不能大于分段大小",

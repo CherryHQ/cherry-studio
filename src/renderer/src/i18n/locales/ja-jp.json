@@ -490,6 +490,7 @@
       "chat.completion.paused": "チャットの完了が一時停止されました",
       "citations": "参考文献",
       "copied": "コピーしました！",
+      "copy": "コピー",
       "copy.failed": "コピーに失敗しました",
       "copy.success": "コピーしました！",
       "error.chunk_overlap_too_large": "チャンクの重なりは、チャンクサイズを超えることはできません",

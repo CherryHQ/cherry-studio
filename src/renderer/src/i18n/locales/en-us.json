@@ -490,6 +490,7 @@
       "chat.completion.paused": "Chat completion paused",
       "citations": "References",
       "copied": "Copied!",
+      "copy": "Copy",
       "copy.failed": "Copy failed",
       "copy.success": "Copied!",
       "error.chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
