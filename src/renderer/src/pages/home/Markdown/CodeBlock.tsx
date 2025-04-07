@@ -177,7 +177,7 @@ const ExpandButton: React.FC<{ expanded: boolean; onClick: () => void }> = ({ ex
   return (
     <Tooltip title={expanded ? t('code_block.collapse') : t('code_block.expand')}>
       <CodeBlockStickyTool onClick={onClick}>
-        {expanded ? <ExpandAltOutlined /> : <ShrinkOutlined />}
+        {expanded ? <ShrinkOutlined /> : <ExpandAltOutlined />}
       </CodeBlockStickyTool>
     </Tooltip>
   )
@@ -186,12 +186,12 @@ const ExpandButton: React.FC<{ expanded: boolean; onClick: () => void }> = ({ ex
 const UnwrapButton: React.FC<{ unwrapped: boolean; onClick: () => void }> = ({ unwrapped, onClick }) => {
   const { t } = useTranslation()
   return (
-    <Tooltip title={unwrapped ? t('code_block.enable_wrap') : t('code_block.disable_wrap')}>
+    <Tooltip title={unwrapped ? t('code_block.wrap.enable') : t('code_block.wrap.disable')}>
       <CodeBlockStickyTool onClick={onClick}>
         {unwrapped ? (
-          <UnWrapIcon style={{ width: '100%', height: '100%' }} />
-        ) : (
           <WrapIcon style={{ width: '100%', height: '100%' }} />
+        ) : (
+          <UnWrapIcon style={{ width: '100%', height: '100%' }} />
         )}
       </CodeBlockStickyTool>
     </Tooltip>
@@ -205,13 +205,13 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
   const onCopy = () => {
     if (!text) return
     navigator.clipboard.writeText(text)
-    window.message.success({ content: t('message.copied'), key: 'copy-code' })
+    window.message.success({ content: t('code_block.copy.success'), key: 'copy-code' })
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   return (
-    <Tooltip title={t('message.copy')}>
+    <Tooltip title={t('code_block.copy')}>
       <CodeBlockStickyTool>
         {copied ? (
           <CheckOutlined style={{ color: 'var(--color-primary)', ...style }} />
@@ -232,7 +232,7 @@ const DownloadButton = ({ language, data }: { language: string; data: string }) 
   }
 
   return (
-    <Tooltip title={t('common.download')}>
+    <Tooltip title={t('code_block.download')}>
       <CodeBlockStickyTool onClick={onDownload}>
         <DownloadOutlined />
       </CodeBlockStickyTool>

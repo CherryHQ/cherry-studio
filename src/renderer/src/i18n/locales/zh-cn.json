@@ -250,8 +250,14 @@
     },
     "code_block": {
       "collapse": "收起",
-      "disable_wrap": "取消换行",
-      "enable_wrap": "换行",
+      "copy": "复制",
+      "copy.failed": "复制失败",
+      "copy.success": "复制成功",
+      "download": "下载",
+      "download.png": "下载图片",
+      "download.svg": "下载 SVG",
+      "wrap.disable": "取消换行",
+      "wrap.enable": "换行",
       "expand": "展开"
     },
     "common": {
@@ -490,7 +496,6 @@
       "chat.completion.paused": "会话已停止",
       "citations": "引用内容",
       "copied": "已复制",
-      "copy": "复制",
       "copy.failed": "复制失败",
       "copy.success": "复制成功",
       "error.chunk_overlap_too_large": "分段重叠不能大于分段大小",

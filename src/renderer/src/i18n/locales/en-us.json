@@ -250,8 +250,14 @@
     },
     "code_block": {
       "collapse": "Collapse",
-      "disable_wrap": "Unwrap",
-      "enable_wrap": "Wrap",
+      "copy": "Copy",
+      "copy.failed": "Copy failed",
+      "copy.success": "Copied",
+      "download": "Download",
+      "download.png": "Download PNG",
+      "download.svg": "Download SVG",
+      "wrap.disable": "Unwrap",
+      "wrap.enable": "Wrap",
       "expand": "Expand"
     },
     "common": {
@@ -490,7 +496,6 @@
       "chat.completion.paused": "Chat completion paused",
       "citations": "References",
       "copied": "Copied!",
-      "copy": "Copy",
       "copy.failed": "Copy failed",
       "copy.success": "Copied!",
       "error.chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",

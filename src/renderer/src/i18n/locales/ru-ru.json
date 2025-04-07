@@ -250,8 +250,14 @@
     },
     "code_block": {
       "collapse": "Свернуть",
-      "disable_wrap": "Отменить перенос строки",
-      "enable_wrap": "Перенос строки",
+      "copy": "Копировать",
+      "copy.failed": "Не удалось скопировать",
+      "copy.success": "Скопировано",
+      "download": "Скачать",
+      "download.png": "Скачать PNG",
+      "download.svg": "Скачать SVG",
+      "wrap.disable": "Отменить перенос строки",
+      "wrap.enable": "Перенос строки",
       "expand": "Развернуть"
     },
     "common": {
@@ -490,7 +496,6 @@
       "chat.completion.paused": "Завершение чата приостановлено",
       "citations": "Источники",
       "copied": "Скопировано!",
-      "copy": "Копировать",
       "copy.failed": "Не удалось скопировать",
       "copy.success": "Скопировано!",
       "error.chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента.",

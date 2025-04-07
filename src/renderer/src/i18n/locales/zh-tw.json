@@ -250,8 +250,14 @@
     },
     "code_block": {
       "collapse": "折疊",
-      "disable_wrap": "停用自動換行",
-      "enable_wrap": "自動換行",
+      "copy": "複製",
+      "copy.failed": "複製失敗",
+      "copy.success": "已複製",
+      "download": "下載",
+      "download.png": "下載 PNG",
+      "download.svg": "下載 SVG",
+      "wrap.disable": "停用自動換行",
+      "wrap.enable": "自動換行",
       "expand": "展開"
     },
     "common": {
@@ -490,7 +496,6 @@
       "chat.completion.paused": "聊天完成已暫停",
       "citations": "參考文獻",
       "copied": "已複製！",
-      "copy": "複製",
       "copy.failed": "複製失敗",
       "copy.success": "已複製！",
       "error.chunk_overlap_too_large": "分段重疊不能大於分段大小",
