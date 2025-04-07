@@ -3,7 +3,7 @@ import styled from 'styled-components'
 
 interface CustomTagProps {
   icon?: React.ReactNode
-  children: React.ReactNode | string
+  children?: React.ReactNode | string
   color: string
   size?: number
 }
@@ -11,7 +11,7 @@ interface CustomTagProps {
 const CustomTag: FC<CustomTagProps> = ({ children, icon, color, size = 12 }) => {
   return (
     <Tag $color={color} $size={size}>
-      {icon && icon} {children}
+      {icon && icon} {children && children}
     </Tag>
   )
 }

@@ -55,21 +55,11 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           {showLabel ? t('models.function_calling') : ''}
         </CustomTag>
       )}
-      {isEmbeddingModel(model) && (
-        <CustomTag size={size} color="#FFA500">
-          {showLabel ? t('models.type.embedding') : ''}
-        </CustomTag>
-      )}
+      {isEmbeddingModel(model) && <CustomTag size={size} color="#FFA500" icon={t('models.type.embedding')}></CustomTag>}
       {showFree && isFreeModel(model) && (
-        <CustomTag size={size} color="#7cb305">
-          {showLabel ? t('models.type.free') : ''}
-        </CustomTag>
+        <CustomTag size={size} color="#7cb305" icon={t('models.type.free')}></CustomTag>
       )}
-      {isRerankModel(model) && (
-        <CustomTag size={size} color="#6495ED">
-          {showLabel ? t('models.type.rerank') : ''}
-        </CustomTag>
-      )}
+      {isRerankModel(model) && <CustomTag size={size} color="#6495ED" icon={t('models.type.rerank')}></CustomTag>}
     </Container>
   )
 }
