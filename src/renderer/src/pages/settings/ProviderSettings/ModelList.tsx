@@ -368,6 +368,11 @@ const ListItemName = styled.div`
   font-size: 14px;
   line-height: 1;
   font-weight: 600;
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 `
 
 const RemoveIcon = styled(MinusCircleOutlined)`
