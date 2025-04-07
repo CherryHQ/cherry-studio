@@ -44,7 +44,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
     if (containerRef.current) {
       const currentElement = containerRef.current
       resizeObserver.current = new ResizeObserver((entries) => {
-        const maxWidth = i18n.language.startsWith('zh') ? 300 : 400
+        const maxWidth = i18n.language.startsWith('zh') ? 300 : 350
 
         for (const entry of entries) {
           const { width } = entry.contentRect
