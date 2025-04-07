@@ -30,14 +30,13 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const { codeToHtml } = useSyntaxHighlighter()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
-  const [shouldShowExpandButton, setShouldShowExpandButton] = useState(false)
   const codeContentRef = useRef<HTMLDivElement>(null)
   const childrenLengthRef = useRef(0)
   const isStreamingRef = useRef(false)
 
+  const [showExpandButton, setShowExpandButton] = useState(false)
+  const showExpandButtonRef = useRef(false)
   const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
-
-  const shouldShowExpandButtonRef = useRef(false)
 
   const shouldHighlight = useCallback((lang: string) => {
     const NON_HIGHLIGHT_LANGS = ['mermaid', 'plantuml', 'svg']
@@ -55,9 +54,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
     codeElement.style.opacity = '1'
 
     const isShowExpandButton = codeElement.scrollHeight > 350
-    if (shouldShowExpandButtonRef.current === isShowExpandButton) return
-    shouldShowExpandButtonRef.current = isShowExpandButton
-    setShouldShowExpandButton(shouldShowExpandButtonRef.current)
+    if (showExpandButtonRef.current === isShowExpandButton) return
+    showExpandButtonRef.current = isShowExpandButton
+    setShowExpandButton(showExpandButtonRef.current)
   }, [language, codeToHtml, children])
 
   useEffect(() => {
@@ -97,7 +96,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 
   useEffect(() => {
     setIsExpanded(!codeCollapsible)
-    setShouldShowExpandButton(codeCollapsible && (codeContentRef.current?.scrollHeight ?? 0) > 350)
+    setShowExpandButton(codeCollapsible && (codeContentRef.current?.scrollHeight ?? 0) > 350)
   }, [codeCollapsible])
 
   useEffect(() => {
@@ -144,9 +143,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           alignItems="center"
           style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
           {showDownloadButton && <DownloadButton language={language} data={children} />}
-          {codeCollapsible && shouldShowExpandButton && (
-            <ExpandButton expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />
-          )}
+          {showExpandButton && <ExpandButton expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />}
           {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           <CopyButton text={children} />
         </HStack>
