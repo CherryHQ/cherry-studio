@@ -179,7 +179,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
       {language === 'html' && children?.includes('</html>') && <Artifacts html={children} />}
     </CodeBlockWrapper>
   ) : (
-    <code className={className}>{children}</code>
+    <code className={className} style={{ textWrap: 'wrap' }}>
+      {children}
+    </code>
   )
 }
 
