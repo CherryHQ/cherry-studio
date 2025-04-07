@@ -7,9 +7,10 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils'
-import { FC } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,33 +34,70 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   showLabel = true
 }) => {
   const { t } = useTranslation()
+  const [_showLabel, _setShowLabel] = useState(showLabel)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const resizeObserver = useRef<ResizeObserver>(null)
+
+  useEffect(() => {
+    if (!showLabel) return
+
+    if (containerRef.current) {
+      const currentElement = containerRef.current
+      resizeObserver.current = new ResizeObserver((entries) => {
+        const maxWidth = i18n.language.startsWith('zh') ? 300 : 400
+
+        for (const entry of entries) {
+          const { width } = entry.contentRect
+          _setShowLabel(width >= maxWidth)
+        }
+      })
+      resizeObserver.current.observe(currentElement)
+
+      return () => {
+        if (resizeObserver.current) {
+          resizeObserver.current.unobserve(currentElement)
+        }
+      }
+    }
+
+    return undefined
+  }, [showLabel])
+
   return (
-    <Container>
+    <Container ref={containerRef}>
       {isVisionModel(model) && (
-        <CustomTag size={size} color="#00b96b" icon={<EyeOutlined />}>
-          {showLabel ? t('models.type.vision') : ''}
+        <CustomTag size={size} color="#00b96b" icon={<EyeOutlined />} tooltip={t('models.type.vision')}>
+          {_showLabel ? t('models.type.vision') : ''}
         </CustomTag>
       )}
       {isWebSearchModel(model) && (
-        <CustomTag size={size} color="#1677ff" icon={<GlobalOutlined />}>
-          {showLabel ? t('models.type.websearch') : ''}
+        <CustomTag size={size} color="#1677ff" icon={<GlobalOutlined />} tooltip={t('models.type.websearch')}>
+          {_showLabel ? t('models.type.websearch') : ''}
         </CustomTag>
       )}
       {showReasoning && isReasoningModel(model) && (
-        <CustomTag size={size} color="#6372bd" icon={<i className="iconfont icon-thinking" />}>
-          {showLabel ? t('models.type.reasoning') : ''}
+        <CustomTag
+          size={size}
+          color="#6372bd"
+          icon={<i className="iconfont icon-thinking" />}
+          tooltip={t('models.type.reasoning')}>
+          {_showLabel ? t('models.type.reasoning') : ''}
         </CustomTag>
       )}
       {showToolsCalling && isFunctionCallingModel(model) && (
-        <CustomTag size={size} color="#d45ea3" icon={<ToolOutlined />}>
-          {showLabel ? t('models.function_calling') : ''}
+        <CustomTag size={size} color="#d45ea3" icon={<ToolOutlined />} tooltip={t('models.function_calling')}>
+          {_showLabel ? t('models.function_calling') : ''}
         </CustomTag>
       )}
-      {isEmbeddingModel(model) && <CustomTag size={size} color="#FFA500" icon={t('models.type.embedding')}></CustomTag>}
-      {showFree && isFreeModel(model) && (
-        <CustomTag size={size} color="#7cb305" icon={t('models.type.free')}></CustomTag>
+      {isEmbeddingModel(model) && (
+        <CustomTag size={size} color="#FFA500" icon={t('models.type.embedding')} tooltip={t('models.type.embedding')} />
       )}
-      {isRerankModel(model) && <CustomTag size={size} color="#6495ED" icon={t('models.type.rerank')}></CustomTag>}
+      {showFree && isFreeModel(model) && (
+        <CustomTag size={size} color="#7cb305" icon={t('models.type.free')} tooltip={t('models.type.free')} />
+      )}
+      {isRerankModel(model) && (
+        <CustomTag size={size} color="#6495ED" icon={t('models.type.rerank')} tooltip={t('models.type.rerank')} />
+      )}
     </Container>
   )
 }

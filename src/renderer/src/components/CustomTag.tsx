@@ -1,3 +1,4 @@
+import { Tooltip } from 'antd'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -6,13 +7,16 @@ interface CustomTagProps {
   children?: React.ReactNode | string
   color: string
   size?: number
+  tooltip?: string
 }
 
-const CustomTag: FC<CustomTagProps> = ({ children, icon, color, size = 12 }) => {
+const CustomTag: FC<CustomTagProps> = ({ children, icon, color, size = 12, tooltip }) => {
   return (
-    <Tag $color={color} $size={size}>
-      {icon && icon} {children && children}
-    </Tag>
+    <Tooltip title={tooltip} placement="top">
+      <Tag $color={color} $size={size}>
+        {icon && icon} {children}
+      </Tag>
+    </Tooltip>
   )
 }
 
