@@ -125,7 +125,7 @@
     overflow-x: auto;
     font-family: 'Fira Code', 'Courier New', Courier, monospace;
     background-color: var(--color-background-mute);
-    &:has(> .mermaid) {
+    &:has(.mermaid) {
       background-color: transparent;
     }
     &:not(pre pre) {

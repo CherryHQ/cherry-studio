@@ -297,14 +297,14 @@ class PlantUMLPopupTopView {
   }
 }
 interface PlantUMLProps {
-  diagram: string
+  children: string
 }
-export const PlantUML: React.FC<PlantUMLProps> = ({ diagram }) => {
+export const PlantUmlView: React.FC<PlantUMLProps> = ({ children }) => {
   //   const { t } = useTranslation()
   const onPreview = () => {
-    PlantUMLPopupTopView.show(diagram)
+    PlantUMLPopupTopView.show(children)
   }
-  return <PlantUMLServerImage onClick={onPreview} format="svg" diagram={diagram} />
+  return <PlantUMLServerImage onClick={onPreview} format="svg" diagram={children} />
 }
 
 const StyledPlantUML = styled.div`

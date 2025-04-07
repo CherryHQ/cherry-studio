@@ -1,4 +1,8 @@
-const SvgPreview = ({ children }: { children: string }) => {
+interface Props {
+  children: string
+}
+
+const SvgView: React.FC<Props> = ({ children }) => {
   return (
     <div
       dangerouslySetInnerHTML={{ __html: children }}
@@ -13,4 +17,4 @@ const SvgPreview = ({ children }: { children: string }) => {
   )
 }
 
-export default SvgPreview
+export default SvgView

@@ -5,16 +5,16 @@ import React, { useEffect, useRef } from 'react'
 import MermaidPopup from './MermaidPopup'
 
 interface Props {
-  chart: string
+  children: string
 }
 
-const Mermaid: React.FC<Props> = ({ chart }) => {
+const MermaidView: React.FC<Props> = ({ children }) => {
   const { theme } = useTheme()
   const mermaidRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (mermaidRef.current && window.mermaid) {
-      mermaidRef.current.innerHTML = chart
+      mermaidRef.current.innerHTML = children
       mermaidRef.current.removeAttribute('data-processed')
       if (window.mermaid.initialize) {
         window.mermaid.initialize({
@@ -24,17 +24,17 @@ const Mermaid: React.FC<Props> = ({ chart }) => {
       }
       window.mermaid.contentLoaded()
     }
-  }, [chart, theme])
+  }, [children, theme])
 
   const onPreview = () => {
-    MermaidPopup.show({ chart })
+    MermaidPopup.show({ chart: children })
   }
 
   return (
     <div ref={mermaidRef} className="mermaid" onClick={onPreview} style={{ cursor: 'pointer' }}>
-      {chart}
+      {children}
     </div>
   )
 }
 
-export default Mermaid
+export default MermaidView
