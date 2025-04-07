@@ -10,6 +10,7 @@ import {
   SettingOutlined
 } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
+import CustomTag from '@renderer/components/CustomTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
@@ -248,7 +249,14 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
           <CustomCollapse
             defaultActiveKey={i <= 5 ? ['1'] : []}
             key={group}
-            label={group}
+            label={
+              <Flex align="center" gap={10}>
+                <span>{group}</span>
+                <CustomTag color="#02B96B" size={10}>
+                  {modelGroups[group].length}
+                </CustomTag>
+              </Flex>
+            }
             extra={
               <Tooltip title={t('settings.models.manage.remove_whole_group')}>
                 <HoveredRemoveIcon
