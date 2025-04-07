@@ -119,7 +119,7 @@ const thinkTagProcessor: ThoughtProcessor = {
   },
   process: (content: string) => {
     // 处理正常闭合的 think 标签
-    const thinkPattern = /^<think>(.*?)<\/think>/s
+    const thinkPattern = /<think>\n([\s\S]*?)\n<\/think>/g
     const matches = content.match(thinkPattern)
     if (matches) {
       return {
