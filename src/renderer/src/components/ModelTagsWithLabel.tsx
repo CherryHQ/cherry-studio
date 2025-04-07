@@ -79,6 +79,7 @@ const Container = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 4px;
+  flex-wrap: wrap;
 `
 
 export default ModelTagsWithLabel

@@ -28,6 +28,7 @@ const Tag = styled.div<{ $color: string; $size: number }>`
   background-color: ${({ $color }) => $color + '20'};
   font-size: ${({ $size }) => $size}px;
   line-height: 1;
+  white-space: nowrap;
   .iconfont {
     font-size: ${({ $size }) => $size}px;
     color: ${({ $color }) => $color};
