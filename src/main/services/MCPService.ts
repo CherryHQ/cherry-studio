@@ -46,18 +46,22 @@ class McpService {
     // Check if we already have a client for this server configuration
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
-      // Check if the existing client is still connected
-      const pingResult = await existingClient.ping()
-      Logger.info(`[MCP] Ping result for ${server.name}:`, pingResult)
-      // If the ping fails, remove the client from the cache
-      // and create a new one
-      if (!pingResult) {
+      try {
+        // Check if the existing client is still connected
+        const pingResult = await existingClient.ping()
+        Logger.info(`[MCP] Ping result for ${server.name}:`, pingResult)
+        // If the ping fails, remove the client from the cache
+        // and create a new one
+        if (!pingResult) {
+          this.clients.delete(serverKey)
+        } else {
+          return existingClient
+        }
+      } catch (error) {
+        Logger.error(`[MCP] Error pinging server ${server.name}:`, error)
         this.clients.delete(serverKey)
-      } else {
-        return existingClient
       }
     }
-
     // Create new client instance for each connection
     const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
