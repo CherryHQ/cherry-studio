@@ -11,7 +11,7 @@ export const isMac = platform === 'darwin'
 export const isWindows = platform === 'win32' || platform === 'win64'
 export const isLinux = platform === 'linux'
 
-export const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
+export const SILICON_CLIENT_ID = 'SFIW4myD4HvRT9u9HF12hk'
 
 // Messages loading configuration
 export const INITIAL_MESSAGES_COUNT = 20
