@@ -32,7 +32,7 @@ asarUnpack:
   - '**/*.{node,dll,metal,exp,lib}'
 win:
   executableName: Cherry Studio
-  artifactName: ${productName}-${version}-${arch}-portable.${ext}
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
     - target: portable
@@ -44,6 +44,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   oneClick: false
   include: build/nsis-installer.nsh
+portable:
+  artifactName: ${productName}-${version}-${arch}-portable.${ext}
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
@@ -83,8 +85,9 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    新增助手级别的 MCP 能力支持
-    改进 MCP 包的安装与管理
-    导出单条消息时，增加生成消息标题的功能
-    快捷助手窗口新增钉住和调整大小的功能
-    小程序现在支持显示、复制当前实际 URL
+    引入全新的 QuickPanel 功能，统一了应用内的输入和搜索操作
+    新增内存 MCP (in-memory MCP) 服务支持及配置管理
+    新增对七牛云 AI (Qiniu AI) 提供商的支持
+    添加了导出菜单选项设置和思维链（Chain-of-Thought）导出功能
+    消息锚点线支持底部锚点
+    为 AppImage 添加了多分辨率图标
