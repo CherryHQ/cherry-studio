@@ -48,7 +48,7 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
-import DangbeiLogo from '@renderer/assets/images/apps/dangbei.png?url'
+import DangbeiLogo from '@renderer/assets/images/apps/dangbei.jpg?url'
 
 import { MinAppType } from '@renderer/types'
 export const DEFAULT_MIN_APPS: MinAppType[] = [
@@ -389,7 +389,7 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'dangbei',
-    name: '当贝',
+    name: '当贝AI',
     logo: DangbeiLogo,
     url: 'https://ai.dangbei.com/'
   }
