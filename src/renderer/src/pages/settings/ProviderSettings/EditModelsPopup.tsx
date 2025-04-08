@@ -236,6 +236,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               <FlexColumn>
                 {modelGroups[group].map((model) => (
                   <FileItem
+                    style={{
+                      backgroundColor: isModelInProvider(provider, model.id) ? 'rgba(0, 126, 0, 0.06)' : 'inherit'
+                    }}
                     key={model.id}
                     fileInfo={{
                       icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
@@ -249,7 +252,6 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                               }
                             }}
                             destroyTooltipOnHide
-                            color="#00b96b"
                             title={
                               <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
                                 {model.id}

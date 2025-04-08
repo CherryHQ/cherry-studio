@@ -24,6 +24,7 @@ interface FileItemProps {
     extra?: React.ReactNode | string
     actions: React.ReactNode
   }
+  style?: React.CSSProperties
 }
 
 const getFileIcon = (type?: string) => {
@@ -74,11 +75,11 @@ const getFileIcon = (type?: string) => {
   return <FileUnknownFilled />
 }
 
-const FileItem: React.FC<FileItemProps> = ({ fileInfo }) => {
+const FileItem: React.FC<FileItemProps> = ({ fileInfo, style }) => {
   const { name, ext, extra, actions, icon } = fileInfo
 
   return (
-    <FileItemCard>
+    <FileItemCard style={style}>
       <CardContent>
         <FileIcon>{icon || getFileIcon(ext)}</FileIcon>
         <Flex vertical justify="center" gap={0} flex={1} style={{ width: '0px' }}>
@@ -97,7 +98,9 @@ const FileItemCard = styled.div`
   overflow: hidden;
   border: 0.5px solid var(--color-border);
   flex-shrink: 0;
-  transition: box-shadow 0.2s ease;
+  transition:
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
   --shadow-color: rgba(0, 0, 0, 0.05);
   &:hover {
     box-shadow:
