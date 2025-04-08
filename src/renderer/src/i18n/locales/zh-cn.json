@@ -256,9 +256,11 @@
       "download": "下载",
       "download.png": "下载图片",
       "download.svg": "下载 SVG",
+      "edit.off": "关闭编辑",
+      "edit.on": "编辑",
       "more": "更多",
-      "wrap.disable": "取消换行",
-      "wrap.enable": "换行",
+      "wrap.off": "取消换行",
+      "wrap.on": "换行",
       "expand": "展开"
     },
     "common": {

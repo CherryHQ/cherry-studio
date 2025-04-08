@@ -146,7 +146,7 @@ const ExpandButton: React.FC<{ expanded: boolean; onClick: () => void }> = ({ ex
 const UnwrapButton: React.FC<{ unwrapped: boolean; onClick: () => void }> = ({ unwrapped, onClick }) => {
   const { t } = useTranslation()
   return (
-    <Tooltip title={unwrapped ? t('code_block.wrap.enable') : t('code_block.wrap.disable')}>
+    <Tooltip title={unwrapped ? t('code_block.wrap.on') : t('code_block.wrap.off')}>
       <CodeBlockStickyTool onClick={onClick}>
         {unwrapped ? (
           <WrapIcon style={{ width: '100%', height: '100%' }} />

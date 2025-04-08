@@ -256,9 +256,11 @@
       "download": "ダウンロード",
       "download.png": "PNGとしてダウンロード",
       "download.svg": "SVGとしてダウンロード",
+      "edit.off": "編集を閉じる",
+      "edit.on": "編集",
       "more": "もっと",
-      "wrap.disable": "改行解除",
-      "wrap.enable": "改行",
+      "wrap.off": "改行解除",
+      "wrap.on": "改行",
       "expand": "展開する"
     },
     "common": {

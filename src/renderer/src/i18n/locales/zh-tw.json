@@ -256,9 +256,11 @@
       "download": "下載",
       "download.png": "下載 PNG",
       "download.svg": "下載 SVG",
+      "edit.off": "關閉編輯",
+      "edit.on": "編輯",
       "more": "更多",
-      "wrap.disable": "停用自動換行",
-      "wrap.enable": "自動換行",
+      "wrap.off": "停用自動換行",
+      "wrap.on": "自動換行",
       "expand": "展開"
     },
     "common": {

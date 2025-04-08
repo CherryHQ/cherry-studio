@@ -256,9 +256,11 @@
       "download": "Download",
       "download.png": "Download PNG",
       "download.svg": "Download SVG",
+      "edit.off": "Leave Edit",
+      "edit.on": "Edit",
       "more": "More",
-      "wrap.disable": "Unwrap",
-      "wrap.enable": "Wrap",
+      "wrap.off": "Unwrap",
+      "wrap.on": "Wrap",
       "expand": "Expand"
     },
     "common": {

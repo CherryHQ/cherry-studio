@@ -1,4 +1,4 @@
-import { CheckOutlined, DownloadOutlined } from '@ant-design/icons'
+import { CheckOutlined, DownloadOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
 import { extractTitle } from '@renderer/utils/formats'
@@ -22,16 +22,15 @@ interface Props {
 const CodeBlock: React.FC<Props> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '') || children?.includes('\n')
   const language = match?.[1] ?? 'text'
+  const hasSpecialView = ['mermaid', 'plantuml', 'svg'].includes(language)
 
-  const renderHeader = useMemo(() => {
-    if (language === 'mermaid') {
-      return <CodeHeader />
-    }
-
-    return <CodeHeader>{'<' + language.toUpperCase() + '>'}</CodeHeader>
-  }, [language])
+  const [isEditing, setIsEditing] = useState(false)
 
   const renderContent = useMemo(() => {
+    if (isEditing) {
+      return <CodeView language={language}>{children}</CodeView>
+    }
+
     if (language === 'mermaid') {
       return <MermaidView>{children}</MermaidView>
     }
@@ -45,20 +44,17 @@ const CodeBlock: React.FC<Props> = ({ children, className }) => {
     }
 
     return <CodeView language={language}>{children}</CodeView>
-  }, [children, language])
+  }, [children, isEditing, language])
 
   return match ? (
     <CodeBlockWrapper className="code-block">
-      {renderHeader}
+      <CodeHeader>{'<' + language.toUpperCase() + '>'}</CodeHeader>
       <StickyWrapper>
-        <HStack
-          position="absolute"
-          gap={12}
-          alignItems="center"
-          style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
+        <CodeToolWrapper>
+          {hasSpecialView && <EditButton isEditing={isEditing} setIsEditing={setIsEditing} />}
           <DownloadButton text={children} language={language} />
           <CopyButton text={children} />
-        </HStack>
+        </CodeToolWrapper>
       </StickyWrapper>
       {renderContent}
     </CodeBlockWrapper>
@@ -66,6 +62,21 @@ const CodeBlock: React.FC<Props> = ({ children, className }) => {
     <code className={className} style={{ textWrap: 'wrap' }}>
       {children}
     </code>
+  )
+}
+
+const EditButton: React.FC<{ isEditing: boolean; setIsEditing: (isEditing: boolean) => void }> = ({
+  isEditing,
+  setIsEditing
+}) => {
+  const { t } = useTranslation()
+
+  return (
+    <Tooltip title={isEditing ? t('code_block.edit.off') : t('code_block.edit.on')}>
+      <CodeBlockStickyTool onClick={() => setIsEditing(!isEditing)}>
+        {isEditing ? <EyeOutlined /> : <EditOutlined />}
+      </CodeBlockStickyTool>
+    </Tooltip>
   )
 }
 
@@ -162,6 +173,15 @@ const StickyWrapper = styled.div`
   position: sticky;
   top: 28px;
   z-index: 10;
+`
+
+const CodeToolWrapper = styled(HStack)`
+  position: absolute;
+  align-items: center;
+  bottom: 0.2rem;
+  right: 1rem;
+  height: 27px;
+  gap: 12px;
 `
 
 export default memo(CodeBlock)
