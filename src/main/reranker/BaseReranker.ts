@@ -64,7 +64,7 @@ export default abstract class BaseReranker {
     }
   }
 
-  public formatErrorMessage(url: string, error: any, requestBody: any) {
+  protected formatErrorMessage(url: string, error: any, requestBody: any) {
     const errorDetails = {
       url: url,
       message: error.message,
