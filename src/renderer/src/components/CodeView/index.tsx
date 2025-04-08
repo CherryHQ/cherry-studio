@@ -110,6 +110,13 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
     }
   }, [hasSpecialView, isEditing, registerTool, removeTool, t])
 
+  const renderHeader = useMemo(() => {
+    if (hasSpecialView && !isEditing) {
+      return null
+    }
+    return <CodeHeader>{'<' + language.toUpperCase() + '>'}</CodeHeader>
+  }, [hasSpecialView, isEditing, language])
+
   const renderContent = useMemo(() => {
     if (isEditing) {
       return (
@@ -147,7 +154,7 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
 
   return (
     <CodeBlockWrapper className="code-block">
-      {!hasSpecialView && <CodeHeader>{'<' + language.toUpperCase() + '>'}</CodeHeader>}
+      {renderHeader}
       <Toolbar />
       {renderContent}
       {renderBottomTools}
