@@ -2244,7 +2244,7 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
-  return false
+  return model.type?.includes('web_search') || false
 }
 
 export function isGenerateImageModel(model: Model): boolean {

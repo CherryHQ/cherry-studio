@@ -1,7 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setEnhanceMode, setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
+import { setEnhanceMode, setMaxResult, setOverwrite, setSearchWithTime } from '@renderer/store/websearch'
 import { Slider, Switch, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { FC } from 'react'
@@ -12,6 +12,7 @@ const BasicSettings: FC = () => {
   const { theme } = useTheme()
   const searchWithTime = useAppSelector((state) => state.websearch.searchWithTime)
   const enhanceMode = useAppSelector((state) => state.websearch.enhanceMode)
+  const overwrite = useAppSelector((state) => state.websearch.overwrite)
   const maxResults = useAppSelector((state) => state.websearch.maxResults)
 
   const dispatch = useAppDispatch()
@@ -24,6 +25,16 @@ const BasicSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.websearch.search_with_time')}</SettingRowTitle>
           <Switch checked={searchWithTime} onChange={(checked) => dispatch(setSearchWithTime(checked))} />
+        </SettingRow>
+        <SettingDivider style={{ marginTop: 15, marginBottom: 12 }} />
+        <SettingRow>
+          <SettingRowTitle>
+            {t('settings.websearch.overwrite')}
+            <Tooltip title={t('settings.websearch.overwrite_tooltip')} placement="right">
+              <InfoCircleOutlined style={{ marginLeft: 5, color: 'var(--color-icon)', cursor: 'pointer' }} />
+            </Tooltip>
+          </SettingRowTitle>
+          <Switch checked={overwrite} onChange={(checked) => dispatch(setOverwrite(checked))} />
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 12 }} />
         <SettingRow>

@@ -70,7 +70,7 @@ const TextContainer = styled.div`
   overflow: hidden;
 `
 
-const TitleText = styled.div`
+const TitleText = styled.div<{ $active?: boolean }>`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

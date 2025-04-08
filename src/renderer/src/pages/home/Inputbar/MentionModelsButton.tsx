@@ -1,5 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
-import ModelTags from '@renderer/components/ModelTags'
+import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
 import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -51,7 +51,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
       .reverse()
       .map((item) => ({
         label: `${item.provider.isSystem ? t(`provider.${item.provider.id}`) : item.provider.name} | ${item.model.name}`,
-        description: <ModelTags model={item.model} />,
+        description: <ModelTagsWithLabel model={item.model} showLabel={false} size={10} />,
         icon: (
           <Avatar src={getModelLogo(item.model.id)} size={20}>
             {first(item.model.name)}
