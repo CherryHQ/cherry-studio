@@ -34,7 +34,6 @@ exports.default = async function (context) {
       removeDifferentArchNodeFiles(node_modules_path, '@libsql', ['win32-arm64-msvc'])
     }
     if (arch === Arch.x64) {
-      removeDifferentArchNodeFiles(node_modules_path, '@strongtz', ['win32-x64-msvc'])
       removeDifferentArchNodeFiles(node_modules_path, '@libsql', ['win32-x64-msvc'])
     }
   }
