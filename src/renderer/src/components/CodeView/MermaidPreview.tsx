@@ -156,7 +156,7 @@ const MermaidPreview: React.FC<Props> = ({ children }) => {
     // 放大工具
     registerTool({
       id: 'mermaid-zoom-in',
-      type: 'preview',
+      type: 'quick',
       icon: <ZoomInOutlined />,
       tooltip: t('code_block.preview.zoom_in'),
       onClick: () => handleZoom(0.1),
@@ -166,7 +166,7 @@ const MermaidPreview: React.FC<Props> = ({ children }) => {
     // 缩小工具
     registerTool({
       id: 'mermaid-zoom-out',
-      type: 'preview',
+      type: 'quick',
       icon: <ZoomOutOutlined />,
       tooltip: t('code_block.preview.zoom_out'),
       onClick: () => handleZoom(-0.1),
@@ -176,7 +176,7 @@ const MermaidPreview: React.FC<Props> = ({ children }) => {
     // 复制图片工具
     registerTool({
       id: 'mermaid-copy-image',
-      type: 'preview',
+      type: 'quick',
       icon: <FileImageOutlined />,
       tooltip: t('code_block.preview.copy.image'),
       onClick: handleCopyImage,
@@ -186,7 +186,7 @@ const MermaidPreview: React.FC<Props> = ({ children }) => {
     // 下载 SVG 工具
     registerTool({
       id: 'mermaid-download-svg',
-      type: 'preview',
+      type: 'quick',
       icon: <DownloadSvgIcon />,
       tooltip: t('code_block.download.svg'),
       onClick: () => handleDownload('svg'),
@@ -196,7 +196,7 @@ const MermaidPreview: React.FC<Props> = ({ children }) => {
     // 下载 PNG 工具
     registerTool({
       id: 'mermaid-download-png',
-      type: 'preview',
+      type: 'quick',
       icon: <DownloadPngIcon />,
       tooltip: t('code_block.download.png'),
       onClick: () => handleDownload('png'),

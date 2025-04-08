@@ -35,7 +35,7 @@ const SourcePreview = ({ ref, children, language }: Props & { ref?: React.RefObj
   useEffect(() => {
     registerTool({
       id: 'expand',
-      type: 'preview',
+      type: 'quick',
       icon: isExpanded ? <ShrinkOutlined /> : <ExpandAltOutlined />,
       tooltip: isExpanded ? t('code_block.collapse') : t('code_block.expand'),
       condition: () => codeCollapsible && showExpandButton,
@@ -50,7 +50,7 @@ const SourcePreview = ({ ref, children, language }: Props & { ref?: React.RefObj
   useEffect(() => {
     registerTool({
       id: 'wrap',
-      type: 'preview',
+      type: 'quick',
       icon: isUnwrapped ? <WrapIcon /> : <UnWrapIcon />,
       tooltip: isUnwrapped ? t('code_block.wrap.on') : t('code_block.wrap.off'),
       condition: () => codeWrappable,

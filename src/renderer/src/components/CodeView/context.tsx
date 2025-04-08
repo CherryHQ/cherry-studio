@@ -8,11 +8,11 @@ import React, { createContext, use, useCallback, useState } from 'react'
  * @param tooltip 提示文本
  * @param condition 显示条件
  * @param onClick 点击动作
- * @param order 显示顺序
+ * @param order 显示顺序，越小越靠右
  */
 export interface Tool {
   id: string
-  type: 'core' | 'preview'
+  type: 'core' | 'quick'
   icon: React.ReactNode
   tooltip: string
   condition?: (ctx?: ToolContext) => boolean
@@ -24,25 +24,25 @@ export interface Tool {
  * 工具上下文接口
  * @param code 代码内容
  * @param language 语言类型
- * @param previewType 预览类型
- * @param previewState 预览组件状态
- * @param previewRef 预览组件引用
+ * @param viewType 视图类型
+ * @param viewState 视图组件状态
+ * @param viewRef 视图组件引用
  */
 export interface ToolContext {
   code: string
   language: string
-  previewType: string
-  previewState: any
-  previewRef: React.RefObject<any>
+  viewType: string
+  viewState: any
+  viewRef: React.RefObject<any>
 }
 
 // 定义上下文默认值
 const defaultContext: ToolContext = {
   code: '',
   language: '',
-  previewType: '',
-  previewState: {},
-  previewRef: { current: null }
+  viewType: '',
+  viewState: {},
+  viewRef: { current: null }
 }
 
 interface ToolbarContextType {

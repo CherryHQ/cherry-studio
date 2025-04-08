@@ -37,8 +37,8 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
     updateContext({
       code: children,
       language,
-      previewType: isEditing ? 'source' : language,
-      previewRef
+      viewType: isEditing ? 'source' : language,
+      viewRef: previewRef
     })
   }, [children, language, isEditing, updateContext])
 
@@ -148,7 +148,7 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
 
   return (
     <CodeBlockWrapper className="code-block">
-      <CodeHeader>{'<' + language.toUpperCase() + '>'}</CodeHeader>
+      {!hasSpecialView && <CodeHeader>{'<' + language.toUpperCase() + '>'}</CodeHeader>}
       <Toolbar />
       {renderContent}
       {renderBottomTools}
