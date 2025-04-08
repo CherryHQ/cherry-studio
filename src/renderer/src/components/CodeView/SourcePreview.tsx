@@ -9,14 +9,14 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import Artifacts from './Artifacts'
+import Artifacts from '../../pages/home/Markdown/Artifacts'
 
 interface Props {
   children: string
   language: string
 }
 
-const CodeView: React.FC<Props> = ({ children, language }) => {
+const SourcePreview: React.FC<Props> = ({ children, language }) => {
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
   // const [html, setHtml] = useState<string>('')
   const { codeToHtml } = useSyntaxHighlighter()
@@ -258,4 +258,4 @@ const StickyWrapper = styled.div`
   z-index: 10;
 `
 
-export default memo(CodeView)
+export default memo(SourcePreview)
