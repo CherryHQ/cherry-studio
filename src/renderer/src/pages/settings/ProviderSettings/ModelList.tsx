@@ -288,7 +288,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                               }
                             }}
                             destroyTooltipOnHide
-                            color="#00b96b"
                             title={
                               <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
                                 {model.id}
