@@ -53,6 +53,16 @@ class WebSearchService {
   }
 
   /**
+   * 检查是否启用覆盖搜索
+   * @public
+   * @returns 如果启用覆盖搜索则返回true，否则返回false
+   */
+  public isOverwriteEnabled(): boolean {
+    const { overwrite } = this.getWebSearchState()
+    return overwrite
+  }
+
+  /**
    * 获取当前默认的网络搜索提供商
    * @public
    * @returns 网络搜索提供商

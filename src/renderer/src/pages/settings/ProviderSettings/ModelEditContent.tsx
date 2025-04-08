@@ -1,6 +1,12 @@
 import { DownOutlined, UpOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { isEmbeddingModel, isFunctionCallingModel, isReasoningModel, isVisionModel } from '@renderer/config/models'
+import {
+  isEmbeddingModel,
+  isFunctionCallingModel,
+  isReasoningModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { Model, ModelType } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, message, Modal } from 'antd'
@@ -102,18 +108,14 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>
-          <Flex justify="center" align="center" style={{ position: 'relative' }}>
-            <div>
-              <Button type="primary" htmlType="submit" size="middle">
-                {t('common.save')}
-              </Button>
-            </div>
-            <MoreSettingsRow
-              onClick={() => setShowModelTypes(!showModelTypes)}
-              style={{ position: 'absolute', right: 0 }}>
+          <Flex justify="space-between" align="center" style={{ position: 'relative' }}>
+            <MoreSettingsRow onClick={() => setShowModelTypes(!showModelTypes)}>
               {t('settings.moresetting')}
               <ExpandIcon>{showModelTypes ? <UpOutlined /> : <DownOutlined />}</ExpandIcon>
             </MoreSettingsRow>
+            <Button type="primary" htmlType="submit" size="middle">
+              {t('common.save')}
+            </Button>
           </Flex>
         </Form.Item>
         {showModelTypes && (
@@ -125,7 +127,8 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
                 ...(isVisionModel(model) ? ['vision'] : []),
                 ...(isEmbeddingModel(model) ? ['embedding'] : []),
                 ...(isReasoningModel(model) ? ['reasoning'] : []),
-                ...(isFunctionCallingModel(model) ? ['function_calling'] : [])
+                ...(isFunctionCallingModel(model) ? ['function_calling'] : []),
+                ...(isWebSearchModel(model) ? ['web_search'] : [])
               ] as ModelType[]
 
               // 合并现有选择和默认类型
@@ -164,6 +167,11 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
                       label: t('models.type.vision'),
                       value: 'vision',
                       disabled: isVisionModel(model) && !selectedTypes.includes('vision')
+                    },
+                    {
+                      label: t('models.type.websearch'),
+                      value: 'web_search',
+                      disabled: isWebSearchModel(model) && !selectedTypes.includes('web_search')
                     },
                     {
                       label: t('models.type.embedding'),

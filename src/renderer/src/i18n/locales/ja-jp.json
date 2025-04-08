@@ -277,6 +277,7 @@
       "duplicate": "複製",
       "edit": "編集",
       "expand": "展開",
+      "collapse": "折りたたむ",
       "footnote": "引用内容",
       "footnotes": "脚注",
       "fullscreen": "全画面モードに入りました。F11キーで終了します",
@@ -1299,7 +1300,9 @@
         "subscribe_name": "代替名",
         "subscribe_name.placeholder": "ダウンロードしたフィードに名前がない場合に使用される代替名",
         "subscribe_add_success": "フィードの追加が成功しました！",
-        "subscribe_delete": "フィードの削除"
+        "subscribe_delete": "フィードの削除",
+        "overwrite": "サービス検索を上書き",
+        "overwrite_tooltip": "大規模言語モデルではなく、サービス検索を使用する"
       },
       "general.auto_check_update.title": "自動更新チェックを有効にする",
       "quickPhrase": {

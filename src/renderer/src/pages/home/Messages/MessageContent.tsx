@@ -86,7 +86,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
     const searchResults =
       message?.metadata?.webSearch?.results ||
       message?.metadata?.webSearchInfo ||
-      message?.metadata?.groundingMetadata?.groundingChunks.map((chunk) => chunk.web) ||
+      message?.metadata?.groundingMetadata?.groundingChunks?.map((chunk) => chunk?.web) ||
       message?.metadata?.annotations?.map((annotation) => annotation.url_citation) ||
       []
     const citationsUrls = formattedCitations || []
@@ -222,18 +222,22 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       {message?.metadata?.groundingMetadata && message.status == 'success' && (
         <>
           <CitationsList
-            citations={message.metadata.groundingMetadata.groundingChunks.map((chunk, index) => ({
-              number: index + 1,
-              url: chunk.web?.uri,
-              title: chunk.web?.title,
-              showFavicon: false
-            }))}
+            citations={
+              message.metadata.groundingMetadata?.groundingChunks?.map((chunk, index) => ({
+                number: index + 1,
+                url: chunk?.web?.uri || '',
+                title: chunk?.web?.title,
+                showFavicon: false
+              })) || []
+            }
           />
           <SearchEntryPoint
             dangerouslySetInnerHTML={{
-              __html: message.metadata.groundingMetadata.searchEntryPoint?.renderedContent
-                ?.replace(/@media \(prefers-color-scheme: light\)/g, 'body[theme-mode="light"]')
-                .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]')
+              __html: message.metadata.groundingMetadata?.searchEntryPoint?.renderedContent
+                ? message.metadata.groundingMetadata.searchEntryPoint.renderedContent
+                    .replace(/@media \(prefers-color-scheme: light\)/g, 'body[theme-mode="light"]')
+                    .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]')
+                : ''
             }}
           />
         </>

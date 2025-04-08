@@ -27,12 +27,15 @@ export function getWebSearchTools(model: Model): ChatCompletionTool[] {
     ]
   }
 
-  return [
-    {
-      type: 'function',
-      function: {
-        name: 'googleSearch'
+  if (model?.id.includes('gemini')) {
+    return [
+      {
+        type: 'function',
+        function: {
+          name: 'googleSearch'
+        }
       }
-    }
-  ]
+    ]
+  }
+  return []
 }

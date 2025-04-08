@@ -30,6 +30,7 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
+import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
@@ -232,7 +233,7 @@ export default class GeminiProvider extends BaseProvider {
       const tools = mcpToolsToGeminiTools(mcpTools)
       const toolResponses: MCPToolResponse[] = []
 
-      if (assistant.enableWebSearch && isWebSearchModel(model)) {
+      if (!WebSearchService.isOverwriteEnabled() && assistant.enableWebSearch && isWebSearchModel(model)) {
         tools.push({
           // @ts-ignore googleSearch is not a valid tool for Gemini
           googleSearch: {}

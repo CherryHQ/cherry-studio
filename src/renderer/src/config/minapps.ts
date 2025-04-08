@@ -6,6 +6,7 @@ import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
 import CiciAppLogo from '@renderer/assets/images/apps/cici.webp?url'
 import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
+import DangbeiLogo from '@renderer/assets/images/apps/dangbei.jpg?url'
 import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
 import DifyAppLogo from '@renderer/assets/images/apps/dify.svg?url'
 import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png?url'
@@ -383,6 +384,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: '知乎直答',
     logo: ZhihuAppLogo,
     url: 'https://zhida.zhihu.com/',
+    bodered: true
+  },
+  {
+    id: 'dangbei',
+    name: '当贝AI',
+    logo: DangbeiLogo,
+    url: 'https://ai.dangbei.com/',
     bodered: true
   }
 ]

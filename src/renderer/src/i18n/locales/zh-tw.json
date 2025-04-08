@@ -277,6 +277,7 @@
       "duplicate": "複製",
       "edit": "編輯",
       "expand": "展開",
+      "collapse": "折疊",
       "footnote": "引用內容",
       "footnotes": "引用",
       "fullscreen": "已進入全螢幕模式，按 F11 結束",
@@ -1299,7 +1300,9 @@
         "subscribe_name.placeholder": "當下載的訂閱源沒有名稱時所使用的替代名稱",
         "subscribe_add_success": "訂閱源添加成功!",
         "subscribe_delete": "刪除訂閱源",
-        "title": "網路搜尋"
+        "title": "網路搜尋",
+        "overwrite": "覆蓋搜尋服務商",
+        "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋"
       },
       "general.auto_check_update.title": "啟用自動更新檢查",
       "quickPhrase": {
