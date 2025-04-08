@@ -19,7 +19,7 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
+import { Alert, Button, Dropdown, Empty, Flex, message, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
 import VirtualList from 'rc-virtual-list'
 import { FC } from 'react'
@@ -538,45 +538,55 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           ))}
         </FlexColumn>
       </CustomCollapse>
-      <ModelInfo>
-        <div className="model-header">
-          <label>{t('knowledge.model_info')}</label>
-          <Button icon={<SettingOutlined />} onClick={() => KnowledgeSettingsPopup.show({ base })} size="small" />
-        </div>
 
-        <div className="model-row">
-          <div className="label-column">
-            <label>{t('models.embedding_model')}</label>
-          </div>
-          <div className="tag-column">
-            {providerName && <Tag color="purple">{providerName}</Tag>}
-            <Tag color="blue">{base.model.name}</Tag>
-            <Tag color="cyan">{t('models.dimensions', { dimensions: base.dimensions || 0 })}</Tag>
-          </div>
-        </div>
-
-        {base.rerankModel && (
+      <CustomCollapse
+        collapsible="icon"
+        label={
+          <Flex gap={8} align="center">
+            {t('knowledge.model_info')}
+            <Button
+              type="text"
+              icon={<SettingOutlined />}
+              onClick={() => KnowledgeSettingsPopup.show({ base })}
+              size="small"
+            />
+          </Flex>
+        }
+        extra={
+          <Button
+            size="small"
+            type="primary"
+            onClick={() => KnowledgeSearchPopup.show({ base })}
+            icon={<SearchOutlined />}
+            disabled={disabled}>
+            {t('knowledge.search')}
+          </Button>
+        }>
+        <ModelInfo>
           <div className="model-row">
             <div className="label-column">
-              <label>{t('models.rerank_model')}</label>
+              <label>{t('models.embedding_model')}</label>
             </div>
             <div className="tag-column">
-              {rerankModelProviderName && <Tag color="purple">{rerankModelProviderName}</Tag>}
-              <Tag color="blue">{base.rerankModel?.name}</Tag>
+              {providerName && <CustomTag color="#af21af">{providerName}</CustomTag>}
+              <CustomTag color="#0000ff">{base.model.name}</CustomTag>
+              <CustomTag color="#00b1b1">{t('models.dimensions', { dimensions: base.dimensions || 0 })}</CustomTag>
             </div>
           </div>
-        )}
-      </ModelInfo>
 
-      <IndexSection>
-        <Button
-          type="primary"
-          onClick={() => KnowledgeSearchPopup.show({ base })}
-          icon={<SearchOutlined />}
-          disabled={disabled}>
-          {t('knowledge.search')}
-        </Button>
-      </IndexSection>
+          {base.rerankModel && (
+            <div className="model-row">
+              <div className="label-column">
+                <label>{t('models.rerank_model')}</label>
+              </div>
+              <div className="tag-column">
+                {rerankModelProviderName && <CustomTag color="#af21af">{rerankModelProviderName}</CustomTag>}
+                <CustomTag color="#0000ff">{base.rerankModel?.name}</CustomTag>
+              </div>
+            </div>
+          )}
+        </ModelInfo>
+      </CustomCollapse>
 
       <BottomSpacer />
     </MainContent>
@@ -606,12 +616,6 @@ const MainContent = styled(Scrollbar)`
   gap: 16px;
 `
 
-const IndexSection = styled.div`
-  margin-top: 20px;
-  display: flex;
-  justify-content: center;
-`
-
 const ModelInfo = styled.div`
   display: flex;
   flex-direction: column;
@@ -630,6 +634,7 @@ const ModelInfo = styled.div`
     display: flex;
     align-items: flex-start;
     gap: 10px;
+    margin-top: 16px;
   }
 
   .label-column {
