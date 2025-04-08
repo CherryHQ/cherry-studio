@@ -3,7 +3,7 @@ import { ChatCompletionTool } from 'openai/resources'
 
 import { WEB_SEARCH_PROMPT_FOR_ZHIPU } from './prompts'
 
-export function getWebSearchTools(model: Model): ChatCompletionTool[] {
+export function getWebSearchTools(model: Model): ChatCompletionTool[] | undefined {
   if (model?.provider === 'zhipu') {
     if (model.id === 'glm-4-alltools') {
       return [
@@ -27,12 +27,15 @@ export function getWebSearchTools(model: Model): ChatCompletionTool[] {
     ]
   }
 
-  return [
-    {
-      type: 'function',
-      function: {
-        name: 'googleSearch'
+  if (model?.id.includes('gemini')) {
+    return [
+      {
+        type: 'function',
+        function: {
+          name: 'googleSearch'
+        }
       }
-    }
-  ]
+    ]
+  }
+  return []
 }
