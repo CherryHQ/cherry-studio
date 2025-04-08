@@ -3,7 +3,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { Button, Modal, Space, Spin, Tabs } from 'antd'
 import pako from 'pako'
-import React, { useState } from 'react'
+import React, { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -296,10 +296,12 @@ class PlantUMLPopupTopView {
     })
   }
 }
+
 interface PlantUMLProps {
   children: string
 }
-export const PlantUmlView: React.FC<PlantUMLProps> = ({ children }) => {
+
+const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children }) => {
   //   const { t } = useTranslation()
   const onPreview = () => {
     PlantUMLPopupTopView.show(children)
@@ -335,3 +337,5 @@ async function downloadUrl(url: string, filename: string) {
   document.body.removeChild(link)
   URL.revokeObjectURL(link.href)
 }
+
+export default memo(PlantUmlPreview)

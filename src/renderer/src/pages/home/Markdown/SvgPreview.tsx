@@ -1,8 +1,10 @@
+import { memo } from 'react'
+
 interface Props {
   children: string
 }
 
-const SvgView: React.FC<Props> = ({ children }) => {
+const SvgPreview: React.FC<Props> = ({ children }) => {
   return (
     <div
       dangerouslySetInnerHTML={{ __html: children }}
@@ -17,4 +19,4 @@ const SvgView: React.FC<Props> = ({ children }) => {
   )
 }
 
-export default SvgView
+export default memo(SvgPreview)

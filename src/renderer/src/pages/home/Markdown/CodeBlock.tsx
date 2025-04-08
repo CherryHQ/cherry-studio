@@ -9,9 +9,9 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import CodeView from './CodeView'
-import MermaidView from './MermaidView'
-import { isValidPlantUML, PlantUmlView } from './PlantUmlView'
-import SvgView from './SvgView'
+import MermaidPreview from './MermaidPreview'
+import PlantUmlPreview, { isValidPlantUML } from './PlantUmlPreview'
+import SvgPreview from './SvgPreview'
 
 interface Props {
   children: string
@@ -32,15 +32,15 @@ const CodeBlock: React.FC<Props> = ({ children, className }) => {
     }
 
     if (language === 'mermaid') {
-      return <MermaidView>{children}</MermaidView>
+      return <MermaidPreview>{children}</MermaidPreview>
     }
 
     if (language === 'plantuml' && isValidPlantUML(children)) {
-      return <PlantUmlView>{children}</PlantUmlView>
+      return <PlantUmlPreview>{children}</PlantUmlPreview>
     }
 
     if (language === 'svg') {
-      return <SvgView>{children}</SvgView>
+      return <SvgPreview>{children}</SvgPreview>
     }
 
     return <CodeView language={language}>{children}</CodeView>

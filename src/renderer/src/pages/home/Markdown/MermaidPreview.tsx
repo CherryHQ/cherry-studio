@@ -1,6 +1,6 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
-import React, { useEffect, useRef } from 'react'
+import React, { memo, useEffect, useRef } from 'react'
 
 import MermaidPopup from './MermaidPopup'
 
@@ -8,7 +8,7 @@ interface Props {
   children: string
 }
 
-const MermaidView: React.FC<Props> = ({ children }) => {
+const MermaidPreview: React.FC<Props> = ({ children }) => {
   const { theme } = useTheme()
   const mermaidRef = useRef<HTMLDivElement>(null)
 
@@ -37,4 +37,4 @@ const MermaidView: React.FC<Props> = ({ children }) => {
   )
 }
 
-export default MermaidView
+export default memo(MermaidPreview)
