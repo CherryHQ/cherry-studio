@@ -1,15 +1,18 @@
-import { ExpandAltOutlined, ShrinkOutlined } from '@ant-design/icons'
+import { CheckOutlined, DownloadOutlined, ExpandAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import UnWrapIcon from '@renderer/components/Icons/UnWrapIcon'
 import WrapIcon from '@renderer/components/Icons/WrapIcon'
 import { HStack } from '@renderer/components/Layout'
 import { useSyntaxHighlighter } from '@renderer/context/SyntaxHighlighterProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { extractTitle } from '@renderer/utils/formats'
 import { Tooltip } from 'antd'
+import dayjs from 'dayjs'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Artifacts from '../../pages/home/Markdown/Artifacts'
+import CopyIcon from '../Icons/CopyIcon'
 
 interface Props {
   children: string
@@ -122,6 +125,8 @@ const SourcePreview: React.FC<Props> = ({ children, language }) => {
           gap={12}
           alignItems="center"
           style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
+          <DownloadButton text={children} language={language} />
+          <CopyButton text={children} />
           {showExpandButton && <ExpandButton expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />}
           {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
         </HStack>
@@ -153,6 +158,62 @@ const UnwrapButton: React.FC<{ unwrapped: boolean; onClick: () => void }> = ({ u
         ) : (
           <UnWrapIcon style={{ width: '100%', height: '100%' }} />
         )}
+      </CodeBlockStickyTool>
+    </Tooltip>
+  )
+}
+
+const CopyButton: React.FC<{ text: string }> = ({ text }) => {
+  const [copied, setCopied] = useState(false)
+  const { t } = useTranslation()
+
+  const onCopy = () => {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    window.message.success({ content: t('code_block.copy.success'), key: 'copy-code' })
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Tooltip title={t('code_block.copy')}>
+      <CodeBlockStickyTool>
+        {copied ? (
+          <CheckOutlined style={{ color: 'var(--color-primary)' }} />
+        ) : (
+          <CopyIcon className="copy" onClick={onCopy} />
+        )}
+      </CodeBlockStickyTool>
+    </Tooltip>
+  )
+}
+
+const DownloadButton: React.FC<{ text: string; language: string }> = ({ text, language }) => {
+  const { t } = useTranslation()
+
+  const onDownload = () => {
+    let fileName = ''
+
+    // 尝试提取标题
+    if (language === 'html' && text.includes('</html>')) {
+      const title = extractTitle(text)
+      if (title) {
+        fileName = `${title}.html`
+      }
+    }
+
+    // 默认使用日期格式命名
+    if (!fileName) {
+      fileName = `${dayjs().format('YYYYMMDDHHmm')}.${language}`
+    }
+
+    window.api.file.save(fileName, text)
+  }
+
+  return (
+    <Tooltip title={t('code_block.download')}>
+      <CodeBlockStickyTool onClick={onDownload}>
+        <DownloadOutlined />
       </CodeBlockStickyTool>
     </Tooltip>
   )
