@@ -737,7 +737,8 @@
       "yi": "零一万物",
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
-      "voyageai": "Voyage AI"
+      "voyageai": "Voyage AI",
+      "qiniu": "七牛云"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -1091,7 +1092,9 @@
         "registry": "包管理源",
         "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题。",
         "registryDefault": "默认",
-        "not_support": "模型不支持"
+        "not_support": "模型不支持",
+        "user": "用户",
+        "system": "系统"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",

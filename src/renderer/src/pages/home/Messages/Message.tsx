@@ -213,6 +213,8 @@ const MessageContainer = styled.div`
   .menubar {
     opacity: 0;
     transition: opacity 0.2s ease;
+    transform: translateZ(0);
+    will-change: opacity;
     &.show {
       opacity: 1;
     }

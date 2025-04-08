@@ -2013,7 +2013,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'rerank-2-lite',
       group: 'Voyage Rerank V2'
     }
-  ]
+  ],
+  qiniu: []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [

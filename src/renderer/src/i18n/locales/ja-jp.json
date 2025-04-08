@@ -737,7 +737,8 @@
       "yi": "零一万物",
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
-      "voyageai": "Voyage AI"
+      "voyageai": "Voyage AI",
+      "qiniu": "七牛云"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -1090,7 +1091,9 @@
         "registry": "パッケージ管理レジストリ",
         "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
         "registryDefault": "デフォルト",
-        "not_support": "モデルはサポートされていません"
+        "not_support": "モデルはサポートされていません",
+        "user": "ユーザー",
+        "system": "システム"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",

@@ -296,7 +296,7 @@ class FileSystemServer {
     // Validate that all directories exist and are accessible
     this.validateDirs().catch((error) => {
       console.error('Error validating allowed directories:', error)
-      process.exit(1)
+      throw new Error(`Error validating allowed directories: ${error}`)
     })
 
     this.server = new Server(
@@ -321,11 +321,11 @@ class FileSystemServer {
           const stats = await fs.stat(expandHome(dir))
           if (!stats.isDirectory()) {
             console.error(`Error: ${dir} is not a directory`)
-            process.exit(1)
+            throw new Error(`Error: ${dir} is not a directory`)
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Error accessing directory ${dir}:`, error)
-          process.exit(1)
+          throw new Error(`Error accessing directory ${dir}:`, error)
         }
       })
     )

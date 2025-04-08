@@ -737,7 +737,8 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
-      "voyageai": "Voyage AI"
+      "voyageai": "Voyage AI",
+      "qiniu": "Qiniu"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -1091,7 +1092,9 @@
         "registry": "Package Registry",
         "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
         "registryDefault": "Default",
-        "not_support": "Model not supported"
+        "not_support": "Model not supported",
+        "user": "User",
+        "system": "System"
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",

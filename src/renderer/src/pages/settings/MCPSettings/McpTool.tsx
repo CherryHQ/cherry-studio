@@ -116,7 +116,13 @@ const MCPToolsSection = ({ tools, server, onToggleTool }: MCPToolsSectionProps) 
                       </Typography.Text>
                     )}
                   </Flex>
-                  <Switch checked={isToolEnabled(tool)} onChange={(checked) => handleToggle(tool, checked)} />
+                  <Switch
+                    checked={isToolEnabled(tool)}
+                    onChange={(checked, event) => {
+                      event?.stopPropagation()
+                      handleToggle(tool, checked)
+                    }}
+                  />
                 </Flex>
               }>
               <SelectableContent>{renderToolProperties(tool)}</SelectableContent>

@@ -1193,6 +1193,7 @@ const migrateConfig = {
       state.settings.codeCacheMaxSize = 1000
       state.settings.codeCacheTTL = 15
       state.settings.codeCacheThreshold = 2
+      addProvider(state, 'qiniu')
       return state
     } catch (error) {
       return state

@@ -288,7 +288,7 @@ const PinnedApps: FC = () => {
                 <Icon
                   theme={theme}
                   onClick={() => openMinappKeepAlive(app)}
-                  className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-animation' : ''}`}>
+                  className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
                   <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} />
                 </Icon>
               </Dropdown>
@@ -403,11 +403,10 @@ const Icon = styled.div<{ theme: string }>`
     }
   }
 
-  &.opened-animation {
+  &.opened-minapp {
     position: relative;
   }
-
-  &.opened-animation::after {
+  &.opened-minapp::after {
     content: '';
     position: absolute;
     width: 100%;
@@ -415,13 +414,8 @@ const Icon = styled.div<{ theme: string }>`
     top: 0;
     left: 0;
     border-radius: inherit;
-    opacity: 0;
-    will-change: opacity;
+    opacity: 0.3;
     border: 0.5px solid var(--color-primary);
-    /* NOTICE: although we have optimized for the performance, 
-     * the infinite animation will still consume a little GPU resources,
-     * it's a trade-off balance between performance and animation smoothness*/
-    animation: borderBreath 4s ease-in-out infinite;
   }
 `
 

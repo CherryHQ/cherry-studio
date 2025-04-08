@@ -737,7 +737,8 @@
       "yi": "零一萬物",
       "zhinao": "360 智腦",
       "zhipu": "智譜 AI",
-      "voyageai": "Voyage AI"
+      "voyageai": "Voyage AI",
+      "qiniu": "七牛雲"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -1090,7 +1091,9 @@
         "registry": "套件管理源",
         "registryTooltip": "選擇用於安裝套件的源，以解決預設源的網路問題。",
         "registryDefault": "預設",
-        "not_support": "不支援此模型"
+        "not_support": "不支援此模型",
+        "user": "用戶",
+        "system": "系統"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",

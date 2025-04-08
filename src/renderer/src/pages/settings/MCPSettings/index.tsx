@@ -8,13 +8,11 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { EventEmitter } from '@renderer/services/EventService'
-import { initializeMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
-import { Dropdown, MenuProps, Segmented } from 'antd'
+import { Dropdown, MenuProps } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch } from 'react-redux'
 import styled from 'styled-components'
 
 import { SettingContainer } from '..'
@@ -28,18 +26,6 @@ const MCPSettings: FC = () => {
   const [selectedMcpServer, setSelectedMcpServer] = useState<MCPServer | null>(mcpServers[0])
   const [route, setRoute] = useState<'npx-search' | 'mcp-install' | null>(null)
   const { theme } = useTheme()
-  const dispatch = useDispatch()
-  const [mcpListType, setMcpListType] = useState<'system' | 'user'>('system')
-
-  const systemServers = mcpServers.filter((server) => {
-    return server.type === 'inMemory'
-  })
-
-  const userServers = mcpServers.filter((server) => {
-    return server.type !== 'inMemory'
-  })
-
-  const servers = mcpListType === 'system' ? systemServers : userServers
 
   useEffect(() => {
     const unsubs = [
@@ -48,11 +34,6 @@ const MCPSettings: FC = () => {
     ]
     return () => unsubs.forEach((unsub) => unsub())
   }, [])
-
-  useEffect(() => {
-    initializeMCPServers(mcpServers, dispatch)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Empty dependency array to run only once
 
   const onAddMcpServer = async () => {
     const newServer = {
@@ -133,33 +114,17 @@ const MCPSettings: FC = () => {
   return (
     <Container>
       <McpListContainer>
-        <McpListHeader>
-          <Segmented
-            size="middle"
-            style={{ width: '100%' }}
-            block
-            shape="round"
-            value={mcpListType}
-            options={[
-              { value: 'user', label: '我的' },
-              { value: 'system', label: '系统' }
-            ]}
-            onChange={(value) => setMcpListType(value as 'system' | 'user')}
-          />
-        </McpListHeader>
         <McpList>
-          {mcpListType === 'user' && (
-            <ListItem
-              key="add"
-              title={t('settings.mcp.addServer')}
-              active={false}
-              onClick={onAddMcpServer}
-              icon={<PlusOutlined />}
-              titleStyle={{ fontWeight: 500 }}
-              style={{ width: '100%' }}
-            />
-          )}
-          <DragableList list={servers} onUpdate={updateMcpServers}>
+          <ListItem
+            key="add"
+            title={t('settings.mcp.addServer')}
+            active={false}
+            onClick={onAddMcpServer}
+            icon={<PlusOutlined />}
+            titleStyle={{ fontWeight: 500 }}
+            style={{ width: '100%', marginTop: -2 }}
+          />
+          <DragableList list={mcpServers} onUpdate={updateMcpServers}>
             {(server: MCPServer) => (
               <Dropdown menu={{ items: getMenuItems(server) }} trigger={['contextMenu']} key={server.id}>
                 <div>
@@ -202,13 +167,6 @@ const McpListContainer = styled(VStack)`
   width: var(--settings-width);
   border-right: 0.5px solid var(--color-border);
   height: calc(100vh - var(--navbar-height));
-`
-
-const McpListHeader = styled(HStack)`
-  width: 100%;
-  padding: 10px 12px;
-  padding-bottom: 0;
-  justify-content: center;
 `
 
 const McpList = styled(Scrollbar)`

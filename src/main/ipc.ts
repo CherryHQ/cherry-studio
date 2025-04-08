@@ -193,18 +193,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile)
 
-  // minapp
-  ipcMain.handle(IpcChannel.Minapp, (_, args) => {
-    windowService.createMinappWindow({
-      url: args.url,
-      parent: mainWindow,
-      windowOptions: {
-        ...mainWindow.getBounds(),
-        ...args.windowOptions
-      }
-    })
-  })
-
   // export
   ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord)
 

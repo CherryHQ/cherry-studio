@@ -106,10 +106,10 @@ class McpService {
             }
 
             // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
-            if (server.name === 'mcp-auto-install') {
+            if (server.name.includes('mcp-auto-install')) {
               const binPath = await getBinaryPath()
               makeSureDirExists(binPath)
-              server.env.MCP_REGISTRY_PATH = path.join(binPath, 'mcp-registry.json')
+              server.env.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
             }
           }
         } else if (server.command === 'uvx' || server.command === 'uv') {
