@@ -14,6 +14,8 @@ export interface WebSearchState {
   excludeDomains: string[]
   // 是否启用搜索增强模式
   enhanceMode: boolean
+  // 是否覆盖服务商搜索
+  overwrite: boolean
 }
 
 const initialState: WebSearchState = {
@@ -38,7 +40,8 @@ const initialState: WebSearchState = {
   searchWithTime: true,
   maxResults: 5,
   excludeDomains: [],
-  enhanceMode: false
+  enhanceMode: false,
+  overwrite: true
 }
 
 const websearchSlice = createSlice({
@@ -71,6 +74,9 @@ const websearchSlice = createSlice({
     },
     setEnhanceMode: (state, action: PayloadAction<boolean>) => {
       state.enhanceMode = action.payload
+    },
+    setOverwrite: (state, action: PayloadAction<boolean>) => {
+      state.overwrite = action.payload
     }
   }
 })
@@ -83,7 +89,8 @@ export const {
   setSearchWithTime,
   setExcludeDomains,
   setMaxResult,
-  setEnhanceMode
+  setEnhanceMode,
+  setOverwrite
 } = websearchSlice.actions
 
 export default websearchSlice.reducer

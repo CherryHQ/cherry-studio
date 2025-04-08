@@ -1290,7 +1290,9 @@
           "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
           "title": "Tavily"
         },
-        "title": "網路搜尋"
+        "title": "網路搜尋",
+        "overwrite": "覆蓋搜尋服務商",
+        "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋"
       },
       "general.auto_check_update.title": "啟用自動更新檢查",
       "quickPhrase": {
