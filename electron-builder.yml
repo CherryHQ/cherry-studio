@@ -85,9 +85,7 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    引入全新的 QuickPanel 功能，统一了应用内的输入和搜索操作
-    新增内存 MCP (in-memory MCP) 服务支持及配置管理
-    新增对七牛云 AI (Qiniu AI) 提供商的支持
-    添加了导出菜单选项设置和思维链（Chain-of-Thought）导出功能
-    消息锚点线支持底部锚点
-    为 AppImage 添加了多分辨率图标
+    知识库和服务商界面更新
+    增加 Dangbei 小程序
+    可以强制使用搜索引擎覆盖模型自带搜索能力
+    修复部分公式无法正常渲染问题

@@ -66,12 +66,20 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   return (
     <Container ref={containerRef}>
       {isVisionModel(model) && (
-        <CustomTag size={size} color="#00b96b" icon={<EyeOutlined />} tooltip={t('models.type.vision')}>
+        <CustomTag
+          size={size}
+          color="#00b96b"
+          icon={<EyeOutlined style={{ fontSize: size }} />}
+          tooltip={t('models.type.vision')}>
           {_showLabel ? t('models.type.vision') : ''}
         </CustomTag>
       )}
       {isWebSearchModel(model) && (
-        <CustomTag size={size} color="#1677ff" icon={<GlobalOutlined />} tooltip={t('models.type.websearch')}>
+        <CustomTag
+          size={size}
+          color="#1677ff"
+          icon={<GlobalOutlined style={{ fontSize: size }} />}
+          tooltip={t('models.type.websearch')}>
           {_showLabel ? t('models.type.websearch') : ''}
         </CustomTag>
       )}
@@ -85,7 +93,11 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
         </CustomTag>
       )}
       {showToolsCalling && isFunctionCallingModel(model) && (
-        <CustomTag size={size} color="#f18737" icon={<ToolOutlined />} tooltip={t('models.type.function_calling')}>
+        <CustomTag
+          size={size}
+          color="#f18737"
+          icon={<ToolOutlined style={{ fontSize: size }} />}
+          tooltip={t('models.type.function_calling')}>
           {_showLabel ? t('models.type.function_calling') : ''}
         </CustomTag>
       )}
@@ -107,7 +119,11 @@ const Container = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 4px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: scroll;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 `
 
 export default ModelTagsWithLabel

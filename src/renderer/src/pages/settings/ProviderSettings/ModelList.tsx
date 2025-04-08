@@ -10,7 +10,6 @@ import {
   SettingOutlined
 } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
-import CustomTag from '@renderer/components/CustomTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
@@ -252,9 +251,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
             label={
               <Flex align="center" gap={10}>
                 <span style={{ fontWeight: 600 }}>{group}</span>
-                <CustomTag color="#02B96B" size={10}>
-                  {modelGroups[group].length}
-                </CustomTag>
               </Flex>
             }
             extra={
@@ -294,14 +290,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                               </Typography.Text>
                             }
                             placement="top">
-                            <span style={{ cursor: 'help' }}>{model.name}</span>
+                            <span>{model.name}</span>
                           </Tooltip>
-                        </ListItemName>
-                      ),
-                      extra: (
-                        <div style={{ marginTop: 6 }}>
                           <ModelTagsWithLabel model={model} size={11} />
-                        </div>
+                        </ListItemName>
                       ),
                       ext: '.model',
                       actions: (
@@ -378,6 +370,10 @@ const ListItemName = styled.div`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    cursor: help;
+    font-family: 'Ubuntu';
+    line-height: 30px;
+    font-size: 14px;
   }
 `
 
