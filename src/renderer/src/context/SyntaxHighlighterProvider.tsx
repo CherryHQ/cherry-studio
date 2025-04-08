@@ -49,7 +49,8 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
         if (cached) return cached
 
         const languageMap: Record<string, string> = {
-          vab: 'vb'
+          vab: 'vb',
+          svg: 'xml'
         }
 
         const mappedLanguage = languageMap[language] || language
