@@ -48,6 +48,8 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
+import DangbeiLogo from '@renderer/assets/images/apps/dangbei.png?url'
+
 import { MinAppType } from '@renderer/types'
 export const DEFAULT_MIN_APPS: MinAppType[] = [
   {
@@ -384,5 +386,11 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: ZhihuAppLogo,
     url: 'https://zhida.zhihu.com/',
     bodered: true
+  },
+  {
+    id: 'dangbei',
+    name: '当贝',
+    logo: DangbeiLogo,
+    url: 'https://ai.dangbei.com/'
   }
 ]

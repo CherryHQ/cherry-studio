@@ -1198,6 +1198,14 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '92': (state: RootState) => {
+    try {
+      addProvider(state, 'dangbei')
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
