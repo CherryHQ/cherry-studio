@@ -1,6 +1,5 @@
-import { DownloadOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
+import { CopyOutlined, DownloadOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
 import { ToolbarProvider, useToolbar } from '@renderer/components/CodeView/context'
-import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { extractTitle } from '@renderer/utils/formats'
 import dayjs from 'dayjs'
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -72,7 +71,7 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
     registerTool({
       id: 'copy',
       type: 'core',
-      icon: <CopyIcon />,
+      icon: <CopyOutlined />,
       tooltip: t('code_block.copy.source'),
       onClick: onCopySource,
       order: 0

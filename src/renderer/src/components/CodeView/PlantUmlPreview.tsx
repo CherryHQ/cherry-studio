@@ -1,16 +1,15 @@
-import { CopyOutlined, LoadingOutlined } from '@ant-design/icons'
-import { TopView } from '@renderer/components/TopView'
+import { FileImageOutlined, LoadingOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Button, Modal, Space, Spin, Tabs } from 'antd'
+import { Spin } from 'antd'
 import pako from 'pako'
-import React, { memo, useState } from 'react'
+import React, { memo, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-interface PlantUMLPopupProps {
-  resolve: (data: any) => void
-  diagram: string
-}
+import { DownloadPngIcon } from '../Icons/DownloadIcons'
+import { DownloadSvgIcon } from '../Icons/DownloadIcons'
+import { useToolbar } from './context'
+
 export function isValidPlantUML(diagram: string | null): boolean {
   if (!diagram || !diagram.trim().startsWith('@start')) {
     return false
@@ -82,6 +81,22 @@ function encodeDiagram(diagram: string): string {
   return encode64(compressed)
 }
 
+async function downloadUrl(url: string, filename: string) {
+  const response = await fetch(url)
+  if (!response.ok) {
+    window.message.warning({ content: response.statusText, duration: 1.5 })
+    return
+  }
+  const blob = await response.blob()
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(link.href)
+}
+
 type PlantUMLServerImageProps = {
   format: 'png' | 'svg'
   diagram: string
@@ -131,43 +146,36 @@ const PlantUMLServerImage: React.FC<PlantUMLServerImageProps> = ({ format, diagr
   )
 }
 
-const PlantUMLPopupCantaier: React.FC<PlantUMLPopupProps> = ({ resolve, diagram }) => {
-  const [open, setOpen] = useState(true)
-  const [downloading, setDownloading] = useState({
-    png: false,
-    svg: false
-  })
+interface PlantUMLProps {
+  children: string
+}
+
+const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children }) => {
   const [scale, setScale] = useState(1)
-  const [activeTab, setActiveTab] = useState('preview')
   const { t } = useTranslation()
 
-  const encodedDiagram = encodeDiagram(diagram)
-  const onOk = () => {
-    setOpen(false)
-  }
+  const encodedDiagram = encodeDiagram(children)
 
-  const onCancel = () => {
-    setOpen(false)
-  }
-  const onClose = () => {
-    resolve({})
-  }
+  const { registerTool, removeTool } = useToolbar()
 
-  const handleZoom = (delta: number) => {
-    const newScale = Math.max(0.1, Math.min(3, scale + delta))
-    setScale(newScale)
+  const handleZoom = useCallback(
+    (delta: number) => {
+      const newScale = Math.max(0.1, Math.min(3, scale + delta))
+      setScale(newScale)
 
-    const container = document.querySelector('.plantuml-image-container')
-    if (container) {
-      const img = container.querySelector('img')
-      if (img) {
-        img.style.transformOrigin = 'top left'
-        img.style.transform = `scale(${newScale})`
+      const container = document.querySelector('.plantuml-image-container')
+      if (container) {
+        const img = container.querySelector('img')
+        if (img) {
+          img.style.transformOrigin = 'top left'
+          img.style.transform = `scale(${newScale})`
+        }
       }
-    }
-  }
+    },
+    [scale]
+  )
 
-  const handleCopyImage = async () => {
+  const handleCopyImage = useCallback(async () => {
     try {
       const imageElement = document.querySelector('.plantuml-image-container img')
       if (!imageElement) return
@@ -195,118 +203,81 @@ const PlantUMLPopupCantaier: React.FC<PlantUMLPopupProps> = ({ resolve, diagram 
       console.error('Copy failed:', error)
       window.message.error(t('message.copy.failed'))
     }
-  }
+  }, [t])
 
-  const handleDownload = (format: 'svg' | 'png') => {
-    const timestamp = Date.now()
-    const url = `${PlantUMLServer}/${format}/${encodedDiagram}`
-    setDownloading((prev) => ({ ...prev, [format]: true }))
-    const filename = `plantuml-diagram-${timestamp}.${format}`
-    downloadUrl(url, filename)
-      .catch(() => {
+  const handleDownload = useCallback(
+    (format: 'svg' | 'png') => {
+      const timestamp = Date.now()
+      const url = `${PlantUMLServer}/${format}/${encodedDiagram}`
+      const filename = `plantuml-diagram-${timestamp}.${format}`
+      downloadUrl(url, filename).catch(() => {
         window.message.error(t('plantuml.download.failed'))
       })
-      .finally(() => {
-        setDownloading((prev) => ({ ...prev, [format]: false }))
-      })
-  }
-
-  function handleCopy() {
-    navigator.clipboard.writeText(diagram)
-    window.message.success(t('message.copy.success'))
-  }
-
-  return (
-    <Modal
-      title={t('plantuml.title')}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      width={1000}
-      centered
-      footer={[
-        <Space key="download-buttons">
-          {activeTab === 'source' && (
-            <Button onClick={handleCopy} icon={<CopyOutlined />}>
-              {t('common.copy')}
-            </Button>
-          )}
-          {activeTab === 'preview' && (
-            <>
-              <Button onClick={() => handleZoom(0.1)}>{t('mermaid.resize.zoom-in')}</Button>
-              <Button onClick={() => handleZoom(-0.1)}>{t('mermaid.resize.zoom-out')}</Button>
-              <Button onClick={handleCopyImage}>{t('common.copy')}</Button>
-              <Button onClick={() => handleDownload('svg')} loading={downloading.svg}>
-                {t('plantuml.download.svg')}
-              </Button>
-              <Button onClick={() => handleDownload('png')} loading={downloading.png}>
-                {t('plantuml.download.png')}
-              </Button>
-            </>
-          )}
-        </Space>
-      ]}>
-      <Tabs
-        activeKey={activeTab}
-        onChange={(key) => setActiveTab(key)}
-        items={[
-          {
-            key: 'preview',
-            label: t('plantuml.tabs.preview'),
-            children: <PlantUMLServerImage format="svg" diagram={diagram} className="plantuml-image-container" />
-          },
-          {
-            key: 'source',
-            label: t('plantuml.tabs.source'),
-            children: (
-              <pre
-                style={{
-                  maxHeight: 'calc(80vh - 200px)',
-                  overflowY: 'auto',
-                  padding: '16px'
-                }}>
-                {diagram}
-              </pre>
-            )
-          }
-        ]}
-      />
-    </Modal>
+    },
+    [encodedDiagram, t]
   )
-}
 
-class PlantUMLPopupTopView {
-  static topviewId = 0
-  static hide() {
-    TopView.hide('PlantUMLPopup')
-  }
-  static show(diagram: string) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PlantUMLPopupCantaier
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-          diagram={diagram}
-        />,
-        'PlantUMLPopup'
-      )
+  useEffect(() => {
+    // 放大工具
+    registerTool({
+      id: 'plantuml-zoom-in',
+      type: 'quick',
+      icon: <ZoomInOutlined />,
+      tooltip: t('code_block.preview.zoom_in'),
+      onClick: () => handleZoom(0.1),
+      order: 20
     })
-  }
-}
 
-interface PlantUMLProps {
-  children: string
-}
+    // 缩小工具
+    registerTool({
+      id: 'plantuml-zoom-out',
+      type: 'quick',
+      icon: <ZoomOutOutlined />,
+      tooltip: t('code_block.preview.zoom_out'),
+      onClick: () => handleZoom(-0.1),
+      order: 19
+    })
 
-const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children }) => {
-  //   const { t } = useTranslation()
-  const onPreview = () => {
-    PlantUMLPopupTopView.show(children)
-  }
-  return <PlantUMLServerImage onClick={onPreview} format="svg" diagram={children} />
+    // 复制图片工具
+    registerTool({
+      id: 'plantuml-copy-image',
+      type: 'quick',
+      icon: <FileImageOutlined />,
+      tooltip: t('code_block.preview.copy.image'),
+      onClick: handleCopyImage,
+      order: 18
+    })
+
+    // 下载 SVG 工具
+    registerTool({
+      id: 'plantuml-download-svg',
+      type: 'quick',
+      icon: <DownloadSvgIcon />,
+      tooltip: t('code_block.download.svg'),
+      onClick: () => handleDownload('svg'),
+      order: 17
+    })
+
+    // 下载 PNG 工具
+    registerTool({
+      id: 'plantuml-download-png',
+      type: 'quick',
+      icon: <DownloadPngIcon />,
+      tooltip: t('code_block.download.png'),
+      onClick: () => handleDownload('png'),
+      order: 16
+    })
+
+    return () => {
+      removeTool('plantuml-zoom-in')
+      removeTool('plantuml-zoom-out')
+      removeTool('plantuml-copy-image')
+      removeTool('plantuml-download-svg')
+      removeTool('plantuml-download-png')
+    }
+  }, [handleCopyImage, handleDownload, handleZoom, registerTool, removeTool, t])
+
+  return <PlantUMLServerImage format="svg" diagram={children} />
 }
 
 const StyledPlantUML = styled.div`
@@ -322,20 +293,5 @@ const StyledPlantUML = styled.div`
     transition: transform 0.2s ease;
   }
 `
-async function downloadUrl(url: string, filename: string) {
-  const response = await fetch(url)
-  if (!response.ok) {
-    window.message.warning({ content: response.statusText, duration: 1.5 })
-    return
-  }
-  const blob = await response.blob()
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(link.href)
-}
 
 export default memo(PlantUmlPreview)
