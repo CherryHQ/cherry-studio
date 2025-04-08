@@ -12,7 +12,7 @@ const ToolButton: React.FC<ToolButtonProps> = memo(({ tool }) => {
   const { context } = useToolbar()
 
   return (
-    <Tooltip title={tool.tooltip}>
+    <Tooltip title={tool.tooltip} mouseEnterDelay={0.5}>
       <ToolWrapper onClick={() => tool.onClick(context)}>{tool.icon}</ToolWrapper>
     </Tooltip>
   )

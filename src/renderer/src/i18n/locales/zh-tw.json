@@ -250,18 +250,20 @@
     },
     "code_block": {
       "collapse": "折疊",
-      "copy": "複製",
       "copy.failed": "複製失敗",
+      "copy.source": "複製源碼",
       "copy.success": "已複製",
-      "download": "下載",
+      "copy": "複製",
       "download.png": "下載 PNG",
+      "download.source": "下載源碼",
       "download.svg": "下載 SVG",
+      "download": "下載",
       "edit.off": "關閉編輯",
       "edit.on": "編輯",
+      "expand": "展開",
       "more": "更多",
       "wrap.off": "停用自動換行",
-      "wrap.on": "自動換行",
-      "expand": "展開"
+      "wrap.on": "自動換行"
     },
     "common": {
       "add": "新增",

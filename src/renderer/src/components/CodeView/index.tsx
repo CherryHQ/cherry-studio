@@ -35,13 +35,13 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
     })
   }, [children, language, isEditing, updateContext])
 
-  const onCopyCode = useCallback(() => {
+  const onCopySource = useCallback(() => {
     if (!children) return
     navigator.clipboard.writeText(children)
     window.message.success({ content: t('code_block.copy.success'), key: 'copy-code' })
   }, [children, t])
 
-  const onDownloadCode = useCallback(() => {
+  const onDownloadSource = useCallback(() => {
     let fileName = ''
 
     // 尝试提取标题
@@ -66,8 +66,8 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
       id: 'copy',
       type: 'core',
       icon: <CopyIcon />,
-      tooltip: t('code_block.copy'),
-      onClick: onCopyCode,
+      tooltip: t('code_block.copy.source'),
+      onClick: onCopySource,
       order: 0
     })
 
@@ -76,15 +76,15 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
       id: 'download',
       type: 'core',
       icon: <DownloadOutlined />,
-      tooltip: t('code_block.download'),
-      onClick: onDownloadCode,
+      tooltip: t('code_block.download.source'),
+      onClick: onDownloadSource,
       order: 1
     })
     return () => {
       removeTool('copy')
       removeTool('download')
     }
-  }, [onCopyCode, onDownloadCode, registerTool, removeTool, t])
+  }, [onCopySource, onDownloadSource, registerTool, removeTool, t])
 
   // 特殊视图的编辑按钮
   useEffect(() => {

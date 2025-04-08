@@ -250,18 +250,20 @@
     },
     "code_block": {
       "collapse": "Collapse",
-      "copy": "Copy",
       "copy.failed": "Copy failed",
+      "copy.source": "Copy Source Code",
       "copy.success": "Copied",
-      "download": "Download",
+      "copy": "Copy",
       "download.png": "Download PNG",
+      "download.source": "Download Source Code",
       "download.svg": "Download SVG",
+      "download": "Download",
       "edit.off": "Leave Edit",
       "edit.on": "Edit",
+      "expand": "Expand",
       "more": "More",
       "wrap.off": "Unwrap",
-      "wrap.on": "Wrap",
-      "expand": "Expand"
+      "wrap.on": "Wrap"
     },
     "common": {
       "add": "Add",

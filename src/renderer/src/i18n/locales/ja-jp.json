@@ -250,18 +250,20 @@
     },
     "code_block": {
       "collapse": "折りたたむ",
-      "copy": "コピー",
       "copy.failed": "コピーに失敗しました",
+      "copy.source": "コピー源コード",
       "copy.success": "コピーしました",
-      "download": "ダウンロード",
+      "copy": "コピー",
       "download.png": "PNGとしてダウンロード",
+      "download.source": "ダウンロード源コード",
       "download.svg": "SVGとしてダウンロード",
+      "download": "ダウンロード",
       "edit.off": "編集を閉じる",
       "edit.on": "編集",
+      "expand": "展開する",
       "more": "もっと",
       "wrap.off": "改行解除",
-      "wrap.on": "改行",
-      "expand": "展開する"
+      "wrap.on": "改行"
     },
     "common": {
       "add": "追加",
