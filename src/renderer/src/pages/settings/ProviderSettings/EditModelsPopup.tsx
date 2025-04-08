@@ -237,7 +237,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                 {modelGroups[group].map((model) => (
                   <FileItem
                     style={{
-                      backgroundColor: isModelInProvider(provider, model.id) ? 'rgba(0, 126, 0, 0.06)' : 'inherit'
+                      backgroundColor: isModelInProvider(provider, model.id)
+                        ? 'rgba(0, 126, 0, 0.06)'
+                        : 'rgba(255, 255, 255, 0.04)'
                     }}
                     key={model.id}
                     fileInfo={{
