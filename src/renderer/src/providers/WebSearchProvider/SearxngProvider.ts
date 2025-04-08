@@ -16,19 +16,35 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       throw new Error('API host is required for SearxNG provider')
     }
     this.apiHost = provider.apiHost
-    this.searxng = new SearxngClient({ apiBaseUrl: this.apiHost })
+    try {
+      this.searxng = new SearxngClient({ apiBaseUrl: this.apiHost })
+    } catch (error) {
+      throw new Error(
+        `Failed to initialize SearxNG client: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
     this.initEngines().catch((err) => console.error('Failed to initialize SearxNG engines:', err))
   }
-
   private async initEngines(): Promise<void> {
     try {
-      const response = await axios.get(`${this.apiHost}/config`, { timeout: 5000 })
+      console.log(`Initializing SearxNG with API host: ${this.apiHost}`)
+      const response = await axios.get(`${this.apiHost}/config`, {
+        timeout: 5000,
+        validateStatus: (status) => status === 200 // 仅接受 200 状态码
+      })
 
-      if (!response.data || !Array.isArray(response.data.engines)) {
-        throw new Error('Invalid response format from SearxNG config endpoint')
+      if (!response.data) {
+        throw new Error('Empty response from SearxNG config endpoint')
       }
 
-      this.engines = response.data.engines
+      if (!Array.isArray(response.data.engines)) {
+        throw new Error('Invalid response format: "engines" property not found or not an array')
+      }
+
+      const allEngines = response.data.engines
+      console.log(`Found ${allEngines.length} total engines in SearxNG`)
+
+      this.engines = allEngines
         .filter(
           (engine: { enabled: boolean; categories: string[]; name: string }) =>
             engine.enabled &&
@@ -38,11 +54,17 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         )
         .map((engine) => engine.name)
 
+      if (this.engines.length === 0) {
+        throw new Error('No enabled general web search engines found in SearxNG configuration')
+      }
+
       this.isInitialized = true
-      console.log(`SearxNG initialized with ${this.engines.length} engines`)
+      console.log(`SearxNG initialized successfully with ${this.engines.length} engines: ${this.engines.join(', ')}`)
     } catch (err) {
+      this.isInitialized = false
+
       console.error('Failed to fetch SearxNG engine configuration:', err)
-      this.engines = []
+      throw new Error(`Failed to initialize SearxNG: ${err}`)
     }
   }
 
@@ -55,14 +77,6 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       // Wait for initialization if it's the first search
       if (!this.isInitialized) {
         await this.initEngines().catch(() => {}) // Ignore errors
-      }
-
-      // 如果engines为空，直接返回空结果
-      if (this.engines.length === 0) {
-        return {
-          query: query,
-          results: []
-        }
       }
 
       const result = await this.searxng.search({
@@ -85,13 +99,9 @@ export default class SearxngProvider extends BaseWebSearchProvider {
           }
         })
       }
-    } catch (err) {
-      console.error('Search failed:', err)
-      // Return empty results instead of throwing to prevent UI crashes
-      return {
-        query: query,
-        results: []
-      }
+    } catch (error) {
+      console.error('Searxng search failed:', error)
+      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 }

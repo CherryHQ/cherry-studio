@@ -53,6 +53,16 @@ class WebSearchService {
   }
 
   /**
+   * 检查是否启用覆盖搜索
+   * @public
+   * @returns 如果启用覆盖搜索则返回true，否则返回false
+   */
+  public isOverwriteEnabled(): boolean {
+    const { overwrite } = this.getWebSearchState()
+    return overwrite
+  }
+
+  /**
    * 获取当前默认的网络搜索提供商
    * @public
    * @returns 网络搜索提供商
@@ -95,9 +105,7 @@ class WebSearchService {
       return await webSearchEngine.search(formattedQuery, maxResults, excludeDomains)
     } catch (error) {
       console.error('Search failed:', error)
-      return {
-        results: []
-      }
+      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -110,9 +118,9 @@ class WebSearchService {
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
-
+      console.log('Search response:', response)
       // 优化的判断条件：检查结果是否有效且没有错误
-      return { valid: response.results.length > 0, error: undefined }
+      return { valid: response.results !== undefined, error: undefined }
     } catch (error) {
       return { valid: false, error }
     }

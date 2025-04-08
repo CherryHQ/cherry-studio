@@ -32,18 +32,20 @@ asarUnpack:
   - '**/*.{node,dll,metal,exp,lib}'
 win:
   executableName: Cherry Studio
-  artifactName: ${productName}-${version}-portable.${ext}
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
     - target: portable
 nsis:
-  artifactName: ${productName}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
   allowToChangeInstallationDirectory: true
   oneClick: false
   include: build/nsis-installer.nsh
+portable:
+  artifactName: ${productName}-${version}-${arch}-portable.${ext}
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
@@ -83,7 +85,7 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    小程序支持多开
-    支持 GPT-4o 图像生成
-    修复 MCP 服务器无法使用问题
-    修复升级导致旧版本数据丢失问题
+    知识库和服务商界面更新
+    增加 Dangbei 小程序
+    可以强制使用搜索引擎覆盖模型自带搜索能力
+    修复部分公式无法正常渲染问题

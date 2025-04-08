@@ -2,10 +2,11 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
-import { setLanguage } from '@renderer/store/settings'
+import { setEnableDataCollection, setLanguage } from '@renderer/store/settings'
 import { setProxyMode, setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
 import { LanguageVarious } from '@renderer/types'
 import { isValidProxyUrl } from '@renderer/utils'
+import { defaultLanguage } from '@shared/config/constant'
 import { Input, Select, Space, Switch } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,7 +24,8 @@ const GeneralSettings: FC = () => {
     launchToTray,
     trayOnClose,
     tray,
-    proxyMode: storeProxyMode
+    proxyMode: storeProxyMode,
+    enableDataCollection
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme: themeMode } = useTheme()
@@ -112,7 +114,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Select defaultValue={language || 'en-US'} style={{ width: 180 }} onChange={onSelectLanguage}>
+          <Select defaultValue={language || defaultLanguage} style={{ width: 180 }} onChange={onSelectLanguage}>
             {languagesOptions.map((lang) => (
               <Select.Option key={lang.value} value={lang.value}>
                 <Space.Compact direction="horizontal" block>
@@ -176,6 +178,14 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
           <Switch checked={trayOnClose} onChange={(checked) => updateTrayOnClose(checked)} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.privacy.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
+          <Switch value={enableDataCollection} onChange={(v) => dispatch(setEnableDataCollection(v))} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

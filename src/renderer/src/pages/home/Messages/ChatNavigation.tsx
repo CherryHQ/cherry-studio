@@ -1,4 +1,11 @@
-import { DownOutlined, HistoryOutlined, UpOutlined } from '@ant-design/icons'
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  CloseOutlined,
+  HistoryOutlined,
+  VerticalAlignBottomOutlined,
+  VerticalAlignTopOutlined
+} from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { RootState } from '@renderer/store'
 import { selectCurrentTopicId } from '@renderer/store/messages'
@@ -20,6 +27,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [isNearButtons, setIsNearButtons] = useState(false)
   const [hideTimer, setHideTimer] = useState<NodeJS.Timeout | null>(null)
   const [showChatHistory, setShowChatHistory] = useState(false)
+  const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
   const currentTopicId = useSelector((state: RootState) => selectCurrentTopicId(state))
   const lastMoveTime = useRef(0)
   const { topicPosition, showTopics } = useSettings()
@@ -44,6 +52,10 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
   // Handle mouse entering button area
   const handleMouseEnter = useCallback(() => {
+    if (manuallyClosedUntil && Date.now() < manuallyClosedUntil) {
+      return
+    }
+
     setIsNearButtons(true)
     setIsVisible(true)
 
@@ -52,7 +64,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       clearTimeout(hideTimer)
       setHideTimer(null)
     }
-  }, [hideTimer])
+  }, [hideTimer, manuallyClosedUntil])
 
   // Handle mouse leaving button area
   const handleMouseLeave = useCallback(() => {
@@ -97,7 +109,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
   const scrollToTop = () => {
     const container = document.getElementById(containerId)
-    container && container.scrollTo({ top: 0, behavior: 'smooth' })
+    container && container.scrollTo({ top: -container.scrollHeight, behavior: 'smooth' })
   }
 
   const scrollToBottom = () => {
@@ -146,6 +158,23 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     }
 
     return -1
+  }
+
+  // 修改 handleCloseChatNavigation 函数
+  const handleCloseChatNavigation = () => {
+    setIsVisible(false)
+    // 设置手动关闭状态，1分钟内不响应鼠标靠近事件
+    setManuallyClosedUntil(Date.now() + 60000) // 60000毫秒 = 1分钟
+  }
+
+  const handleScrollToTop = () => {
+    resetHideTimer()
+    scrollToTop()
+  }
+
+  const handleScrollToBottom = () => {
+    resetHideTimer()
+    scrollToBottom()
   }
 
   const handleNextMessage = () => {
@@ -216,24 +245,25 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
     // Throttled mouse move handler to improve performance
     const handleMouseMove = (e: MouseEvent) => {
+      // 如果在手动关闭期间，不响应鼠标移动事件
+      if (manuallyClosedUntil && Date.now() < manuallyClosedUntil) {
+        return
+      }
+
       // Throttle mouse move to every 50ms for performance
       const now = Date.now()
       if (now - lastMoveTime.current < 50) return
       lastMoveTime.current = now
 
-      // Calculate if the mouse is in the trigger area
-      const triggerWidth = 80 // Same as the width in styled component
-
-      // Safe way to calculate position when using calc expressions
-      let rightOffset = 16 // Default right offset
+      const triggerWidth = 10
+      let rightOffset = 5
       if (showRightTopics) {
-        // When topics are shown on right, we need to account for topic list width
-        rightOffset = 16 + 300 // Assuming topic list width is 300px, adjust if different
+        rightOffset = 5 + 300
       }
 
       const rightPosition = window.innerWidth - rightOffset - triggerWidth
-      const topPosition = window.innerHeight * 0.3 // 30% from top
-      const height = window.innerHeight * 0.4 // 40% of window height
+      const topPosition = window.innerHeight * 0.35
+      const height = window.innerHeight * 0.3
 
       const isInTriggerArea =
         e.clientX > rightPosition &&
@@ -262,16 +292,43 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         clearTimeout(hideTimer)
       }
     }
-  }, [containerId, hideTimer, resetHideTimer, isNearButtons, handleMouseEnter, handleMouseLeave, showRightTopics])
+  }, [
+    containerId,
+    hideTimer,
+    resetHideTimer,
+    isNearButtons,
+    handleMouseEnter,
+    handleMouseLeave,
+    showRightTopics,
+    manuallyClosedUntil
+  ])
 
   return (
     <>
       <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
+          <Tooltip title={t('chat.navigation.close')} placement="left">
+            <NavigationButton
+              type="text"
+              icon={<CloseOutlined />}
+              onClick={handleCloseChatNavigation}
+              aria-label={t('chat.navigation.close')}
+            />
+          </Tooltip>
+          <Divider />
+          <Tooltip title={t('chat.navigation.top')} placement="left">
+            <NavigationButton
+              type="text"
+              icon={<VerticalAlignTopOutlined />}
+              onClick={handleScrollToTop}
+              aria-label={t('chat.navigation.top')}
+            />
+          </Tooltip>
+          <Divider />
           <Tooltip title={t('chat.navigation.prev')} placement="left">
             <NavigationButton
               type="text"
-              icon={<UpOutlined />}
+              icon={<ArrowUpOutlined />}
               onClick={handlePrevMessage}
               aria-label={t('chat.navigation.prev')}
             />
@@ -280,9 +337,18 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
           <Tooltip title={t('chat.navigation.next')} placement="left">
             <NavigationButton
               type="text"
-              icon={<DownOutlined />}
+              icon={<ArrowDownOutlined />}
               onClick={handleNextMessage}
               aria-label={t('chat.navigation.next')}
+            />
+          </Tooltip>
+          <Divider />
+          <Tooltip title={t('chat.navigation.bottom')} placement="left">
+            <NavigationButton
+              type="text"
+              icon={<VerticalAlignBottomOutlined />}
+              onClick={handleScrollToBottom}
+              aria-label={t('chat.navigation.bottom')}
             />
           </Tooltip>
           <Divider />
@@ -337,31 +403,32 @@ const ButtonGroup = styled.div`
   display: flex;
   flex-direction: column;
   background: var(--bg-color);
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   overflow: hidden;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--color-border);
 `
 
 const NavigationButton = styled(Button)`
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 0;
   border: none;
   color: var(--color-text);
-  transition: all 0.2s ease-in-out;
+  transition: all 0.25s ease-in-out;
 
   &:hover {
     background-color: var(--color-hover);
     color: var(--color-primary);
+    transform: scale(1.05);
   }
 
   .anticon {
-    font-size: 14px;
+    font-size: 16px;
   }
 `
 

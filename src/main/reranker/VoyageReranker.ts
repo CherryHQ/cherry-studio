@@ -10,15 +10,7 @@ export default class VoyageReranker extends BaseReranker {
   }
 
   public rerank = async (query: string, searchResults: ExtractChunkData[]): Promise<ExtractChunkData[]> => {
-    let baseURL = this.base?.rerankBaseURL?.endsWith('/')
-      ? this.base.rerankBaseURL.slice(0, -1)
-      : this.base.rerankBaseURL
-
-    if (baseURL && !baseURL.endsWith('/v1')) {
-      baseURL = `${baseURL}/v1`
-    }
-
-    const url = `${baseURL}/rerank`
+    const url = this.getRerankUrl()
 
     const requestBody = {
       model: this.base.rerankModel,
@@ -37,21 +29,7 @@ export default class VoyageReranker extends BaseReranker {
       })
 
       const rerankResults = data.data
-
-      const resultMap = new Map(rerankResults.map((result: any) => [result.index, result.relevance_score || 0]))
-
-      return searchResults
-        .map((doc: ExtractChunkData, index: number) => {
-          const score = resultMap.get(index)
-          if (score === undefined) return undefined
-
-          return {
-            ...doc,
-            score
-          }
-        })
-        .filter((doc): doc is ExtractChunkData => doc !== undefined)
-        .sort((a, b) => b.score - a.score)
+      return this.getRerankResult(searchResults, rerankResults)
     } catch (error: any) {
       const errorDetails = this.formatErrorMessage(url, error, requestBody)
 

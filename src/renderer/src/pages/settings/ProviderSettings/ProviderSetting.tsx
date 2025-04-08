@@ -1,4 +1,5 @@
-import { ApiOutlined, ExportOutlined, HeartOutlined, SettingOutlined } from '@ant-design/icons'
+import { ApiOutlined, ExportOutlined, SettingOutlined } from '@ant-design/icons'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { isRerankModel } from '@renderer/config/models'
@@ -29,7 +30,6 @@ import {
 import ApiKeyList from './ApiKeyList'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
-import GraphRAGSettings from './GraphRAGSettings'
 import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
@@ -204,7 +204,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }, [apiKey, provider, updateProvider])
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
         <Flex align="center" gap={8}>
           <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
@@ -299,14 +299,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'ollama' && <OllamSettings />}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
-      {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
-        <GraphRAGSettings provider={provider} />
-      )}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
-            <span>{t('common.models')}</span>
+            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
           </Space>
           {!isEmpty(models) && (
@@ -314,7 +311,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
               <Button
                 type="text"
                 size="small"
-                icon={<HeartOutlined />}
+                icon={<StreamlineGoodHealthAndWellBeing />}
                 onClick={onHealthCheck}
                 loading={isHealthChecking}
               />

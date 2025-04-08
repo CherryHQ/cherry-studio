@@ -71,12 +71,16 @@ export function withGeminiGrounding(message: Message) {
   let content = message.content
 
   groundingSupports.forEach((support) => {
-    const text = support.segment.text
-    const indices = support.groundingChunkIndices
-    const nodes = indices.reduce((acc, index) => {
+    const text = support?.segment
+    const indices = support?.groundingChunckIndices
+
+    if (!text || !indices) return
+
+    const nodes = indices.reduce<string[]>((acc, index) => {
       acc.push(`<sup>${index + 1}</sup>`)
       return acc
     }, [])
+
     content = content.replace(text, `${text} ${nodes.join(' ')}`)
   })
 

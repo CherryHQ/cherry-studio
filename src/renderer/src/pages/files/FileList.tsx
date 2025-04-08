@@ -66,7 +66,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
     <VirtualList
       data={list}
       height={window.innerHeight - 100}
-      itemHeight={80}
+      itemHeight={75}
       itemKey="key"
       style={{ padding: '0 16px 16px 16px' }}
       styles={{
@@ -80,7 +80,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
       {(item) => (
         <div
           style={{
-            height: '80px',
+            height: '75px',
             paddingTop: '12px'
           }}>
           <FileItem
@@ -88,7 +88,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
             fileInfo={{
               name: item.file,
               ext: item.ext,
-              extra: `${item.created_at} · ${t('files.count')} ${item.count} · ${item.size}`,
+              extra: `${item.created_at} · ${item.count}${t('files.count')} · ${item.size}`,
               actions: item.actions
             }}
           />

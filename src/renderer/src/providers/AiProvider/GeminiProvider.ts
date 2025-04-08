@@ -30,6 +30,7 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
+import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
@@ -38,6 +39,7 @@ import {
   mcpToolsToGeminiTools,
   upsertMCPToolResponse
 } from '@renderer/utils/mcp-tools'
+import { MB } from '@shared/config/constant'
 import axios from 'axios'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
@@ -70,7 +72,7 @@ export default class GeminiProvider extends BaseProvider {
    * @returns The part
    */
   private async handlePdfFile(file: FileType): Promise<Part> {
-    const smallFileSize = 20 * 1024 * 1024
+    const smallFileSize = 20 * MB
     const isSmallFile = file.size < smallFileSize
 
     if (isSmallFile) {
@@ -231,7 +233,7 @@ export default class GeminiProvider extends BaseProvider {
       const tools = mcpToolsToGeminiTools(mcpTools)
       const toolResponses: MCPToolResponse[] = []
 
-      if (assistant.enableWebSearch && isWebSearchModel(model)) {
+      if (!WebSearchService.isOverwriteEnabled() && assistant.enableWebSearch && isWebSearchModel(model)) {
         tools.push({
           // @ts-ignore googleSearch is not a valid tool for Gemini
           googleSearch: {}

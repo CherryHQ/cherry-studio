@@ -1,3 +1,4 @@
+import { GroundingMetadata } from '@google/generative-ai'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
@@ -72,9 +73,13 @@ export type Message = {
   enabledMCPs?: MCPServer[]
   metadata?: {
     // Gemini
-    groundingMetadata?: any
-    // Perplexity
+    groundingMetadata?: GroundingMetadata
+    // Perplexity Or Openrouter
     citations?: string[]
+    // OpenAI
+    annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
+    // Zhipu or Hunyuan
+    webSearchInfo?: any[]
     // Web search
     webSearch?: WebSearchResponse
     // MCP Tools
@@ -131,7 +136,7 @@ export type Provider = {
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
-export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling'
+export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
 export type Model = {
   id: string
@@ -227,6 +232,7 @@ export type AppInfo = {
   version: string
   isPackaged: boolean
   appPath: string
+  configPath: string
   appDataPath: string
   resourcesPath: string
   filesPath: string
@@ -365,6 +371,7 @@ export interface MCPServerParameter {
 export interface MCPServer {
   id: string
   name: string
+  type?: 'stdio' | 'sse' | 'inMemory'
   description?: string
   baseUrl?: string
   command?: string
@@ -372,6 +379,7 @@ export interface MCPServer {
   args?: string[]
   env?: Record<string, string>
   isActive: boolean
+  disabledTools?: string[] // List of tool names that are disabled for this server
 }
 
 export interface MCPToolInputSchema {
@@ -400,4 +408,13 @@ export interface MCPToolResponse {
   tool: MCPTool // tool info
   status: string // 'invoking' | 'done'
   response?: any
+}
+
+export interface QuickPhrase {
+  id: string
+  title: string
+  content: string
+  createdAt: number
+  updatedAt: number
+  order?: number
 }
