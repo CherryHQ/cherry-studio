@@ -262,6 +262,9 @@
       "edit.on": "編集",
       "expand": "展開する",
       "more": "もっと",
+      "preview.copy.image": "画像としてコピー",
+      "preview.zoom_in": "拡大",
+      "preview.zoom_out": "縮小",
       "wrap.off": "改行解除",
       "wrap.on": "改行"
     },
@@ -471,21 +474,6 @@
       "keep_alive_time.placeholder": "分",
       "keep_alive_time.title": "保持時間",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "PNGをダウンロード",
-        "svg": "SVGをダウンロード"
-      },
-      "resize": {
-        "zoom-in": "拡大する",
-        "zoom-out": "ズームアウト"
-      },
-      "tabs": {
-        "preview": "プレビュー",
-        "source": "ソース"
-      },
-      "title": "Mermaid図"
     },
     "message": {
       "api.check.model.title": "検出に使用するモデルを選択してください",

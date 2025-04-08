@@ -254,7 +254,7 @@
       "copy.source": "复制源代码",
       "copy.success": "复制成功",
       "copy": "复制",
-      "download.png": "下载图片",
+      "download.png": "下载 PNG",
       "download.source": "下载源代码",
       "download.svg": "下载 SVG",
       "download": "下载",
@@ -262,6 +262,9 @@
       "edit.on": "编辑",
       "expand": "展开",
       "more": "更多",
+      "preview.copy.image": "复制为图片",
+      "preview.zoom_in": "放大",
+      "preview.zoom_out": "缩小",
       "wrap.off": "取消换行",
       "wrap.on": "换行"
     },
@@ -471,21 +474,6 @@
       "keep_alive_time.placeholder": "分钟",
       "keep_alive_time.title": "保持活跃时间",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "resize": {
-        "zoom-in": "放大",
-        "zoom-out": "缩小"
-      },
-      "tabs": {
-        "preview": "预览",
-        "source": "源码"
-      },
-      "title": "Mermaid 图表"
     },
     "message": {
       "api.check.model.title": "请选择要检测的模型",

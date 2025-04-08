@@ -262,6 +262,9 @@
       "edit.on": "Edit",
       "expand": "Expand",
       "more": "More",
+      "preview.copy.image": "Copy as image",
+      "preview.zoom_in": "Zoom In",
+      "preview.zoom_out": "Zoom Out",
       "wrap.off": "Unwrap",
       "wrap.on": "Wrap"
     },
@@ -471,21 +474,6 @@
       "keep_alive_time.placeholder": "Minutes",
       "keep_alive_time.title": "Keep Alive Time",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "Download PNG",
-        "svg": "Download SVG"
-      },
-      "resize": {
-        "zoom-in": "Zoom In",
-        "zoom-out": "Zoom Out"
-      },
-      "tabs": {
-        "preview": "Preview",
-        "source": "Source"
-      },
-      "title": "Mermaid Diagram"
     },
     "message": {
       "api.check.model.title": "Select the model to use for detection",

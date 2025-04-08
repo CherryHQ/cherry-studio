@@ -7,6 +7,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import HtmlStatusBar from './HtmlStatusBar'
 import MermaidPreview from './MermaidPreview'
 import PlantUmlPreview, { isValidPlantUML } from './PlantUmlPreview'
 import SourcePreview from './SourcePreview'
@@ -18,6 +19,12 @@ interface Props {
   language: string
 }
 
+/**
+ * 代码块视图，支持多种语言代码块渲染
+ * 提供两个放工具的位置：
+ * - 顶部 sticky tool bar
+ * - 底部 status bar
+ */
 const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
   const hasSpecialView = ['mermaid', 'plantuml', 'svg'].includes(language)
   const [isEditing, setIsEditing] = useState(false)
@@ -132,11 +139,19 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
     )
   }, [children, isEditing, language])
 
+  const renderBottomTools = useMemo(() => {
+    if (language === 'html') {
+      return <HtmlStatusBar html={children} />
+    }
+    return null
+  }, [children, language])
+
   return (
     <CodeBlockWrapper className="code-block">
       <CodeHeader>{'<' + language.toUpperCase() + '>'}</CodeHeader>
       <Toolbar />
       {renderContent}
+      {renderBottomTools}
     </CodeBlockWrapper>
   )
 }

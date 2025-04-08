@@ -262,6 +262,9 @@
       "edit.on": "編輯",
       "expand": "展開",
       "more": "更多",
+      "preview.copy.image": "複製為圖片",
+      "preview.zoom_in": "放大",
+      "preview.zoom_out": "縮小",
       "wrap.off": "停用自動換行",
       "wrap.on": "自動換行"
     },
@@ -471,21 +474,6 @@
       "keep_alive_time.placeholder": "分鐘",
       "keep_alive_time.title": "保持活躍時間",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "下載 PNG",
-        "svg": "下載 SVG"
-      },
-      "resize": {
-        "zoom-in": "放大",
-        "zoom-out": "縮小"
-      },
-      "tabs": {
-        "preview": "預覽",
-        "source": "原始碼"
-      },
-      "title": "Mermaid 圖表"
     },
     "message": {
       "api.check.model.title": "請選擇要偵測的模型",

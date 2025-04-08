@@ -262,6 +262,9 @@
       "edit.on": "Редактировать",
       "expand": "Развернуть",
       "more": "Ещё",
+      "preview.copy.image": "Скопировать как изображение",
+      "preview.zoom_in": "Увеличить",
+      "preview.zoom_out": "Уменьшить",
       "wrap.off": "Отменить перенос строки",
       "wrap.on": "Перенос строки"
     },
@@ -471,21 +474,6 @@
       "keep_alive_time.placeholder": "Минуты",
       "keep_alive_time.title": "Время жизни модели",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "Скачать PNG",
-        "svg": "Скачать SVG"
-      },
-      "resize": {
-        "zoom-in": "Yвеличить",
-        "zoom-out": "Yменьшить масштаб"
-      },
-      "tabs": {
-        "preview": "Предпросмотр",
-        "source": "Исходный код"
-      },
-      "title": "Диаграмма Mermaid"
     },
     "message": {
       "api.check.model.title": "Выберите модель для проверки",

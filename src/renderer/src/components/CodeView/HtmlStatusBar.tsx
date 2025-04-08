@@ -11,7 +11,7 @@ interface Props {
   html: string
 }
 
-const Artifacts: FC<Props> = ({ html }) => {
+const HtmlStatusBar: FC<Props> = ({ html }) => {
   const { t } = useTranslation()
   const title = extractTitle(html) || 'Artifacts ' + t('chat.artifacts.button.preview')
   const { openMinapp } = useMinappPopup()
@@ -67,4 +67,4 @@ const Container = styled.div`
   padding-bottom: 10px;
 `
 
-export default Artifacts
+export default HtmlStatusBar
