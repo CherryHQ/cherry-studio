@@ -1,3 +1,4 @@
+import { GroundingMetadata } from '@google/generative-ai'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
@@ -72,7 +73,7 @@ export type Message = {
   enabledMCPs?: MCPServer[]
   metadata?: {
     // Gemini
-    groundingMetadata?: any
+    groundingMetadata?: GroundingMetadata
     // Perplexity Or Openrouter
     citations?: string[]
     // OpenAI

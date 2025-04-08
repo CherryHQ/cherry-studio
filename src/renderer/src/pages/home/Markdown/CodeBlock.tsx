@@ -76,10 +76,10 @@ const CodeBlock: React.FC<Props> = ({ children, className }) => {
       return <SvgView>{children}</SvgView>
     }
 
-    return match ? <CodeView language={language}>{children}</CodeView> : <code className={className}>{children}</code>
-  }, [children, language, className, match])
+    return <CodeView language={language}>{children}</CodeView>
+  }, [children, language])
 
-  return (
+  return match ? (
     <CodeBlockWrapper className="code-block">
       {renderHeader}
       <StickyWrapper>
@@ -100,6 +100,10 @@ const CodeBlock: React.FC<Props> = ({ children, className }) => {
       </StickyWrapper>
       {renderContent}
     </CodeBlockWrapper>
+  ) : (
+    <code className={className} style={{ textWrap: 'wrap' }}>
+      {children}
+    </code>
   )
 }
 
