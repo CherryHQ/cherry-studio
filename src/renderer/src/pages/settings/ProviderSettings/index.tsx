@@ -55,7 +55,7 @@ const ProvidersList: FC = () => {
   }
 
   const onAddProvider = async () => {
-    const { name: providerName, type, logoFile, logo } = await AddProviderPopup.show()
+    const { name: providerName, type, logo } = await AddProviderPopup.show()
 
     if (!providerName.trim()) {
       return
@@ -72,21 +72,22 @@ const ProvidersList: FC = () => {
       isSystem: false
     } as Provider
 
-    addProvider(provider)
-
-    if (logoFile && logo) {
+    let updatedLogos = { ...providerLogos }
+    if (logo) {
       try {
         await ImageStorage.set(`provider-${provider.id}`, logo)
-        setProviderLogos((prev) => ({
-          ...prev,
+        updatedLogos = {
+          ...updatedLogos,
           [provider.id]: logo
-        }))
+        }
+        setProviderLogos(updatedLogos)
       } catch (error) {
         console.error('Failed to save logo', error)
         window.message.error('保存Provider Logo失败')
       }
     }
 
+    addProvider(provider)
     setSelectedProvider(provider)
   }
 
