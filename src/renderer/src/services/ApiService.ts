@@ -58,11 +58,7 @@ export async function fetchChatCompletion({
 
     // Search web
     if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
-      let webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
-      if (WebSearchService.isOverwriteEnabled()) {
-        webSearchParams = {}
-      }
-
+      const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
       if (isEmpty(webSearchParams) && !isOpenAIWebSearch(assistant.model)) {
         const lastMessage = findLast(messages, (m) => m.role === 'user')
         const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
