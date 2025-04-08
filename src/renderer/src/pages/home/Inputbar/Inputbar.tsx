@@ -1042,6 +1042,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
+  z-index: 2;
 `
 
 const InputBarContainer = styled.div`

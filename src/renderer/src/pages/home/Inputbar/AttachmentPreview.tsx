@@ -1,7 +1,8 @@
 import { FileOutlined } from '@ant-design/icons'
 import FileManager from '@renderer/services/FileManager'
 import { FileType } from '@renderer/types'
-import { ConfigProvider, Image, Tag } from 'antd'
+import { formatFileSize } from '@renderer/utils'
+import { ConfigProvider, Flex, Image, Tag, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useState } from 'react'
 import styled from 'styled-components'
@@ -11,13 +12,49 @@ interface Props {
   setFiles: (files: FileType[]) => void
 }
 
-const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
-  const [visibleId, setVisibleId] = useState('')
-
+const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
+  const [visible, setVisible] = useState<boolean>(false)
   const isImage = (ext: string) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)
   }
 
+  return (
+    <Tooltip
+      fresh
+      title={
+        <Flex vertical gap={2} align="center">
+          {isImage(file.ext) && (
+            <Image
+              style={{ width: 80, maxHeight: 200 }}
+              src={'file://' + FileManager.getSafePath(file)}
+              preview={{
+                visible: visible,
+                src: 'file://' + FileManager.getSafePath(file),
+                onVisibleChange: setVisible
+              }}
+            />
+          )}
+          {formatFileSize(file.size)}
+        </Flex>
+      }>
+      <FileName
+        onClick={() => {
+          if (isImage(file.ext)) {
+            setVisible(true)
+            return
+          }
+          const path = FileManager.getSafePath(file)
+          if (path) {
+            window.api.file.openPath(path)
+          }
+        }}>
+        {FileManager.formatFileName(file)}
+      </FileName>
+    </Tooltip>
+  )
+}
+
+const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
   if (isEmpty(files)) {
     return null
   }
@@ -40,32 +77,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
             color="cyan"
             closable
             onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
-            <FileName
-              onClick={() => {
-                if (isImage(file.ext)) {
-                  setVisibleId(file.id)
-                  return
-                }
-                const path = FileManager.getSafePath(file)
-                if (path) {
-                  window.api.file.openPath(path)
-                }
-              }}>
-              {FileManager.formatFileName(file)}
-              {isImage(file.ext) && (
-                <Image
-                  style={{ display: 'none' }}
-                  src={'file://' + FileManager.getSafePath(file)}
-                  preview={{
-                    visible: visibleId === file.id,
-                    src: 'file://' + FileManager.getSafePath(file),
-                    onVisibleChange: (value) => {
-                      setVisibleId(value ? file.id : '')
-                    }
-                  }}
-                />
-              )}
-            </FileName>
+            <FileNameRender file={file} />
           </Tag>
         ))}
       </ConfigProvider>

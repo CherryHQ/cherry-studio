@@ -33,7 +33,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   // 避免上下翻页时，鼠标干扰
   const [isMouseOver, setIsMouseOver] = useState(false)
 
-  const [index, setIndex] = useState(ctx.defaultIndex)
+  const [_index, setIndex] = useState(ctx.defaultIndex)
+  const index = useDeferredValue(_index)
   const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -120,7 +121,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         if (textArea) {
           setInputText(textArea.value)
         }
-      } else if (action && !['outsideclick', 'esc'].includes(action)) {
+      } else if (action && !['outsideclick', 'esc', 'enter_empty'].includes(action)) {
         clearSearchText(true)
       }
     },
@@ -200,7 +201,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
     return () => {
       textArea.removeEventListener('input', handleInput)
-      setSearchText('')
+      setTimeout(() => {
+        setSearchText('')
+      }, 200) // 等待面板关闭动画结束后，再清空搜索词
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.isVisible])
@@ -236,7 +239,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         }
       }
 
-      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'Escape'].includes(e.key)) {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Escape'].includes(e.key)) {
         e.preventDefault()
         e.stopPropagation()
         setIsMouseOver(false)
@@ -313,7 +316,13 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
         case 'Enter':
           if (list?.[index]) {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsMouseOver(false)
+
             handleItemAction(list[index], 'enter')
+          } else {
+            handleClose('enter_empty')
           }
           break
         case 'Escape':
@@ -452,7 +461,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
 const QuickPanelContainer = styled.div<{ $pageSize: number }>`
   --focused-color: rgba(0, 0, 0, 0.06);
-  --selected-color: rgba(0, 0, 0, 0.03);
+  --selected-color: rgba(0, 128, 0, 0.08);
+  --selected-color-dark: rgba(0, 128, 0, 0.12);
   max-height: 0;
   position: absolute;
   top: 1px;
@@ -465,26 +475,37 @@ const QuickPanelContainer = styled.div<{ $pageSize: number }>`
   transition: max-height 0.2s ease;
   overflow: hidden;
   pointer-events: none;
+
   &.visible {
     pointer-events: auto;
     max-height: ${(props) => props.$pageSize * 31 + 100}px;
   }
   body[theme-mode='dark'] & {
     --focused-color: rgba(255, 255, 255, 0.1);
-    --selected-color: rgba(255, 255, 255, 0.03);
+    --selected-color: rgba(89, 177, 89, 0.1);
+    --selected-color-dark: rgba(89, 177, 89, 0.18);
   }
 `
 
 const QuickPanelBody = styled.div`
-  background-color: rgba(240, 240, 240, 0.5);
-  backdrop-filter: blur(35px) saturate(150%);
   border-radius: 8px 8px 0 0;
   padding: 5px 0;
   border-width: 0.5px 0.5px 0 0.5px;
   border-style: solid;
   border-color: var(--color-border);
-  body[theme-mode='dark'] & {
-    background-color: rgba(40, 40, 40, 0.4);
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: rgba(240, 240, 240, 0.5);
+    backdrop-filter: blur(35px) saturate(150%);
+    z-index: -1;
+
+    body[theme-mode='dark'] & {
+      background-color: rgba(40, 40, 40, 0.4);
+    }
   }
 `
 
@@ -541,6 +562,9 @@ const QuickPanelItem = styled.div`
   margin-bottom: 1px;
   &.selected {
     background-color: var(--selected-color);
+    &.focused {
+      background-color: var(--selected-color-dark);
+    }
   }
   &.focused {
     background-color: var(--focused-color);
