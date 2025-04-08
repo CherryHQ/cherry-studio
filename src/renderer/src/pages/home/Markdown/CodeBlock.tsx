@@ -1,10 +1,10 @@
-import { CheckOutlined, DownloadOutlined, MenuOutlined } from '@ant-design/icons'
+import { CheckOutlined, DownloadOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
 import { extractTitle } from '@renderer/utils/formats'
-import { Dropdown, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import React, { memo, useCallback, useMemo, useState } from 'react'
+import React, { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,38 +22,6 @@ interface Props {
 const CodeBlock: React.FC<Props> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '') || children?.includes('\n')
   const language = match?.[1] ?? 'text'
-  const { t } = useTranslation()
-
-  const onDownloadCode = useCallback((children: string, language: string) => {
-    let fileName = ''
-
-    // 尝试提取标题
-    if (language === 'html' && children.includes('</html>')) {
-      const title = extractTitle(children)
-      if (title) {
-        fileName = `${title}.html`
-      }
-    }
-
-    // 默认使用日期格式命名
-    if (!fileName) {
-      fileName = `${dayjs().format('YYYYMMDDHHmm')}.${language}`
-    }
-
-    window.api.file.save(fileName, children)
-  }, [])
-
-  const moreMenuItems = useMemo(
-    () => [
-      {
-        key: 'download',
-        label: t('code_block.download'),
-        icon: <DownloadOutlined />,
-        onClick: () => onDownloadCode(children, language)
-      }
-    ],
-    [t, onDownloadCode, children, language]
-  )
 
   const renderHeader = useMemo(() => {
     if (language === 'mermaid') {
@@ -88,14 +56,8 @@ const CodeBlock: React.FC<Props> = ({ children, className }) => {
           gap={12}
           alignItems="center"
           style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
+          <DownloadButton text={children} language={language} />
           <CopyButton text={children} />
-          <Dropdown menu={{ items: moreMenuItems }} trigger={['click']} placement="topRight" arrow>
-            <Tooltip title={t('code_block.more')}>
-              <CodeBlockStickyTool>
-                <MenuOutlined />
-              </CodeBlockStickyTool>
-            </Tooltip>
-          </Dropdown>
         </HStack>
       </StickyWrapper>
       {renderContent}
@@ -132,6 +94,36 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
   )
 }
 
+const DownloadButton: React.FC<{ text: string; language: string }> = ({ text, language }) => {
+  const { t } = useTranslation()
+
+  const onDownload = () => {
+    let fileName = ''
+
+    // 尝试提取标题
+    if (language === 'html' && text.includes('</html>')) {
+      const title = extractTitle(text)
+      if (title) {
+        fileName = `${title}.html`
+      }
+    }
+
+    // 默认使用日期格式命名
+    if (!fileName) {
+      fileName = `${dayjs().format('YYYYMMDDHHmm')}.${language}`
+    }
+
+    window.api.file.save(fileName, text)
+  }
+
+  return (
+    <Tooltip title={t('code_block.download')}>
+      <CodeBlockStickyTool onClick={onDownload}>
+        <DownloadOutlined />
+      </CodeBlockStickyTool>
+    </Tooltip>
+  )
+}
 const CodeBlockWrapper = styled.div`
   position: relative;
 `
