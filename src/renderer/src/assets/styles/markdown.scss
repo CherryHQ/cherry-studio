@@ -304,3 +304,17 @@ emoji-picker {
 mjx-container {
   overflow-x: auto;
 }
+
+/* CodeMirror 相关样式 */
+.cm-editor {
+  padding: 0;
+  border-radius: 0;
+
+  .cm-content {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  }
+
+  .cm-gutters {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  }
+}

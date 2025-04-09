@@ -1,5 +1,7 @@
-import { CopyOutlined, DownloadOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
+import { CodeOutlined, CopyOutlined, DownloadOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
+import CodeEditor from '@renderer/components/CodeEditor'
 import { ToolbarProvider, useToolbar } from '@renderer/components/CodeView/context'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { extractTitle } from '@renderer/utils/formats'
 import dayjs from 'dayjs'
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -26,13 +28,14 @@ interface Props {
  */
 const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
   const hasSpecialView = ['mermaid', 'plantuml', 'svg'].includes(language)
-  const [isEditing, setIsEditing] = useState(false)
+  const { codeEditor } = useSettings()
+  const [isInSourceView, setIsInSourceView] = useState(false)
   const previewRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
 
   const isInSpecialView = useMemo(() => {
-    return hasSpecialView && !isEditing
-  }, [hasSpecialView, isEditing])
+    return hasSpecialView && !isInSourceView
+  }, [hasSpecialView, isInSourceView])
 
   const { updateContext, registerTool, removeTool } = useToolbar()
 
@@ -40,10 +43,10 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
     updateContext({
       code: children,
       language,
-      viewType: isEditing ? 'source' : language,
+      viewType: isInSourceView ? 'source' : language,
       viewRef: previewRef
     })
-  }, [children, language, isEditing, updateContext])
+  }, [children, language, isInSourceView, updateContext])
 
   const onCopySource = useCallback(() => {
     if (!children) return
@@ -99,20 +102,41 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
   // 特殊视图的编辑按钮
   useEffect(() => {
     if (hasSpecialView) {
-      registerTool({
-        id: 'edit',
-        type: 'core',
-        icon: isEditing ? <EyeOutlined /> : <EditOutlined />,
-        tooltip: isEditing ? t('code_block.edit.off') : t('code_block.edit.on'),
-        onClick: () => setIsEditing(!isEditing),
-        order: 2
-      })
+      if (codeEditor.enabled) {
+        registerTool({
+          id: 'edit',
+          type: 'core',
+          icon: isInSourceView ? <EyeOutlined /> : <EditOutlined />,
+          tooltip: isInSourceView ? t('code_block.edit.off') : t('code_block.edit.on'),
+          onClick: () => setIsInSourceView(!isInSourceView),
+          order: 2
+        })
+      } else {
+        registerTool({
+          id: 'view-source',
+          type: 'core',
+          icon: isInSourceView ? <EyeOutlined /> : <CodeOutlined />,
+          tooltip: isInSourceView ? t('code_block.preview') : t('code_block.preview.source'),
+          onClick: () => setIsInSourceView(!isInSourceView),
+          order: 2
+        })
+      }
     }
 
     return () => {
-      if (hasSpecialView) removeTool('edit')
+      if (hasSpecialView) {
+        if (codeEditor.enabled) {
+          removeTool('edit')
+        } else {
+          removeTool('view-source')
+        }
+      }
     }
-  }, [hasSpecialView, isEditing, registerTool, removeTool, t])
+  }, [codeEditor.enabled, hasSpecialView, isInSourceView, registerTool, removeTool, t])
+
+  const SourceViewer = useMemo(() => {
+    return codeEditor.enabled ? CodeEditor : SourcePreview
+  }, [codeEditor.enabled])
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
@@ -122,11 +146,11 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
   }, [isInSpecialView, language])
 
   const renderContent = useMemo(() => {
-    if (isEditing) {
+    if (isInSourceView) {
       return (
-        <SourcePreview language={language} ref={previewRef}>
+        <SourceViewer language={language} ref={previewRef}>
           {children}
-        </SourcePreview>
+        </SourceViewer>
       )
     }
 
@@ -143,11 +167,11 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
     }
 
     return (
-      <SourcePreview language={language} ref={previewRef}>
+      <SourceViewer language={language} ref={previewRef}>
         {children}
-      </SourcePreview>
+      </SourceViewer>
     )
-  }, [children, isEditing, language])
+  }, [SourceViewer, children, isInSourceView, language])
 
   const renderBottomTools = useMemo(() => {
     if (language === 'html') {

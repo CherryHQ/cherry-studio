@@ -54,7 +54,6 @@ export const usePreviewToolHandlers = (
       if ((e.ctrlKey || e.metaKey) && e.target) {
         // 确认事件发生在容器内部
         if (container.contains(e.target as Node)) {
-          e.preventDefault()
           const delta = e.deltaY < 0 ? 0.1 : -0.1
           handleZoom(delta)
         }

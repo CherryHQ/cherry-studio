@@ -48,6 +48,12 @@ export interface SettingsState {
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
   renderInputMessageAsMarkdown: boolean
+  codeEditor: {
+    enabled: boolean
+    highlightActiveLine: boolean
+    autocompletion: boolean
+    keymap: boolean
+  }
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
@@ -153,6 +159,12 @@ export const initialState: SettingsState = {
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
+  codeEditor: {
+    enabled: false,
+    highlightActiveLine: false,
+    autocompletion: true,
+    keymap: false
+  },
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
@@ -326,6 +338,28 @@ const settingsSlice = createSlice({
     },
     setWebdavSyncInterval: (state, action: PayloadAction<number>) => {
       state.webdavSyncInterval = action.payload
+    },
+    setCodeEditor: (
+      state,
+      action: PayloadAction<{
+        enabled?: boolean
+        highlightActiveLine?: boolean
+        autocompletion?: boolean
+        keymap?: boolean
+      }>
+    ) => {
+      if (action.payload.enabled !== undefined) {
+        state.codeEditor.enabled = action.payload.enabled
+      }
+      if (action.payload.highlightActiveLine !== undefined) {
+        state.codeEditor.highlightActiveLine = action.payload.highlightActiveLine
+      }
+      if (action.payload.autocompletion !== undefined) {
+        state.codeEditor.autocompletion = action.payload.autocompletion
+      }
+      if (action.payload.keymap !== undefined) {
+        state.codeEditor.keymap = action.payload.keymap
+      }
     },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
       state.codeShowLineNumbers = action.payload
@@ -519,6 +553,7 @@ export const {
   setWebdavPath,
   setWebdavAutoSync,
   setWebdavSyncInterval,
+  setCodeEditor,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,

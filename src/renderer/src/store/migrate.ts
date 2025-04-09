@@ -1192,6 +1192,17 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '95': (state: RootState) => {
+    try {
+      if (!state?.settings?.codeEditor) {
+        state.settings.codeEditor = settingsInitialState.codeEditor
+        return state
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

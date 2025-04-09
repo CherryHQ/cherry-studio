@@ -24,6 +24,7 @@ import {
   setCodeCacheThreshold,
   setCodeCacheTTL,
   setCodeCollapsible,
+  setCodeEditor,
   setCodeShowLineNumbers,
   setCodeStyle,
   setCodeWrappable,
@@ -84,6 +85,7 @@ const SettingsTab: FC<Props> = (props) => {
     codeCacheMaxSize,
     codeCacheTTL,
     codeCacheThreshold,
+    codeEditor,
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
@@ -319,6 +321,46 @@ const SettingsTab: FC<Props> = (props) => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.code_editor.title')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={codeEditor.enabled}
+            onChange={(checked) => dispatch(setCodeEditor({ enabled: checked }))}
+          />
+        </SettingRow>
+        {codeEditor.enabled && (
+          <>
+            <SettingDivider />
+            <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRowTitleSmall>{t('chat.settings.code_editor.highlight_active_line')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={codeEditor.highlightActiveLine}
+                onChange={(checked) => dispatch(setCodeEditor({ highlightActiveLine: checked }))}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRowTitleSmall>{t('chat.settings.code_editor.autocompletion')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={codeEditor.autocompletion}
+                onChange={(checked) => dispatch(setCodeEditor({ autocompletion: checked }))}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRowTitleSmall>{t('chat.settings.code_editor.keymap')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={codeEditor.keymap}
+                onChange={(checked) => dispatch(setCodeEditor({ keymap: checked }))}
+              />
+            </SettingRow>
+          </>
+        )}
+        <SettingDivider />
+        <SettingRow>
           <SettingRowTitleSmall>{t('chat.settings.show_line_numbers')}</SettingRowTitleSmall>
           <Switch
             size="small"
@@ -353,7 +395,7 @@ const SettingsTab: FC<Props> = (props) => {
         {codeCacheable && (
           <>
             <SettingDivider />
-            <SettingRow>
+            <SettingRow style={{ paddingLeft: 8 }}>
               <SettingRowTitleSmall>
                 {t('chat.settings.code_cache_max_size')}
                 <Tooltip title={t('chat.settings.code_cache_max_size.tip')}>
@@ -371,7 +413,7 @@ const SettingsTab: FC<Props> = (props) => {
               />
             </SettingRow>
             <SettingDivider />
-            <SettingRow>
+            <SettingRow style={{ paddingLeft: 8 }}>
               <SettingRowTitleSmall>
                 {t('chat.settings.code_cache_ttl')}
                 <Tooltip title={t('chat.settings.code_cache_ttl.tip')}>
@@ -389,7 +431,7 @@ const SettingsTab: FC<Props> = (props) => {
               />
             </SettingRow>
             <SettingDivider />
-            <SettingRow>
+            <SettingRow style={{ paddingLeft: 8 }}>
               <SettingRowTitleSmall>
                 {t('chat.settings.code_cache_threshold')}
                 <Tooltip title={t('chat.settings.code_cache_threshold.tip')}>
