@@ -29,15 +29,18 @@ const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObje
   const showExpandButtonRef = useRef(false)
   const { t } = useTranslation()
 
-  const cmTheme = useMemo(() => {
-    const _cmTheme = currentTheme as ReactCodeMirrorProps['theme']
-    return cmThemes[_cmTheme as keyof typeof cmThemes]
-  }, [currentTheme])
-
   // 合并引用
   React.useImperativeHandle(ref, () => editorRef.current!, [])
 
   const { registerTool, removeTool } = useToolbar()
+
+  const languageMap = useMemo(() => {
+    return {
+      bash: 'shell',
+      svg: 'xml',
+      vab: 'vb'
+    } as Record<string, string>
+  }, [])
 
   // 动态加载语言支持
   useEffect(() => {
@@ -49,7 +52,7 @@ const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObje
       console.log(`Failed to load language: ${language}`)
       setExtensions([])
     }
-  }, [language])
+  }, [language, languageMap])
 
   // 展开/折叠工具
   useEffect(() => {
@@ -132,6 +135,11 @@ const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObje
     setIsUnwrapped(!codeWrappable)
   }, [codeWrappable])
 
+  const cmTheme = useMemo(() => {
+    const _cmTheme = currentTheme as ReactCodeMirrorProps['theme']
+    return cmThemes[_cmTheme as keyof typeof cmThemes]
+  }, [currentTheme])
+
   return (
     <CodemirrorWarpper ref={editorRef}>
       <CodeMirror
@@ -174,16 +182,14 @@ const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObje
 
 SourceEditor.displayName = 'SourceEditor'
 
-const languageMap = {
-  bash: 'shell',
-  svg: 'xml',
-  vab: 'vb'
-}
-
 const CodemirrorWarpper = styled.div`
   position: relative;
   height: 100%;
   width: 100%;
+  border: 0.5px solid var(--color-code-background);
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 `
 
 export default memo(SourceEditor)
