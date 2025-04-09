@@ -130,6 +130,7 @@ import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
+import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
 
@@ -2244,7 +2245,7 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
-  return false
+  return model.type?.includes('web_search') || false
 }
 
 export function isGenerateImageModel(model: Model): boolean {
@@ -2270,6 +2271,9 @@ export function isGenerateImageModel(model: Model): boolean {
 }
 
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
+  if (WebSearchService.isWebSearchEnabled() && WebSearchService.isOverwriteEnabled()) {
+    return {}
+  }
   if (isWebSearchModel(model)) {
     if (assistant.enableWebSearch) {
       const webSearchTools = getWebSearchTools(model)

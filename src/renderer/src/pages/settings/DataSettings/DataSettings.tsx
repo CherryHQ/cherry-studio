@@ -161,7 +161,7 @@ const DataSettings: FC = () => {
       <MenuList>
         {menuItems.map((item) =>
           item.isDivider ? (
-            <DividerWithText key={item.key} text={item.text || ''} /> // 动态传递分隔符文字
+            <DividerWithText key={item.key} text={item.text || ''} style={{ margin: '8px 0' }} /> // 动态传递分隔符文字
           ) : (
             <ListItem
               key={item.key}

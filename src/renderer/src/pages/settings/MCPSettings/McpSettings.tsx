@@ -149,7 +149,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
       }
 
       // set stdio or sse server
-      if (values.serverType === 'sse') {
+      if (values.serverType === 'sse' || server.type === 'streamableHttp') {
         mcpServer.baseUrl = values.baseUrl
       } else {
         mcpServer.command = values.command
@@ -358,7 +358,8 @@ const McpSettings: React.FC<Props> = ({ server }) => {
                 onChange={(e) => setServerType(e.target.value)}
                 options={[
                   { label: t('settings.mcp.stdio'), value: 'stdio' },
-                  { label: t('settings.mcp.sse'), value: 'sse' }
+                  { label: t('settings.mcp.sse'), value: 'sse' },
+                  { label: t('settings.mcp.streamableHttp'), value: 'streamableHttp' }
                 ]}
               />
             </Form.Item>
@@ -370,6 +371,15 @@ const McpSettings: React.FC<Props> = ({ server }) => {
               rules={[{ required: serverType === 'sse', message: '' }]}
               tooltip={t('settings.mcp.baseUrlTooltip')}>
               <Input placeholder="http://localhost:3000/sse" />
+            </Form.Item>
+          )}
+          {serverType === 'streamableHttp' && (
+            <Form.Item
+              name="baseUrl"
+              label={t('settings.mcp.url')}
+              rules={[{ required: serverType === 'streamableHttp', message: '' }]}
+              tooltip={t('settings.mcp.baseUrlTooltip')}>
+              <Input placeholder="http://localhost:3000/mcp" />
             </Form.Item>
           )}
           {serverType === 'stdio' && (

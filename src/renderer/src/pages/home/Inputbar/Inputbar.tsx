@@ -777,20 +777,33 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     })
   }
 
-  const onEnableWebSearch = () => {
-    if (!isWebSearchModel(model)) {
-      if (!WebSearchService.isWebSearchEnabled()) {
-        window.modal.confirm({
-          title: t('chat.input.web_search.enable'),
-          content: t('chat.input.web_search.enable_content'),
-          centered: true,
-          okText: t('chat.input.web_search.button.ok'),
-          onOk: () => {
-            navigate('/settings/web-search')
-          }
-        })
-        return
+  const showWebSearchEnableModal = () => {
+    window.modal.confirm({
+      title: t('chat.input.web_search.enable'),
+      content: t('chat.input.web_search.enable_content'),
+      centered: true,
+      okText: t('chat.input.web_search.button.ok'),
+      onOk: () => {
+        navigate('/settings/web-search')
       }
+    })
+  }
+
+  const shouldShowEnableModal = () => {
+    // 网络搜索功能是否未启用
+    const webSearchNotEnabled = !WebSearchService.isWebSearchEnabled()
+    // 非网络搜索模型：仅当网络搜索功能未启用时显示启用提示
+    if (!isWebSearchModel(model)) {
+      return webSearchNotEnabled
+    }
+    // 网络搜索模型：当允许覆盖但网络搜索功能未启用时显示启用提示
+    return WebSearchService.isOverwriteEnabled() && webSearchNotEnabled
+  }
+
+  const onEnableWebSearch = () => {
+    if (shouldShowEnableModal()) {
+      showWebSearchEnableModal()
+      return
     }
 
     updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })

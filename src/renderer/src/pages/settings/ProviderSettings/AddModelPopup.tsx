@@ -120,13 +120,11 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
-        <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>
-          <Flex justify="center" align="center" style={{ position: 'relative' }}>
-            <div>
-              <Button type="primary" htmlType="submit" size="middle">
-                {t('settings.models.add.add_model')}
-              </Button>
-            </div>
+        <Form.Item style={{ marginBottom: 0, textAlign: 'center' }}>
+          <Flex justify="end" align="center" style={{ position: 'relative' }}>
+            <Button type="primary" htmlType="submit" size="middle">
+              {t('settings.models.add.add_model')}
+            </Button>
           </Flex>
         </Form.Item>
       </Form>

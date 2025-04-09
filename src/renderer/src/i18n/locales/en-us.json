@@ -277,6 +277,7 @@
       "duplicate": "Duplicate",
       "edit": "Edit",
       "expand": "Expand",
+      "collapse": "Collapse",
       "footnote": "Reference content",
       "footnotes": "References",
       "fullscreen": "Entered fullscreen mode. Press F11 to exit",
@@ -298,7 +299,12 @@
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
-      "reasoning_content": "Deep reasoning"
+      "reasoning_content": "Deep reasoning",
+      "sort": {
+        "pinyin": "Sort by Pinyin",
+        "pinyin.asc": "Sort by Pinyin (A-Z)",
+        "pinyin.desc": "Sort by Pinyin (Z-A)"
+      }
     },
     "docs": {
       "title": "Docs"
@@ -1027,8 +1033,9 @@
         "argsTooltip": "Each argument on a new line",
         "baseUrlTooltip": "Remote server base URL",
         "command": "Command",
-        "sse": "Server-Sent Events(sse)",
-        "stdio": "Standard Input/Output(stdio)",
+        "sse": "Server-Sent Events (sse)",
+        "streamableHttp": "Streamable HTTP (streamableHttp)",
+        "stdio": "Standard Input/Output (stdio)",
         "inMemory": "Memory",
         "config_description": "Configure Model Context Protocol servers",
         "deleteError": "Failed to delete server",
@@ -1291,7 +1298,9 @@
           "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
           "title": "Tavily"
         },
-        "title": "Web Search"
+        "title": "Web Search",
+        "overwrite": "Override search service",
+        "overwrite_tooltip": "Force use search service instead of LLM"
       },
       "quickPhrase": {
         "title": "Quick Phrases",

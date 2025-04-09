@@ -15,6 +15,7 @@ import { app } from 'electron'
 import Logger from 'electron-log'
 
 import { CacheService } from './CacheService'
+import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
 
 class McpService {
   private clients: Map<string, Client> = new Map()
@@ -46,24 +47,28 @@ class McpService {
     // Check if we already have a client for this server configuration
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
-      // Check if the existing client is still connected
-      const pingResult = await existingClient.ping()
-      Logger.info(`[MCP] Ping result for ${server.name}:`, pingResult)
-      // If the ping fails, remove the client from the cache
-      // and create a new one
-      if (!pingResult) {
+      try {
+        // Check if the existing client is still connected
+        const pingResult = await existingClient.ping()
+        Logger.info(`[MCP] Ping result for ${server.name}:`, pingResult)
+        // If the ping fails, remove the client from the cache
+        // and create a new one
+        if (!pingResult) {
+          this.clients.delete(serverKey)
+        } else {
+          return existingClient
+        }
+      } catch (error) {
+        Logger.error(`[MCP] Error pinging server ${server.name}:`, error)
         this.clients.delete(serverKey)
-      } else {
-        return existingClient
       }
     }
-
     // Create new client instance for each connection
     const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
     const args = [...(server.args || [])]
 
-    let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport
+    let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
 
     try {
       // Create appropriate transport based on configuration
@@ -82,7 +87,16 @@ class McpService {
         // set the client transport to the client
         transport = clientTransport
       } else if (server.baseUrl) {
-        transport = new SSEClientTransport(new URL(server.baseUrl))
+        if (server.type === 'streamableHttp') {
+          transport = new StreamableHTTPClientTransport(
+            new URL(server.baseUrl!),
+            {} as StreamableHTTPClientTransportOptions
+          )
+        } else if (server.type === 'sse') {
+          transport = new SSEClientTransport(new URL(server.baseUrl!))
+        } else {
+          throw new Error('Invalid server type')
+        }
       } else if (server.command) {
         let cmd = server.command
 

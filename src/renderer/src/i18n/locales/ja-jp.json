@@ -277,6 +277,7 @@
       "duplicate": "複製",
       "edit": "編集",
       "expand": "展開",
+      "collapse": "折りたたむ",
       "footnote": "引用内容",
       "footnotes": "脚注",
       "fullscreen": "全画面モードに入りました。F11キーで終了します",
@@ -298,7 +299,12 @@
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
-      "reasoning_content": "深く考察済み"
+      "reasoning_content": "深く考察済み",
+      "sort": {
+        "pinyin": "ピンインでソート",
+        "pinyin.asc": "ピンインで昇順ソート",
+        "pinyin.desc": "ピンインで降順ソート"
+      }
     },
     "docs": {
       "title": "ドキュメント"
@@ -1026,8 +1032,9 @@
         "argsTooltip": "1行に1つの引数を入力してください",
         "baseUrlTooltip": "リモートURLアドレス",
         "command": "コマンド",
-        "sse": "サーバー送信イベント(sse)",
-        "stdio": "標準入力/出力(stdio)",
+        "sse": "サーバー送信イベント (sse)",
+        "streamableHttp": "ストリーミング可能なHTTP (streamable)",
+        "stdio": "標準入力/出力 (stdio)",
         "inMemory": "メモリ",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
         "deleteError": "サーバーの削除に失敗しました",
@@ -1290,7 +1297,9 @@
           "description": "Tavily は、AI エージェントのために特別に開発された検索エンジンで、最新の結果、インテリジェントな検索提案、そして深い研究能力を提供します",
           "title": "Tavily"
         },
-        "title": "ウェブ検索"
+        "title": "ウェブ検索",
+        "overwrite": "サービス検索を上書き",
+        "overwrite_tooltip": "大規模言語モデルではなく、サービス検索を使用する"
       },
       "general.auto_check_update.title": "自動更新チェックを有効にする",
       "quickPhrase": {

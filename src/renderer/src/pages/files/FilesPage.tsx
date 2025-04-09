@@ -223,7 +223,7 @@ const ContentContainer = styled.div`
 `
 
 const SideNav = styled.div`
-  width: var(--assistants-width);
+  width: var(--settings-width);
   border-right: 0.5px solid var(--color-border);
   padding: 7px 12px;
   user-select: none;

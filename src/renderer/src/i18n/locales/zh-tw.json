@@ -277,6 +277,7 @@
       "duplicate": "複製",
       "edit": "編輯",
       "expand": "展開",
+      "collapse": "折疊",
       "footnote": "引用內容",
       "footnotes": "引用",
       "fullscreen": "已進入全螢幕模式，按 F11 結束",
@@ -298,7 +299,12 @@
       "topics": "話題",
       "warning": "警告",
       "you": "您",
-      "reasoning_content": "已深度思考"
+      "reasoning_content": "已深度思考",
+      "sort": {
+        "pinyin": "按拼音排序",
+        "pinyin.asc": "按拼音升序",
+        "pinyin.desc": "按拼音降序"
+      }
     },
     "docs": {
       "title": "說明文件"
@@ -1026,8 +1032,9 @@
         "argsTooltip": "每個參數佔一行",
         "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
-        "sse": "伺服器傳送事件(sse)",
-        "stdio": "標準輸入/輸出(stdio)",
+        "sse": "伺服器傳送事件 (sse)",
+        "streamableHttp": "可串流的HTTP (streamableHttp)",
+        "stdio": "標準輸入/輸出 (stdio)",
         "inMemory": "記憶體",
         "config_description": "設定模型上下文協議伺服器",
         "deleteError": "刪除伺服器失敗",
@@ -1290,7 +1297,9 @@
           "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
           "title": "Tavily"
         },
-        "title": "網路搜尋"
+        "title": "網路搜尋",
+        "overwrite": "覆蓋搜尋服務商",
+        "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋"
       },
       "general.auto_check_update.title": "啟用自動更新檢查",
       "quickPhrase": {
