@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { HStack } from '../Layout'
-import ModelTags from '../ModelTags'
+import ModelTagsWithLabel from '../ModelTagsWithLabel'
 import Scrollbar from '../Scrollbar'
 
 type MenuItem = Required<MenuProps>['items'][number]
@@ -130,7 +130,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         label: (
           <ModelItem>
             <ModelNameRow>
-              <span>{m?.name}</span> <ModelTags model={m} />
+              <span>{m?.name}</span> <ModelTagsWithLabel model={m} size={11} showLabel={false} />
             </ModelNameRow>
             <PinIcon
               onClick={(e) => {
@@ -184,7 +184,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
               <span>
                 {m.model?.name} | {m.provider.isSystem ? t(`provider.${m.provider.id}`) : m.provider.name}
               </span>{' '}
-              <ModelTags model={m.model} />
+              <ModelTagsWithLabel model={m.model} size={11} showLabel={false} />
             </ModelNameRow>
             <PinIcon
               onClick={(e) => {
@@ -480,6 +480,10 @@ const StyledMenu = styled(Menu)`
           opacity: 0.3;
         }
       }
+    }
+
+    .anticon {
+      min-width: auto;
     }
   }
 `

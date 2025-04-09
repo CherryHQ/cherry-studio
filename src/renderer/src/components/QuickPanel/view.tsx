@@ -5,6 +5,7 @@ import { Flex } from 'antd'
 import { t } from 'i18next'
 import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
+import * as tinyPinyin from 'tiny-pinyin'
 
 import { QuickPanelContext } from './provider'
 import { QuickPanelCallBackOptions, QuickPanelCloseAction, QuickPanelListItem, QuickPanelOpenOptions } from './types'
@@ -66,7 +67,21 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         filterText += item.description
       }
 
-      return filterText.toLowerCase().includes(_searchText.toLowerCase())
+      const lowerFilterText = filterText.toLowerCase()
+      const lowerSearchText = _searchText.toLowerCase()
+
+      if (lowerFilterText.includes(lowerSearchText)) {
+        return true
+      }
+
+      if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
+        const pinyinText = tinyPinyin.convertToPinyin(filterText, '', true)
+        if (pinyinText.toLowerCase().includes(lowerSearchText)) {
+          return true
+        }
+      }
+
+      return false
     })
 
     setIndex(newList.length > 0 ? ctx.defaultIndex || 0 : -1)
@@ -176,6 +191,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   }, [searchText])
 
   // 获取当前输入的搜索词
+  const isComposing = useRef(false)
   useEffect(() => {
     if (!ctx.isVisible) return
 
@@ -197,10 +213,22 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       }
     }
 
+    const handleCompositionUpdate = () => {
+      isComposing.current = true
+    }
+
+    const handleCompositionEnd = () => {
+      isComposing.current = false
+    }
+
     textArea.addEventListener('input', handleInput)
+    textArea.addEventListener('compositionupdate', handleCompositionUpdate)
+    textArea.addEventListener('compositionend', handleCompositionEnd)
 
     return () => {
       textArea.removeEventListener('input', handleInput)
+      textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
+      textArea.removeEventListener('compositionend', handleCompositionEnd)
       setTimeout(() => {
         setSearchText('')
       }, 200) // 等待面板关闭动画结束后，再清空搜索词
@@ -315,6 +343,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           break
 
         case 'Enter':
+          if (isComposing.current) return
+
           if (list?.[index]) {
             e.preventDefault()
             e.stopPropagation()
