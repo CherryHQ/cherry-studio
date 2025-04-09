@@ -319,10 +319,18 @@ export class WindowService {
       //[macOS] Known Issue
       // setVisibleOnAllWorkspaces true/false will NOT bring window to current desktop in Mac (works fine with Windows)
       // AppleScript may be a solution, but it's not worth
-      this.mainWindow.setVisibleOnAllWorkspaces(true)
+
+      // [Linux] Known Issue
+      // setVisibleOnAllWorkspaces 在 Linux 环境下（特别是 KDE Wayland）会导致窗口进入"假弹出"状态
+      // 因此在 Linux 环境下不执行这两行代码
+      if (!isLinux) {
+        this.mainWindow.setVisibleOnAllWorkspaces(true)
+      }
       this.mainWindow.show()
       this.mainWindow.focus()
-      this.mainWindow.setVisibleOnAllWorkspaces(false)
+      if (!isLinux) {
+        this.mainWindow.setVisibleOnAllWorkspaces(false)
+      }
     } else {
       this.mainWindow = this.createMainWindow()
     }

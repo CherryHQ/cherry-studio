@@ -299,7 +299,12 @@
       "topics": "话题",
       "warning": "警告",
       "you": "用户",
-      "reasoning_content": "已深度思考"
+      "reasoning_content": "已深度思考",
+      "sort": {
+        "pinyin": "按拼音排序",
+        "pinyin.asc": "按拼音升序",
+        "pinyin.desc": "按拼音降序"
+      }
     },
     "docs": {
       "title": "帮助文档"
@@ -1028,8 +1033,9 @@
         "argsTooltip": "每个参数占一行",
         "baseUrlTooltip": "远程 URL 地址",
         "command": "命令",
-        "sse": "服务器发送事件(sse)",
-        "stdio": "标准输入/输出(stdio)",
+        "sse": "服务器发送事件 (sse)",
+        "streamableHttp": "可流式传输的HTTP (streamableHttp)",
+        "stdio": "标准输入/输出 (stdio)",
         "inMemory": "内存",
         "config_description": "配置模型上下文协议服务器",
         "deleteError": "删除服务器失败",

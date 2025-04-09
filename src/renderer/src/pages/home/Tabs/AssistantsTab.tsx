@@ -4,7 +4,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { Assistant } from '@renderer/types'
-import { FC, useCallback, useState } from 'react'
+import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -27,6 +27,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   const [dragging, setDragging] = useState(false)
   const { addAgent } = useAgents()
   const { t } = useTranslation()
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const onDelete = useCallback(
     (assistant: Assistant) => {
@@ -41,7 +42,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   )
 
   return (
-    <Container className="assistants-tab">
+    <Container className="assistants-tab" ref={containerRef}>
       <DragableList
         list={assistants}
         onUpdate={updateAssistants}
@@ -74,7 +75,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   )
 }
 
-// 样式组件（只定义一次）
+// 样式组件
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;

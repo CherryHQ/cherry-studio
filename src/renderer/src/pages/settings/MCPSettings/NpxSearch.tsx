@@ -4,6 +4,7 @@ import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { builtinMCPServers } from '@renderer/store/mcp'
+import { MCPServer } from '@renderer/types'
 import { Button, Card, Flex, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
@@ -19,7 +20,7 @@ interface SearchResult {
   usage: string
   npmLink: string
   fullName: string
-  type: 'stdio' | 'sse' | 'inMemory'
+  type: MCPServer['type']
 }
 
 const npmScopes = ['@cherry', '@modelcontextprotocol', '@gongrzhe', '@mcpmarket']

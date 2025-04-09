@@ -15,6 +15,7 @@ import { app } from 'electron'
 import Logger from 'electron-log'
 
 import { CacheService } from './CacheService'
+import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
 
 class McpService {
   private clients: Map<string, Client> = new Map()
@@ -67,7 +68,7 @@ class McpService {
 
     const args = [...(server.args || [])]
 
-    let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport
+    let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
 
     try {
       // Create appropriate transport based on configuration
@@ -86,7 +87,16 @@ class McpService {
         // set the client transport to the client
         transport = clientTransport
       } else if (server.baseUrl) {
-        transport = new SSEClientTransport(new URL(server.baseUrl))
+        if (server.type === 'streamableHttp') {
+          transport = new StreamableHTTPClientTransport(
+            new URL(server.baseUrl!),
+            {} as StreamableHTTPClientTransportOptions
+          )
+        } else if (server.type === 'sse') {
+          transport = new SSEClientTransport(new URL(server.baseUrl!))
+        } else {
+          throw new Error('Invalid server type')
+        }
       } else if (server.command) {
         let cmd = server.command
 

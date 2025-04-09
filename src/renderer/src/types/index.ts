@@ -371,7 +371,7 @@ export interface MCPServerParameter {
 export interface MCPServer {
   id: string
   name: string
-  type?: 'stdio' | 'sse' | 'inMemory'
+  type?: 'stdio' | 'sse' | 'inMemory' | 'streamableHttp'
   description?: string
   baseUrl?: string
   command?: string
