@@ -66,7 +66,6 @@ const TranslatePage: FC = () => {
       targetLanguage,
       createdAt: new Date().toISOString()
     }
-    console.log('🌟TEO🌟 ~ saveTranslateHistory ~ history:', history)
     await db.translate_history.add(history)
   }
 

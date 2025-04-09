@@ -2,6 +2,8 @@ import { CheckOutlined, RightOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
+import { theme } from 'antd'
+import Color from 'color'
 import { t } from 'i18next'
 import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
@@ -27,6 +29,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   if (!ctx) {
     throw new Error('QuickPanel must be used within a QuickPanelProvider')
   }
+
+  const { token } = theme.useToken()
+  const colorPrimary = Color(token.colorPrimary || '#008000')
+  const selectedColor = colorPrimary.alpha(0.15).toString()
+  const selectedColorHover = colorPrimary.alpha(0.2).toString()
 
   const ASSISTIVE_KEY = isMac ? '⌘' : 'Ctrl'
   const [isAssistiveKeyPressed, setIsAssistiveKeyPressed] = useState(false)
@@ -405,7 +412,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   }, [ctx.isVisible])
 
   return (
-    <QuickPanelContainer $pageSize={ctx.pageSize} className={ctx.isVisible ? 'visible' : ''}>
+    <QuickPanelContainer
+      $pageSize={ctx.pageSize}
+      $selectedColor={selectedColor}
+      $selectedColorHover={selectedColorHover}
+      className={ctx.isVisible ? 'visible' : ''}>
       <QuickPanelBody ref={bodyRef} onMouseMove={() => setIsMouseOver(true)}>
         <QuickPanelContent ref={contentRef} $pageSize={ctx.pageSize} $isMouseOver={isMouseOver}>
           {list.map((item, i) => (
@@ -489,10 +500,14 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   )
 }
 
-const QuickPanelContainer = styled.div<{ $pageSize: number }>`
+const QuickPanelContainer = styled.div<{
+  $pageSize: number
+  $selectedColor: string
+  $selectedColorHover: string
+}>`
   --focused-color: rgba(0, 0, 0, 0.06);
-  --selected-color: rgba(0, 128, 0, 0.08);
-  --selected-color-dark: rgba(0, 128, 0, 0.12);
+  --selected-color: ${(props) => props.$selectedColor};
+  --selected-color-dark: ${(props) => props.$selectedColorHover};
   max-height: 0;
   position: absolute;
   top: 1px;
@@ -512,8 +527,6 @@ const QuickPanelContainer = styled.div<{ $pageSize: number }>`
   }
   body[theme-mode='dark'] & {
     --focused-color: rgba(255, 255, 255, 0.1);
-    --selected-color: rgba(89, 177, 89, 0.1);
-    --selected-color-dark: rgba(89, 177, 89, 0.18);
   }
 `
 
