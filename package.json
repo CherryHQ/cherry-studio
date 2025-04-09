@@ -62,7 +62,6 @@
     "@cherrystudio/embedjs-loader-web": "^0.1.28",
     "@cherrystudio/embedjs-loader-xml": "^0.1.28",
     "@cherrystudio/embedjs-openai": "^0.1.28",
-    "@codemirror/state": "^6.5.2",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
     "@google/generative-ai": "^0.24.0",
