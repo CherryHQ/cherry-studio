@@ -67,7 +67,8 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     async (code: string, language: string, enableCache: boolean) => {
       if (!code) return ''
       const normalizedLang = languageMap[language as keyof typeof languageMap] || language.toLowerCase()
-      return shikiService.highlightCode(code, normalizedLang, currentTheme, enableCache)
+      const trimmedCode = code?.trimEnd() ?? ''
+      return shikiService.highlightCode(trimmedCode, normalizedLang, currentTheme, enableCache)
     },
     [currentTheme, languageMap]
   )
