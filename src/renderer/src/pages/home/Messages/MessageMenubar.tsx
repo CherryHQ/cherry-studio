@@ -37,7 +37,7 @@ import { withMessageThought } from '@renderer/utils/formats'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { clone } from 'lodash'
-import { FC, memo, useCallback, useMemo, useState } from 'react'
+import React, { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -60,6 +60,7 @@ const MessageMenubar: FC<Props> = (props) => {
     props
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
+  const [translationCopied, setTranslationCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
@@ -92,9 +93,23 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, t]
   )
 
+  const onCopyTranslation = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+
+      if (message.translatedContent) {
+        navigator.clipboard.writeText(removeTrailingDoubleSpaces(message.translatedContent.trimStart()))
+        window.message.success({ content: t('message.translation.copied'), key: 'copy-translation' })
+        setTranslationCopied(true)
+        setTimeout(() => setTranslationCopied(false), 2000)
+      }
+    },
+    [message.translatedContent, t]
+  )
+
   const onNewBranch = useCallback(async () => {
     if (loading) return
-    EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
+    await EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
     window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
   }, [index, t, loading])
 
@@ -144,39 +159,46 @@ const MessageMenubar: FC<Props> = (props) => {
 
     if (editedText && editedText !== textToEdit) {
       // 解析编辑后的文本，提取图片 URL
-      const imageRegex = /!\[image-\d+\]\((.*?)\)/g
+      const imageRegex = /!\[image-\d+]\((.*?)\)/g
       const imageUrls: string[] = []
       let match
       let content = editedText
-      
+
       while ((match = imageRegex.exec(editedText)) !== null) {
         imageUrls.push(match[1])
         content = content.replace(match[0], '')
       }
-      
+
       // 更新消息内容，保留图片信息
-      await editMessage(message.id, { 
+      await editMessage(message.id, {
         content: content.trim(),
         metadata: {
           ...message.metadata,
-          generateImage: imageUrls.length > 0 ? {
-            type: 'url',
-            images: imageUrls
-          } : undefined
+          generateImage:
+            imageUrls.length > 0
+              ? {
+                  type: 'url',
+                  images: imageUrls
+                }
+              : undefined
         }
       })
-      
-      resendMessage && handleResendUserMessage({ 
-        ...message, 
-        content: content.trim(),
-        metadata: {
-          ...message.metadata,
-          generateImage: imageUrls.length > 0 ? {
-            type: 'url',
-            images: imageUrls
-          } : undefined
-        }
-      })
+
+      resendMessage &&
+        (await handleResendUserMessage({
+          ...message,
+          content: content.trim(),
+          metadata: {
+            ...message.metadata,
+            generateImage:
+              imageUrls.length > 0
+                ? {
+                    type: 'url',
+                    images: imageUrls
+                  }
+                : undefined
+          }
+        }))
     }
   }, [message, editMessage, handleResendUserMessage, t])
 
@@ -184,7 +206,7 @@ const MessageMenubar: FC<Props> = (props) => {
     async (language: string) => {
       if (isTranslating) return
 
-      editMessage(message.id, { translatedContent: t('translate.processing') })
+      await editMessage(message.id, { translatedContent: t('translate.processing') })
 
       setIsTranslating(true)
 
@@ -199,7 +221,7 @@ const MessageMenubar: FC<Props> = (props) => {
       } catch (error) {
         console.error('Translation failed:', error)
         window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
-        editMessage(message.id, { translatedContent: undefined })
+        await editMessage(message.id, { translatedContent: undefined })
         clearStreamMessage(message.id)
       } finally {
         setIsTranslating(false)
@@ -273,7 +295,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMarkdownToNotion(title, markdown)
+              await exportMarkdownToNotion(title, markdown)
             }
           },
           exportMenuOptions.yuque && {
@@ -282,7 +304,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMarkdownToYuque(title, markdown)
+              await exportMarkdownToYuque(title, markdown)
             }
           },
           exportMenuOptions.obsidian && {
@@ -300,7 +322,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMarkdownToJoplin(title, markdown)
+              await exportMarkdownToJoplin(title, markdown)
             }
           },
           exportMenuOptions.siyuan && {
@@ -309,7 +331,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMarkdownToSiyuan(title, markdown)
+              await exportMarkdownToSiyuan(title, markdown)
             }
           }
         ].filter(Boolean)
@@ -323,8 +345,8 @@ const MessageMenubar: FC<Props> = (props) => {
     if (loading) return
     const selectedModel = isGrouped ? model : assistantModel
     const _message = resetAssistantMessage(message, selectedModel)
-    editMessage(message.id, { ..._message })
-    resendMessage(_message, assistant)
+    await editMessage(message.id, { ..._message })
+    await resendMessage(_message, assistant)
   }
 
   const onMentionModel = async (e: React.MouseEvent) => {
@@ -332,7 +354,7 @@ const MessageMenubar: FC<Props> = (props) => {
     if (loading) return
     const selectedModel = await SelectModelPopup.show({ model })
     if (!selectedModel) return
-    resendMessage(message, { ...assistant, model: selectedModel }, true)
+    await resendMessage(message, { ...assistant, model: selectedModel }, true)
   }
 
   const onUseful = useCallback(
@@ -403,10 +425,21 @@ const MessageMenubar: FC<Props> = (props) => {
                 label: '✖ ' + t('translate.close'),
                 key: 'translate-close',
                 onClick: () => editMessage(message.id, { translatedContent: undefined })
+              },
+              {
+                label: '📋 ' + t('translate.copy'),
+                key: 'translate-copy',
+                disabled: !message.translatedContent,
+                icon: translationCopied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : null,
+                onClick: (e) => {
+                  e.domEvent.stopPropagation()
+                  onCopyTranslation(e.domEvent as unknown as React.MouseEvent)
+                }
               }
             ],
             onClick: (e) => e.domEvent.stopPropagation()
           }}
+          overlayStyle={{ maxHeight: '300px', overflow: 'auto' }}
           trigger={['click']}
           placement="topRight"
           arrow>
