@@ -1,14 +1,11 @@
-import { FileImageOutlined, LoadingOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { LoadingOutlined } from '@ant-design/icons'
 import { Spin } from 'antd'
 import pako from 'pako'
-import React, { memo, useCallback, useEffect, useState } from 'react'
+import React, { memo, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { DownloadPngIcon } from '../Icons/DownloadIcons'
-import { DownloadSvgIcon } from '../Icons/DownloadIcons'
-import { useToolbar } from './context'
+import { usePreviewToolHandlers, usePreviewTools } from './usePreviewTools'
 
 export function isValidPlantUML(diagram: string | null): boolean {
   if (!diagram || !diagram.trim().startsWith('@start')) {
@@ -114,9 +111,8 @@ function getPlantUMLImageUrl(format: 'png' | 'svg', diagram: string, isDark?: bo
 
 const PlantUMLServerImage: React.FC<PlantUMLServerImageProps> = ({ format, diagram, onClick, className }) => {
   const [loading, setLoading] = useState(true)
-  const { theme } = useTheme()
-  const isDark = theme === 'dark'
-  const url = getPlantUMLImageUrl(format, diagram, isDark)
+  // FIXME: 黑暗模式背景太黑了
+  const url = getPlantUMLImageUrl(format, diagram, false)
   return (
     <StyledPlantUML onClick={onClick} className={className}>
       <Spin
@@ -151,61 +147,13 @@ interface PlantUMLProps {
 }
 
 const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children }) => {
-  const [scale, setScale] = useState(1)
   const { t } = useTranslation()
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const encodedDiagram = encodeDiagram(children)
 
-  const { registerTool, removeTool } = useToolbar()
-
-  const handleZoom = useCallback(
-    (delta: number) => {
-      const newScale = Math.max(0.1, Math.min(3, scale + delta))
-      setScale(newScale)
-
-      const container = document.querySelector('.plantuml-image-container')
-      if (container) {
-        const img = container.querySelector('img')
-        if (img) {
-          img.style.transformOrigin = 'top left'
-          img.style.transform = `scale(${newScale})`
-        }
-      }
-    },
-    [scale]
-  )
-
-  const handleCopyImage = useCallback(async () => {
-    try {
-      const imageElement = document.querySelector('.plantuml-image-container img')
-      if (!imageElement) return
-
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      const img = imageElement as HTMLImageElement
-
-      if (!img.complete) {
-        await new Promise((resolve) => {
-          img.onload = resolve
-        })
-      }
-
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-
-      if (ctx) {
-        ctx.drawImage(img, 0, 0)
-        const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'))
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-        window.message.success(t('message.copy.success'))
-      }
-    } catch (error) {
-      console.error('Copy failed:', error)
-      window.message.error(t('message.copy.failed'))
-    }
-  }, [t])
-
-  const handleDownload = useCallback(
+  // 自定义 PlantUML 下载方法
+  const customDownload = useCallback(
     (format: 'svg' | 'png') => {
       const timestamp = Date.now()
       const url = `${PlantUMLServer}/${format}/${encodedDiagram}`
@@ -217,79 +165,36 @@ const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children }) => {
     [encodedDiagram, t]
   )
 
-  useEffect(() => {
-    // 放大工具
-    registerTool({
-      id: 'plantuml-zoom-in',
-      type: 'quick',
-      icon: <ZoomInOutlined />,
-      tooltip: t('code_block.preview.zoom_in'),
-      onClick: () => handleZoom(0.1),
-      order: 20
-    })
+  // 使用通用图像工具，提供自定义下载方法
+  const { handleZoom, handleCopyImage } = usePreviewToolHandlers(containerRef, {
+    imgSelector: '.plantuml-image-container img',
+    prefix: 'plantuml-diagram',
+    customDownloader: customDownload
+  })
 
-    // 缩小工具
-    registerTool({
-      id: 'plantuml-zoom-out',
-      type: 'quick',
-      icon: <ZoomOutOutlined />,
-      tooltip: t('code_block.preview.zoom_out'),
-      onClick: () => handleZoom(-0.1),
-      order: 19
-    })
+  // 使用工具栏
+  usePreviewTools({
+    handleZoom,
+    handleCopyImage,
+    handleDownload: customDownload
+  })
 
-    // 复制图片工具
-    registerTool({
-      id: 'plantuml-copy-image',
-      type: 'quick',
-      icon: <FileImageOutlined />,
-      tooltip: t('code_block.preview.copy.image'),
-      onClick: handleCopyImage,
-      order: 18
-    })
-
-    // 下载 SVG 工具
-    registerTool({
-      id: 'plantuml-download-svg',
-      type: 'quick',
-      icon: <DownloadSvgIcon />,
-      tooltip: t('code_block.download.svg'),
-      onClick: () => handleDownload('svg'),
-      order: 17
-    })
-
-    // 下载 PNG 工具
-    registerTool({
-      id: 'plantuml-download-png',
-      type: 'quick',
-      icon: <DownloadPngIcon />,
-      tooltip: t('code_block.download.png'),
-      onClick: () => handleDownload('png'),
-      order: 16
-    })
-
-    return () => {
-      removeTool('plantuml-zoom-in')
-      removeTool('plantuml-zoom-out')
-      removeTool('plantuml-copy-image')
-      removeTool('plantuml-download-svg')
-      removeTool('plantuml-download-png')
-    }
-  }, [handleCopyImage, handleDownload, handleZoom, registerTool, removeTool, t])
-
-  return <PlantUMLServerImage format="svg" diagram={children} />
+  return (
+    <div ref={containerRef}>
+      <PlantUMLServerImage format="svg" diagram={children} className="plantuml-image-container" />
+    </div>
+  )
 }
 
 const StyledPlantUML = styled.div`
   max-height: calc(80vh - 100px);
-  text-align: center;
+  text-align: left;
   overflow-y: auto;
+  background-color: white;
   img {
     max-width: 100%;
     height: auto;
     min-height: 100px;
-    background: var(--color-code-background);
-    cursor: pointer;
     transition: transform 0.2s ease;
   }
 `

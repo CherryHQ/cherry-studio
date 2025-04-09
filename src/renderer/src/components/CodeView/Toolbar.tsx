@@ -39,7 +39,7 @@ const Toolbar: React.FC = () => {
   const hasQuickTools = quickTools.length > 0
 
   return (
-    <StickyWrapper>
+    <StickyWrapper className="toolbar">
       <ToolbarWrapper>
         {/* 当有快捷工具且点击了More按钮时显示快捷工具 */}
         {hasQuickTools && showQuickTools && quickTools.map((tool) => <ToolButton key={tool.id} tool={tool} />)}

@@ -4,7 +4,7 @@ import { extractTitle } from '@renderer/utils/formats'
 import dayjs from 'dayjs'
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 
 import HtmlStatusBar from './HtmlStatusBar'
 import MermaidPreview from './MermaidPreview'
@@ -29,6 +29,10 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
   const [isEditing, setIsEditing] = useState(false)
   const previewRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
+
+  const isInSpecialView = useMemo(() => {
+    return hasSpecialView && !isEditing
+  }, [hasSpecialView, isEditing])
 
   const { updateContext, registerTool, removeTool } = useToolbar()
 
@@ -111,11 +115,11 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
   }, [hasSpecialView, isEditing, registerTool, removeTool, t])
 
   const renderHeader = useMemo(() => {
-    if (hasSpecialView && !isEditing) {
+    if (isInSpecialView) {
       return null
     }
     return <CodeHeader>{'<' + language.toUpperCase() + '>'}</CodeHeader>
-  }, [hasSpecialView, isEditing, language])
+  }, [isInSpecialView, language])
 
   const renderContent = useMemo(() => {
     if (isEditing) {
@@ -153,7 +157,7 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
   }, [children, language])
 
   return (
-    <CodeBlockWrapper className="code-block">
+    <CodeBlockWrapper className="code-block" isInSpecialView={isInSpecialView}>
       {renderHeader}
       <Toolbar />
       {renderContent}
@@ -170,8 +174,27 @@ const CodeView: React.FC<Props> = ({ children, language }) => {
   )
 }
 
-const CodeBlockWrapper = styled.div`
+const CodeBlockWrapper = styled.div<{ isInSpecialView: boolean }>`
   position: relative;
+
+  ${({ isInSpecialView }) =>
+    isInSpecialView &&
+    css`
+      .toolbar {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        transform: translateZ(0);
+        will-change: opacity;
+        &.show {
+          opacity: 1;
+        }
+      }
+      &:hover {
+        .toolbar {
+          opacity: 1;
+        }
+      }
+    `}
 `
 
 const CodeHeader = styled.div`
