@@ -179,7 +179,24 @@ class ShikiService {
     if (!this.pendingRequests.has(cacheKey)) return
 
     try {
-      // 在主线程中直接调用shiki
+      const shiki = await import('shiki')
+
+      // 加载语言
+      if (this.highlighter && !this.highlighter.getLoadedLanguages().includes(language)) {
+        const languageImportFn = shiki.bundledLanguages[language]
+        if (languageImportFn) {
+          await this.highlighter.loadLanguage(await languageImportFn())
+        }
+      }
+
+      // 加载主题
+      if (this.highlighter && !this.highlighter.getLoadedThemes().includes(theme)) {
+        const themeImportFn = shiki.bundledThemes[theme]
+        if (themeImportFn) {
+          await this.highlighter.loadTheme(await themeImportFn())
+        }
+      }
+
       const html = this.highlighter.codeToHtml(code, {
         lang: language,
         theme: theme
