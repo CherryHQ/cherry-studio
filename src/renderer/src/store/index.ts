@@ -62,8 +62,6 @@ const store = configureStore({
   devTools: true
 })
 
-console.log('Initial state:', store.getState())
-
 export type RootState = ReturnType<typeof rootReducer>
 export type AppDispatch = typeof store.dispatch
 

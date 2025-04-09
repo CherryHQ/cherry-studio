@@ -41,6 +41,7 @@ import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
+
 interface Props {
   message: Message
   assistant: Assistant
