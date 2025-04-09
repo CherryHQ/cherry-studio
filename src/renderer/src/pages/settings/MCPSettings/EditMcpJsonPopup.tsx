@@ -1,11 +1,13 @@
 import { TopView } from '@renderer/components/TopView'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { Modal, Typography } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
+import * as monaco from 'monaco-editor'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import MonacoEditor from 'react-monaco-editor'
 
 interface Props {
   resolve: (data: any) => void
@@ -17,6 +19,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [jsonSaving, setJsonSaving] = useState(false)
   const [jsonError, setJsonError] = useState('')
   const mcpServers = useAppSelector((state) => state.mcp.servers)
+  const { theme } = useTheme()
 
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
@@ -42,6 +45,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setJsonError(t('settings.mcp.jsonFormatError'))
     }
   }, [mcpServers, t])
+
+  useEffect(() => {
+    // Monaco editor setup
+    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+      validate: true,
+      allowComments: true,
+      schemas: [],
+      enableSchemaRequest: true
+    })
+  }, [])
 
   const onOk = async () => {
     setJsonSaving(true)
@@ -118,18 +131,30 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           {jsonError ? <span style={{ color: 'red' }}>{jsonError}</span> : ''}
         </Typography.Text>
       </div>
-      <TextArea
+      <MonacoEditor
+        width="100%"
+        height="60vh"
+        language="json"
+        theme={theme === 'dark' ? 'vs-dark' : 'vs-light'}
         value={jsonConfig}
-        onChange={(e) => setJsonConfig(e.target.value)}
-        style={{
-          width: '100%',
-          fontFamily: 'monospace',
-          minHeight: '60vh',
-          marginBottom: '16px'
+        onChange={(value) => setJsonConfig(value)}
+        options={{
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          fontSize: 14,
+          automaticLayout: true,
+          formatOnPaste: true,
+          formatOnType: true,
+          tabSize: 2,
+          wordWrap: 'on'
         }}
-        onFocus={() => setJsonError('')}
+        editorDidMount={(editor) => {
+          editor.onDidFocusEditorText(() => setJsonError(''))
+        }}
       />
-      <Typography.Text type="secondary">{t('settings.mcp.jsonModeHint')}</Typography.Text>
+      <Typography.Text type="secondary" style={{ marginTop: '16px', display: 'block' }}>
+        {t('settings.mcp.jsonModeHint')}
+      </Typography.Text>
     </Modal>
   )
 }

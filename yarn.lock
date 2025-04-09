@@ -3973,6 +3973,7 @@ __metadata:
     lru-cache: "npm:^11.1.0"
     markdown-it: "npm:^14.1.0"
     mime: "npm:^4.0.4"
+    monaco-editor: "npm:^0.52.2"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch"
@@ -3986,6 +3987,7 @@ __metadata:
     react-i18next: "npm:^14.1.2"
     react-infinite-scroll-component: "npm:^6.1.0"
     react-markdown: "npm:^9.0.1"
+    react-monaco-editor: "npm:^0.58.0"
     react-redux: "npm:^9.1.2"
     react-router: "npm:6"
     react-router-dom: "npm:6"
@@ -11593,6 +11595,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"monaco-editor@npm:^0.52.2":
+  version: 0.52.2
+  resolution: "monaco-editor@npm:0.52.2"
+  checksum: 10c0/5a92da64f1e2ab375c0ce99364137f794d057c97bed10ecc65a08d6e6846804b8ecbd377eacf01e498f7dfbe1b21e8be64f728256681448f0484df90e767b435
+  languageName: node
+  linkType: hard
+
 "mri@npm:1.1.4":
   version: 1.1.4
   resolution: "mri@npm:1.1.4"
@@ -13766,6 +13775,17 @@ __metadata:
     "@types/react": ">=18"
     react: ">=18"
   checksum: 10c0/5bd645d39379f776d64588105f4060c390c3c8e4ff048552c9fa0ad31b756bb3ff7c11081542dc58d840ccf183a6dd4fd4d4edab44d8c24dee8b66551a5fd30d
+  languageName: node
+  linkType: hard
+
+"react-monaco-editor@npm:^0.58.0":
+  version: 0.58.0
+  resolution: "react-monaco-editor@npm:0.58.0"
+  peerDependencies:
+    monaco-editor: ^0.52.0
+    react: ">=16.8.0 <20.0.0"
+    react-dom: ">=16.8.0 <20.0.0"
+  checksum: 10c0/b82ba4bfa5bbec98ed171878f6463b0f213ff7a43e4ecfe5008693b4e06cbed7447d728e55a51538741d951711946d218000b6074b75447ddb9c147a913973d7
   languageName: node
   linkType: hard
 
