@@ -37,44 +37,48 @@ const MessageImage: FC<Props> = ({ message }) => {
   }
 
   // 复制图片到剪贴板
-  const onCopy = async (imageBase64: string) => {
+  const onCopy = async (type: string, image: string) => {
     try {
-      if (imageBase64.startsWith('data:image/')) {
-        // 处理 base64 格式的图片
-        const parts = imageBase64.split(';base64,');
-        if (parts.length === 2) {
-          const mimeType = parts[0].replace('data:', '');
-          const base64Data = parts[1];
-          const byteCharacters = atob(base64Data);
-          const byteArrays: Uint8Array[] = [];
-          
-          for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-            const slice = byteCharacters.slice(offset, offset + 512);
-            const byteNumbers = new Array(slice.length);
-            for (let i = 0; i < slice.length; i++) {
-              byteNumbers[i] = slice.charCodeAt(i);
+      switch (type) {
+        case 'base64': {
+          // 处理 base64 格式的图片
+          const parts = image.split(';base64,')
+          if (parts.length === 2) {
+            const mimeType = parts[0].replace('data:', '')
+            const base64Data = parts[1]
+            const byteCharacters = atob(base64Data)
+            const byteArrays: Uint8Array[] = []
+
+            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+              const slice = byteCharacters.slice(offset, offset + 512)
+              const byteNumbers = new Array(slice.length)
+              for (let i = 0; i < slice.length; i++) {
+                byteNumbers[i] = slice.charCodeAt(i)
+              }
+              const byteArray = new Uint8Array(byteNumbers)
+              byteArrays.push(byteArray)
             }
-            const byteArray = new Uint8Array(byteNumbers);
-            byteArrays.push(byteArray);
+
+            const blob = new Blob(byteArrays, { type: mimeType })
+            await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })])
+          } else {
+            throw new Error('无效的 base64 图片格式')
           }
-          
-          const blob = new Blob(byteArrays, { type: mimeType });
-          await navigator.clipboard.write([
-            new ClipboardItem({ [mimeType]: blob })
-          ])
-        } else {
-          throw new Error('无效的 base64 图片格式');
+          break
         }
-      } else {
-        // 处理 URL 格式的图片
-        const response = await fetch(imageBase64);
-        const blob = await response.blob();
-        
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            [blob.type]: blob
-          })
-        ])
+        case 'url':
+          {
+            // 处理 URL 格式的图片
+            const response = await fetch(image)
+            const blob = await response.blob()
+
+            await navigator.clipboard.write([
+              new ClipboardItem({
+                [blob.type]: blob
+              })
+            ])
+          }
+          break
       }
 
       window.message.success(t('message.copy.success'))
@@ -107,7 +111,7 @@ const MessageImage: FC<Props> = ({ message }) => {
                 <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
                 <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
                 <UndoOutlined onClick={onReset} />
-                <CopyOutlined onClick={() => onCopy(image)} />
+                <CopyOutlined onClick={() => onCopy(message.metadata?.generateImage?.type!, image)} />
                 <DownloadOutlined onClick={() => onDownload(image, index)} />
               </ToobarWrapper>
             )
