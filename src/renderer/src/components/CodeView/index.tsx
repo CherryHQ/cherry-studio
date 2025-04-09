@@ -1,4 +1,4 @@
-import { CodeOutlined, CopyOutlined, DownloadOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
+import { DownloadOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
 import { ToolbarProvider, useToolbar } from '@renderer/components/CodeView/context'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { extractTitle } from '@renderer/utils/formats'
@@ -7,6 +7,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
+import { CodeXmlIcon } from '../Icons/CodeXmlIcon'
 import HtmlStatusBar from './HtmlStatusBar'
 import MermaidPreview from './MermaidPreview'
 import PlantUmlPreview, { isValidPlantUML } from './PlantUmlPreview'
@@ -78,7 +79,7 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
     registerTool({
       id: 'copy',
       type: 'core',
-      icon: <CopyOutlined />,
+      icon: <i className="iconfont icon-copy" style={{ fontSize: 14 }}></i>,
       tooltip: t('code_block.copy.source'),
       onClick: onCopySource,
       order: 0
@@ -115,7 +116,7 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
         registerTool({
           id: 'view-source',
           type: 'core',
-          icon: isInSourceView ? <EyeOutlined /> : <CodeOutlined />,
+          icon: isInSourceView ? <EyeOutlined /> : <CodeXmlIcon />,
           tooltip: isInSourceView ? t('code_block.preview') : t('code_block.preview.source'),
           onClick: () => setIsInSourceView(!isInSourceView),
           order: 2
