@@ -1,6 +1,7 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
 import React, { memo, useEffect, useRef } from 'react'
+import styled from 'styled-components'
 
 import { usePreviewToolHandlers, usePreviewTools } from './usePreviewTools'
 
@@ -40,10 +41,14 @@ const MermaidPreview: React.FC<Props> = ({ children }) => {
   })
 
   return (
-    <div ref={mermaidRef} className="mermaid">
+    <StyledMermaid ref={mermaidRef} className="mermaid">
       {children}
-    </div>
+    </StyledMermaid>
   )
 }
+
+const StyledMermaid = styled.div`
+  overflow: auto;
+`
 
 export default memo(MermaidPreview)
