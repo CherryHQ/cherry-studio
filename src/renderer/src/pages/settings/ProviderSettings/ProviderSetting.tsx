@@ -228,22 +228,23 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      <SettingSubtitle style={{ marginBottom: 5, marginTop: 5 }}>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-          <span>{t('settings.provider.api_key')}</span>
+      <SettingSubtitle style={{ marginBottom: 5 }}>
+        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
-            {isProviderSupportAuth(provider) && (
+            <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.api_key')}</SettingSubtitle>
+          </Space>
+          {isProviderSupportAuth(provider) && (
+            <Tooltip title={t('auth.get_key')} mouseEnterDelay={0.5}>
               <OAuthButton
                 provider={provider}
                 onSuccess={handleApiKeyChange}
                 type="text"
                 size="small"
                 icon={<ApiOutlined />}
-                title={t('auth.get_key')}
               />
-            )}
-          </Space>
-        </Flex>
+            </Tooltip>
+          )}
+        </Space>
       </SettingSubtitle>
       <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="provider" />
       {apiKeyWebsite && (
