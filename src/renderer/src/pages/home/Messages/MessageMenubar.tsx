@@ -41,7 +41,6 @@ import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
-
 interface Props {
   message: Message
   assistant: Assistant
@@ -70,20 +69,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const isUserMessage = message.role === 'user'
 
-  const exportMenuOptions = useSelector(
-    (state: RootState) =>
-      state.settings.exportMenuOptions || {
-        image: true,
-        markdown: true,
-        markdown_reason: true,
-        notion: true,
-        yuque: true,
-        joplin: true,
-        obsidian: true,
-        siyuan: true,
-        docx: true
-      }
-  )
+  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
 
   const onCopy = useCallback(
     (e: React.MouseEvent) => {

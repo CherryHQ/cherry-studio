@@ -125,7 +125,7 @@ export interface SettingsState {
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
-const initialState: SettingsState = {
+export const initialState: SettingsState = {
   showAssistants: true,
   showTopics: true,
   sendMessageShortcut: 'Enter',

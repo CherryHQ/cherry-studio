@@ -13,7 +13,7 @@ import { createMigrate } from 'redux-persist'
 import { RootState } from '.'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
-import { DEFAULT_SIDEBAR_ICONS } from './settings'
+import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
@@ -1169,6 +1169,17 @@ const migrateConfig = {
     try {
       addMiniApp(state, 'dangbei')
       state.llm.providers = moveProvider(state.llm.providers, 'qiniu', 12)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '93': (state: RootState) => {
+    try {
+      if (!state?.settings?.exportMenuOptions) {
+        state.settings.exportMenuOptions = settingsInitialState.exportMenuOptions
+        return state
+      }
       return state
     } catch (error) {
       return state

@@ -42,7 +42,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 92,
+    version: 93,
     blacklist: ['runtime', 'messages'],
     migrate
   },
@@ -61,6 +61,8 @@ const store = configureStore({
   },
   devTools: true
 })
+
+console.log('Initial state:', store.getState())
 
 export type RootState = ReturnType<typeof rootReducer>
 export type AppDispatch = typeof store.dispatch
