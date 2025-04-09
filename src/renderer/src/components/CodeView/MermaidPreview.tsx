@@ -1,4 +1,5 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { ThemeMode } from '@renderer/types'
 import React, { memo, useEffect, useRef } from 'react'
 import styled from 'styled-components'
@@ -11,16 +12,20 @@ interface Props {
 
 const MermaidPreview: React.FC<Props> = ({ children }) => {
   const { theme } = useTheme()
+  const { generating } = useRuntime()
   const mermaidRef = useRef<HTMLDivElement>(null)
 
   // 使用通用图像工具
   const { handleZoom, handleCopyImage, handleDownload } = usePreviewToolHandlers(mermaidRef, {
     imgSelector: 'svg',
-    prefix: 'mermaid-diagram'
+    prefix: 'mermaid-diagram',
+    enableWheelZoom: true
   })
 
   useEffect(() => {
-    if (mermaidRef.current && window.mermaid) {
+    if (generating || !window.mermaid) return
+
+    if (mermaidRef.current) {
       mermaidRef.current.innerHTML = children
       mermaidRef.current.removeAttribute('data-processed')
       if (window.mermaid.initialize) {
@@ -31,7 +36,7 @@ const MermaidPreview: React.FC<Props> = ({ children }) => {
       }
       window.mermaid.contentLoaded()
     }
-  }, [children, theme])
+  }, [children, generating, theme])
 
   // 使用工具栏
   usePreviewTools({

@@ -15,11 +15,12 @@ export const usePreviewToolHandlers = (
   options: {
     prefix: string
     imgSelector: string
+    enableWheelZoom?: boolean
     customDownloader?: (format: 'svg' | 'png') => void
   }
 ) => {
   const [scale, setScale] = useState(1)
-  const { imgSelector, prefix, customDownloader } = options
+  const { imgSelector, prefix, customDownloader, enableWheelZoom } = options
   const { t } = useTranslation()
 
   // 创建选择器函数
@@ -42,6 +43,27 @@ export const usePreviewToolHandlers = (
     },
     [scale, getImgElement]
   )
+
+  // 添加滚轮缩放支持
+  useEffect(() => {
+    if (!enableWheelZoom || !containerRef.current) return
+
+    const container = containerRef.current
+
+    const handleWheel = (e: WheelEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.target) {
+        // 确认事件发生在容器内部
+        if (container.contains(e.target as Node)) {
+          e.preventDefault()
+          const delta = e.deltaY < 0 ? 0.1 : -0.1
+          handleZoom(delta)
+        }
+      }
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: true })
+    return () => container.removeEventListener('wheel', handleWheel)
+  }, [containerRef, handleZoom, enableWheelZoom])
 
   // 复制图像处理函数
   const handleCopyImage = useCallback(async () => {

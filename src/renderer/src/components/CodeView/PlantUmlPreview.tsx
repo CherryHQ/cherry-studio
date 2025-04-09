@@ -169,6 +169,7 @@ const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children }) => {
   const { handleZoom, handleCopyImage } = usePreviewToolHandlers(containerRef, {
     imgSelector: '.plantuml-image-container img',
     prefix: 'plantuml-diagram',
+    enableWheelZoom: true,
     customDownloader: customDownload
   })
 
