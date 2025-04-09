@@ -254,6 +254,7 @@
       "copy.source": "复制源代码",
       "copy.success": "复制成功",
       "copy": "复制",
+      "download.failed.network": "下载失败，请检查网络",
       "download.png": "下载 PNG",
       "download.source": "下载源代码",
       "download.svg": "下载 SVG",
@@ -679,18 +680,6 @@
       "seed": "随机种子",
       "seed_tip": "相同的种子和提示词可以生成相似的图片",
       "title": "图片"
-    },
-    "plantuml": {
-      "download": {
-        "failed": "下载失败，请检查网络",
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "tabs": {
-        "preview": "预览",
-        "source": "源码"
-      },
-      "title": "PlantUML 图表"
     },
     "prompts": {
       "explanation": "帮我解释一下这个概念",

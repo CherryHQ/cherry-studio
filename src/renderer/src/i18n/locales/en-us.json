@@ -254,6 +254,7 @@
       "copy.source": "Copy Source Code",
       "copy.success": "Copied",
       "copy": "Copy",
+      "download.failed.network": "Download failed, please check the network",
       "download.png": "Download PNG",
       "download.source": "Download Source Code",
       "download.svg": "Download SVG",
@@ -679,18 +680,6 @@
       "seed": "Seed",
       "seed_tip": "The same seed and prompt can produce similar images",
       "title": "Images"
-    },
-    "plantuml": {
-      "download": {
-        "failed": "Download failed, please check the network",
-        "png": "Download PNG",
-        "svg": "Download SVG"
-      },
-      "tabs": {
-        "preview": "Preview",
-        "source": "Source"
-      },
-      "title": "PlantUML Diagram"
     },
     "prompts": {
       "explanation": "Explain this concept to me",

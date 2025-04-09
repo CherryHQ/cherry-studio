@@ -159,7 +159,7 @@ const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children }) => {
       const url = `${PlantUMLServer}/${format}/${encodedDiagram}`
       const filename = `plantuml-diagram-${timestamp}.${format}`
       downloadUrl(url, filename).catch(() => {
-        window.message.error(t('plantuml.download.failed'))
+        window.message.error(t('code_block.download.failed.network'))
       })
     },
     [encodedDiagram, t]

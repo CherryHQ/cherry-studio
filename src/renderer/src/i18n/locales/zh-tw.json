@@ -254,6 +254,7 @@
       "copy.source": "複製源碼",
       "copy.success": "已複製",
       "copy": "複製",
+      "download.failed.network": "下載失敗，請檢查網路連線",
       "download.png": "下載 PNG",
       "download.source": "下載源碼",
       "download.svg": "下載 SVG",
@@ -679,18 +680,6 @@
       "seed": "隨機種子",
       "seed_tip": "相同的種子和提示詞可以生成相似的圖片",
       "title": "繪圖"
-    },
-    "plantuml": {
-      "download": {
-        "failed": "下載失敗，請檢查網路",
-        "png": "下載 PNG",
-        "svg": "下載 SVG"
-      },
-      "tabs": {
-        "preview": "預覽",
-        "source": "原始碼"
-      },
-      "title": "PlantUML 圖表"
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",

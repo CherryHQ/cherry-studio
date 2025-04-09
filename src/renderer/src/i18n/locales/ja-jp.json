@@ -254,6 +254,7 @@
       "copy.source": "コピー源コード",
       "copy.success": "コピーしました",
       "copy": "コピー",
+      "download.failed.network": "ダウンロードに失敗しました。ネットワークを確認してください",
       "download.png": "PNGとしてダウンロード",
       "download.source": "ダウンロード源コード",
       "download.svg": "SVGとしてダウンロード",
@@ -679,18 +680,6 @@
       "seed": "シード",
       "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
       "title": "画像"
-    },
-    "plantuml": {
-      "download": {
-        "failed": "ダウンロードに失敗しました。ネットワークを確認してください",
-        "png": "PNG をダウンロード",
-        "svg": "SVG をダウンロード"
-      },
-      "tabs": {
-        "preview": "プレビュー",
-        "source": "ソースコード"
-      },
-      "title": "PlantUML 図表"
     },
     "prompts": {
       "explanation": "この概念を説明してください",
