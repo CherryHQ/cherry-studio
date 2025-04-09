@@ -1,4 +1,17 @@
-import { FileOutlined } from '@ant-design/icons'
+import {
+  FileExcelFilled,
+  FileImageFilled,
+  FileMarkdownFilled,
+  FilePdfFilled,
+  FilePptFilled,
+  FileTextFilled,
+  FileUnknownFilled,
+  FileWordFilled,
+  FileZipFilled,
+  FolderOpenFilled,
+  GlobalOutlined,
+  LinkOutlined
+} from '@ant-design/icons'
 import FileManager from '@renderer/services/FileManager'
 import { FileType } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
@@ -20,6 +33,7 @@ const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
 
   return (
     <Tooltip
+      color="#46c5ca"
       fresh
       title={
         <Flex vertical gap={2} align="center">
@@ -55,6 +69,54 @@ const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
 }
 
 const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
+  const getFileIcon = (type?: string) => {
+    if (!type) return <FileUnknownFilled />
+
+    const ext = type.toLowerCase()
+
+    if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
+      return <FileImageFilled />
+    }
+
+    if (['.doc', '.docx'].includes(ext)) {
+      return <FileWordFilled />
+    }
+    if (['.xls', '.xlsx'].includes(ext)) {
+      return <FileExcelFilled />
+    }
+    if (['.ppt', '.pptx'].includes(ext)) {
+      return <FilePptFilled />
+    }
+    if (ext === '.pdf') {
+      return <FilePdfFilled />
+    }
+    if (['.md', '.markdown'].includes(ext)) {
+      return <FileMarkdownFilled />
+    }
+
+    if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) {
+      return <FileZipFilled />
+    }
+
+    if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv'].includes(ext)) {
+      return <FileTextFilled />
+    }
+
+    if (['.url'].includes(ext)) {
+      return <LinkOutlined />
+    }
+
+    if (['.sitemap'].includes(ext)) {
+      return <GlobalOutlined />
+    }
+
+    if (['.folder'].includes(ext)) {
+      return <FolderOpenFilled />
+    }
+
+    return <FileUnknownFilled />
+  }
+
   if (isEmpty(files)) {
     return null
   }
@@ -72,9 +134,9 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
         {files.map((file) => (
           <Tag
             key={file.id}
-            icon={<FileOutlined />}
+            icon={getFileIcon(file.ext)}
             bordered={false}
-            color="cyan"
+            color="#46c5ca"
             closable
             onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
             <FileNameRender file={file} />
