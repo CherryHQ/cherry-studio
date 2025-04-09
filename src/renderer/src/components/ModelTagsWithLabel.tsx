@@ -23,6 +23,7 @@ interface ModelTagsProps {
   showToolsCalling?: boolean
   size?: number
   showLabel?: boolean
+  style?: React.CSSProperties
 }
 
 const ModelTagsWithLabel: FC<ModelTagsProps> = ({
@@ -31,7 +32,8 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   showReasoning = true,
   showToolsCalling = true,
   size = 12,
-  showLabel = true
+  showLabel = true,
+  style
 }) => {
   const { t } = useTranslation()
   const [_showLabel, _setShowLabel] = useState(showLabel)
@@ -64,7 +66,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   }, [showLabel])
 
   return (
-    <Container ref={containerRef}>
+    <Container ref={containerRef} style={style}>
       {isVisionModel(model) && (
         <CustomTag
           size={size}

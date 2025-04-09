@@ -12,10 +12,11 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
+import CustomTag from '@renderer/components/CustomTag'
 import FileManager from '@renderer/services/FileManager'
 import { FileType } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { ConfigProvider, Flex, Image, Tag, Tooltip } from 'antd'
+import { Flex, Image, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useState } from 'react'
 import styled from 'styled-components'
@@ -33,7 +34,11 @@ const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
 
   return (
     <Tooltip
-      color="#46c5ca"
+      styles={{
+        body: {
+          padding: 5
+        }
+      }}
       fresh
       title={
         <Flex vertical gap={2} align="center">
@@ -123,36 +128,26 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
 
   return (
     <ContentContainer>
-      <ConfigProvider
-        theme={{
-          components: {
-            Tag: {
-              borderRadiusSM: 100
-            }
-          }
-        }}>
-        {files.map((file) => (
-          <Tag
-            key={file.id}
-            icon={getFileIcon(file.ext)}
-            bordered={false}
-            color="#46c5ca"
-            closable
-            onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
-            <FileNameRender file={file} />
-          </Tag>
-        ))}
-      </ConfigProvider>
+      {files.map((file) => (
+        <CustomTag
+          key={file.id}
+          icon={getFileIcon(file.ext)}
+          color="#37a5aa"
+          closable
+          onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
+          <FileNameRender file={file} />
+        </CustomTag>
+      ))}
     </ContentContainer>
   )
 }
 
 const ContentContainer = styled.div`
   width: 100%;
+  padding: 5px 15px 5px 15px;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 0;
-  padding: 5px 15px 0 10px;
+  gap: 4px 4px;
 `
 
 const FileName = styled.span`
