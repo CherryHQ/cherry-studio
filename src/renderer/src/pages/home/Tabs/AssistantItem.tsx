@@ -1,7 +1,15 @@
-import { DeleteOutlined, EditOutlined, MinusCircleOutlined, SaveOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  EditOutlined,
+  MinusCircleOutlined,
+  SaveOutlined,
+  SortAscendingOutlined,
+  SortDescendingOutlined
+} from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
@@ -16,6 +24,7 @@ import { omit } from 'lodash'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import * as tinyPinyin from 'tiny-pinyin'
 
 interface AssistantItemProps {
   assistant: Assistant
@@ -32,6 +41,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
   const { clickAssistantToShowTopic, topicPosition, showAssistantIcon } = useSettings()
   const defaultModel = getDefaultModel()
+  const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
   useEffect(() => {
@@ -43,6 +53,24 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
       setIsPending(true)
     }
   }, [isActive, assistant.topics])
+
+  const sortByPinyinAsc = useCallback(() => {
+    const sorted = [...assistants].sort((a, b) => {
+      const pinyinA = tinyPinyin.convertToPinyin(a.name, '', true)
+      const pinyinB = tinyPinyin.convertToPinyin(b.name, '', true)
+      return pinyinA.localeCompare(pinyinB)
+    })
+    updateAssistants(sorted)
+  }, [assistants, updateAssistants])
+
+  const sortByPinyinDesc = useCallback(() => {
+    const sorted = [...assistants].sort((a, b) => {
+      const pinyinA = tinyPinyin.convertToPinyin(a.name, '', true)
+      const pinyinB = tinyPinyin.convertToPinyin(b.name, '', true)
+      return pinyinB.localeCompare(pinyinA)
+    })
+    updateAssistants(sorted)
+  }, [assistants, updateAssistants])
 
   const getMenuItems = useCallback(
     (assistant: Assistant): ItemType[] => [
@@ -93,6 +121,19 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
       },
       { type: 'divider' },
       {
+        label: t('common.sort.pinyin.asc'),
+        key: 'sort-asc',
+        icon: <SortAscendingOutlined />,
+        onClick: () => sortByPinyinAsc()
+      },
+      {
+        label: t('common.sort.pinyin.desc'),
+        key: 'sort-desc',
+        icon: <SortDescendingOutlined />,
+        onClick: () => sortByPinyinDesc()
+      },
+      { type: 'divider' },
+      {
         label: t('common.delete'),
         key: 'delete',
         icon: <DeleteOutlined />,
@@ -108,7 +149,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
         }
       }
     ],
-    [addAgent, addAssistant, onSwitch, removeAllTopics, t, onDelete]
+    [addAgent, addAssistant, onSwitch, removeAllTopics, t, onDelete, sortByPinyinAsc, sortByPinyinDesc]
   )
 
   const handleSwitch = useCallback(async () => {

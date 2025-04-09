@@ -31,21 +31,14 @@ import {
 } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
-import {
-  callMCPTool,
-  mcpToolsToOpenAITools,
-  openAIToolsToMcpTool,
-  upsertMCPToolResponse
-} from '@renderer/utils/mcp-tools'
+import { parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
-  ChatCompletionAssistantMessageParam,
   ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
-  ChatCompletionMessageParam,
-  ChatCompletionMessageToolCall,
-  ChatCompletionToolMessageParam
+  ChatCompletionMessageParam
 } from 'openai/resources'
 
 import { CompletionsParams } from '.'
@@ -297,55 +290,6 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   /**
-   * Check if the model is a Glm-4-alltools
-   * @param model - The model
-   * @returns True if the model is a Glm-4-alltools, false otherwise
-   */
-  private isZhipuTool(model: Model) {
-    return model.id.includes('glm-4-alltools')
-  }
-
-  /**
-   * Clean the tool call arguments
-   * @param toolCall - The tool call
-   * @returns The cleaned tool call
-   */
-  private cleanToolCallArgs(toolCall: ChatCompletionMessageToolCall): ChatCompletionMessageToolCall {
-    if (toolCall.function.arguments) {
-      let args = toolCall.function.arguments
-      const codeBlockRegex = /```(?:\w*\n)?([\s\S]*?)```/
-      const match = args.match(codeBlockRegex)
-      if (match) {
-        // Extract content from code block
-        let extractedArgs = match[1].trim()
-        // Clean function call format like tool_call(name1=value1,name2=value2)
-        const functionCallRegex = /^\s*\w+\s*\(([\s\S]*?)\)\s*$/
-        const functionMatch = extractedArgs.match(functionCallRegex)
-        if (functionMatch) {
-          // Try to convert parameters to JSON format
-          const params = functionMatch[1].split(',').filter(Boolean)
-          const paramsObj = {}
-          params.forEach((param) => {
-            const [name, value] = param.split('=').map((p) => p.trim())
-            if (name && value !== undefined) {
-              paramsObj[name] = value
-            }
-          })
-          extractedArgs = JSON.stringify(paramsObj)
-        }
-        toolCall.function.arguments = extractedArgs
-      }
-      args = toolCall.function.arguments
-      const firstBraceIndex = args.indexOf('{')
-      const lastBraceIndex = args.lastIndexOf('}')
-      if (firstBraceIndex !== -1 && lastBraceIndex !== -1 && firstBraceIndex < lastBraceIndex) {
-        toolCall.function.arguments = args.substring(firstBraceIndex, lastBraceIndex + 1)
-      }
-    }
-    return toolCall
-  }
-
-  /**
    * Generate completions for the assistant
    * @param messages - The messages
    * @param assistant - The assistant
@@ -359,13 +303,15 @@ export default class OpenAIProvider extends BaseProvider {
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     messages = addImageFileToContents(messages)
-    let systemMessage = assistant.prompt ? { role: 'system', content: assistant.prompt } : undefined
-
+    let systemMessage = { role: 'system', content: assistant.prompt || '' }
     if (isOpenAIoSeries(model)) {
       systemMessage = {
         role: 'developer',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
       }
+    }
+    if (mcpTools && mcpTools.length > 0) {
+      systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
     }
 
     const userMessages: ChatCompletionMessageParam[] = []
@@ -429,14 +375,51 @@ export default class OpenAIProvider extends BaseProvider {
     const { signal } = abortController
     await this.checkIsCopilot()
 
-    const tools = mcpTools && mcpTools.length > 0 ? mcpToolsToOpenAITools(mcpTools) : undefined
-
     const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
       Boolean
     ) as ChatCompletionMessageParam[]
 
     const toolResponses: MCPToolResponse[] = []
     let firstChunk = true
+
+    const processToolUses = async (content: string, idx: number) => {
+      const toolResults = await parseAndCallTools(content, toolResponses, onChunk, idx, mcpTools)
+
+      if (toolResults.length > 0) {
+        reqMessages.push({
+          role: 'assistant',
+          content: content
+        } as ChatCompletionMessageParam)
+        reqMessages.push({
+          role: 'user',
+          content: toolResults.join('\n')
+        } as ChatCompletionMessageParam)
+
+        const newStream = await this.sdk.chat.completions
+          // @ts-ignore key is not typed
+          .create(
+            {
+              model: model.id,
+              messages: reqMessages,
+              temperature: this.getTemperature(assistant, model),
+              top_p: this.getTopP(assistant, model),
+              max_tokens: maxTokens,
+              keep_alive: this.keepAliveTime,
+              stream: isSupportStreamOutput(),
+              // tools: tools,
+              ...getOpenAIWebSearchParams(assistant, model),
+              ...this.getReasoningEffort(assistant, model),
+              ...this.getProviderSpecificParameters(assistant, model),
+              ...this.getCustomParameters(assistant)
+            },
+            {
+              signal
+            }
+          )
+        await processStream(newStream, idx + 1)
+      }
+    }
+
     const processStream = async (stream: any, idx: number) => {
       if (!isSupportStreamOutput()) {
         const time_completion_millsec = new Date().getTime() - start_time_millsec
@@ -450,14 +433,17 @@ export default class OpenAIProvider extends BaseProvider {
           }
         })
       }
-      const final_tool_calls = {} as Record<number, ChatCompletionMessageToolCall>
 
+      let content = ''
       for await (const chunk of stream) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
           break
         }
 
         const delta = chunk.choices[0]?.delta
+        if (delta?.content) {
+          content += delta.content
+        }
 
         if (delta?.reasoning_content || delta?.reasoning) {
           hasReasoningContent = true
@@ -479,29 +465,6 @@ export default class OpenAIProvider extends BaseProvider {
 
         const finishReason = chunk.choices[0]?.finish_reason
 
-        if (delta?.tool_calls?.length) {
-          const chunkToolCalls = delta.tool_calls
-          for (const t of chunkToolCalls) {
-            const { index, id, function: fn, type } = t
-            const args = fn && typeof fn.arguments === 'string' ? fn.arguments : ''
-            if (!(index in final_tool_calls)) {
-              final_tool_calls[index] = {
-                id,
-                function: {
-                  name: fn?.name,
-                  arguments: args
-                },
-                type
-              } as ChatCompletionMessageToolCall
-            } else {
-              final_tool_calls[index].function.arguments += args
-            }
-          }
-          if (finishReason !== 'tool_calls') {
-            continue
-          }
-        }
-
         let webSearch: any[] | undefined = undefined
         if (assistant.enableWebSearch && isZhipuModel(model) && finishReason === 'stop') {
           webSearch = chunk?.web_search
@@ -510,102 +473,6 @@ export default class OpenAIProvider extends BaseProvider {
           webSearch = chunk?.search_info?.search_results
           firstChunk = true
         }
-
-        if (finishReason === 'tool_calls' || (finishReason === 'stop' && Object.keys(final_tool_calls).length > 0)) {
-          const toolCalls = Object.values(final_tool_calls).map(this.cleanToolCallArgs)
-          console.log('start invoke tools', toolCalls)
-          if (this.isZhipuTool(model)) {
-            reqMessages.push({
-              role: 'assistant',
-              content: `argments=${JSON.stringify(toolCalls[0].function.arguments)}`
-            })
-          } else {
-            reqMessages.push({
-              role: 'assistant',
-              tool_calls: toolCalls
-            } as ChatCompletionAssistantMessageParam)
-          }
-
-          for (const toolCall of toolCalls) {
-            const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall)
-
-            if (!mcpTool) {
-              continue
-            }
-
-            upsertMCPToolResponse(toolResponses, { tool: mcpTool, status: 'invoking', id: toolCall.id }, onChunk)
-
-            const toolCallResponse = await callMCPTool(mcpTool)
-            const toolResponsContent: { type: string; text?: string; image_url?: { url: string } }[] = []
-            for (const content of toolCallResponse.content) {
-              if (content.type === 'text') {
-                toolResponsContent.push({
-                  type: 'text',
-                  text: content.text
-                })
-              } else if (content.type === 'image') {
-                toolResponsContent.push({
-                  type: 'image_url',
-                  image_url: { url: `data:${content.mimeType};base64,${content.data}` }
-                })
-              } else {
-                console.warn('Unsupported content type:', content.type)
-                toolResponsContent.push({
-                  type: 'text',
-                  text: 'unsupported content type: ' + content.type
-                })
-              }
-            }
-
-            const provider = lastUserMessage?.model?.provider
-            const modelName = lastUserMessage?.model?.name
-
-            if (
-              modelName?.toLocaleLowerCase().includes('gpt') ||
-              (provider === 'dashscope' && modelName?.toLocaleLowerCase().includes('qwen'))
-            ) {
-              reqMessages.push({
-                role: 'tool',
-                content: toolResponsContent,
-                tool_call_id: toolCall.id
-              } as ChatCompletionToolMessageParam)
-            } else {
-              reqMessages.push({
-                role: 'tool',
-                content: JSON.stringify(toolResponsContent),
-                tool_call_id: toolCall.id
-              } as ChatCompletionToolMessageParam)
-            }
-            upsertMCPToolResponse(
-              toolResponses,
-              { tool: mcpTool, status: 'done', response: toolCallResponse, id: toolCall.id },
-              onChunk
-            )
-          }
-          const newStream = await this.sdk.chat.completions
-            // @ts-ignore key is not typed
-            .create(
-              {
-                model: model.id,
-                messages: reqMessages,
-                temperature: this.getTemperature(assistant, model),
-                top_p: this.getTopP(assistant, model),
-                max_tokens: maxTokens,
-                keep_alive: this.keepAliveTime,
-                stream: isSupportStreamOutput(),
-                tools: tools,
-                ...getOpenAIWebSearchParams(assistant, model),
-                ...this.getReasoningEffort(assistant, model),
-                ...this.getProviderSpecificParameters(assistant, model),
-                ...this.getCustomParameters(assistant)
-              },
-              {
-                signal
-              }
-            )
-          await processStream(newStream, idx + 1)
-        }
-
         onChunk({
           text: delta?.content || '',
           reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
@@ -622,7 +489,10 @@ export default class OpenAIProvider extends BaseProvider {
           mcpToolResponse: toolResponses
         })
       }
+
+      await processToolUses(content, idx)
     }
+
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
@@ -634,7 +504,7 @@ export default class OpenAIProvider extends BaseProvider {
           max_tokens: maxTokens,
           keep_alive: this.keepAliveTime,
           stream: isSupportStreamOutput(),
-          tools: tools,
+          // tools: tools,
           ...getOpenAIWebSearchParams(assistant, model),
           ...this.getReasoningEffort(assistant, model),
           ...this.getProviderSpecificParameters(assistant, model),

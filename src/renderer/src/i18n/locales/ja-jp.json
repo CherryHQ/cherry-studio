@@ -313,7 +313,12 @@
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
-      "reasoning_content": "深く考察済み"
+      "reasoning_content": "深く考察済み",
+      "sort": {
+        "pinyin": "ピンインでソート",
+        "pinyin.asc": "ピンインで昇順ソート",
+        "pinyin.desc": "ピンインで降順ソート"
+      }
     },
     "docs": {
       "title": "ドキュメント"
@@ -1026,8 +1031,9 @@
         "argsTooltip": "1行に1つの引数を入力してください",
         "baseUrlTooltip": "リモートURLアドレス",
         "command": "コマンド",
-        "sse": "サーバー送信イベント(sse)",
-        "stdio": "標準入力/出力(stdio)",
+        "sse": "サーバー送信イベント (sse)",
+        "streamableHttp": "ストリーミング可能なHTTP (streamable)",
+        "stdio": "標準入力/出力 (stdio)",
         "inMemory": "メモリ",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
         "deleteError": "サーバーの削除に失敗しました",
@@ -1105,6 +1111,7 @@
       "messages.input.send_shortcuts": "送信ショートカット",
       "messages.input.show_estimated_tokens": "推定トークン数を表示",
       "messages.input.title": "入力設定",
+      "messages.input.enable_quick_triggers": "'/' と '@' を有効にしてクイックメニューを表示します。",
       "messages.markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "messages.math_engine": "数式エンジン",
       "messages.metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",

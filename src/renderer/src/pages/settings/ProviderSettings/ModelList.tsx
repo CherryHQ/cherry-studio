@@ -10,12 +10,12 @@ import {
   SettingOutlined
 } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
+import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
-import FileItem from '@renderer/pages/files/FileItem'
 import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
@@ -270,52 +270,48 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                 const isChecking = modelStatus?.checking === true
 
                 return (
-                  <FileItem
-                    key={model.id}
-                    fileInfo={{
-                      icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
-                      name: (
-                        <ListItemName>
-                          <Tooltip
-                            styles={{
-                              root: {
-                                width: 'auto',
-                                maxWidth: '500px'
-                              }
-                            }}
-                            destroyTooltipOnHide
-                            title={
-                              <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
-                                {model.id}
-                              </Typography.Text>
+                  <ListItem key={model.id}>
+                    <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
+                      <Avatar src={getModelLogo(model.id)} style={{ width: 30, height: 30 }}>
+                        {model?.name?.[0]?.toUpperCase()}
+                      </Avatar>
+                      <ListItemName>
+                        <Tooltip
+                          styles={{
+                            root: {
+                              width: 'auto',
+                              maxWidth: '500px'
                             }
-                            placement="top">
-                            <span>{model.name}</span>
-                          </Tooltip>
-                          <ModelTagsWithLabel model={model} size={11} />
-                        </ListItemName>
-                      ),
-                      ext: '.model',
-                      actions: (
-                        <Flex gap={4} align="center">
-                          {renderLatencyText(modelStatus)}
-                          {renderStatusIndicator(modelStatus)}
-                          <Button
-                            type="text"
-                            onClick={() => !isChecking && onEditModel(model)}
-                            disabled={isChecking}
-                            icon={<SettingOutlined />}
-                          />
-                          <Button
-                            type="text"
-                            onClick={() => !isChecking && removeModel(model)}
-                            disabled={isChecking}
-                            icon={<MinusOutlined />}
-                          />
-                        </Flex>
-                      )
-                    }}
-                  />
+                          }}
+                          destroyTooltipOnHide
+                          title={
+                            <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
+                              {model.id}
+                            </Typography.Text>
+                          }
+                          placement="top">
+                          <span>{model.name}</span>
+                        </Tooltip>
+                        <ModelTagsWithLabel model={model} size={11} />
+                      </ListItemName>
+                    </HStack>
+                    <Flex gap={4} align="center">
+                      {renderLatencyText(modelStatus)}
+                      {renderStatusIndicator(modelStatus)}
+                      <Button
+                        type="text"
+                        onClick={() => !isChecking && onEditModel(model)}
+                        disabled={isChecking}
+                        icon={<SettingOutlined />}
+                      />
+                      <Button
+                        type="text"
+                        onClick={() => !isChecking && removeModel(model)}
+                        disabled={isChecking}
+                        icon={<MinusOutlined />}
+                      />
+                    </Flex>
+                  </ListItem>
                 )
               })}
             </Flex>
@@ -356,6 +352,16 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
     </>
   )
 }
+
+const ListItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1;
+`
 
 const ListItemName = styled.div`
   display: flex;

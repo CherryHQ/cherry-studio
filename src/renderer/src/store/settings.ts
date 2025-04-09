@@ -110,6 +110,7 @@ export interface SettingsState {
   showOpenedMinappsInSidebar: boolean
   // 隐私设置
   enableDataCollection: boolean
+  enableQuickPanelTriggers: boolean
   exportMenuOptions: {
     image: boolean
     markdown: boolean
@@ -125,7 +126,7 @@ export interface SettingsState {
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
-const initialState: SettingsState = {
+export const initialState: SettingsState = {
   showAssistants: true,
   showTopics: true,
   sendMessageShortcut: 'Enter',
@@ -208,6 +209,7 @@ const initialState: SettingsState = {
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
   enableDataCollection: false,
+  enableQuickPanelTriggers: false,
   exportMenuOptions: {
     image: true,
     markdown: true,
@@ -476,6 +478,9 @@ const settingsSlice = createSlice({
     },
     setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
       state.exportMenuOptions = action.payload
+    },
+    setEnableQuickPanelTriggers: (state, action: PayloadAction<boolean>) => {
+      state.enableQuickPanelTriggers = action.payload
     }
   }
 })
@@ -562,6 +567,7 @@ export const {
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,
   setEnableDataCollection,
+  setEnableQuickPanelTriggers,
   setExportMenuOptions
 } = settingsSlice.actions
 

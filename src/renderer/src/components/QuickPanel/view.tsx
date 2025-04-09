@@ -2,9 +2,12 @@ import { CheckOutlined, RightOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
+import { theme } from 'antd'
+import Color from 'color'
 import { t } from 'i18next'
 import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
+import * as tinyPinyin from 'tiny-pinyin'
 
 import { QuickPanelContext } from './provider'
 import { QuickPanelCallBackOptions, QuickPanelCloseAction, QuickPanelListItem, QuickPanelOpenOptions } from './types'
@@ -27,13 +30,19 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     throw new Error('QuickPanel must be used within a QuickPanelProvider')
   }
 
+  const { token } = theme.useToken()
+  const colorPrimary = Color(token.colorPrimary || '#008000')
+  const selectedColor = colorPrimary.alpha(0.15).toString()
+  const selectedColorHover = colorPrimary.alpha(0.2).toString()
+
   const ASSISTIVE_KEY = isMac ? '⌘' : 'Ctrl'
   const [isAssistiveKeyPressed, setIsAssistiveKeyPressed] = useState(false)
 
   // 避免上下翻页时，鼠标干扰
   const [isMouseOver, setIsMouseOver] = useState(false)
 
-  const [index, setIndex] = useState(ctx.defaultIndex)
+  const [_index, setIndex] = useState(ctx.defaultIndex)
+  const index = useDeferredValue(_index)
   const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -65,7 +74,21 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         filterText += item.description
       }
 
-      return filterText.toLowerCase().includes(_searchText.toLowerCase())
+      const lowerFilterText = filterText.toLowerCase()
+      const lowerSearchText = _searchText.toLowerCase()
+
+      if (lowerFilterText.includes(lowerSearchText)) {
+        return true
+      }
+
+      if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
+        const pinyinText = tinyPinyin.convertToPinyin(filterText, '', true)
+        if (pinyinText.toLowerCase().includes(lowerSearchText)) {
+          return true
+        }
+      }
+
+      return false
     })
 
     setIndex(newList.length > 0 ? ctx.defaultIndex || 0 : -1)
@@ -120,7 +143,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         if (textArea) {
           setInputText(textArea.value)
         }
-      } else if (action && !['outsideclick', 'esc'].includes(action)) {
+      } else if (action && !['outsideclick', 'esc', 'enter_empty'].includes(action)) {
         clearSearchText(true)
       }
     },
@@ -175,6 +198,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   }, [searchText])
 
   // 获取当前输入的搜索词
+  const isComposing = useRef(false)
   useEffect(() => {
     if (!ctx.isVisible) return
 
@@ -196,11 +220,25 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       }
     }
 
+    const handleCompositionUpdate = () => {
+      isComposing.current = true
+    }
+
+    const handleCompositionEnd = () => {
+      isComposing.current = false
+    }
+
     textArea.addEventListener('input', handleInput)
+    textArea.addEventListener('compositionupdate', handleCompositionUpdate)
+    textArea.addEventListener('compositionend', handleCompositionEnd)
 
     return () => {
       textArea.removeEventListener('input', handleInput)
-      setSearchText('')
+      textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
+      textArea.removeEventListener('compositionend', handleCompositionEnd)
+      setTimeout(() => {
+        setSearchText('')
+      }, 200) // 等待面板关闭动画结束后，再清空搜索词
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.isVisible])
@@ -236,7 +274,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         }
       }
 
-      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'Escape'].includes(e.key)) {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Escape'].includes(e.key)) {
         e.preventDefault()
         e.stopPropagation()
         setIsMouseOver(false)
@@ -312,8 +350,16 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           break
 
         case 'Enter':
+          if (isComposing.current) return
+
           if (list?.[index]) {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsMouseOver(false)
+
             handleItemAction(list[index], 'enter')
+          } else {
+            handleClose('enter_empty')
           }
           break
         case 'Escape':
@@ -366,7 +412,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   }, [ctx.isVisible])
 
   return (
-    <QuickPanelContainer $pageSize={ctx.pageSize} className={ctx.isVisible ? 'visible' : ''}>
+    <QuickPanelContainer
+      $pageSize={ctx.pageSize}
+      $selectedColor={selectedColor}
+      $selectedColorHover={selectedColorHover}
+      className={ctx.isVisible ? 'visible' : ''}>
       <QuickPanelBody ref={bodyRef} onMouseMove={() => setIsMouseOver(true)}>
         <QuickPanelContent ref={contentRef} $pageSize={ctx.pageSize} $isMouseOver={isMouseOver}>
           {list.map((item, i) => (
@@ -450,9 +500,14 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   )
 }
 
-const QuickPanelContainer = styled.div<{ $pageSize: number }>`
+const QuickPanelContainer = styled.div<{
+  $pageSize: number
+  $selectedColor: string
+  $selectedColorHover: string
+}>`
   --focused-color: rgba(0, 0, 0, 0.06);
-  --selected-color: rgba(0, 0, 0, 0.03);
+  --selected-color: ${(props) => props.$selectedColor};
+  --selected-color-dark: ${(props) => props.$selectedColorHover};
   max-height: 0;
   position: absolute;
   top: 1px;
@@ -465,26 +520,35 @@ const QuickPanelContainer = styled.div<{ $pageSize: number }>`
   transition: max-height 0.2s ease;
   overflow: hidden;
   pointer-events: none;
+
   &.visible {
     pointer-events: auto;
     max-height: ${(props) => props.$pageSize * 31 + 100}px;
   }
   body[theme-mode='dark'] & {
     --focused-color: rgba(255, 255, 255, 0.1);
-    --selected-color: rgba(255, 255, 255, 0.03);
   }
 `
 
 const QuickPanelBody = styled.div`
-  background-color: rgba(240, 240, 240, 0.5);
-  backdrop-filter: blur(35px) saturate(150%);
   border-radius: 8px 8px 0 0;
   padding: 5px 0;
   border-width: 0.5px 0.5px 0 0.5px;
   border-style: solid;
   border-color: var(--color-border);
-  body[theme-mode='dark'] & {
-    background-color: rgba(40, 40, 40, 0.4);
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: rgba(240, 240, 240, 0.5);
+    backdrop-filter: blur(35px) saturate(150%);
+    z-index: -1;
+
+    body[theme-mode='dark'] & {
+      background-color: rgba(40, 40, 40, 0.4);
+    }
   }
 `
 
@@ -541,6 +605,9 @@ const QuickPanelItem = styled.div`
   margin-bottom: 1px;
   &.selected {
     background-color: var(--selected-color);
+    &.focused {
+      background-color: var(--selected-color-dark);
+    }
   }
   &.focused {
     background-color: var(--focused-color);

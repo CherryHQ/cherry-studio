@@ -313,7 +313,12 @@
       "topics": "話題",
       "warning": "警告",
       "you": "您",
-      "reasoning_content": "已深度思考"
+      "reasoning_content": "已深度思考",
+      "sort": {
+        "pinyin": "按拼音排序",
+        "pinyin.asc": "按拼音升序",
+        "pinyin.desc": "按拼音降序"
+      }
     },
     "docs": {
       "title": "說明文件"
@@ -1026,8 +1031,9 @@
         "argsTooltip": "每個參數佔一行",
         "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
-        "sse": "伺服器傳送事件(sse)",
-        "stdio": "標準輸入/輸出(stdio)",
+        "sse": "伺服器傳送事件 (sse)",
+        "streamableHttp": "可串流的HTTP (streamableHttp)",
+        "stdio": "標準輸入/輸出 (stdio)",
         "inMemory": "記憶體",
         "config_description": "設定模型上下文協議伺服器",
         "deleteError": "刪除伺服器失敗",
@@ -1105,6 +1111,7 @@
       "messages.input.send_shortcuts": "傳送快捷鍵",
       "messages.input.show_estimated_tokens": "顯示預估 Token 數",
       "messages.input.title": "輸入設定",
+      "messages.input.enable_quick_triggers": "啟用 '/' 和 '@' 觸發快捷選單",
       "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息",
       "messages.math_engine": "Markdown 渲染輸入訊息",
       "messages.metrics": "首字延遲 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",

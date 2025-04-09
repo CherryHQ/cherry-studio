@@ -51,7 +51,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
       .reverse()
       .map((item) => ({
         label: `${item.provider.isSystem ? t(`provider.${item.provider.id}`) : item.provider.name} | ${item.model.name}`,
-        description: <ModelTagsWithLabel model={item.model} showLabel={false} size={10} />,
+        description: <ModelTagsWithLabel model={item.model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
         icon: (
           <Avatar src={getModelLogo(item.model.id)} size={20}>
             {first(item.model.name)}

@@ -41,7 +41,7 @@ const initialState: WebSearchState = {
   maxResults: 5,
   excludeDomains: [],
   enhanceMode: false,
-  overwrite: true
+  overwrite: false
 }
 
 const websearchSlice = createSlice({

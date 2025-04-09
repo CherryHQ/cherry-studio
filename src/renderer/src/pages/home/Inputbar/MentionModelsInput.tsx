@@ -1,7 +1,7 @@
+import CustomTag from '@renderer/components/CustomTag'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { ConfigProvider, Flex, Tag } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -19,38 +19,27 @@ const MentionModelsInput: FC<{
   }
 
   return (
-    <Container gap="4px 0" wrap>
-      <ConfigProvider
-        theme={{
-          components: {
-            Tag: {
-              borderRadiusSM: 100
-            }
-          }
-        }}>
-        {selectedModels.map((model) => (
-          <Tag
-            icon={<i className="iconfont icon-at" />}
-            bordered={false}
-            color="processing"
-            key={getModelUniqId(model)}
-            closable
-            onClose={() => onRemoveModel(model)}>
-            {model.name} ({getProviderName(model)})
-          </Tag>
-        ))}
-      </ConfigProvider>
+    <Container>
+      {selectedModels.map((model) => (
+        <CustomTag
+          icon={<i className="iconfont icon-at" />}
+          color="#1677ff"
+          key={getModelUniqId(model)}
+          closable
+          onClose={() => onRemoveModel(model)}>
+          {model.name} ({getProviderName(model)})
+        </CustomTag>
+      ))}
     </Container>
   )
 }
 
-const Container = styled(Flex)`
+const Container = styled.div`
   width: 100%;
-  padding: 5px 15px 10px;
-  i.iconfont {
-    font-size: 12px;
-    margin-inline-end: 7px;
-  }
+  padding: 5px 15px 5px 15px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 4px;
 `
 
 export default MentionModelsInput
