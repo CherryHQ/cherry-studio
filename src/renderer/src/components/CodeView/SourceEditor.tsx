@@ -2,7 +2,7 @@ import { ExpandAltOutlined, SaveOutlined, ShrinkOutlined } from '@ant-design/ico
 import { useToolbar } from '@renderer/components/CodeView/context'
 import UnWrapIcon from '@renderer/components/Icons/UnWrapIcon'
 import WrapIcon from '@renderer/components/Icons/WrapIcon'
-import { useCodeThemes } from '@renderer/hooks/useCodeThemes'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { langs } from '@uiw/codemirror-extensions-langs'
 import * as cmThemes from '@uiw/codemirror-themes-all'
@@ -19,7 +19,7 @@ interface Props {
 
 const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const { fontSize, codeShowLineNumbers, codeCollapsible, codeWrappable, codeEditor } = useSettings()
-  const { currentTheme } = useCodeThemes()
+  const { currentTheme } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const [code, setCode] = useState(children)

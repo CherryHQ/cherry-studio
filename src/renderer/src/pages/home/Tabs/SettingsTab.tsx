@@ -9,8 +9,8 @@ import {
   isWindows
 } from '@renderer/config/constant'
 import { isSupportedResoningEffortModel } from '@renderer/config/models'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useCodeThemes } from '@renderer/hooks/useCodeThemes'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
@@ -56,7 +56,7 @@ interface Props {
 const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
   const { messageStyle, codeStyle, fontSize, language } = useSettings()
-  const { themeNames } = useCodeThemes()
+  const { themeNames } = useCodeStyle()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
