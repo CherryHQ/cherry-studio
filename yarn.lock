@@ -1028,7 +1028,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/language-data@npm:>=6.0.0, @codemirror/language-data@npm:^6.5.1":
+"@codemirror/language-data@npm:>=6.0.0":
   version: 6.5.1
   resolution: "@codemirror/language-data@npm:6.5.1"
   dependencies:
@@ -1058,7 +1058,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/language@npm:^6.0.0, @codemirror/language@npm:^6.11.0, @codemirror/language@npm:^6.3.0, @codemirror/language@npm:^6.4.0, @codemirror/language@npm:^6.6.0, @codemirror/language@npm:^6.8.0, @codemirror/language@npm:^6.9.0":
+"@codemirror/language@npm:^6.0.0, @codemirror/language@npm:^6.3.0, @codemirror/language@npm:^6.4.0, @codemirror/language@npm:^6.6.0, @codemirror/language@npm:^6.8.0, @codemirror/language@npm:^6.9.0":
   version: 6.11.0
   resolution: "@codemirror/language@npm:6.11.0"
   dependencies:
@@ -1112,7 +1112,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/theme-one-dark@npm:^6.0.0, @codemirror/theme-one-dark@npm:^6.1.2":
+"@codemirror/theme-one-dark@npm:^6.0.0":
   version: 6.1.2
   resolution: "@codemirror/theme-one-dark@npm:6.1.2"
   dependencies:
@@ -1124,7 +1124,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/view@npm:^6.0.0, @codemirror/view@npm:^6.17.0, @codemirror/view@npm:^6.23.0, @codemirror/view@npm:^6.27.0, @codemirror/view@npm:^6.35.0, @codemirror/view@npm:^6.36.5":
+"@codemirror/view@npm:^6.0.0, @codemirror/view@npm:^6.17.0, @codemirror/view@npm:^6.23.0, @codemirror/view@npm:^6.27.0, @codemirror/view@npm:^6.35.0":
   version: 6.36.5
   resolution: "@codemirror/view@npm:6.36.5"
   dependencies:
@@ -4694,11 +4694,7 @@ __metadata:
     "@cherrystudio/embedjs-loader-xml": "npm:^0.1.28"
     "@cherrystudio/embedjs-openai": "npm:^0.1.28"
     "@codemirror/commands": "npm:^6.8.1"
-    "@codemirror/language": "npm:^6.11.0"
-    "@codemirror/language-data": "npm:^6.5.1"
     "@codemirror/state": "npm:^6.5.2"
-    "@codemirror/theme-one-dark": "npm:^6.1.2"
-    "@codemirror/view": "npm:^6.36.5"
     "@electron-toolkit/eslint-config-prettier": "npm:^3.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^3.0.0"
     "@electron-toolkit/preload": "npm:^3.0.0"

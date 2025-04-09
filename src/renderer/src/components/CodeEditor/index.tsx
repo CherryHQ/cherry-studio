@@ -40,7 +40,7 @@ const CodeEditor = ({ children, language, ref }: Props & { ref?: React.RefObject
 
   // 动态加载语言支持
   useEffect(() => {
-    const normalizedLang = language.toLowerCase()
+    const normalizedLang = languageMap[language as keyof typeof languageMap] || language.toLowerCase()
 
     if (normalizedLang in langs) {
       setExtensions([langs[normalizedLang as keyof typeof langs]()])
@@ -94,7 +94,7 @@ const CodeEditor = ({ children, language, ref }: Props & { ref?: React.RefObject
       id: 'save',
       type: 'core',
       icon: <SaveOutlined />,
-      tooltip: t('edit.save'),
+      tooltip: t('code_block.edit.save'),
       condition: () => hasChanges, // 只有在内容变更时才显示
       onClick: () => {
         console.log('Save code:', code)
@@ -163,7 +163,6 @@ const CodeEditor = ({ children, language, ref }: Props & { ref?: React.RefObject
         }}
         style={{
           fontSize: `${fontSize - 1}px`,
-
           overflow: codeCollapsible && !isExpanded ? 'auto' : 'visible'
         }}
       />
@@ -172,6 +171,12 @@ const CodeEditor = ({ children, language, ref }: Props & { ref?: React.RefObject
 }
 
 CodeEditor.displayName = 'CodeEditor'
+
+const languageMap = {
+  bash: 'shell',
+  svg: 'xml',
+  vab: 'vb'
+}
 
 const CodemirrorWarpper = styled.div`
   position: relative;
