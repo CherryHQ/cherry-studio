@@ -392,7 +392,8 @@ export class WindowService {
     //miniWindow should show in current desktop
     this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     //make miniWindow always on top of fullscreen apps with level set
-    this.miniWindow.setAlwaysOnTop(true, 'screen-saver', 1)
+    //[mac] level higher than 'floating' will cover the pinyin input method
+    this.miniWindow.setAlwaysOnTop(true, 'floating')
 
     this.miniWindow.on('ready-to-show', () => {
       if (isPreload) {
