@@ -108,7 +108,7 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
           id: 'edit',
           type: 'core',
           icon: isInSourceView ? <EyeOutlined /> : <EditOutlined />,
-          tooltip: isInSourceView ? t('code_block.edit.off') : t('code_block.edit.on'),
+          tooltip: isInSourceView ? t('code_block.preview') : t('code_block.edit'),
           onClick: () => setIsInSourceView(!isInSourceView),
           order: 2
         })
