@@ -146,7 +146,7 @@ const ProvidersList: FC = () => {
               // 删除provider前先清理其logo
               if (provider.id) {
                 try {
-                  await ImageStorage.set(`provider-${provider.id}`, '')
+                  await ImageStorage.remove(`provider-${provider.id}`)
                   setProviderLogos((prev) => {
                     const newLogos = { ...prev }
                     delete newLogos[provider.id]
