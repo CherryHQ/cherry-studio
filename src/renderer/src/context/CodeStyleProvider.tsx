@@ -1,10 +1,8 @@
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCodeThemes } from '@renderer/hooks/useCodeThemes'
 import { useMermaid } from '@renderer/hooks/useMermaid'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { CodeCacheService } from '@renderer/services/CodeCacheService'
-import { type CodeStyleVarious, ThemeMode } from '@renderer/types'
 import type React from 'react'
-import { createContext, type PropsWithChildren, use, useCallback, useMemo } from 'react'
+import { createContext, type PropsWithChildren, use, useCallback } from 'react'
 import { bundledLanguages, bundledThemes, createHighlighter, type Highlighter } from 'shiki'
 
 let highlighterPromise: Promise<Highlighter> | null = null
@@ -27,17 +25,8 @@ interface CodeStyleContextType {
 const CodeStyleContext = createContext<CodeStyleContextType | undefined>(undefined)
 
 export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  const { theme } = useTheme()
-  const { codeStyle } = useSettings()
+  const { currentTheme: highlighterTheme } = useCodeThemes()
   useMermaid()
-
-  const highlighterTheme = useMemo(() => {
-    if (!codeStyle || codeStyle === 'auto') {
-      return theme === ThemeMode.light ? 'one-light' : 'material-theme-darker'
-    }
-
-    return codeStyle
-  }, [theme, codeStyle])
 
   const codeToHtml = useCallback(
     async (_code: string, language: string, enableCache: boolean) => {
@@ -106,5 +95,3 @@ export const useCodeStyle = () => {
   }
   return context
 }
-
-export const codeThemes = ['auto', ...Object.keys(bundledThemes)] as CodeStyleVarious[]

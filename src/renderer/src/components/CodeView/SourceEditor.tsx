@@ -1,15 +1,13 @@
 import { ExpandAltOutlined, SaveOutlined, ShrinkOutlined } from '@ant-design/icons'
-import { Extension } from '@codemirror/state'
 import { useToolbar } from '@renderer/components/CodeView/context'
 import UnWrapIcon from '@renderer/components/Icons/UnWrapIcon'
 import WrapIcon from '@renderer/components/Icons/WrapIcon'
+import { useCodeThemes } from '@renderer/hooks/useCodeThemes'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { ThemeMode } from '@renderer/types'
 import { langs } from '@uiw/codemirror-extensions-langs'
-import { materialDark, materialLight } from '@uiw/codemirror-theme-material'
-// import * as allThemes from '@uiw/codemirror-themes-all'
-import CodeMirror, { EditorView } from '@uiw/react-codemirror'
-import { useEffect, useRef, useState } from 'react'
+import * as cmThemes from '@uiw/codemirror-themes-all'
+import CodeMirror, { EditorView, Extension, ReactCodeMirrorProps } from '@uiw/react-codemirror'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import React, { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -20,7 +18,8 @@ interface Props {
 }
 
 const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
-  const { fontSize, codeShowLineNumbers, codeCollapsible, codeWrappable, theme, codeEditor } = useSettings()
+  const { fontSize, codeShowLineNumbers, codeCollapsible, codeWrappable, codeEditor } = useSettings()
+  const { currentTheme } = useCodeThemes()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const [code, setCode] = useState(children)
@@ -30,25 +29,15 @@ const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObje
   const showExpandButtonRef = useRef(false)
   const { t } = useTranslation()
 
+  const cmTheme = useMemo(() => {
+    const _cmTheme = currentTheme as ReactCodeMirrorProps['theme']
+    return cmThemes[_cmTheme as keyof typeof cmThemes]
+  }, [currentTheme])
+
   // 合并引用
   React.useImperativeHandle(ref, () => editorRef.current!, [])
 
-  // 检查是否是暗色主题
-  const isDarkTheme =
-    theme === ThemeMode.dark || (theme === ThemeMode.auto && window.matchMedia('(prefers-color-scheme: dark)').matches)
-
   const { registerTool, removeTool } = useToolbar()
-
-  // 获取当前主题
-  const getCurrentTheme = () => {
-    // 如果想支持更多主题，可以使用以下代码获取主题：
-    // return isDarkTheme
-    //   ? (allThemes.vscode || allThemes.materialDark)
-    //   : (allThemes.vscodeLlight || allThemes.materialLight);
-
-    // 当前使用 material 主题
-    return isDarkTheme ? materialDark : materialLight
-  }
 
   // 动态加载语言支持
   useEffect(() => {
@@ -150,7 +139,8 @@ const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObje
         width="100%"
         maxHeight={codeCollapsible && !isExpanded ? '350px' : 'none'}
         editable={true}
-        theme={getCurrentTheme()}
+        // @ts-ignore 强制使用，见 https://github.com/uiwjs/react-codemirror/blob/master/www/src/pages/home/Example.tsx
+        theme={cmTheme}
         extensions={[...extensions, ...(isUnwrapped ? [] : [EditorView.lineWrapping])]}
         onChange={(value) => setCode(value)}
         basicSetup={{

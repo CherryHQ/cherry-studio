@@ -1,7 +1,6 @@
 import { GroundingMetadata } from '@google/generative-ai'
 import OpenAI from 'openai'
 import React from 'react'
-import { BuiltinTheme } from 'shiki'
 
 export type Assistant = {
   id: string
@@ -218,7 +217,7 @@ export type TranslateLanguageVarious =
   | 'portuguese'
   | 'russian'
 
-export type CodeStyleVarious = BuiltinTheme | 'auto'
+export type CodeStyleVarious = 'auto' | string
 
 export type WebDavConfig = {
   webdavHost: string
