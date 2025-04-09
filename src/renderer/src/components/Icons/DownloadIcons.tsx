@@ -42,7 +42,14 @@ const DownloadTypeIconBase = ({ type, ...props }: SVGProps<SVGSVGElement> & { ty
       strokeWidth="0.3"
       letterSpacing="1"
       fontFamily="Arial Black, sans-serif"
-      style={{ paintOrder: 'stroke', fontStretch: 'expanded' }}>
+      style={{
+        paintOrder: 'stroke',
+        fontStretch: 'expanded',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect: 'none',
+        msUserSelect: 'none'
+      }}>
       {type}
     </text>
     <path d="M21 16v3a2 2 0 01-2 2H5a2 2 0 01-2-2v-3" />
