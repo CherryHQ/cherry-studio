@@ -9,7 +9,7 @@ import {
   isWindows
 } from '@renderer/config/constant'
 import { isSupportedResoningEffortModel } from '@renderer/config/models'
-import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
+import { codeThemes } from '@renderer/context/CodeStyleProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'

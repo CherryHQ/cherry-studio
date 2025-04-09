@@ -20,13 +20,13 @@ async function getHighlighter() {
   return await highlighterPromise
 }
 
-interface SyntaxHighlighterContextType {
+interface CodeStyleContextType {
   codeToHtml: (code: string, language: string, enableCache: boolean) => Promise<string>
 }
 
-const SyntaxHighlighterContext = createContext<SyntaxHighlighterContextType | undefined>(undefined)
+const CodeStyleContext = createContext<CodeStyleContextType | undefined>(undefined)
 
-export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ children }) => {
+export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const { theme } = useTheme()
   const { codeStyle } = useSettings()
   useMermaid()
@@ -96,13 +96,13 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
     [highlighterTheme]
   )
 
-  return <SyntaxHighlighterContext value={{ codeToHtml }}>{children}</SyntaxHighlighterContext>
+  return <CodeStyleContext value={{ codeToHtml }}>{children}</CodeStyleContext>
 }
 
-export const useSyntaxHighlighter = () => {
-  const context = use(SyntaxHighlighterContext)
+export const useCodeStyle = () => {
+  const context = use(CodeStyleContext)
   if (!context) {
-    throw new Error('useSyntaxHighlighter must be used within a SyntaxHighlighterProvider')
+    throw new Error('useCodeStyle must be used within a CodeStyleProvider')
   }
   return context
 }

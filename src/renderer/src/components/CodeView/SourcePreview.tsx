@@ -2,7 +2,7 @@ import { ExpandAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import { useToolbar } from '@renderer/components/CodeView/context'
 import UnWrapIcon from '@renderer/components/Icons/UnWrapIcon'
 import WrapIcon from '@renderer/components/Icons/WrapIcon'
-import { useSyntaxHighlighter } from '@renderer/context/SyntaxHighlighterProvider'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import React, { memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,7 +15,7 @@ interface Props {
 
 const SourcePreview = ({ ref, children, language }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
-  const { codeToHtml } = useSyntaxHighlighter()
+  const { codeToHtml } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const codeContentRef = useRef<HTMLDivElement>(null)

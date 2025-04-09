@@ -7,6 +7,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
 import { langs } from '@uiw/codemirror-extensions-langs'
 import { materialDark, materialLight } from '@uiw/codemirror-theme-material'
+// import * as allThemes from '@uiw/codemirror-themes-all'
 import CodeMirror, { EditorView } from '@uiw/react-codemirror'
 import { useEffect, useRef, useState } from 'react'
 import React, { memo } from 'react'
@@ -18,7 +19,7 @@ interface Props {
   language: string
 }
 
-const CodeEditor = ({ children, language, ref }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
+const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const { fontSize, codeShowLineNumbers, codeCollapsible, codeWrappable, theme, codeEditor } = useSettings()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
@@ -37,6 +38,17 @@ const CodeEditor = ({ children, language, ref }: Props & { ref?: React.RefObject
     theme === ThemeMode.dark || (theme === ThemeMode.auto && window.matchMedia('(prefers-color-scheme: dark)').matches)
 
   const { registerTool, removeTool } = useToolbar()
+
+  // 获取当前主题
+  const getCurrentTheme = () => {
+    // 如果想支持更多主题，可以使用以下代码获取主题：
+    // return isDarkTheme
+    //   ? (allThemes.vscode || allThemes.materialDark)
+    //   : (allThemes.vscodeLlight || allThemes.materialLight);
+
+    // 当前使用 material 主题
+    return isDarkTheme ? materialDark : materialLight
+  }
 
   // 动态加载语言支持
   useEffect(() => {
@@ -138,7 +150,7 @@ const CodeEditor = ({ children, language, ref }: Props & { ref?: React.RefObject
         width="100%"
         maxHeight={codeCollapsible && !isExpanded ? '350px' : 'none'}
         editable={true}
-        theme={isDarkTheme ? materialDark : materialLight}
+        theme={getCurrentTheme()}
         extensions={[...extensions, ...(isUnwrapped ? [] : [EditorView.lineWrapping])]}
         onChange={(value) => setCode(value)}
         basicSetup={{
@@ -170,7 +182,7 @@ const CodeEditor = ({ children, language, ref }: Props & { ref?: React.RefObject
   )
 }
 
-CodeEditor.displayName = 'CodeEditor'
+SourceEditor.displayName = 'SourceEditor'
 
 const languageMap = {
   bash: 'shell',
@@ -184,4 +196,4 @@ const CodemirrorWarpper = styled.div`
   width: 100%;
 `
 
-export default memo(CodeEditor)
+export default memo(SourceEditor)

@@ -1,5 +1,4 @@
 import { CodeOutlined, CopyOutlined, DownloadOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
-import CodeEditor from '@renderer/components/CodeEditor'
 import { ToolbarProvider, useToolbar } from '@renderer/components/CodeView/context'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { extractTitle } from '@renderer/utils/formats'
@@ -11,6 +10,7 @@ import styled, { css } from 'styled-components'
 import HtmlStatusBar from './HtmlStatusBar'
 import MermaidPreview from './MermaidPreview'
 import PlantUmlPreview, { isValidPlantUML } from './PlantUmlPreview'
+import SourceEditor from './SourceEditor'
 import SourcePreview from './SourcePreview'
 import SvgPreview from './SvgPreview'
 import Toolbar from './Toolbar'
@@ -135,7 +135,7 @@ const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
   }, [codeEditor.enabled, hasSpecialView, isInSourceView, registerTool, removeTool, t])
 
   const SourceViewer = useMemo(() => {
-    return codeEditor.enabled ? CodeEditor : SourcePreview
+    return codeEditor.enabled ? SourceEditor : SourcePreview
   }, [codeEditor.enabled])
 
   const renderHeader = useMemo(() => {
