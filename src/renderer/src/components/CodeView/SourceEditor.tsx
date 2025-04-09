@@ -92,14 +92,11 @@ const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObje
 
   // 保存按钮
   useEffect(() => {
-    const hasChanges = code !== children
-
     registerTool({
       id: 'save',
       type: 'core',
       icon: <SaveOutlined />,
       tooltip: t('code_block.edit.save'),
-      condition: () => hasChanges, // 只有在内容变更时才显示
       onClick: () => {
         console.log('Save code:', code)
         // TODO: 调用消息更新逻辑

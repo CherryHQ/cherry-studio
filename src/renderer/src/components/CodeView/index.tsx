@@ -22,10 +22,17 @@ interface Props {
 }
 
 /**
- * 代码块视图，支持多种语言代码块渲染
- * 提供两个放工具的位置：
+ * 代码块视图
+ * 工具栏：
  * - 顶部 sticky tool bar
  * - 底部 status bar
+ * 预览视图：
+ * - Mermaid
+ * - PlantUML
+ * - SVG
+ * - Source (原来的 shiki 高亮视图)
+ * 编辑视图：
+ * - 代码编辑器
  */
 const CodeViewImpl: React.FC<Props> = ({ children, language }) => {
   const hasSpecialView = ['mermaid', 'plantuml', 'svg'].includes(language)
