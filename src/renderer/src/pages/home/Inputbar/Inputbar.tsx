@@ -84,7 +84,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     pasteLongTextAsFile,
     pasteLongTextThreshold,
     showInputEstimatedTokens,
-    autoTranslateWithSpace
+    autoTranslateWithSpace,
+    enableQuickPanelTriggers
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -537,7 +538,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     const cursorPosition = textArea?.selectionStart ?? 0
     const lastSymbol = newText[cursorPosition - 1]
 
-    if (!quickPanel.isVisible && lastSymbol === '/') {
+    if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '/') {
       quickPanel.open({
         title: t('settings.quickPanel.title'),
         list: quickPanelMenu,
@@ -545,7 +546,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       })
     }
 
-    if (!quickPanel.isVisible && lastSymbol === '@') {
+    if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
       mentionModelsButtonRef.current?.openQuickPanel()
     }
   }

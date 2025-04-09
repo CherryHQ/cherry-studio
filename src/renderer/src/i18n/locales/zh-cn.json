@@ -1113,6 +1113,7 @@
       "messages.input.send_shortcuts": "发送快捷键",
       "messages.input.show_estimated_tokens": "显示预估 Token 数",
       "messages.input.title": "输入设置",
+      "messages.input.enable_quick_triggers": "启用 '/' 和 '@' 触发快捷菜单",
       "messages.markdown_rendering_input_message": "Markdown 渲染输入消息",
       "messages.math_engine": "数学公式引擎",
       "messages.metrics": "首字时延 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",

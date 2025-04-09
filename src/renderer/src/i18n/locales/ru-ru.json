@@ -1112,6 +1112,7 @@
       "messages.input.send_shortcuts": "Горячие клавиши для отправки",
       "messages.input.show_estimated_tokens": "Показывать затраты токенов",
       "messages.input.title": "Настройки ввода",
+      "messages.input.enable_quick_triggers": "Включите '/' и '@', чтобы вызвать быстрое меню.",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
       "messages.metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",

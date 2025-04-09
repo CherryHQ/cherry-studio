@@ -1113,6 +1113,7 @@
       "messages.input.send_shortcuts": "Send shortcuts",
       "messages.input.show_estimated_tokens": "Show estimated tokens",
       "messages.input.title": "Input Settings",
+      "messages.input.enable_quick_triggers": "Enable '/' and '@' triggers",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",

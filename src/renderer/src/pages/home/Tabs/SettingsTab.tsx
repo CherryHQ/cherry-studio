@@ -27,6 +27,7 @@ import {
   setCodeShowLineNumbers,
   setCodeStyle,
   setCodeWrappable,
+  setEnableQuickPanelTriggers,
   setFontSize,
   setMathEngine,
   setMessageFont,
@@ -88,7 +89,8 @@ const SettingsTab: FC<Props> = (props) => {
     pasteLongTextThreshold,
     multiModelMessageStyle,
     thoughtAutoCollapse,
-    messageNavigation
+    messageNavigation,
+    enableQuickPanelTriggers
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -570,6 +572,15 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingDivider />
           </>
         )}
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.input.enable_quick_triggers')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={enableQuickPanelTriggers}
+            onChange={(checked) => dispatch(setEnableQuickPanelTriggers(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.input.target_language')}</SettingRowTitleSmall>
           <StyledSelect

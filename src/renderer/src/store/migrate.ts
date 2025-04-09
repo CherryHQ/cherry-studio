@@ -1173,6 +1173,14 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '93': (state: RootState) => {
+    try {
+      state.settings.enableQuickPanelTriggers = false
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
