@@ -342,6 +342,15 @@ const SettingsTab: FC<Props> = (props) => {
             </SettingRow>
             <SettingDivider />
             <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRowTitleSmall>{t('chat.settings.code_editor.fold_gutter')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={codeEditor.foldGutter}
+                onChange={(checked) => dispatch(setCodeEditor({ foldGutter: checked }))}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow style={{ paddingLeft: 8 }}>
               <SettingRowTitleSmall>{t('chat.settings.code_editor.autocompletion')}</SettingRowTitleSmall>
               <Switch
                 size="small"

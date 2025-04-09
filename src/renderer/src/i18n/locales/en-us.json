@@ -160,6 +160,7 @@
       "settings.code_editor": {
         "title": "Code Editor",
         "highlight_active_line": "Highlight active line",
+        "fold_gutter": "Fold gutter",
         "autocompletion": "Autocompletion",
         "keymap": "Keymap"
       },

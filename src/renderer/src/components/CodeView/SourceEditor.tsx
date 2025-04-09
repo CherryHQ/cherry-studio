@@ -154,7 +154,7 @@ const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObje
         basicSetup={{
           lineNumbers: codeShowLineNumbers,
           highlightActiveLineGutter: codeEditor.highlightActiveLine,
-          foldGutter: false,
+          foldGutter: codeEditor.foldGutter,
           dropCursor: true,
           allowMultipleSelections: true,
           indentOnInput: true,

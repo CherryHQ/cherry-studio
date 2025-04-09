@@ -51,6 +51,7 @@ export interface SettingsState {
   codeEditor: {
     enabled: boolean
     highlightActiveLine: boolean
+    foldGutter: boolean
     autocompletion: boolean
     keymap: boolean
   }
@@ -162,6 +163,7 @@ export const initialState: SettingsState = {
   codeEditor: {
     enabled: false,
     highlightActiveLine: false,
+    foldGutter: false,
     autocompletion: true,
     keymap: false
   },
@@ -344,6 +346,7 @@ const settingsSlice = createSlice({
       action: PayloadAction<{
         enabled?: boolean
         highlightActiveLine?: boolean
+        foldGutter?: boolean
         autocompletion?: boolean
         keymap?: boolean
       }>
@@ -353,6 +356,9 @@ const settingsSlice = createSlice({
       }
       if (action.payload.highlightActiveLine !== undefined) {
         state.codeEditor.highlightActiveLine = action.payload.highlightActiveLine
+      }
+      if (action.payload.foldGutter !== undefined) {
+        state.codeEditor.foldGutter = action.payload.foldGutter
       }
       if (action.payload.autocompletion !== undefined) {
         state.codeEditor.autocompletion = action.payload.autocompletion

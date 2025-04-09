@@ -160,6 +160,7 @@
       "settings.code_editor": {
         "title": "Редактор кода",
         "highlight_active_line": "Выделить активную строку",
+        "fold_gutter": "Свернуть",
         "autocompletion": "Автодополнение",
         "keymap": "Клавиатурные сокращения"
       },

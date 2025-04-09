@@ -160,6 +160,7 @@
       "settings.code_editor": {
         "title": "コードエディター",
         "highlight_active_line": "アクティブ行をハイライト",
+        "fold_gutter": "折りたたみガター",
         "autocompletion": "自動補完",
         "keymap": "キーマップ"
       },

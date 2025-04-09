@@ -162,6 +162,7 @@
       "settings.code_editor": {
         "title": "代码编辑器",
         "highlight_active_line": "高亮当前行",
+        "fold_gutter": "折叠控件",
         "autocompletion": "自动补全",
         "keymap": "快捷键"
       },
