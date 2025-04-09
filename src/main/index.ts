@@ -86,8 +86,27 @@ if (!app.requestSingleInstanceLock()) {
      * This will affect all the webContents including mainWindow and all the <webview> created contents
      * see https://www.electronjs.org/docs/latest/api/window-open */
     wc.setWindowOpenHandler(({ url }) => {
-      shell.openExternal(url)
-      return { action: 'deny' } // deny or allow
+      const shouldOpenExternal = (url: string) => {
+        try {
+          const { hostname } = new URL(url)
+          //for google login popup
+          return !(hostname.endsWith('.google.com') || hostname.endsWith('.googleapis.com'))
+        } catch (e) {
+          return true
+        }
+      }
+
+      if (shouldOpenExternal(url)) {
+        shell.openExternal(url)
+        return { action: 'deny' }
+      } else {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            autoHideMenuBar: true
+          }
+        }
+      }
     })
   })
 
