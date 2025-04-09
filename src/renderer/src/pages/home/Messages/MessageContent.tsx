@@ -197,7 +197,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
     const content = `[@${model.name}](#)  ${getBriefInfo(message.content)}`
     return <Markdown message={{ ...message, content }} />
   }
-
+  const toolUseRegex = /<tool_use>([\s\S]*?)<\/tool_use>/g
   return (
     <Fragment>
       <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
@@ -205,7 +205,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       </Flex>
       <MessageThought message={message} />
       <MessageTools message={message} />
-      <Markdown message={{ ...message, content: processedContent }} />
+      <Markdown message={{ ...message, content: processedContent.replace(toolUseRegex, '') }} />
       {message.metadata?.generateImage && <MessageImage message={message} />}
       {message.translatedContent && (
         <Fragment>

@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
@@ -119,7 +119,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const quickPanel = useQuickPanel()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
-  const showMCPToolsIcon = isFunctionCallingModel(model)
+  // const showMCPToolsIcon = isFunctionCallingModel(model)
 
   const [tokenCount, setTokenCount] = useState(0)
 
@@ -199,10 +199,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         userMessage.mentions = mentionModels
       }
 
-      if (isFunctionCallingModel(model)) {
-        if (!isEmpty(enabledMCPs) && !isEmpty(activedMcpServers)) {
-          userMessage.enabledMCPs = activedMcpServers.filter((server) => enabledMCPs?.some((s) => s.id === server.id))
-        }
+      if (!isEmpty(enabledMCPs) && !isEmpty(activedMcpServers)) {
+        userMessage.enabledMCPs = activedMcpServers.filter((server) => enabledMCPs?.some((s) => s.id === server.id))
       }
 
       userMessage.usage = await estimateMessageUsage(userMessage)
@@ -231,7 +229,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     inputEmpty,
     loading,
     mentionModels,
-    model,
     resizeTextArea,
     selectedKnowledgeBases,
     text,
@@ -347,17 +344,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         description: '',
         icon: <FileSearchOutlined />,
         isMenu: true,
-        disabled: !showKnowledgeIcon || files.length > 0,
+        disabled: files.length > 0,
         action: () => {
           knowledgeBaseButtonRef.current?.openQuickPanel()
         }
       },
       {
         label: t('settings.mcp.title'),
-        description: showMCPToolsIcon ? '' : t('settings.mcp.not_support'),
+        description: t('settings.mcp.not_support'),
         icon: <CodeOutlined />,
         isMenu: true,
-        disabled: !showMCPToolsIcon,
         action: () => {
           mcpToolsButtonRef.current?.openQuickPanel()
         }
@@ -379,7 +375,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
     ]
-  }, [files.length, model, openSelectFileMenu, showKnowledgeIcon, showMCPToolsIcon, t, text, translate])
+  }, [files.length, model, openSelectFileMenu, t, text, translate])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
@@ -959,14 +955,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   disabled={files.length > 0}
                 />
               )}
-              {showMCPToolsIcon && (
-                <MCPToolsButton
-                  ref={mcpToolsButtonRef}
-                  enabledMCPs={enabledMCPs}
-                  toggelEnableMCP={toggelEnableMCP}
-                  ToolbarButton={ToolbarButton}
-                />
-              )}
+              <MCPToolsButton
+                ref={mcpToolsButtonRef}
+                enabledMCPs={enabledMCPs}
+                toggelEnableMCP={toggelEnableMCP}
+                ToolbarButton={ToolbarButton}
+              />
               <GenerateImageButton
                 model={model}
                 assistant={assistant}

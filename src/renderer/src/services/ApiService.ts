@@ -250,7 +250,7 @@ export async function fetchChatCompletion({
         }
       }
     }
-    console.log('message', message)
+    // console.log('message', message)
   } catch (error: any) {
     if (isAbortError(error)) {
       message.status = 'paused'
