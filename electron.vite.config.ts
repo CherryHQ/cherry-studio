@@ -76,6 +76,23 @@ export default defineConfig({
     },
     optimizeDeps: {
       exclude: []
+    },
+    worker: {
+      format: 'es'
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: (id) => {
+            // 检测所有 worker 文件，提取 worker 名称作为 chunk 名
+            if (id.includes('.worker') && id.endsWith('?worker')) {
+              const workerName = id.split('/').pop()?.split('.')[0] || 'worker'
+              return `workers/${workerName}`
+            }
+            return undefined
+          }
+        }
+      }
     }
   }
 })

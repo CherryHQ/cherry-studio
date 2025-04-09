@@ -19,7 +19,7 @@ interface Props {
 
 const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const { fontSize, codeShowLineNumbers, codeCollapsible, codeWrappable, codeEditor } = useSettings()
-  const { currentTheme } = useCodeStyle()
+  const { currentTheme, languageMap } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const [code, setCode] = useState(children)
@@ -33,14 +33,6 @@ const SourceEditor = ({ children, language, ref }: Props & { ref?: React.RefObje
   React.useImperativeHandle(ref, () => editorRef.current!, [])
 
   const { registerTool, removeTool } = useToolbar()
-
-  const languageMap = useMemo(() => {
-    return {
-      bash: 'shell',
-      svg: 'xml',
-      vab: 'vb'
-    } as Record<string, string>
-  }, [])
 
   // 动态加载语言支持
   useEffect(() => {
