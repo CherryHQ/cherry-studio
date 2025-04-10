@@ -129,12 +129,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   return match ? (
     <CodeBlockWrapper className="code-block">
       <CodeHeader>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {codeCollapsible && shouldShowExpandButton && (
-            <CollapseIcon expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />
-          )}
-          <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
-        </div>
+        <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
       </CodeHeader>
       <StickyWrapper>
         <HStack
@@ -144,6 +139,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
           style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
           {showDownloadButton && <DownloadButton language={language} data={children} />}
           {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
+          {codeCollapsible && shouldShowExpandButton && (
+            <CollapseIcon expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />
+          )}
           <CopyButton text={children} />
         </HStack>
       </StickyWrapper>
@@ -319,14 +317,6 @@ const CodeHeader = styled.div`
   padding: 0 10px;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
-  .copy {
-    cursor: pointer;
-    color: var(--color-text-3);
-    transition: color 0.3s;
-  }
-  .copy:hover {
-    color: var(--color-text-1);
-  }
 `
 
 const CodeLanguage = styled.div`
@@ -384,13 +374,8 @@ const CollapseIconWrapper = styled.div`
   height: 20px;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--color-text-3);
+  color: var(--color-text-1);
   transition: all 0.2s ease;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text-1);
-  }
 `
 
 const UnwrapButtonWrapper = styled.div`
