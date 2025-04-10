@@ -3,7 +3,7 @@ import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
 
 export default abstract class BaseWebSearchProvider {
   // @ts-ignore this
-  private provider: WebSearchProvider
+  protected provider: WebSearchProvider
   protected apiKey: string
 
   constructor(provider: WebSearchProvider) {

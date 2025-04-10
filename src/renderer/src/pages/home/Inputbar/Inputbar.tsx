@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isFunctionCallingModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
@@ -84,7 +84,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     pasteLongTextAsFile,
     pasteLongTextThreshold,
     showInputEstimatedTokens,
-    autoTranslateWithSpace
+    autoTranslateWithSpace,
+    enableQuickPanelTriggers
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -118,7 +119,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const quickPanel = useQuickPanel()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
-  const showMCPToolsIcon = isFunctionCallingModel(model)
+  // const showMCPToolsIcon = isFunctionCallingModel(model)
 
   const [tokenCount, setTokenCount] = useState(0)
 
@@ -198,10 +199,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         userMessage.mentions = mentionModels
       }
 
-      if (isFunctionCallingModel(model)) {
-        if (!isEmpty(enabledMCPs) && !isEmpty(activedMcpServers)) {
-          userMessage.enabledMCPs = activedMcpServers.filter((server) => enabledMCPs?.some((s) => s.id === server.id))
-        }
+      if (!isEmpty(enabledMCPs) && !isEmpty(activedMcpServers)) {
+        userMessage.enabledMCPs = activedMcpServers.filter((server) => enabledMCPs?.some((s) => s.id === server.id))
       }
 
       userMessage.usage = await estimateMessageUsage(userMessage)
@@ -230,7 +229,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     inputEmpty,
     loading,
     mentionModels,
-    model,
     resizeTextArea,
     selectedKnowledgeBases,
     text,
@@ -346,17 +344,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         description: '',
         icon: <FileSearchOutlined />,
         isMenu: true,
-        disabled: !showKnowledgeIcon || files.length > 0,
+        disabled: files.length > 0,
         action: () => {
           knowledgeBaseButtonRef.current?.openQuickPanel()
         }
       },
       {
         label: t('settings.mcp.title'),
-        description: showMCPToolsIcon ? '' : t('settings.mcp.not_support'),
+        description: t('settings.mcp.not_support'),
         icon: <CodeOutlined />,
         isMenu: true,
-        disabled: !showMCPToolsIcon,
         action: () => {
           mcpToolsButtonRef.current?.openQuickPanel()
         }
@@ -378,7 +375,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
     ]
-  }, [files.length, model, openSelectFileMenu, showKnowledgeIcon, showMCPToolsIcon, t, text, translate])
+  }, [files.length, model, openSelectFileMenu, t, text, translate])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
@@ -537,7 +534,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     const cursorPosition = textArea?.selectionStart ?? 0
     const lastSymbol = newText[cursorPosition - 1]
 
-    if (!quickPanel.isVisible && lastSymbol === '/') {
+    if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '/') {
       quickPanel.open({
         title: t('settings.quickPanel.title'),
         list: quickPanelMenu,
@@ -545,7 +542,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       })
     }
 
-    if (!quickPanel.isVisible && lastSymbol === '@') {
+    if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
       mentionModelsButtonRef.current?.openQuickPanel()
     }
   }
@@ -777,20 +774,33 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     })
   }
 
-  const onEnableWebSearch = () => {
-    if (!isWebSearchModel(model)) {
-      if (!WebSearchService.isWebSearchEnabled()) {
-        window.modal.confirm({
-          title: t('chat.input.web_search.enable'),
-          content: t('chat.input.web_search.enable_content'),
-          centered: true,
-          okText: t('chat.input.web_search.button.ok'),
-          onOk: () => {
-            navigate('/settings/web-search')
-          }
-        })
-        return
+  const showWebSearchEnableModal = () => {
+    window.modal.confirm({
+      title: t('chat.input.web_search.enable'),
+      content: t('chat.input.web_search.enable_content'),
+      centered: true,
+      okText: t('chat.input.web_search.button.ok'),
+      onOk: () => {
+        navigate('/settings/web-search')
       }
+    })
+  }
+
+  const shouldShowEnableModal = () => {
+    // 网络搜索功能是否未启用
+    const webSearchNotEnabled = !WebSearchService.isWebSearchEnabled()
+    // 非网络搜索模型：仅当网络搜索功能未启用时显示启用提示
+    if (!isWebSearchModel(model)) {
+      return webSearchNotEnabled
+    }
+    // 网络搜索模型：当允许覆盖但网络搜索功能未启用时显示启用提示
+    return WebSearchService.isOverwriteEnabled() && webSearchNotEnabled
+  }
+
+  const onEnableWebSearch = () => {
+    if (shouldShowEnableModal()) {
+      showWebSearchEnableModal()
+      return
     }
 
     updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
@@ -872,12 +882,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus')}
           ref={containerRef}>
-          <AttachmentPreview files={files} setFiles={setFiles} />
-          <KnowledgeBaseInput
-            selectedKnowledgeBases={selectedKnowledgeBases}
-            onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
-          />
-          <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
+          {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
+          {selectedKnowledgeBases.length > 0 && (
+            <KnowledgeBaseInput
+              selectedKnowledgeBases={selectedKnowledgeBases}
+              onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
+            />
+          )}
+          {mentionModels.length > 0 && (
+            <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
+          )}
           <Textarea
             value={text}
             onChange={onChange}
@@ -941,14 +955,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   disabled={files.length > 0}
                 />
               )}
-              {showMCPToolsIcon && (
-                <MCPToolsButton
-                  ref={mcpToolsButtonRef}
-                  enabledMCPs={enabledMCPs}
-                  toggelEnableMCP={toggelEnableMCP}
-                  ToolbarButton={ToolbarButton}
-                />
-              )}
+              <MCPToolsButton
+                ref={mcpToolsButtonRef}
+                enabledMCPs={enabledMCPs}
+                toggelEnableMCP={toggelEnableMCP}
+                ToolbarButton={ToolbarButton}
+              />
               <GenerateImageButton
                 model={model}
                 assistant={assistant}
@@ -1042,6 +1054,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
+  z-index: 2;
 `
 
 const InputBarContainer = styled.div`

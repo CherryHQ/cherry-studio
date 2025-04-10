@@ -130,6 +130,7 @@ import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
+import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
 
@@ -231,6 +232,10 @@ export function isFunctionCallingModel(model: Model): boolean {
 
   if (isEmbeddingModel(model)) {
     return false
+  }
+
+  if (model.provider === 'qiniu') {
+    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
   }
 
   if (['deepseek', 'anthropic'].includes(model.provider)) {
@@ -492,12 +497,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'o3',
       name: 'DeepSeek V3',
       group: 'DeepSeek'
-    },
-    {
-      id: 'text-embedding-3-small',
-      provider: 'o3',
-      name: 'text-embedding-3-small',
-      group: '嵌入模型'
     },
     {
       id: 'text-embedding-3-small',
@@ -2014,7 +2013,56 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Voyage Rerank V2'
     }
   ],
-  qiniu: []
+  qiniu: [
+    {
+      id: 'deepseek-r1',
+      provider: 'qiniu',
+      name: 'DeepSeek R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-search',
+      provider: 'qiniu',
+      name: 'DeepSeek R1 Search',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-32b',
+      provider: 'qiniu',
+      name: 'DeepSeek R1 32B',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3',
+      provider: 'qiniu',
+      name: 'DeepSeek V3',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3-search',
+      provider: 'qiniu',
+      name: 'DeepSeek V3 Search',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3-tool',
+      provider: 'qiniu',
+      name: 'DeepSeek V3 Tool',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'qwq-32b',
+      provider: 'qiniu',
+      name: 'QWQ 32B',
+      group: 'Qwen'
+    },
+    {
+      id: 'qwen2.5-72b-instruct',
+      provider: 'qiniu',
+      name: 'Qwen2.5 72B Instruct',
+      group: 'Qwen'
+    }
+  ]
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -2270,6 +2318,9 @@ export function isGenerateImageModel(model: Model): boolean {
 }
 
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
+  if (WebSearchService.isWebSearchEnabled() && WebSearchService.isOverwriteEnabled()) {
+    return {}
+  }
   if (isWebSearchModel(model)) {
     if (assistant.enableWebSearch) {
       const webSearchTools = getWebSearchTools(model)

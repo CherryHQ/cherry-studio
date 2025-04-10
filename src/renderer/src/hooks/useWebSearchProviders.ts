@@ -29,11 +29,20 @@ export const useDefaultWebSearchProvider = () => {
 
 export const useWebSearchProviders = () => {
   const providers = useAppSelector((state) => state.websearch.providers)
+
   const dispatch = useAppDispatch()
 
   return {
     providers,
-    updateWebSearchProviders: (providers: WebSearchProvider[]) => dispatch(updateWebSearchProviders(providers))
+    updateWebSearchProviders: (providers: WebSearchProvider[]) => dispatch(updateWebSearchProviders(providers)),
+    addWebSearchProvider: (provider: WebSearchProvider) => {
+      // Check if provider exists
+      const exists = providers.some((p) => p.id === provider.id)
+      if (!exists) {
+        // Use the existing update action to add the new provider
+        dispatch(updateWebSearchProviders([...providers, provider]))
+      }
+    }
   }
 }
 
@@ -41,6 +50,7 @@ export const useWebSearchProvider = (id: string) => {
   const providers = useAppSelector((state) => state.websearch.providers)
   const provider = providers.find((provider) => provider.id === id)
   const dispatch = useAppDispatch()
+
   if (!provider) {
     throw new Error(`Web search provider with id ${id} not found`)
   }

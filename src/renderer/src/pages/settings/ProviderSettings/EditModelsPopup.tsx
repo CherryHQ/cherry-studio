@@ -162,7 +162,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       footer={null}
-      width="680px"
+      width="800px"
       styles={{
         content: { padding: 0 },
         header: { padding: '16px 22px 30px 22px' }
@@ -202,7 +202,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               defaultActiveKey={i >= 5 ? [] : ['1']}
               label={
                 <Flex align="center" gap={10}>
-                  <span>{group}</span>
+                  <span style={{ fontWeight: 600 }}>{group}</span>
                   <CustomTag color="#02B96B" size={10}>
                     {modelGroups[group].length}
                   </CustomTag>
@@ -262,12 +262,11 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                             placement="top">
                             <span style={{ cursor: 'help' }}>{model.name}</span>
                           </Tooltip>
+                          <ModelTagsWithLabel model={model} size={11} />
                         </ListItemName>
                       ),
                       extra: (
                         <div style={{ marginTop: 6 }}>
-                          <ModelTagsWithLabel model={model} size={11} />
-
                           {model.description && (
                             <Typography.Paragraph
                               type="secondary"

@@ -21,6 +21,7 @@ import mcpService from './services/MCPService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
+import { searchService } from './services/SearchService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
@@ -291,4 +292,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
   )
+
+  // search window
+  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string) => {
+    await searchService.openSearchWindow(uid)
+  })
+  ipcMain.handle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
+    await searchService.closeSearchWindow(uid)
+  })
+  ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
+    return await searchService.openUrlInSearchWindow(uid, url)
+  })
 }

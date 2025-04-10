@@ -146,5 +146,10 @@ export enum IpcChannel {
   MiniWindowReload = 'miniwindow-reload',
 
   ReduxStateChange = 'redux-state-change',
-  ReduxStoreReady = 'redux-store-ready'
+  ReduxStoreReady = 'redux-store-ready',
+
+  // Search Window
+  SearchWindow_Open = 'search-window:open',
+  SearchWindow_Close = 'search-window:close',
+  SearchWindow_OpenUrl = 'search-window:open-url'
 }

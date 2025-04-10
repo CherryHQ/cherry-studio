@@ -3,10 +3,11 @@ import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
+import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider } from '@renderer/types'
 import { droppableReorder, generateColorFromChar, getFirstCharacter, uuid } from '@renderer/utils'
 import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -20,6 +21,28 @@ const ProvidersList: FC = () => {
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
+  const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const loadAllLogos = async () => {
+      const logos: Record<string, string> = {}
+      for (const provider of providers) {
+        if (provider.id) {
+          try {
+            const logoData = await ImageStorage.get(`provider-${provider.id}`)
+            if (logoData) {
+              logos[provider.id] = logoData
+            }
+          } catch (error) {
+            console.error(`Failed to load logo for provider ${provider.id}`, error)
+          }
+        }
+      }
+      setProviderLogos(logos)
+    }
+
+    loadAllLogos()
+  }, [providers])
 
   const onDragEnd = (result: DropResult) => {
     setDragging(false)
@@ -32,15 +55,15 @@ const ProvidersList: FC = () => {
   }
 
   const onAddProvider = async () => {
-    const { name: prividerName, type } = await AddProviderPopup.show()
+    const { name: providerName, type, logo } = await AddProviderPopup.show()
 
-    if (!prividerName.trim()) {
+    if (!providerName.trim()) {
       return
     }
 
     const provider = {
       id: uuid(),
-      name: prividerName.trim(),
+      name: providerName.trim(),
       type,
       apiKey: '',
       apiHost: '',
@@ -48,6 +71,21 @@ const ProvidersList: FC = () => {
       enabled: true,
       isSystem: false
     } as Provider
+
+    let updatedLogos = { ...providerLogos }
+    if (logo) {
+      try {
+        await ImageStorage.set(`provider-${provider.id}`, logo)
+        updatedLogos = {
+          ...updatedLogos,
+          [provider.id]: logo
+        }
+        setProviderLogos(updatedLogos)
+      } catch (error) {
+        console.error('Failed to save logo', error)
+        window.message.error('保存Provider Logo失败')
+      }
+    }
 
     addProvider(provider)
     setSelectedProvider(provider)
@@ -60,8 +98,36 @@ const ProvidersList: FC = () => {
         key: 'edit',
         icon: <EditOutlined />,
         async onClick() {
-          const { name, type } = await AddProviderPopup.show(provider)
-          name && updateProvider({ ...provider, name, type })
+          const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
+
+          if (name) {
+            updateProvider({ ...provider, name, type })
+            if (provider.id) {
+              if (logoFile && logo) {
+                try {
+                  await ImageStorage.set(`provider-${provider.id}`, logo)
+                  setProviderLogos((prev) => ({
+                    ...prev,
+                    [provider.id]: logo
+                  }))
+                } catch (error) {
+                  console.error('Failed to save logo', error)
+                  window.message.error('更新Provider Logo失败')
+                }
+              } else if (logo === undefined && logoFile === undefined) {
+                try {
+                  await ImageStorage.set(`provider-${provider.id}`, '')
+                  setProviderLogos((prev) => {
+                    const newLogos = { ...prev }
+                    delete newLogos[provider.id]
+                    return newLogos
+                  })
+                } catch (error) {
+                  console.error('Failed to reset logo', error)
+                }
+              }
+            }
+          }
         }
       },
       {
@@ -76,7 +142,21 @@ const ProvidersList: FC = () => {
             okButtonProps: { danger: true },
             okText: t('common.delete'),
             centered: true,
-            onOk: () => {
+            onOk: async () => {
+              // 删除provider前先清理其logo
+              if (provider.id) {
+                try {
+                  await ImageStorage.remove(`provider-${provider.id}`)
+                  setProviderLogos((prev) => {
+                    const newLogos = { ...prev }
+                    delete newLogos[provider.id]
+                    return newLogos
+                  })
+                } catch (error) {
+                  console.error('Failed to delete logo', error)
+                }
+              }
+
               setSelectedProvider(providers.filter((p) => p.isSystem)[0])
               removeProvider(provider)
             }
@@ -96,17 +176,33 @@ const ProvidersList: FC = () => {
     return menus
   }
 
-  //will match the providers and the models that provider provides
+  const getProviderAvatar = (provider: Provider) => {
+    if (provider.isSystem) {
+      return <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={25} />
+    }
+
+    const customLogo = providerLogos[provider.id]
+    if (customLogo) {
+      return <ProviderLogo shape="square" src={customLogo} size={25} />
+    }
+
+    return (
+      <ProviderLogo
+        size={25}
+        shape="square"
+        style={{ backgroundColor: generateColorFromChar(provider.name), minWidth: 25 }}>
+        {getFirstCharacter(provider.name)}
+      </ProviderLogo>
+    )
+  }
+
   const filteredProviders = providers.filter((provider) => {
-    // 获取 provider 的名称
     const providerName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
 
-    // 检查 provider 的 id 和 name 是否匹配搜索条件
     const isProviderMatch =
       provider.id.toLowerCase().includes(searchText.toLowerCase()) ||
       providerName.toLowerCase().includes(searchText.toLowerCase())
 
-    // 检查 provider.models 中是否有 model 的 id 或 name 匹配搜索条件
     const isModelMatch = provider.models.some((model) => {
       return (
         model.id.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -114,7 +210,6 @@ const ProvidersList: FC = () => {
       )
     })
 
-    // 如果 provider 或 model 匹配，则保留该 provider
     return isProviderMatch || isModelMatch
   })
 
@@ -161,17 +256,7 @@ const ProvidersList: FC = () => {
                                 key={JSON.stringify(provider)}
                                 className={provider.id === selectedProvider?.id ? 'active' : ''}
                                 onClick={() => setSelectedProvider(provider)}>
-                                {provider.isSystem && (
-                                  <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={25} />
-                                )}
-                                {!provider.isSystem && (
-                                  <ProviderLogo
-                                    size={25}
-                                    shape="square"
-                                    style={{ backgroundColor: generateColorFromChar(provider.name), minWidth: 25 }}>
-                                    {getFirstCharacter(provider.name)}
-                                  </ProviderLogo>
-                                )}
+                                {getProviderAvatar(provider)}
                                 <ProviderItemName className="text-nowrap">
                                   {provider.isSystem ? t(`provider.${provider.id}`) : provider.name}
                                 </ProviderItemName>

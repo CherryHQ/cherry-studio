@@ -175,6 +175,11 @@ declare global {
         decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
         getDirectoryContents: (token: string, path: string) => Promise<any>
       }
+      searchService: {
+        openSearchWindow: (uid: string) => Promise<string>
+        closeSearchWindow: (uid: string) => Promise<string>
+        openUrlInSearchWindow: (uid: string, url: string) => Promise<string>
+      }
     }
   }
 }

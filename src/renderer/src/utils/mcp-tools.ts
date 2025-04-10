@@ -21,7 +21,7 @@ import { addMCPServer } from '@renderer/store/mcp'
 import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
 
-import { ChunkCallbackData } from '../providers/AiProvider'
+import { ChunkCallbackData, CompletionsParams } from '../providers/AiProvider'
 
 const ensureValidSchema = (obj: Record<string, any>): FunctionDeclarationSchemaProperty => {
   // Filter out unsupported keys for Gemini
@@ -374,4 +374,88 @@ export function filterMCPTools(
 export function getMcpServerByTool(tool: MCPTool) {
   const servers = store.getState().mcp.servers
   return servers.find((s) => s.id === tool.serverId)
+}
+
+export function parseToolUse(content: string, mcpTools: MCPTool[]): MCPToolResponse[] {
+  if (!content || !mcpTools || mcpTools.length === 0) {
+    return []
+  }
+  const toolUsePattern =
+    /<tool_use>([\s\S]*?)<name>([\s\S]*?)<\/name>([\s\S]*?)<arguments>([\s\S]*?)<\/arguments>([\s\S]*?)<\/tool_use>/g
+  const tools: MCPToolResponse[] = []
+  let match
+  let idx = 0
+  // Find all tool use blocks
+  while ((match = toolUsePattern.exec(content)) !== null) {
+    // const fullMatch = match[0]
+    const toolName = match[2].trim()
+    const toolArgs = match[4].trim()
+
+    // Try to parse the arguments as JSON
+    let parsedArgs
+    try {
+      parsedArgs = JSON.parse(toolArgs)
+    } catch (error) {
+      // If parsing fails, use the string as is
+      parsedArgs = toolArgs
+    }
+    // console.log(`Parsed arguments for tool "${toolName}":`, parsedArgs)
+    const mcpTool = mcpTools.find((tool) => tool.id === toolName)
+    if (!mcpTool) {
+      console.error(`Tool "${toolName}" not found in MCP tools`)
+      continue
+    }
+
+    // Add to tools array
+    tools.push({
+      id: `${toolName}-${idx++}`, // Unique ID for each tool use
+      tool: {
+        ...mcpTool,
+        inputSchema: parsedArgs
+      },
+      status: 'pending'
+    })
+
+    // Remove the tool use block from the content
+    // content = content.replace(fullMatch, '')
+  }
+  return tools
+}
+
+export async function parseAndCallTools(
+  content: string,
+  toolResponses: MCPToolResponse[],
+  onChunk: CompletionsParams['onChunk'],
+  idx: number,
+  mcpTools?: MCPTool[]
+): Promise<string[]> {
+  const toolResults: string[] = []
+  // process tool use
+  const tools = parseToolUse(content, mcpTools || [])
+  if (!tools || tools.length === 0) {
+    return toolResults
+  }
+  for (let i = 0; i < tools.length; i++) {
+    const tool = tools[i]
+    upsertMCPToolResponse(toolResponses, { id: `${tool.id}-${idx}-${i}`, tool: tool.tool, status: 'invoking' }, onChunk)
+  }
+
+  const toolPromises = tools.map(async (tool, i) => {
+    const toolCallResponse = await callMCPTool(tool.tool)
+    const result = `
+          <tool_use_result>
+            <name>${tool.id}</name>
+            <result>${JSON.stringify(toolCallResponse)}</result>
+          </tool_use_result>
+          `.trim()
+    upsertMCPToolResponse(
+      toolResponses,
+      { id: `${tool.id}-${idx}-${i}`, tool: tool.tool, status: 'done', response: toolCallResponse },
+      onChunk
+    )
+    return result
+  })
+
+  toolResults.push(...(await Promise.all(toolPromises)))
+  return toolResults
 }

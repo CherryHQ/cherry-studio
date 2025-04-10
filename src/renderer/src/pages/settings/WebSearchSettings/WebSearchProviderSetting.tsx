@@ -117,7 +117,6 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       <SettingTitle>
         <Flex align="center" gap={8}>
           <ProviderLogo shape="square" src={getWebSearchProviderLogo(provider.id)} size={16} />
-
           <ProviderName> {provider.name}</ProviderName>
           {officialWebsite && webSearchProviderConfig?.websites && (
             <Link target="_blank" href={webSearchProviderConfig.websites.official}>
@@ -156,7 +155,6 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           </SettingHelpTextRow>
         </>
       )}
-
       {hasObjectKey(provider, 'apiHost') && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
