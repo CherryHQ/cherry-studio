@@ -501,12 +501,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: '嵌入模型'
     },
     {
-      id: 'text-embedding-3-small',
-      provider: 'o3',
-      name: 'text-embedding-3-small',
-      group: '嵌入模型'
-    },
-    {
       id: 'text-embedding-ada-002',
       provider: 'o3',
       name: 'text-embedding-ada-002',
