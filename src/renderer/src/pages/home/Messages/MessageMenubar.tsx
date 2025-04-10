@@ -439,7 +439,6 @@ const MessageMenubar: FC<Props> = (props) => {
             ],
             onClick: (e) => e.domEvent.stopPropagation()
           }}
-          overlayStyle={{ maxHeight: '300px', overflow: 'auto' }}
           trigger={['click']}
           placement="topRight"
           arrow>
