@@ -1,5 +1,6 @@
 import { Readability } from '@mozilla/readability'
 import { nanoid } from '@reduxjs/toolkit'
+import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
 import TurndownService from 'turndown'
 
@@ -22,11 +23,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
     super(provider)
   }
 
-  public async search(
-    query: string,
-    maxResults: number = 15,
-    excludeDomains: string[] = []
-  ): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
     const uid = nanoid()
     try {
       if (!query.trim()) {
@@ -41,16 +38,11 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       const content = await window.api.searchService.openUrlInSearchWindow(uid, url)
 
       // Parse the content to extract URLs and metadata
-      const searchItems = this.parseValidUrls(content).slice(0, maxResults)
-      console.log('Total search items:', searchItems)
+      const searchItems = this.parseValidUrls(content).slice(0, websearch.maxResults)
 
       const validItems = searchItems
-        .filter(
-          (item) =>
-            (item.url.startsWith('http') || item.url.startsWith('https')) &&
-            excludeDomains.includes(new URL(item.url).host) === false
-        )
-        .slice(0, maxResults)
+        .filter((item) => item.url.startsWith('http') || item.url.startsWith('https'))
+        .slice(0, websearch.maxResults)
       // console.log('Valid search items:', validItems)
 
       // Fetch content for each URL concurrently

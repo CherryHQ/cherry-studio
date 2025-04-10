@@ -205,8 +205,9 @@ export async function filterResultWithBlacklist(
   response: WebSearchResponse,
   websearch: WebSearchState
 ): Promise<WebSearchResponse> {
-  // 如果没有结果或没有黑名单规则，直接返回原结果
-  if (!response.results || response.results.length === 0) {
+  console.log('filterResultWithBlacklist', response)
+  // 没有结果或者没有黑名单规则时，直接返回原始结果
+  if (!response.results?.length || (!websearch.excludeDomains.length && !websearch.subscribeSources.length)) {
     return response
   }
 
@@ -216,9 +217,11 @@ export async function filterResultWithBlacklist(
   // 合并所有黑名单规则
   const blacklistPatterns: string[] = [
     ...websearch.excludeDomains,
-    ...websearch.subscribeSources.reduce<string[]>((acc, source) => {
-      return acc.concat(source.blacklist || [])
-    }, [])
+    ...(websearch.subscribeSources?.length
+      ? websearch.subscribeSources.reduce<string[]>((acc, source) => {
+          return acc.concat(source.blacklist || [])
+        }, [])
+      : [])
   ]
 
   // 正则表达式规则集合
@@ -267,6 +270,8 @@ export async function filterResultWithBlacklist(
       return true // 如果URL解析失败，保留该结果
     }
   })
+
+  console.log('filterResultWithBlacklist filtered results:', filteredResults)
 
   return {
     ...response,
