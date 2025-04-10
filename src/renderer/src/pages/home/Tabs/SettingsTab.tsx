@@ -8,7 +8,7 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
-import { isGrokResoningModel, isSupportedResoningEffortModel } from '@renderer/config/models'
+import { isGrokReasoningModel, isSupportedReasoningEffortModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -148,7 +148,7 @@ const SettingsTab: FC<Props> = (props) => {
     setReasoningEffort(assistant?.settings?.reasoning_effort)
 
     // 当是Grok模型时，处理reasoning_effort的设置
-    if (isGrokResoningModel(assistant?.model || getDefaultModel())) {
+    if (isGrokReasoningModel(assistant?.model || getDefaultModel())) {
       const currentEffort = assistant?.settings?.reasoning_effort
       if (!currentEffort || currentEffort === 'low') {
         setReasoningEffort('low')
@@ -275,7 +275,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Col>
           </Row>
         )}
-        {isSupportedResoningEffortModel(assistant?.model || getDefaultModel()) && (
+        {isSupportedReasoningEffortModel(assistant?.model || getDefaultModel()) && (
           <>
             <SettingDivider />
             <Row align="middle">
@@ -295,7 +295,7 @@ const SettingsTab: FC<Props> = (props) => {
                       onReasoningEffortChange(typedValue)
                     }}
                     options={
-                      isGrokResoningModel(assistant?.model || getDefaultModel())
+                      isGrokReasoningModel(assistant?.model || getDefaultModel())
                         ? [
                             { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
                             { value: 'high', label: t('assistants.settings.reasoning_effort.high') }

@@ -1,7 +1,7 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
-  isGrokResoningModel,
+  isGrokReasoningModel,
   isHunyuanSearchModel,
   isOpenAIoSeries,
   isOpenAIWebSearch,
@@ -244,7 +244,7 @@ export default class OpenAIProvider extends BaseProvider {
         }
       }
 
-      if (isGrokResoningModel(model)) {
+      if (isGrokReasoningModel(model)) {
         return {
           resoning_effort: assistant?.settings?.reasoning_effort
         }

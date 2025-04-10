@@ -2202,7 +2202,7 @@ export function isOpenAIWebSearch(model: Model): boolean {
   return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
 }
 
-export function isSupportedResoningEffortModel(model?: Model): boolean {
+export function isSupportedReasoningEffortModel(model?: Model): boolean {
   if (!model) {
     return false
   }
@@ -2211,7 +2211,7 @@ export function isSupportedResoningEffortModel(model?: Model): boolean {
     model.id.includes('claude-3-7-sonnet') ||
     model.id.includes('claude-3.7-sonnet') ||
     isOpenAIoSeries(model) ||
-    isGrokResoningModel(model)
+    isGrokReasoningModel(model)
   ) {
     return true
   }
@@ -2219,7 +2219,7 @@ export function isSupportedResoningEffortModel(model?: Model): boolean {
   return false
 }
 
-export function isGrokResoningModel(model?: Model): boolean {
+export function isGrokReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
