@@ -210,7 +210,8 @@ export const FUNCTION_CALLING_MODELS = [
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
-  'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
+  'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
+  'grok-3(?:-[\\w-]+)?'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
