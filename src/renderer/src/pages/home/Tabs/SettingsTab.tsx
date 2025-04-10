@@ -44,7 +44,7 @@ import {
 import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -115,9 +115,12 @@ const SettingsTab: FC<Props> = (props) => {
     }
   }
 
-  const onReasoningEffortChange = (value) => {
-    updateAssistantSettings({ reasoning_effort: value })
-  }
+  const onReasoningEffortChange = useCallback(
+    (value?: 'low' | 'medium' | 'high') => {
+      updateAssistantSettings({ reasoning_effort: value })
+    },
+    [updateAssistantSettings]
+  )
 
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
