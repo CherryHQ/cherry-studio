@@ -8,7 +8,7 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
-import { isSupportedResoningEffortModel } from '@renderer/config/models'
+import { isGrokResoningModel, isSupportedResoningEffortModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -282,12 +282,19 @@ const SettingsTab: FC<Props> = (props) => {
                       setReasoningEffort(typedValue)
                       onReasoningEffortChange(typedValue)
                     }}
-                    options={[
-                      { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
-                      { value: 'medium', label: t('assistants.settings.reasoning_effort.medium') },
-                      { value: 'high', label: t('assistants.settings.reasoning_effort.high') },
-                      { value: 'off', label: t('assistants.settings.reasoning_effort.off') }
-                    ]}
+                    options={
+                      isGrokResoningModel(assistant?.model || getDefaultModel())
+                        ? [
+                            { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
+                            { value: 'high', label: t('assistants.settings.reasoning_effort.high') }
+                          ]
+                        : [
+                            { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
+                            { value: 'medium', label: t('assistants.settings.reasoning_effort.medium') },
+                            { value: 'high', label: t('assistants.settings.reasoning_effort.high') },
+                            { value: 'off', label: t('assistants.settings.reasoning_effort.off') }
+                          ]
+                    }
                     name="group"
                     block
                   />
