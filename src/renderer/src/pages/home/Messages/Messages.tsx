@@ -19,7 +19,7 @@ import {
   runAsyncFunction
 } from '@renderer/utils'
 import { flatten, last, take } from 'lodash'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -84,6 +84,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set())
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
   const messages = useTopicMessages(topic)
   const { displayCount, updateMessages, clearTopicMessages, deleteMessage } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
@@ -98,6 +100,47 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     setDisplayMessages(newDisplayMessages)
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
+
+  useEffect(() => {
+    const handleToggleMultiSelect = (value: boolean) => {
+      setIsMultiSelectMode(value)
+      if (!value) {
+        setSelectedMessages(new Set())
+      }
+    }
+
+    EventEmitter.on(EVENT_NAMES.TOGGLE_MULTI_SELECT, handleToggleMultiSelect)
+
+    return () => {
+      EventEmitter.off(EVENT_NAMES.TOGGLE_MULTI_SELECT, handleToggleMultiSelect)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleRequestSelectedMessageDetails = (messageIds: string[]) => {
+      const selectedMessages = messages.filter((msg) => messageIds.includes(msg.id))
+      EventEmitter.emit('SELECTED_MESSAGE_DETAILS', selectedMessages)
+    }
+
+    EventEmitter.on('REQUEST_SELECTED_MESSAGE_DETAILS', handleRequestSelectedMessageDetails)
+
+    return () => {
+      EventEmitter.off('REQUEST_SELECTED_MESSAGE_DETAILS', handleRequestSelectedMessageDetails)
+    }
+  }, [messages])
+
+  const handleSelectMessage = (messageId: string, selected: boolean) => {
+    setSelectedMessages((prev) => {
+      const newSet = new Set(prev)
+      if (selected) {
+        newSet.add(messageId)
+      } else {
+        newSet.delete(messageId)
+      }
+      EventEmitter.emit(EVENT_NAMES.SELECTED_MESSAGES_CHANGED, Array.from(newSet))
+      return newSet
+    })
+  }
 
   const maxWidth = useMemo(() => {
     const showRightTopics = showTopics && topicPosition === 'right'
@@ -268,6 +311,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
                 messages={groupMessages}
                 topic={topic}
                 hidePresetMessages={assistant.settings?.hideMessages}
+                isMultiSelectMode={isMultiSelectMode}
+                selectedMessages={selectedMessages}
+                onSelectMessage={handleSelectMessage}
               />
             ))}
           </ScrollContainer>

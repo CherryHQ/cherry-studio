@@ -148,35 +148,42 @@ const MessageMenubar: FC<Props> = (props) => {
       const imageUrls: string[] = []
       let match
       let content = editedText
-      
+
       while ((match = imageRegex.exec(editedText)) !== null) {
         imageUrls.push(match[1])
         content = content.replace(match[0], '')
       }
-      
+
       // 更新消息内容，保留图片信息
-      await editMessage(message.id, { 
+      await editMessage(message.id, {
         content: content.trim(),
         metadata: {
           ...message.metadata,
-          generateImage: imageUrls.length > 0 ? {
-            type: 'url',
-            images: imageUrls
-          } : undefined
+          generateImage:
+            imageUrls.length > 0
+              ? {
+                  type: 'url',
+                  images: imageUrls
+                }
+              : undefined
         }
       })
-      
-      resendMessage && handleResendUserMessage({ 
-        ...message, 
-        content: content.trim(),
-        metadata: {
-          ...message.metadata,
-          generateImage: imageUrls.length > 0 ? {
-            type: 'url',
-            images: imageUrls
-          } : undefined
-        }
-      })
+
+      resendMessage &&
+        handleResendUserMessage({
+          ...message,
+          content: content.trim(),
+          metadata: {
+            ...message.metadata,
+            generateImage:
+              imageUrls.length > 0
+                ? {
+                    type: 'url',
+                    images: imageUrls
+                  }
+                : undefined
+          }
+        })
     }
   }, [message, editMessage, handleResendUserMessage, t])
 
@@ -313,6 +320,14 @@ const MessageMenubar: FC<Props> = (props) => {
             }
           }
         ].filter(Boolean)
+      },
+      {
+        label: t('chat.multiple.select'),
+        key: 'multi-select',
+        icon: <MenuOutlined />,
+        onClick: () => {
+          EventEmitter.emit(EVENT_NAMES.TOGGLE_MULTI_SELECT, true)
+        }
       }
     ],
     [message, messageContainerRef, onEdit, onNewBranch, t, topic.name, exportMenuOptions]
@@ -344,114 +359,116 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   return (
-    <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
-      {message.role === 'user' && (
-        <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={() => handleResendUserMessage()}>
-            <SyncOutlined />
-          </ActionButton>
-        </Tooltip>
-      )}
-      {message.role === 'user' && (
-        <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onEdit}>
-            <EditOutlined />
-          </ActionButton>
-        </Tooltip>
-      )}
-      <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
-        <ActionButton className="message-action-button" onClick={onCopy}>
-          {!copied && <i className="iconfont icon-copy"></i>}
-          {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
-        </ActionButton>
-      </Tooltip>
-      {isAssistantMessage && (
-        <Popconfirm
-          title={t('message.regenerate.confirm')}
-          okButtonProps={{ danger: true }}
-          icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-          onConfirm={onRegenerate}
-          onOpenChange={(open) => open && setShowRegenerateTooltip(false)}>
-          <Tooltip
-            title={t('common.regenerate')}
-            mouseEnterDelay={0.8}
-            open={showRegenerateTooltip}
-            onOpenChange={setShowRegenerateTooltip}>
-            <ActionButton className="message-action-button">
+    <>
+      <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
+        {message.role === 'user' && (
+          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button" onClick={() => handleResendUserMessage()}>
               <SyncOutlined />
             </ActionButton>
           </Tooltip>
-        </Popconfirm>
-      )}
-      {isAssistantMessage && (
-        <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onMentionModel}>
-            <i className="iconfont icon-at" style={{ fontSize: 16 }}></i>
-          </ActionButton>
-        </Tooltip>
-      )}
-      {!isUserMessage && (
-        <Dropdown
-          menu={{
-            items: [
-              ...TranslateLanguageOptions.map((item) => ({
-                label: item.emoji + ' ' + item.label,
-                key: item.value,
-                onClick: () => handleTranslate(item.value)
-              })),
-              {
-                label: '✖ ' + t('translate.close'),
-                key: 'translate-close',
-                onClick: () => editMessage(message.id, { translatedContent: undefined })
-              }
-            ],
-            onClick: (e) => e.domEvent.stopPropagation()
-          }}
-          trigger={['click']}
-          placement="topRight"
-          arrow>
-          <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
-            <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-              <TranslationOutlined />
+        )}
+        {message.role === 'user' && (
+          <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button" onClick={onEdit}>
+              <EditOutlined />
             </ActionButton>
           </Tooltip>
-        </Dropdown>
-      )}
-      {isAssistantMessage && isGrouped && (
-        <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onUseful}>
-            {message.useful ? <LikeFilled /> : <LikeOutlined />}
+        )}
+        <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
+          <ActionButton className="message-action-button" onClick={onCopy}>
+            {!copied && <i className="iconfont icon-copy"></i>}
+            {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
           </ActionButton>
         </Tooltip>
-      )}
-      <Popconfirm
-        title={t('message.message.delete.content')}
-        okButtonProps={{ danger: true }}
-        icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-        onOpenChange={(open) => open && setShowDeleteTooltip(false)}
-        onConfirm={() => deleteMessage(message.id)}>
-        <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-          <Tooltip
-            title={t('common.delete')}
-            mouseEnterDelay={1}
-            open={showDeleteTooltip}
-            onOpenChange={setShowDeleteTooltip}>
-            <DeleteOutlined />
+        {isAssistantMessage && (
+          <Popconfirm
+            title={t('message.regenerate.confirm')}
+            okButtonProps={{ danger: true }}
+            icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+            onConfirm={onRegenerate}
+            onOpenChange={(open) => open && setShowRegenerateTooltip(false)}>
+            <Tooltip
+              title={t('common.regenerate')}
+              mouseEnterDelay={0.8}
+              open={showRegenerateTooltip}
+              onOpenChange={setShowRegenerateTooltip}>
+              <ActionButton className="message-action-button">
+                <SyncOutlined />
+              </ActionButton>
+            </Tooltip>
+          </Popconfirm>
+        )}
+        {isAssistantMessage && (
+          <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button" onClick={onMentionModel}>
+              <i className="iconfont icon-at" style={{ fontSize: 16 }}></i>
+            </ActionButton>
           </Tooltip>
-        </ActionButton>
-      </Popconfirm>
-      {!isUserMessage && (
-        <Dropdown
-          menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
-          trigger={['click']}
-          placement="topRight"
-          arrow>
+        )}
+        {!isUserMessage && (
+          <Dropdown
+            menu={{
+              items: [
+                ...TranslateLanguageOptions.map((item) => ({
+                  label: item.emoji + ' ' + item.label,
+                  key: item.value,
+                  onClick: () => handleTranslate(item.value)
+                })),
+                {
+                  label: '✖ ' + t('translate.close'),
+                  key: 'translate-close',
+                  onClick: () => editMessage(message.id, { translatedContent: undefined })
+                }
+              ],
+              onClick: (e) => e.domEvent.stopPropagation()
+            }}
+            trigger={['click']}
+            placement="topRight"
+            arrow>
+            <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
+              <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
+                <TranslationOutlined />
+              </ActionButton>
+            </Tooltip>
+          </Dropdown>
+        )}
+        {isAssistantMessage && isGrouped && (
+          <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button" onClick={onUseful}>
+              {message.useful ? <LikeFilled /> : <LikeOutlined />}
+            </ActionButton>
+          </Tooltip>
+        )}
+        <Popconfirm
+          title={t('message.message.delete.content')}
+          okButtonProps={{ danger: true }}
+          icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+          onOpenChange={(open) => open && setShowDeleteTooltip(false)}
+          onConfirm={() => deleteMessage(message.id)}>
           <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-            <MenuOutlined />
+            <Tooltip
+              title={t('common.delete')}
+              mouseEnterDelay={1}
+              open={showDeleteTooltip}
+              onOpenChange={setShowDeleteTooltip}>
+              <DeleteOutlined />
+            </Tooltip>
           </ActionButton>
-        </Dropdown>
-      )}
-    </MenusBar>
+        </Popconfirm>
+        {!isUserMessage && (
+          <Dropdown
+            menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
+            trigger={['click']}
+            placement="topRight"
+            arrow>
+            <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
+              <MenuOutlined />
+            </ActionButton>
+          </Dropdown>
+        )}
+      </MenusBar>
+    </>
   )
 }
 
