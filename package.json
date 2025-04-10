@@ -19,7 +19,7 @@
   },
   "scripts": {
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev -- --trace-warnings",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "yarn test && yarn typecheck && yarn check:i18n",
     "build:unpack": "dotenv npm run build && electron-builder --dir",
@@ -74,6 +74,8 @@
     "adm-zip": "^0.5.16",
     "diff": "^7.0.0",
     "docx": "^9.0.2",
+    "electron-chrome-extensions": "^4.7.0",
+    "electron-chrome-web-store": "^0.11.0",
     "electron-log": "^5.1.5",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.9",
@@ -139,7 +141,7 @@
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
     "dotenv-cli": "^7.4.2",
-    "electron": "31.7.6",
+    "electron": "^35.1.4",
     "electron-builder": "^24.13.3",
     "electron-devtools-installer": "^3.2.0",
     "electron-icon-builder": "^2.0.1",
@@ -189,7 +191,8 @@
     "tokenx": "^0.4.1",
     "typescript": "^5.6.2",
     "uuid": "^10.0.0",
-    "vite": "^5.0.12"
+    "vite": "^5.0.12",
+    "vite-plugin-static-copy": "^2.3.1"
   },
   "resolutions": {
     "pdf-parse@npm:1.1.1": "patch:pdf-parse@npm%3A1.1.1#~/.yarn/patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",

@@ -1173,6 +1173,20 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '93': (state: RootState) => {
+    try {
+      // Add extensions to visible icons if not already included
+      if (!state.settings.sidebarIcons.visible.includes('extensions')) {
+        state.settings.sidebarIcons.visible.push('extensions')
+      }
+      if (state.extensions.extensions.length === 0) {
+        state.extensions.extensions = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

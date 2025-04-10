@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { viteStaticCopy } from 'vite-plugin-static-copy'
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -42,7 +43,22 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      externalizeDepsPlugin(),
+      viteStaticCopy({
+        targets: [
+          process.env.NODE_ENV === 'development'
+            ? {
+                src: resolve('node_modules/electron-chrome-extensions/dist/chrome-extension-api.preload.js'),
+                dest: resolve('out/preload')
+              }
+            : {
+                src: resolve('node_modules/electron-chrome-extensions/dist/chrome-extension-api.preload.js'),
+                dest: resolve('dist/preload')
+              }
+        ]
+      })
+    ],
     resolve: {
       alias: {
         '@shared': resolve('packages/shared')

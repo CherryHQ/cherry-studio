@@ -2,7 +2,7 @@ import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, MenuItem, session, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
@@ -16,6 +16,7 @@ export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
+  private extensionWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
   private wasFullScreen: boolean = false
   //hacky-fix: store the focused status of mainWindow before miniWindow shows
@@ -483,7 +484,7 @@ export class WindowService {
     this.showMiniWindow()
   }
 
-  public setPinMiniWindow(isPinned) {
+  public setPinMiniWindow(isPinned: boolean) {
     this.isPinnedMiniWindow = isPinned
   }
 
@@ -553,6 +554,90 @@ export class WindowService {
 
   public setLastSelectedText(text: string) {
     this.lastSelectedText = text
+  }
+
+  /**
+   * 创建或获取扩展窗口
+   * 用于显示Chrome商店和扩展相关内容
+   */
+  public createExtensionWindow(): BrowserWindow {
+    if (this.extensionWindow && !this.extensionWindow.isDestroyed()) {
+      this.extensionWindow.show()
+      this.extensionWindow.focus()
+      return this.extensionWindow
+    }
+
+    const theme = configManager.getTheme()
+
+    this.extensionWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      minWidth: 800,
+      minHeight: 600,
+      show: false,
+      autoHideMenuBar: true,
+      transparent: isMac,
+      vibrancy: 'sidebar',
+      visualEffectState: 'active',
+      titleBarStyle: isLinux ? 'default' : 'hidden',
+      titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,
+      backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
+      trafficLightPosition: { x: 8, y: 12 },
+      ...(isLinux ? { icon } : {}),
+      webPreferences: {
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true,
+        allowRunningInsecureContent: true,
+        session: session.defaultSession
+      }
+    })
+
+    this.setupExtensionWindow(this.extensionWindow)
+    return this.extensionWindow
+  }
+
+  /**
+   * 设置扩展窗口
+   */
+  private setupExtensionWindow(extensionWindow: BrowserWindow) {
+    // 设置窗口事件
+    extensionWindow.once('ready-to-show', () => {
+      extensionWindow.show()
+      extensionWindow.focus()
+    })
+
+    extensionWindow.on('closed', () => {
+      this.extensionWindow = null
+    })
+
+    // 设置网页内容处理
+    this.setupWebContentsHandlers(extensionWindow)
+  }
+
+  /**
+   * 加载URL到扩展窗口
+   */
+  public loadURLInExtensionWindow(url: string): void {
+    const win = this.createExtensionWindow()
+    win.loadURL(url)
+  }
+
+  /**
+   * 获取扩展窗口
+   */
+  public getExtensionWindow(): BrowserWindow | null {
+    return this.extensionWindow
+  }
+
+  /**
+   * 关闭扩展窗口
+   */
+  public closeExtensionWindow(): void {
+    if (this.extensionWindow && !this.extensionWindow.isDestroyed()) {
+      this.extensionWindow.close()
+      this.extensionWindow = null
+    }
   }
 }
 

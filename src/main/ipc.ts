@@ -13,6 +13,7 @@ import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import { ExportService } from './services/ExportService'
+import { extensionService } from './services/ExtensionService'
 import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
@@ -141,7 +142,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
         })
       )
       await fileManager.clearTemp()
-      await fs.writeFileSync(log.transports.file.getFile().path, '')
+      fs.writeFileSync(log.transports.file.getFile().path, '')
       return { success: true }
     } catch (error: any) {
       log.error('Failed to clear cache:', error)
@@ -170,6 +171,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles)
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
+
+  // extension
+  ipcMain.handle(IpcChannel.Extensions_Install, extensionService.installExtension)
+  ipcMain.handle(IpcChannel.Extensions_Uninstall, extensionService.uninstallExtension)
+  ipcMain.handle(IpcChannel.Extensions_Update, extensionService.updateExtensions)
+  ipcMain.handle(IpcChannel.Extensions_Load, extensionService.loadExtension)
+  ipcMain.handle(IpcChannel.Extensions_Unload, extensionService.unloadExtension)
+  ipcMain.handle(IpcChannel.Extensions_OpenChromeStore, extensionService.openChromeWebStore)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)

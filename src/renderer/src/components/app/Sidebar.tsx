@@ -1,4 +1,5 @@
 import {
+  AppstoreAddOutlined,
   FileSearchOutlined,
   FolderOutlined,
   PictureOutlined,
@@ -135,7 +136,8 @@ const MainMenus: FC = () => {
     translate: <TranslationOutlined />,
     minapp: <i className="iconfont icon-appstore" />,
     knowledge: <FileSearchOutlined />,
-    files: <FolderOutlined />
+    files: <FolderOutlined />,
+    extensions: <AppstoreAddOutlined />
   }
 
   const pathMap = {
@@ -145,7 +147,8 @@ const MainMenus: FC = () => {
     translate: '/translate',
     minapp: '/apps',
     knowledge: '/knowledge',
-    files: '/files'
+    files: '/files',
+    extensions: '/extensions'
   }
 
   return sidebarIcons.visible.map((icon) => {

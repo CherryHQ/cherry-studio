@@ -1,5 +1,6 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
+import { ChromeWebStoreOptions, InstallExtensionOptions } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
@@ -42,6 +43,15 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
     createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options)
+  },
+  extensions: {
+    install: (options: InstallExtensionOptions) => ipcRenderer.invoke(IpcChannel.Extensions_Install, options),
+    uninstall: (extensionId: string) => ipcRenderer.invoke(IpcChannel.Extensions_Uninstall, extensionId),
+    update: () => ipcRenderer.invoke(IpcChannel.Extensions_Update),
+    openChromeStore: (options: ChromeWebStoreOptions) =>
+      ipcRenderer.invoke(IpcChannel.Extensions_OpenChromeStore, options),
+    load: (extensionId: string) => ipcRenderer.invoke(IpcChannel.Extensions_Load, extensionId),
+    unload: (extensionId: string) => ipcRenderer.invoke(IpcChannel.Extensions_Unload, extensionId)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),

@@ -7,6 +7,7 @@ import agents from './agents'
 import assistants from './assistants'
 import backup from './backup'
 import copilot from './copilot'
+import extensions from './extensions'
 import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
@@ -35,6 +36,7 @@ const rootReducer = combineReducers({
   websearch,
   mcp,
   copilot,
+  extensions,
   messages: messagesReducer
 })
 
@@ -42,7 +44,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 92,
+    version: 93,
     blacklist: ['runtime', 'messages'],
     migrate
   },

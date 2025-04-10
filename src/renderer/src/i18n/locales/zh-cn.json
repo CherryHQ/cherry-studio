@@ -338,6 +338,10 @@
       "messages": "消息数",
       "user": "用户"
     },
+    "extensions": {
+      "title": "扩展",
+      "search.placeholder": "搜索扩展..."
+    },
     "files": {
       "actions": "操作",
       "all": "所有文件",
