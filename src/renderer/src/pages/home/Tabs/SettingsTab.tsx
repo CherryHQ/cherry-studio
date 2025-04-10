@@ -148,13 +148,15 @@ const SettingsTab: FC<Props> = (props) => {
     setReasoningEffort(assistant?.settings?.reasoning_effort)
 
     // 当是Grok模型时，处理reasoning_effort的设置
+    // For Grok models, only 'low' and 'high' reasoning efforts are supported.
+    // This ensures compatibility with the model's capabilities and avoids unsupported configurations.
     if (isGrokReasoningModel(assistant?.model || getDefaultModel())) {
       const currentEffort = assistant?.settings?.reasoning_effort
       if (!currentEffort || currentEffort === 'low') {
-        setReasoningEffort('low')
+        setReasoningEffort('low') // Default to 'low' if no effort is set or if it's already 'low'.
         onReasoningEffortChange('low')
       } else if (currentEffort === 'medium' || currentEffort === 'high') {
-        setReasoningEffort('high')
+        setReasoningEffort('high') // Force 'high' for 'medium' or 'high' to simplify the configuration.
         onReasoningEffortChange('high')
       }
     }

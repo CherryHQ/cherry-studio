@@ -246,7 +246,7 @@ export default class OpenAIProvider extends BaseProvider {
 
       if (isGrokReasoningModel(model)) {
         return {
-          resoning_effort: assistant?.settings?.reasoning_effort
+          reasoning_effort: assistant?.settings?.reasoning_effort
         }
       }
 
