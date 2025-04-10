@@ -59,7 +59,7 @@
       "settings.reasoning_effort.low": "low",
       "settings.reasoning_effort.medium": "medium",
       "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supports OpenAI o-series and Anthropic reasoning models",
+      "settings.reasoning_effort.tip": "Only supported by OpenAI o-series, Anthropic, and Grok reasoning models",
       "settings.more": "Assistant Settings"
     },
     "auth": {

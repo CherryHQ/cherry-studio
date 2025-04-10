@@ -59,7 +59,7 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "關",
-      "settings.reasoning_effort.tip": "僅支援 OpenAI o-series 和 Anthropic 推理模型",
+      "settings.reasoning_effort.tip": "僅支援 OpenAI o-series、Anthropic 和 Grok 推理模型",
       "settings.more": "助手設定"
     },
     "auth": {

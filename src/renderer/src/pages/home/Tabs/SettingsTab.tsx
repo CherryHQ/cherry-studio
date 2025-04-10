@@ -146,7 +146,19 @@ const SettingsTab: FC<Props> = (props) => {
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
     setReasoningEffort(assistant?.settings?.reasoning_effort)
-  }, [assistant])
+
+    // 当是Grok模型时，处理reasoning_effort的设置
+    if (isGrokResoningModel(assistant?.model || getDefaultModel())) {
+      const currentEffort = assistant?.settings?.reasoning_effort
+      if (!currentEffort || currentEffort === 'low') {
+        setReasoningEffort('low')
+        onReasoningEffortChange('low')
+      } else if (currentEffort === 'medium' || currentEffort === 'high') {
+        setReasoningEffort('high')
+        onReasoningEffortChange('high')
+      }
+    }
+  }, [assistant, onReasoningEffortChange])
 
   const formatSliderTooltip = (value?: number) => {
     if (value === undefined) return ''

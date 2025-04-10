@@ -59,7 +59,7 @@
       "settings.reasoning_effort.low": "短い",
       "settings.reasoning_effort.medium": "中程度",
       "settings.reasoning_effort.off": "オフ",
-      "settings.reasoning_effort.tip": "OpenAIのoシリーズとAnthropicの推論モデルのみサポートしています",
+      "settings.reasoning_effort.tip": "OpenAI o-series、Anthropic、および Grok の推論モデルのみサポート",
       "settings.more": "アシスタント設定"
     },
     "auth": {
