@@ -184,10 +184,23 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
 }
 
 const CollapseIcon: React.FC<{ expanded: boolean; onClick: () => void }> = ({ expanded, onClick }) => {
+  const { t } = useTranslation()
+  const [tooltipVisible, setTooltipVisible] = useState(false)
+
+  const handleClick = () => {
+    setTooltipVisible(false)
+    onClick()
+  }
+
   return (
-    <CollapseIconWrapper onClick={onClick}>
-      {expanded ? <DownOutlined style={{ fontSize: 12 }} /> : <RightOutlined style={{ fontSize: 12 }} />}
-    </CollapseIconWrapper>
+    <Tooltip
+      title={expanded ? t('code_block.collapse') : t('code_block.expand')}
+      open={tooltipVisible}
+      onOpenChange={setTooltipVisible}>
+      <CollapseIconWrapper onClick={handleClick}>
+        {expanded ? <DownOutlined style={{ fontSize: 12 }} /> : <RightOutlined style={{ fontSize: 12 }} />}
+      </CollapseIconWrapper>
+    </Tooltip>
   )
 }
 
@@ -225,6 +238,7 @@ const UnwrapButton: React.FC<{ unwrapped: boolean; onClick: () => void }> = ({ u
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
   const [copied, setCopied] = useState(false)
   const { t } = useTranslation()
+  const copy = t('common.copy')
 
   const onCopy = () => {
     if (!text) return
@@ -234,10 +248,12 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
     setTimeout(() => setCopied(false), 2000)
   }
 
-  return copied ? (
-    <CheckOutlined style={{ color: 'var(--color-primary)', ...style }} />
-  ) : (
-    <CopyIcon className="copy" style={style} onClick={onCopy} />
+  return (
+    <Tooltip title={copy}>
+      <CopyButtonWrapper onClick={onCopy} style={style}>
+        {copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon className="copy" />}
+      </CopyButtonWrapper>
+    </Tooltip>
   )
 }
 
@@ -338,7 +354,19 @@ const CodeFooter = styled.div`
     color: var(--color-text-1);
   }
 `
+const CopyButtonWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-3);
+  transition: color 0.3s;
+  font-size: 16px;
 
+  &:hover {
+    color: var(--color-text-1);
+  }
+`
 const ExpandButtonWrapper = styled.div`
   position: relative;
   cursor: pointer;
@@ -374,8 +402,12 @@ const CollapseIconWrapper = styled.div`
   height: 20px;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--color-text-1);
+  color: var(--color-text-3);
   transition: all 0.2s ease;
+
+  &:hover {
+    color: var(--color-text-1);
+  }
 `
 
 const UnwrapButtonWrapper = styled.div`
