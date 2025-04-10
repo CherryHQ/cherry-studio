@@ -13,7 +13,6 @@ export default class WebSearchEngineProvider {
   public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
     const result = await this.sdk.search(query, websearch)
     const filteredResult = await filterResultWithBlacklist(result, websearch)
-    console.log('filteredResult', websearch, filteredResult)
 
     return filteredResult
   }
