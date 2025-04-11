@@ -47,18 +47,33 @@ const PopupContainer: React.FC<Props> = ({ text, textareaProps, modalProps, reso
     }
   }
 
+  const focusTextArea = () => {
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (textArea && open) {
+      textArea.focus()
+      const length = textArea.value.length
+      textArea.setSelectionRange(length, length)
+    }
+  }
+
   useEffect(() => {
     setTimeout(resizeTextArea, 0)
+
+    // 添加窗口聚焦事件监听器
+    const handleWindowFocus = () => {
+      focusTextArea()
+    }
+
+    window.addEventListener('focus', handleWindowFocus)
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus)
+    }
   }, [])
 
   const handleAfterOpenChange = (visible: boolean) => {
     if (visible) {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.focus()
-        const length = textArea.value.length
-        textArea.setSelectionRange(length, length)
-      }
+      focusTextArea()
     }
   }
 
