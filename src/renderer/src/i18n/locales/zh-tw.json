@@ -1265,6 +1265,7 @@
       "theme.dark": "深色",
       "theme.light": "淺色",
       "theme.title": "主題",
+      "theme.color_primary": "主題顏色",
       "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",

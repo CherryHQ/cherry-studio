@@ -1195,6 +1195,8 @@ const migrateConfig = {
   },
   '95': (state: RootState) => {
     try {
+      state.settings.colorPrimary = settingsInitialState.colorPrimary
+
       addWebSearchProvider(state, 'local-google')
       addWebSearchProvider(state, 'local-bing')
       addWebSearchProvider(state, 'local-baidu')
