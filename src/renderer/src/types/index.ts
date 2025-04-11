@@ -91,6 +91,10 @@ export type Message = {
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
   // fold时是否选中
   foldSelected?: boolean
+  uiState?: {
+    citationsExpanded?: boolean
+    webSearchExpanded?: boolean
+  }
 }
 
 export type Metrics = {

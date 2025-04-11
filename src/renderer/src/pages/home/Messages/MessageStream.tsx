@@ -1,5 +1,5 @@
-import { useAppSelector } from '@renderer/store'
-import { selectStreamMessage } from '@renderer/store/messages'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { selectStreamMessage, updateMessage } from '@renderer/store/messages'
 import { Assistant, Message, Topic } from '@renderer/types'
 import { memo } from 'react'
 import styled from 'styled-components'
@@ -47,9 +47,34 @@ const MessageStream: React.FC<MessageStreamProps> = ({
     return topicMessages.find((m) => m.id === _message.id) || _message
   })
 
+  // 添加dispatch用于更新消息
+  const dispatch = useAppDispatch()
+
+  // 创建一个函数来更新消息状态
+  const handleSetMessages = (updater: React.SetStateAction<Message[]>) => {
+    // 如果updater是函数，则调用它获取新的消息数组
+    if (typeof updater === 'function') {
+      const currentMessages = [regularMessage] // 当前只处理单条消息
+      const updatedMessages = updater(currentMessages)
+      const updatedMessage = updatedMessages.find((m) => m.id === regularMessage.id)
+
+      if (updatedMessage) {
+        // 使用Redux的action更新消息
+        dispatch(
+          updateMessage({
+            topicId: topic.id,
+            messageId: updatedMessage.id,
+            updates: updatedMessage
+          })
+        )
+      }
+    }
+  }
+
   // 在hooks调用后进行条件判断
   const isStreaming = !!(streamMessage && streamMessage.id === _message.id)
   const message = isStreaming ? streamMessage : regularMessage
+
   return (
     <MessageStreamContainer>
       <MessageItem
@@ -61,6 +86,7 @@ const MessageStream: React.FC<MessageStreamProps> = ({
         isGrouped={isGrouped}
         style={style}
         isStreaming={isStreaming}
+        onSetMessages={handleSetMessages} // 添加消息更新函数
       />
     </MessageStreamContainer>
   )

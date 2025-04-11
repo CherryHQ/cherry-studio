@@ -15,19 +15,22 @@ interface Citation {
 
 interface CitationsListProps {
   citations: Citation[]
+  hideTitle?: boolean
 }
 
-const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
+const CitationsList: React.FC<CitationsListProps> = ({ citations, hideTitle = false }) => {
   const { t } = useTranslation()
 
   if (!citations || citations.length === 0) return null
 
   return (
     <CitationsContainer className="footnotes">
-      <CitationsTitle>
-        {t('message.citations')}
-        <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-      </CitationsTitle>
+      {!hideTitle && (
+        <CitationsTitle>
+          {t('message.citations')}
+          <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
+        </CitationsTitle>
+      )}
       {citations.map((citation) => (
         <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{citation.number}.</span>

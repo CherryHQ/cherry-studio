@@ -1,4 +1,11 @@
-import { SearchOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import {
+  DownOutlined,
+  InfoCircleOutlined,
+  RightOutlined,
+  SearchOutlined,
+  SyncOutlined,
+  TranslationOutlined
+} from '@ant-design/icons'
 import { isOpenAIWebSearch } from '@renderer/config/models'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
@@ -6,7 +13,7 @@ import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
 import { clone } from 'lodash'
-import React, { Fragment, useMemo } from 'react'
+import React, { Fragment, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -23,12 +30,50 @@ import MessageTools from './MessageTools'
 interface Props {
   message: Message
   model?: Model
+  onMessageUpdate?: (updates: Partial<Message>) => void
 }
 
-const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
+const MessageContent: React.FC<Props> = ({ message: _message, model, onMessageUpdate }) => {
   const { t } = useTranslation()
   const message = withMessageThought(clone(_message))
+
+  // 从消息对象中获取状态
+  const [citationsExpanded, setCitationsExpanded] = React.useState(message.uiState?.citationsExpanded || false)
+  const [webSearchExpanded, setWebSearchExpanded] = React.useState(message.uiState?.webSearchExpanded || false)
   const isWebCitation = model && (isOpenAIWebSearch(model) || model.provider === 'openrouter')
+
+  // 当状态变化时，通过onMessageUpdate更新消息对象
+  useEffect(() => {
+    if (citationsExpanded !== message.uiState?.citationsExpanded && onMessageUpdate) {
+      onMessageUpdate({
+        uiState: {
+          ...message.uiState,
+          citationsExpanded
+        }
+      })
+    }
+  }, [citationsExpanded, message.uiState, onMessageUpdate])
+
+  useEffect(() => {
+    if (webSearchExpanded !== message.uiState?.webSearchExpanded && onMessageUpdate) {
+      onMessageUpdate({
+        uiState: {
+          ...message.uiState,
+          webSearchExpanded
+        }
+      })
+    }
+  }, [webSearchExpanded, message.uiState, onMessageUpdate])
+
+  // 处理citations折叠状态
+  const handleCitationsToggle = useCallback(() => {
+    setCitationsExpanded(!citationsExpanded)
+  }, [citationsExpanded])
+
+  // 处理webSearch折叠状态
+  const handleWebSearchToggle = useCallback(() => {
+    setWebSearchExpanded(!webSearchExpanded)
+  }, [webSearchExpanded])
 
   // HTML实体编码辅助函数
   const encodeHTML = (str: string) => {
@@ -242,25 +287,55 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           />
         </>
       )}
-      {formattedCitations && (
-        <CitationsList
-          citations={formattedCitations.map((citation) => ({
-            number: citation.number,
-            url: citation.url,
-            hostname: citation.hostname,
-            showFavicon: isWebCitation
-          }))}
-        />
+      {formattedCitations && !message?.metadata?.webSearch && (
+        <CitationsContainer>
+          <CitationsHeader onClick={handleCitationsToggle}>
+            <CitationsTitle>
+              {t('message.citations')}
+              <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
+            </CitationsTitle>
+            {citationsExpanded ? (
+              <DownOutlined style={{ fontSize: '12px' }} />
+            ) : (
+              <RightOutlined style={{ fontSize: '12px' }} />
+            )}
+          </CitationsHeader>
+          {citationsExpanded && (
+            <CitationsList
+              citations={formattedCitations.map((citation) => ({
+                ...citation,
+                showFavicon: isWebCitation
+              }))}
+              hideTitle={true}
+            />
+          )}
+        </CitationsContainer>
       )}
       {message?.metadata?.webSearch && message.status === 'success' && (
-        <CitationsList
-          citations={message.metadata.webSearch.results.map((result, index) => ({
-            number: index + 1,
-            url: result.url,
-            title: result.title,
-            showFavicon: true
-          }))}
-        />
+        <CitationsContainer className="footnotes">
+          <CitationsHeader onClick={handleWebSearchToggle}>
+            <CitationsTitle>
+              {t('message.citations')}
+              <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
+            </CitationsTitle>
+            {webSearchExpanded ? (
+              <DownOutlined style={{ fontSize: '12px' }} />
+            ) : (
+              <RightOutlined style={{ fontSize: '12px' }} />
+            )}
+          </CitationsHeader>
+          {webSearchExpanded && message.metadata?.webSearch?.results && (
+            <CitationsList
+              citations={message.metadata.webSearch.results.map((result, index) => ({
+                number: index + 1,
+                url: result.url,
+                title: result.title || (result.url ? new URL(result.url).hostname : ''),
+                showFavicon: true
+              }))}
+              hideTitle={true}
+            />
+          )}
+        </CitationsContainer>
       )}
       {message?.metadata?.webSearchInfo && message.status === 'success' && (
         <CitationsList
@@ -301,6 +376,39 @@ const MentionTag = styled.span`
   color: var(--color-link);
 `
 
+const CitationsContainer = styled.div`
+  background-color: rgb(242, 247, 253);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  body[theme-mode='dark'] & {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+`
+
+const CitationsHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    opacity: 0.8;
+  }
+`
+
+const CitationsTitle = styled.div`
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--color-text-1);
+  display: flex;
+  align-items: center;
+`
 const SearchingText = styled.div`
   font-size: 14px;
   line-height: 1.6;
