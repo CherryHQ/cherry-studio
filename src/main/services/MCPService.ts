@@ -10,12 +10,46 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
-import { MCPServer, MCPTool } from '@types'
+import { GetMCPPromptResponse, MCPPrompt, MCPServer, MCPTool } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
 
 import { CacheService } from './CacheService'
 import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
+
+// Generic type for caching wrapped functions
+type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
+
+/**
+ * Higher-order function to add caching capability to any async function
+ * @param fn The original function to be wrapped with caching
+ * @param getCacheKey Function to generate a cache key from the function arguments
+ * @param ttl Time to live for the cache entry in milliseconds
+ * @param logPrefix Prefix for log messages
+ * @returns The wrapped function with caching capability
+ */
+function withCache<T extends unknown[], R>(
+  fn: (...args: T) => Promise<R>,
+  getCacheKey: (...args: T) => string,
+  ttl: number,
+  logPrefix: string
+): CachedFunction<T, R> {
+  return async (...args: T): Promise<R> => {
+    const cacheKey = getCacheKey(...args)
+
+    if (CacheService.has(cacheKey)) {
+      Logger.info(`${logPrefix} loaded from cache`)
+      const cachedData = CacheService.get<R>(cacheKey)
+      if (cachedData) {
+        return cachedData
+      }
+    }
+
+    const result = await fn(...args)
+    CacheService.set(cacheKey, result, ttl)
+    return result
+  }
+}
 
 class McpService {
   private clients: Map<string, Client> = new Map()
@@ -35,6 +69,8 @@ class McpService {
     this.initClient = this.initClient.bind(this)
     this.listTools = this.listTools.bind(this)
     this.callTool = this.callTool.bind(this)
+    this.listPrompts = this.listPrompts.bind(this)
+    this.getPrompt = this.getPrompt.bind(this)
     this.closeClient = this.closeClient.bind(this)
     this.removeServer = this.removeServer.bind(this)
     this.restartServer = this.restartServer.bind(this)
@@ -216,31 +252,40 @@ class McpService {
     }
   }
 
-  async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
-    const client = await this.initClient(server)
-    const serverKey = this.getServerKey(server)
-    const cacheKey = `mcp:list_tool:${serverKey}`
-    if (CacheService.has(cacheKey)) {
-      Logger.info(`[MCP] Tools from ${server.name} loaded from cache`)
-      const cachedTools = CacheService.get<MCPTool[]>(cacheKey)
-      if (cachedTools && cachedTools.length > 0) {
-        return cachedTools
-      }
-    }
+  private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
     Logger.info(`[MCP] Listing tools for server: ${server.name}`)
-    const { tools } = await client.listTools()
-    const serverTools: MCPTool[] = []
-    tools.map((tool: any) => {
-      const serverTool: MCPTool = {
-        ...tool,
-        id: `f${nanoid()}`,
-        serverId: server.id,
-        serverName: server.name
-      }
-      serverTools.push(serverTool)
-    })
-    CacheService.set(cacheKey, serverTools, 5 * 60 * 1000)
-    return serverTools
+    const client = await this.initClient(server)
+    try {
+      const { tools } = await client.listTools()
+      const serverTools: MCPTool[] = []
+      tools.map((tool: any) => {
+        const serverTool: MCPTool = {
+          ...tool,
+          id: `f${nanoid()}`,
+          serverId: server.id,
+          serverName: server.name
+        }
+        serverTools.push(serverTool)
+      })
+      return serverTools
+    } catch (error) {
+      Logger.error(`[MCP] Failed to list tools for server: ${server.name}`, error)
+      return []
+    }
+  }
+
+  async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
+    const cachedListTools = withCache<[MCPServer], MCPTool[]>(
+      this.listToolsImpl.bind(this),
+      (server) => {
+        const serverKey = this.getServerKey(server)
+        return `mcp:list_tool:${serverKey}`
+      },
+      5 * 60 * 1000, // 5 minutes TTL
+      `[MCP] Tools from ${server.name}`
+    )
+
+    return cachedListTools(server)
   }
 
   /**
@@ -268,6 +313,76 @@ class McpService {
     const uvPath = path.join(dir, uvName)
     const bunPath = path.join(dir, bunName)
     return { dir, uvPath, bunPath }
+  }
+
+  /**
+   * List prompts available on an MCP server
+   */
+  private async listPromptsImpl(server: MCPServer): Promise<MCPPrompt[]> {
+    Logger.info(`[MCP] Listing prompts for server: ${server.name}`)
+    const client = await this.initClient(server)
+    try {
+      const { prompts } = await client.listPrompts()
+      const serverPrompts = prompts.map((prompt: any) => ({
+        ...prompt,
+        id: `p${nanoid()}`,
+        serverId: server.id,
+        serverName: server.name
+      }))
+      return serverPrompts
+    } catch (error) {
+      Logger.error(`[MCP] Failed to list prompts for server: ${server.name}`, error)
+      return []
+    }
+  }
+
+  /**
+   * List prompts available on an MCP server with caching
+   */
+  public async listPrompts(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPPrompt[]> {
+    const cachedListPrompts = withCache<[MCPServer], MCPPrompt[]>(
+      this.listPromptsImpl.bind(this),
+      (server) => {
+        const serverKey = this.getServerKey(server)
+        return `mcp:list_prompts:${serverKey}`
+      },
+      60 * 60 * 1000, // 60 minutes TTL
+      `[MCP] Prompts from ${server.name}`
+    )
+    return cachedListPrompts(server)
+  }
+
+  /**
+   * Get a specific prompt from an MCP server (implementation)
+   */
+  private async getPromptImpl(
+    server: MCPServer,
+    name: string,
+    args?: Record<string, any>
+  ): Promise<GetMCPPromptResponse> {
+    Logger.info(`[MCP] Getting prompt ${name} from server: ${server.name}`)
+    const client = await this.initClient(server)
+    return await client.getPrompt({ name, arguments: args })
+  }
+
+  /**
+   * Get a specific prompt from an MCP server with caching
+   */
+  public async getPrompt(
+    _: Electron.IpcMainInvokeEvent,
+    { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
+  ): Promise<GetMCPPromptResponse> {
+    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetMCPPromptResponse>(
+      this.getPromptImpl.bind(this),
+      (server, name, args) => {
+        const serverKey = this.getServerKey(server)
+        const argsKey = args ? JSON.stringify(args) : 'no-args'
+        return `mcp:get_prompt:${serverKey}:${name}:${argsKey}`
+      },
+      30 * 60 * 1000, // 30 minutes TTL
+      `[MCP] Prompt ${name} from ${server.name}`
+    )
+    return await cachedGetPrompt(server, name, args)
   }
 
   /**

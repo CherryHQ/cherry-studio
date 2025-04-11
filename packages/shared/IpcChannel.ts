@@ -39,6 +39,8 @@ export enum IpcChannel {
   Mcp_StopServer = 'mcp:stop-server',
   Mcp_ListTools = 'mcp:list-tools',
   Mcp_CallTool = 'mcp:call-tool',
+  Mcp_ListPrompts = 'mcp:list-prompts',
+  Mcp_GetPrompt = 'mcp:get-prompt',
   Mcp_GetInstallInfo = 'mcp:get-install-info',
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',

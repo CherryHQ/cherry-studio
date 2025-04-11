@@ -1088,10 +1088,23 @@
         "url": "URL",
         "editMcpJson": "Редактировать MCP",
         "installHelp": "Получить помощь по установке",
+        "tabs": {
+          "general": "Общие",
+          "tools": "Инструменты",
+          "prompts": "Подсказки",
+          "resources": "Ресурсы"
+        },
         "tools": {
-          "inputSchema": "входные параметры",
-          "availableTools": "доступные инструменты",
-          "noToolsAvailable": "нет доступных инструментов"
+          "inputSchema": "Схема ввода",
+          "availableTools": "Доступные инструменты",
+          "noToolsAvailable": "Нет доступных инструментов"
+        },
+        "prompts": {
+          "availablePrompts": "Доступные подсказки",
+          "noPromptsAvailable": "Нет доступных подсказок",
+          "arguments": "Аргументы",
+          "requiredField": "Обязательное поле",
+          "genericError": "Ошибка получения подсказки"
         },
         "deleteServer": "Удалить сервер",
         "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",

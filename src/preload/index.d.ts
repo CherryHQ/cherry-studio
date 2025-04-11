@@ -151,6 +151,16 @@ declare global {
         stopServer: (server: MCPServer) => Promise<void>
         listTools: (server: MCPServer) => Promise<MCPTool[]>
         callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) => Promise<any>
+        listPrompts: (server: MCPServer) => Promise<MCPPrompt[]>
+        getPrompt: ({
+          server,
+          name,
+          args
+        }: {
+          server: MCPServer
+          name: string
+          args?: Record<string, any>
+        }) => Promise<GetMCPPromptResponse>
         getInstallInfo: () => Promise<{ dir: string; uvPath: string; bunPath: string }>
       }
       copilot: {

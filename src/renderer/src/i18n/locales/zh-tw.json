@@ -1088,10 +1088,23 @@
         "url": "URL",
         "editMcpJson": "編輯 MCP 配置",
         "installHelp": "獲取安裝幫助",
+        "tabs": {
+          "general": "通用",
+          "tools": "工具",
+          "prompts": "提示",
+          "resources": "資源"
+        },
         "tools": {
-          "inputSchema": "輸入參數",
+          "inputSchema": "輸入模式",
           "availableTools": "可用工具",
-          "noToolsAvailable": "沒有可用工具"
+          "noToolsAvailable": "無可用工具"
+        },
+        "prompts": {
+          "availablePrompts": "可用提示",
+          "noPromptsAvailable": "無可用提示",
+          "arguments": "參數",
+          "requiredField": "必填欄位",
+          "genericError": "獲取提示錯誤"
         },
         "deleteServer": "刪除伺服器",
         "deleteServerConfirm": "確定要刪除此伺服器嗎？",

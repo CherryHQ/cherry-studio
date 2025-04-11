@@ -1088,10 +1088,23 @@
         },
         "editMcpJson": "MCP 設定を編集",
         "installHelp": "インストールヘルプを取得",
+        "tabs": {
+          "general": "一般",
+          "tools": "ツール",
+          "prompts": "プロンプト",
+          "resources": "リソース"
+        },
         "tools": {
           "inputSchema": "入力スキーマ",
           "availableTools": "利用可能なツール",
-          "noToolsAvailable": "利用可能なツールはありません"
+          "noToolsAvailable": "利用可能なツールなし"
+        },
+        "prompts": {
+          "availablePrompts": "利用可能なプロンプト",
+          "noPromptsAvailable": "利用可能なプロンプトはありません",
+          "arguments": "引数",
+          "requiredField": "必須フィールド",
+          "genericError": "プロンプト取得エラー"
         },
         "deleteServer": "サーバーを削除",
         "deleteServerConfirm": "このサーバーを削除してもよろしいですか？",

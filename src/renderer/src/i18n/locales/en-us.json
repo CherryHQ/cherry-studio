@@ -1089,10 +1089,23 @@
         "url": "URL",
         "editMcpJson": "Edit MCP Configuration",
         "installHelp": "Get Installation Help",
+        "tabs": {
+          "general": "General",
+          "tools": "Tools",
+          "prompts": "Prompts",
+          "resources": "Resources"
+        },
         "tools": {
           "inputSchema": "Input Schema",
           "availableTools": "Available Tools",
           "noToolsAvailable": "No tools available"
+        },
+        "prompts": {
+          "availablePrompts": "Available Prompts",
+          "noPromptsAvailable": "No prompts available",
+          "arguments": "Arguments",
+          "requiredField": "Required Field",
+          "genericError": "Get prompt Error"
         },
         "deleteServer": "Delete Server",
         "deleteServerConfirm": "Are you sure you want to delete this server?",

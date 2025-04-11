@@ -1,13 +1,14 @@
 import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPServer, MCPTool } from '@renderer/types'
-import { Button, Flex, Form, Input, Radio, Switch } from 'antd'
+import { MCPPrompt, MCPServer, MCPTool } from '@renderer/types'
+import { Button, Flex, Form, Input, Radio, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
+import MCPPromptsSection from './McpPrompt'
 import MCPToolsSection from './McpTool'
 
 interface Props {
@@ -40,6 +41,8 @@ const PipRegistry: Registry[] = [
   { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
+type TabKey = 'settings' | 'tools' | 'prompts'
+
 const McpSettings: React.FC<Props> = ({ server }) => {
   const { t } = useTranslation()
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
@@ -48,8 +51,10 @@ const McpSettings: React.FC<Props> = ({ server }) => {
   const [loading, setLoading] = useState(false)
   const [isFormChanged, setIsFormChanged] = useState(false)
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<TabKey>('settings')
 
   const [tools, setTools] = useState<MCPTool[]>([])
+  const [prompts, setPrompts] = useState<MCPPrompt[]>([])
   const [isShowRegistry, setIsShowRegistry] = useState(false)
   const [registry, setRegistry] = useState<Registry[]>()
 
@@ -121,9 +126,28 @@ const McpSettings: React.FC<Props> = ({ server }) => {
     }
   }
 
+  const fetchPrompts = async () => {
+    if (server.isActive) {
+      try {
+        setLoadingServer(server.id)
+        const localPrompts = await window.api.mcp.listPrompts(server)
+        setPrompts(localPrompts)
+      } catch (error) {
+        window.message.error({
+          content: t('settings.mcp.promptsLoadError') + formatError(error),
+          key: 'mcp-prompts-error'
+        })
+        setPrompts([])
+      } finally {
+        setLoadingServer(null)
+      }
+    }
+  }
+
   useEffect(() => {
     if (server.isActive) {
       fetchTools()
+      fetchPrompts()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, server.isActive])
@@ -264,6 +288,9 @@ const McpSettings: React.FC<Props> = ({ server }) => {
       if (active) {
         const localTools = await window.api.mcp.listTools(server)
         setTools(localTools)
+
+        const localPrompts = await window.api.mcp.listPrompts(server)
+        setPrompts(localPrompts)
       } else {
         await window.api.mcp.stopServer(server)
       }
@@ -309,35 +336,16 @@ const McpSettings: React.FC<Props> = ({ server }) => {
     [server, updateMCPServer]
   )
 
-  return (
-    <SettingContainer>
-      <SettingGroup style={{ marginBottom: 0 }}>
-        <SettingTitle>
-          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-            <ServerName className="text-nowrap">{server?.name}</ServerName>
-            {!(server.type === 'inMemory') && (
-              <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
-            )}
-          </Flex>
-          <Flex align="center" gap={16}>
-            <Switch
-              value={server.isActive}
-              key={server.id}
-              loading={loadingServer === server.id}
-              onChange={onToggleActive}
-            />
-            <Button type="primary" icon={<SaveOutlined />} onClick={onSave} loading={loading} disabled={!isFormChanged}>
-              {t('common.save')}
-            </Button>
-          </Flex>
-        </SettingTitle>
-        <SettingDivider />
+  const tabs = [
+    {
+      key: 'settings',
+      label: t('settings.mcp.tabs.general'),
+      children: (
         <Form
           form={form}
           layout="vertical"
           onValuesChange={() => setIsFormChanged(true)}
           style={{
-            // height: 'calc(100vh - var(--navbar-height) - 315px)',
             overflowY: 'auto',
             width: 'calc(100% + 10px)',
             paddingRight: '10px'
@@ -440,7 +448,58 @@ const McpSettings: React.FC<Props> = ({ server }) => {
             </>
           )}
         </Form>
-        {server.isActive && <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />}
+      )
+    }
+  ]
+
+  if (server.isActive) {
+    tabs.push(
+      {
+        key: 'tools',
+        label: t('settings.mcp.tabs.tools'),
+        children: <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />
+      },
+      {
+        key: 'prompts',
+        label: t('settings.mcp.tabs.prompts'),
+        children: <MCPPromptsSection prompts={prompts} />
+      }
+    )
+  }
+
+  return (
+    <SettingContainer>
+      <SettingGroup style={{ marginBottom: 0 }}>
+        <SettingTitle>
+          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
+            <ServerName className="text-nowrap">{server?.name}</ServerName>
+            <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
+          </Flex>
+          <Flex align="center" gap={16}>
+            <Switch
+              value={server.isActive}
+              key={server.id}
+              loading={loadingServer === server.id}
+              onChange={onToggleActive}
+            />
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              onClick={onSave}
+              loading={loading}
+              disabled={!isFormChanged || activeTab !== 'settings'}>
+              {t('common.save')}
+            </Button>
+          </Flex>
+        </SettingTitle>
+        <SettingDivider />
+
+        <Tabs
+          defaultActiveKey="settings"
+          items={tabs}
+          onChange={(key) => setActiveTab(key as TabKey)}
+          style={{ marginTop: 8 }}
+        />
       </SettingGroup>
     </SettingContainer>
   )

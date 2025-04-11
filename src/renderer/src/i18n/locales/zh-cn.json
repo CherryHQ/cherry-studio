@@ -1089,10 +1089,23 @@
         "url": "URL",
         "editMcpJson": "编辑 MCP 配置",
         "installHelp": "获取安装帮助",
+        "tabs": {
+          "general": "通用",
+          "tools": "工具",
+          "prompts": "提示",
+          "resources": "资源"
+        },
         "tools": {
-          "inputSchema": "输入参数",
+          "inputSchema": "输入模式",
           "availableTools": "可用工具",
-          "noToolsAvailable": "没有可用工具"
+          "noToolsAvailable": "无可用工具"
+        },
+        "prompts": {
+          "availablePrompts": "可用提示",
+          "noPromptsAvailable": "无可用提示",
+          "arguments": "参数",
+          "requiredField": "必填字段",
+          "genericError": "获取提示错误"
         },
         "deleteServer": "删除服务器",
         "deleteServerConfirm": "确定要删除此服务器吗？",

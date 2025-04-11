@@ -180,6 +180,7 @@ const NpxSearch: FC = () => {
 
                       if (buildInServer) {
                         addMCPServer(buildInServer)
+                        window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-server' })
                         return
                       }
 
@@ -192,6 +193,7 @@ const NpxSearch: FC = () => {
                         isActive: false,
                         type: record.type
                       })
+                      window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-server' })
                     }}
                   />
                 </Flex>
