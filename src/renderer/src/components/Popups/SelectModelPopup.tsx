@@ -4,546 +4,482 @@ import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
-import { Avatar, Divider, Empty, Input, InputRef, Menu, MenuProps, Modal } from 'antd'
+import { Model } from '@renderer/types' // Removed unused 'Provider' import
+import { Avatar, Divider, Empty, Input, InputRef, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react' // Added useMemo here
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { HStack } from '../Layout'
-import ModelTagsWithLabel from '../ModelTagsWithLabel'
+import ModelTags from '../ModelTags'
 import Scrollbar from '../Scrollbar'
-
-type MenuItem = Required<MenuProps>['items'][number]
+import ModelSettingsButton from './ModelSettingsButton'
 
 interface Props {
-  model?: Model
+  model?: Model // The currently active model, for highlighting
 }
 
 interface PopupContainerProps extends Props {
   resolve: (value: Model | undefined) => void
 }
 
-const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
+const PINNED_PROVIDER_ID = '__pinned__' // Special ID for pinned section
+
+const PopupContainer: React.FC<PopupContainerProps> = ({ model: activeModel, resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState('')
   const inputRef = useRef<InputRef>(null)
   const { providers } = useProviders()
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const [keyboardSelectedId, setKeyboardSelectedId] = useState<string>('')
-  const menuItemRefs = useRef<Record<string, HTMLElement | null>>({})
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('all')
+  // 移除未使用的状态
 
-  const setMenuItemRef = useCallback(
-    (key: string) => (el: HTMLElement | null) => {
-      if (el) {
-        menuItemRefs.current[key] = el
-      }
-    },
-    []
-  )
-
+  // --- Load Pinned Models ---
   useEffect(() => {
     const loadPinnedModels = async () => {
       const setting = await db.settings.get('pinned:models')
       const savedPinnedModels = setting?.value || []
-
-      // Filter out invalid pinned models
       const allModelIds = providers.flatMap((p) => p.models || []).map((m) => getModelUniqId(m))
-      const validPinnedModels = savedPinnedModels.filter((id) => allModelIds.includes(id))
-
-      // Update storage if there were invalid models
+      const validPinnedModels = savedPinnedModels.filter((id: string) => allModelIds.includes(id))
       if (validPinnedModels.length !== savedPinnedModels.length) {
         await db.settings.put({ id: 'pinned:models', value: validPinnedModels })
       }
+      setPinnedModels(sortBy(validPinnedModels)) // Keep pinned models sorted if needed
 
-      setPinnedModels(sortBy(validPinnedModels, ['group', 'name']))
+      // Set initial selected provider
+      if (activeModel) {
+        const activeModelId = getModelUniqId(activeModel)
+        if (validPinnedModels.includes(activeModelId)) {
+          setSelectedProviderId(PINNED_PROVIDER_ID)
+        } else {
+          setSelectedProviderId(activeModel.provider)
+        }
+      } else if (validPinnedModels.length > 0) {
+        setSelectedProviderId(PINNED_PROVIDER_ID)
+      } else if (providers.length > 0) {
+        setSelectedProviderId(providers[0].id)
+      }
     }
     loadPinnedModels()
+  }, [providers, activeModel]) // Depend on providers and activeModel
+
+  // --- Pin/Unpin Logic ---
+  const togglePin = useCallback(
+    async (modelId: string) => {
+      const newPinnedModels = pinnedModels.includes(modelId)
+        ? pinnedModels.filter((id) => id !== modelId)
+        : [...pinnedModels, modelId]
+
+      await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
+      setPinnedModels(sortBy(newPinnedModels)) // Keep sorted
+
+      // If unpinning the last pinned model and currently viewing pinned, switch provider
+      if (newPinnedModels.length === 0 && selectedProviderId === PINNED_PROVIDER_ID) {
+        setSelectedProviderId(providers[0]?.id || 'all')
+      }
+      // If pinning a model while viewing its provider, maybe switch to pinned? (Optional UX decision)
+      // else if (!pinnedModels.includes(modelId) && selectedProviderId !== PINNED_PROVIDER_ID) {
+      //   setSelectedProviderId(PINNED_PROVIDER_ID);
+      // }
+    },
+    [pinnedModels, selectedProviderId, providers]
+  )
+
+  // 缓存所有模型列表，只在providers变化时重新计算
+  const allModels = useMemo(() => {
+    return providers.flatMap((p) => p.models || [])
+      .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
   }, [providers])
 
-  const togglePin = async (modelId: string) => {
-    const newPinnedModels = pinnedModels.includes(modelId)
-      ? pinnedModels.filter((id) => id !== modelId)
-      : [...pinnedModels, modelId]
+  // --- Filter Models for Right Column ---
+  const displayedModels = useMemo(() => {
+    let modelsToShow: Model[] = []
 
-    await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
-    setPinnedModels(sortBy(newPinnedModels, ['group', 'name']))
-  }
-
-  // 根据输入的文本筛选模型
-  const getFilteredModels = useCallback(
-    (provider) => {
-      let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
-
-      if (searchText.trim()) {
-        const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-        models = models.filter((m) => {
-          const fullName = provider.isSystem
-            ? `${m.name} ${provider.name} ${t('provider.' + provider.id)}`
-            : `${m.name} ${provider.name}`
-
-          const lowerFullName = fullName.toLowerCase()
-          return keywords.every((keyword) => lowerFullName.includes(keyword))
-        })
-      } else {
-        // 如果不是搜索状态，过滤掉已固定的模型
-        models = models.filter((m) => !pinnedModels.includes(getModelUniqId(m)))
-      }
-
-      return sortBy(models, ['group', 'name'])
-    },
-    [searchText, t, pinnedModels]
-  )
-
-  // 递归处理菜单项，为每个项添加ref
-  const processMenuItems = useCallback(
-    (items: MenuItem[]) => {
-      // 内部定义 renderMenuItem 函数
-      const renderMenuItem = (item: any) => {
-        return {
-          ...item,
-          label: <div ref={setMenuItemRef(item.key)}>{item.label}</div>
-        }
-      }
-
-      return items.map((item) => {
-        if (item && 'children' in item && item.children) {
-          return {
-            ...item,
-            children: (item.children as MenuItem[]).map(renderMenuItem)
-          }
-        }
-        return item
+    // 如果有搜索文本，在所有模型中搜索
+    if (searchText.trim()) {
+      const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+      modelsToShow = allModels.filter((m) => {
+        const provider = providers.find((p) => p.id === m.provider)
+        const providerName = provider ? (provider.isSystem ? t(`provider.${provider.id}`) : provider.name) : ''
+        const fullName = `${m.name} ${providerName}`.toLowerCase()
+        return keywords.every((keyword) => fullName.includes(keyword))
       })
-    },
-    [setMenuItemRef]
-  )
-
-  const filteredItems: MenuItem[] = providers
-    .filter((p) => p.models && p.models.length > 0)
-    .map((p) => {
-      const filteredModels = getFilteredModels(p).map((m) => ({
-        key: getModelUniqId(m),
-        label: (
-          <ModelItem>
-            <ModelNameRow>
-              <span>{m?.name}</span> <ModelTagsWithLabel model={m} size={11} showLabel={false} />
-            </ModelNameRow>
-            <PinIcon
-              onClick={(e) => {
-                e.stopPropagation()
-                togglePin(getModelUniqId(m))
-              }}
-              isPinned={pinnedModels.includes(getModelUniqId(m))}>
-              <PushpinOutlined />
-            </PinIcon>
-          </ModelItem>
-        ),
-        icon: (
-          <Avatar src={getModelLogo(m?.id || '')} size={24}>
-            {first(m?.name)}
-          </Avatar>
-        ),
-        onClick: () => {
-          resolve(m)
-          setOpen(false)
+    } else {
+      // 没有搜索文本时，根据选择的供应商筛选
+      if (selectedProviderId === 'all') {
+        // 显示所有模型
+        modelsToShow = allModels
+      } else if (selectedProviderId === PINNED_PROVIDER_ID) {
+        // 显示固定的模型
+        modelsToShow = allModels.filter((m) => pinnedModels.includes(getModelUniqId(m)))
+      } else if (selectedProviderId) {
+        // 显示选中供应商的模型
+        const provider = providers.find((p) => p.id === selectedProviderId)
+        if (provider && provider.models) {
+          modelsToShow = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
         }
-      }))
-
-      // Only return the group if it has filtered models
-      return filteredModels.length > 0
-        ? {
-            key: p.id,
-            label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-            type: 'group',
-            children: filteredModels
-          }
-        : null
-    })
-    .filter(Boolean) as MenuItem[] // Filter out null items
-
-  if (pinnedModels.length > 0 && searchText.length === 0) {
-    const pinnedItems = providers
-      .flatMap((p) =>
-        p.models
-          .filter((m) => pinnedModels.includes(getModelUniqId(m)))
-          .map((m) => ({
-            key: getModelUniqId(m),
-            model: m,
-            provider: p
-          }))
-      )
-      .map((m) => ({
-        key: getModelUniqId(m.model) + '_pinned',
-        label: (
-          <ModelItem>
-            <ModelNameRow>
-              <span>
-                {m.model?.name} | {m.provider.isSystem ? t(`provider.${m.provider.id}`) : m.provider.name}
-              </span>{' '}
-              <ModelTagsWithLabel model={m.model} size={11} showLabel={false} />
-            </ModelNameRow>
-            <PinIcon
-              onClick={(e) => {
-                e.stopPropagation()
-                togglePin(getModelUniqId(m.model))
-              }}
-              isPinned={true}>
-              <PushpinOutlined />
-            </PinIcon>
-          </ModelItem>
-        ),
-        icon: (
-          <Avatar src={getModelLogo(m.model?.id || '')} size={24}>
-            {first(m.model?.name)}
-          </Avatar>
-        ),
-        onClick: () => {
-          resolve(m.model)
-          setOpen(false)
-        }
-      }))
-
-    if (pinnedItems.length > 0) {
-      filteredItems.unshift({
-        key: 'pinned',
-        label: t('models.pinned'),
-        type: 'group',
-        children: pinnedItems
-      } as MenuItem)
+      }
     }
-  }
 
-  // 处理菜单项，添加ref
-  const processedItems = processMenuItems(filteredItems)
+    return sortBy(modelsToShow, ['group', 'name'])
+  }, [selectedProviderId, pinnedModels, searchText, allModels, providers, t])
 
-  const onCancel = () => {
-    setKeyboardSelectedId('')
+  // --- Event Handlers ---
+  const handleProviderSelect = useCallback((providerId: string) => {
+    setSelectedProviderId(providerId)
+  }, [])
+
+  const handleModelSelect = useCallback((model: Model) => {
+    resolve(model)
     setOpen(false)
-  }
+  }, [resolve, setOpen])
 
-  const onClose = async () => {
-    setKeyboardSelectedId('')
+  const onCancel = useCallback(() => {
+    setOpen(false)
+  }, [])
+
+  const onClose = useCallback(async () => {
     resolve(undefined)
     SelectModelPopup.hide()
-  }
+  }, [resolve])
 
+  // --- Focus Input on Open ---
   useEffect(() => {
     open && setTimeout(() => inputRef.current?.focus(), 0)
   }, [open])
 
-  useEffect(() => {
-    if (open && model) {
-      setTimeout(() => {
-        const modelId = getModelUniqId(model)
-        if (menuItemRefs.current[modelId]) {
-          menuItemRefs.current[modelId]?.scrollIntoView({ block: 'center', behavior: 'auto' })
-        }
-      }, 100) // Small delay to ensure menu is rendered
+  // --- Provider List for Left Column ---
+  const providerListItems = useMemo(() => {
+    const items: { id: string; name: string }[] = [
+      { id: 'all', name: t('models.all') || '全部' } // 添加“全部”选项
+    ]
+    if (pinnedModels.length > 0) {
+      items.push({ id: PINNED_PROVIDER_ID, name: t('models.pinned') })
     }
-  }, [open, model])
-
-  // 获取所有可见的模型项
-  const getVisibleModelItems = useCallback(() => {
-    const items: { key: string; model: Model }[] = []
-
-    // 如果有置顶模型且没有搜索文本，添加置顶模型
-    if (pinnedModels.length > 0 && searchText.length === 0) {
-      providers
-        .flatMap((p) => p.models || [])
-        .filter((m) => pinnedModels.includes(getModelUniqId(m)))
-        .forEach((m) => items.push({ key: getModelUniqId(m) + '_pinned', model: m }))
-    }
-
-    // 添加其他过滤后的模型
     providers.forEach((p) => {
-      if (p.models) {
-        getFilteredModels(p).forEach((m) => {
-          const modelId = getModelUniqId(m)
-          const isPinned = pinnedModels.includes(modelId)
-
-          // 搜索状态下，所有匹配的模型都应该可以被选中，包括固定的模型
-          // 非搜索状态下，只添加非固定模型（固定模型已在上面添加）
-          if (searchText.length > 0 || !isPinned) {
-            items.push({
-              key: modelId,
-              model: m
-            })
-          }
-        })
+      // Only add provider if it has non-embedding/rerank models
+      if (p.models?.some((m) => !isEmbeddingModel(m) && !isRerankModel(m))) {
+        items.push({ id: p.id, name: p.isSystem ? t(`provider.${p.id}`) : p.name })
       }
     })
-
     return items
-  }, [pinnedModels, searchText, providers, getFilteredModels])
+  }, [providers, pinnedModels, t])
 
-  // 添加一个useLayoutEffect来处理滚动
-  useLayoutEffect(() => {
-    if (open && keyboardSelectedId && menuItemRefs.current[keyboardSelectedId]) {
-      // 获取当前选中元素和容器
-      const selectedElement = menuItemRefs.current[keyboardSelectedId]
-      const scrollContainer = scrollContainerRef.current
-
-      if (!scrollContainer) return
-
-      const selectedRect = selectedElement.getBoundingClientRect()
-      const containerRect = scrollContainer.getBoundingClientRect()
-
-      // 计算元素相对于容器的位置
-      const currentScrollTop = scrollContainer.scrollTop
-      const elementTop = selectedRect.top - containerRect.top + currentScrollTop
-      const groupTitleHeight = 30
-
-      // 确定滚动位置
-      if (selectedRect.top < containerRect.top + groupTitleHeight) {
-        // 元素被组标题遮挡，向上滚动
-        scrollContainer.scrollTo({
-          top: elementTop - groupTitleHeight,
-          behavior: 'smooth'
-        })
-      } else if (selectedRect.bottom > containerRect.bottom) {
-        // 元素在视口下方，向下滚动
-        scrollContainer.scrollTo({
-          top: elementTop - containerRect.height + selectedRect.height,
-          behavior: 'smooth'
-        })
-      }
-    }
-  }, [open, keyboardSelectedId])
-
-  // 处理键盘导航
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      const items = getVisibleModelItems()
-      if (items.length === 0) return
-
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault()
-        const currentIndex = items.findIndex((item) => item.key === keyboardSelectedId)
-        let nextIndex
-
-        if (currentIndex === -1) {
-          nextIndex = e.key === 'ArrowDown' ? 0 : items.length - 1
-        } else {
-          nextIndex =
-            e.key === 'ArrowDown' ? (currentIndex + 1) % items.length : (currentIndex - 1 + items.length) % items.length
-        }
-
-        const nextItem = items[nextIndex]
-        setKeyboardSelectedId(nextItem.key)
-      } else if (e.key === 'Enter') {
-        e.preventDefault() // 阻止回车的默认行为
-        if (keyboardSelectedId) {
-          const selectedItem = items.find((item) => item.key === keyboardSelectedId)
-          if (selectedItem) {
-            resolve(selectedItem.model)
-            setOpen(false)
-          }
-        }
-      }
-    },
-    [keyboardSelectedId, getVisibleModelItems, resolve, setOpen]
-  )
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown])
-
-  // 搜索文本改变时重置键盘选中状态
-  useEffect(() => {
-    setKeyboardSelectedId('')
-  }, [searchText])
-
-  const selectedKeys = keyboardSelectedId ? [keyboardSelectedId] : model ? [getModelUniqId(model)] : []
-
+  // --- Render ---
   return (
     <Modal
       centered
       open={open}
       onCancel={onCancel}
       afterClose={onClose}
-      width={600}
-      transitionName="ant-move-down"
+      transitionName=""
       styles={{
         content: {
-          borderRadius: 20,
+          borderRadius: 15, // Adjusted border radius
           padding: 0,
           overflow: 'hidden',
-          paddingBottom: 20,
           border: '1px solid var(--color-border)'
+        },
+        body: {
+          padding: 0 // Remove default body padding
         }
       }}
       closeIcon={null}
-      footer={null}>
-      <HStack style={{ padding: '0 12px', marginTop: 5 }}>
-        <Input
-          prefix={
-            <SearchIcon>
-              <SearchOutlined />
-            </SearchIcon>
-          }
-          ref={inputRef}
-          placeholder={t('models.search')}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-          autoFocus
-          style={{ paddingLeft: 0 }}
-          variant="borderless"
-          size="middle"
-          onKeyDown={(e) => {
-            // 防止上下键移动光标
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-              e.preventDefault()
+      footer={null}
+      width={900} // 进一步增加宽度，使界面更宽敞
+    >
+      {/* Search Input */}
+      <SearchContainer onClick={() => inputRef.current?.focus()}>
+        <SearchInputContainer>
+          <Input
+            prefix={
+              <SearchIcon>
+                <SearchOutlined />
+              </SearchIcon>
             }
-          }}
-        />
-      </HStack>
-      <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
-      <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
-        <Container>
-          {processedItems.length > 0 ? (
-            <StyledMenu
-              items={processedItems}
-              selectedKeys={selectedKeys}
-              mode="inline"
-              inlineIndent={6}
-              onSelect={({ key }) => {
-                setKeyboardSelectedId(key as string)
-              }}
-            />
-          ) : (
-            <EmptyState>
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            </EmptyState>
-          )}
-        </Container>
-      </Scrollbar>
+            ref={inputRef}
+            placeholder={t('models.search')}
+            value={searchText}
+            onChange={useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+              const value = e.target.value
+              setSearchText(value)
+              // 当搜索时，自动选择"all"供应商，以显示所有匹配的模型
+              if (value.trim() && selectedProviderId !== 'all') {
+                setSelectedProviderId('all')
+              }
+            }, [selectedProviderId, t])}
+            // 移除焦点事件处理
+            allowClear
+            autoFocus
+            style={{
+              paddingLeft: 0,
+              height: '32px',
+              fontSize: '14px'
+            }}
+            variant="borderless"
+            size="middle"
+          />
+        </SearchInputContainer>
+      </SearchContainer>
+      <Divider style={{ margin: 0, borderBlockStartWidth: 0.5, marginTop: -5 }} />
+
+      {/* Two Column Layout */}
+      <TwoColumnContainer>
+        {/* Left Column: Providers */}
+        <ProviderListColumn>
+          <Scrollbar style={{ height: '60vh', paddingRight: '5px' }}>
+            {providerListItems.map((provider, index) => (
+              <React.Fragment key={provider.id}>
+                <Tooltip title={provider.name} placement="right" mouseEnterDelay={0.5}>
+                  <ProviderListItem
+                    $selected={selectedProviderId === provider.id}
+                    onClick={() => handleProviderSelect(provider.id)}>
+                    <ProviderName>{provider.name}</ProviderName>
+                    {provider.id === PINNED_PROVIDER_ID && <PinnedIcon />}
+                  </ProviderListItem>
+                </Tooltip>
+                {/* 在每个供应商之后添加分割线，除了最后一个 */}
+                {index < providerListItems.length - 1 && <ProviderDivider />}
+              </React.Fragment>
+            ))}
+          </Scrollbar>
+        </ProviderListColumn>
+
+        {/* Right Column: Models */}
+        <ModelListColumn>
+          <Scrollbar style={{ height: '60vh', paddingRight: '5px' }}>
+            {displayedModels.length > 0 ? (
+              displayedModels.map((m) => (
+                <ModelListItem
+                  key={getModelUniqId(m)}
+                  $selected={activeModel ? getModelUniqId(activeModel) === getModelUniqId(m) : false}
+                  onClick={() => handleModelSelect(m)}>
+                  <Avatar src={getModelLogo(m?.id || '')} size={24}>
+                    {first(m?.name)}
+                  </Avatar>
+                  <ModelDetails>
+                    <ModelNameRow>
+                      <Tooltip title={m?.name} mouseEnterDelay={0.5}>
+                        <span className="model-name">{m?.name}</span>
+                      </Tooltip>
+                      {/* Show provider only if not in pinned view or if search is active */}
+                      {(selectedProviderId !== PINNED_PROVIDER_ID || searchText) && (
+                        <Tooltip title={providers.find((p) => p.id === m.provider)?.name ?? m.provider} mouseEnterDelay={0.5}>
+                          <span className="provider-name">
+                            | {providers.find((p) => p.id === m.provider)?.name ?? m.provider}
+                          </span>
+                        </Tooltip>
+                      )}
+                      <ModelTags model={m} />
+                    </ModelNameRow>
+                  </ModelDetails>
+                  <ActionButtons>
+                    <ModelSettingsButton model={m} size={14} className="settings-button" />
+                    <PinButton
+                      $isPinned={pinnedModels.includes(getModelUniqId(m))}
+                      onClick={(e) => {
+                        e.stopPropagation() // Prevent model selection when clicking pin
+                        togglePin(getModelUniqId(m))
+                      }}>
+                      <PushpinOutlined />
+                    </PinButton>
+                  </ActionButtons>
+                </ModelListItem>
+              ))
+            ) : (
+              <EmptyState>
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('models.no_matches')} />
+              </EmptyState>
+            )}
+          </Scrollbar>
+        </ModelListColumn>
+      </TwoColumnContainer>
     </Modal>
   )
 }
 
-const Container = styled.div`
-  margin-top: 10px;
+// --- Styled Components ---
+
+const SearchContainer = styled(HStack)`
+  padding: 8px 15px;
+  cursor: pointer;
 `
 
-const StyledMenu = styled(Menu)`
-  background-color: transparent;
-  padding: 5px;
-  margin-top: -10px;
-  max-height: calc(60vh - 50px);
-
-  .ant-menu-item-group-title {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    margin: 0 -5px;
-    padding: 5px 10px;
-    padding-left: 18px;
-    font-size: 12px;
-    font-weight: 500;
-
-    /* Scroll-driven animation for sticky header */
-    animation: background-change linear both;
-    animation-timeline: scroll();
-    animation-range: entry 0% entry 1%;
-  }
-
-  /* Simple animation that changes background color when sticky */
-  @keyframes background-change {
-    to {
-      background-color: var(--color-background-soft);
-      opacity: 0.95;
-    }
-  }
-
-  .ant-menu-item {
-    height: 36px;
-    line-height: 36px;
-
-    &.ant-menu-item-selected {
-      background-color: var(--color-background-mute) !important;
-      color: var(--color-text-primary) !important;
-    }
-
-    &:not([data-menu-id^='pinned-']) {
-      .pin-icon {
-        opacity: 0;
-      }
-
-      &:hover {
-        .pin-icon {
-          opacity: 0.3;
-        }
-      }
-    }
-
-    .anticon {
-      min-width: auto;
-    }
-  }
-`
-
-const ModelItem = styled.div`
+const SearchInputContainer = styled.div`
+  width: 100%;
   display: flex;
   align-items: center;
+`
+
+const SearchIcon = styled.div`
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--color-background-soft);
+  margin-right: 5px;
+  color: var(--color-icon);
   font-size: 14px;
-  position: relative;
-  width: 100%;
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: var(--color-background-mute);
+  }
+`
+
+const TwoColumnContainer = styled.div`
+  display: flex;
+  height: 60vh; // 增加高度
+`
+
+const ProviderListColumn = styled.div`
+  width: 200px; // 减小宽度到200px
+  border-right: 0.5px solid var(--color-border);
+  padding: 15px 10px; // 减小内边距
+  box-sizing: border-box;
+  background-color: var(--color-background-soft); // Slight background difference
+`
+
+const ProviderListItem = styled.div<{ $selected: boolean }>`
+  padding: 10px 12px; // 增加上下内边距
+  cursor: pointer;
+  border-radius: 8px; // 减小圆角
+  margin-bottom: 8px; // 增加下边距
+  font-size: 14px; // 减小字体大小
+  font-weight: ${(props) => (props.$selected ? '600' : '400')};
+  background-color: ${(props) => (props.$selected ? 'var(--color-background-mute)' : 'transparent')};
+  color: ${(props) => (props.$selected ? 'var(--color-text-primary)' : 'var(--color-text)')};
+  display: flex;
+  align-items: center;
+  justify-content: space-between; // To push pin icon to the right for "Pinned"
+  overflow: hidden; // 防止文本溢出
+  text-overflow: ellipsis; // 溢出显示省略号
+  white-space: nowrap; // 不换行
+
+  &:hover {
+    background-color: var(--color-background-mute);
+  }
+`
+
+const ModelListColumn = styled.div`
+  flex: 1;
+  padding: 12px; // 减小内边距
+  box-sizing: border-box;
+`
+
+const ModelListItem = styled.div<{ $selected: boolean }>`
+  display: flex;
+  align-items: center;
+  padding: 8px 12px; // 进一步减小内边距
+  margin-bottom: 6px; // 进一步减小下边距
+  border-radius: 6px; // 进一步减小圆角
+  cursor: pointer;
+  background-color: ${(props) => (props.$selected ? 'var(--color-background-mute)' : 'transparent')};
+
+  &:hover {
+    background-color: var(--color-background-mute);
+    .pin-button, .settings-button {
+      opacity: 0.5; // Show buttons on hover
+    }
+  }
+
+  .pin-button, .settings-button {
+    opacity: ${(props) => (props.$selected ? 0.5 : 0)}; // Show if selected or hovered
+    transition: opacity 0.2s;
+    &:hover {
+      opacity: 1 !important; // Full opacity on direct hover
+    }
+  }
+`
+
+const ModelDetails = styled.div`
+  margin-left: 10px; // 进一步减小左边距
+  flex: 1;
+  overflow: hidden; // Prevent long names from breaking layout
 `
 
 const ModelNameRow = styled.div`
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 6px; // 进一步减小间距
+  font-size: 13px; // 进一步减小字体大小
+
+  .model-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px; // 进一步减小最大宽度
+  }
+  .provider-name {
+    color: var(--color-text-secondary);
+    font-size: 11px; // 进一步减小字体大小
+    white-space: nowrap;
+    overflow: hidden; // 防止文本溢出
+    text-overflow: ellipsis; // 溢出显示省略号
+    max-width: 120px; // 增加最大宽度
+  }
+`
+const ActionButtons = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px; // 进一步减小间距
+  margin-left: auto; // Push to the right
+`
+
+const PinButton = styled.button<{ $isPinned: boolean }>`
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px; // 进一步减小内边距
+  color: ${(props) => (props.$isPinned ? 'var(--color-primary)' : 'var(--color-icon)')};
+  transform: ${(props) => (props.$isPinned ? 'rotate(-45deg)' : 'none')};
+  font-size: 14px; // 进一步减小图标大小
+  line-height: 1; // Ensure icon aligns well
+
+  &:hover {
+    color: ${(props) => (props.$isPinned ? 'var(--color-primary)' : 'var(--color-text-primary)')};
+  }
 `
 
 const EmptyState = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 200px;
+  height: 100%;
+  color: var(--color-text-secondary);
 `
 
-const SearchIcon = styled.div`
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--color-background-soft);
-  margin-right: 2px;
+const ProviderName = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
 `
 
-const PinIcon = styled.span.attrs({ className: 'pin-icon' })<{ isPinned: boolean }>`
+const PinnedIcon = styled(PushpinOutlined)`
   margin-left: auto;
-  padding: 0 8px;
-  opacity: ${(props) => (props.isPinned ? 1 : 'inherit')};
-  transition: opacity 0.2s;
-  position: absolute;
-  right: 0;
-  color: ${(props) => (props.isPinned ? 'var(--color-primary)' : 'inherit')};
-  transform: ${(props) => (props.isPinned ? 'rotate(-45deg)' : 'none')};
-
-  &:hover {
-    opacity: 1 !important;
-    color: ${(props) => (props.isPinned ? 'var(--color-primary)' : 'inherit')};
-  }
+  flex-shrink: 0;
 `
 
+const ProviderDivider = styled.div`
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 8px 0;
+  opacity: 0.5;
+`
+
+// --- Export Class ---
 export default class SelectModelPopup {
   static hide() {
     TopView.hide('SelectModelPopup')
   }
   static show(params: Props) {
     return new Promise<Model | undefined>((resolve) => {
+      // 直接显示新的弹窗，不使用setTimeout
       TopView.show(<PopupContainer {...params} resolve={resolve} />, 'SelectModelPopup')
     })
   }
