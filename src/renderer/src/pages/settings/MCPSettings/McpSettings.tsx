@@ -131,7 +131,6 @@ const McpSettings: React.FC<Props> = ({ server }) => {
       try {
         setLoadingServer(server.id)
         const localPrompts = await window.api.mcp.listPrompts(server)
-        console.log(localPrompts)
         setPrompts(localPrompts)
       } catch (error) {
         window.message.error({
@@ -474,9 +473,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         <SettingTitle>
           <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
             <ServerName className="text-nowrap">{server?.name}</ServerName>
-            {!(server.type === 'inMemory') && (
-              <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
-            )}
+            <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
           </Flex>
           <Flex align="center" gap={16}>
             <Switch
