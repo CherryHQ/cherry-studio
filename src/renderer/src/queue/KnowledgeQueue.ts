@@ -135,17 +135,17 @@ class KnowledgeQueue {
           break
       }
 
-      console.log(`[KnowledgeQueue] Successfully completed processing item ${item.id}`)
-
-      store.dispatch(
-        updateItemProcessingStatus({
-          baseId,
-          itemId: item.id,
-          status: 'completed'
-        })
-      )
+      console.log(`[KnowledgeQueue] End processing item ${item.id}`)
 
       if (result) {
+        store.dispatch(
+          updateItemProcessingStatus({
+            baseId,
+            itemId: item.id,
+            status: 'completed'
+          })
+        )
+
         store.dispatch(
           updateBaseItemUniqueId({
             baseId,
@@ -154,8 +154,19 @@ class KnowledgeQueue {
             uniqueIds: result.uniqueIds
           })
         )
+        console.log(`[KnowledgeQueue] Updated uniqueId for item ${item.id} in base ${baseId} `)
+      } else {
+        console.log(`[KnowledgeQueue] (Error)Processing result of item ${item.id} is null. `)
+        store.dispatch(
+          updateItemProcessingStatus({
+            baseId,
+            itemId: item.id,
+            status: 'failed',
+            error: 'Processing result is null',
+            retryCount: (item.retryCount || 0) + 1
+          })
+        )
       }
-      console.log(`[KnowledgeQueue] Updated uniqueId for item ${item.id} in base ${baseId} `)
 
       store.dispatch(clearCompletedProcessing({ baseId }))
     } catch (error) {
