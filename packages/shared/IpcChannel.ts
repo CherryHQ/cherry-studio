@@ -116,6 +116,7 @@ export enum IpcChannel {
   Backup_ListWebdavFiles = 'backup:listWebdavFiles',
   Backup_CheckConnection = 'backup:checkConnection',
   Backup_CreateDirectory = 'backup:createDirectory',
+  Backup_DeleteWebdavFile = 'backup:deleteWebdavFile',
 
   // zip
   Zip_Compress = 'zip:compress',

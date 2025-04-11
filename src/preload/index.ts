@@ -41,7 +41,9 @@ const api = {
     checkConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
     createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options)
+      ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
+    deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),

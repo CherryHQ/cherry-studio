@@ -46,6 +46,7 @@ declare global {
         listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
         checkConnection: (webdavConfig: WebDavConfig) => Promise<boolean>
         createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) => Promise<void>
+        deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) => Promise<boolean>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>

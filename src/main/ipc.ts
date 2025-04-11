@@ -171,6 +171,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles)
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
+  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)
