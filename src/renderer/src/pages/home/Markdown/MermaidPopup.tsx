@@ -4,21 +4,25 @@ import { Button, Modal, Space, Tabs } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import { ThemeMode } from '@renderer/types'
 
 interface ShowParams {
   chart: string
+  error?: string | null
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
+const PopupContainer: React.FC<Props> = ({ resolve, chart, error }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
   const mermaidId = `mermaid-popup-${Date.now()}`
   const [activeTab, setActiveTab] = useState('preview')
   const [scale, setScale] = useState(1)
+  const { theme } = useTheme()
 
   const onOk = () => {
     setOpen(false)
@@ -153,8 +157,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
   }
 
   useEffect(() => {
-    window?.mermaid?.contentLoaded()
-  }, [])
+    if (!error && window?.mermaid) {
+      window.mermaid.contentLoaded()
+    }
+  }, [error])
 
   return (
     <Modal
@@ -168,7 +174,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
       footer={[
         <Space key="download-buttons">
           {activeTab === 'source' && <Button onClick={() => handleCopy()}>{t('common.copy')}</Button>}
-          {activeTab === 'preview' && (
+          {activeTab === 'preview' && !error && (
             <>
               <Button onClick={() => handleZoom(0.1)}>{t('mermaid.resize.zoom-in')}</Button>
               <Button onClick={() => handleZoom(-0.1)}>{t('mermaid.resize.zoom-out')}</Button>
@@ -186,7 +192,40 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
           {
             key: 'preview',
             label: t('mermaid.tabs.preview'),
-            children: (
+            children: error ? (
+              <div>
+                <div
+                  style={{
+                    padding: '16px',
+                    backgroundColor: theme === ThemeMode.dark ? '#382222' : '#fff0f0',
+                    color: theme === ThemeMode.dark ? '#ff8888' : '#cc0000',
+                    borderRadius: '4px 4px 0 0',
+                    borderBottom: theme === ThemeMode.dark ? '1px solid #4d3333' : '1px solid #ffcccc',
+                    maxHeight: 'calc(40vh - 100px)',
+                    overflow: 'auto'
+                  }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>{'<Mermaid> - Render Error'}</div>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '14px' }}>
+                    {error}
+                  </pre>
+                </div>
+                <pre
+                  style={{
+                    margin: 0,
+                    padding: '16px',
+                    backgroundColor: theme === ThemeMode.dark ? '#1e1e1e' : '#f5f5f5',
+                    color: theme === ThemeMode.dark ? '#cccccc' : '#333333',
+                    borderRadius: '0 0 4px 4px',
+                    maxHeight: 'calc(40vh - 100px)',
+                    overflowY: 'auto',
+                    fontFamily: 'monospace',
+                    fontSize: '14px',
+                    whiteSpace: 'pre-wrap'
+                  }}>
+                  {chart}
+                </pre>
+              </div>
+            ) : (
               <StyledMermaid id={mermaidId} className="mermaid">
                 {chart}
               </StyledMermaid>
