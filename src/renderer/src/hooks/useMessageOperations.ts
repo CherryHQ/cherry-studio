@@ -20,6 +20,7 @@ import { abortCompletion } from '@renderer/utils/abortController'
 import { useCallback } from 'react'
 
 import { TopicManager } from './useTopic'
+
 /**
  * 自定义Hook，提供消息操作相关的功能
  *
@@ -60,8 +61,7 @@ export function useMessageOperations(topic: Topic) {
         const message = messages?.find((m) => m.id === messageId)
         if (message) {
           const updatedMessage = { ...message, ...updates }
-          const usage = await estimateMessageUsage(updatedMessage)
-          updates.usage = usage
+          updates.usage = await estimateMessageUsage(updatedMessage)
         }
       }
       await dispatch(updateMessageThunk(topic.id, messageId, updates))
@@ -128,7 +128,7 @@ export function useMessageOperations(topic: Topic) {
   const clearTopicMessagesAction = useCallback(
     async (_topicId?: string) => {
       const topicId = _topicId || topic.id
-      await dispatch(clearTopicMessages(topicId))
+      dispatch(clearTopicMessages(topicId))
       await TopicManager.clearTopicMessages(topicId)
     },
     [dispatch, topic.id]
@@ -148,7 +148,7 @@ export function useMessageOperations(topic: Topic) {
    * 创建新的上下文（clear message）
    */
   const createNewContext = useCallback(async () => {
-    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+    await EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [])
 
   const displayCount = useAppSelector(selectDisplayCount)
@@ -221,11 +221,9 @@ export function useMessageOperations(topic: Topic) {
 }
 
 export const useTopicMessages = (topic: Topic) => {
-  const messages = useAppSelector((state) => selectTopicMessages(state, topic.id))
-  return messages
+  return useAppSelector((state) => selectTopicMessages(state, topic.id))
 }
 
 export const useTopicLoading = (topic: Topic) => {
-  const loading = useAppSelector((state) => selectTopicLoading(state, topic.id))
-  return loading
+  return useAppSelector((state) => selectTopicLoading(state, topic.id))
 }
