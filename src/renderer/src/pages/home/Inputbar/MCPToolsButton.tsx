@@ -1,7 +1,7 @@
 import { CodeOutlined, PlusOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPServer } from '@renderer/types'
+import { MCPPrompt, MCPServer } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { FC, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,40 +68,52 @@ const MCPToolsButton: FC<Props> = ({
   }, [menuItems, quickPanel, t])
 
   const handlePromptSelect = useCallback(
-    (prompt: string) => {
-      setTimeout(() => {
-        setInputValue((prev) => {
-          const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
-          const cursorPosition = textArea.selectionStart
-          const selectionStart = cursorPosition
-          const selectionEndPosition = cursorPosition + prompt.length
-          const newText = prev.slice(0, cursorPosition) + prompt + prev.slice(cursorPosition)
+    (prompt: MCPPrompt) => {
+      setTimeout(async () => {
+        const server = enabledMCPs.find((s) => s.id === prompt.serverId)
+        if (server) {
+          const serverPrompt = await window.api.mcp.getPrompt({ server, name: prompt.name })
+          setInputValue((prev) => {
+            const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+            const cursorPosition = textArea.selectionStart
+            const selectionStart = cursorPosition
+            const selectionEndPosition = cursorPosition + serverPrompt.length
+            const newText = prev.slice(0, cursorPosition) + serverPrompt + prev.slice(cursorPosition)
 
-          setTimeout(() => {
-            textArea.focus()
-            textArea.setSelectionRange(selectionStart, selectionEndPosition)
-            resizeTextArea()
-          }, 10)
-          return newText
-        })
+            setTimeout(() => {
+              textArea.focus()
+              textArea.setSelectionRange(selectionStart, selectionEndPosition)
+              resizeTextArea()
+            }, 10)
+            return newText
+          })
+        }
       }, 10)
     },
-    [setInputValue, resizeTextArea]
+    [enabledMCPs, setInputValue, resizeTextArea]
   )
 
-  const promptList = useMemo(() => {
-    return Array.from({ length: 10 }).map((_, index) => ({
-      label: `Prompt ${index + 1}`,
-      description: `This is a sample prompt description ${index + 1}`,
-      icon: <CodeOutlined />,
-      action: () => handlePromptSelect(`This is a sample prompt description ${index + 1}`)
-    }))
-  }, [handlePromptSelect])
+  const promptList = useMemo(async () => {
+    const prompts: MCPPrompt[] = []
 
-  const openPromptList = useCallback(() => {
+    for (const server of enabledMCPs) {
+      const serverPrompts = await window.api.mcp.listPrompts(server)
+      prompts.push(...serverPrompts)
+    }
+
+    return prompts.map((prompt) => ({
+      label: prompt.name,
+      description: prompt.description,
+      icon: <CodeOutlined />,
+      action: () => handlePromptSelect(prompt)
+    }))
+  }, [handlePromptSelect, enabledMCPs])
+
+  const openPromptList = useCallback(async () => {
+    const prompts = await promptList
     quickPanel.open({
       title: t('settings.mcp.title'),
-      list: promptList,
+      list: prompts,
       symbol: 'mcp-prompt',
       multiple: true
     })

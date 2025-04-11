@@ -134,7 +134,7 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Mcp_CallTool, { server, name, args }),
     listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
     getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, server, name, args),
+      ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo)
   },
   shell: {

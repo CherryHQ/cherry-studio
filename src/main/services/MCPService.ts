@@ -252,7 +252,6 @@ class McpService {
     }
   }
 
-
   private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
     Logger.info(`[MCP] Listing tools for server: ${server.name}`)
     const client = await this.initClient(server)
@@ -340,7 +339,7 @@ class McpService {
   /**
    * List prompts available on an MCP server with caching
    */
-  async listPrompts(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPPrompt[]> {
+  public async listPrompts(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPPrompt[]> {
     const cachedListPrompts = withCache<[MCPServer], MCPPrompt[]>(
       this.listPromptsImpl.bind(this),
       (server) => {
@@ -369,7 +368,7 @@ class McpService {
   /**
    * Get a specific prompt from an MCP server with caching
    */
-  async getPrompt(
+  public async getPrompt(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
   ): Promise<GetMCPPromptResponse> {
