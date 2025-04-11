@@ -1102,7 +1102,10 @@
         },
         "prompts": {
           "availablePrompts": "Available Prompts",
-          "noPromptsAvailable": "No prompts available"
+          "noPromptsAvailable": "No prompts available",
+          "arguments": "Arguments",
+          "requiredField": "Required Field",
+          "genericError": "Get prompt Error"
         },
         "deleteServer": "Delete Server",
         "deleteServerConfirm": "Are you sure you want to delete this server?",

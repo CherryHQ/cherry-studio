@@ -1101,7 +1101,10 @@
         },
         "prompts": {
           "availablePrompts": "Доступные подсказки",
-          "noPromptsAvailable": "Нет доступных подсказок"
+          "noPromptsAvailable": "Нет доступных подсказок",
+          "arguments": "Аргументы",
+          "requiredField": "Обязательное поле",
+          "genericError": "Ошибка получения подсказки"
         },
         "deleteServer": "Удалить сервер",
         "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",

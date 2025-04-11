@@ -1102,7 +1102,10 @@
         },
         "prompts": {
           "availablePrompts": "可用提示",
-          "noPromptsAvailable": "无可用提示"
+          "noPromptsAvailable": "无可用提示",
+          "arguments": "参数",
+          "requiredField": "必填字段",
+          "genericError": "获取提示错误"
         },
         "deleteServer": "删除服务器",
         "deleteServerConfirm": "确定要删除此服务器吗？",

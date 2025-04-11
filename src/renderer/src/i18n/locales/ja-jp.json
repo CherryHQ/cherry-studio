@@ -1101,7 +1101,10 @@
         },
         "prompts": {
           "availablePrompts": "利用可能なプロンプト",
-          "noPromptsAvailable": "利用可能なプロンプトなし"
+          "noPromptsAvailable": "利用可能なプロンプトはありません",
+          "arguments": "引数",
+          "requiredField": "必須フィールド",
+          "genericError": "プロンプト取得エラー"
         },
         "deleteServer": "サーバーを削除",
         "deleteServerConfirm": "このサーバーを削除してもよろしいですか？",

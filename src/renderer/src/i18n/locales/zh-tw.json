@@ -1101,7 +1101,10 @@
         },
         "prompts": {
           "availablePrompts": "可用提示",
-          "noPromptsAvailable": "無可用提示"
+          "noPromptsAvailable": "無可用提示",
+          "arguments": "參數",
+          "requiredField": "必填欄位",
+          "genericError": "獲取提示錯誤"
         },
         "deleteServer": "刪除伺服器",
         "deleteServerConfirm": "確定要刪除此伺服器嗎？",
