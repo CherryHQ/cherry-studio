@@ -556,7 +556,8 @@
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "tools": {
         "completed": "Завершено",
-        "invoking": "Вызов"
+        "invoking": "Вызов",
+        "error": "Произошла ошибка"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",

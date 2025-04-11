@@ -556,7 +556,8 @@
       "switch.disabled": "Please wait for the current reply to complete",
       "tools": {
         "completed": "Completed",
-        "invoking": "Invoking"
+        "invoking": "Invoking",
+        "error": "Error occurred"
       },
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",

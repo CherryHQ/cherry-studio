@@ -556,7 +556,8 @@
       "switch.disabled": "请等待当前回复完成后操作",
       "tools": {
         "completed": "已完成",
-        "invoking": "调用中"
+        "invoking": "调用中",
+        "error": "发生错误"
       },
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",

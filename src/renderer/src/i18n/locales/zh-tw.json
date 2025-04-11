@@ -556,7 +556,8 @@
       "switch.disabled": "請等待當前回覆完成",
       "tools": {
         "completed": "已完成",
-        "invoking": "調用中"
+        "invoking": "調用中",
+        "error": "發生錯誤"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",

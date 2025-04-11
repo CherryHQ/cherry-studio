@@ -555,7 +555,8 @@
       "switch.disabled": "現在の応答が完了するまで切り替えを無効にします",
       "tools": {
         "completed": "完了",
-        "invoking": "呼び出し中"
+        "invoking": "呼び出し中",
+        "error": "エラーが発生しました"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
