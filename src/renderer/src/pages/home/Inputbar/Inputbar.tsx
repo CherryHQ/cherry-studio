@@ -13,8 +13,10 @@ import {
   ThunderboltOutlined,
   TranslationOutlined
 } from '@ant-design/icons'
+import ASRButton from '@renderer/components/ASRButton'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
+import VoiceCallButton from '@renderer/components/VoiceCallButton'
 import { isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -33,7 +35,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { useAppDispatch } from '@renderer/store'
+import store, { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/messages'
 import { setSearching } from '@renderer/store/runtime'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, MCPServer, Message, Model, Topic } from '@renderer/types'
@@ -378,7 +380,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [files.length, model, openSelectFileMenu, t, text, translate])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = event.keyCode == 13
+    const isEnterPressed = event.key === 'Enter'
 
     // 按下Tab键，自动选中${xxx}
     if (event.key === 'Tab' && inputFocus) {
@@ -710,10 +712,120 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           return newText
         })
         textareaRef.current?.focus()
-      })
+      }),
+      // 监听语音通话消息
+      EventEmitter.on(
+        EVENT_NAMES.VOICE_CALL_MESSAGE,
+        (data: {
+          text: string
+          model: any
+          isVoiceCall?: boolean
+          useVoiceCallModel?: boolean
+          voiceCallModelId?: string
+        }) => {
+          console.log('收到语音通话消息:', data)
+
+          // 先设置输入框文本
+          setText(data.text)
+
+          // 使用延时确保文本已经设置到输入框
+          setTimeout(() => {
+            // 直接调用发送消息函数，而不检查inputEmpty
+            console.log('准备自动发送语音识别消息:', data.text)
+
+            // 直接使用正确的方式发送消息
+            // 创建用户消息
+            const userMessage = getUserMessage({
+              assistant,
+              topic,
+              type: 'text',
+              content: data.text
+            })
+
+            // 如果是语音通话消息，使用语音通话专用模型
+            if (data.isVoiceCall || data.useVoiceCallModel) {
+              // 从全局设置中获取语音通话专用模型
+              const { voiceCallModel } = store.getState().settings
+
+              // 打印调试信息
+              console.log('语音通话消息，尝试使用语音通话专用模型')
+              console.log('全局设置中的语音通话模型:', voiceCallModel ? JSON.stringify(voiceCallModel) : 'null')
+              console.log('事件中传递的模型:', data.model ? JSON.stringify(data.model) : 'null')
+
+              // 如果全局设置中有语音通话专用模型，优先使用
+              if (voiceCallModel) {
+                userMessage.model = voiceCallModel
+                console.log('使用全局设置中的语音通话专用模型:', voiceCallModel.name)
+
+                // 强制覆盖消息中的模型
+                userMessage.modelId = voiceCallModel.id
+              }
+              // 如果没有全局设置，但事件中传递了模型，使用事件中的模型
+              else if (data.model && typeof data.model === 'object') {
+                userMessage.model = data.model
+                console.log('使用事件中传递的模型:', data.model.name || data.model.id)
+
+                // 强制覆盖消息中的模型
+                userMessage.modelId = data.model.id
+              }
+              // 如果没有模型对象，但有模型ID，尝试使用模型ID
+              else if (data.voiceCallModelId) {
+                console.log('使用事件中传递的模型ID:', data.voiceCallModelId)
+                userMessage.modelId = data.voiceCallModelId
+              }
+              // 如果以上都没有，使用当前助手模型
+              else {
+                console.log('没有找到语音通话专用模型，使用当前助手模型')
+              }
+            }
+            // 非语音通话消息，使用当前助手模型
+            else if (data.model) {
+              const modelObj = assistant.model?.id === data.model.id ? assistant.model : undefined
+              if (modelObj) {
+                userMessage.model = modelObj
+                console.log('使用当前助手模型:', modelObj.name || modelObj.id)
+              }
+            }
+
+            // 如果是语音通话消息，创建一个新的助手对象，并设置模型
+            let assistantToUse = assistant
+            if ((data.isVoiceCall || data.useVoiceCallModel) && userMessage.model) {
+              // 创建一个新的助手对象，以避免修改原始助手
+              assistantToUse = { ...assistant }
+
+              // 设置助手的模型为语音通话专用模型
+              assistantToUse.model = userMessage.model
+              console.log(
+                '为语音通话消息创建了新的助手对象，并设置了模型:',
+                userMessage.model.name || userMessage.model.id
+              )
+            }
+
+            // 分发发送消息的action
+            dispatch(_sendMessage(userMessage, assistantToUse, topic, {}))
+
+            // 清空输入框
+            setText('')
+
+            console.log('已触发发送消息事件')
+          }, 300)
+        }
+      )
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [addNewTopic, resizeTextArea])
+  }, [
+    addNewTopic,
+    resizeTextArea,
+    sendMessage,
+    model,
+    inputEmpty,
+    loading,
+    dispatch,
+    assistant,
+    topic,
+    setText
+    // getUserMessage 和 _sendMessage 是外部作用域值，不需要作为依赖项
+  ])
 
   useEffect(() => {
     textareaRef.current?.focus()
@@ -1008,6 +1120,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             </ToolbarMenu>
             <ToolbarMenu>
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
+              <ASRButton
+                onTranscribed={(transcribedText) => {
+                  // 如果是空字符串，不做任何处理
+                  if (!transcribedText) return
+
+                  // 将识别的文本添加到当前输入框
+                  setText((prevText) => {
+                    // 如果当前有文本，添加空格后再添加识别的文本
+                    if (prevText.trim()) {
+                      return prevText + ' ' + transcribedText
+                    }
+                    return transcribedText
+                  })
+                }}
+              />
+              <VoiceCallButton disabled={loading} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>

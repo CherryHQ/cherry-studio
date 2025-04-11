@@ -27,6 +27,11 @@ files:
   - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
+  # 包含 ASR 服务器文件
+  - src/renderer/src/assets/asr-server/**/*
+  # 包含打包后的ASR服务器可执行文件
+  - cherry-asr-server.exe
+  - index.html
 asarUnpack:
   - resources/**
   - '**/*.{node,dll,metal,exp,lib}'

@@ -9,6 +9,7 @@ import {
   RocketOutlined,
   SaveOutlined,
   SettingOutlined,
+  SoundOutlined,
   ThunderboltOutlined
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
@@ -32,6 +33,7 @@ import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import ShortcutSettings from './ShortcutSettings'
+import TTSSettings from './TTSSettings/TTSSettings'
 import WebSearchSettings from './WebSearchSettings'
 
 const SettingsPage: FC = () => {
@@ -122,6 +124,12 @@ const SettingsPage: FC = () => {
               {t('settings.data.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/tts">
+            <MenuItem className={isRoute('/settings/tts')}>
+              <SoundOutlined />
+              {t('settings.voice.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/about">
             <MenuItem className={isRoute('/settings/about')}>
               <InfoCircleOutlined />
@@ -141,6 +149,7 @@ const SettingsPage: FC = () => {
             <Route path="shortcut" element={<ShortcutSettings />} />
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
             <Route path="data/*" element={<DataSettings />} />
+            <Route path="tts" element={<TTSSettings />} />
             <Route path="about" element={<AboutSettings />} />
             <Route path="quickPhrase" element={<QuickPhraseSettings />} />
           </Routes>

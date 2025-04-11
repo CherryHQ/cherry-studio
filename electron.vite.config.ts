@@ -76,6 +76,17 @@ export default defineConfig({
     },
     optimizeDeps: {
       exclude: []
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/renderer/index.html')
+        }
+      },
+      // 复制ASR服务器文件
+      assetsInlineLimit: 0,
+      // 确保复制assets目录下的所有文件
+      copyPublicDir: true
     }
   }
 })

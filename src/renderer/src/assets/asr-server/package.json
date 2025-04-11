@@ -1,0 +1,27 @@
+{
+  "name": "cherry-asr-server",
+  "version": "1.0.0",
+  "description": "Cherry Studio ASR Server",
+  "main": "server.js",
+  "bin": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "pkg ."
+  },
+  "pkg": {
+    "targets": [
+      "node16-win-x64"
+    ],
+    "outputPath": "dist",
+    "assets": [
+      "index.html"
+    ]
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

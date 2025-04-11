@@ -9,6 +9,7 @@ import log from 'electron-log'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
+import { asrServerService } from './services/ASRServerService'
 import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
@@ -18,6 +19,7 @@ import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
+import * as MsTTSService from './services/MsTTSService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
@@ -142,7 +144,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
         })
       )
       await fileManager.clearTemp()
-      await fs.writeFileSync(log.transports.file.getFile().path, '')
+      fs.writeFileSync(log.transports.file.getFile().path, '')
       return { success: true }
     } catch (error: any) {
       log.error('Failed to clear cache:', error)
@@ -294,13 +296,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   )
 
   // search window
-  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string) => {
-    await searchService.openSearchWindow(uid)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
-    await searchService.closeSearchWindow(uid)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
-    return await searchService.openUrlInSearchWindow(uid, url)
-  })
+  ipcMain.handle(IpcChannel.SearchWindow_Open, (_, uid: string) => searchService.openSearchWindow(uid))
+  ipcMain.handle(IpcChannel.SearchWindow_Close, (_, uid: string) => searchService.closeSearchWindow(uid))
+  ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, (_, uid: string, url: string) =>
+    searchService.openUrlInSearchWindow(uid, url)
+  )
+
+  // 注册ASR服务器IPC处理程序
+  asrServerService.registerIpcHandlers()
+
+  // 注册MsTTS IPC处理程序
+  ipcMain.handle(IpcChannel.MsTTS_GetVoices, MsTTSService.getVoices)
+  ipcMain.handle(IpcChannel.MsTTS_Synthesize, (_, text: string, voice: string, outputFormat: string) =>
+    MsTTSService.synthesize(text, voice, outputFormat)
+  )
 }
