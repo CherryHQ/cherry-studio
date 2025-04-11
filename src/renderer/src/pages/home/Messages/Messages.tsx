@@ -298,6 +298,7 @@ const LoaderContainer = styled.div<LoaderProps>`
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
+  margin-bottom: -20px; // 添加负的底部外边距来减少空间
 `
 
 interface ContainerProps {
@@ -307,7 +308,7 @@ interface ContainerProps {
 const Container = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 0 20px;
+  padding: 10px 0 10px;
   overflow-x: hidden;
   background-color: var(--color-background);
   z-index: 1;
