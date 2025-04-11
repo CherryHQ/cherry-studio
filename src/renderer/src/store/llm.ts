@@ -541,7 +541,7 @@ export const moveProvider = (providers: Provider[], id: string, position: number
   return newProviders
 }
 
-const settingsSlice = createSlice({
+const llmSlice = createSlice({
   name: 'llm',
   initialState: isLocalAi ? getIntegratedInitialState() : initialState,
   reducers: {
@@ -632,6 +632,6 @@ export const {
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,
   updateModel
-} = settingsSlice.actions
+} = llmSlice.actions
 
-export default settingsSlice.reducer
+export default llmSlice.reducer

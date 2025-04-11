@@ -15,6 +15,7 @@ import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 import { defaultWebSearchProviders } from './websearch'
+import { INITIAL_WORKFLOW_PROVIDERS } from './workflow'
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
@@ -59,6 +60,17 @@ function addWebSearchProvider(state: RootState, id: string) {
       const provider = defaultWebSearchProviders.find((p) => p.id === id)
       if (provider) {
         state.websearch.providers.push(provider)
+      }
+    }
+  }
+}
+
+function addWorkflowProvider(state: RootState, id: string) {
+  if (state.workflow && state.workflow.providers) {
+    if (!state.workflow.providers.find((p) => p.id === id)) {
+      const _provider = INITIAL_WORKFLOW_PROVIDERS.find((p) => p.id === id)
+      if (_provider) {
+        state.workflow.providers.push(_provider)
       }
     }
   }
@@ -1204,6 +1216,14 @@ const migrateConfig = {
       }
       return state
     } catch (error) {
+      return state
+    }
+  },
+  '96': (state: RootState) => {
+    try {
+      addWorkflowProvider(state, 'dify')
+      return state
+    } catch (e) {
       return state
     }
   }
