@@ -31,6 +31,13 @@ declare global {
       setTheme: (theme: 'light' | 'dark') => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
+      cssEditor: {
+        open: () => void
+        close: () => void
+        togglePin: () => boolean
+        update: (css: string) => void
+        set: (callback: (css: string) => void) => void
+      }
       system: {
         getDeviceType: () => Promise<'mac' | 'windows' | 'linux'>
       }
