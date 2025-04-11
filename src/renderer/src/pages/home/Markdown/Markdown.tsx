@@ -4,12 +4,14 @@ import 'katex/dist/contrib/mhchem'
 
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { EVENT_NAMES } from '@renderer/services/EventService'
+import { EventEmitter } from '@renderer/services/EventService'
 import type { Message } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
-import { findCitationInChildren } from '@renderer/utils/markdown'
+import { findCitationInChildren, getCodeBlockId } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { type FC, useMemo } from 'react'
+import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -37,6 +39,17 @@ const Markdown: FC<Props> = ({ message }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
 
+  const onSaveCodeBlock = useCallback(
+    (id: string, newContent: string) => {
+      EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
+        messageId: message.id,
+        codeBlockId: id,
+        newContent
+      })
+    },
+    [message.id]
+  )
+
   const rehypeMath = useMemo(() => (mathEngine === 'KaTeX' ? rehypeKatex : rehypeMathjax), [mathEngine])
 
   const messageContent = useMemo(() => {
@@ -54,12 +67,14 @@ const Markdown: FC<Props> = ({ message }) => {
   const components = useMemo(() => {
     const baseComponents = {
       a: (props: any) => <Link {...props} citationData={parseJSON(findCitationInChildren(props.children))} />,
-      code: CodeBlock,
+      code: (props: any) => (
+        <CodeBlock {...props} id={getCodeBlockId(props?.node?.position?.start)} onSave={onSaveCodeBlock} />
+      ),
       img: ImagePreview,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />
     } as Partial<Components>
     return baseComponents
-  }, [])
+  }, [onSaveCodeBlock])
 
   if (message.role === 'user' && !renderInputMessageAsMarkdown) {
     return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
