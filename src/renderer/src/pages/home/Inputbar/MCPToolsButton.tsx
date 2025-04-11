@@ -9,16 +9,26 @@ import { useNavigate } from 'react-router'
 
 export interface MCPToolsButtonRef {
   openQuickPanel: () => void
+  openPromptList: () => void
 }
 
 interface Props {
   ref?: React.RefObject<MCPToolsButtonRef | null>
   enabledMCPs: MCPServer[]
+  setInputValue: React.Dispatch<React.SetStateAction<string>>
+  resizeTextArea: () => void
   toggelEnableMCP: (server: MCPServer) => void
   ToolbarButton: any
 }
 
-const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarButton }) => {
+const MCPToolsButton: FC<Props> = ({
+  ref,
+  setInputValue,
+  resizeTextArea,
+  enabledMCPs,
+  toggelEnableMCP,
+  ToolbarButton
+}) => {
   const { activedMcpServers } = useMCPServers()
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -57,6 +67,46 @@ const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarB
     })
   }, [menuItems, quickPanel, t])
 
+  const handlePromptSelect = useCallback(
+    (prompt: string) => {
+      setTimeout(() => {
+        setInputValue((prev) => {
+          const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+          const cursorPosition = textArea.selectionStart
+          const selectionStart = cursorPosition
+          const selectionEndPosition = cursorPosition + prompt.length
+          const newText = prev.slice(0, cursorPosition) + prompt + prev.slice(cursorPosition)
+
+          setTimeout(() => {
+            textArea.focus()
+            textArea.setSelectionRange(selectionStart, selectionEndPosition)
+            resizeTextArea()
+          }, 10)
+          return newText
+        })
+      }, 10)
+    },
+    [setInputValue, resizeTextArea]
+  )
+
+  const promptList = useMemo(() => {
+    return Array.from({ length: 10 }).map((_, index) => ({
+      label: `Prompt ${index + 1}`,
+      description: `This is a sample prompt description ${index + 1}`,
+      icon: <CodeOutlined />,
+      action: () => handlePromptSelect(`This is a sample prompt description ${index + 1}`)
+    }))
+  }, [handlePromptSelect])
+
+  const openPromptList = useCallback(() => {
+    quickPanel.open({
+      title: t('settings.mcp.title'),
+      list: promptList,
+      symbol: 'mcp-prompt',
+      multiple: true
+    })
+  }, [promptList, quickPanel, t])
+
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanel.isVisible && quickPanel.symbol === 'mcp') {
       quickPanel.close()
@@ -66,7 +116,8 @@ const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarB
   }, [openQuickPanel, quickPanel])
 
   useImperativeHandle(ref, () => ({
-    openQuickPanel
+    openQuickPanel,
+    openPromptList
   }))
 
   if (activedMcpServers.length === 0) {

@@ -359,6 +359,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       },
       {
+        label: 'MCP Prompt',
+        description: '',
+        icon: <CodeOutlined />,
+        isMenu: true,
+        action: () => {
+          mcpToolsButtonRef.current?.openPromptList()
+        }
+      },
+      {
         label: isVisionModel(model) ? t('chat.input.upload') : t('chat.input.upload.document'),
         description: '',
         icon: <PaperClipOutlined />,
@@ -960,6 +969,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 enabledMCPs={enabledMCPs}
                 toggelEnableMCP={toggelEnableMCP}
                 ToolbarButton={ToolbarButton}
+                setInputValue={setText}
+                resizeTextArea={resizeTextArea}
               />
               <GenerateImageButton
                 model={model}
