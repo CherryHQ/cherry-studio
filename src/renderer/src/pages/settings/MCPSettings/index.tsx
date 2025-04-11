@@ -1,17 +1,13 @@
-import { CodeOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, CodeOutlined, PlusOutlined } from '@ant-design/icons'
 import { nanoid } from '@reduxjs/toolkit'
-import DragableList from '@renderer/components/DragableList'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack, VStack } from '@renderer/components/Layout'
-import ListItem from '@renderer/components/ListItem'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { EventEmitter } from '@renderer/services/EventService'
 import { MCPServer } from '@renderer/types'
-import { Dropdown, MenuProps } from 'antd'
 import { isEmpty } from 'lodash'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,8 +18,8 @@ import NpxSearch from './NpxSearch'
 
 const MCPSettings: FC = () => {
   const { t } = useTranslation()
-  const { mcpServers, addMCPServer, updateMcpServers, deleteMCPServer } = useMCPServers()
-  const [selectedMcpServer, setSelectedMcpServer] = useState<MCPServer | null>(mcpServers[0])
+  const { mcpServers, addMCPServer } = useMCPServers()
+  const [selectedMcpServer, setSelectedMcpServer] = useState<MCPServer | null>(null)
   const [route, setRoute] = useState<'npx-search' | 'mcp-install' | null>(null)
   const { theme } = useTheme()
 
@@ -49,44 +45,25 @@ const MCPSettings: FC = () => {
     addMCPServer(newServer)
     window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
     setSelectedMcpServer(newServer)
+    setRoute(null)
   }
-
-  const onDeleteMcpServer = useCallback(
-    async (server: MCPServer) => {
-      try {
-        await window.api.mcp.removeServer(server)
-        await deleteMCPServer(server.id)
-        window.message.success({ content: t('settings.mcp.deleteSuccess'), key: 'mcp-list' })
-      } catch (error: any) {
-        window.message.error({
-          content: `${t('settings.mcp.deleteError')}: ${error.message}`,
-          key: 'mcp-list'
-        })
-      }
-    },
-    [deleteMCPServer, t]
-  )
-
-  const getMenuItems = useCallback(
-    (server: MCPServer) => {
-      const menus: MenuProps['items'] = [
-        {
-          label: t('common.delete'),
-          danger: true,
-          key: 'delete',
-          icon: <DeleteOutlined />,
-          onClick: () => onDeleteMcpServer(server)
-        }
-      ]
-      return menus
-    },
-    [onDeleteMcpServer, t]
-  )
 
   useEffect(() => {
     const _selectedMcpServer = mcpServers.find((server) => server.id === selectedMcpServer?.id)
     setSelectedMcpServer(_selectedMcpServer || mcpServers[0])
   }, [mcpServers, route, selectedMcpServer])
+
+  useEffect(() => {
+    // Check if the selected server still exists in the updated mcpServers list
+    if (selectedMcpServer) {
+      const serverExists = mcpServers.some((server) => server.id === selectedMcpServer.id)
+      if (!serverExists) {
+        setSelectedMcpServer(null)
+      }
+    } else {
+      setSelectedMcpServer(null)
+    }
+  }, [mcpServers, selectedMcpServer])
 
   const MainContent = useMemo(() => {
     if (route === 'npx-search' || isEmpty(mcpServers)) {
@@ -111,50 +88,63 @@ const MCPSettings: FC = () => {
     return <NpxSearch />
   }, [mcpServers, route, selectedMcpServer, theme])
 
+  const goBackToGrid = () => {
+    setSelectedMcpServer(null)
+  }
+
   return (
     <Container>
-      <McpListContainer>
-        <McpList>
-          <ListItem
-            key="add"
-            title={t('settings.mcp.addServer')}
-            active={false}
-            onClick={onAddMcpServer}
-            icon={<PlusOutlined />}
-            titleStyle={{ fontWeight: 500 }}
-            style={{ width: '100%', marginTop: -2 }}
-          />
-          <DragableList list={mcpServers} onUpdate={updateMcpServers}>
-            {(server: MCPServer) => (
-              <Dropdown menu={{ items: getMenuItems(server) }} trigger={['contextMenu']} key={server.id}>
-                <div>
-                  <ListItem
-                    key={server.id}
-                    title={server.name}
-                    active={selectedMcpServer?.id === server.id}
-                    onClick={() => {
-                      setSelectedMcpServer(server)
-                      setRoute(null)
-                    }}
-                    titleStyle={{ fontWeight: 500 }}
-                    icon={<CodeOutlined />}
-                    rightContent={
-                      <IndicatorLight
-                        size={6}
-                        color={server.isActive ? 'green' : 'var(--color-text-3)'}
-                        animation={server.isActive}
-                        shadow={false}
-                        style={{ marginRight: 4 }}
-                      />
-                    }
-                  />
-                </div>
-              </Dropdown>
-            )}
-          </DragableList>
-        </McpList>
-      </McpListContainer>
-      {MainContent}
+      {selectedMcpServer ? (
+        <DetailViewContainer>
+          <BackButtonContainer>
+            <BackButton onClick={goBackToGrid}>
+              <ArrowLeftOutlined /> {t('common.back')}
+            </BackButton>
+          </BackButtonContainer>
+          <DetailContent>{MainContent}</DetailContent>
+        </DetailViewContainer>
+      ) : (
+        <GridContainer>
+          <GridHeader>
+            <h2>{t('settings.mcp.newServer')}</h2>
+          </GridHeader>
+          <ServersGrid>
+            <AddServerCard onClick={onAddMcpServer}>
+              <PlusOutlined style={{ fontSize: 24 }} />
+              <AddServerText>{t('settings.mcp.addServer')}</AddServerText>
+            </AddServerCard>
+
+            {mcpServers.map((server) => (
+              <ServerCard
+                key={server.id}
+                onClick={() => {
+                  setSelectedMcpServer(server)
+                  setRoute(null)
+                }}>
+                <ServerHeader>
+                  <ServerIcon>
+                    <CodeOutlined />
+                  </ServerIcon>
+                  <ServerName>{server.name}</ServerName>
+                  <StatusIndicator>
+                    <IndicatorLight
+                      size={6}
+                      color={server.isActive ? 'green' : 'var(--color-text-3)'}
+                      animation={server.isActive}
+                      shadow={false}
+                    />
+                  </StatusIndicator>
+                </ServerHeader>
+                <ServerDescription>
+                  {server.description
+                    ? server.description.substring(0, 60) + (server.description.length > 60 ? '...' : '')
+                    : t('settings.mcp.noDescription')}
+                </ServerDescription>
+              </ServerCard>
+            ))}
+          </ServersGrid>
+        </GridContainer>
+      )}
     </Container>
   )
 }
@@ -163,22 +153,129 @@ const Container = styled(HStack)`
   flex: 1;
 `
 
-const McpListContainer = styled(VStack)`
-  width: var(--settings-width);
-  border-right: 0.5px solid var(--color-border);
+const GridContainer = styled(VStack)`
+  width: 100%;
   height: calc(100vh - var(--navbar-height));
+  padding: 20px;
 `
 
-const McpList = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 5px;
+const GridHeader = styled.div`
   width: 100%;
-  padding: 12px;
-  .iconfont {
-    color: var(--color-text-2);
-    line-height: 16px;
+  padding-bottom: 16px;
+
+  h2 {
+    font-size: 20px;
+    margin: 0;
+  }
+`
+
+const ServersGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  width: 100%;
+  overflow-y: auto;
+  padding: 2px;
+`
+
+const ServerCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 140px;
+  background-color: var(--color-bg-1);
+
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+`
+
+const ServerHeader = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+`
+
+const ServerIcon = styled.div`
+  font-size: 18px;
+  color: var(--color-primary);
+  margin-right: 8px;
+`
+
+const ServerName = styled.div`
+  font-weight: 500;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+const StatusIndicator = styled.div`
+  margin-left: 8px;
+`
+
+const ServerDescription = styled.div`
+  font-size: 12px;
+  color: var(--color-text-2);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+`
+
+const AddServerCard = styled(ServerCard)`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-style: dashed;
+  background-color: transparent;
+  color: var(--color-text-2);
+`
+
+const AddServerText = styled.div`
+  margin-top: 12px;
+  font-weight: 500;
+`
+
+const DetailViewContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  position: relative;
+`
+
+const BackButtonContainer = styled.div`
+  padding: 16px 0 0 20px;
+  width: 100%;
+`
+
+const DetailContent = styled.div`
+  flex: 1;
+  width: 100%;
+`
+
+const BackButton = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-1);
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  background-color: var(--color-bg-1);
+
+  &:hover {
+    color: var(--color-primary);
+    background-color: var(--color-bg-2);
   }
 `
 

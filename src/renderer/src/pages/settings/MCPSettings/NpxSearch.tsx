@@ -230,6 +230,7 @@ const ResultList = styled.div`
   gap: 8px;
   width: calc(100% + 10px);
   padding-right: 4px;
+  padding-bottom: 40px;
   overflow-y: scroll;
 `
 
