@@ -131,6 +131,12 @@ const AgentsPage: FC = () => {
     setActiveGroup(group)
   }
 
+  const handleAddAgent = () => {
+    AddAgentPopup.show().then(() => {
+      handleSearchClear()
+    })
+  }
+
   return (
     <Container>
       <Navbar>
@@ -201,7 +207,7 @@ const AgentsPage: FC = () => {
                 </CustomTag>
               }
             </AgentsListTitle>
-            <Button type="text" onClick={() => AddAgentPopup.show()} icon={<PlusOutlined />}>
+            <Button type="text" onClick={handleAddAgent} icon={<PlusOutlined />}>
               {t('agents.add.title')}
             </Button>
           </AgentsListHeader>
