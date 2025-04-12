@@ -2,6 +2,7 @@ import { GroundingMetadata } from '@google/generative-ai'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
+export * from './workflow'
 
 export type Assistant = {
   id: string

@@ -19,6 +19,7 @@ import runtime from './runtime'
 import settings from './settings'
 import shortcuts from './shortcuts'
 import websearch from './websearch'
+import workflow from './workflow'
 
 const rootReducer = combineReducers({
   assistants,
@@ -35,14 +36,15 @@ const rootReducer = combineReducers({
   websearch,
   mcp,
   copilot,
-  messages: messagesReducer
+  messages: messagesReducer,
+  workflow
 })
 
 const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 95,
+    version: 96,
     blacklist: ['runtime', 'messages'],
     migrate
   },
