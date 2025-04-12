@@ -4,6 +4,7 @@ import CustomTag from '@renderer/components/CustomTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import {
   getModelLogo,
+  groupQwenModels,
   isEmbeddingModel,
   isFunctionCallingModel,
   isReasoningModel,
@@ -81,7 +82,16 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     }
   })
 
-  const modelGroups = groupBy(list, 'group')
+  const modelGroups =
+    provider.id === 'dashscope'
+      ? {
+          ...groupBy(
+            list.filter((model) => !model.id.startsWith('qwen')),
+            'group'
+          ),
+          ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
+        }
+      : groupBy(list, 'group')
 
   const onOk = () => {
     setOpen(false)
