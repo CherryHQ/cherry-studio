@@ -45,7 +45,9 @@ export type AssistantSettings = {
   reasoning_effort?: 'low' | 'medium' | 'high'
 }
 
-export type Agent = Omit<Assistant, 'model'>
+export type Agent = Omit<Assistant, 'model'> & {
+  group?: string[]
+}
 
 export type Message = {
   id: string

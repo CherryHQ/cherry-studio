@@ -87,6 +87,7 @@
     "fs-extra": "^11.2.0",
     "got-scraping": "^4.1.1",
     "jsdom": "^26.0.0",
+    "lucide-react": "^0.487.0",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
     "proxy-agent": "^6.5.0",
