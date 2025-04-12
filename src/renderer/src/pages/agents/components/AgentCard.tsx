@@ -178,12 +178,19 @@ const AgentCardHeaderInfoAction = styled.div`
 `
 
 const HeaderInfoEmoji = styled.div`
-  font-size: 45px;
+  width: 45px;
+  height: 45px;
+  border-radius: var(--list-item-border-radius);
+  font-size: 26px;
   line-height: 1;
   opacity: 0.8;
   flex-shrink: 0;
   opacity: 1;
   transition: opacity 0.2s ease;
+  background-color: var(--color-background-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `
 
 const MenuButton = styled(Button)`
