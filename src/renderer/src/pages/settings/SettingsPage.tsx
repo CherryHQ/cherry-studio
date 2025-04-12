@@ -6,6 +6,7 @@ import {
   InfoCircleOutlined,
   LayoutOutlined,
   MacCommandOutlined,
+  PartitionOutlined,
   RocketOutlined,
   SaveOutlined,
   SettingOutlined,
@@ -33,6 +34,7 @@ import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import ShortcutSettings from './ShortcutSettings'
 import WebSearchSettings from './WebSearchSettings'
+import WorkflowProviderList from './WorkflowSettings'
 
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
@@ -66,6 +68,12 @@ const SettingsPage: FC = () => {
               </MenuItemLink>
             </>
           )}
+          <MenuItemLink to="/settings/workflow">
+            <MenuItem className={isRoute('/settings/workflow')}>
+              <PartitionOutlined />
+              {t('settings.workflow.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/web-search">
             <MenuItem className={isRoute('/settings/web-search')}>
               <GlobalOutlined />
@@ -132,6 +140,7 @@ const SettingsPage: FC = () => {
         <SettingContent>
           <Routes>
             <Route path="provider" element={<ProvidersList />} />
+            <Route path="workflow" element={<WorkflowProviderList />} />
             <Route path="model" element={<ModelSettings />} />
             <Route path="web-search" element={<WebSearchSettings />} />
             <Route path="mcp" element={<MCPSettings />} />

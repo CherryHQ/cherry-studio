@@ -744,7 +744,8 @@
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云"
+      "qiniu": "七牛云",
+      "dify":"Dify"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -1337,6 +1338,23 @@
       "privacy": {
         "title": "隐私设置",
         "enable_privacy_mode": "匿名发送错误报告和数据统计"
+      },
+      "workflow":{
+        "title":"工作流服务",
+        "search":"搜索工作流平台...",
+        "addWorkflow":"添加工作流",
+        "newWorkflow":"新建工作流",
+        "addSuccess":"工作流添加成功",
+        "noDescription":"没有描述",
+        "name":"名称",
+        "description":"描述",
+        "apiKey":"API 密钥",
+        "apiHost":"API 地址",
+        "saveSuccess":"工作流保存成功",
+        "saveError":"工作流保存失败",
+        "deleteConfirm":"确定要删除此工作流吗？",
+        "deleteSuccess":"工作流删除成功",
+        "deleteError":"工作流删除失败"
       }
     },
     "translate": {

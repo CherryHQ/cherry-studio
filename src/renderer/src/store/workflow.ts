@@ -1,21 +1,22 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { Workflow, WorkflowProvider } from '@renderer/types'
+import { WorkflowType, WorkflowProviderType } from '@renderer/types'
 
 /**
  * 定义 Workflow 功能的整体状态
  */
 export interface WorkflowState {
-  providers: WorkflowProvider[]
+  providers: WorkflowProviderType[]
   // 可以添加全局设置，例如默认工作流等
   // defaultWorkflowId?: string;
 }
 
-export const INITIAL_WORKFLOW_PROVIDERS: WorkflowProvider[] = [
+export const INITIAL_WORKFLOW_PROVIDERS: WorkflowProviderType[] = [
   {
     id: 'dify',
     name: 'Dify',
     workflows: [],
-    enabled: true
+    enabled: true,
+    isSystem: true
   }
 ]
 
@@ -27,44 +28,54 @@ const workflowSlice = createSlice({
   name: 'workflow',
   initialState,
   reducers: {
-    updateWorkflowProvider: (state, action: PayloadAction<WorkflowProvider>) => {
-      state.providers = state.providers.map((p) => (p.id === action.payload.id ? { ...p, ...action.payload } : p))
+    updateWorkflowProvider: (state, action: PayloadAction<WorkflowProviderType>) => {
+      state.providers = state.providers.map((p) =>
+        p.id === action.payload.id
+          ? {
+              ...p,
+              ...action.payload
+            }
+          : p
+      )
     },
-    addWorkflowProvider: (state, action: PayloadAction<WorkflowProvider>) => {
+    updateWorkflowProviders: (state, action: PayloadAction<WorkflowProviderType[]>) => {
+      state.providers = action.payload
+    },
+    addWorkflowProvider: (state, action: PayloadAction<WorkflowProviderType>) => {
       state.providers.unshift(action.payload)
     },
-    removeProvider: (state, action: PayloadAction<WorkflowProvider>) => {
+    removeWorkflowProvider: (state, action: PayloadAction<WorkflowProviderType>) => {
       const providerIndex = state.providers.findIndex((p) => p.id === action.payload.id)
       if (providerIndex !== -1) {
         state.providers.splice(providerIndex, 1)
       }
     },
-    addWorkflow: (state, action: PayloadAction<{ providerId: string; model: Workflow }>) => {
+    addWorkflow: (state, action: PayloadAction<WorkflowType>) => {
       state.providers = state.providers.map((p) =>
         p.id === action.payload.providerId
           ? {
               ...p,
-              workflows: [...p.workflows, action.payload.model]
+              workflows: [...p.workflows, action.payload]
             }
           : p
       )
     },
-    removeWorkflow: (state, action: PayloadAction<{ providerId: string; workflowId: string }>) => {
+    removeWorkflow: (state, action: PayloadAction<WorkflowType>) => {
       state.providers = state.providers.map((p) =>
         p.id === action.payload.providerId
           ? {
               ...p,
-              workflows: p.workflows.filter((w) => w.id !== action.payload.workflowId)
+              workflows: p.workflows.filter((w) => w.id !== action.payload.id)
             }
           : p
       )
     },
-    updateWorkflow: (state, action: PayloadAction<{ providerId: string; workflow: Workflow; model: Workflow }>) => {
+    updateWorkflow: (state, action: PayloadAction<WorkflowType>) => {
       const provider = state.providers.find((p) => p.id === action.payload.providerId)
       if (provider) {
-        const workflowIndex = provider.workflows.findIndex((w) => w.id === action.payload.workflow.id)
+        const workflowIndex = provider.workflows.findIndex((w) => w.id === action.payload.id)
         if (workflowIndex !== -1) {
-          provider.workflows[workflowIndex] = action.payload.workflow
+          provider.workflows[workflowIndex] = action.payload
         }
       }
     }
@@ -73,8 +84,9 @@ const workflowSlice = createSlice({
 
 export const {
   updateWorkflowProvider,
+  updateWorkflowProviders,
   addWorkflowProvider,
-  removeProvider,
+  removeWorkflowProvider,
   addWorkflow,
   removeWorkflow,
   updateWorkflow
