@@ -1,13 +1,13 @@
 **许可协议**
 
-本软件采用 Apache License 2.0 许可。除 Apache License 2.0 规定的条款外，您在使用 Cherry Studio 时还应遵守以下附加条款：
+采用 Apache License 2.0 修改版许可，并附加以下条件：
 
 **一. 商用许可**
 
 在以下任何一种情况下，您需要联系我们并获得明确的书面商业授权后，方可继续使用 Cherry Studio 材料：
 
 1. **修改与衍生**： 您对 Cherry Studio 材料进行修改或基于其进行衍生开发（包括但不限于修改应用名称、Logo、代码、功能、界面，数据等）。
-2. **企业服务**： 在您的企业内部，或为企业客户提供基于 CherryStudio 的服务，且该服务支持 10 人及以上累计用户使用。
+2. **企业服务**： 在您的企业内部，或为企业客户提供基于 Cherry Studio 的服务，且该服务支持 10 人及以上累计用户使用。
 3. **硬件捆绑销售**： 您将 Cherry Studio 预装或集成到硬件设备或产品中进行捆绑销售。
 4. **政府或教育机构大规模采购**： 您的使用场景属于政府或教育机构的大规模采购项目，特别是涉及安全、数据隐私等敏感需求时。
 5. **面向公众的公有云服务**：基于 Cherry Studio，提供面向公众的公有云服务。
@@ -33,7 +33,7 @@
 
 **License Agreement**
 
-This software is licensed under the Apache License 2.0. In addition to the terms stipulated by the Apache License 2.0, you must comply with the following supplementary terms when using Cherry Studio:
+This software is licensed under a modified version of the Apache License 2.0, with the following additional conditions。
 
 **I. Commercial Licensing**
 
