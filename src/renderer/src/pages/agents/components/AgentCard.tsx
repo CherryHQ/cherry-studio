@@ -122,7 +122,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
             </AgentCardHeaderInfo>
             {activegroup === '我的' ? (
               <AgentCardHeaderInfoAction>
-                <HeaderInfoEmoji>{emoji}</HeaderInfoEmoji>
+                {emoji && <HeaderInfoEmoji>{emoji}</HeaderInfoEmoji>}
                 <Dropdown
                   menu={{
                     items: menuItems
@@ -142,7 +142,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
                 </Dropdown>
               </AgentCardHeaderInfoAction>
             ) : (
-              <HeaderInfoEmoji>{emoji}</HeaderInfoEmoji>
+              emoji && <HeaderInfoEmoji>{emoji}</HeaderInfoEmoji>
             )}
           </AgentCardHeader>
           <CardInfo>
