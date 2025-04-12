@@ -174,14 +174,20 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
     <Dropdown menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
       <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
         <AssistantNameRow className="name" title={fullAssistantName}>
-          {showAssistantIcon && (
+          {showAssistantIcon ? (
             <ModelAvatar
               model={assistant.model || defaultModel}
               size={22}
               className={isPending && !isActive ? 'animation-pulse' : ''}
             />
+          ) : (
+            <AssistantEmoji
+              $emoji={assistant.emoji || assistantName.slice(0, 1)}
+              className={isPending && !isActive ? 'animation-pulse' : ''}>
+              {assistant.emoji || assistantName.slice(0, 1)}
+            </AssistantEmoji>
           )}
-          <AssistantName className="text-nowrap">{showAssistantIcon ? assistantName : fullAssistantName}</AssistantName>
+          <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
         {isActive && (
           <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
@@ -226,6 +232,33 @@ const AssistantNameRow = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 5px;
+`
+
+const AssistantEmoji = styled.div<{ $emoji: string }>`
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  position: relative;
+  overflow: hidden;
+  &:before {
+    width: 100%;
+    height: 100%;
+    content: ${({ $emoji }) => `'${$emoji || ' '}'`};
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 200%;
+    transform: scale(1.5);
+    filter: blur(5px);
+    opacity: 0.4;
+  }
 `
 
 const AssistantName = styled.div``
