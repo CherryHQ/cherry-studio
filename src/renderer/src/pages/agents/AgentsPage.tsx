@@ -141,7 +141,7 @@ const AgentsPage: FC = () => {
     <Container>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none', justifyContent: 'space-between' }}>
-          {t('agents.title')}{' '}
+          {t('agents.title')}
           <Input
             placeholder={t('common.search')}
             className="nodrag"
