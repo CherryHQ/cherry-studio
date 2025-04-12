@@ -2265,6 +2265,12 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  if (model.type) {
+    if (model.type.includes('web_search')) {
+      return true
+    }
+  }
+
   const provider = getProviderByModel(model)
 
   if (!provider) {
@@ -2310,7 +2316,7 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
-  return model.type?.includes('web_search') || false
+  return false
 }
 
 export function isGenerateImageModel(model: Model): boolean {
