@@ -2,6 +2,7 @@ import { SyncOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useAppDispatch } from '@renderer/store'
 import {
   DEFAULT_SIDEBAR_ICONS,
@@ -11,7 +12,7 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, Input, Segmented, Switch } from 'antd'
+import { Button, ColorPicker, Input, Segmented, Switch } from 'antd'
 import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -32,11 +33,13 @@ const DisplaySettings: FC = () => {
     customCss,
     sidebarIcons,
     showAssistantIcon,
-    setShowAssistantIcon
+    setShowAssistantIcon,
+    colorPrimary
   } = useSettings()
   const { theme: themeMode } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const { setColorPrimary } = useUserTheme()
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
@@ -46,6 +49,13 @@ const DisplaySettings: FC = () => {
       setWindowStyle(checked ? 'transparent' : 'opaque')
     },
     [setWindowStyle]
+  )
+
+  const handleColorPrimaryChange = useCallback(
+    (colorHex: string) => {
+      setColorPrimary(colorHex)
+    },
+    [setColorPrimary]
   )
 
   const handleReset = useCallback(() => {
@@ -95,6 +105,15 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
           <Segmented value={theme} shape="round" onChange={setTheme} options={themeOptions} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
+          <ColorPicker
+            value={colorPrimary}
+            onChange={(color) => handleColorPrimaryChange(color.toHexString())}
+            showText
+          />
         </SettingRow>
         {isMac && (
           <>

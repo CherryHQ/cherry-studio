@@ -38,6 +38,7 @@ export interface SettingsState {
   trayOnClose: boolean
   tray: boolean
   theme: ThemeMode
+  colorPrimary: string
   windowStyle: 'transparent' | 'opaque'
   fontSize: number
   topicPosition: 'left' | 'right'
@@ -143,6 +144,7 @@ export const initialState: SettingsState = {
   trayOnClose: true,
   tray: true,
   theme: ThemeMode.auto,
+  colorPrimary: '#00b96b',
   windowStyle: 'transparent',
   fontSize: 14,
   topicPosition: 'left',
@@ -281,6 +283,9 @@ const settingsSlice = createSlice({
     },
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
       state.theme = action.payload
+    },
+    setColorPrimary: (state, action: PayloadAction<string>) => {
+      state.colorPrimary = action.payload
     },
     setFontSize: (state, action: PayloadAction<number>) => {
       state.fontSize = action.payload
@@ -504,6 +509,7 @@ export const {
   setTrayOnClose,
   setTray,
   setTheme,
+  setColorPrimary,
   setFontSize,
   setWindowStyle,
   setTopicPosition,

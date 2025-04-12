@@ -1,5 +1,6 @@
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
@@ -24,6 +25,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
   const { theme, setTheme } = useSettings()
   const [_theme, _setTheme] = useState(theme)
 
+  const { initUserTheme } = useUserTheme()
+
   const toggleTheme = () => {
     setTheme(theme === ThemeMode.dark ? ThemeMode.light : ThemeMode.dark)
   }
@@ -42,6 +45,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
 
   useEffect(() => {
     document.body.setAttribute('theme-mode', _theme)
+
     // 移除迷你窗口的条件判断，让所有窗口都能设置主题
     window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
   }, [_theme])
@@ -57,6 +61,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
       themeChangeListenerRemover()
     }
   })
+
+  useEffect(() => {
+    initUserTheme()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return <ThemeContext value={{ theme: _theme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
 }

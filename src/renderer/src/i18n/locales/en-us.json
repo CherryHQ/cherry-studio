@@ -1280,6 +1280,7 @@
       "theme.dark": "Dark",
       "theme.light": "Light",
       "theme.title": "Theme",
+      "theme.color_primary": "Primary Color",
       "theme.window.style.opaque": "Opaque Window",
       "theme.window.style.title": "Window Style",
       "theme.window.style.transparent": "Transparent Window",

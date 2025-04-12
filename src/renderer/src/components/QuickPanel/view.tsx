@@ -1,9 +1,8 @@
 import { CheckOutlined, RightOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
+import useUserTheme from '@renderer/hooks/useUserTheme'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
-import { theme } from 'antd'
-import Color from 'color'
 import { t } from 'i18next'
 import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
@@ -30,8 +29,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     throw new Error('QuickPanel must be used within a QuickPanelProvider')
   }
 
-  const { token } = theme.useToken()
-  const colorPrimary = Color(token.colorPrimary || '#008000')
+  const { colorPrimary } = useUserTheme()
   const selectedColor = colorPrimary.alpha(0.15).toString()
   const selectedColorHover = colorPrimary.alpha(0.2).toString()
 
