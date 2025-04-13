@@ -272,9 +272,14 @@ export class WindowService {
         }
       }
 
-      //上述逻辑以下，是“开启托盘+设置关闭时最小化到托盘”的情况
+      /**
+       * 上述逻辑以下:
+       * win/linux: 是“开启托盘+设置关闭时最小化到托盘”的情况
+       * mac: 任何情况都会到这里，因此需要单独处理mac
+       */
 
       event.preventDefault()
+
       mainWindow.hide()
 
       //for mac users, should hide dock icon if close to tray
@@ -320,10 +325,14 @@ export class WindowService {
         this.mainWindow.setVisibleOnAllWorkspaces(true)
       }
 
-      //[macOS] After being closed in fullscreen, the fullscreen behavior will become strange when window shows again
-      // So we need to set it to FALSE explicitly.
-      // althougle other platforms don't have the issue, but it's a good practice to do so
-      if (this.mainWindow.isFullScreen()) {
+      /**
+       * [macOS] After being closed in fullscreen, the fullscreen behavior will become strange when window shows again
+       * So we need to set it to FALSE explicitly.
+       * althougle other platforms don't have the issue, but it's a good practice to do so
+       *
+       *  Check if window is visible to prevent interrupting fullscreen state when clicking dock icon
+       */
+      if (this.mainWindow.isFullScreen() && !this.mainWindow.isVisible()) {
         this.mainWindow.setFullScreen(false)
       }
 
