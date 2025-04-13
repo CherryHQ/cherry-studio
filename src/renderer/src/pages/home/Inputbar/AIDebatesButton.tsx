@@ -1,13 +1,4 @@
-import {
-  CheckCircleOutlined,
-  CheckOutlined,
-  CloseOutlined,
-  LoadingOutlined,
-  PauseCircleOutlined,
-  QuestionCircleOutlined,
-  RobotOutlined,
-  WarningOutlined
-} from '@ant-design/icons'
+import { LoadingOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useTopicLoading, useTopicMessages } from '@renderer/hooks/useMessageOperations'
@@ -19,6 +10,7 @@ import { Assistant, Message, Topic } from '@renderer/types'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { Button, Col, Divider, Popover, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { throttle } from 'lodash'
+import { BotMessageSquare, CircleCheckBig, CircleHelp, CirclePause, CirclePlay, OctagonAlert, X } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -396,8 +388,8 @@ const AIDebatesButton: FC<Props> = ({
   const PopoverStatus = (
     <Col>
       <StatusContainer>
-        {statusHints?.type === 'finish' && <CheckCircleOutlined style={{ color: 'var(--color-primary-soft)' }} />}
-        {statusHints?.type === 'error' && <WarningOutlined style={{ color: 'var(--color-error)' }} />}
+        {statusHints?.type === 'finish' && <CircleCheckBig size={16} color={'var(--color-primary-soft)'} />}
+        {statusHints?.type === 'error' && <OctagonAlert size={16} color={'var(--color-error)'} />}
         {statusHints?.type === 'info' && <LoadingOutlined />}
         <StatusText>
           {statusHints?.message}
@@ -406,13 +398,13 @@ const AIDebatesButton: FC<Props> = ({
         {runningStatus.current === 'generating' && (
           <Tooltip placement="top" title={t('chat.aidebates.stop')} arrow>
             <Button type="text" size="small" shape="circle" onClick={stopExecute}>
-              <PauseCircleOutlined style={{ color: 'var(--color-error)', fontSize: 16 }} />
+              <CirclePause size={16} color={'var(--color-error)'} />
             </Button>
           </Tooltip>
         )}
         {runningStatus.current === 'finish' && (
           <Button type="text" size="small" shape="circle" onClick={closeFinishPopover}>
-            <CloseOutlined style={{ color: 'var(--color-gray-1)', fontSize: 14 }} />
+            <X size={16} color={'var(--color-gray-1)'} />
           </Button>
         )}
       </StatusContainer>
@@ -442,7 +434,7 @@ const AIDebatesButton: FC<Props> = ({
           <SectionTitle>
             <span>{t('assistants.abbr')}</span>
             <Tooltip placement="top" title={t('chat.aidebates.question.assistant')} arrow>
-              <QuestionIcon />
+              <QuestionIcon size={14} />
             </Tooltip>
           </SectionTitle>
           {alterAssistant && (
@@ -486,7 +478,7 @@ const AIDebatesButton: FC<Props> = ({
           <SectionTitle>
             <span>{t('chat.aidebates.auto_mode')}</span>
             <Tooltip placement="top" title={t('chat.aidebates.question.auto_mode')} arrow>
-              <QuestionIcon />
+              <QuestionIcon size={14} />
             </Tooltip>
           </SectionTitle>
           <Switch size="small" checked={autoMode} onChange={setAutoMode} />
@@ -521,7 +513,7 @@ const AIDebatesButton: FC<Props> = ({
 
       <ButtonGroup>
         <Button onClick={() => setIsPopoverShow(false)}>{t('common.cancel')}</Button>
-        <Button type="primary" icon={<CheckOutlined />} disabled={isReplyLoading} onClick={handleExecute}>
+        <Button type="primary" icon={<CirclePlay size={16} />} disabled={isReplyLoading} onClick={handleExecute}>
           {t('chat.aidebates.start')}
         </Button>
       </ButtonGroup>
@@ -565,7 +557,7 @@ const AIDebatesButton: FC<Props> = ({
           }}
           disabled={disabled}>
           <LoadingIconWrapper isRunning={isRunning && runningStatus.current === 'generating'}>
-            <RobotOutlined />
+            <BotMessageSquare size={18} />
           </LoadingIconWrapper>
         </ToolbarButton>
       </Tooltip>
@@ -684,8 +676,7 @@ const ButtonGroup = styled.div`
   gap: 8px;
 `
 
-const QuestionIcon = styled(QuestionCircleOutlined)`
-  font-size: 12px;
+const QuestionIcon = styled(CircleHelp)`
   cursor: pointer;
   color: var(--color-text-3);
 `
