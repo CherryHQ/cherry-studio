@@ -333,8 +333,28 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
   }
 }
 
-export async function fetchGenerate({ prompt, content }: { prompt: string; content: string }): Promise<string> {
-  const model = getDefaultModel()
+export async function fetchGenerate({
+  prompt,
+  content,
+  modelId
+}: {
+  prompt: string
+  content: string
+  modelId?: string
+}): Promise<string> {
+  // 使用指定的模型或默认模型
+  const model = modelId
+    ? store
+        .getState()
+        .llm.providers.flatMap((provider) => provider.models)
+        .find((m) => m.id === modelId)
+    : getDefaultModel()
+
+  if (!model) {
+    console.error(`Model ${modelId} not found, using default model`)
+    return ''
+  }
+
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
@@ -344,8 +364,9 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
   const AI = new AiProvider(provider)
 
   try {
-    return await AI.generateText({ prompt, content })
+    return await AI.generateText({ prompt, content, modelId })
   } catch (error: any) {
+    console.error('Error generating text:', error)
     return ''
   }
 }

@@ -37,7 +37,15 @@ export default abstract class BaseProvider {
   abstract summaries(messages: Message[], assistant: Assistant): Promise<string>
   abstract summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null>
   abstract suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]>
-  abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>
+  abstract generateText({
+    prompt,
+    content,
+    modelId
+  }: {
+    prompt: string
+    content: string
+    modelId?: string
+  }): Promise<string>
   abstract check(model: Model): Promise<{ valid: boolean; error: Error | null }>
   abstract models(): Promise<OpenAI.Models.Model[]>
   abstract generateImage(params: GenerateImageParams): Promise<string[]>

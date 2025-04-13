@@ -111,6 +111,20 @@ export class StreamableHTTPClientTransport implements Transport {
         headers.set('last-event-id', this._lastEventId)
       }
 
+      // 删除可能存在的HTTP/2伪头部
+      if (headers.has(':path')) {
+        headers.delete(':path')
+      }
+      if (headers.has(':method')) {
+        headers.delete(':method')
+      }
+      if (headers.has(':authority')) {
+        headers.delete(':authority')
+      }
+      if (headers.has(':scheme')) {
+        headers.delete(':scheme')
+      }
+
       const response = await fetch(this._url, {
         method: 'GET',
         headers,
@@ -215,6 +229,21 @@ export class StreamableHTTPClientTransport implements Transport {
       const headers = new Headers({ ...commonHeaders, ...this._requestInit?.headers })
       headers.set('content-type', 'application/json')
       headers.set('accept', 'application/json, text/event-stream')
+
+      // 添加错误处理，确保不使用HTTP/2伪头部
+      // 删除可能存在的HTTP/2伪头部
+      if (headers.has(':path')) {
+        headers.delete(':path')
+      }
+      if (headers.has(':method')) {
+        headers.delete(':method')
+      }
+      if (headers.has(':authority')) {
+        headers.delete(':authority')
+      }
+      if (headers.has(':scheme')) {
+        headers.delete(':scheme')
+      }
 
       const init = {
         ...this._requestInit,

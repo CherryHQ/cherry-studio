@@ -30,6 +30,8 @@ import {
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
 import WebSearchService from '@renderer/services/WebSearchService'
+import store from '@renderer/store'
+import { getActiveServers } from '@renderer/store/mcp'
 import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { parseAndCallTools } from '@renderer/utils/mcp-tools'
@@ -228,7 +230,11 @@ export default class GeminiProvider extends BaseProvider {
       let systemInstruction = assistant.prompt
 
       if (mcpTools && mcpTools.length > 0) {
-        systemInstruction = buildSystemPrompt(assistant.prompt || '', mcpTools)
+        systemInstruction = await buildSystemPrompt(
+          assistant.prompt || '',
+          mcpTools,
+          getActiveServers(store.getState())
+        )
       }
 
       // const tools = mcpToolsToGeminiTools(mcpTools)
@@ -464,11 +470,40 @@ export default class GeminiProvider extends BaseProvider {
    * Generate text
    * @param prompt - The prompt
    * @param content - The content
+   * @param modelId - Optional model ID to use
    * @returns The generated text
    */
-  public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
-    const model = getDefaultModel()
-    const systemMessage = { role: 'system', content: prompt }
+  public async generateText({
+    prompt,
+    content,
+    modelId
+  }: {
+    prompt: string
+    content: string
+    modelId?: string
+  }): Promise<string> {
+    // 使用指定的模型或默认模型
+    const model = modelId
+      ? store
+          .getState()
+          .llm.providers.flatMap((provider) => provider.models)
+          .find((m) => m.id === modelId)
+      : getDefaultModel()
+
+    if (!model) {
+      console.error(`Model ${modelId} not found, using default model`)
+      return ''
+    }
+
+    // 应用记忆功能到系统提示词
+    const { applyMemoriesToPrompt } = await import('@renderer/services/MemoryService')
+    const enhancedPrompt = applyMemoriesToPrompt(prompt)
+    console.log(
+      '[GeminiProvider] Applied memories to prompt, length difference:',
+      enhancedPrompt.length - prompt.length
+    )
+
+    const systemMessage = { role: 'system', content: enhancedPrompt }
 
     const geminiModel = this.sdk.getGenerativeModel(
       {
@@ -480,7 +515,7 @@ export default class GeminiProvider extends BaseProvider {
 
     const chat = await geminiModel.startChat()
     const messageContent = isGemmaModel(model)
-      ? `<start_of_turn>user\n${prompt}<end_of_turn>\n<start_of_turn>user\n${content}<end_of_turn>`
+      ? `<start_of_turn>user\n${enhancedPrompt}<end_of_turn>\n<start_of_turn>user\n${content}<end_of_turn>`
       : content
 
     const { response } = await chat.sendMessage(messageContent)

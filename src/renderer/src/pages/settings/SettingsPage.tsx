@@ -1,3 +1,17 @@
+import {
+  AppstoreOutlined,
+  CloudOutlined,
+  CodeOutlined,
+  ExperimentOutlined,
+  GlobalOutlined,
+  InfoCircleOutlined,
+  LayoutOutlined,
+  MacCommandOutlined,
+  RocketOutlined,
+  SaveOutlined,
+  SettingOutlined,
+  ThunderboltOutlined
+} from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
@@ -27,6 +41,7 @@ import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import { McpSettingsNavbar } from './MCPSettings/McpSettingsNavbar'
+import MemorySettings from './MemorySettings'
 import MiniAppSettings from './MiniappSettings/MiniAppSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
@@ -72,6 +87,12 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/mcp')}>
               <SquareTerminal size={18} />
               {t('settings.mcp.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/memory">
+            <MenuItem className={isRoute('/settings/memory')}>
+              <ExperimentOutlined />
+              {t('settings.memory.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/general">
@@ -131,6 +152,7 @@ const SettingsPage: FC = () => {
             <Route path="model" element={<ModelSettings />} />
             <Route path="web-search" element={<WebSearchSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
+            <Route path="memory" element={<MemorySettings />} />
             <Route path="general" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
             {showMiniAppSettings && <Route path="miniapps" element={<MiniAppSettings />} />}
@@ -156,6 +178,8 @@ const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
+  height: calc(100vh - var(--navbar-height)); /* 设置高度为视口高度减去导航栏高度 */
+  overflow: hidden; /* 防止内容溢出 */
 `
 
 const SettingMenus = styled.ul`
@@ -165,6 +189,26 @@ const SettingMenus = styled.ul`
   border-right: 0.5px solid var(--color-border);
   padding: 10px;
   user-select: none;
+  overflow-y: auto; /* 允许菜单滚动 */
+
+  /* 添加滚动条样式 */
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primary);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
 `
 
 const MenuItemLink = styled(Link)`
@@ -209,6 +253,26 @@ const SettingContent = styled.div`
   height: 100%;
   flex: 1;
   border-right: 0.5px solid var(--color-border);
+  overflow-y: auto; /* 添加滚动属性，允许内容滚动 */
+
+  /* 添加滚动条样式 */
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primary);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
 `
 
 export default SettingsPage

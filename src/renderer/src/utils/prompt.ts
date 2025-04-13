@@ -147,12 +147,55 @@ ${availableTools}
 </tools>`
 }
 
-export const buildSystemPrompt = (userSystemPrompt: string, tools: MCPTool[]): string => {
-  if (tools && tools.length > 0) {
-    return SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt)
-      .replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)
-      .replace('{{ AVAILABLE_TOOLS }}', AvailableTools(tools))
+import { applyMemoriesToPrompt } from '@renderer/services/MemoryService'
+import { MCPServer } from '@renderer/types'
+
+import { getRememberedMemories } from './remember-utils'
+export const buildSystemPrompt = async (
+  userSystemPrompt: string,
+  tools: MCPTool[],
+  mcpServers: MCPServer[] = []
+): Promise<string> => {
+  // 获取MCP记忆
+  let mcpMemoriesPrompt = ''
+  try {
+    mcpMemoriesPrompt = await getRememberedMemories(mcpServers)
+  } catch (error) {
+    console.error('Error getting MCP memories:', error)
   }
 
-  return userSystemPrompt
-}
+  // 获取内置记忆
+  let appMemoriesPrompt = ''
+  try {
+    // 应用内置记忆功能
+    console.log('[Prompt] Applying app memories to prompt')
+    // 直接将用户系统提示词传递给 applyMemoriesToPrompt，让它添加记忆
+    appMemoriesPrompt = applyMemoriesToPrompt(userSystemPrompt)
+    console.log('[Prompt] App memories prompt length:', appMemoriesPrompt.length - userSystemPrompt.length)
+  } catch (error) {
+    console.error('Error applying app memories:', error)
+    // 如果应用 Redux 记忆失败，至少保留原始用户提示
+    appMemoriesPrompt = userSystemPrompt
+  }
+
+  // 添加记忆工具的使用说明
+  // 合并所有提示词
+  // 注意：appMemoriesPrompt 已经包含 userSystemPrompt，所以不需要再次添加
+  // 合并 app 记忆（已包含 user prompt）和 mcp 记忆
+  const enhancedPrompt = appMemoriesPrompt + (mcpMemoriesPrompt ? `\n\n${mcpMemoriesPrompt}` : '')
+
+  let finalPrompt: string
+  if (tools && tools.length > 0) {
+    console.log('[Prompt] Final prompt with tools:', { promptLength: enhancedPrompt.length })
+    // Break down the chained replace calls to potentially help the parser
+    const availableToolsString = AvailableTools(tools)
+    let tempPrompt = SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', enhancedPrompt)
+    tempPrompt = tempPrompt.replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)
+    finalPrompt = tempPrompt.replace('{{ AVAILABLE_TOOLS }}', availableToolsString)
+  } else {
+    console.log('[Prompt] Final prompt without tools:', { promptLength: enhancedPrompt.length })
+    finalPrompt = enhancedPrompt // Assign enhancedPrompt when no tools are present
+  }
+  // Single return point for the function
+  return finalPrompt
+} // Closing brace for the buildSystemPrompt function moved here

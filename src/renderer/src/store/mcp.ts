@@ -97,6 +97,14 @@ export const builtinMCPServers: MCPServer[] = [
     type: 'inMemory',
     description: '实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器',
     isActive: false
+  },
+  {
+    id: nanoid(),
+    name: '@cherry/simpleremember',
+    type: 'inMemory',
+    description:
+      '自动记忆工具，功能跟上面的记忆工具差不多。这个记忆会自动应用到对话中，无需显式调用。适合记住用户偏好、项目背景等长期有用信息.可以跨对话。',
+    isActive: true
   }
 ]
 

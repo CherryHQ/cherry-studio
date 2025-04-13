@@ -20,6 +20,7 @@ import {
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
+import { getActiveServers } from '@renderer/store/mcp'
 import {
   Assistant,
   FileTypes,
@@ -310,7 +311,15 @@ export default class OpenAIProvider extends BaseProvider {
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     messages = addImageFileToContents(messages)
-    let systemMessage = { role: 'system', content: assistant.prompt || '' }
+    // 应用记忆功能到系统提示词
+    const { applyMemoriesToPrompt } = await import('@renderer/services/MemoryService')
+    const enhancedPrompt = applyMemoriesToPrompt(assistant.prompt || '')
+    console.log(
+      '[OpenAIProvider.completions] Applied memories to prompt, length difference:',
+      enhancedPrompt.length - (assistant.prompt || '').length
+    )
+
+    let systemMessage = { role: 'system', content: enhancedPrompt }
     if (isOpenAIoSeries(model)) {
       systemMessage = {
         role: 'developer',
@@ -318,7 +327,11 @@ export default class OpenAIProvider extends BaseProvider {
       }
     }
     if (mcpTools && mcpTools.length > 0) {
-      systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
+      systemMessage.content = await buildSystemPrompt(
+        systemMessage.content || '',
+        mcpTools,
+        getActiveServers(store.getState())
+      )
     }
 
     const userMessages: ChatCompletionMessageParam[] = []
@@ -539,12 +552,21 @@ export default class OpenAIProvider extends BaseProvider {
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+
+    // 应用记忆功能到系统提示词
+    const { applyMemoriesToPrompt } = await import('@renderer/services/MemoryService')
+    const enhancedPrompt = applyMemoriesToPrompt(assistant.prompt || '')
+    console.log(
+      '[OpenAIProvider.translate] Applied memories to prompt, length difference:',
+      enhancedPrompt.length - (assistant.prompt || '').length
+    )
+
     const messages = message.content
       ? [
-          { role: 'system', content: assistant.prompt },
+          { role: 'system', content: enhancedPrompt },
           { role: 'user', content: message.content }
         ]
-      : [{ role: 'user', content: assistant.prompt }]
+      : [{ role: 'user', content: enhancedPrompt }]
 
     const isOpenAIReasoning = this.isOpenAIReasoning(model)
 
@@ -625,9 +647,23 @@ export default class OpenAIProvider extends BaseProvider {
       return prev + (prev ? '\n' : '') + content
     }, '')
 
+    // 获取原始提示词
+    const originalPrompt = getStoreSetting('topicNamingPrompt') || i18n.t('prompts.title')
+
+    // 应用记忆功能到系统提示词
+    const { applyMemoriesToPrompt } = await import('@renderer/services/MemoryService')
+    // 使用双重类型断言强制转换类型
+    const enhancedPrompt = applyMemoriesToPrompt(originalPrompt as string) as unknown as string
+    // 存储原始提示词长度
+    const originalPromptLength = (originalPrompt as string).length
+    console.log(
+      '[OpenAIProvider.summaries] Applied memories to prompt, length difference:',
+      enhancedPrompt.length - originalPromptLength
+    )
+
     const systemMessage = {
       role: 'system',
-      content: getStoreSetting('topicNamingPrompt') || i18n.t('prompts.title')
+      content: enhancedPrompt
     }
 
     const userMessage = {
@@ -696,18 +732,46 @@ export default class OpenAIProvider extends BaseProvider {
    * Generate text
    * @param prompt - The prompt
    * @param content - The content
+   * @param modelId - Optional model ID to use
    * @returns The generated text
    */
-  public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
-    const model = getDefaultModel()
+  public async generateText({
+    prompt,
+    content,
+    modelId
+  }: {
+    prompt: string
+    content: string
+    modelId?: string
+  }): Promise<string> {
+    // 使用指定的模型或默认模型
+    const model = modelId
+      ? store
+          .getState()
+          .llm.providers.flatMap((provider) => provider.models)
+          .find((m) => m.id === modelId)
+      : getDefaultModel()
+
+    if (!model) {
+      console.error(`Model ${modelId} not found, using default model`)
+      return ''
+    }
 
     await this.checkIsCopilot()
+
+    // 应用记忆功能到系统提示词
+    const { applyMemoriesToPrompt } = await import('@renderer/services/MemoryService')
+    // 使用双重类型断言强制转换类型
+    const enhancedPrompt = applyMemoriesToPrompt(prompt as string) as unknown as string
+    // 存储原始提示词长度
+    const promptLength = (prompt as string).length
+    console.log('[OpenAIProvider] Applied memories to prompt, length difference:', enhancedPrompt.length - promptLength)
 
     const response = await this.sdk.chat.completions.create({
       model: model.id,
       stream: false,
       messages: [
-        { role: 'system', content: prompt },
+        { role: 'system', content: enhancedPrompt },
         { role: 'user', content }
       ]
     })
@@ -789,7 +853,7 @@ export default class OpenAIProvider extends BaseProvider {
       if (this.provider.id === 'github') {
         // @ts-ignore key is not typed
         return response.body
-          .map((model) => ({
+          .map((model: any) => ({
             id: model.name,
             description: model.summary,
             object: 'model',

@@ -10,6 +10,7 @@ import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
 
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
+import { getConfigDir } from '../utils/file'
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -112,9 +113,28 @@ class BackupManager {
       // 使用流式复制
       await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
         copiedSize += size
-        const progress = Math.min(80, 20 + Math.floor((copiedSize / totalSize) * 60))
+        const progress = Math.min(70, 20 + Math.floor((copiedSize / totalSize) * 50))
         onProgress({ stage: 'copying_files', progress, total: 100 })
       })
+
+      // 复制记忆数据文件
+      const configDir = getConfigDir()
+      const memoryDataPath = path.join(configDir, 'memory-data.json')
+      const tempConfigDir = path.join(this.tempDir, 'Config')
+      const tempMemoryDataPath = path.join(tempConfigDir, 'memory-data.json')
+
+      // 确保目录存在
+      await fs.ensureDir(tempConfigDir)
+
+      // 如果记忆数据文件存在，则复制
+      if (await fs.pathExists(memoryDataPath)) {
+        await fs.copy(memoryDataPath, tempMemoryDataPath)
+        Logger.log('[BackupManager] Memory data file copied')
+        onProgress({ stage: 'copying_memory_data', progress: 75, total: 100 })
+      } else {
+        Logger.log('[BackupManager] Memory data file not found, skipping')
+        onProgress({ stage: 'copying_memory_data', progress: 75, total: 100 })
+      }
 
       await this.setWritableRecursive(tempDataDir)
       onProgress({ stage: 'compressing', progress: 80, total: 100 })
@@ -177,11 +197,32 @@ class BackupManager {
       // 使用流式复制
       await this.copyDirWithProgress(sourcePath, destPath, (size) => {
         copiedSize += size
-        const progress = Math.min(90, 40 + Math.floor((copiedSize / totalSize) * 50))
+        const progress = Math.min(80, 40 + Math.floor((copiedSize / totalSize) * 40))
         onProgress({ stage: 'copying_files', progress, total: 100 })
       })
 
-      Logger.log('[backup] step 4: clean up temp directory')
+      // 恢复记忆数据文件
+      Logger.log('[backup] step 4: restore memory data file')
+      const tempConfigDir = path.join(this.tempDir, 'Config')
+      const tempMemoryDataPath = path.join(tempConfigDir, 'memory-data.json')
+
+      if (await fs.pathExists(tempMemoryDataPath)) {
+        const configDir = getConfigDir()
+        const memoryDataPath = path.join(configDir, 'memory-data.json')
+
+        // 确保目录存在
+        await fs.ensureDir(configDir)
+
+        // 复制记忆数据文件
+        await fs.copy(tempMemoryDataPath, memoryDataPath)
+        Logger.log('[backup] Memory data file restored')
+        onProgress({ stage: 'restoring_memory_data', progress: 90, total: 100 })
+      } else {
+        Logger.log('[backup] Memory data file not found in backup, skipping')
+        onProgress({ stage: 'restoring_memory_data', progress: 90, total: 100 })
+      }
+
+      Logger.log('[backup] step 5: clean up temp directory')
       // 清理临时目录
       await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)

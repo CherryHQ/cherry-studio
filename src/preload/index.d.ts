@@ -193,6 +193,10 @@ declare global {
         closeSearchWindow: (uid: string) => Promise<string>
         openUrlInSearchWindow: (uid: string, url: string) => Promise<string>
       }
+      memory: {
+        loadData: () => Promise<any>
+        saveData: (data: any) => Promise<boolean>
+      }
     }
   }
 }

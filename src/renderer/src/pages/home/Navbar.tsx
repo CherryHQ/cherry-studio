@@ -1,7 +1,9 @@
+import { BookOutlined, FormOutlined, SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
+import ShortMemoryPopup from '@renderer/components/Popups/ShortMemoryPopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
@@ -9,10 +11,11 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { analyzeAndAddShortMemories } from '@renderer/services/MemoryService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
-import { Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { FC } from 'react'
@@ -27,7 +30,7 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
+const HeaderNavbar: FC<Props> = ({ activeAssistant, activeTopic }) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { topicPosition, sidebarIcons, narrowMode } = useSettings()
@@ -53,6 +56,28 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
   const handleNarrowModeToggle = async () => {
     await modelGenerating()
     dispatch(setNarrowMode(!narrowMode))
+  }
+
+  const handleShowShortMemory = () => {
+    if (activeTopic && activeTopic.id) {
+      ShortMemoryPopup.show({ topicId: activeTopic.id })
+    }
+  }
+
+  const handleAnalyzeShortMemory = async () => {
+    if (activeTopic && activeTopic.id) {
+      try {
+        const result = await analyzeAndAddShortMemories(activeTopic.id)
+        if (result) {
+          window.message.success(t('settings.memory.shortMemoryAnalysisSuccess') || '分析成功')
+        } else {
+          window.message.info(t('settings.memory.shortMemoryAnalysisNoNew') || '无新信息')
+        }
+      } catch (error) {
+        console.error('Failed to analyze conversation for short memory:', error)
+        window.message.error(t('settings.memory.shortMemoryAnalysisError') || '分析失败')
+      }
+    }
   }
 
   return (
@@ -86,6 +111,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />
+          <Tooltip title={t('settings.memory.shortMemory')} mouseEnterDelay={0.8}>
+            <NarrowIcon onClick={handleShowShortMemory}>
+              <BookOutlined />
+            </NarrowIcon>
+          </Tooltip>
+          <AnalyzeButton onClick={handleAnalyzeShortMemory}>
+            {t('settings.memory.analyzeConversation') || '分析对话'}
+          </AnalyzeButton>
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
@@ -151,6 +184,19 @@ export const NavbarIcon = styled.div`
 `
 
 const NarrowIcon = styled(NavbarIcon)`
+  @media (max-width: 1000px) {
+    display: none;
+  }
+`
+
+const AnalyzeButton = styled(Button)`
+  font-size: 12px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 4px;
+  margin-right: 8px;
+  -webkit-app-region: none;
+
   @media (max-width: 1000px) {
     display: none;
   }

@@ -6,6 +6,7 @@ import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
 import MemoryServer from './memory'
 import ThinkingServer from './sequentialthinking'
+import SimpleRememberServer from './simpleremember'
 
 export function createInMemoryMCPServer(name: string, args: string[] = [], envs: Record<string, string> = {}): Server {
   Logger.info(`[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(envs)}`)
@@ -25,6 +26,10 @@ export function createInMemoryMCPServer(name: string, args: string[] = [], envs:
     }
     case '@cherry/filesystem': {
       return new FileSystemServer(args).server
+    }
+    case '@cherry/simpleremember': {
+      const envPath = envs.SIMPLEREMEMBER_FILE_PATH
+      return new SimpleRememberServer(envPath).server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

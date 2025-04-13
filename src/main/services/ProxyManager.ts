@@ -127,7 +127,15 @@ export class ProxyManager {
       const [protocol, address] = proxyUrl.split('://')
       const [host, port] = address.split(':')
       if (!protocol.includes('socks')) {
-        setGlobalDispatcher(new ProxyAgent(proxyUrl))
+        // 使用标准方式创建ProxyAgent，但添加错误处理
+        try {
+          // 尝试使用代理
+          const agent = new ProxyAgent(proxyUrl)
+          setGlobalDispatcher(agent)
+          console.log('[Proxy] Successfully set HTTP proxy:', proxyUrl)
+        } catch (error) {
+          console.error('[Proxy] Failed to set proxy:', error)
+        }
       } else {
         const dispatcher = socksDispatcher({
           port: parseInt(port),

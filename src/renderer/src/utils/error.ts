@@ -28,17 +28,59 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
 export function formatErrorMessage(error: any): string {
   console.error('Original error:', error)
 
+  // 检查已知的问题错误对象
+  if (typeof error === 'object' && error !== null) {
+    // 特别检查 rememberInstructions 错误
+    if (error.message === 'rememberInstructions is not defined') {
+      console.warn('Formatting known corrupted error message from storage.')
+      // 返回安全的通用错误消息
+      return '```\nError: A previously recorded error message could not be displayed.\n```'
+    }
+
+    // 检查错误对象中是否包含 rememberInstructions 字符串
+    if (JSON.stringify(error).includes('rememberInstructions')) {
+      console.warn('Detected potential rememberInstructions issue in error object')
+      return '```\nError: An error occurred while processing the message.\n```'
+    }
+
+    // 处理网络错误
+    if (error.message === 'network error') {
+      console.warn('Network error detected')
+      return '```\nError: 网络连接错误，请检查您的网络连接并重试\n```'
+    }
+
+    // 处理其他网络相关错误
+    if (
+      typeof error.message === 'string' &&
+      (error.message.includes('network') ||
+        error.message.includes('timeout') ||
+        error.message.includes('connection') ||
+        error.message.includes('ECONNREFUSED'))
+    ) {
+      console.warn('Network-related error detected:', error.message)
+      return '```\nError: 网络连接问题\n```'
+    }
+  }
+
   try {
     const detailedError = getErrorDetails(error)
     delete detailedError?.headers
     delete detailedError?.stack
     delete detailedError?.request_id
-    return '```json\n' + JSON.stringify(detailedError, null, 2) + '\n```'
-  } catch (e) {
+    // Ensure stringification is safe
+    try {
+      return '```json\n' + JSON.stringify(detailedError, null, 2) + '\n```'
+    } catch (stringifyError) {
+      console.error('Error stringifying detailed error:', stringifyError)
+      return '```\nError: Unable to stringify detailed error message.\n```'
+    }
+  } catch (getDetailsError) {
+    console.error('Error getting error details:', getDetailsError)
+    // Fallback to simple string conversion if getErrorDetails fails
     try {
       return '```\n' + String(error) + '\n```'
     } catch {
-      return 'Error: Unable to format error message'
+      return '```\nError: Unable to format error message.\n```'
     }
   }
 }

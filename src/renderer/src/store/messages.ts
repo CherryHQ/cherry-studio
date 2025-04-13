@@ -391,14 +391,34 @@ export const sendMessage =
             })
           } catch (error: any) {
             console.error('Error in chat completion:', error)
+            // 添加检查，防止意外的错误消息被保存
+            const errorMessage =
+              typeof error?.message === 'string'
+                ? error.message
+                : 'An unexpected error occurred during chat completion.'
+
+            // 检查是否是我们不希望保存的特定字符串，如果是，替换为通用错误
+            let finalErrorMessage = errorMessage
+
+            // 检查多种可能的 rememberInstructions 错误形式
+            if (
+              errorMessage === 'rememberInstructions is not defined' ||
+              (typeof errorMessage === 'string' && errorMessage.includes('rememberInstructions'))
+            ) {
+              console.warn('Detected and sanitized rememberInstructions error')
+              finalErrorMessage = 'An unexpected error occurred.'
+            }
+
             dispatch(
               updateMessageThunk(topic.id, assistantMessage.id, {
                 status: 'error',
-                error: { message: error.message }
+                // 使用处理过的错误消息
+                error: { message: finalErrorMessage }
               })
             )
             dispatch(clearStreamMessage({ topicId: topic.id, messageId: assistantMessage.id }))
-            dispatch(setError(error.message))
+            // setError 也使用处理过的消息
+            dispatch(setError(finalErrorMessage))
           }
         })
       }

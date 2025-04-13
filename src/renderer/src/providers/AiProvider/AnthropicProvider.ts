@@ -10,6 +10,8 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
+import store from '@renderer/store'
+import { getActiveServers } from '@renderer/store/mcp'
 import { Assistant, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { parseAndCallTools } from '@renderer/utils/mcp-tools'
@@ -177,7 +179,7 @@ export default class AnthropicProvider extends BaseProvider {
 
     let systemPrompt = assistant.prompt
     if (mcpTools && mcpTools.length > 0) {
-      systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
+      systemPrompt = await buildSystemPrompt(systemPrompt, mcpTools, getActiveServers(store.getState()))
     }
 
     const body: MessageCreateParamsNonStreaming = {
@@ -473,14 +475,42 @@ export default class AnthropicProvider extends BaseProvider {
    * Generate text
    * @param prompt - The prompt
    * @param content - The content
+   * @param modelId - Optional model ID to use
    * @returns The generated text
    */
-  public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
-    const model = getDefaultModel()
+  public async generateText({
+    prompt,
+    content,
+    modelId
+  }: {
+    prompt: string
+    content: string
+    modelId?: string
+  }): Promise<string> {
+    // 使用指定的模型或默认模型
+    const model = modelId
+      ? store
+          .getState()
+          .llm.providers.flatMap((provider) => provider.models)
+          .find((m) => m.id === modelId)
+      : getDefaultModel()
+
+    if (!model) {
+      console.error(`Model ${modelId} not found, using default model`)
+      return ''
+    }
+
+    // 应用记忆功能到系统提示词
+    const { applyMemoriesToPrompt } = await import('@renderer/services/MemoryService')
+    const enhancedPrompt = applyMemoriesToPrompt(prompt)
+    console.log(
+      '[AnthropicProvider] Applied memories to prompt, length difference:',
+      enhancedPrompt.length - prompt.length
+    )
 
     const message = await this.sdk.messages.create({
       model: model.id,
-      system: prompt,
+      system: enhancedPrompt,
       stream: false,
       max_tokens: 4096,
       messages: [

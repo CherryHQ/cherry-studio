@@ -25,7 +25,7 @@ import ImagePreview from './ImagePreview'
 import Link from './Link'
 
 const ALLOWED_ELEMENTS =
-  /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
+  /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup|think)/i
 
 interface Props {
   message: Message
@@ -56,7 +56,27 @@ const Markdown: FC<Props> = ({ message }) => {
       a: (props: any) => <Link {...props} citationData={parseJSON(findCitationInChildren(props.children))} />,
       code: CodeBlock,
       img: ImagePreview,
-      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />
+      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
+      // 自定义处理think标签
+      think: (props: any) => {
+        // 将think标签内容渲染为带样式的div
+        return (
+          <div className="thinking-content" style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+            padding: '10px 15px',
+            borderRadius: '8px',
+            marginBottom: '15px',
+            borderLeft: '3px solid var(--color-primary)',
+            fontStyle: 'italic',
+            color: 'var(--color-text-2)'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+              思考过程:
+            </div>
+            {props.children}
+          </div>
+        )
+      }
     } as Partial<Components>
     return baseComponents
   }, [])
