@@ -1,8 +1,8 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { getWorkflowProviderLogo } from '@renderer/config/workflowProviders'
-import { useAllWorkflowProviders, useWorkflowProviders } from '@renderer/hooks/useWorkflowProvider'
+import { getFlowEngineProviderLogo } from '@renderer/config/workflowProviders'
+import { useAllFlowEngineProviders, useFlowEngineProviders } from '@renderer/hooks/useFlowEngineProvider'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { FlowEngine } from '@renderer/types'
 import { droppableReorder, generateColorFromChar, getFirstCharacter } from '@renderer/utils'
@@ -15,8 +15,8 @@ import WorkflowProviderSetting from './WorkflowProviderSetting'
 
 const WorkflowProviderList: FC = () => {
   const { t } = useTranslation()
-  const workflowProviders = useAllWorkflowProviders()
-  const { updateWorkflowProviders } = useWorkflowProviders()
+  const workflowProviders = useAllFlowEngineProviders()
+  const { updateflowEngineProviders: updateWorkflowProviders } = useFlowEngineProviders()
   const [selectedProvider, setSelectedProvider] = useState<FlowEngine>(workflowProviders[0])
   const [dragging, setDragging] = useState(false)
   const [searchText, setSearchText] = useState<string>('')
@@ -62,7 +62,7 @@ const WorkflowProviderList: FC = () => {
 
   const getProviderAvatar = (provider: FlowEngine) => {
     if (provider.isSystem) {
-      return <ProviderLogo shape="square" src={getWorkflowProviderLogo(provider.id)} size={25} />
+      return <ProviderLogo shape="square" src={getFlowEngineProviderLogo(provider.id)} size={25} />
     }
 
     const customLogo = providerLogos[provider.id]
@@ -145,7 +145,7 @@ const WorkflowProviderList: FC = () => {
           </ProviderList>
         </Scrollbar>
       </ProviderListContainer>
-      <WorkflowProviderSetting workflowProvider={selectedProvider} key={JSON.stringify(selectedProvider)} />
+      <WorkflowProviderSetting flowEngineProvider={selectedProvider} key={JSON.stringify(selectedProvider)} />
     </Container>
   )
 }

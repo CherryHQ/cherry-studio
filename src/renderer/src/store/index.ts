@@ -7,6 +7,7 @@ import agents from './agents'
 import assistants from './assistants'
 import backup from './backup'
 import copilot from './copilot'
+import flow from './flow'
 import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
@@ -19,7 +20,6 @@ import runtime from './runtime'
 import settings from './settings'
 import shortcuts from './shortcuts'
 import websearch from './websearch'
-import workflow from './workflow'
 
 const rootReducer = combineReducers({
   assistants,
@@ -37,7 +37,7 @@ const rootReducer = combineReducers({
   mcp,
   copilot,
   messages: messagesReducer,
-  workflow
+  flow
 })
 
 const persistedReducer = persistReducer(

@@ -11,11 +11,11 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { INITIAL_FLOW_ENGINE_PROVIDERS } from './flow'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 import { defaultWebSearchProviders } from './websearch'
-import { INITIAL_WORKFLOW_PROVIDERS } from './workflow'
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
@@ -65,12 +65,12 @@ function addWebSearchProvider(state: RootState, id: string) {
   }
 }
 
-function addWorkflowProvider(state: RootState, id: string) {
-  if (state.workflow && state.workflow.providers) {
-    if (!state.workflow.providers.find((p) => p.id === id)) {
-      const _provider = INITIAL_WORKFLOW_PROVIDERS.find((p) => p.id === id)
+function addFlowEngineProvider(state: RootState, id: string) {
+  if (state.flow && state.flow.providers) {
+    if (!state.flow.providers.find((p) => p.id === id)) {
+      const _provider = INITIAL_FLOW_ENGINE_PROVIDERS.find((p) => p.id === id)
       if (_provider) {
-        state.workflow.providers.push(_provider)
+        state.flow.providers.push(_provider)
       }
     }
   }
@@ -1221,7 +1221,7 @@ const migrateConfig = {
   },
   '96': (state: RootState) => {
     try {
-      addWorkflowProvider(state, 'dify')
+      addFlowEngineProvider(state, 'dify')
       return state
     } catch (e) {
       return state

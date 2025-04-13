@@ -2,9 +2,9 @@ import { ArrowLeftOutlined, ExportOutlined, PartitionOutlined, PlusOutlined } fr
 import { nanoid } from '@reduxjs/toolkit'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack, VStack } from '@renderer/components/Layout'
-import { WORKFLOW_PROVIDER_CONFIG } from '@renderer/config/workflowProviders'
+import { FLOW_ENGINE_PROVIDER_CONFIG } from '@renderer/config/workflowProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useWorkflowProvider } from '@renderer/hooks/useWorkflowProvider'
+import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
 import { FlowConfig, FlowEngine } from '@renderer/types'
 import { Divider, Flex, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
@@ -16,61 +16,61 @@ import { SettingContainer, SettingTitle } from '..'
 import WorkflowSettings from './WorkflowSettings'
 
 interface Props {
-  workflowProvider: FlowEngine
+  flowEngineProvider: FlowEngine
 }
 
-const WorkflowProviderSetting: FC<Props> = ({ workflowProvider: _workflowProvider }) => {
+const WorkflowProviderSetting: FC<Props> = ({ flowEngineProvider: _flowEngineProvider }) => {
   const { theme } = useTheme()
-  const { workflowProvider, workflows, updateWorkflowProvider, addWorkflow } = useWorkflowProvider(_workflowProvider.id)
-  const [selectedWorkflow, setSelectedWorkflow] = useState<FlowConfig | null>(null)
+  const { flowEngineProvider, flows, updateFlowEngineProvider, addFlow } = useFlowEngineProvider(_flowEngineProvider.id)
+  const [selectedFlow, setSelectedFlow] = useState<FlowConfig | null>(null)
   const { t } = useTranslation()
-  const providerConfig = WORKFLOW_PROVIDER_CONFIG[workflowProvider.id]
+  const providerConfig = FLOW_ENGINE_PROVIDER_CONFIG[flowEngineProvider.id]
   const officialWebsite = providerConfig?.websites?.official
 
-  const onAddWorkflow = async () => {
-    const newWorkflow: FlowConfig = {
+  const onAddFlow = async () => {
+    const newFlow: FlowConfig = {
       id: nanoid(),
-      providerId: workflowProvider.id,
+      type: 'workflow',
+      providerId: flowEngineProvider.id,
       name: t('settings.workflow.newWorkflow'),
       description: '',
-      apiKey: '',
-      apiHost: '',
+      url: '',
       enabled: false
     }
-    addWorkflow(newWorkflow)
+    addFlow(newFlow)
     window.message.success({ content: t('settings.workflow.addSuccess'), key: 'workflow-list' })
-    setSelectedWorkflow(newWorkflow)
+    setSelectedFlow(newFlow)
   }
 
   const MainContent = useMemo(() => {
-    if (selectedWorkflow) {
-      return <WorkflowSettings workflow={selectedWorkflow} />
+    if (selectedFlow) {
+      return <WorkflowSettings flow={selectedFlow} />
     }
     return
-  }, [workflows, selectedWorkflow])
+  }, [flows, selectedFlow])
 
   const goBackToGrid = () => {
-    setSelectedWorkflow(null)
+    setSelectedFlow(null)
   }
 
   useEffect(() => {
     // Check if the selected workflow still exists in the updated workflows
-    if (selectedWorkflow) {
-      const workflowExists = workflows.some((w) => w.id === selectedWorkflow.id)
+    if (selectedFlow) {
+      const workflowExists = flows.some((w) => w.id === selectedFlow.id)
       if (!workflowExists) {
-        setSelectedWorkflow(null)
+        setSelectedFlow(null)
       }
     } else {
-      setSelectedWorkflow(null)
+      setSelectedFlow(null)
     }
-  }, [workflows, setSelectedWorkflow])
+  }, [flows, setSelectedFlow])
 
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
         <Flex align="center" gap={8}>
           <ProviderName>
-            {workflowProvider.isSystem ? t(`provider.${workflowProvider.id}`) : workflowProvider.name}
+            {flowEngineProvider.isSystem ? t(`provider.${flowEngineProvider.id}`) : flowEngineProvider.name}
           </ProviderName>
           {officialWebsite! && (
             <Link target="_blank" href={providerConfig.websites.official}>
@@ -79,14 +79,14 @@ const WorkflowProviderSetting: FC<Props> = ({ workflowProvider: _workflowProvide
           )}
         </Flex>
         <Switch
-          value={workflowProvider.enabled}
-          key={workflowProvider.id}
-          onChange={(enabled) => updateWorkflowProvider({ ...workflowProvider, enabled })}
+          value={flowEngineProvider.enabled}
+          key={flowEngineProvider.id}
+          onChange={(enabled) => updateFlowEngineProvider({ ...flowEngineProvider, enabled })}
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       <Container>
-        {selectedWorkflow ? (
+        {selectedFlow ? (
           <DetailViewContainer>
             <BackButtonContainer>
               <BackButton onClick={goBackToGrid}>
@@ -98,15 +98,15 @@ const WorkflowProviderSetting: FC<Props> = ({ workflowProvider: _workflowProvide
         ) : (
           <GridContainer>
             <WorkflowsGrid>
-              <AddWorkflowCard onClick={onAddWorkflow}>
+              <AddWorkflowCard onClick={onAddFlow}>
                 <PlusOutlined style={{ fontSize: 24 }} />
                 <AddWorkflowText>{t('settings.workflow.addWorkflow')}</AddWorkflowText>
               </AddWorkflowCard>
-              {workflows.map((workflow) => (
+              {flows.map((workflow) => (
                 <WorkflowCard
                   key={workflow.id}
                   onClick={() => {
-                    setSelectedWorkflow(workflow)
+                    setSelectedFlow(workflow)
                   }}>
                   <WorkflowHeader>
                     <WorkflowIcon>

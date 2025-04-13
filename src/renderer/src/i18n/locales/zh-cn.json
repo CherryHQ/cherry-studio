@@ -1348,13 +1348,19 @@
         "noDescription":"没有描述",
         "name":"名称",
         "description":"描述",
+        "url":"访问url地址",
         "apiKey":"API 密钥",
         "apiHost":"API 地址",
         "saveSuccess":"工作流保存成功",
         "saveError":"工作流保存失败",
         "deleteConfirm":"确定要删除此工作流吗？",
         "deleteSuccess":"工作流删除成功",
-        "deleteError":"工作流删除失败"
+        "deleteError":"工作流删除失败",
+        "type":"类型",
+        "workflow":"工作流",
+        "chatflow":"对话流",
+        "checkSuccess":"工作流检查成功",
+        "checkError":"工作流检查失败"
       }
     },
     "translate": {
@@ -1395,6 +1401,9 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "workflow":{
+      "title":"工作流"
     }
   }
 }
