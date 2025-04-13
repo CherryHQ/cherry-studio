@@ -1,4 +1,4 @@
-import { CheckOutlined, ExportOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
+import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { formatApiKeys } from '@renderer/services/ApiService'
@@ -7,6 +7,7 @@ import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Avatar, Button, Divider, Flex, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
+import { Info } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -53,7 +54,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       window.message.error({
         content: t('settings.websearch.no_provider_selected'),
         duration: 3,
-        icon: <InfoCircleOutlined />,
+        icon: <Info size={18} />,
         key: 'no-provider-selected'
       })
       return

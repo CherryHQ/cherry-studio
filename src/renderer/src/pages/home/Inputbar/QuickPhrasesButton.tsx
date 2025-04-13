@@ -4,6 +4,7 @@ import { QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import { QuickPhrase } from '@renderer/types'
 import { Tooltip } from 'antd'
+import { Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -104,7 +105,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
         onClick={handleOpenQuickPanel}
         disabled={disabled}
         className={disabled ? 'disabled' : ''}>
-        <ThunderboltOutlined />
+        <Zap size={18} />
       </ToolbarButton>
     </Tooltip>
   )

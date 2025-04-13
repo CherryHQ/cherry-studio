@@ -1,10 +1,3 @@
-import {
-  FileSearchOutlined,
-  FolderOutlined,
-  PictureOutlined,
-  QuestionCircleOutlined,
-  TranslationOutlined
-} from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -17,6 +10,19 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Avatar, Dropdown, Tooltip } from 'antd'
+import {
+  CircleHelp,
+  Folder,
+  Languages,
+  LayoutGrid,
+  LibraryBig,
+  MessageSquareQuote,
+  Moon,
+  Palette,
+  Settings,
+  Sparkle,
+  Sun
+} from 'lucide-react'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -84,7 +90,7 @@ const Sidebar: FC = () => {
       <Menus>
         <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
           <Icon theme={theme} onClick={onOpenDocs} className={minappShow && currentMinappId === docsId ? 'active' : ''}>
-            <QuestionCircleOutlined />
+            <CircleHelp size={20} />
           </Icon>
         </Tooltip>
         <Tooltip
@@ -92,22 +98,17 @@ const Sidebar: FC = () => {
           mouseEnterDelay={0.8}
           placement="right">
           <Icon theme={theme} onClick={() => toggleTheme()}>
-            {theme === 'dark' ? (
-              <i className="iconfont icon-theme icon-dark1" />
-            ) : (
-              <i className="iconfont icon-theme icon-theme-light" />
-            )}
+            {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
           </Icon>
         </Tooltip>
         <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
           <StyledLink
             onClick={async () => {
               hideMinappPopup()
-              await modelGenerating()
               await to('/settings/provider')
             }}>
             <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
-              <i className="iconfont icon-setting" />
+              <Settings size={20} />
             </Icon>
           </StyledLink>
         </Tooltip>
@@ -129,13 +130,13 @@ const MainMenus: FC = () => {
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
 
   const iconMap = {
-    assistants: <i className="iconfont icon-chat" />,
-    agents: <i className="iconfont icon-business-smart-assistant" />,
-    paintings: <PictureOutlined style={{ fontSize: 16 }} />,
-    translate: <TranslationOutlined />,
-    minapp: <i className="iconfont icon-appstore" />,
-    knowledge: <FileSearchOutlined />,
-    files: <FolderOutlined />
+    assistants: <MessageSquareQuote size={18} />,
+    agents: <Sparkle size={18} />,
+    paintings: <Palette size={18} />,
+    translate: <Languages size={18} />,
+    minapp: <LayoutGrid size={18} />,
+    knowledge: <LibraryBig size={18} />,
+    files: <Folder size={17} />
   }
 
   const pathMap = {

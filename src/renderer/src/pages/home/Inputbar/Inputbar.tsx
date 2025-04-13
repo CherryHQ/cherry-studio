@@ -1,11 +1,6 @@
 import {
-  ClearOutlined,
   CodeOutlined,
   FileSearchOutlined,
-  FormOutlined,
-  FullscreenExitOutlined,
-  FullscreenOutlined,
-  GlobalOutlined,
   HolderOutlined,
   PaperClipOutlined,
   PauseCircleOutlined,
@@ -44,6 +39,7 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
+import { Globe, Maximize, MessageSquareDiff, Minimize, PaintbrushVertical } from 'lucide-react'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -947,7 +943,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
             <ToolbarMenu>
               <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
                 <ToolbarButton type="text" onClick={addNewTopic}>
-                  <FormOutlined />
+                  <MessageSquareDiff size={18} />
                 </ToolbarButton>
               </Tooltip>
               <AttachmentButton
@@ -964,7 +960,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
                   onClick={onEnableWebSearch}
                   disabled={isDisableToolsButton}
                   className={isDisableToolsButton ? 'disabled' : ''}>
-                  <GlobalOutlined
+                  <Globe
+                    size={18}
                     style={
                       isDisableToolsButton
                         ? {}
@@ -1020,12 +1017,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
                   onClick={clearTopic}
                   disabled={isDisableToolsButton}
                   className={isDisableToolsButton ? 'disabled' : ''}>
-                  <ClearOutlined style={{ fontSize: 17 }} />
+                  <PaintbrushVertical size={18} />
                 </ToolbarButton>
               </Tooltip>
               <Tooltip placement="top" title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
                 <ToolbarButton type="text" onClick={onToggleExpended}>
-                  {isExpended ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                  {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
                 </ToolbarButton>
               </Tooltip>
               <NewContextButton

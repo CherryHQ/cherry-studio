@@ -9,6 +9,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
 import { Avatar, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
+import { AtSign } from 'lucide-react'
 import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -109,7 +110,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
         onClick={handleOpenQuickPanel}
         disabled={disabled}
         className={disabled ? 'disabled' : ''}>
-        <i className="iconfont icon-at" style={{ fontSize: 18 }}></i>
+        <AtSign size={18} />
       </ToolbarButton>
     </Tooltip>
   )

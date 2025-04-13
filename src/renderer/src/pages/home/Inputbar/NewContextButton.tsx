@@ -1,6 +1,6 @@
-import { PicCenterOutlined } from '@ant-design/icons'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { Tooltip } from 'antd'
+import { CircleFadingPlus } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -21,7 +21,7 @@ const NewContextButton: FC<Props> = ({ onNewContext, ToolbarButton, disabled }) 
     <Container>
       <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
         <ToolbarButton type="text" onClick={onNewContext} disabled={disabled} className={disabled ? 'disabled' : ''}>
-          <PicCenterOutlined />
+          <CircleFadingPlus size={18} />
         </ToolbarButton>
       </Tooltip>
     </Container>
