@@ -272,7 +272,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                 return (
                   <ListItem key={model.id}>
                     <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
-                      <Avatar src={getModelLogo(model.id)} style={{ width: 30, height: 30 }}>
+                      <Avatar src={getModelLogo(model.id)} style={{ width: 26, height: 26 }}>
                         {model?.name?.[0]?.toUpperCase()}
                       </Avatar>
                       <ListItemName>

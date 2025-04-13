@@ -1,79 +1,83 @@
-import { SearchOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import CustomTag from '@renderer/components/CustomTag'
+import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useAgents } from '@renderer/hooks/useAgents'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Col, Empty, Input, Row, Tabs as TabsAntd, Typography } from 'antd'
-import { groupBy, omit } from 'lodash'
-import { FC, useCallback, useMemo, useState } from 'react'
+import { Button, Empty, Flex, Input } from 'antd'
+import { omit } from 'lodash'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
-import { getAgentsFromSystemAgents, useSystemAgents } from '.'
+import { groupByCategories, useSystemAgents } from '.'
 import { groupTranslations } from './agentGroupTranslations'
+import AddAgentPopup from './components/AddAgentPopup'
 import AgentCard from './components/AgentCard'
-import MyAgents from './components/MyAgents'
-
-const { Title } = Typography
-
-let _agentGroups: Record<string, Agent[]> = {}
+import { AgentGroupIcon } from './components/AgentGroupIcon'
 
 const AgentsPage: FC = () => {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [activeGroup, setActiveGroup] = useState('我的')
+  const [agentGroups, setAgentGroups] = useState<Record<string, Agent[]>>({})
   const systemAgents = useSystemAgents()
+  const { agents: userAgents } = useAgents()
 
-  const agentGroups = useMemo(() => {
-    if (Object.keys(_agentGroups).length === 0) {
-      _agentGroups = groupBy(getAgentsFromSystemAgents(systemAgents), 'group')
+  useEffect(() => {
+    const systemAgentsGroupList = groupByCategories(systemAgents)
+    const agentsGroupList = {
+      我的: userAgents,
+      精选: [],
+      ...systemAgentsGroupList
+    } as Record<string, Agent[]>
+    setAgentGroups(agentsGroupList)
+  }, [systemAgents, userAgents])
+
+  const filteredAgents = useMemo(() => {
+    let agents: Agent[] = []
+
+    if (search.trim()) {
+      const uniqueAgents = new Map<string, Agent>()
+
+      Object.entries(agentGroups).forEach(([, agents]) => {
+        agents.forEach((agent) => {
+          if (
+            (agent.name.toLowerCase().includes(search.toLowerCase()) ||
+              agent.description?.toLowerCase().includes(search.toLowerCase())) &&
+            !uniqueAgents.has(agent.name)
+          ) {
+            uniqueAgents.set(agent.name, agent)
+          }
+        })
+      })
+      agents = Array.from(uniqueAgents.values())
+    } else {
+      agents = agentGroups[activeGroup] || []
     }
-    return _agentGroups
-  }, [systemAgents])
+    return agents.filter((agent) => agent.name.toLowerCase().includes(search.toLowerCase()))
+  }, [agentGroups, activeGroup, search])
 
   const { t, i18n } = useTranslation()
-
-  const filteredAgentGroups = useMemo(() => {
-    const groups: Record<string, Agent[]> = {
-      我的: [],
-      精选: agentGroups['精选'] || []
-    }
-
-    if (!search.trim()) {
-      Object.entries(agentGroups).forEach(([group, agents]) => {
-        if (group !== '精选') {
-          groups[group] = agents
-        }
-      })
-      return groups
-    }
-
-    const uniqueAgents = new Map<string, Agent>()
-
-    Object.entries(agentGroups).forEach(([, agents]) => {
-      agents.forEach((agent) => {
-        if (
-          (agent.name.toLowerCase().includes(search.toLowerCase()) ||
-            agent.description?.toLowerCase().includes(search.toLowerCase())) &&
-          !uniqueAgents.has(agent.name)
-        ) {
-          uniqueAgents.set(agent.name, agent)
-        }
-      })
-    })
-
-    return { 搜索结果: Array.from(uniqueAgents.values()) }
-  }, [agentGroups, search])
 
   const onAddAgentConfirm = useCallback(
     (agent: Agent) => {
       window.modal.confirm({
         title: agent.name,
         content: (
-          <AgentPrompt>
-            <ReactMarkdown className="markdown">{agent.description || agent.prompt}</ReactMarkdown>
-          </AgentPrompt>
+          <Flex gap={16} vertical style={{ width: 'calc(100% + 12px)' }}>
+            {agent.description && <AgentDescription>{agent.description}</AgentDescription>}
+
+            {agent.prompt && (
+              <AgentPrompt>
+                <ReactMarkdown className="markdown">{agent.prompt}</ReactMarkdown>{' '}
+              </AgentPrompt>
+            )}
+          </Flex>
         ),
         width: 600,
         icon: null,
@@ -106,53 +110,31 @@ const AgentsPage: FC = () => {
     [i18n.language]
   )
 
-  const renderAgentList = useCallback(
-    (agents: Agent[]) => {
-      return (
-        <Row gutter={[20, 20]}>
-          {agents.map((agent, index) => (
-            <Col span={6} key={agent.id || index}>
-              <AgentCard
-                onClick={() => onAddAgentConfirm(getAgentFromSystemAgent(agent as any))}
-                agent={agent as any}
-              />
-            </Col>
-          ))}
-        </Row>
-      )
-    },
-    [getAgentFromSystemAgent, onAddAgentConfirm]
-  )
-
-  const tabItems = useMemo(() => {
-    const groups = Object.keys(filteredAgentGroups)
-
-    return groups.map((group, i) => {
-      const id = String(i + 1)
-      const localizedGroupName = getLocalizedGroupName(group)
-      const agents = filteredAgentGroups[group] || []
-
-      return {
-        label: localizedGroupName,
-        key: id,
-        children: (
-          <TabContent key={group}>
-            <Title level={5} key={group} style={{ marginBottom: 10 }}>
-              {localizedGroupName}
-            </Title>
-            {group === '我的' ? <MyAgents onClick={onAddAgentConfirm} search={search} /> : renderAgentList(agents)}
-          </TabContent>
-        )
-      }
-    })
-  }, [filteredAgentGroups, getLocalizedGroupName, onAddAgentConfirm, search, renderAgentList])
-
   const handleSearch = () => {
     if (searchInput.trim() === '') {
       setSearch('')
+      setActiveGroup('我的')
     } else {
+      setActiveGroup('')
       setSearch(searchInput)
     }
+  }
+
+  const handleSearchClear = () => {
+    setSearch('')
+    setActiveGroup('我的')
+  }
+
+  const handleGroupClick = (group: string) => () => {
+    setSearch('')
+    setSearchInput('')
+    setActiveGroup(group)
+  }
+
+  const handleAddAgent = () => {
+    AddAgentPopup.show().then(() => {
+      handleSearchClear()
+    })
   }
 
   return (
@@ -163,11 +145,11 @@ const AgentsPage: FC = () => {
           <Input
             placeholder={t('common.search')}
             className="nodrag"
-            style={{ width: '30%', height: 28 }}
+            style={{ width: '30%', height: 28, borderRadius: 15, paddingLeft: 12 }}
             size="small"
             variant="filled"
             allowClear
-            onClear={() => setSearch('')}
+            onClear={handleSearchClear}
             suffix={<SearchOutlined onClick={handleSearch} />}
             value={searchInput}
             maxLength={50}
@@ -177,21 +159,78 @@ const AgentsPage: FC = () => {
           <div style={{ width: 80 }} />
         </NavbarCenter>
       </Navbar>
-      <ContentContainer id="content-container">
-        <AssistantsContainer>
-          {Object.values(filteredAgentGroups).flat().length > 0 ? (
-            search.trim() ? (
-              <TabContent>{renderAgentList(Object.values(filteredAgentGroups).flat())}</TabContent>
-            ) : (
-              <Tabs tabPosition="right" animated={false} items={tabItems} $language={i18n.language} />
-            )
+
+      <Main id="content-container">
+        <AgentsGroupList>
+          {Object.entries(agentGroups).map(([group]) => (
+            <ListItem
+              active={activeGroup === group && !search.trim()}
+              key={group}
+              title={
+                <Flex gap={16} align="center" justify="space-between">
+                  <Flex gap={10} align="center">
+                    <AgentGroupIcon groupName={group} />
+                    {getLocalizedGroupName(group)}
+                  </Flex>
+                  {
+                    <div style={{ minWidth: 40, textAlign: 'center' }}>
+                      <CustomTag color="#A0A0A0" size={8}>
+                        {agentGroups[group].length}
+                      </CustomTag>
+                    </div>
+                  }
+                </Flex>
+              }
+              style={{ margin: '0 8px', paddingLeft: 16, paddingRight: 16 }}
+              onClick={handleGroupClick(group)}></ListItem>
+          ))}
+        </AgentsGroupList>
+
+        <AgentsListContainer>
+          <AgentsListHeader>
+            <AgentsListTitle>
+              {search.trim() ? (
+                <>
+                  <AgentGroupIcon groupName="搜索" size={24} />
+                  {search.trim()}{' '}
+                </>
+              ) : (
+                <>
+                  <AgentGroupIcon groupName={activeGroup} size={24} />
+                  {getLocalizedGroupName(activeGroup)}
+                </>
+              )}
+
+              {
+                <CustomTag color="#A0A0A0" size={10}>
+                  {filteredAgents.length}
+                </CustomTag>
+              }
+            </AgentsListTitle>
+            <Button type="text" onClick={handleAddAgent} icon={<PlusOutlined />}>
+              {t('agents.add.title')}
+            </Button>
+          </AgentsListHeader>
+
+          {filteredAgents.length > 0 ? (
+            <AgentsList>
+              {filteredAgents.map((agent, index) => (
+                <AgentCard
+                  key={agent.id || index}
+                  onClick={() => onAddAgentConfirm(getAgentFromSystemAgent(agent))}
+                  agent={agent}
+                  activegroup={activeGroup}
+                  getLocalizedGroupName={getLocalizedGroupName}
+                />
+              ))}
+            </AgentsList>
           ) : (
             <EmptyView>
               <Empty description={t('agents.search.no_results')} />
             </EmptyView>
           )}
-        </AssistantsContainer>
-      </ContentContainer>
+        </AgentsListContainer>
+      </Main>
     </Container>
   )
 }
@@ -203,118 +242,82 @@ const Container = styled.div`
   height: 100%;
 `
 
-const ContentContainer = styled.div`
+const AgentsGroupList = styled(Scrollbar)`
+  min-width: 160px;
+  height: calc(100vh - var(--navbar-height));
   display: flex;
-  flex: 1;
-  flex-direction: row;
-  justify-content: center;
-  height: 100%;
-  padding: 0 10px;
-  padding-left: 0;
-  border-top: 0.5px solid var(--color-border);
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  border-right: 0.5px solid var(--color-border);
+  border-top-left-radius: inherit;
+  border-bottom-left-radius: inherit;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 `
 
-const AssistantsContainer = styled.div`
-  display: flex;
+const Main = styled.div`
   flex: 1;
-  flex-direction: row;
-  height: calc(100vh - var(--navbar-height));
+  display: flex;
 `
 
-const TabContent = styled(Scrollbar)`
+const AgentsListContainer = styled.div`
   height: calc(100vh - var(--navbar-height));
-  padding: 10px 10px 10px 15px;
-  margin-right: -4px;
-  padding-bottom: 20px !important;
-  overflow-x: hidden;
-  transform: translateZ(0);
-  will-change: transform;
-  -webkit-font-smoothing: antialiased;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+`
+
+const AgentsListHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 12px;
+`
+
+const AgentsListTitle = styled.div`
+  font-size: 16px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--color-text-1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const AgentsList = styled(Scrollbar)`
+  flex: 1;
+  padding: 8px 16px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-auto-rows: 160px;
+  gap: 16px;
+`
+
+const AgentDescription = styled.div`
+  color: var(--color-text-2);
+  font-size: 12px;
 `
 
 const AgentPrompt = styled.div`
   max-height: 60vh;
   overflow-y: scroll;
-  max-width: 560px;
+  background-color: var(--color-background-soft);
+  padding: 8px;
+  border-radius: 10px;
 `
 
 const EmptyView = styled.div`
+  height: 100%;
   display: flex;
   flex: 1;
   justify-content: center;
   align-items: center;
   font-size: 16px;
   color: var(--color-text-secondary);
-`
-
-const Tabs = styled(TabsAntd)<{ $language: string }>`
-  display: flex;
-  flex: 1;
-  flex-direction: row-reverse;
-
-  .ant-tabs-tabpane {
-    padding-right: 0 !important;
-  }
-  .ant-tabs-nav {
-    min-width: ${({ $language }) => ($language.startsWith('zh') ? '120px' : '140px')};
-    max-width: ${({ $language }) => ($language.startsWith('zh') ? '120px' : '140px')};
-    position: relative;
-    overflow: hidden;
-  }
-  .ant-tabs-nav-list {
-    padding: 10px 8px;
-  }
-  .ant-tabs-nav-operations {
-    display: none !important;
-  }
-  .ant-tabs-tab {
-    margin: 0 !important;
-    border-radius: var(--list-item-border-radius);
-    margin-bottom: 5px !important;
-    font-size: 13px;
-    justify-content: left;
-    padding: 7px 15px !important;
-    border: 0.5px solid transparent;
-    justify-content: ${({ $language }) => ($language.startsWith('zh') ? 'center' : 'flex-start')};
-    user-select: none;
-    transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
-    outline: none !important;
-    .ant-tabs-tab-btn {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100px;
-      transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
-      outline: none !important;
-    }
-    &:hover {
-      color: var(--color-text) !important;
-      background-color: var(--color-background-soft);
-    }
-  }
-  .ant-tabs-tab-active {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-    transform: scale(1.02);
-  }
-  .ant-tabs-content-holder {
-    border-left: 0.5px solid var(--color-border);
-    border-right: none;
-  }
-  .ant-tabs-ink-bar {
-    display: none;
-  }
-  .ant-tabs-tab-btn:active {
-    color: var(--color-text) !important;
-  }
-  .ant-tabs-tab-active {
-    .ant-tabs-tab-btn {
-      color: var(--color-text) !important;
-    }
-  }
-  .ant-tabs-content {
-    transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
-  }
 `
 
 export default AgentsPage

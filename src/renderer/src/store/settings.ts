@@ -21,6 +21,8 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
 
 export interface NutstoreSyncRuntime extends WebDAVSyncState {}
 
+export type AssistantIconType = 'model' | 'emoji' | 'none'
+
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
@@ -42,7 +44,7 @@ export interface SettingsState {
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
-  showAssistantIcon: boolean
+  assistantIconType: AssistantIconType
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
@@ -147,7 +149,7 @@ export const initialState: SettingsState = {
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
-  showAssistantIcon: false,
+  assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
@@ -294,8 +296,8 @@ const settingsSlice = createSlice({
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
     },
-    setShowAssistantIcon: (state, action: PayloadAction<boolean>) => {
-      state.showAssistantIcon = action.payload
+    setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
+      state.assistantIconType = action.payload
     },
     setPasteLongTextAsFile: (state, action: PayloadAction<boolean>) => {
       state.pasteLongTextAsFile = action.payload
@@ -508,7 +510,7 @@ export const {
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
-  setShowAssistantIcon,
+  setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
   setRenderInputMessageAsMarkdown,

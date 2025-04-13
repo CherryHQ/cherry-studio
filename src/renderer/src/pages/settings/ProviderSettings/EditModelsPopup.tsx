@@ -268,16 +268,14 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                           <ModelTagsWithLabel model={model} size={11} />
                         </ListItemName>
                       ),
-                      extra: (
+                      extra: model.description && (
                         <div style={{ marginTop: 6 }}>
-                          {model.description && (
-                            <Typography.Paragraph
-                              type="secondary"
-                              ellipsis={{ rows: 1, expandable: true }}
-                              style={{ marginBottom: 0, marginTop: 5 }}>
-                              {model.description}
-                            </Typography.Paragraph>
-                          )}
+                          <Typography.Paragraph
+                            type="secondary"
+                            ellipsis={{ rows: 1, expandable: true }}
+                            style={{ marginBottom: 0, marginTop: 5 }}>
+                            {model.description}
+                          </Typography.Paragraph>
                         </div>
                       ),
                       ext: '.model',

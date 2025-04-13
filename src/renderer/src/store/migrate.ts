@@ -1213,6 +1213,17 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '96': (state: RootState) => {
+    try {
+      // @ts-ignore eslint-disable-next-line
+      state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.showAssistantIcon
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
