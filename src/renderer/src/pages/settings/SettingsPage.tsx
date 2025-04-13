@@ -12,7 +12,6 @@ import {
   ThunderboltOutlined
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { isLocalAi } from '@renderer/config/env'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 // 导入useAppSelector
@@ -46,26 +45,22 @@ const SettingsPage: FC = () => {
     <Container>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
-        {pathname === '/settings/mcp' && <McpSettingsNavbar />}
+        {pathname.includes('/settings/mcp') && <McpSettingsNavbar />}
       </Navbar>
       <ContentContainer id="content-container">
         <SettingMenus>
-          {!isLocalAi && (
-            <>
-              <MenuItemLink to="/settings/provider">
-                <MenuItem className={isRoute('/settings/provider')}>
-                  <CloudOutlined />
-                  {t('settings.provider.title')}
-                </MenuItem>
-              </MenuItemLink>
-              <MenuItemLink to="/settings/model">
-                <MenuItem className={isRoute('/settings/model')}>
-                  <i className="iconfont icon-ai-model" />
-                  {t('settings.model')}
-                </MenuItem>
-              </MenuItemLink>
-            </>
-          )}
+          <MenuItemLink to="/settings/provider">
+            <MenuItem className={isRoute('/settings/provider')}>
+              <CloudOutlined />
+              {t('settings.provider.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/model">
+            <MenuItem className={isRoute('/settings/model')}>
+              <i className="iconfont icon-ai-model" />
+              {t('settings.model')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/web-search">
             <MenuItem className={isRoute('/settings/web-search')}>
               <GlobalOutlined />
@@ -134,13 +129,13 @@ const SettingsPage: FC = () => {
             <Route path="provider" element={<ProvidersList />} />
             <Route path="model" element={<ModelSettings />} />
             <Route path="web-search" element={<WebSearchSettings />} />
-            <Route path="mcp" element={<MCPSettings />} />
-            <Route path="general/*" element={<GeneralSettings />} />
+            <Route path="mcp/*" element={<MCPSettings />} />
+            <Route path="general" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
             {showMiniAppSettings && <Route path="miniapps" element={<MiniAppSettings />} />}
             <Route path="shortcut" element={<ShortcutSettings />} />
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
-            <Route path="data/*" element={<DataSettings />} />
+            <Route path="data" element={<DataSettings />} />
             <Route path="about" element={<AboutSettings />} />
             <Route path="quickPhrase" element={<QuickPhraseSettings />} />
           </Routes>

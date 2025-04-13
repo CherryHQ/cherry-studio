@@ -8,7 +8,7 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
-import { isSupportedResoningEffortModel } from '@renderer/config/models'
+import { isGrokReasoningModel, isSupportedReasoningEffortModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -44,7 +44,7 @@ import {
 import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -115,9 +115,12 @@ const SettingsTab: FC<Props> = (props) => {
     }
   }
 
-  const onReasoningEffortChange = (value) => {
-    updateAssistantSettings({ reasoning_effort: value })
-  }
+  const onReasoningEffortChange = useCallback(
+    (value?: 'low' | 'medium' | 'high') => {
+      updateAssistantSettings({ reasoning_effort: value })
+    },
+    [updateAssistantSettings]
+  )
 
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
@@ -147,6 +150,22 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
     setReasoningEffort(assistant?.settings?.reasoning_effort)
   }, [assistant])
+
+  useEffect(() => {
+    // 当是Grok模型时，处理reasoning_effort的设置
+    // For Grok models, only 'low' and 'high' reasoning efforts are supported.
+    // This ensures compatibility with the model's capabilities and avoids unsupported configurations.
+    if (isGrokReasoningModel(assistant?.model || getDefaultModel())) {
+      const currentEffort = assistant?.settings?.reasoning_effort
+      if (!currentEffort || currentEffort === 'low') {
+        setReasoningEffort('low') // Default to 'low' if no effort is set or if it's already 'low'.
+        onReasoningEffortChange('low')
+      } else if (currentEffort === 'medium' || currentEffort === 'high') {
+        setReasoningEffort('high') // Force 'high' for 'medium' or 'high' to simplify the configuration.
+        onReasoningEffortChange('high')
+      }
+    }
+  }, [assistant?.model, assistant?.settings?.reasoning_effort, onReasoningEffortChange])
 
   const formatSliderTooltip = (value?: number) => {
     if (value === undefined) return ''
@@ -263,7 +282,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Col>
           </Row>
         )}
-        {isSupportedResoningEffortModel(assistant?.model || getDefaultModel()) && (
+        {isSupportedReasoningEffortModel(assistant?.model || getDefaultModel()) && (
           <>
             <SettingDivider />
             <Row align="middle">
@@ -282,12 +301,19 @@ const SettingsTab: FC<Props> = (props) => {
                       setReasoningEffort(typedValue)
                       onReasoningEffortChange(typedValue)
                     }}
-                    options={[
-                      { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
-                      { value: 'medium', label: t('assistants.settings.reasoning_effort.medium') },
-                      { value: 'high', label: t('assistants.settings.reasoning_effort.high') },
-                      { value: 'off', label: t('assistants.settings.reasoning_effort.off') }
-                    ]}
+                    options={
+                      isGrokReasoningModel(assistant?.model || getDefaultModel())
+                        ? [
+                            { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
+                            { value: 'high', label: t('assistants.settings.reasoning_effort.high') }
+                          ]
+                        : [
+                            { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
+                            { value: 'medium', label: t('assistants.settings.reasoning_effort.medium') },
+                            { value: 'high', label: t('assistants.settings.reasoning_effort.high') },
+                            { value: 'off', label: t('assistants.settings.reasoning_effort.off') }
+                          ]
+                    }
                     name="group"
                     block
                   />

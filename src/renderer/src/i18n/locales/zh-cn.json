@@ -43,6 +43,7 @@
       "edit.title": "编辑助手",
       "save.success": "保存成功",
       "save.title": "保存到智能体",
+      "icon.type": "助手图标",
       "search": "搜索助手",
       "settings.mcp": "MCP 服务器",
       "settings.mcp.enableFirst": "请先在 MCP 设置中启用此服务器",
@@ -59,7 +60,7 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "关",
-      "settings.reasoning_effort.tip": "仅支持 OpenAI o-series 和 Anthropic 推理模型",
+      "settings.reasoning_effort.tip": "仅支持 OpenAI o-series、Anthropic、Grok 推理模型",
       "settings.more": "助手设置"
     },
     "auth": {
@@ -585,7 +586,8 @@
       "switch.disabled": "请等待当前回复完成后操作",
       "tools": {
         "completed": "已完成",
-        "invoking": "调用中"
+        "invoking": "调用中",
+        "error": "发生错误"
       },
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -815,7 +817,10 @@
       "advanced.title": "高级设置",
       "assistant": "默认助手",
       "assistant.model_params": "模型参数",
-      "assistant.show.icon": "显示模型图标",
+      "assistant.icon.type": "模型图标类型",
+      "assistant.icon.type.model": "模型图标",
+      "assistant.icon.type.emoji": "Emoji 表情",
+      "assistant.icon.type.none": "不显示",
       "assistant.title": "默认助手",
       "data": {
         "app_data": "应用数据",
@@ -1092,7 +1097,6 @@
         "newServer": "MCP 服务器",
         "npx_list": {
           "actions": "操作",
-          "desc": "搜索并添加 npm 包作为 MCP 服务",
           "description": "描述",
           "no_packages": "未找到包",
           "npm": "NPM",
@@ -1101,7 +1105,6 @@
           "scope_required": "请输入 npm 作用域",
           "search": "搜索",
           "search_error": "搜索失败",
-          "title": "NPX 包列表",
           "usage": "用法",
           "version": "版本"
         },
@@ -1118,10 +1121,25 @@
         "url": "URL",
         "editMcpJson": "编辑 MCP 配置",
         "installHelp": "获取安装帮助",
+        "tabs": {
+          "general": "通用",
+          "tools": "工具",
+          "prompts": "提示",
+          "resources": "资源"
+        },
         "tools": {
-          "inputSchema": "输入参数",
+          "inputSchema": "输入模式",
           "availableTools": "可用工具",
-          "noToolsAvailable": "没有可用工具"
+          "noToolsAvailable": "无可用工具",
+          "loadError": "获取工具失败"
+        },
+        "prompts": {
+          "availablePrompts": "可用提示",
+          "noPromptsAvailable": "无可用提示",
+          "arguments": "参数",
+          "requiredField": "必填字段",
+          "genericError": "获取提示错误",
+          "loadError": "获取提示失败"
         },
         "deleteServer": "删除服务器",
         "deleteServerConfirm": "确定要删除此服务器吗？",
@@ -1309,7 +1327,7 @@
       "websearch": {
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
-        "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
         "check": "检查",
         "check_failed": "验证失败",
         "check_success": "验证成功",
@@ -1322,6 +1340,14 @@
         "search_max_result": "搜索结果个数",
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
+        "subscribe": "黑名单订阅",
+        "subscribe_update": "立即更新",
+        "subscribe_add": "添加订阅",
+        "subscribe_url": "订阅源地址",
+        "subscribe_name": "替代名字",
+        "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
+        "subscribe_add_success": "订阅源添加成功!",
+        "subscribe_delete": "删除订阅源",
         "search_result_default": "默认",
         "search_with_time": "搜索包含日期",
         "tavily": {
@@ -1330,7 +1356,9 @@
           "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
           "title": "Tavily"
         },
-        "title": "网络搜索"
+        "title": "网络搜索",
+        "apikey": "API 密钥",
+        "free": "免费"
       },
       "quickPhrase": {
         "title": "快捷短语",

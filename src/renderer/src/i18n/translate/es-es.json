@@ -912,7 +912,6 @@
         "noServers": "No se han configurado servidores",
         "npx_list": {
           "actions": "Acciones",
-          "desc": "Buscar y agregar paquetes npm como servicios MCP",
           "description": "Descripción",
           "no_packages": "No se encontraron paquetes",
           "npm": "NPM",
@@ -921,7 +920,6 @@
           "scope_required": "Por favor ingrese el ámbito npm",
           "search": "Buscar",
           "search_error": "Error de búsqueda",
-          "title": "Lista de paquetes NPX",
           "usage": "Uso",
           "version": "Versión"
         },

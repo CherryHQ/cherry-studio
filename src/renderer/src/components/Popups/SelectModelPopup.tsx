@@ -456,8 +456,7 @@ const StyledMenu = styled(Menu)`
   /* Simple animation that changes background color when sticky */
   @keyframes background-change {
     to {
-      background-color: var(--color-background-soft);
-      opacity: 0.95;
+      background-color: var(--color-background);
     }
   }
 

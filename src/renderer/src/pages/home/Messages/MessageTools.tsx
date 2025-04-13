@@ -1,4 +1,4 @@
-import { CheckOutlined, ExpandOutlined, LoadingOutlined } from '@ant-design/icons'
+import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Message } from '@renderer/types'
 import { Collapse, message as antdMessage, Modal, Tooltip } from 'antd'
@@ -48,6 +48,7 @@ const MessageTools: FC<Props> = ({ message }) => {
       const { id, tool, status, response } = toolResponse
       const isInvoking = status === 'invoking'
       const isDone = status === 'done'
+      const hasError = isDone && response?.isError === true
       const result = {
         params: tool.inputSchema,
         response: toolResponse.response
@@ -59,10 +60,15 @@ const MessageTools: FC<Props> = ({ message }) => {
           <MessageTitleLabel>
             <TitleContent>
               <ToolName>{tool.name}</ToolName>
-              <StatusIndicator $isInvoking={isInvoking}>
-                {isInvoking ? t('message.tools.invoking') : t('message.tools.completed')}
+              <StatusIndicator $isInvoking={isInvoking} $hasError={hasError}>
+                {isInvoking
+                  ? t('message.tools.invoking')
+                  : hasError
+                    ? t('message.tools.error')
+                    : t('message.tools.completed')}
                 {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
-                {isDone && <CheckOutlined style={{ marginLeft: 6 }} />}
+                {isDone && !hasError && <CheckOutlined style={{ marginLeft: 6 }} />}
+                {hasError && <WarningOutlined style={{ marginLeft: 6 }} />}
               </StatusIndicator>
             </TitleContent>
             <ActionButtonsContainer>
@@ -195,8 +201,12 @@ const ToolName = styled.span`
   font-size: 13px;
 `
 
-const StatusIndicator = styled.span<{ $isInvoking: boolean }>`
-  color: ${(props) => (props.$isInvoking ? 'var(--color-primary)' : 'var(--color-success, #52c41a)')};
+const StatusIndicator = styled.span<{ $isInvoking: boolean; $hasError?: boolean }>`
+  color: ${(props) => {
+    if (props.$hasError) return 'var(--color-error, #ff4d4f)'
+    if (props.$isInvoking) return 'var(--color-primary)'
+    return 'var(--color-success, #52c41a)'
+  }};
   font-size: 11px;
   display: flex;
   align-items: center;

@@ -46,8 +46,8 @@ const BasicSettings: FC = () => {
           </SettingRowTitle>
           <Switch checked={enhanceMode} onChange={(checked) => dispatch(setEnhanceMode(checked))} />
         </SettingRow>
-        <SettingDivider style={{ marginTop: 15, marginBottom: 12 }} />
-        <SettingRow>
+        <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
+        <SettingRow style={{ height: 40 }}>
           <SettingRowTitle>{t('settings.websearch.search_max_result')}</SettingRowTitle>
           <Slider
             defaultValue={maxResults}

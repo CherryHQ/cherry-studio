@@ -26,3 +26,10 @@ export const useMCPServers = () => {
     updateMcpServers: (servers: MCPServer[]) => dispatch(setMCPServers(servers))
   }
 }
+
+export const useMCPServer = (id: string) => {
+  const { mcpServers } = useMCPServers()
+  return {
+    server: mcpServers.find((server) => server.id === id)
+  }
+}

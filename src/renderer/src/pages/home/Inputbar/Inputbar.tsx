@@ -9,7 +9,6 @@ import {
   HolderOutlined,
   PaperClipOutlined,
   PauseCircleOutlined,
-  QuestionCircleOutlined,
   ThunderboltOutlined,
   TranslationOutlined
 } from '@ant-design/icons'
@@ -40,7 +39,7 @@ import { Assistant, FileType, KnowledgeBase, KnowledgeItem, MCPServer, Message, 
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import { Button, Popconfirm, Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import Logger from 'electron-log/renderer'
@@ -367,6 +366,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
+        label: 'MCP Prompt',
+        description: '',
+        icon: <CodeOutlined />,
+        isMenu: true,
+        action: () => {
+          mcpToolsButtonRef.current?.openPromptList()
         }
       },
       {
@@ -697,9 +705,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
     textareaRef.current?.focus()
   })
 
-  useShortcut('clear_topic', () => {
-    clearTopic()
-  })
+  useShortcut('clear_topic', clearTopic)
 
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
@@ -983,6 +989,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
                 enabledMCPs={enabledMCPs}
                 toggelEnableMCP={toggelEnableMCP}
                 ToolbarButton={ToolbarButton}
+                setInputValue={setText}
+                resizeTextArea={resizeTextArea}
                 disabled={isDisableToolsButton}
               />
               <GenerateImageButton
@@ -1007,20 +1015,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
                 disabled={isDisableToolsButton}
               />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
-                <Popconfirm
-                  title={t('chat.input.clear.content')}
-                  placement="top"
-                  onConfirm={clearTopic}
-                  okButtonProps={{ danger: true }}
-                  icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
-                  okText={t('chat.input.clear.title')}>
-                  <ToolbarButton
-                    type="text"
-                    disabled={isDisableToolsButton}
-                    className={isDisableToolsButton ? 'disabled' : ''}>
-                    <ClearOutlined style={{ fontSize: 17 }} />
-                  </ToolbarButton>
-                </Popconfirm>
+                <ToolbarButton
+                  type="text"
+                  onClick={clearTopic}
+                  disabled={isDisableToolsButton}
+                  className={isDisableToolsButton ? 'disabled' : ''}>
+                  <ClearOutlined style={{ fontSize: 17 }} />
+                </ToolbarButton>
               </Tooltip>
               <Tooltip placement="top" title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
                 <ToolbarButton type="text" onClick={onToggleExpended}>

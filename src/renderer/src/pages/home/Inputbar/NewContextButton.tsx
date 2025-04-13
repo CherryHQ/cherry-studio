@@ -3,6 +3,7 @@ import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { Tooltip } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 interface Props {
   onNewContext: () => void
@@ -17,12 +18,20 @@ const NewContextButton: FC<Props> = ({ onNewContext, ToolbarButton, disabled }) 
   useShortcut('toggle_new_context', onNewContext)
 
   return (
-    <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
-      <ToolbarButton type="text" onClick={onNewContext} disabled={disabled} className={disabled ? 'disabled' : ''}>
-        <PicCenterOutlined />
-      </ToolbarButton>
-    </Tooltip>
+    <Container>
+      <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
+        <ToolbarButton type="text" onClick={onNewContext} disabled={disabled} className={disabled ? 'disabled' : ''}>
+          <PicCenterOutlined />
+        </ToolbarButton>
+      </Tooltip>
+    </Container>
   )
 }
+
+const Container = styled.div`
+  @media (max-width: 800px) {
+    display: none;
+  }
+`
 
 export default NewContextButton

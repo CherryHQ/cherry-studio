@@ -2,6 +2,7 @@ import { GithubOutlined } from '@ant-design/icons'
 import { FileProtectOutlined, GlobalOutlined, MailOutlined, SoundOutlined } from '@ant-design/icons'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack } from '@renderer/components/Layout'
+import { isWindows } from '@renderer/config/constant'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -33,6 +34,13 @@ const AboutSettings: FC = () => {
 
   const onCheckUpdate = debounce(
     async () => {
+      const { arch } = await window.api.getAppInfo()
+
+      if (isWindows && arch.includes('arm')) {
+        window.open('https://cherry-ai.com/download', '_blank')
+        return
+      }
+
       if (update.checking || update.downloading) {
         return
       }
