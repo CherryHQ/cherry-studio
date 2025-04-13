@@ -1224,6 +1224,14 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '97': (state: RootState) => {
+    try {
+      state.settings.enableBackspaceDeleteModel = true
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

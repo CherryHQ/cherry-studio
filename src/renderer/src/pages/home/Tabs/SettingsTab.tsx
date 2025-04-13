@@ -27,6 +27,7 @@ import {
   setCodeShowLineNumbers,
   setCodeStyle,
   setCodeWrappable,
+  setEnableBackspaceDeleteModel,
   setEnableQuickPanelTriggers,
   setFontSize,
   setMathEngine,
@@ -90,7 +91,8 @@ const SettingsTab: FC<Props> = (props) => {
     multiModelMessageStyle,
     thoughtAutoCollapse,
     messageNavigation,
-    enableQuickPanelTriggers
+    enableQuickPanelTriggers,
+    enableBackspaceDeleteModel
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -604,6 +606,15 @@ const SettingsTab: FC<Props> = (props) => {
             size="small"
             checked={enableQuickPanelTriggers}
             onChange={(checked) => dispatch(setEnableQuickPanelTriggers(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.input.enable_delete_model')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={enableBackspaceDeleteModel}
+            onChange={(checked) => dispatch(setEnableBackspaceDeleteModel(checked))}
           />
         </SettingRow>
         <SettingDivider />

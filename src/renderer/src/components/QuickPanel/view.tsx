@@ -545,6 +545,7 @@ const QuickPanelBody = styled.div`
     background-color: rgba(240, 240, 240, 0.5);
     backdrop-filter: blur(35px) saturate(150%);
     z-index: -1;
+    border-radius: inherit;
 
     body[theme-mode='dark'] & {
       background-color: rgba(40, 40, 40, 0.4);
