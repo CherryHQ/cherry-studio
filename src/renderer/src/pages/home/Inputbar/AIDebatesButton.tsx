@@ -157,30 +157,6 @@ const AIDebatesButton: FC<Props> = ({
     runningStatus.current = status
   }
 
-  /** subscribe the reply message event, and execute the callback */
-  const handleReceiveReplyMessage = (callback: () => void) => {
-    /** subscribe the receive message event */
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, (msg) => {
-      /** make sure the message is from the current topic */
-      if (msg.topicId !== runningTopic.current?.id) {
-        return
-      }
-      unsubscribe()
-
-      /** if the reply message is error, ai debates will end */
-      if (msg.status === 'error') {
-        setStatusHints({
-          type: 'error',
-          message: t('chat.aidebates.hints.error')
-        })
-        setRunningStatus('finish')
-        return
-      }
-
-      callback()
-    })
-  }
-
   /** The main function to execute the AI Debates */
   const execute = async (autoMode: boolean = false, totalRounds: number = 1, currentRound: number = 1) => {
     try {
@@ -289,8 +265,26 @@ const AIDebatesButton: FC<Props> = ({
                     execute(autoMode, totalRounds, currentRound + 1)
                   }, 500)
                 }
+                /** subscribe the receive message event */
+                const unsubscribe = EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, (msg) => {
+                  /** make sure the message is from the current topic */
+                  if (msg.topicId !== runningTopic.current?.id) {
+                    return
+                  }
+                  unsubscribe()
 
-                handleReceiveReplyMessage(receiveHandler)
+                  /** if the reply message is error, ai debates will end */
+                  if (msg.status === 'error') {
+                    setStatusHints({
+                      type: 'error',
+                      message: t('chat.aidebates.hints.error')
+                    })
+                    setRunningStatus('finish')
+                    return
+                  }
+
+                  receiveHandler()
+                })
               }
               break
             case 'error':
@@ -344,7 +338,23 @@ const AIDebatesButton: FC<Props> = ({
 
     sendMessage()
 
-    handleReceiveReplyMessage(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, (msg) => {
+      /** make sure the message is from the current topic */
+      if (msg.topicId !== runningTopic.current?.id) {
+        return
+      }
+      unsubscribe()
+
+      /** if the reply message is error, ai debates will end */
+      if (msg.status === 'error') {
+        setStatusHints({
+          type: 'error',
+          message: t('chat.aidebates.hints.error')
+        })
+        setRunningStatus('finish')
+        return
+      }
+
       setTimeout(() => {
         execute(autoMode, autoRounds)
       }, 500)
