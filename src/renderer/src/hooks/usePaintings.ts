@@ -1,44 +1,37 @@
-import { TEXT_TO_IMAGES_MODELS } from '@renderer/config/models'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addPainting, removePainting, updatePainting, updatePaintings } from '@renderer/store/paintings'
-import { Painting } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { PaintingAction, PaintingsState } from '@renderer/types'
 
 export function usePaintings() {
   const paintings = useAppSelector((state) => state.paintings.paintings)
+  const generate = useAppSelector((state) => state.paintings.generate)
+  const remix = useAppSelector((state) => state.paintings.remix)
+  const edit = useAppSelector((state) => state.paintings.edit)
+  const upscale = useAppSelector((state) => state.paintings.upscale)
   const dispatch = useAppDispatch()
-  const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
   return {
     paintings,
-    addPainting: () => {
-      const newPainting: Painting = {
-        model: TEXT_TO_IMAGES_MODELS[0].id,
-        id: uuid(),
-        urls: [],
-        files: [],
-        prompt: '',
-        negativePrompt: '',
-        imageSize: '1024x1024',
-        numImages: 1,
-        seed: generateRandomSeed(),
-        steps: 25,
-        guidanceScale: 4.5,
-        promptEnhancement: true
-      }
-      dispatch(addPainting(newPainting))
-      return newPainting
+    persistentData: {
+      generate,
+      remix,
+      edit,
+      upscale
     },
-    removePainting: async (painting: Painting) => {
+    addPainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
+      dispatch(addPainting({ namespace, painting }))
+      return painting
+    },
+    removePainting: async (namespace: keyof PaintingsState, painting: PaintingAction) => {
       FileManager.deleteFiles(painting.files)
-      dispatch(removePainting(painting))
+      dispatch(removePainting({ namespace, painting }))
     },
-    updatePainting: (painting: Painting) => {
-      dispatch(updatePainting(painting))
+    updatePainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
+      dispatch(updatePainting({ namespace, painting }))
     },
-    updatePaintings: (paintings: Painting[]) => {
-      dispatch(updatePaintings(paintings))
+    updatePaintings: (namespace: keyof PaintingsState, paintings: PaintingAction[]) => {
+      dispatch(updatePaintings({ namespace, paintings }))
     }
   }
 }
