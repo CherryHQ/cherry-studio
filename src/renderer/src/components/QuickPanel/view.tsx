@@ -350,6 +350,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           break
 
         case 'Enter':
+        case 'NumpadEnter':
           if (isComposing.current) return
 
           if (list?.[index]) {

@@ -98,6 +98,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           setSelectedIndex((prev) => (prev <= 0 ? displayedAgents.length - 1 : prev - 1))
           break
         case 'Enter':
+        case 'NumpadEnter':
           // 如果焦点在输入框且有搜索内容，则默认选择第一项
           if (document.activeElement === inputRef.current?.input && searchText.trim()) {
             e.preventDefault()
