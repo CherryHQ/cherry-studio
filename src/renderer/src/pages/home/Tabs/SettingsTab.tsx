@@ -1,4 +1,4 @@
-import { CheckOutlined, QuestionCircleOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons'
+import { CheckOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
@@ -45,6 +45,7 @@ import {
 import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
+import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -181,13 +182,13 @@ const SettingsTab: FC<Props> = (props) => {
           <HStack alignItems="center">
             {t('assistants.settings.title')}{' '}
             <Tooltip title={t('chat.settings.reset')}>
-              <ReloadOutlined onClick={onReset} style={{ cursor: 'pointer', fontSize: 12, padding: '0 3px' }} />
+              <RotateCcw size={20} onClick={onReset} style={{ cursor: 'pointer', padding: '0 3px' }} />
             </Tooltip>
           </HStack>
           <Button
             type="text"
             size="small"
-            icon={<SettingOutlined />}
+            icon={<Settings2 size={16} />}
             onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
           />
         </SettingSubtitle>
@@ -195,7 +196,7 @@ const SettingsTab: FC<Props> = (props) => {
         <Row align="middle">
           <Label>{t('chat.settings.temperature')}</Label>
           <Tooltip title={t('chat.settings.temperature.tip')}>
-            <QuestionIcon />
+            <CircleHelp size={14} color="var(--color-text-2)" />
           </Tooltip>
         </Row>
         <Row align="middle" gutter={10}>
@@ -213,7 +214,7 @@ const SettingsTab: FC<Props> = (props) => {
         <Row align="middle">
           <Label>{t('chat.settings.context_count')}</Label>
           <Tooltip title={t('chat.settings.context_count.tip')}>
-            <QuestionIcon />
+            <CircleHelp size={14} color="var(--color-text-2)" />
           </Tooltip>
         </Row>
         <Row align="middle" gutter={10}>
@@ -245,7 +246,7 @@ const SettingsTab: FC<Props> = (props) => {
           <HStack alignItems="center">
             <Label>{t('chat.settings.max_tokens')}</Label>
             <Tooltip title={t('chat.settings.max_tokens.tip')}>
-              <QuestionIcon />
+              <CircleHelp size={14} color="var(--color-text-2)" />
             </Tooltip>
           </HStack>
           <Switch
@@ -290,7 +291,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Row align="middle">
               <Label>{t('assistants.settings.reasoning_effort')}</Label>
               <Tooltip title={t('assistants.settings.reasoning_effort.tip')}>
-                <QuestionIcon />
+                <CircleHelp size={14} color="var(--color-text-2)" />
               </Tooltip>
             </Row>
             <Row align="middle" gutter={10}>
@@ -373,7 +374,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingRowTitleSmall>
             {t('chat.settings.code_cacheable')}{' '}
             <Tooltip title={t('chat.settings.code_cacheable.tip')}>
-              <QuestionIcon style={{ marginLeft: 4 }} />
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </SettingRowTitleSmall>
           <Switch size="small" checked={codeCacheable} onChange={(checked) => dispatch(setCodeCacheable(checked))} />
@@ -385,7 +386,7 @@ const SettingsTab: FC<Props> = (props) => {
               <SettingRowTitleSmall>
                 {t('chat.settings.code_cache_max_size')}
                 <Tooltip title={t('chat.settings.code_cache_max_size.tip')}>
-                  <QuestionIcon style={{ marginLeft: 4 }} />
+                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
                 </Tooltip>
               </SettingRowTitleSmall>
               <InputNumber
@@ -403,7 +404,7 @@ const SettingsTab: FC<Props> = (props) => {
               <SettingRowTitleSmall>
                 {t('chat.settings.code_cache_ttl')}
                 <Tooltip title={t('chat.settings.code_cache_ttl.tip')}>
-                  <QuestionIcon style={{ marginLeft: 4 }} />
+                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
                 </Tooltip>
               </SettingRowTitleSmall>
               <InputNumber
@@ -421,7 +422,7 @@ const SettingsTab: FC<Props> = (props) => {
               <SettingRowTitleSmall>
                 {t('chat.settings.code_cache_threshold')}
                 <Tooltip title={t('chat.settings.code_cache_threshold.tip')}>
-                  <QuestionIcon style={{ marginLeft: 4 }} />
+                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
                 </Tooltip>
               </SettingRowTitleSmall>
               <InputNumber
@@ -441,7 +442,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingRowTitleSmall>
             {t('chat.settings.thought_auto_collapse')}
             <Tooltip title={t('chat.settings.thought_auto_collapse.tip')}>
-              <QuestionIcon style={{ marginLeft: 4 }} />
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </SettingRowTitleSmall>
           <Switch
@@ -672,12 +673,6 @@ const Label = styled.p`
   margin: 0;
   font-size: 12px;
   margin-right: 5px;
-`
-
-const QuestionIcon = styled(QuestionCircleOutlined)`
-  font-size: 12px;
-  cursor: pointer;
-  color: var(--color-text-3);
 `
 
 const SettingRowTitleSmall = styled(SettingRowTitle)`

@@ -29,7 +29,6 @@ import ChatNavigation from './ChatNavigation'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
-import NewTopicButton from './NewTopicButton'
 import Prompt from './Prompt'
 
 interface MessagesProps {
@@ -225,7 +224,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       ref={containerRef}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-        {messages.length >= 2 && !loading && <NewTopicButton />}
         <InfiniteScroll
           dataLength={displayMessages.length}
           next={loadMoreMessages}

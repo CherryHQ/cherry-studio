@@ -3,6 +3,7 @@ import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPan
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPPrompt, MCPServer } from '@renderer/types'
 import { Form, Input, Modal, Tooltip } from 'antd'
+import { SquareTerminal } from 'lucide-react'
 import { FC, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -303,7 +304,7 @@ const MCPToolsButton: FC<Props> = ({
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <CodeOutlined style={{ color: buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)' }} />
+        <SquareTerminal size={18} color={buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)'} />
       </ToolbarButton>
     </Tooltip>
   )

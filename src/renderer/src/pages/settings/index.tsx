@@ -61,6 +61,9 @@ export const SettingRowTitle = styled.div`
   font-size: 14px;
   line-height: 18px;
   color: var(--color-text-1);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
 `
 
 export const SettingHelpTextRow = styled.div`

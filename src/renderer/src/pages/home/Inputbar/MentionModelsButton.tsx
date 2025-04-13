@@ -10,6 +10,7 @@ import { Model } from '@renderer/types'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
+import { AtSign } from 'lucide-react'
 import { FC, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -135,7 +136,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
   return (
     <Tooltip placement="top" title={t('agents.edit.model.select.title')} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <i className="iconfont icon-at" style={{ fontSize: 18 }}></i>
+        <AtSign size={18} />
       </ToolbarButton>
     </Tooltip>
   )

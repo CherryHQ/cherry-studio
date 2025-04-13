@@ -1,4 +1,4 @@
-import { EditOutlined, MessageOutlined, RedoOutlined, SettingOutlined, TranslationOutlined } from '@ant-design/icons'
+import { RedoOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isEmbeddingModel } from '@renderer/config/models'
@@ -13,6 +13,7 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
+import { FolderPen, Languages, MessageSquareMore, Settings2 } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -82,10 +83,10 @@ const ModelSettings: FC = () => {
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <div>
-            <MessageOutlined style={iconStyle} />
+          <HStack alignItems="center" gap={10}>
+            <MessageSquareMore size={18} color="var(--color-text)" />
             {t('settings.models.default_assistant_model')}
-          </div>
+          </HStack>
         </SettingTitle>
         <HStack alignItems="center">
           <Select
@@ -97,16 +98,16 @@ const ModelSettings: FC = () => {
             showSearch
             placeholder={t('settings.models.empty')}
           />
-          <Button icon={<SettingOutlined />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
+          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
         </HStack>
         <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <div>
-            <EditOutlined style={iconStyle} />
+          <HStack alignItems="center" gap={10}>
+            <FolderPen size={18} color="var(--color-text)" />
             {t('settings.models.topic_naming_model')}
-          </div>
+          </HStack>
         </SettingTitle>
         <HStack alignItems="center">
           <Select
@@ -118,16 +119,16 @@ const ModelSettings: FC = () => {
             showSearch
             placeholder={t('settings.models.empty')}
           />
-          <Button icon={<SettingOutlined />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
+          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
         </HStack>
         <SettingDescription>{t('settings.models.topic_naming_model_description')}</SettingDescription>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <div>
-            <TranslationOutlined style={iconStyle} />
+          <HStack alignItems="center" gap={10}>
+            <Languages size={18} color="var(--color-text)" />
             {t('settings.models.translate_model')}
-          </div>
+          </HStack>
         </SettingTitle>
         <HStack alignItems="center">
           <Select
@@ -139,7 +140,7 @@ const ModelSettings: FC = () => {
             showSearch
             placeholder={t('settings.models.empty')}
           />
-          <Button icon={<SettingOutlined />} style={{ marginLeft: 8 }} onClick={onUpdateTranslateModel} />
+          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={onUpdateTranslateModel} />
           {translateModelPrompt !== TRANSLATE_PROMPT && (
             <Tooltip title={t('common.reset')}>
               <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetTranslatePrompt}></Button>

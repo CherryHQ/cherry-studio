@@ -1,17 +1,4 @@
-import {
-  CheckOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  ForkOutlined,
-  LikeFilled,
-  LikeOutlined,
-  MenuOutlined,
-  QuestionCircleOutlined,
-  SaveOutlined,
-  SyncOutlined,
-  TranslationOutlined
-} from '@ant-design/icons'
-import { UploadOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
@@ -37,6 +24,20 @@ import { withMessageThought } from '@renderer/utils/formats'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { clone } from 'lodash'
+import {
+  AtSign,
+  Copy,
+  FilePenLine,
+  Languages,
+  Menu,
+  RefreshCw,
+  Save,
+  Share,
+  Split,
+  ThumbsDown,
+  ThumbsUp,
+  Trash
+} from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -148,35 +149,42 @@ const MessageMenubar: FC<Props> = (props) => {
       const imageUrls: string[] = []
       let match
       let content = editedText
-      
+
       while ((match = imageRegex.exec(editedText)) !== null) {
         imageUrls.push(match[1])
         content = content.replace(match[0], '')
       }
-      
+
       // 更新消息内容，保留图片信息
-      await editMessage(message.id, { 
+      await editMessage(message.id, {
         content: content.trim(),
         metadata: {
           ...message.metadata,
-          generateImage: imageUrls.length > 0 ? {
-            type: 'url',
-            images: imageUrls
-          } : undefined
+          generateImage:
+            imageUrls.length > 0
+              ? {
+                  type: 'url',
+                  images: imageUrls
+                }
+              : undefined
         }
       })
-      
-      resendMessage && handleResendUserMessage({ 
-        ...message, 
-        content: content.trim(),
-        metadata: {
-          ...message.metadata,
-          generateImage: imageUrls.length > 0 ? {
-            type: 'url',
-            images: imageUrls
-          } : undefined
-        }
-      })
+
+      resendMessage &&
+        handleResendUserMessage({
+          ...message,
+          content: content.trim(),
+          metadata: {
+            ...message.metadata,
+            generateImage:
+              imageUrls.length > 0
+                ? {
+                    type: 'url',
+                    images: imageUrls
+                  }
+                : undefined
+          }
+        })
     }
   }, [message, editMessage, handleResendUserMessage, t])
 
@@ -213,18 +221,28 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.save'),
         key: 'save',
-        icon: <SaveOutlined />,
+        icon: <Save size={16} />,
         onClick: () => {
           const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
           window.api.file.save(fileName, message.content)
         }
       },
-      { label: t('common.edit'), key: 'edit', icon: <EditOutlined />, onClick: onEdit },
-      { label: t('chat.message.new.branch'), key: 'new-branch', icon: <ForkOutlined />, onClick: onNewBranch },
+      {
+        label: t('common.edit'),
+        key: 'edit',
+        icon: <FilePenLine size={16} />,
+        onClick: onEdit
+      },
+      {
+        label: t('chat.message.new.branch'),
+        key: 'new-branch',
+        icon: <Split size={16} />,
+        onClick: onNewBranch
+      },
       {
         label: t('chat.topics.export.title'),
         key: 'export',
-        icon: <UploadOutlined />,
+        icon: <Share size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
         children: [
           exportMenuOptions.image && {
             label: t('chat.topics.copy.image'),
@@ -361,7 +379,7 @@ const MessageMenubar: FC<Props> = (props) => {
       )}
       <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
         <ActionButton className="message-action-button" onClick={onCopy}>
-          {!copied && <i className="iconfont icon-copy"></i>}
+          {!copied && <Copy size={16} />}
           {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
         </ActionButton>
       </Tooltip>
@@ -378,7 +396,7 @@ const MessageMenubar: FC<Props> = (props) => {
             open={showRegenerateTooltip}
             onOpenChange={setShowRegenerateTooltip}>
             <ActionButton className="message-action-button">
-              <SyncOutlined />
+              <RefreshCw size={16} />
             </ActionButton>
           </Tooltip>
         </Popconfirm>
@@ -386,7 +404,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {isAssistantMessage && (
         <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onMentionModel}>
-            <i className="iconfont icon-at" style={{ fontSize: 16 }}></i>
+            <AtSign size={16} />
           </ActionButton>
         </Tooltip>
       )}
@@ -412,7 +430,7 @@ const MessageMenubar: FC<Props> = (props) => {
           arrow>
           <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
             <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-              <TranslationOutlined />
+              <Languages size={16} />
             </ActionButton>
           </Tooltip>
         </Dropdown>
@@ -420,7 +438,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {isAssistantMessage && isGrouped && (
         <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onUseful}>
-            {message.useful ? <LikeFilled /> : <LikeOutlined />}
+            {message.useful ? <ThumbsUp size={16} /> : <ThumbsDown size={16} />}
           </ActionButton>
         </Tooltip>
       )}
@@ -436,7 +454,7 @@ const MessageMenubar: FC<Props> = (props) => {
             mouseEnterDelay={1}
             open={showDeleteTooltip}
             onOpenChange={setShowDeleteTooltip}>
-            <DeleteOutlined />
+            <Trash size={16} />
           </Tooltip>
         </ActionButton>
       </Popconfirm>
@@ -447,7 +465,7 @@ const MessageMenubar: FC<Props> = (props) => {
           placement="topRight"
           arrow>
           <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-            <MenuOutlined />
+            <Menu size={19} />
           </ActionButton>
         </Dropdown>
       )}
