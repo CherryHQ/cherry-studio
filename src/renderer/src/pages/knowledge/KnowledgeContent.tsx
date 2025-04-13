@@ -1,14 +1,4 @@
-import {
-  ColumnHeightOutlined,
-  CopyOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-  RedoOutlined,
-  SearchOutlined,
-  SettingOutlined,
-  VerticalAlignMiddleOutlined
-} from '@ant-design/icons'
+import { CopyOutlined, DeleteOutlined, EditOutlined, RedoOutlined } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { HStack } from '@renderer/components/Layout'
@@ -23,6 +13,7 @@ import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
+import { ChevronsDown, ChevronsUp, Plus, Search, Settings2 } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -238,7 +229,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         <ModelInfo>
           <Button
             type="text"
-            icon={<SettingOutlined />}
+            icon={<Settings2 size={18} color="var(--color-icon)" />}
             onClick={() => KnowledgeSettingsPopup.show({ base })}
             size="small"
           />
@@ -277,7 +268,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             size="small"
             shape="round"
             onClick={() => KnowledgeSearchPopup.show({ base })}
-            icon={<SearchOutlined />}
+            icon={<Search size={14} />}
             disabled={disabled}>
             {t('knowledge.search')}
           </Button>
@@ -286,7 +277,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               size="small"
               shape="circle"
               onClick={() => setExpandAll(!expandAll)}
-              icon={expandAll ? <VerticalAlignMiddleOutlined /> : <ColumnHeightOutlined />}
+              icon={expandAll ? <ChevronsUp size={14} /> : <ChevronsDown size={14} />}
               disabled={disabled}
             />
           </Tooltip>
@@ -306,7 +297,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           extra={
             <Button
               type="text"
-              icon={<PlusOutlined />}
+              icon={<Plus size={16} />}
               onClick={(e) => {
                 e.stopPropagation()
                 handleAddFile()
@@ -393,7 +384,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           extra={
             <Button
               type="text"
-              icon={<PlusOutlined />}
+              icon={<Plus size={16} />}
               onClick={(e) => {
                 e.stopPropagation()
                 handleAddDirectory()
@@ -445,7 +436,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           extra={
             <Button
               type="text"
-              icon={<PlusOutlined />}
+              icon={<Plus size={16} />}
               onClick={(e) => {
                 e.stopPropagation()
                 handleAddUrl()
@@ -522,7 +513,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           extra={
             <Button
               type="text"
-              icon={<PlusOutlined />}
+              icon={<Plus size={16} />}
               onClick={(e) => {
                 e.stopPropagation()
                 handleAddSitemap()
@@ -577,7 +568,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           extra={
             <Button
               type="text"
-              icon={<PlusOutlined />}
+              icon={<Plus size={16} />}
               onClick={(e) => {
                 e.stopPropagation()
                 handleAddNote()

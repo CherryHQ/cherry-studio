@@ -1,4 +1,3 @@
-import { BarsOutlined, SettingOutlined } from '@ant-design/icons'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -48,8 +47,7 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
 
   const assistantTab = {
     label: t('assistants.abbr'),
-    value: 'assistants',
-    icon: <i className="iconfont icon-business-smart-assistant" />
+    value: 'assistants'
   }
 
   const onCreateAssistant = async () => {
@@ -104,13 +102,11 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
               position === 'left' && topicPosition === 'left' ? assistantTab : undefined,
               {
                 label: t('common.topics'),
-                value: 'topic',
-                icon: <BarsOutlined />
+                value: 'topic'
               },
               {
                 label: t('settings.title'),
-                value: 'settings',
-                icon: <SettingOutlined />
+                value: 'settings'
               }
             ].filter(Boolean) as SegmentedProps['options']
           }

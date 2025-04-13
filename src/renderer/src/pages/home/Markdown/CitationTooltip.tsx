@@ -38,6 +38,8 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
       placement="top"
       arrow={false}
       overlayInnerStyle={{
+        backgroundColor: 'var(--color-background-mute)',
+        border: '1px solid var(--color-border)',
         padding: 0,
         borderRadius: '8px'
       }}>

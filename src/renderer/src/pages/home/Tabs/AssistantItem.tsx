@@ -3,6 +3,7 @@ import {
   EditOutlined,
   MinusCircleOutlined,
   SaveOutlined,
+  SmileOutlined,
   SortAscendingOutlined,
   SortDescendingOutlined
 } from '@ant-design/icons'
@@ -39,7 +40,7 @@ interface AssistantItemProps {
 const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, onDelete, addAgent, addAssistant }) => {
   const { t } = useTranslation()
   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
-  const { clickAssistantToShowTopic, topicPosition, showAssistantIcon } = useSettings()
+  const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
   const defaultModel = getDefaultModel()
   const { assistants, updateAssistants } = useAssistants()
 
@@ -119,6 +120,28 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
           })
         }
       },
+      {
+        label: t('assistants.icon.type'),
+        key: 'icon-type',
+        icon: <SmileOutlined />,
+        children: [
+          {
+            label: t('settings.assistant.icon.type.model'),
+            key: 'model',
+            onClick: () => setAssistantIconType('model')
+          },
+          {
+            label: t('settings.assistant.icon.type.emoji'),
+            key: 'emoji',
+            onClick: () => setAssistantIconType('emoji')
+          },
+          {
+            label: t('settings.assistant.icon.type.none'),
+            key: 'none',
+            onClick: () => setAssistantIconType('none')
+          }
+        ]
+      },
       { type: 'divider' },
       {
         label: t('common.sort.pinyin.asc'),
@@ -174,14 +197,22 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
     <Dropdown menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
       <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
         <AssistantNameRow className="name" title={fullAssistantName}>
-          {showAssistantIcon && (
+          {assistantIconType === 'model' ? (
             <ModelAvatar
               model={assistant.model || defaultModel}
-              size={22}
+              size={24}
               className={isPending && !isActive ? 'animation-pulse' : ''}
             />
+          ) : (
+            assistantIconType === 'emoji' && (
+              <AssistantEmoji
+                $emoji={assistant.emoji || assistantName.slice(0, 1)}
+                className={isPending && !isActive ? 'animation-pulse' : ''}>
+                {assistant.emoji || assistantName.slice(0, 1)}
+              </AssistantEmoji>
+            )
           )}
-          <AssistantName className="text-nowrap">{showAssistantIcon ? assistantName : fullAssistantName}</AssistantName>
+          <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
         {isActive && (
           <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
@@ -197,7 +228,8 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  padding: 7px 10px;
+  padding: 0 10px;
+  height: 37px;
   position: relative;
   font-family: Ubuntu;
   border-radius: var(--list-item-border-radius);
@@ -225,10 +257,40 @@ const AssistantNameRow = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
 `
 
-const AssistantName = styled.div``
+const AssistantEmoji = styled.div<{ $emoji: string }>`
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+  position: relative;
+  overflow: hidden;
+  margin-right: 3px;
+  &:before {
+    width: 100%;
+    height: 100%;
+    content: ${({ $emoji }) => `'${$emoji || ' '}'`};
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 200%;
+    transform: scale(1.5);
+    filter: blur(5px);
+    opacity: 0.4;
+  }
+`
+
+const AssistantName = styled.div`
+  font-size: 13px;
+`
 
 const MenuButton = styled.div`
   display: flex;

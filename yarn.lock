@@ -3980,6 +3980,7 @@ __metadata:
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
     lru-cache: "npm:^11.1.0"
+    lucide-react: "npm:^0.487.0"
     markdown-it: "npm:^14.1.0"
     mime: "npm:^4.0.4"
     npx-scope-finder: "npm:^1.2.0"
@@ -10256,6 +10257,15 @@ __metadata:
   version: 7.18.3
   resolution: "lru-cache@npm:7.18.3"
   checksum: 10c0/b3a452b491433db885beed95041eb104c157ef7794b9c9b4d647be503be91769d11206bb573849a16b4cc0d03cbd15ffd22df7960997788b74c1d399ac7a4fed
+  languageName: node
+  linkType: hard
+
+"lucide-react@npm:^0.487.0":
+  version: 0.487.0
+  resolution: "lucide-react@npm:0.487.0"
+  peerDependencies:
+    react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/7177778c584b8e9545957bef28e95841c4be1b3bf473f9e2e64454c3e183d7ed0bc977c9f7b5446088023c7000151b7a3b27398d4f70025bf343782192f653ca
   languageName: node
   linkType: hard
 
