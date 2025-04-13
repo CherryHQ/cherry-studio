@@ -1,11 +1,4 @@
-import {
-  DeleteOutlined,
-  EditOutlined,
-  FileTextOutlined,
-  PlusOutlined,
-  SearchOutlined,
-  SettingOutlined
-} from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import DragableList from '@renderer/components/DragableList'
 import { HStack } from '@renderer/components/Layout'
@@ -18,6 +11,7 @@ import { NavbarIcon } from '@renderer/pages/home/Navbar'
 import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
 import { KnowledgeBase } from '@renderer/types'
 import { Dropdown, Empty, MenuProps } from 'antd'
+import { Book, Plus, Search } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -105,7 +99,7 @@ const KnowledgePage: FC = () => {
         <NavbarRight>
           <HStack alignItems="center">
             <NarrowIcon onClick={() => selectedBase && KnowledgeSearchPopup.show({ base: selectedBase })}>
-              <SearchOutlined />
+              <Search size={18} />
             </NarrowIcon>
           </HStack>
         </NavbarRight>
@@ -124,7 +118,7 @@ const KnowledgePage: FC = () => {
                   <div>
                     <ListItem
                       active={selectedBase?.id === base.id}
-                      icon={<FileTextOutlined />}
+                      icon={<Book size={16} />}
                       title={base.name}
                       onClick={() => setSelectedBase(base)}
                     />
@@ -135,7 +129,7 @@ const KnowledgePage: FC = () => {
             {!isDragging && (
               <AddKnowledgeItem onClick={handleAddKnowledge}>
                 <AddKnowledgeName>
-                  <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
+                  <Plus size={18} />
                   {t('button.add')}
                 </AddKnowledgeName>
               </AddKnowledgeItem>
@@ -243,6 +237,10 @@ const AddKnowledgeName = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 `
 
 const NarrowIcon = styled(NavbarIcon)`

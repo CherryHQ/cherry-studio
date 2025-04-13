@@ -1,4 +1,3 @@
-import { SearchOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
@@ -9,6 +8,7 @@ import { Agent, Assistant } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Divider, Input, InputRef, Modal, Tag } from 'antd'
 import { take } from 'lodash'
+import { Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -163,7 +163,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <Input
           prefix={
             <SearchIcon>
-              <SearchOutlined />
+              <Search size={14} />
             </SearchIcon>
           }
           ref={inputRef}
@@ -177,7 +177,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           size="middle"
         />
       </HStack>
-      <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
+      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
       <Container ref={containerRef}>
         {take(agents, 100).map((agent, index) => (
           <AgentItem
@@ -237,8 +237,8 @@ const AgentItem = styled.div`
 `
 
 const SearchIcon = styled.div`
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   flex-direction: row;

@@ -86,8 +86,9 @@ https://docs.cherry-ai.com
 
 - Theme Gallery: https://cherrycss.com
 - Aero Theme: https://github.com/hakadao/CherryStudio-Aero
-- PaperMaterial Theme: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
-
+- PaperMaterial Theme: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial  
+- Claude dynamic-style: https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
+  
 Welcome PR for more themes
 
 # 🖥️ Develop

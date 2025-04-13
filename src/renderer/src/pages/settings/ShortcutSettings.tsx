@@ -316,6 +316,7 @@ const ShortcutSettings: FC = () => {
             <Button
               icon={<UndoOutlined />}
               size="small"
+              shape="circle"
               onClick={() => handleResetShortcut(record)}
               disabled={!isShortcutModified(record)}
             />
@@ -324,6 +325,7 @@ const ShortcutSettings: FC = () => {
             <Button
               icon={<ClearOutlined />}
               size="small"
+              shape="circle"
               onClick={() => handleClear(record)}
               disabled={record.shortcut.length === 0 || !record.editable}
             />

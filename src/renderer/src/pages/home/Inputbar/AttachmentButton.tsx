@@ -1,8 +1,8 @@
-import { PaperClipOutlined } from '@ant-design/icons'
 import { isVisionModel } from '@renderer/config/models'
 import { FileType, Model } from '@renderer/types'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Tooltip } from 'antd'
+import { Paperclip } from 'lucide-react'
 import { FC, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -57,9 +57,7 @@ const AttachmentButton: FC<Props> = ({ ref, model, files, setFiles, ToolbarButto
       title={isVisionModel(model) ? t('chat.input.upload') : t('chat.input.upload.document')}
       arrow>
       <ToolbarButton type="text" onClick={onSelectFile} disabled={disabled}>
-        <PaperClipOutlined
-          style={{ fontSize: 17, color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' }}
-        />
+        <Paperclip size={18} style={{ color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' }} />
       </ToolbarButton>
     </Tooltip>
   )

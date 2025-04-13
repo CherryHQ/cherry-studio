@@ -319,9 +319,9 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://www.aliyun.com/product/bailian',
-      apiKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
+      apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
       docs: 'https://help.aliyun.com/zh/model-studio/getting-started/',
-      models: 'https://bailian.console.aliyun.com/model-market#/model-market'
+      models: 'https://bailian.console.aliyun.com/?tab=model#/model-market'
     }
   },
   stepfun: {

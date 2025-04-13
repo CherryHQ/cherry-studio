@@ -244,6 +244,7 @@ const BackButtonContainer = styled.div`
 `
 
 const MainContainer = styled.div`
+  display: flex;
   flex: 1;
   width: 100%;
 `

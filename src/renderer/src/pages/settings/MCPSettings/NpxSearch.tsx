@@ -117,8 +117,8 @@ const NpxSearch: FC<{
   return (
     <Container>
       <Center>
-        <Space direction="vertical" style={{ marginBottom: 20, width: 500 }}>
-          <Center style={{ marginBottom: 20 }}>
+        <Space direction="vertical" style={{ marginBottom: 25, width: 500 }}>
+          <Center style={{ marginBottom: 15 }}>
             <img src={npmLogo} alt="npm" width={100} />
           </Center>
           <Space.Compact style={{ width: '100%' }}>
@@ -231,6 +231,7 @@ const NpxSearch: FC<{
 
 const Container = styled.div`
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 8px;
 `
@@ -238,11 +239,13 @@ const Container = styled.div`
 const ResultList = styled.div`
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   width: 100%;
   padding-right: 4px;
   overflow-y: auto;
+  max-width: 1200px;
+  margin: 0 auto;
 `
 
 export default NpxSearch

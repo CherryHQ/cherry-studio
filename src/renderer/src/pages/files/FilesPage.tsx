@@ -2,24 +2,21 @@ import {
   DeleteOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
-  FileImageOutlined,
-  FilePdfOutlined,
-  FileTextOutlined,
   SortAscendingOutlined,
   SortDescendingOutlined
 } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import ListItem from '@renderer/components/ListItem'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import db from '@renderer/databases'
-import { useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
 import { FileType, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import type { MenuProps } from 'antd'
-import { Button, Empty, Flex, Menu, Popconfirm } from 'antd'
+import { Button, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { File as FileIcon, FileImage, FileText, FileType as FileTypeIcon } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -34,9 +31,6 @@ const FilesPage: FC = () => {
   const [fileType, setFileType] = useState<string>('document')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const { providers } = useProviders()
-
-  const geminiProviders = providers.filter((provider) => provider.type === 'gemini')
 
   const tempFilesSort = (files: FileType[]) => {
     return files.sort((a, b) => {
@@ -144,16 +138,11 @@ const FilesPage: FC = () => {
   })
 
   const menuItems = [
-    { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FilePdfOutlined /> },
-    { key: FileTypes.IMAGE, label: t('files.image'), icon: <FileImageOutlined /> },
-    { key: FileTypes.TEXT, label: t('files.text'), icon: <FileTextOutlined /> },
-    ...geminiProviders.map((provider) => ({
-      key: 'gemini_' + provider.id,
-      label: provider.name,
-      icon: <FilePdfOutlined />
-    })),
-    { key: 'all', label: t('files.all'), icon: <FileTextOutlined /> }
-  ].filter(Boolean) as MenuProps['items']
+    { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FileIcon size={16} /> },
+    { key: FileTypes.IMAGE, label: t('files.image'), icon: <FileImage size={16} /> },
+    { key: FileTypes.TEXT, label: t('files.text'), icon: <FileTypeIcon size={16} /> },
+    { key: 'all', label: t('files.all'), icon: <FileText size={16} /> }
+  ]
 
   return (
     <Container>
@@ -162,7 +151,15 @@ const FilesPage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <SideNav>
-          <Menu selectedKeys={[fileType]} items={menuItems} onSelect={({ key }) => setFileType(key as FileTypes)} />
+          {menuItems.map((item) => (
+            <ListItem
+              key={item.key}
+              icon={item.icon}
+              title={item.label}
+              active={fileType === item.key}
+              onClick={() => setFileType(item.key as FileTypes)}
+            />
+          ))}
         </SideNav>
         <MainContent>
           <SortContainer>
@@ -223,10 +220,13 @@ const ContentContainer = styled.div`
 `
 
 const SideNav = styled.div`
+  display: flex;
+  flex-direction: column;
   width: var(--settings-width);
   border-right: 0.5px solid var(--color-border);
-  padding: 7px 12px;
+  padding: 12px 10px;
   user-select: none;
+  gap: 6px;
 
   .ant-menu {
     border-inline-end: none !important;

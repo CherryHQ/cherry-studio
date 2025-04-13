@@ -1,9 +1,9 @@
-import { SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { Center } from '@renderer/components/Layout'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { Empty, Input } from 'antd'
 import { isEmpty } from 'lodash'
+import { Search } from 'lucide-react'
 import React, { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -40,10 +40,10 @@ const AppsPage: FC = () => {
           <Input
             placeholder={t('common.search')}
             className="nodrag"
-            style={{ width: '30%', height: 28 }}
+            style={{ width: '30%', height: 28, borderRadius: 15 }}
             size="small"
             variant="filled"
-            suffix={<SearchOutlined />}
+            suffix={<Search size={18} />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

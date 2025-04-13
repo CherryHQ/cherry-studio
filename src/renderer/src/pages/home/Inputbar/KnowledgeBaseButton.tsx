@@ -4,6 +4,7 @@ import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPan
 import { useAppSelector } from '@renderer/store'
 import { KnowledgeBase } from '@renderer/types'
 import { Tooltip } from 'antd'
+import { LibraryBig } from 'lucide-react'
 import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -88,7 +89,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   return (
     <Tooltip placement="top" title={t('chat.input.knowledge_base')} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel} disabled={disabled}>
-        <FileSearchOutlined />
+        <LibraryBig size={18} />
       </ToolbarButton>
     </Tooltip>
   )

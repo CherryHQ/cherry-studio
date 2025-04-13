@@ -17,6 +17,7 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import { t } from 'i18next'
+import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -85,12 +86,12 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, activeTopic }) => {
         <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac ? 16 : 0 }}>
-              <i className="iconfont icon-hide-sidebar" />
+              <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
           <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
-              <FormOutlined />
+            <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
+              <MessageSquareDiff size={18} />
             </NavbarIcon>
           </Tooltip>
         </NavbarLeft>
@@ -102,7 +103,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, activeTopic }) => {
               <NavbarIcon
                 onClick={() => toggleShowAssistants()}
                 style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
-                <i className="iconfont icon-show-sidebar" />
+                <PanelRightClose size={18} />
               </NavbarIcon>
             </Tooltip>
           )}
@@ -120,7 +121,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, activeTopic }) => {
           </AnalyzeButton>
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
-              <SearchOutlined />
+              <Search size={18} />
             </NarrowIcon>
           </Tooltip>
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
@@ -132,14 +133,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, activeTopic }) => {
             <MinAppsPopover>
               <Tooltip title={t('minapp.title')} mouseEnterDelay={0.8}>
                 <NarrowIcon>
-                  <i className="iconfont icon-appstore" />
+                  <LayoutGrid size={18} />
                 </NarrowIcon>
               </Tooltip>
             </MinAppsPopover>
           )}
           {topicPosition === 'right' && (
             <NarrowIcon onClick={toggleShowTopics}>
-              <i className={`iconfont icon-${showTopics ? 'show' : 'hide'}-sidebar`} />
+              {showTopics ? <PanelRightClose size={18} /> : <PanelLeftClose size={18} />}
             </NarrowIcon>
           )}
         </HStack>

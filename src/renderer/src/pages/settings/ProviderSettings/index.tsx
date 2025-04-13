@@ -1,4 +1,4 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getProviderLogo } from '@renderer/config/providers'
@@ -7,6 +7,7 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider } from '@renderer/types'
 import { droppableReorder, generateColorFromChar, getFirstCharacter, uuid } from '@renderer/utils'
 import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
+import { Search } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -178,7 +179,7 @@ const ProvidersList: FC = () => {
 
   const getProviderAvatar = (provider: Provider) => {
     if (provider.isSystem) {
-      return <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={25} />
+      return <ProviderLogo shape="circle" src={getProviderLogo(provider.id)} size={25} />
     }
 
     const customLogo = providerLogos[provider.id]
@@ -222,7 +223,7 @@ const ProvidersList: FC = () => {
             placeholder={t('settings.provider.search')}
             value={searchText}
             style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
-            suffix={<SearchOutlined style={{ color: 'var(--color-text-3)' }} />}
+            suffix={<Search size={14} />}
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
