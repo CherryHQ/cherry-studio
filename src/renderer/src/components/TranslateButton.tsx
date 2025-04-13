@@ -7,17 +7,24 @@ import { getUserMessage } from '@renderer/services/MessagesService'
 import { Button, Tooltip } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
+import styled from 'styled-components'
 interface Props {
   text?: string
   onTranslated: (translatedText: string) => void
   disabled?: boolean
   style?: React.CSSProperties
   isLoading?: boolean
-  ToolbarButton: typeof Button
+  ToolbarButton?: typeof Button
 }
 
-const TranslateButton: FC<Props> = ({ text, onTranslated, disabled = false, style, isLoading, ToolbarButton }) => {
+const TranslateButton: FC<Props> = ({
+  text,
+  onTranslated,
+  disabled = false,
+  style,
+  isLoading,
+  ToolbarButton = DefaultToolbarButton
+}) => {
   const { t } = useTranslation()
   const { translateModel } = useDefaultModel()
   const [isTranslating, setIsTranslating] = useState(false)
@@ -94,3 +101,54 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled = false, styl
 }
 
 export default TranslateButton
+
+const DefaultToolbarButton = styled(Button)`
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  color: var(--color-icon);
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  &.anticon,
+  &.iconfont {
+    transition: all 0.3s ease;
+    color: var(--color-icon);
+  }
+  .icon-a-addchat {
+    font-size: 18px;
+    margin-bottom: -2px;
+  }
+  &:hover {
+    background-color: var(--color-background-soft);
+    .anticon,
+    .iconfont {
+      color: var(--color-text-1);
+    }
+  }
+  &.active {
+    background-color: var(--color-primary) !important;
+    .anticon,
+    .iconfont {
+      color: var(--color-white-soft);
+    }
+    &:hover {
+      background-color: var(--color-primary);
+    }
+  }
+  &.disabled {
+    color: var(--color-text-3);
+    cursor: default;
+    &:hover {
+      background-color: transparent;
+      .anticon,
+      .iconfont {
+        color: var(--color-text-3);
+      }
+    }
+  }
+`
