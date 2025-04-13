@@ -7,7 +7,6 @@ import { getUserMessage } from '@renderer/services/MessagesService'
 import { Button, Tooltip } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   text?: string
@@ -15,9 +14,10 @@ interface Props {
   disabled?: boolean
   style?: React.CSSProperties
   isLoading?: boolean
+  ToolbarButton: typeof Button
 }
 
-const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading }) => {
+const TranslateButton: FC<Props> = ({ text, onTranslated, disabled = false, style, isLoading, ToolbarButton }) => {
   const { t } = useTranslation()
   const { translateModel } = useDefaultModel()
   const [isTranslating, setIsTranslating] = useState(false)
@@ -81,47 +81,16 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
       placement="top"
       title={t('chat.input.translate', { target_language: t(`languages.${targetLanguage.toString()}`) })}
       arrow>
-      <ToolbarButton onClick={handleTranslate} disabled={disabled || isTranslating} style={style} type="text">
+      <ToolbarButton
+        onClick={handleTranslate}
+        disabled={disabled || isTranslating}
+        className={disabled || isTranslating ? 'disabled' : ''}
+        style={style}
+        type="text">
         {isTranslating ? <LoadingOutlined spin /> : <TranslationOutlined />}
       </ToolbarButton>
     </Tooltip>
   )
 }
-
-const ToolbarButton = styled(Button)`
-  min-width: 30px;
-  height: 30px;
-  font-size: 16px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  color: var(--color-icon);
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-  &.anticon,
-  &.iconfont {
-    transition: all 0.3s ease;
-    color: var(--color-icon);
-  }
-  &:hover {
-    background-color: var(--color-background-soft);
-    .anticon,
-    .iconfont {
-      color: var(--color-text-1);
-    }
-  }
-  &.active {
-    background-color: var(--color-primary) !important;
-    .anticon,
-    .iconfont {
-      color: var(--color-white-soft);
-    }
-    &:hover {
-      background-color: var(--color-primary);
-    }
-  }
-`
 
 export default TranslateButton

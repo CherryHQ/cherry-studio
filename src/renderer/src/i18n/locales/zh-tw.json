@@ -246,7 +246,36 @@
       "topics.export.title_naming_success": "標題生成成功",
       "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
       "input.translating": "翻譯中...",
-      "input.upload.upload_from_local": "上傳本地文件..."
+      "input.upload.upload_from_local": "上傳本地文件...",
+      "aidebates": {
+        "title": "AI辯論",
+        "experimental": "實驗性功能",
+        "auto_mode": "自動辯論",
+        "rounds": "回合數",
+        "mind_token_consumption": "請注意Token消耗量",
+        "start": "開始",
+        "stop": "停止",
+        "topic_assistant": "主題助手",
+        "use_topic_assistant": "使用主題助手",
+        "return_topic": "返回辯論主題",
+        "question": {
+          "assistant": "辯論使用的助手，預設與主題相同，也可從已建立的助手中選擇。如需調整提示詞、上下文數、模型等，請新增助手或修改既有助手",
+          "auto_mode": "自動：AI代替使用者，按指定回合數進行自動辯論。手動：AI生成回覆後不自動發送"
+        },
+        "hints": {
+          "error": "生成失敗，請檢查網路或設定",
+          "generating_automode": "辯論中，正在生成回覆",
+          "generating": "正在生成回覆",
+          "user_message_response": "等待使用者訊息完成",
+          "response_waiting": "辯論中，等待回覆",
+          "response_received": "辯論中，已收到回覆",
+          "stopped": "使用者已停止",
+          "finish_automode": "辯論完成",
+          "finish": "完成",
+          "not_empty_text": "輸入框已有內容，AI辯論會將該內容作為初始訊息發送，是否繼續？",
+          "running_noop": "辯論進行時，將無法操作輸入框"
+        }
+      }
     },
     "code_block": {
       "collapse": "折疊",

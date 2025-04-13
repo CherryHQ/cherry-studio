@@ -17,9 +17,10 @@ interface Props {
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
   ToolbarButton: any
+  disabled?: boolean
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton }: Props) => {
+const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton, disabled = false }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -98,7 +99,11 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton 
 
   return (
     <Tooltip placement="top" title={t('settings.quickPhrase.title')} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+      <ToolbarButton
+        type="text"
+        onClick={handleOpenQuickPanel}
+        disabled={disabled}
+        className={disabled ? 'disabled' : ''}>
         <ThunderboltOutlined />
       </ToolbarButton>
     </Tooltip>

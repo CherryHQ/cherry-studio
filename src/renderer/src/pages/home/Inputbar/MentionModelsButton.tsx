@@ -22,9 +22,10 @@ interface Props {
   mentionModels: Model[]
   onMentionModel: (model: Model) => void
   ToolbarButton: any
+  disabled?: boolean
 }
 
-const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, ToolbarButton }) => {
+const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, ToolbarButton, disabled = false }) => {
   const { providers } = useProviders()
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
   const { t } = useTranslation()
@@ -103,7 +104,11 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
 
   return (
     <Tooltip placement="top" title={t('agents.edit.model.select.title')} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+      <ToolbarButton
+        type="text"
+        onClick={handleOpenQuickPanel}
+        disabled={disabled}
+        className={disabled ? 'disabled' : ''}>
         <i className="iconfont icon-at" style={{ fontSize: 18 }}></i>
       </ToolbarButton>
     </Tooltip>

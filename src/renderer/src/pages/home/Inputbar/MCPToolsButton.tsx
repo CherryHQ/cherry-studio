@@ -16,9 +16,10 @@ interface Props {
   enabledMCPs: MCPServer[]
   toggelEnableMCP: (server: MCPServer) => void
   ToolbarButton: any
+  disabled?: boolean
 }
 
-const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarButton }) => {
+const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarButton, disabled = false }) => {
   const { activedMcpServers } = useMCPServers()
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -75,8 +76,14 @@ const MCPToolsButton: FC<Props> = ({ ref, enabledMCPs, toggelEnableMCP, ToolbarB
 
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <CodeOutlined style={{ color: buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)' }} />
+      <ToolbarButton
+        type="text"
+        onClick={handleOpenQuickPanel}
+        disabled={disabled}
+        className={disabled ? 'disabled' : ''}>
+        <CodeOutlined
+          {...(!disabled && { style: { color: buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)' } })}
+        />
       </ToolbarButton>
     </Tooltip>
   )

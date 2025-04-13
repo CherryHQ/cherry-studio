@@ -246,7 +246,36 @@
       "topics.export.siyuan": "导出到思源笔记",
       "topics.export.wait_for_title_naming": "正在生成标题...",
       "topics.export.title_naming_success": "标题生成成功",
-      "topics.export.title_naming_failed": "标题生成失败，使用默认标题"
+      "topics.export.title_naming_failed": "标题生成失败，使用默认标题",
+      "aidebates": {
+        "title": "AI互辩",
+        "experimental": "实验性功能",
+        "auto_mode": "自动互辩",
+        "rounds": "轮次",
+        "mind_token_consumption": "请注意Token消耗",
+        "start": "开始",
+        "stop": "停止",
+        "topic_assistant": "话题助手",
+        "use_topic_assistant": "使用话题助手",
+        "return_topic": "返回互辩话题",
+        "question": {
+          "assistant": "互辩使用的助手，默认与话题相同，也可从已建立的助手中选择。若需调整提示词、上下文数、模型等，请新建助手或修改已有助手",
+          "auto_mode": "自动：AI代替用户，按指定轮次进行自动互辩。手动：AI生成回复后不自动发送"
+        },
+        "hints": {
+          "error": "生成失败，请检查网络或配置",
+          "generating_automode": "互辩中，正在生成回复",
+          "generating": "正在生成回复",
+          "user_message_response": "等待用户消息完成",
+          "response_waiting": "互辩中，等待回复",
+          "response_received": "互辩中，已收到回复",
+          "stopped": "用户已停止",
+          "finish_automode": "互辩完成",
+          "finish": "完成",
+          "not_empty_text": "输入框已经有内容，AI互辩会将该内容作为初始消息发送，是否继续？",
+          "running_noop": "互辩进行时，将无法进行输入框操作"
+        }
+      }
     },
     "code_block": {
       "collapse": "收起",

@@ -246,7 +246,36 @@
       "topics.export.title_naming_success": "Title generated successfully",
       "topics.export.title_naming_failed": "Failed to generate title, using default title",
       "input.translating": "Translating...",
-      "input.upload.upload_from_local": "Upload local file..."
+      "input.upload.upload_from_local": "Upload local file...",
+      "aidebates": {
+        "title": "AI Debates",
+        "experimental": "Experimental Feature",
+        "auto_mode": "Auto Debates",
+        "rounds": "Rounds",
+        "mind_token_consumption": "Mind token consumption",
+        "start": "Start",
+        "stop": "Stop",
+        "topic_assistant": "Topic Assistant",
+        "use_topic_assistant": "Use Topic Assistant",
+        "return_topic": "Return to AI Debates Topic",
+        "question": {
+          "assistant": "Assistant used for debates, defaults to same as topic. Can also select from existing assistants. To adjust prompts, context length, model etc., please create new assistant or modify existing one",
+          "auto_mode": "Auto: AI acts as user and debates automatically for specified rounds. Manual: AI generates reply but doesn't send automatically"
+        },
+        "hints": {
+          "error": "Generation failed, please check network or configs",
+          "generating_automode": "Debating, generating reply",
+          "generating": "Generating reply",
+          "user_message_response": "Waiting for user message to complete",
+          "response_waiting": "Debating, waiting for reply",
+          "response_received": "Debating, reply received",
+          "stopped": "Stopped by user",
+          "finish_automode": "Debates completed",
+          "finish": "Completed",
+          "not_empty_text": "Input already has content, AI Debates will send it as initial message. Continue?",
+          "running_noop": "Input operations disabled while debating"
+        }
+      }
     },
     "code_block": {
       "collapse": "Collapse",

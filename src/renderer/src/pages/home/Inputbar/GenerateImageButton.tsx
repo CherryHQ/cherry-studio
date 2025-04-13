@@ -10,9 +10,16 @@ interface Props {
   model: Model
   ToolbarButton: any
   onEnableGenerateImage: () => void
+  disabled?: boolean
 }
 
-const GenerateImageButton: FC<Props> = ({ model, ToolbarButton, assistant, onEnableGenerateImage }) => {
+const GenerateImageButton: FC<Props> = ({
+  model,
+  ToolbarButton,
+  assistant,
+  onEnableGenerateImage,
+  disabled = false
+}) => {
   const { t } = useTranslation()
 
   if (!isGenerateImageModel(model)) {
@@ -26,7 +33,11 @@ const GenerateImageButton: FC<Props> = ({ model, ToolbarButton, assistant, onEna
         isGenerateImageModel(model) ? t('chat.input.generate_image') : t('chat.input.generate_image_not_supported')
       }
       arrow>
-      <ToolbarButton type="text" disabled={!isGenerateImageModel(model)} onClick={onEnableGenerateImage}>
+      <ToolbarButton
+        type="text"
+        disabled={disabled || !isGenerateImageModel(model)}
+        className={disabled || !isGenerateImageModel(model) ? 'disabled' : ''}
+        onClick={onEnableGenerateImage}>
         <PictureOutlined style={{ color: assistant.enableGenerateImage ? 'var(--color-link)' : 'var(--color-icon)' }} />
       </ToolbarButton>
     </Tooltip>

@@ -457,7 +457,6 @@ export const resendMessage =
         return dispatch(sendMessage(userMessage, assistant, topic, { isMentionModel }))
       }
 
-      console.log('assistantMessage', message)
       dispatch(
         sendMessage(userMessage, assistant, topic, {
           resendAssistantMessage: message
