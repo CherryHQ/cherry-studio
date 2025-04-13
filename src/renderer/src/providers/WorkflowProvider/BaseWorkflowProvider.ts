@@ -1,15 +1,17 @@
-import { WorkflowProviderType, WorkflowType } from '@renderer/types'
+import { FlowEngine, FlowConfig } from '@renderer/types'
 
 export default abstract class BaseWorkflowProvider {
-  protected provider: WorkflowProviderType
+  protected provider: FlowEngine
 
-  constructor(provider: WorkflowProviderType) {
+  constructor(provider: FlowEngine) {
     this.provider = provider
   }
 
-  abstract checkWorkflowApi(workflow: WorkflowType): Promise<{ valid: boolean; error: Error | null }>
+  abstract checkWorkflowApi(workflow: FlowConfig): Promise<{ valid: boolean; error: Error | null }>
 
-  public defaultHeaders(workflow: WorkflowType) {
+  abstract getParameters(workflow: FlowConfig): Promise<any>
+
+  public defaultHeaders(workflow: FlowConfig) {
     return {
       'HTTP-Referer': 'https://cherry-ai.com',
       'X-Title': 'Cherry Studio',

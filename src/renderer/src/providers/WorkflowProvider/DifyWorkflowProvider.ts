@@ -1,9 +1,9 @@
-import { WorkflowType } from '@renderer/types'
+import { FlowConfig } from '@renderer/types'
 
 import BaseWorkflowProvider from './BaseWorkflowProvider'
 
 export default class DifyWorkflowProvider extends BaseWorkflowProvider {
-  public async checkWorkflowApi(workflow: WorkflowType): Promise<{ valid: boolean; error: Error | null }> {
+  public async checkWorkflowApi(workflow: FlowConfig): Promise<{ valid: boolean; error: Error | null }> {
     try {
       const response = await fetch(`${workflow.apiHost}/info`, {
         method: 'GET',
@@ -22,6 +22,22 @@ export default class DifyWorkflowProvider extends BaseWorkflowProvider {
       return { valid: true, error: null }
     } catch (error) {
       return { valid: false, error: error as Error }
+    }
+  }
+
+  public async getParameters(workflow: FlowConfig): Promise<any> {
+    try {
+      const response = await fetch(`${workflow.apiHost}/parameters`, {
+        method: 'GET',
+        headers: {
+          ...this.defaultHeaders(workflow)
+        }
+      }).then((res) => res.json())
+      console.log('getParameters:', response)
+      return response
+    } catch (error) {
+      console.error('Error fetching parameters:', error)
+      throw error
     }
   }
 }

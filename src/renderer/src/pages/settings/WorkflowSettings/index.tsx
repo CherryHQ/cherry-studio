@@ -4,7 +4,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { getWorkflowProviderLogo } from '@renderer/config/workflowProviders'
 import { useAllWorkflowProviders, useWorkflowProviders } from '@renderer/hooks/useWorkflowProvider'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { WorkflowProviderType } from '@renderer/types'
+import { FlowEngine } from '@renderer/types'
 import { droppableReorder, generateColorFromChar, getFirstCharacter } from '@renderer/utils'
 import { Avatar, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { FC, useEffect, useState } from 'react'
@@ -17,7 +17,7 @@ const WorkflowProviderList: FC = () => {
   const { t } = useTranslation()
   const workflowProviders = useAllWorkflowProviders()
   const { updateWorkflowProviders } = useWorkflowProviders()
-  const [selectedProvider, setSelectedProvider] = useState<WorkflowProviderType>(workflowProviders[0])
+  const [selectedProvider, setSelectedProvider] = useState<FlowEngine>(workflowProviders[0])
   const [dragging, setDragging] = useState(false)
   const [searchText, setSearchText] = useState<string>('')
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
@@ -48,19 +48,19 @@ const WorkflowProviderList: FC = () => {
     if (result.destination) {
       const sourceIndex = result.source.index
       const destIndex = result.destination.index
-      const reorderProviders = droppableReorder<WorkflowProviderType>(workflowProviders, sourceIndex, destIndex)
+      const reorderProviders = droppableReorder<FlowEngine>(workflowProviders, sourceIndex, destIndex)
       updateWorkflowProviders(reorderProviders)
     }
   }
 
-  const getDropdownMenus = (provider: WorkflowProviderType): MenuProps['items'] => {
+  const getDropdownMenus = (provider: FlowEngine): MenuProps['items'] => {
     console.log('getDropdownMenus', provider)
     const menus = []
 
     return menus
   }
 
-  const getProviderAvatar = (provider: WorkflowProviderType) => {
+  const getProviderAvatar = (provider: FlowEngine) => {
     if (provider.isSystem) {
       return <ProviderLogo shape="square" src={getWorkflowProviderLogo(provider.id)} size={25} />
     }

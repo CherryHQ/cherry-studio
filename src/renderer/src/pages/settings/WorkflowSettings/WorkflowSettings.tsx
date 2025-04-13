@@ -1,8 +1,8 @@
 import { CheckOutlined, DeleteOutlined, LoadingOutlined, SaveOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWorkflowProvider } from '@renderer/hooks/useWorkflowProvider'
-import { checkWorkflowApi } from '@renderer/services/WorkflowService'
-import { WorkflowType } from '@renderer/types'
+import { checkWorkflowApi, getParameters } from '@renderer/services/WorkflowService'
+import { FlowConfig } from '@renderer/types'
 import { Button, Flex, Form, Input, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -12,7 +12,7 @@ import styled from 'styled-components'
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
 
 interface Props {
-  workflow: WorkflowType
+  workflow: FlowConfig
 }
 
 interface WorkflowFormValues {
@@ -27,7 +27,7 @@ const WorkflowSettings: FC<Props> = ({ workflow: _workflow }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [form] = Form.useForm<WorkflowFormValues>()
-  const [workflow, setWorkflow] = useState<WorkflowType>(_workflow)
+  const [workflow, setWorkflow] = useState<FlowConfig>(_workflow)
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
   const { updateWorkflow, removeWorkflow } = useWorkflowProvider(workflow.providerId)
@@ -43,6 +43,8 @@ const WorkflowSettings: FC<Props> = ({ workflow: _workflow }) => {
         window.message.error({ content: errorMessage, key: 'workflow-list' })
       }
       setApiChecking(false)
+
+      const response = await getParameters(workflowProvider, workflow)
     } catch (error) {
       console.error('Error checking API', error)
       window.message.error({ content: t('settings.workflow.checkApiError'), key: 'workflow-list' })
@@ -54,7 +56,7 @@ const WorkflowSettings: FC<Props> = ({ workflow: _workflow }) => {
     try {
       const values = form.getFieldsValue()
       console.log('Saving workflow settings', values)
-      const newWorkflow: WorkflowType = {
+      const newWorkflow: FlowConfig = {
         ...workflow,
         name: values.name,
         description: values.description,
@@ -160,7 +162,7 @@ const WorkflowSettings: FC<Props> = ({ workflow: _workflow }) => {
             />
           </Form.Item>
           <Form.Item name="apiKey" label={t('settings.workflow.apiKey')} rules={[{ required: true, message: '' }]}>
-            <Input
+            <Input.Password
               placeholder={t('settings.workflow.apiKey')}
               onChange={(e) => setWorkflow({ ...workflow, apiKey: e.target.value })}
             />

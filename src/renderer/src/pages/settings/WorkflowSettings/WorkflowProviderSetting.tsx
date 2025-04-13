@@ -5,7 +5,7 @@ import { HStack, VStack } from '@renderer/components/Layout'
 import { WORKFLOW_PROVIDER_CONFIG } from '@renderer/config/workflowProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWorkflowProvider } from '@renderer/hooks/useWorkflowProvider'
-import { WorkflowType, WorkflowProviderType } from '@renderer/types'
+import { FlowConfig, FlowEngine } from '@renderer/types'
 import { Divider, Flex, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { FC, useEffect, useMemo, useState } from 'react'
@@ -16,19 +16,19 @@ import { SettingContainer, SettingTitle } from '..'
 import WorkflowSettings from './WorkflowSettings'
 
 interface Props {
-  workflowProvider: WorkflowProviderType
+  workflowProvider: FlowEngine
 }
 
 const WorkflowProviderSetting: FC<Props> = ({ workflowProvider: _workflowProvider }) => {
   const { theme } = useTheme()
   const { workflowProvider, workflows, updateWorkflowProvider, addWorkflow } = useWorkflowProvider(_workflowProvider.id)
-  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowType | null>(null)
+  const [selectedWorkflow, setSelectedWorkflow] = useState<FlowConfig | null>(null)
   const { t } = useTranslation()
   const providerConfig = WORKFLOW_PROVIDER_CONFIG[workflowProvider.id]
   const officialWebsite = providerConfig?.websites?.official
 
   const onAddWorkflow = async () => {
-    const newWorkflow: WorkflowType = {
+    const newWorkflow: FlowConfig = {
       id: nanoid(),
       providerId: workflowProvider.id,
       name: t('settings.workflow.newWorkflow'),

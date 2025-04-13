@@ -9,7 +9,7 @@ import {
   updateWorkflowProvider,
   updateWorkflowProviders
 } from '@renderer/store/workflow'
-import { WorkflowType, WorkflowProviderType } from '@renderer/types'
+import { FlowConfig, FlowEngine } from '@renderer/types'
 
 const selectEnabledWorkflowProviders = createSelector(
   (state) => state.workflow.providers,
@@ -17,14 +17,14 @@ const selectEnabledWorkflowProviders = createSelector(
 )
 
 export function useWorkflowProviders() {
-  const workflowProviders: WorkflowProviderType[] = useAppSelector(selectEnabledWorkflowProviders)
+  const workflowProviders: FlowEngine[] = useAppSelector(selectEnabledWorkflowProviders)
   const dispatch = useAppDispatch()
 
   return {
     workflowProviders: workflowProviders || [],
-    addWorkflowProvider: (provider: WorkflowProviderType) => dispatch(addWorkflowProvider(provider)),
-    removeWorkflowProvider: (provider: WorkflowProviderType) => dispatch(removeWorkflowProvider(provider)),
-    updateWorkflowProviders: (providers: WorkflowProviderType[]) => dispatch(updateWorkflowProviders(providers))
+    addWorkflowProvider: (provider: FlowEngine) => dispatch(addWorkflowProvider(provider)),
+    removeWorkflowProvider: (provider: FlowEngine) => dispatch(removeWorkflowProvider(provider)),
+    updateWorkflowProviders: (providers: FlowEngine[]) => dispatch(updateWorkflowProviders(providers))
   }
 }
 
@@ -34,7 +34,7 @@ export function useAllWorkflowProviders() {
 
 export function useWorkflowProvider(id: string) {
   const workflowProvider = useAppSelector(
-    (state) => state.workflow.providers.find((p) => p.id === id) as WorkflowProviderType
+    (state) => state.workflow.providers.find((p) => p.id === id) as FlowEngine
   )
   const workflows = workflowProvider.workflows
   const dispatch = useAppDispatch()
@@ -42,9 +42,9 @@ export function useWorkflowProvider(id: string) {
   return {
     workflowProvider,
     workflows,
-    updateWorkflowProvider: (provider: WorkflowProviderType) => dispatch(updateWorkflowProvider(provider)),
-    addWorkflow: (workflow: WorkflowType) => dispatch(addWorkflow(workflow)),
-    updateWorkflow: (workflow: WorkflowType) => dispatch(updateWorkflow(workflow)),
-    removeWorkflow: (workflow: WorkflowType) => dispatch(removeWorkflow(workflow))
+    updateWorkflowProvider: (provider: FlowEngine) => dispatch(updateWorkflowProvider(provider)),
+    addWorkflow: (workflow: FlowConfig) => dispatch(addWorkflow(workflow)),
+    updateWorkflow: (workflow: FlowConfig) => dispatch(updateWorkflow(workflow)),
+    removeWorkflow: (workflow: FlowConfig) => dispatch(removeWorkflow(workflow))
   }
 }

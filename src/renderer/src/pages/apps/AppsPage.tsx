@@ -2,7 +2,7 @@ import { SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { Center } from '@renderer/components/Layout'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { Empty, Input } from 'antd'
+import { Divider, Empty, Input } from 'antd'
 import { isEmpty } from 'lodash'
 import React, { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -56,11 +56,21 @@ const AppsPage: FC = () => {
             <Empty />
           </Center>
         ) : (
-          <AppsContainer style={{ height: containerHeight }}>
-            {filteredApps.map((app) => (
-              <App key={app.id} app={app} />
-            ))}
-          </AppsContainer>
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '930px' }}>
+            <ContainerTitle>{t('minapp.list')}</ContainerTitle>
+            <AppsContainer style={{ height: containerHeight }}>
+              {filteredApps.map((app) => (
+                <App key={app.id} app={app} />
+              ))}
+            </AppsContainer>
+            <AppDivider />
+            <ContainerTitle>{t('workflow.list')}</ContainerTitle>
+            <AppsContainer style={{ height: containerHeight }}>
+              {filteredApps.map((app) => (
+                <App key={app.id} app={app} />
+              ))}
+            </AppsContainer>
+          </div>
         )}
       </ContentContainer>
     </Container>
@@ -94,4 +104,18 @@ const AppsContainer = styled.div`
   justify-content: center;
 `
 
+const AppDivider = styled(Divider)`
+  margin: 10px 0;
+  border-block-start: 0.5px solid var(--color-border);
+`
+
+const ContainerTitle = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  font-size: 14px;
+  font-weight: bold;
+`
 export default AppsPage
