@@ -41,6 +41,7 @@ import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
+import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
@@ -391,6 +392,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: '当贝AI',
     logo: DangbeiLogo,
     url: 'https://ai.dangbei.com/',
+    bodered: true
+  },
+  {
+    id: `zai`,
+    name: `Z.ai`,
+    logo: ZaiAppLogo,
+    url: `https://chat.z.ai/`,
     bodered: true
   }
 ]
