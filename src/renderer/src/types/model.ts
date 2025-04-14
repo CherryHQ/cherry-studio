@@ -22,6 +22,7 @@ export const ModelCapability = z.enum([
   'reasoning',
   'streaming',
   'structuredOutput',
+  'textGeneration',
   'translation',
   'transcription',
   'toolUse',
@@ -121,7 +122,7 @@ export const ModelSchema = z
         return false
       }
 
-      // 如果模型有toolUse, Reasoning, streaming, cache, codeExecution, OCR, translation, transcription, webSearch, structuredOutput能力，则必须支持文字的输出
+      // 如果模型有toolUse, Reasoning, streaming, cache, codeExecution, OCR, textGeneration, translation, transcription, webSearch, structuredOutput能力，则必须支持文字的输出
       if (
         (data.capabilities.includes('toolUse') ||
           data.capabilities.includes('reasoning') ||
@@ -129,6 +130,7 @@ export const ModelSchema = z
           data.capabilities.includes('cache') ||
           data.capabilities.includes('codeExecution') ||
           data.capabilities.includes('OCR') ||
+          data.capabilities.includes('textGeneration') ||
           data.capabilities.includes('translation') ||
           data.capabilities.includes('transcription') ||
           data.capabilities.includes('webSearch') ||
