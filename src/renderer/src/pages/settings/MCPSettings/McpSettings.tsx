@@ -1,6 +1,6 @@
 import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPPrompt, MCPServer, MCPTool } from '@renderer/types'
+import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { Button, Flex, Form, Input, Radio, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -10,6 +10,7 @@ import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
 import MCPPromptsSection from './McpPrompt'
+import MCPResourcesSection from './McpResource'
 import MCPToolsSection from './McpTool'
 
 interface Props {
@@ -42,7 +43,7 @@ const PipRegistry: Registry[] = [
   { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
-type TabKey = 'settings' | 'tools' | 'prompts'
+type TabKey = 'settings' | 'tools' | 'prompts' | 'resources'
 
 const McpSettings: React.FC<Props> = ({ server }) => {
   const { t } = useTranslation()
@@ -56,6 +57,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
 
   const [tools, setTools] = useState<MCPTool[]>([])
   const [prompts, setPrompts] = useState<MCPPrompt[]>([])
+  const [resources, setResources] = useState<MCPResource[]>([])
   const [isShowRegistry, setIsShowRegistry] = useState(false)
   const [registry, setRegistry] = useState<Registry[]>()
 
@@ -146,10 +148,29 @@ const McpSettings: React.FC<Props> = ({ server }) => {
     }
   }
 
+  const fetchResources = async () => {
+    if (server.isActive) {
+      try {
+        setLoadingServer(server.id)
+        const localResources = await window.api.mcp.listResources(server)
+        setResources(localResources)
+      } catch (error) {
+        window.message.error({
+          content: t('settings.mcp.resources.loadError') + ' ' + formatError(error),
+          key: 'mcp-resources-error'
+        })
+        setResources([])
+      } finally {
+        setLoadingServer(null)
+      }
+    }
+  }
+
   useEffect(() => {
     if (server.isActive) {
       fetchTools()
       fetchPrompts()
+      fetchResources()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, server.isActive])
@@ -294,6 +315,9 @@ const McpSettings: React.FC<Props> = ({ server }) => {
 
         const localPrompts = await window.api.mcp.listPrompts(server)
         setPrompts(localPrompts)
+
+        const localResources = await window.api.mcp.listResources(server)
+        setResources(localResources)
       } else {
         await window.api.mcp.stopServer(server)
       }
@@ -466,6 +490,11 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         key: 'prompts',
         label: t('settings.mcp.tabs.prompts'),
         children: <MCPPromptsSection prompts={prompts} />
+      },
+      {
+        key: 'resources',
+        label: t('settings.mcp.tabs.resources'),
+        children: <MCPResourcesSection resources={resources} />
       }
     )
   }

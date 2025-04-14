@@ -184,6 +184,9 @@ const Segmented = styled(AntSegmented)`
     font-size: 13px;
     height: 100%;
   }
+  .ant-segmented-item-label[aria-selected='true'] {
+    color: var(--color-text);
+  }
   .iconfont {
     font-size: 13px;
     margin-left: -2px;
@@ -203,6 +206,11 @@ const Segmented = styled(AntSegmented)`
     border: 0.5px solid var(--color-border);
     border-radius: var(--list-item-border-radius);
     box-shadow: none;
+  }
+  .ant-segmented-item-label,
+  .ant-segmented-item-icon {
+    display: flex;
+    align-items: center;
   }
   /* These styles ensure the same appearance as before */
   border-radius: 0;

@@ -13,7 +13,7 @@ import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
-import { ChevronsDown, ChevronsUp, Plus, Search, Settings2 } from 'lucide-react'
+import { ChevronsDown, ChevronsUp, Plus, Settings2 } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +21,6 @@ import styled from 'styled-components'
 
 import CustomCollapse from '../../components/CustomCollapse'
 import FileItem from '../files/FileItem'
-import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'
 
@@ -58,7 +57,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   } = useKnowledge(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model.provider || '')
-  const rerankModelProviderName = getProviderName(base?.rerankModel?.provider || '')
   const disabled = !base?.version || !providerName
 
   if (!base) {
@@ -239,7 +237,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             </div>
             <Tooltip title={providerName} placement="bottom">
               <div className="tag-column">
-                <Tag color="geekblue" style={{ borderRadius: 20, margin: 0 }}>
+                <Tag color="green" style={{ borderRadius: 20, margin: 0 }}>
                   {base.model.name}
                 </Tag>
               </div>
@@ -248,30 +246,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               {t('models.dimensions', { dimensions: base.dimensions || 0 })}
             </Tag>
           </div>
-          {base.rerankModel && (
-            <div className="model-row">
-              <div className="label-column">
-                <label>{t('models.rerank_model')}</label>
-              </div>
-              <Tooltip title={rerankModelProviderName} placement="bottom">
-                <div className="tag-column">
-                  <Tag color="green" style={{ borderRadius: 20, margin: 0 }}>
-                    {base.rerankModel?.name}
-                  </Tag>
-                </div>
-              </Tooltip>
-            </div>
-          )}
         </ModelInfo>
         <HStack gap={8} alignItems="center">
-          <Button
-            size="small"
-            shape="round"
-            onClick={() => KnowledgeSearchPopup.show({ base })}
-            icon={<Search size={14} />}
-            disabled={disabled}>
-            {t('knowledge.search')}
-          </Button>
           <Tooltip title={expandAll ? t('common.collapse') : t('common.expand')}>
             <Button
               size="small"

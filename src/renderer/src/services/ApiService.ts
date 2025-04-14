@@ -8,8 +8,9 @@ import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import { Assistant, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, MCPTool, Message, Model, Provider, Suggestion, WebSearchResponse } from '@renderer/types'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
+import { fetchWebContents } from '@renderer/utils/fetch'
 import { withGenerateImage } from '@renderer/utils/formats'
 import {
   cleanLinkCommas,
@@ -51,13 +52,12 @@ export async function fetchChatCompletion({
   const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
 
-  try {
-    let _messages: Message[] = []
-    let isFirstChunk = true
-    let query = ''
-
-    // Search web
+  const searchTheWeb = async () => {
     if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
+      let query = ''
+      let webSearchResponse: WebSearchResponse = {
+        results: []
+      }
       const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
       if (isEmpty(webSearchParams) && !isOpenAIWebSearch(assistant.model)) {
         const lastMessage = findLast(messages, (m) => m.role === 'user')
@@ -87,29 +87,51 @@ export async function fetchChatCompletion({
                 messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
                 assistant: searchSummaryAssistant
               })
-              if (keywords) {
-                query = keywords
+
+              try {
+                const result = WebSearchService.extractInfoFromXML(keywords || '')
+                if (result.question === 'not_needed') {
+                  // 如果不需要搜索，则直接返回
+                  console.log('No need to search')
+                  return
+                } else if (result.question === 'summarize' && result.links && result.links.length > 0) {
+                  const contents = await fetchWebContents(result.links)
+                  webSearchResponse = {
+                    query: 'summaries',
+                    results: contents
+                  }
+                } else {
+                  query = result.question
+                  webSearchResponse = await WebSearchService.search(webSearchProvider, query)
+                }
+              } catch (error) {
+                console.error('Failed to extract info from XML:', error)
               }
             } else {
               query = lastMessage.content
             }
 
-            // 等待搜索完成
-            const webSearch = await WebSearchService.search(webSearchProvider, query)
-
             // 处理搜索结果
             message.metadata = {
               ...message.metadata,
-              webSearch: webSearch
+              webSearch: webSearchResponse
             }
 
-            window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
+            window.keyv.set(`web-search-${lastMessage?.id}`, webSearchResponse)
           } catch (error) {
             console.error('Web search failed:', error)
           }
         }
       }
     }
+  }
+
+  try {
+    let _messages: Message[] = []
+    let isFirstChunk = true
+
+    // Search web
+    await searchTheWeb()
 
     const lastUserMessage = findLast(messages, (m) => m.role === 'user')
     // Get MCP tools

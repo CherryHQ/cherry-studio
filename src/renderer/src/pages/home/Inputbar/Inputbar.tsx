@@ -82,7 +82,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
     pasteLongTextThreshold,
     showInputEstimatedTokens,
     autoTranslateWithSpace,
-    enableQuickPanelTriggers
+    enableQuickPanelTriggers,
+    enableBackspaceDeleteModel
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -365,12 +366,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
         }
       },
       {
-        label: 'MCP Prompt',
+        label: `MCP ${t('settings.mcp.tabs.prompts')}`,
         description: '',
         icon: <CodeOutlined />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openPromptList()
+        }
+      },
+      {
+        label: `MCP ${t('settings.mcp.tabs.resources')}`,
+        description: '',
+        icon: <CodeOutlined />,
+        isMenu: true,
+        action: () => {
+          mcpToolsButtonRef.current?.openResourcesList()
         }
       },
       {
@@ -478,21 +488,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
       return event.preventDefault()
     }
 
-    if (event.key === 'Backspace' && text.trim() === '' && mentionModels.length > 0) {
+    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionModels.length > 0) {
       setMentionModels((prev) => prev.slice(0, -1))
       return event.preventDefault()
     }
 
-    if (event.key === 'Backspace' && text.trim() === '' && selectedKnowledgeBases.length > 0) {
-      setSelectedKnowledgeBases((prev) => {
-        const newSelectedKnowledgeBases = prev.slice(0, -1)
-        updateAssistant({ ...assistant, knowledge_bases: newSelectedKnowledgeBases })
-        return newSelectedKnowledgeBases
-      })
-      return event.preventDefault()
-    }
-
-    if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
       setFiles((prev) => prev.slice(0, -1))
       return event.preventDefault()
     }
@@ -943,7 +944,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
             <ToolbarMenu>
               <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
                 <ToolbarButton type="text" onClick={addNewTopic}>
-                  <MessageSquareDiff size={18} />
+                  <MessageSquareDiff size={19} />
                 </ToolbarButton>
               </Tooltip>
               <AttachmentButton

@@ -1,5 +1,6 @@
 import os from 'node:os'
 import path from 'node:path'
+import fs from 'node:fs'
 
 import { isLinux, isMac, isWin } from '@main/constant'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
@@ -10,10 +11,10 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
-import { GetMCPPromptResponse, MCPPrompt, MCPServer, MCPTool } from '@types'
+import { GetMCPPromptResponse, GetResourceResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
-
+import { memoize } from 'lodash'
 import { CacheService } from './CacheService'
 import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
 
@@ -71,6 +72,8 @@ class McpService {
     this.callTool = this.callTool.bind(this)
     this.listPrompts = this.listPrompts.bind(this)
     this.getPrompt = this.getPrompt.bind(this)
+    this.listResources = this.listResources.bind(this)
+    this.getResource = this.getResource.bind(this)
     this.closeClient = this.closeClient.bind(this)
     this.removeServer = this.removeServer.bind(this)
     this.restartServer = this.restartServer.bind(this)
@@ -117,9 +120,9 @@ class McpService {
         try {
           await inMemoryServer.connect(serverTransport)
           Logger.info(`[MCP] In-memory server started: ${server.name}`)
-        } catch (error) {
+        } catch (error: Error | any) {
           Logger.error(`[MCP] Error starting in-memory server: ${error}`)
-          throw new Error(`Failed to start in-memory server: ${error}`)
+          throw new Error(`Failed to start in-memory server: ${error.message}`)
         }
         // set the client transport to the client
         transport = clientTransport
@@ -182,7 +185,7 @@ class McpService {
           args,
           env: {
             ...getDefaultEnvironment(),
-            PATH: this.getEnhancedPath(process.env.PATH || ''),
+            PATH: await this.getEnhancedPath(process.env.PATH || ''),
             ...server.env
           },
           stderr: 'pipe'
@@ -203,7 +206,7 @@ class McpService {
       return client
     } catch (error: any) {
       Logger.error(`[MCP] Error activating server ${server.name}:`, error)
-      throw error
+      throw new Error(`[MCP] Error activating server ${server.name}: ${error.message}`)
     }
   }
 
@@ -386,12 +389,175 @@ class McpService {
   }
 
   /**
+   * List resources available on an MCP server (implementation)
+   */
+  private async listResourcesImpl(server: MCPServer): Promise<MCPResource[]> {
+    Logger.info(`[MCP] Listing resources for server: ${server.name}`)
+    const client = await this.initClient(server)
+    try {
+      const result = await client.listResources()
+      const resources = result.resources || []
+      const serverResources = (Array.isArray(resources) ? resources : []).map((resource: any) => ({
+        ...resource,
+        serverId: server.id,
+        serverName: server.name
+      }))
+      return serverResources
+    } catch (error) {
+      Logger.error(`[MCP] Failed to list resources for server: ${server.name}`, error)
+      return []
+    }
+  }
+
+  /**
+   * List resources available on an MCP server with caching
+   */
+  public async listResources(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPResource[]> {
+    const cachedListResources = withCache<[MCPServer], MCPResource[]>(
+      this.listResourcesImpl.bind(this),
+      (server) => {
+        const serverKey = this.getServerKey(server)
+        return `mcp:list_resources:${serverKey}`
+      },
+      60 * 60 * 1000, // 60 minutes TTL
+      `[MCP] Resources from ${server.name}`
+    )
+    return cachedListResources(server)
+  }
+
+  /**
+   * Get a specific resource from an MCP server (implementation)
+   */
+  private async getResourceImpl(server: MCPServer, uri: string): Promise<GetResourceResponse> {
+    Logger.info(`[MCP] Getting resource ${uri} from server: ${server.name}`)
+    const client = await this.initClient(server)
+    try {
+      const result = await client.readResource({ uri: uri })
+      const contents: MCPResource[] = []
+      if (result.contents && result.contents.length > 0) {
+        result.contents.forEach((content: any) => {
+          contents.push({
+            ...content,
+            serverId: server.id,
+            serverName: server.name
+          })
+        })
+      }
+      return {
+        contents: contents
+      }
+    } catch (error: Error | any) {
+      Logger.error(`[MCP] Failed to get resource ${uri} from server: ${server.name}`, error)
+      throw new Error(`Failed to get resource ${uri} from server: ${server.name}: ${error.message}`)
+    }
+  }
+
+  /**
+   * Get a specific resource from an MCP server with caching
+   */
+  public async getResource(
+    _: Electron.IpcMainInvokeEvent,
+    { server, uri }: { server: MCPServer; uri: string }
+  ): Promise<GetResourceResponse> {
+    const cachedGetResource = withCache<[MCPServer, string], GetResourceResponse>(
+      this.getResourceImpl.bind(this),
+      (server, uri) => {
+        const serverKey = this.getServerKey(server)
+        return `mcp:get_resource:${serverKey}:${uri}`
+      },
+      30 * 60 * 1000, // 30 minutes TTL
+      `[MCP] Resource ${uri} from ${server.name}`
+    )
+    return await cachedGetResource(server, uri)
+  }
+
+  private getSystemPath = memoize(async (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      let command: string
+      let shell: string
+
+      if (process.platform === 'win32') {
+        shell = 'powershell.exe'
+        command = '$env:PATH'
+      } else {
+        // 尝试获取当前用户的默认 shell
+
+        let userShell = process.env.SHELL
+        if (!userShell) {
+          if (fs.existsSync('/bin/zsh')) {
+            userShell = '/bin/zsh'
+          } else if (fs.existsSync('/bin/bash')) {
+            userShell = '/bin/bash'
+          } else if (fs.existsSync('/bin/fish')) {
+            userShell = '/bin/fish'
+          } else {
+            userShell = '/bin/sh'
+          }
+        }
+        shell = userShell
+
+        // 根据不同的 shell 构建不同的命令
+        if (userShell.includes('zsh')) {
+          shell = '/bin/zsh'
+          command =
+            'source /etc/zshenv 2>/dev/null || true; source ~/.zshenv 2>/dev/null || true; source /etc/zprofile 2>/dev/null || true; source ~/.zprofile 2>/dev/null || true; source /etc/zshrc 2>/dev/null || true; source ~/.zshrc 2>/dev/null || true; source /etc/zlogin 2>/dev/null || true; source ~/.zlogin 2>/dev/null || true; echo $PATH'
+        } else if (userShell.includes('bash')) {
+          shell = '/bin/bash'
+          command =
+            'source /etc/profile 2>/dev/null || true; source ~/.bash_profile 2>/dev/null || true; source ~/.bash_login 2>/dev/null || true; source ~/.profile 2>/dev/null || true; source ~/.bashrc 2>/dev/null || true; echo $PATH'
+        } else if (userShell.includes('fish')) {
+          shell = '/bin/fish'
+          command =
+            'source /etc/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.local.fish 2>/dev/null || true; echo $PATH'
+        } else {
+          // 默认使用 zsh
+          shell = '/bin/zsh'
+          command =
+            'source /etc/zshenv 2>/dev/null || true; source ~/.zshenv 2>/dev/null || true; source /etc/zprofile 2>/dev/null || true; source ~/.zprofile 2>/dev/null || true; source /etc/zshrc 2>/dev/null || true; source ~/.zshrc 2>/dev/null || true; source /etc/zlogin 2>/dev/null || true; source ~/.zlogin 2>/dev/null || true; echo $PATH'
+        }
+      }
+
+      console.log(`Using shell: ${shell} with command: ${command}`)
+      const child = require('child_process').spawn(shell, ['-c', command], {
+        env: { ...process.env },
+        cwd: app.getPath('home')
+      })
+
+      let path = ''
+      child.stdout.on('data', (data) => {
+        path += data.toString()
+      })
+
+      child.stderr.on('data', (data) => {
+        console.error('Error getting PATH:', data.toString())
+      })
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          const trimmedPath = path.trim()
+          resolve(trimmedPath)
+        } else {
+          reject(new Error(`Failed to get system PATH, exit code: ${code}`))
+        }
+      })
+    })
+  })
+
+  /**
    * Get enhanced PATH including common tool locations
    */
-  private getEnhancedPath(originalPath: string): string {
+  private async getEnhancedPath(originalPath: string): Promise<string> {
+    let systemPath = ''
+    try {
+      systemPath = await this.getSystemPath()
+    } catch (error) {
+      Logger.error('[MCP] Failed to get system PATH:', error)
+    }
     // 将原始 PATH 按分隔符分割成数组
     const pathSeparator = process.platform === 'win32' ? ';' : ':'
-    const existingPaths = new Set(originalPath.split(pathSeparator).filter(Boolean))
+    const existingPaths = new Set(
+      [...systemPath.split(pathSeparator), ...originalPath.split(pathSeparator)].filter(Boolean)
+    )
     const homeDir = process.env.HOME || process.env.USERPROFILE || ''
 
     // 定义要添加的新路径

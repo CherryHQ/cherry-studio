@@ -1,4 +1,4 @@
-import { CheckOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
@@ -17,7 +17,7 @@ import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { SquareArrowOutUpRight } from 'lucide-react'
+import { Settings, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -285,9 +285,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             </Link>
           )}
           {!provider.isSystem && (
-            <SettingOutlined
+            <Settings
               type="text"
-              style={{ width: 30 }}
+              size={16}
+              style={{ cursor: 'pointer' }}
               onClick={() => ProviderSettingsPopup.show({ provider })}
             />
           )}

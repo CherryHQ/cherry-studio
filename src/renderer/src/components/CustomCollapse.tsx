@@ -44,7 +44,7 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
       borderTopRightRadius: '8px'
     },
     body: {
-      borderTop: '0.5px solid var(--color-border)'
+      borderTop: 'none'
     }
   }
 

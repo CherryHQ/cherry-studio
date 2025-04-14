@@ -33,11 +33,10 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
             boxShadowSecondary: 'none',
             defaultShadow: 'none',
             dangerShadow: 'none',
-            primaryShadow: 'none',
-            borderRadius: 20
+            primaryShadow: 'none'
           },
-          Select: {
-            borderRadius: 20
+          Collapse: {
+            headerBg: 'transparent'
           }
         },
         token: {

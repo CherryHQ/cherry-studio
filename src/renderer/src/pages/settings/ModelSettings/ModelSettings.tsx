@@ -153,6 +153,4 @@ const ModelSettings: FC = () => {
   )
 }
 
-const iconStyle = { fontSize: 16, marginRight: 8 }
-
 export default ModelSettings

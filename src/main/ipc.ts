@@ -182,6 +182,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles)
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
+  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)
@@ -275,6 +276,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_CallTool, mcpService.callTool)
   ipcMain.handle(IpcChannel.Mcp_ListPrompts, mcpService.listPrompts)
   ipcMain.handle(IpcChannel.Mcp_GetPrompt, mcpService.getPrompt)
+  ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
+  ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))

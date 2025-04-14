@@ -444,6 +444,22 @@ export interface MCPToolResponse {
   response?: any
 }
 
+export interface MCPResource {
+  serverId: string
+  serverName: string
+  uri: string
+  name: string
+  description?: string
+  mimeType?: string
+  size?: number
+  text?: string
+  blob?: string
+}
+
+export interface GetResourceResponse {
+  contents: MCPResource[]
+}
+
 export interface QuickPhrase {
   id: string
   title: string
