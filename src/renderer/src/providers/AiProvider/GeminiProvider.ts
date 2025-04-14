@@ -32,11 +32,11 @@ import {
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
-import { parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { mcpToolCallResponseToGeminiMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
 import axios from 'axios'
-import { isEmpty, takeRight } from 'lodash'
+import { flatten, isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { ChunkCallbackData, CompletionsParams } from '.'
@@ -310,18 +310,20 @@ export default class GeminiProvider extends BaseProvider {
       let time_first_token_millsec = 0
 
       const processToolUses = async (content: string, idx: number) => {
-        const toolResults = await parseAndCallTools(content, toolResponses, onChunk, idx, mcpTools)
+        const toolResults = await parseAndCallTools(
+          content,
+          toolResponses,
+          onChunk,
+          idx,
+          mcpToolCallResponseToGeminiMessage,
+          mcpTools
+        )
         if (toolResults && toolResults.length > 0) {
           history.push(messageContents)
           const newChat = geminiModel.startChat({ history })
-          const newStream = await newChat.sendMessageStream(
-            [
-              {
-                text: toolResults.join('\n')
-              }
-            ],
-            { signal }
-          )
+          const newStream = await newChat.sendMessageStream(flatten(toolResults.map((ts) => (ts as Content).parts)), {
+            signal
+          })
           await processStream(newStream, idx + 1)
         }
       }

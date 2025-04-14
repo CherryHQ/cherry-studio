@@ -1,6 +1,6 @@
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import fs from 'node:fs'
 
 import { isLinux, isMac, isWin } from '@main/constant'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
@@ -11,10 +11,19 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
-import { GetMCPPromptResponse, GetResourceResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@types'
+import {
+  GetMCPPromptResponse,
+  GetResourceResponse,
+  MCPCallToolResponse,
+  MCPPrompt,
+  MCPResource,
+  MCPServer,
+  MCPTool
+} from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
 import { memoize } from 'lodash'
+
 import { CacheService } from './CacheService'
 import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
 
@@ -297,12 +306,12 @@ class McpService {
   public async callTool(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args: any }
-  ): Promise<any> {
+  ): Promise<MCPCallToolResponse> {
     try {
       Logger.info('[MCP] Calling:', server.name, name, args)
       const client = await this.initClient(server)
       const result = await client.callTool({ name, arguments: args })
-      return result
+      return result as MCPCallToolResponse
     } catch (error) {
       Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
       throw error
