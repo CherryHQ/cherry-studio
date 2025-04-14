@@ -11,6 +11,10 @@ export default class FlowEngineProvider {
     this.sdk = FlowEngineProviderFactory.create(provider)
   }
 
+  public async completion(flow: FlowConfig): Promise<void> {
+    return await this.sdk.completion(flow)
+  }
+
   public async check(flow: FlowConfig): Promise<{ valid: boolean; error: Error | null }> {
     return await this.sdk.check(flow)
   }

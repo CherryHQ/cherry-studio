@@ -7,6 +7,8 @@ export default abstract class BaseFlowEngineProvider {
     this.provider = provider
   }
 
+  abstract completion(flow: FlowConfig): Promise<void>
+
   abstract check(flow: FlowConfig): Promise<{ valid: boolean; error: Error | null }>
 
   public isChatflow(workflow: FlowConfig): workflow is ChatflowSpecificConfig {
