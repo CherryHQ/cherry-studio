@@ -44,16 +44,20 @@ export const ModelSchema = z
     supportedOutputs: z.array(OutputType),
     supportedOutputModes: z.array(OutputMode),
 
-    limits: z.object({
-      inputTokenLimit: z.number().optional(),
-      outputTokenLimit: z.number().optional(),
-      contextWindow: z.number().optional()
-    }),
+    limits: z
+      .object({
+        inputTokenLimit: z.number().optional(),
+        outputTokenLimit: z.number().optional(),
+        contextWindow: z.number().optional()
+      })
+      .optional(),
 
-    price: z.object({
-      inputTokenPrice: z.number().optional(),
-      outputTokenPrice: z.number().optional()
-    }),
+    price: z
+      .object({
+        inputTokenPrice: z.number().optional(),
+        outputTokenPrice: z.number().optional()
+      })
+      .optional(),
 
     capabilities: z.array(ModelCapability)
   })
