@@ -1,4 +1,4 @@
-import { ApiOutlined, CheckOutlined, LoadingOutlined } from '@ant-design/icons'
+import { ApiOutlined } from '@ant-design/icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'

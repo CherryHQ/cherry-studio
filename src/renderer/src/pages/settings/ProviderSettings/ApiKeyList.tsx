@@ -152,7 +152,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     }
   }
 
-  const checkSingleKey = async (keyIndex: number, selectedModel?: Model) => {
+  const checkSingleKey = async (keyIndex: number, selectedModel?: Model, isCheckingAll: boolean = false) => {
     if (isChecking || keyStatuses[keyIndex].checking) {
       return
     }
@@ -190,12 +190,16 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
 
       const { valid, error } = result
       const errorMessage = error?.message ? ' ' + error.message : ''
-      window.message[valid ? 'success' : 'error']({
-        key: 'api-check',
-        style: { marginTop: '3vh' },
-        duration: valid ? 2 : 8,
-        content: valid ? t('settings.websearch.check_success') : t('settings.websearch.check_failed') + errorMessage
-      })
+
+      // Only show notification when checking a single key
+      if (!isCheckingAll) {
+        window.message[valid ? 'success' : 'error']({
+          key: 'api-check',
+          style: { marginTop: '3vh' },
+          duration: valid ? 2 : 8,
+          content: valid ? t('settings.websearch.check_success') : t('settings.websearch.check_failed') + errorMessage
+        })
+      }
 
       setKeyStatuses((prev) =>
         prev.map((status, idx) =>
@@ -241,7 +245,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
         }
       }
 
-      await Promise.all(keyStatuses.map((_, index) => checkSingleKey(index, selectedModel)))
+      await Promise.all(keyStatuses.map((_, index) => checkSingleKey(index, selectedModel, true)))
     } finally {
       setIsChecking(false)
     }
