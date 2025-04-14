@@ -8,6 +8,7 @@ import type { Message } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
 import { findCitationInChildren } from '@renderer/utils/markdown'
+import { sanitizeSchema } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +17,7 @@ import rehypeKatex from 'rehype-katex'
 // @ts-ignore next-line
 import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -24,15 +26,12 @@ import CodeBlock from './CodeBlock'
 import ImagePreview from './ImagePreview'
 import Link from './Link'
 
-const ALLOWED_ELEMENTS =
-  /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
-
 interface Props {
   message: Message
 }
 
 const remarkPlugins = [remarkMath, remarkGfm, remarkCjkFriendly]
-const disallowedElements = ['iframe']
+
 const Markdown: FC<Props> = ({ message }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
@@ -47,9 +46,8 @@ const Markdown: FC<Props> = ({ message }) => {
   }, [message, t])
 
   const rehypePlugins = useMemo(() => {
-    const hasElements = ALLOWED_ELEMENTS.test(messageContent)
-    return hasElements ? [rehypeRaw, rehypeMath] : [rehypeMath]
-  }, [messageContent, rehypeMath])
+    return [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeMath]
+  }, [rehypeMath])
 
   const components = useMemo(() => {
     const baseComponents = {
@@ -75,7 +73,6 @@ const Markdown: FC<Props> = ({ message }) => {
       remarkPlugins={remarkPlugins}
       className="markdown"
       components={components}
-      disallowedElements={disallowedElements}
       remarkRehypeOptions={{
         footnoteLabel: t('common.footnotes'),
         footnoteLabelTagName: 'h4',
