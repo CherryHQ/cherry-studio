@@ -1,10 +1,9 @@
-import { PlusOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel/types'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import { QuickPhrase } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { Zap } from 'lucide-react'
+import { Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -61,12 +60,12 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton 
     const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase) => ({
       label: phrase.title,
       description: phrase.content,
-      icon: <ThunderboltOutlined />,
+      icon: <Zap />,
       action: () => handlePhraseSelect(phrase)
     }))
     newList.push({
       label: t('settings.quickPhrase.add') + '...',
-      icon: <PlusOutlined />,
+      icon: <Plus />,
       action: () => navigate('/settings/quickPhrase')
     })
     return newList

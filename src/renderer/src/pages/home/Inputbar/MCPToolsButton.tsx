@@ -1,9 +1,8 @@
-import { CodeOutlined, PlusOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { Form, Input, Modal, Tooltip } from 'antd'
-import { SquareTerminal } from 'lucide-react'
+import { Plus, SquareTerminal } from 'lucide-react'
 import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -46,14 +45,14 @@ const MCPToolsButton: FC<Props> = ({
     const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
       label: server.name,
       description: server.description || server.baseUrl,
-      icon: <CodeOutlined />,
+      icon: <SquareTerminal />,
       action: () => toggelEnableMCP(server),
       isSelected: enabledMCPs.some((s) => s.id === server.id)
     }))
 
     newList.push({
       label: t('settings.mcp.addServer') + '...',
-      icon: <PlusOutlined />,
+      icon: <Plus />,
       action: () => navigate('/settings/mcp')
     })
     return newList
@@ -271,7 +270,7 @@ const MCPToolsButton: FC<Props> = ({
     return prompts.map((prompt) => ({
       label: prompt.name,
       description: prompt.description,
-      icon: <CodeOutlined />,
+      icon: <SquareTerminal />,
       action: () => handlePromptSelect(prompt)
     }))
   }, [handlePromptSelect, enabledMCPs])
@@ -373,7 +372,7 @@ const MCPToolsButton: FC<Props> = ({
         resources.map((resource) => ({
           label: resource.name,
           description: resource.description,
-          icon: <CodeOutlined />,
+          icon: <SquareTerminal />,
           action: () => handleResourceSelect(resource)
         }))
       )

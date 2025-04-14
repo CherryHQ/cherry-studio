@@ -1,10 +1,11 @@
-import { CheckOutlined, RightOutlined } from '@ant-design/icons'
+import { RightOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { theme } from 'antd'
 import Color from 'color'
 import { t } from 'i18next'
+import { Check } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
@@ -444,7 +445,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                   {item.suffix ? (
                     item.suffix
                   ) : item.isSelected ? (
-                    <CheckOutlined />
+                    <Check />
                   ) : (
                     item.isMenu && !item.disabled && <RightOutlined />
                   )}
@@ -632,8 +633,16 @@ const QuickPanelItemLeft = styled.div`
 `
 
 const QuickPanelItemIcon = styled.span`
-  font-size: 12px;
+  font-size: 13px;
   color: var(--color-text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  > svg {
+    width: 1em;
+    height: 1em;
+    color: var(--color-text-3);
+  }
 `
 
 const QuickPanelItemLabel = styled.span`
@@ -669,4 +678,9 @@ const QuickPanelItemSuffixIcon = styled.span`
   align-items: center;
   justify-content: flex-end;
   gap: 3px;
+  > svg {
+    width: 1em;
+    height: 1em;
+    color: var(--color-text-3);
+  }
 `
