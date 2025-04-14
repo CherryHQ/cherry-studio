@@ -1,7 +1,6 @@
 import { FOOTNOTE_PROMPT, REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
-import { getKnowledgeBaseReferences } from '@renderer/services/KnowledgeService'
 import type {
   Assistant,
   GenerateImageParams,
@@ -98,14 +97,15 @@ export default abstract class BaseProvider {
       return message.content
     }
 
-    const webSearchReferences = await this.getWebSearchReferences(message)
+    const webSearchReferences = await this.getWebSearchReferencesFromCache(message)
 
     if (!isEmpty(webSearchReferences)) {
       const referenceContent = `\`\`\`json\n${JSON.stringify(webSearchReferences, null, 2)}\n\`\`\``
       return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
     }
 
-    const knowledgeReferences = await getKnowledgeBaseReferences(message)
+    // const knowledgeReferences = await getKnowledgeBaseReferences(message)
+    const knowledgeReferences = await this.getKnowledgeBaseReferencesFromCache(message)
 
     if (!isEmpty(message.knowledgeBaseIds) && isEmpty(knowledgeReferences)) {
       window.message.info({ content: t('knowledge.no_match'), key: 'knowledge-base-no-match-info' })
@@ -119,7 +119,7 @@ export default abstract class BaseProvider {
     return message.content
   }
 
-  private async getWebSearchReferences(message: Message) {
+  private async getWebSearchReferencesFromCache(message: Message) {
     if (isEmpty(message.content)) {
       return []
     }
@@ -137,6 +137,23 @@ export default abstract class BaseProvider {
       )
     }
 
+    return []
+  }
+
+  /**
+   * 从缓存中获取知识库引用
+   */
+  private async getKnowledgeBaseReferencesFromCache(message: Message): Promise<KnowledgeReference[]> {
+    if (isEmpty(message.content)) {
+      return []
+    }
+    const knowledgeReferences: KnowledgeReference[] = window.keyv.get(`knowledge-search-${message.id}`)
+
+    if (!isEmpty(knowledgeReferences)) {
+      console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
+      return knowledgeReferences
+    }
+    console.log(`No knowledge base references found in cache for ID: ${message.id}`)
     return []
   }
 
