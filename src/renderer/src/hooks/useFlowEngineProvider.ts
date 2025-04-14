@@ -57,3 +57,14 @@ export function useWorkflows() {
     workflows
   }
 }
+
+export function useChatflows() {
+  const chatflows: WorkflowSpecificConfig[] = useAppSelector(selectEnabledFlowEngineProviders)
+    .map((provider) => provider.flows)
+    .flat()
+    .filter((flow) => flow.type === 'chat' && flow.enabled)
+
+  return {
+    chatflows
+  }
+}

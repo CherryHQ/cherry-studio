@@ -51,6 +51,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@ant-design/x": "^1.1.0",
     "@cherrystudio/embedjs": "^0.1.28",
     "@cherrystudio/embedjs-libsql": "^0.1.28",
     "@cherrystudio/embedjs-loader-csv": "^0.1.28",

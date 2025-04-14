@@ -1,7 +1,7 @@
 import { FlowConfig, FlowEngine } from '@renderer/types'
 
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
-import FlowEngineProviderFactory from './WorkflowProviderFactory'
+import FlowEngineProviderFactory from './FlowEngineProviderFactory'
 
 export default class FlowEngineProvider {
   private sdk: BaseFlowEngineProvider
