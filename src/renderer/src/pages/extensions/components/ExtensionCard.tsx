@@ -1,10 +1,9 @@
 import { DeleteOutlined, InfoCircleOutlined, SettingOutlined } from '@ant-design/icons'
-import CommonLogo from '@renderer/components/CommonLogo'
+import ExtensionIcon from '@renderer/components/Icons/ExtensionIcon'
 import { HStack, VStack } from '@renderer/components/Layout'
-import { formatFileSize, getFirstCharacter } from '@renderer/utils'
+import { getFirstCharacter } from '@renderer/utils'
 import { Extension } from '@shared/config/types'
-import { Button, List, Popconfirm, Switch, Tag, Tooltip, Typography } from 'antd'
-import dayjs from 'dayjs'
+import { Button, List, Popconfirm, Switch, Tooltip, Typography } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -25,11 +24,11 @@ const ExtensionCard: FC<ExtensionCardProps> = ({ extension, onToggle, onUninstal
       <CardContainer>
         <HStack gap={16} style={{ alignItems: 'flex-start' }}>
           {extension.icon ? (
-            <CommonLogo shape="square" src={extension.icon} size={25} />
+            <ExtensionIcon src={extension.icon} size={24} shape="square" />
           ) : (
-            <CommonLogo shape="square" size={25}>
+            <ExtensionIcon shape="square" size={24}>
               {getFirstCharacter(extension.name)}
-            </CommonLogo>
+            </ExtensionIcon>
           )}
           <VStack flex={1} gap={4}>
             <HStack style={{ justifyContent: 'space-between', alignItems: 'center' }}>
@@ -43,7 +42,7 @@ const ExtensionCard: FC<ExtensionCardProps> = ({ extension, onToggle, onUninstal
                     type="text"
                     size="small"
                     icon={<SettingOutlined />}
-                    onClick={() => window.api.extensions.openChromeStore({ loadExtensions: true })}
+                    onClick={() => window.api.extensions.openChromeStore({ loadExtensions: true })} // TODO: 打开扩展详情页
                   />
                 </Tooltip>
                 <Popconfirm
@@ -56,15 +55,6 @@ const ExtensionCard: FC<ExtensionCardProps> = ({ extension, onToggle, onUninstal
               </HStack>
             </HStack>
             <Text type="secondary">{extension.description}</Text>
-            <HStack gap={8} style={{ marginTop: 8 }}>
-              <Tag color="blue">v{extension.version}</Tag>
-              {extension.size && <Tag color="default">{formatFileSize(extension.size)}</Tag>}
-              {extension.installDate && (
-                <Tag color="default">
-                  {t('extensions.installed_on', 'Installed on')} {dayjs(extension.installDate).format('YYYY-MM-DD')}
-                </Tag>
-              )}
-            </HStack>
             {extension.permissions && extension.permissions.length > 0 && (
               <HStack gap={4} style={{ alignItems: 'center', marginTop: 8 }}>
                 <InfoCircleOutlined style={{ color: 'var(--color-warning)' }} />

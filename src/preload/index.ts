@@ -51,7 +51,9 @@ const api = {
     openChromeStore: (options: ChromeWebStoreOptions) =>
       ipcRenderer.invoke(IpcChannel.Extensions_OpenChromeStore, options),
     load: (extensionId: string) => ipcRenderer.invoke(IpcChannel.Extensions_Load, extensionId),
-    unload: (extensionId: string) => ipcRenderer.invoke(IpcChannel.Extensions_Unload, extensionId)
+    unload: (extensionId: string) => ipcRenderer.invoke(IpcChannel.Extensions_Unload, extensionId),
+    openPopup: (extensionId: string, rect: { x: number; y: number; width: number; height: number }) =>
+      ipcRenderer.invoke(IpcChannel.Extensions_OpenPopup, extensionId, rect)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),

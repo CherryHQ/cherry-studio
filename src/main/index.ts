@@ -2,8 +2,8 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { Extension } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, ipcMain, session } from 'electron'
-import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
+import { app, ipcMain } from 'electron'
+import buildChromeContextMenu from 'electron-chrome-context-menu'
 import Logger from 'electron-log'
 
 import { registerIpc } from './ipc'
@@ -46,45 +46,57 @@ if (!app.requestSingleInstanceLock()) {
 
         // Add delay before installing DevTools
         if (process.env.NODE_ENV === 'development') {
-          setTimeout(async () => {
-            try {
-              await installExtension([REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS], {
-                loadExtensionOptions: { allowFileAccess: true }
-              })
-              // Update Redux store with the developer tools extensions
-              try {
-                const currentExtensions = (await reduxService.select('state.extensions')).extensions || []
-                const newExtensions = session.defaultSession
-                  .getAllExtensions()
-                  .filter((ext) => [REDUX_DEVTOOLS.id, REACT_DEVELOPER_TOOLS.id].includes(ext.id))
-                  .map((ext) => {
-                    return {
-                      id: ext.id,
-                      name: ext.manifest.name,
-                      version: ext.manifest.version,
-                      description: ext.manifest.description,
-                      icon: ext.manifest.icons?.[0]?.url,
-                      path: ext.path,
-                      enabled: true,
-                      source: 'store'
-                    } as Extension
-                  })
+          const currentExtensions = (await reduxService.select('state.extensions')).extensions || []
+          const devToolIds = ['fmkadmapgofadopljbjfkapdkoienihi', 'lmhkpmbekcpmknklioeibfkpmmfibljd']
+          const installedDevTools = currentExtensions.filter((ext) => devToolIds.includes(ext.id))
 
-                if (newExtensions.length > 0) {
-                  await reduxService.dispatch({
-                    type: 'extensions/setExtensions',
-                    payload: [...currentExtensions, ...newExtensions]
-                  })
-                  Logger.info('[Extension] Added developer tools to Redux store')
-                }
-              } catch (error) {
-                Logger.warn('[Extension] Failed to update Redux store with developer tools:', error)
-              }
-            } catch (err) {
-              console.log('An error occurred: ', err)
-            }
-          }, 2000) // 添加2秒延迟
+          const devTools: Extension[] = []
+          // Install React DevTools if not installed
+          if (!installedDevTools.find((ext) => ext.id === 'fmkadmapgofadopljbjfkapdkoienihi')) {
+            const reactDevTool = await extensionService.installExtension(undefined, {
+              extensionId: 'fmkadmapgofadopljbjfkapdkoienihi', //REACT_DEVELOPER_TOOLS
+              allowFileAccess: true
+            })
+            devTools.push(reactDevTool)
+          }
+
+          // Install Redux DevTools if not installed
+          if (!installedDevTools.find((ext) => ext.id === 'lmhkpmbekcpmknklioeibfkpmmfibljd')) {
+            const reduxDevTool = await extensionService.installExtension(undefined, {
+              extensionId: 'lmhkpmbekcpmknklioeibfkpmmfibljd', //REDUX_DEVTOOLS
+              allowFileAccess: true
+            })
+            devTools.push(reduxDevTool)
+          }
+
+          if (devTools.length > 0) {
+            Logger.info(
+              'DevTools installed:',
+              devTools.map((tool) => tool.name)
+            )
+          } else {
+            Logger.info('All DevTools are already installed')
+          }
         }
+        const extensions = extensionService.getExtensions
+        app.on('web-contents-created', (_event, webContents) => {
+          webContents.on('context-menu', (_e, params) => {
+            const menu = buildChromeContextMenu({
+              params,
+              webContents,
+              extensionMenuItems: extensions!.getContextMenuItems(webContents, params),
+              openLink: (url) => {
+                // Open the link in a new tab within the extension window
+                extensionService.createExtensionTab({ url, active: true })
+              }
+            })
+            menu.popup()
+          })
+        })
+        extensionService.registerHostWindow(mainWindow)
+        mainWindow.on('focus', () => {
+          extensionService.selectHostWindowTab(mainWindow)
+        })
       } catch (error) {
         Logger.error('Failed to initialize Extension Service:', error)
       }

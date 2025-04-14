@@ -27,11 +27,11 @@ export type Extension = {
   path: string
   description?: string
   enabled: boolean
+  isDev: boolean
   icon?: string
   permissions?: string[]
   installDate?: string
   updateDate?: string
-  size?: number
   homepageUrl?: string
   source: 'store' | 'unpacked'
 }

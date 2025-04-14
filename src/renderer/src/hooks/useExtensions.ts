@@ -74,6 +74,18 @@ export function useExtensions() {
     }
   }, [])
 
+  const openPopup = useCallback(
+    async (extensionId: string, rect: { x: number; y: number; width: number; height: number }) => {
+      try {
+        await window.api.extensions.openPopup(extensionId, rect)
+      } catch (err) {
+        console.error('Failed to open popup:', err)
+        setError('Failed to open popup')
+      }
+    },
+    []
+  )
+
   // Toggle extension enabled state
   const toggleEnabled = useCallback(
     async (extensionId: string) => {
@@ -142,6 +154,7 @@ export function useExtensions() {
     uninstallExtension,
     updateExtensions,
     openChromeStore,
-    toggleEnabled
+    toggleEnabled,
+    openPopup
   }
 }

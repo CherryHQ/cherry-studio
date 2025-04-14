@@ -2,7 +2,7 @@ import { windowService } from '@main/services/WindowService'
 import { loadManifestV3 } from '@main/utils/extension'
 import { CHROME_WEB_STORE_URL } from '@shared/config/constant'
 import { ChromeWebStoreOptions, Extension, InstallExtensionOptions } from '@shared/config/types'
-import { app, BrowserWindow, ContextMenuParams, MenuItemConstructorOptions, session, WebContents } from 'electron'
+import { app, BrowserWindow, session, WebContents } from 'electron'
 import { ChromeExtensionOptions, ElectronChromeExtensions } from 'electron-chrome-extensions'
 import {
   installChromeWebStore,
@@ -15,6 +15,7 @@ import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
 
+import { Tabs } from './ExtensionTabs'
 import { reduxService } from './ReduxService'
 // Extension events
 export enum ExtensionEvent {
@@ -31,6 +32,9 @@ export class ExtensionService extends EventEmitter {
   private mainSession!: Electron.Session
   private extensionsPath!: string
   private chromeWebStoreInitialized = false
+  private extensionWindow: BrowserWindow | null = null
+  private tabs: Tabs | null = null
+  private popup: any = null
 
   private constructor() {
     super()
@@ -40,10 +44,19 @@ export class ExtensionService extends EventEmitter {
     this.updateExtensions = this.updateExtensions.bind(this)
     this.loadExtension = this.loadExtension.bind(this)
     this.unloadExtension = this.unloadExtension.bind(this)
+    this.createExtensionTab = this.createExtensionTab.bind(this)
+    this.selectExtensionTab = this.selectExtensionTab.bind(this)
+    this.removeExtensionTab = this.removeExtensionTab.bind(this)
+    this.getOrCreateExtensionWindow = this.getOrCreateExtensionWindow.bind(this)
+    this.openPopup = this.openPopup.bind(this)
   }
 
   get getExtensionsPath(): string {
     return this.extensionsPath
+  }
+
+  get getExtensions(): ElectronChromeExtensions | null {
+    return this.extensions
   }
 
   public static getInstance(): ExtensionService {
@@ -53,15 +66,136 @@ export class ExtensionService extends EventEmitter {
     return ExtensionService.instance
   }
 
-  public async initialize(): Promise<{ success: boolean; error?: unknown }> {
+  /**
+   * 获取或创建扩展窗口
+   * 这是一个共享窗口，用于显示所有扩展相关内容
+   */
+  private getOrCreateExtensionWindow(): BrowserWindow {
+    if (this.extensionWindow && !this.extensionWindow.isDestroyed()) {
+      return this.extensionWindow
+    }
+
+    Logger.info('[Extension] Creating extension window')
+    this.extensionWindow = windowService.createExtensionWindow()
+
+    // 初始化标签页管理器
+    this.tabs = new Tabs(this.extensionWindow)
+
+    // 监听窗口关闭事件，但不销毁标签管理器，因为窗口可能会被重新创建
+    this.extensionWindow.on('closed', () => {
+      Logger.info('[Extension] Extension window closed')
+      this.extensionWindow = null
+      // 不销毁tabs，因为Tabs类内部会处理自己的清理
+    })
+
+    return this.extensionWindow
+  }
+
+  /**
+   * 创建扩展标签页
+   * @param details 标签页创建参数
+   * @returns [标签页WebContents, 扩展窗口]
+   */
+  public async createExtensionTab(details: any): Promise<[Electron.WebContents, BrowserWindow]> {
+    const win = this.getOrCreateExtensionWindow()
+
+    if (!this.tabs) {
+      Logger.error('[Extension] Tabs manager not initialized')
+      throw new Error('Tabs manager not initialized')
+    }
+
+    // 创建新标签页
+    const tab = this.tabs.create({
+      webPreferences: {
+        contextIsolation: true,
+        sandbox: true,
+        nodeIntegration: false
+      }
+    })
+
+    // 加载URL
+    if (details.url) {
+      await tab.loadURL(details.url)
+    }
+
+    // 如果需要激活标签页
+    if (details.active !== false) {
+      this.tabs.select(tab.id)
+      win.focus()
+    }
+
+    return [tab.webContents, win]
+  }
+
+  /**
+   * 选择扩展标签页
+   * @param webContents 要选择的标签页WebContents
+   */
+  private selectExtensionTab(webContents: Electron.WebContents): void {
+    if (
+      !this.tabs &&
+      this.extensionWindow &&
+      !this.extensionWindow.isDestroyed() &&
+      webContents.id !== this.extensionWindow.webContents.id
+    ) {
+      Logger.warn('[Extension] Cannot select tab: Tabs manager not initialized')
+      return
+    }
+
+    if (!this.tabs) {
+      // Log differently if the manager simply isn't initialized (e.g., no extension window created yet)
+      Logger.warn('[Extension] Cannot select tab via callback: Tabs manager not initialized.')
+      return
+    }
+
+    const tab = this.tabs.getByWebContents(webContents)
+    if (tab) {
+      this.tabs.select(tab.id)
+
+      // 确保窗口可见并聚焦
+      if (this.extensionWindow && !this.extensionWindow.isDestroyed()) {
+        this.extensionWindow.show()
+        this.extensionWindow.focus()
+      }
+    } else {
+      Logger.warn('[Extension] Cannot select tab: Tab not found for WebContents ID', webContents.id)
+    }
+  }
+
+  /**
+   * 移除扩展标签页
+   * @param webContents 要移除的标签页WebContents
+   */
+  private removeExtensionTab(webContents: Electron.WebContents): void {
+    if (!this.tabs) {
+      Logger.warn('[Extension] Cannot remove tab: Tabs manager not initialized')
+      return
+    }
+
+    // 检查是否是主窗口的WebContents，如果是，不进行处理
+    const mainWindow = windowService.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.id === webContents.id) {
+      Logger.warn('[Extension] Not removing main window tab to prevent closing issues')
+      return
+    }
+
+    const tab = this.tabs.getByWebContents(webContents)
+    if (tab) {
+      this.tabs.remove(tab.id)
+    } else {
+      Logger.warn('[Extension] Cannot remove tab: Tab not found for WebContents ID', webContents.id)
+    }
+  }
+
+  public async initialize(): Promise<void> {
     if (this.extensions) {
       Logger.warn('[Extension] ExtensionService already initialized.')
-      return { success: true }
+      return
     }
 
     // Initialize session and paths here, after app is ready
     this.mainSession = session.defaultSession
-    this.extensionsPath = path.join(app.getPath('userData'), 'extensions', 'local')
+    this.extensionsPath = path.join(app.getPath('userData'), 'extensions')
 
     Logger.info('[Extension] Initializing ElectronChromeExtensions...')
 
@@ -72,65 +206,22 @@ export class ExtensionService extends EventEmitter {
         session: this.mainSession,
         createTab: async (details) => {
           Logger.info('[Extension API] createTab request:', details)
-
-          // 如果是扩展相关的URL，使用扩展窗口
-          const win = windowService.createExtensionWindow()
-
-          if (details.url) {
-            // Load the requested URL once window is ready
-            win.webContents.once('did-finish-load', () => {
-              if (!win.isDestroyed()) {
-                win.loadURL(details.url as string)
-              }
-            })
-          }
-
-          // Focus the new window if requested
-          if (details.active !== false) {
-            win.focus()
-          }
-
-          return [win.webContents, win]
+          return this.createExtensionTab(details)
         },
 
-        selectTab: (targetWebContents: WebContents, browserWindow: BrowserWindow) => {
+        selectTab: (targetWebContents: WebContents /* browserWindow */) => {
           Logger.info('[Extension API] selectTab request for wcId:', targetWebContents.id)
-          if (browserWindow && !browserWindow.isDestroyed()) {
-            browserWindow.focus()
-          }
+          this.selectExtensionTab(targetWebContents)
         },
 
-        removeTab: (targetWebContents: WebContents, browserWindow: BrowserWindow) => {
+        removeTab: (targetWebContents: WebContents /* browserWindow */) => {
           Logger.info('[Extension API] removeTab request for wcId:', targetWebContents.id)
-          if (browserWindow && !browserWindow.isDestroyed()) {
-            browserWindow.close()
-          }
+          this.removeExtensionTab(targetWebContents)
         },
 
         createWindow: async (details) => {
           Logger.info('[Extension API] createWindow request:', details)
-
-          // 判断是否是扩展相关的URL
-          const isExtensionUrl =
-            details.url &&
-            (details.url.includes('chrome-extension://') ||
-              details.url.includes('chrome.google.com/webstore') ||
-              details.url.includes('chrome://extensions'))
-
-          // 如果是扩展相关的URL，使用扩展窗口
-          const win = isExtensionUrl ? windowService.createExtensionWindow() : windowService.createMainWindow()
-
-          if (details.url) {
-            win.webContents.once('did-finish-load', () => {
-              if (!win.isDestroyed()) {
-                win.loadURL(details.url as string)
-              }
-            })
-          }
-
-          if (details.focused !== false) {
-            win.focus()
-          }
+          const [, win] = await this.createExtensionTab({ url: details.url })
 
           // Handle window state if specified
           if (details.state === 'minimized') {
@@ -145,33 +236,50 @@ export class ExtensionService extends EventEmitter {
         },
 
         removeWindow: (browserWindow: BrowserWindow) => {
-          Logger.info('[Extension API] removeWindow request for winId:', browserWindow.id)
+          Logger.info(`[Extension API] removeWindow request for winId: ${browserWindow.id}`)
           if (!browserWindow.isDestroyed()) {
-            browserWindow.close()
+            if (this.extensionWindow && browserWindow.id === this.extensionWindow.id) {
+              Logger.info(
+                `[Extension API] Request to remove the shared extension window (ID: ${browserWindow.id}). Hiding/closing is managed by Tabs class.`
+              )
+            } else {
+              Logger.warn(
+                `[Extension API] Request to remove an unexpected window (ID: ${browserWindow.id}). Closing it directly.`
+              )
+              browserWindow.close()
+            }
           }
+        },
+        requestPermissions: (extension, permissions) => {
+          Logger.info('[Extension Chrome API] requestPermissions request for extension:', extension, permissions)
+          return Promise.resolve(true)
         }
       }
 
       this.extensions = new ElectronChromeExtensions(extensionOptions)
 
-      Logger.info('[Extension] ElectronChromeExtensions initialized successfully')
+      this.extensions.on('browser-action-popup-created', (popup) => {
+        Logger.info('[Extension] Browser action popup created:', popup)
+        this.popup = popup
+      })
+
+      this.mainSession.serviceWorkers.on('running-status-changed', (event) => {
+        Logger.info(`service worker ${event.versionId} ${event.runningStatus}`)
+      })
 
       // 设置本地扩展目录
       await this.setupLocalExtensionsDirectory()
 
       // 设置事件监听器
       this.setupEventListeners()
-
-      return { success: true }
     } catch (error) {
       Logger.error('[Extension] Failed to initialize ElectronChromeExtensions:', error)
-      return { success: false, error }
     }
   }
 
   private async listExtensions(): Promise<Extension[]> {
     try {
-      return (await reduxService.select('state.extensions.extensions')) ?? []
+      return (await reduxService.select('state.extensions')).extensions ?? []
     } catch (error) {
       Logger.error('[Extension] Failed to list extensions:', error)
       return []
@@ -226,7 +334,7 @@ export class ExtensionService extends EventEmitter {
   // 设置本地扩展目录
   private async setupLocalExtensionsDirectory(): Promise<void> {
     try {
-      const localExtensionsPath = path.join(app.getPath('userData'), 'extensions', 'local')
+      const localExtensionsPath = path.join(app.getPath('userData'), 'extensions')
       fs.mkdirSync(localExtensionsPath, { recursive: true })
 
       Logger.info('[Extension] Local extensions directory:', localExtensionsPath)
@@ -244,7 +352,7 @@ export class ExtensionService extends EventEmitter {
               try {
                 const extension = await this.mainSession.loadExtension(ext.path, { allowFileAccess: true })
                 await loadManifestV3(extension, this.mainSession)
-                Logger.info('[Extension] Loaded extension from:', ext.path)
+                Logger.info('[Extension] Loaded extension', extension.manifest, extension.id)
               } catch (err) {
                 Logger.error('[Extension] Failed to load extension from', ext.path, ':', err)
               }
@@ -260,7 +368,6 @@ export class ExtensionService extends EventEmitter {
     }
   }
 
-  // 将窗口添加为标签页
   public addWindowAsTab(browserWindow: BrowserWindow): void {
     if (
       !this.extensions ||
@@ -273,7 +380,15 @@ export class ExtensionService extends EventEmitter {
     }
 
     Logger.info('[Extension] Adding window as tab:', browserWindow.id, browserWindow.webContents.id)
-    this.extensions.addTab(browserWindow.webContents, browserWindow)
+
+    // 判断是否是扩展窗口
+    if (this.extensionWindow && browserWindow.id === this.extensionWindow.id) {
+      // 如果是扩展窗口，不需要做额外处理，因为标签页由Tabs类管理
+      Logger.info('[Extension] Window is extension window, managed by Tabs class')
+    } else {
+      // 如果是其他窗口，添加到ElectronChromeExtensions的标签系统
+      this.extensions.addTab(browserWindow.webContents, browserWindow)
+    }
   }
 
   // 将窗口选择为活动标签页
@@ -289,22 +404,19 @@ export class ExtensionService extends EventEmitter {
     }
 
     Logger.info('[Extension] Selecting window as tab:', browserWindow.id, browserWindow.webContents.id)
-    this.extensions.selectTab(browserWindow.webContents)
-  }
 
-  // 获取扩展的上下文菜单项
-  public getContextMenuItems(webContents: WebContents, params: ContextMenuParams): MenuItemConstructorOptions[] {
-    if (!this.extensions) {
-      return []
-    }
-
-    try {
-      // 获取菜单项并将类型转换为MenuItemConstructorOptions[]
-      // 注意：这里的类型转换可能会引起类型不匹配问题，但在实际运行时应该是正常的
-      return this.extensions.getContextMenuItems(webContents, params) as unknown as MenuItemConstructorOptions[]
-    } catch (error) {
-      Logger.error('[Extension] Error getting extension context menu items:', error)
-      return []
+    // 判断是否是扩展窗口
+    if (this.extensionWindow && browserWindow.id === this.extensionWindow.id) {
+      // 如果是扩展窗口，由Tabs类处理选择
+      Logger.info('[Extension] Window is extension window, selection managed by Tabs class')
+      // We might still need to inform our Tabs manager if the window gets focus
+      const tab = this.tabs?.getByWebContents(browserWindow.webContents)
+      if (tab) {
+        this.tabs?.select(tab.id)
+      }
+    } else {
+      // 如果是其他窗口 (including main window now), 选择对应的标签页
+      this.extensions.selectTab(browserWindow.webContents)
     }
   }
 
@@ -323,15 +435,18 @@ export class ExtensionService extends EventEmitter {
         this.chromeWebStoreInitialized = true
       }
 
-      // 使用WindowService加载Chrome Web Store URL
-      windowService.loadURLInExtensionWindow(CHROME_WEB_STORE_URL)
+      // 使用标签页系统加载Chrome Web Store URL
+      await this.createExtensionTab({ url: CHROME_WEB_STORE_URL, active: true })
     } catch (error) {
       Logger.error('[Extension] Failed to open Chrome Web Store:', error)
       throw error
     }
   }
 
-  public async installExtension(_: Electron.IpcMainInvokeEvent, options: InstallExtensionOptions): Promise<Extension> {
+  public async installExtension(
+    _: Electron.IpcMainInvokeEvent | undefined,
+    options: InstallExtensionOptions
+  ): Promise<Extension> {
     try {
       const extension = await installExtension(options.extensionId, {
         session: this.mainSession,
@@ -344,16 +459,7 @@ export class ExtensionService extends EventEmitter {
       Logger.info('[Extension] Extension installed:', extension.name || options.extensionId)
       this.emit(ExtensionEvent.INSTALLED, extension)
 
-      return {
-        id: extension.id,
-        name: extension.manifest.name,
-        description: extension.manifest.description,
-        version: extension.manifest.version,
-        icon: extension.manifest.icons?.[0]?.url,
-        path: extension.path,
-        enabled: true,
-        source: extension.manifest.key ? 'store' : 'unpacked'
-      }
+      return this.mapElectronExtension(extension)
     } catch (error: any) {
       Logger.error('[Extension] Failed to install extension:', error)
       throw error
@@ -430,11 +536,190 @@ export class ExtensionService extends EventEmitter {
     }
   }
 
+  public async openPopup(
+    invokingEvent: Electron.IpcMainInvokeEvent,
+    extensionId: string,
+    rect: { x: number; y: number; width: number; height: number }
+  ): Promise<void> {
+    if (!this.extensions) {
+      Logger.error('[ExtensionService] Extensions instance not initialized.')
+      throw new Error('Extensions instance not initialized.')
+    }
+
+    const browserActionApi = (this.extensions as any).api?.browserAction
+    const router = (this.extensions as any).ctx?.router
+    const store = (this.extensions as any).ctx?.store
+
+    if (!browserActionApi || !router || !store) {
+      Logger.error('[ExtensionService] Internal API components (browserAction, router, store) not found.')
+      throw new Error('Internal API components not found.')
+    }
+
+    const hostWindow = BrowserWindow.fromWebContents(invokingEvent.sender)
+    if (!hostWindow || hostWindow.isDestroyed()) {
+      Logger.error('[ExtensionService] Could not find the host window for openPopup.')
+      throw new Error('Host window not found or destroyed.')
+    }
+
+    Logger.info(
+      `[ExtensionService] Attempting to open popup for ${extensionId} from WinID: ${hostWindow.webContents.id}`
+    )
+
+    const popupUrl = browserActionApi.getPopupUrl(extensionId, hostWindow.webContents.id)
+
+    if (popupUrl) {
+      Logger.info(`[ExtensionService] Found popup URL: ${popupUrl}`)
+      try {
+        browserActionApi.activateClick({
+          eventType: 'click',
+          extensionId,
+          tabId: hostWindow.webContents.id,
+          anchorRect: rect,
+          alignment: 'right'
+        })
+      } catch (error) {
+        Logger.error('[ExtensionService] Failed to create popup:', error)
+        throw error
+      }
+    } else {
+      Logger.info(`[ExtensionService] No popup URL configured for ${extensionId}. Triggering onClicked.`)
+    }
+  }
+
+  /**
+   * 将 Electron 的 Extension 对象映射为内部的 Extension 类型
+   */
+  private mapElectronExtension(electronExt: Electron.Extension): Extension {
+    const iconPath = this.getExtensionIconPath(electronExt)
+
+    return {
+      id: electronExt.id,
+      name: electronExt.manifest.name,
+      description: electronExt.manifest.description,
+      version: electronExt.manifest.version,
+      permissions: electronExt.manifest.permissions,
+      icon: iconPath,
+      path: electronExt.path,
+      enabled: true,
+      isDev: !!electronExt.manifest.devtools_page,
+      source: electronExt.manifest.key ? 'store' : 'unpacked'
+    }
+  }
+
+  /**
+   * 辅助函数：获取扩展图标的 Data URI
+   */
+  private getExtensionIconDataUri(extension: Electron.Extension): string | undefined {
+    if (!extension.manifest.icons) {
+      return undefined
+    }
+    // Get the first available icon size
+    const iconSizes = Object.keys(extension.manifest.icons)
+    const iconSize = iconSizes.length > 0 ? extension.manifest.icons[iconSizes[0]] : undefined
+    return `crx://extension-icon/${extension.id}/${iconSize}/2`
+  }
+
+  /**
+   * 辅助函数：获取扩展图标路径 (保持此函数，可能在其他地方有用)
+   */
+  private getExtensionIconPath(extension: Electron.Extension): string | undefined {
+    if (!extension.manifest.icons) {
+      return undefined
+    }
+
+    const sizes = Object.keys(extension.manifest.icons)
+      .map(Number)
+      .sort((a, b) => a - b)
+    const bestSize = sizes.find((size) => size >= 16) // 找一个合适的尺寸，比如 >= 16
+    if (bestSize) {
+      const iconPath = extension.manifest.icons[bestSize.toString()]
+      // Ensure iconPath doesn't start with / if extension.id already provides the root
+      const cleanIconPath = iconPath.startsWith('/') ? iconPath.substring(1) : iconPath
+      Logger.info(
+        '[Extension Service] Extension',
+        extension.name,
+        'icon path:',
+        `chrome-extension://${extension.id}/${cleanIconPath}`
+      )
+      return `chrome-extension://${extension.id}/${cleanIconPath}`
+    }
+    return undefined
+  }
+
   /**
    * Setup event listeners for extension-related events
    */
   private setupEventListeners(): void {
     Logger.info('[Extension] Setting up event listeners for ExtensionService')
+
+    if (this.extensions) {
+      // 监听扩展弹出窗口创建事件
+      this.extensions.on('browser-action-popup-created', (popup) => {
+        Logger.info('[Extension] Browser action popup created')
+        this.emit('browser-action-popup-created', popup)
+      })
+
+      // 监听 URL 覆盖更新事件
+      this.extensions.on('url-overrides-updated', (urlOverrides) => {
+        Logger.info('[Extension] URL overrides updated:', urlOverrides)
+        this.emit('url-overrides-updated', urlOverrides)
+      })
+    }
+
+    // 不再将主窗口添加为标签页，这会导致关闭扩展窗口时主窗口也被关闭
+    // 主窗口和扩展窗口应该是独立的
+
+    // 监听 Session 的 'extension-loaded' 事件
+    this.mainSession.on('extension-loaded', async (_event, extension) => {
+      Logger.info(
+        `[Extension] Session detected extension loaded: ${extension.name} (ID: ${extension.id}) Path: ${extension.path}`
+      )
+      try {
+        // 检查扩展是否来自我们的管理目录（可选，但推荐）
+        if (!extension.path.startsWith(this.extensionsPath)) {
+          Logger.warn(
+            `[Extension] Loaded extension ${extension.id} is outside the managed path. Ignoring for state update.`
+          )
+          return // 如果只想管理特定目录下的扩展，可以取消注释
+        }
+        const mappedExtension = this.mapElectronExtension(extension)
+
+        // 检查 Redux 中是否已存在该扩展 (防止重复添加)
+        const existingExtensions = await this.listExtensions()
+        const alreadyExists = existingExtensions.some((ext) => ext.id === mappedExtension.id)
+
+        if (!alreadyExists) {
+          Logger.info(`[Extension] Adding new extension to Redux store: ${mappedExtension.name}`)
+          // 更新 Redux 状态
+          await reduxService.dispatch({
+            type: 'extensions/addExtension',
+            payload: mappedExtension
+          })
+
+          this.emit(ExtensionEvent.INSTALLED, mappedExtension)
+        }
+      } catch (error) {
+        Logger.error(`[Extension] Error processing loaded extension ${extension.id}:`, error)
+      }
+    })
+
+    // 监听 Session 的 'extension-unloaded' 事件 (对应卸载或禁用)
+    this.mainSession.on('extension-unloaded', async (_event, extension) => {
+      Logger.info(`[Extension] Session detected extension unloaded: ${extension.name} (ID: ${extension.id})`)
+      try {
+        // 从 Redux 状态中移除 (或标记为 disabled)
+        // 注意：直接卸载可能需要用 uninstallExtension 处理文件删除，
+        // 这里只处理 session 级别的卸载事件
+        await reduxService.dispatch({
+          type: 'extensions/removeExtension',
+          payload: extension.id
+        })
+        // 触发内部 UNINSTALLED 事件
+        this.emit(ExtensionEvent.UNINSTALLED, extension.id)
+      } catch (error) {
+        Logger.error(`[Extension] Error processing unloaded extension ${extension.id}:`, error)
+      }
+    })
 
     this.on(ExtensionEvent.INSTALLED, (extension) => {
       Logger.info('[Extension] Broadcasting extension installed event:', extension?.name || 'unknown')
@@ -514,6 +799,70 @@ export class ExtensionService extends EventEmitter {
     } catch (error: any) {
       Logger.error('[Extension] Failed to disable extension', extensionId, ':', error)
       throw error
+    }
+  }
+
+  /**
+   * Explicitly register a host window (like the main window) with electron-chrome-extensions.
+   * This ensures the library is aware of the window for context lookups.
+   * @param browserWindow The host window to register.
+   */
+  public registerHostWindow(browserWindow: BrowserWindow): void {
+    if (!this.extensions) {
+      Logger.warn('[ExtensionService] Cannot register host window: Extensions not initialized.')
+      return
+    }
+    if (
+      !browserWindow ||
+      browserWindow.isDestroyed() ||
+      !browserWindow.webContents ||
+      browserWindow.webContents.isDestroyed()
+    ) {
+      Logger.warn('[ExtensionService] Cannot register host window: Invalid window or webContents.')
+      return
+    }
+
+    Logger.info(
+      `[ExtensionService] Registering host window (ID: ${browserWindow.id}, WCID: ${browserWindow.webContents.id}) with electron-chrome-extensions`
+    )
+    try {
+      // Add the window and its webContents to the internal tracking
+      this.extensions.addTab(browserWindow.webContents, browserWindow)
+      // Select it initially if no other tab is actively selected by the library internally
+      // Note: This might conflict if an extension immediately opens a tab. Consider if initial selection is always desired.
+      this.extensions.selectTab(browserWindow.webContents)
+    } catch (error) {
+      Logger.error(`[ExtensionService] Failed to register host window (ID: ${browserWindow.id}):`, error)
+    }
+  }
+
+  /**
+   * Explicitly select the tab corresponding to a host window in electron-chrome-extensions.
+   * Call this when the host window gains focus.
+   * @param browserWindow The host window to select.
+   */
+  public selectHostWindowTab(browserWindow: BrowserWindow): void {
+    if (!this.extensions) {
+      // Silently return if not initialized, as focus events might fire early
+      return
+    }
+    if (
+      !browserWindow ||
+      browserWindow.isDestroyed() ||
+      !browserWindow.webContents ||
+      browserWindow.webContents.isDestroyed()
+    ) {
+      // Silently return for invalid windows
+      return
+    }
+
+    // Avoid logging spam on every focus, uncomment if needed for debugging
+    // Logger.info(`[ExtensionService] Selecting host window tab (ID: ${browserWindow.id}, WCID: ${browserWindow.webContents.id}) in electron-chrome-extensions`)
+    try {
+      this.extensions.selectTab(browserWindow.webContents)
+    } catch (error) {
+      // Log error if selection fails, might indicate the tab wasn't registered
+      Logger.error(`[ExtensionService] Failed to select host window tab (ID: ${browserWindow.id}):`, error)
     }
   }
 }

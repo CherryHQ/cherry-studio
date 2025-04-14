@@ -1,4 +1,4 @@
-import { AppstoreAddOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { ChromeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { Center, HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -43,7 +43,7 @@ const ExtensionsPage: FC = () => {
               />
             </Tooltip>
             <Tooltip title={t('extensions.browse_store', 'Browse Chrome Web Store')}>
-              <Button type="text" icon={<AppstoreAddOutlined />} onClick={openChromeStore} className="nodrag" />
+              <Button type="text" icon={<ChromeOutlined />} onClick={openChromeStore} className="nodrag" />
             </Tooltip>
             <SearchInput
               placeholder={t('extensions.search.placeholder', 'Search extensions')}
@@ -80,7 +80,7 @@ const ExtensionsPage: FC = () => {
                       : t('extensions.no_extensions', 'No extensions installed')
                   }
                 />
-                <Button type="primary" icon={<AppstoreAddOutlined />} onClick={openChromeStore}>
+                <Button type="primary" icon={<ChromeOutlined />} onClick={openChromeStore}>
                   {t('extensions.browse_store', 'Browse Chrome Web Store')}
                 </Button>
               </EmptyContainer>

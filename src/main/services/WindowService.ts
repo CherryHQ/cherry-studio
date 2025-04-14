@@ -2,7 +2,7 @@ import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain, Menu, MenuItem, session, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
@@ -559,6 +559,7 @@ export class WindowService {
   /**
    * 创建或获取扩展窗口
    * 用于显示Chrome商店和扩展相关内容
+   * 这是一个共享窗口，用于显示所有扩展相关内容
    */
   public createExtensionWindow(): BrowserWindow {
     if (this.extensionWindow && !this.extensionWindow.isDestroyed()) {
@@ -567,31 +568,52 @@ export class WindowService {
       return this.extensionWindow
     }
 
-    const theme = configManager.getTheme()
+    Logger.info('[WindowService] Creating extension window')
 
     this.extensionWindow = new BrowserWindow({
-      width: 1200,
+      width: 1280,
       height: 800,
       minWidth: 800,
       minHeight: 600,
       show: false,
-      autoHideMenuBar: true,
-      transparent: isMac,
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
-      titleBarStyle: isLinux ? 'default' : 'hidden',
-      titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,
-      backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
-      trafficLightPosition: { x: 8, y: 12 },
-      ...(isLinux ? { icon } : {}),
+      resizable: true,
+      title: 'Extensions',
       webPreferences: {
-        sandbox: false,
+        sandbox: true,
         webSecurity: false,
         webviewTag: true,
-        allowRunningInsecureContent: true,
-        session: session.defaultSession
+        allowRunningInsecureContent: true
       }
     })
+
+    // emulate UA
+    const userAgent = this.extensionWindow.webContents.session
+      .getUserAgent()
+      .replace(/\sElectron\/\S+/, '')
+      .replace(new RegExp(`\\s${app.getName()}/\\S+`), '')
+    console.log('userAgent', userAgent)
+    this.extensionWindow.webContents.session.setUserAgent(userAgent)
+
+    // 设置会话配置，允许访问扩展资源
+    this.extensionWindow.webContents.session.webRequest.onBeforeRequest(
+      { urls: ['chrome-extension://*/*'] },
+      (_details, callback) => {
+        callback({ cancel: false })
+      }
+    )
+
+    // 允许跨域请求
+    this.extensionWindow.webContents.session.webRequest.onHeadersReceived(
+      { urls: ['*://*/*'] },
+      (details, callback) => {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Access-Control-Allow-Origin': ['*']
+          }
+        })
+      }
+    )
 
     this.setupExtensionWindow(this.extensionWindow)
     return this.extensionWindow
@@ -607,6 +629,17 @@ export class WindowService {
       extensionWindow.focus()
     })
 
+    extensionWindow.on('close', (event) => {
+      // Log to confirm this handler is being reached
+      Logger.info(`[WindowService] 'close' event intercepted for extensionWindow (ID: ${extensionWindow.id})`)
+
+      // Prevent the window from being destroyed
+      event.preventDefault()
+
+      // Hide the window instead so it can be reused
+      extensionWindow.hide()
+    })
+
     extensionWindow.on('closed', () => {
       this.extensionWindow = null
     })
@@ -617,8 +650,12 @@ export class WindowService {
 
   /**
    * 加载URL到扩展窗口
+   * 注意：这个方法保留为了兼容性，新代码应该使用ExtensionService的createExtensionTab方法
    */
   public loadURLInExtensionWindow(url: string): void {
+    Logger.warn(
+      '[WindowService] loadURLInExtensionWindow is deprecated, use ExtensionService.createExtensionTab instead'
+    )
     const win = this.createExtensionWindow()
     win.loadURL(url)
   }

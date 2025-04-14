@@ -179,6 +179,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Extensions_Load, extensionService.loadExtension)
   ipcMain.handle(IpcChannel.Extensions_Unload, extensionService.unloadExtension)
   ipcMain.handle(IpcChannel.Extensions_OpenChromeStore, extensionService.openChromeWebStore)
+  ipcMain.handle(IpcChannel.Extensions_OpenPopup, extensionService.openPopup)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)

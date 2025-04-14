@@ -3978,7 +3978,8 @@ __metadata:
     dotenv-cli: "npm:^7.4.2"
     electron: "npm:^35.1.4"
     electron-builder: "npm:^24.13.3"
-    electron-chrome-extensions: "npm:^4.7.0"
+    electron-chrome-context-menu: "npm:^1.1.0"
+    electron-chrome-extensions: "patch:electron-chrome-extensions@npm%3A4.7.0#~/.yarn/patches/electron-chrome-extensions-npm-4.7.0-86ba189b0b.patch"
     electron-chrome-web-store: "npm:^0.11.0"
     electron-devtools-installer: "npm:^3.2.0"
     electron-icon-builder: "npm:^2.0.1"
@@ -6442,12 +6443,30 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-chrome-extensions@npm:^4.7.0":
+"electron-chrome-context-menu@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "electron-chrome-context-menu@npm:1.1.0"
+  peerDependencies:
+    electron: ">=9.0.0"
+  checksum: 10c0/75c74ad93f4bccc4989356c726a8678e58cd548ff62454ed019902210805b14c70f69db2ce5f06d466aeeb9787e8fa20af6ea00d903247b3fa4b7f5549f62c34
+  languageName: node
+  linkType: hard
+
+"electron-chrome-extensions@npm:4.7.0":
   version: 4.7.0
   resolution: "electron-chrome-extensions@npm:4.7.0"
   dependencies:
     debug: "npm:^4.3.1"
   checksum: 10c0/d564aef037286ae586014d774ef6d7789a3ddd9251192dd1621697d3bb4b121b523d090d28bf72585dee68f43350a59b36f508fb876473cf3341c80702377352
+  languageName: node
+  linkType: hard
+
+"electron-chrome-extensions@patch:electron-chrome-extensions@npm%3A4.7.0#~/.yarn/patches/electron-chrome-extensions-npm-4.7.0-86ba189b0b.patch":
+  version: 4.7.0
+  resolution: "electron-chrome-extensions@patch:electron-chrome-extensions@npm%3A4.7.0#~/.yarn/patches/electron-chrome-extensions-npm-4.7.0-86ba189b0b.patch::version=4.7.0&hash=e502a4"
+  dependencies:
+    debug: "npm:^4.3.1"
+  checksum: 10c0/027d5ad13071e7f1ef103b0868f8568897f0011369e3846fffe24fcbd965d4e6fa0416d2c4b6ca94da7e893124a68d52d9eb6dc65b67d2863d8d4f086f4125ff
   languageName: node
   linkType: hard
 

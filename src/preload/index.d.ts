@@ -54,6 +54,7 @@ declare global {
         openChromeStore: (options: ChromeWebStoreOptions) => Promise<void>
         load: (extensionId: string) => Promise<void>
         unload: (extensionId: string) => Promise<void>
+        openPopup: (extensionId: string, rect: { x: number; y: number; width: number; height: number }) => Promise<void>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>

@@ -1,6 +1,7 @@
-import { FormOutlined, SearchOutlined } from '@ant-design/icons'
+import { AppstoreAddOutlined, FormOutlined, SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
+import ExtensionPopup from '@renderer/components/Popups/ExtensionPopup'
 import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
@@ -104,6 +105,15 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
                 </NarrowIcon>
               </Tooltip>
             </MinAppsPopover>
+          )}
+          {sidebarIcons.visible.includes('extensions') && (
+            <ExtensionPopup>
+              <Tooltip title={t('extensions.title')} mouseEnterDelay={0.8}>
+                <NarrowIcon>
+                  <AppstoreAddOutlined />
+                </NarrowIcon>
+              </Tooltip>
+            </ExtensionPopup>
           )}
           {topicPosition === 'right' && (
             <NarrowIcon onClick={toggleShowTopics}>

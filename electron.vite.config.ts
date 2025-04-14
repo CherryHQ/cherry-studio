@@ -47,15 +47,10 @@ export default defineConfig({
       externalizeDepsPlugin(),
       viteStaticCopy({
         targets: [
-          process.env.NODE_ENV === 'development'
-            ? {
-                src: resolve('node_modules/electron-chrome-extensions/dist/chrome-extension-api.preload.js'),
-                dest: resolve('out/preload')
-              }
-            : {
-                src: resolve('node_modules/electron-chrome-extensions/dist/chrome-extension-api.preload.js'),
-                dest: resolve('dist/preload')
-              }
+          {
+            src: resolve('node_modules/electron-chrome-extensions/dist/chrome-extension-api.preload.js'),
+            dest: process.env.NODE_ENV === 'development' ? resolve('out/main') : resolve('dist/main')
+          }
         ]
       })
     ],
