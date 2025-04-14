@@ -1,5 +1,5 @@
-import { SearchOutlined } from '@ant-design/icons'
 import { Input, Tooltip } from 'antd'
+import { Search } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,7 +33,7 @@ const ModelListSearchBar: React.FC<ModelListSearchBarProps> = ({ onSearch }) => 
       placeholder={t('models.search')}
       size="small"
       style={{ width: '160px' }}
-      suffix={<SearchOutlined style={{ color: 'var(--color-text-3)' }} />}
+      suffix={<Search size={14} />}
       onChange={(e) => handleTextChange(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
@@ -50,7 +50,12 @@ const ModelListSearchBar: React.FC<ModelListSearchBarProps> = ({ onSearch }) => 
     />
   ) : (
     <Tooltip title={t('models.search')} mouseEnterDelay={0.5}>
-      <SearchOutlined onClick={() => setSearchVisible(true)} />
+      <Search
+        size={14}
+        color="var(--color-icon)"
+        onClick={() => setSearchVisible(true)}
+        style={{ cursor: 'pointer' }}
+      />
     </Tooltip>
   )
 }

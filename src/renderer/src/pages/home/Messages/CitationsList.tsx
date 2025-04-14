@@ -34,7 +34,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           {citation.showFavicon && citation.url && (
             <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
           )}
-          <CitationLink href={citation.url} target="_blank" rel="noopener noreferrer">
+          <CitationLink href={citation.url} className="text-nowrap" target="_blank" rel="noopener noreferrer">
             {citation.title ? citation.title : <span className="hostname">{citation.hostname}</span>}
           </CitationLink>
         </HStack>

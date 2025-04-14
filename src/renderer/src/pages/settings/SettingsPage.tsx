@@ -1,20 +1,20 @@
-import {
-  AppstoreOutlined,
-  CloudOutlined,
-  CodeOutlined,
-  GlobalOutlined,
-  InfoCircleOutlined,
-  LayoutOutlined,
-  MacCommandOutlined,
-  RocketOutlined,
-  SaveOutlined,
-  SettingOutlined,
-  ThunderboltOutlined
-} from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { isLocalAi } from '@renderer/config/env'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
+import {
+  Cloud,
+  Command,
+  Globe,
+  HardDrive,
+  Info,
+  LayoutGrid,
+  MonitorCog,
+  Package,
+  Rocket,
+  Settings2,
+  SquareTerminal,
+  Zap
+} from 'lucide-react'
 // 导入useAppSelector
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,85 +46,81 @@ const SettingsPage: FC = () => {
     <Container>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
-        {pathname === '/settings/mcp' && <McpSettingsNavbar />}
+        {pathname.includes('/settings/mcp') && <McpSettingsNavbar />}
       </Navbar>
       <ContentContainer id="content-container">
         <SettingMenus>
-          {!isLocalAi && (
-            <>
-              <MenuItemLink to="/settings/provider">
-                <MenuItem className={isRoute('/settings/provider')}>
-                  <CloudOutlined />
-                  {t('settings.provider.title')}
-                </MenuItem>
-              </MenuItemLink>
-              <MenuItemLink to="/settings/model">
-                <MenuItem className={isRoute('/settings/model')}>
-                  <i className="iconfont icon-ai-model" />
-                  {t('settings.model')}
-                </MenuItem>
-              </MenuItemLink>
-            </>
-          )}
+          <MenuItemLink to="/settings/provider">
+            <MenuItem className={isRoute('/settings/provider')}>
+              <Cloud size={18} />
+              {t('settings.provider.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/model">
+            <MenuItem className={isRoute('/settings/model')}>
+              <Package size={18} />
+              {t('settings.model')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/web-search">
             <MenuItem className={isRoute('/settings/web-search')}>
-              <GlobalOutlined />
+              <Globe size={18} />
               {t('settings.websearch.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/mcp">
             <MenuItem className={isRoute('/settings/mcp')}>
-              <CodeOutlined />
+              <SquareTerminal size={18} />
               {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/general">
             <MenuItem className={isRoute('/settings/general')}>
-              <SettingOutlined />
+              <Settings2 size={18} />
               {t('settings.general')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/display">
             <MenuItem className={isRoute('/settings/display')}>
-              <LayoutOutlined />
+              <MonitorCog size={18} />
               {t('settings.display.title')}
             </MenuItem>
           </MenuItemLink>
           {showMiniAppSettings && (
             <MenuItemLink to="/settings/miniapps">
               <MenuItem className={isRoute('/settings/miniapps')}>
-                <AppstoreOutlined />
+                <LayoutGrid size={18} />
                 {t('settings.miniapps.title')}
               </MenuItem>
             </MenuItemLink>
           )}
           <MenuItemLink to="/settings/shortcut">
             <MenuItem className={isRoute('/settings/shortcut')}>
-              <MacCommandOutlined />
+              <Command size={18} />
               {t('settings.shortcuts.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/quickAssistant">
             <MenuItem className={isRoute('/settings/quickAssistant')}>
-              <RocketOutlined />
+              <Rocket size={18} />
               {t('settings.quickAssistant.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/quickPhrase">
             <MenuItem className={isRoute('/settings/quickPhrase')}>
-              <ThunderboltOutlined />
+              <Zap size={18} />
               {t('settings.quickPhrase.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/data">
             <MenuItem className={isRoute('/settings/data')}>
-              <SaveOutlined />
+              <HardDrive size={18} />
               {t('settings.data.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/about">
             <MenuItem className={isRoute('/settings/about')}>
-              <InfoCircleOutlined />
+              <Info size={18} />
               {t('settings.about')}
             </MenuItem>
           </MenuItemLink>
@@ -134,13 +130,13 @@ const SettingsPage: FC = () => {
             <Route path="provider" element={<ProvidersList />} />
             <Route path="model" element={<ModelSettings />} />
             <Route path="web-search" element={<WebSearchSettings />} />
-            <Route path="mcp" element={<MCPSettings />} />
-            <Route path="general/*" element={<GeneralSettings />} />
+            <Route path="mcp/*" element={<MCPSettings />} />
+            <Route path="general" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
             {showMiniAppSettings && <Route path="miniapps" element={<MiniAppSettings />} />}
             <Route path="shortcut" element={<ShortcutSettings />} />
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
-            <Route path="data/*" element={<DataSettings />} />
+            <Route path="data" element={<DataSettings />} />
             <Route path="about" element={<AboutSettings />} />
             <Route path="quickPhrase" element={<QuickPhraseSettings />} />
           </Routes>

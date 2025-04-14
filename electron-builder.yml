@@ -35,7 +35,13 @@ win:
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
+      arch:
+        - x64
+        - arm64
     - target: portable
+      arch:
+        - x64
+        - arm64
 nsis:
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
@@ -74,18 +80,14 @@ linux:
   maintainer: electronjs.org
   category: Utility
 publish:
-  # provider: generic
-  # url: https://cherrystudio.ocool.online
-  provider: github
-  repo: cherry-studio
-  owner: CherryHQ
+  provider: generic
+  url: https://releases.cherry-ai.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    知识库和服务商界面更新
-    增加 Dangbei 小程序
-    可以强制使用搜索引擎覆盖模型自带搜索能力
-    修复部分公式无法正常渲染问题
+    全新图标风格
+    新的智能体界面
+    WebDAV 增加文件管理功能

@@ -1,5 +1,4 @@
 import { CloseOutlined } from '@ant-design/icons'
-import { FileSearchOutlined, FolderOutlined, PictureOutlined, TranslationOutlined } from '@ant-design/icons'
 import {
   DragDropContext,
   Draggable,
@@ -11,6 +10,7 @@ import {
 import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
 import { message } from 'antd'
+import { Folder, Languages, LayoutGrid, LibraryBig, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -109,13 +109,13 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
   // 使用useMemo缓存图标映射
   const iconMap = useMemo(
     () => ({
-      assistants: <i className="iconfont icon-chat" />,
-      agents: <i className="iconfont icon-business-smart-assistant" />,
-      paintings: <PictureOutlined style={{ fontSize: 14 }} />,
-      translate: <TranslationOutlined />,
-      minapp: <i className="iconfont icon-appstore" />,
-      knowledge: <FileSearchOutlined />,
-      files: <FolderOutlined />
+      assistants: <MessageSquareQuote size={16} />,
+      agents: <Sparkle size={16} />,
+      paintings: <Palette size={16} />,
+      translate: <Languages size={16} />,
+      minapp: <LayoutGrid size={16} />,
+      knowledge: <LibraryBig size={16} />,
+      files: <Folder size={15} />
     }),
     []
   )

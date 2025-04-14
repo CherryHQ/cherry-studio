@@ -1,7 +1,22 @@
-import { FileOutlined } from '@ant-design/icons'
+import {
+  FileExcelFilled,
+  FileImageFilled,
+  FileMarkdownFilled,
+  FilePdfFilled,
+  FilePptFilled,
+  FileTextFilled,
+  FileUnknownFilled,
+  FileWordFilled,
+  FileZipFilled,
+  FolderOpenFilled,
+  GlobalOutlined,
+  LinkOutlined
+} from '@ant-design/icons'
+import CustomTag from '@renderer/components/CustomTag'
 import FileManager from '@renderer/services/FileManager'
 import { FileType } from '@renderer/types'
-import { ConfigProvider, Image, Tag } from 'antd'
+import { formatFileSize } from '@renderer/utils'
+import { Flex, Image, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useState } from 'react'
 import styled from 'styled-components'
@@ -11,11 +26,100 @@ interface Props {
   setFiles: (files: FileType[]) => void
 }
 
-const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
-  const [visibleId, setVisibleId] = useState('')
-
+const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
+  const [visible, setVisible] = useState<boolean>(false)
   const isImage = (ext: string) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)
+  }
+
+  return (
+    <Tooltip
+      styles={{
+        body: {
+          padding: 5
+        }
+      }}
+      fresh
+      title={
+        <Flex vertical gap={2} align="center">
+          {isImage(file.ext) && (
+            <Image
+              style={{ width: 80, maxHeight: 200 }}
+              src={'file://' + FileManager.getSafePath(file)}
+              preview={{
+                visible: visible,
+                src: 'file://' + FileManager.getSafePath(file),
+                onVisibleChange: setVisible
+              }}
+            />
+          )}
+          {formatFileSize(file.size)}
+        </Flex>
+      }>
+      <FileName
+        onClick={() => {
+          if (isImage(file.ext)) {
+            setVisible(true)
+            return
+          }
+          const path = FileManager.getSafePath(file)
+          if (path) {
+            window.api.file.openPath(path)
+          }
+        }}>
+        {FileManager.formatFileName(file)}
+      </FileName>
+    </Tooltip>
+  )
+}
+
+const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
+  const getFileIcon = (type?: string) => {
+    if (!type) return <FileUnknownFilled />
+
+    const ext = type.toLowerCase()
+
+    if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
+      return <FileImageFilled />
+    }
+
+    if (['.doc', '.docx'].includes(ext)) {
+      return <FileWordFilled />
+    }
+    if (['.xls', '.xlsx'].includes(ext)) {
+      return <FileExcelFilled />
+    }
+    if (['.ppt', '.pptx'].includes(ext)) {
+      return <FilePptFilled />
+    }
+    if (ext === '.pdf') {
+      return <FilePdfFilled />
+    }
+    if (['.md', '.markdown'].includes(ext)) {
+      return <FileMarkdownFilled />
+    }
+
+    if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) {
+      return <FileZipFilled />
+    }
+
+    if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv'].includes(ext)) {
+      return <FileTextFilled />
+    }
+
+    if (['.url'].includes(ext)) {
+      return <LinkOutlined />
+    }
+
+    if (['.sitemap'].includes(ext)) {
+      return <GlobalOutlined />
+    }
+
+    if (['.folder'].includes(ext)) {
+      return <FolderOpenFilled />
+    }
+
+    return <FileUnknownFilled />
   }
 
   if (isEmpty(files)) {
@@ -24,61 +128,26 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
 
   return (
     <ContentContainer>
-      <ConfigProvider
-        theme={{
-          components: {
-            Tag: {
-              borderRadiusSM: 100
-            }
-          }
-        }}>
-        {files.map((file) => (
-          <Tag
-            key={file.id}
-            icon={<FileOutlined />}
-            bordered={false}
-            color="cyan"
-            closable
-            onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
-            <FileName
-              onClick={() => {
-                if (isImage(file.ext)) {
-                  setVisibleId(file.id)
-                  return
-                }
-                const path = FileManager.getSafePath(file)
-                if (path) {
-                  window.api.file.openPath(path)
-                }
-              }}>
-              {FileManager.formatFileName(file)}
-              {isImage(file.ext) && (
-                <Image
-                  style={{ display: 'none' }}
-                  src={'file://' + FileManager.getSafePath(file)}
-                  preview={{
-                    visible: visibleId === file.id,
-                    src: 'file://' + FileManager.getSafePath(file),
-                    onVisibleChange: (value) => {
-                      setVisibleId(value ? file.id : '')
-                    }
-                  }}
-                />
-              )}
-            </FileName>
-          </Tag>
-        ))}
-      </ConfigProvider>
+      {files.map((file) => (
+        <CustomTag
+          key={file.id}
+          icon={getFileIcon(file.ext)}
+          color="#37a5aa"
+          closable
+          onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
+          <FileNameRender file={file} />
+        </CustomTag>
+      ))}
     </ContentContainer>
   )
 }
 
 const ContentContainer = styled.div`
   width: 100%;
+  padding: 5px 15px 5px 15px;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 0;
-  padding: 5px 15px 0 10px;
+  gap: 4px 4px;
 `
 
 const FileName = styled.span`

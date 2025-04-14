@@ -1,78 +1,163 @@
-import { EllipsisOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, EllipsisOutlined, PlusOutlined, SortAscendingOutlined } from '@ant-design/icons'
+import CustomTag from '@renderer/components/CustomTag'
+import { useAgents } from '@renderer/hooks/useAgents'
+import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import type { Agent } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
-import { Dropdown } from 'antd'
-import { type FC, memo } from 'react'
+import { Button, Dropdown } from 'antd'
+import { t } from 'i18next'
+import { type FC, memo, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
+
+import ManageAgentsPopup from './ManageAgentsPopup'
 
 interface Props {
   agent: Agent
+  activegroup?: string
   onClick: () => void
-  contextMenu?: {
-    key: string
-    label: string
-    icon?: React.ReactNode
-    danger?: boolean
-    onClick: () => void
-  }[]
-  menuItems?: {
-    key: string
-    label: string
-    icon?: React.ReactNode
-    danger?: boolean
-    onClick: () => void
-  }[]
+  getLocalizedGroupName: (group: string) => string
 }
 
-const AgentCard: FC<Props> = ({ agent, onClick, contextMenu, menuItems }) => {
-  const emoji = agent.emoji || getLeadingEmoji(agent.name)
-  const prompt = (agent.description || agent.prompt).substring(0, 100).replace(/\\n/g, '')
-  const content = (
-    <Container onClick={onClick}>
-      {emoji && <BannerBackground className="banner-background">{emoji}</BannerBackground>}
-      <EmojiContainer className="emoji-container">{emoji}</EmojiContainer>
-      {menuItems && (
-        <MenuContainer onClick={(e) => e.stopPropagation()}>
-          <Dropdown
-            menu={{
-              items: menuItems.map((item) => ({
-                ...item,
-                onClick: (e) => {
-                  e.domEvent.stopPropagation()
-                  e.domEvent.preventDefault()
-                  setTimeout(() => {
-                    item.onClick()
-                  }, 0)
-                }
-              }))
-            }}
-            trigger={['click']}
-            placement="bottomRight">
-            <EllipsisOutlined style={{ cursor: 'pointer', fontSize: 20 }} />
-          </Dropdown>
-        </MenuContainer>
-      )}
-      <CardInfo className="card-info">
-        <AgentName>{agent.name}</AgentName>
-        <AgentPrompt className="agent-prompt">{prompt}...</AgentPrompt>
-      </CardInfo>
-    </Container>
+const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupName }) => {
+  const { removeAgent } = useAgents()
+  const [isVisible, setIsVisible] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  const handleDelete = useCallback(
+    (agent: Agent) => {
+      window.modal.confirm({
+        centered: true,
+        content: t('agents.delete.popup.content'),
+        onOk: () => removeAgent(agent.id)
+      })
+    },
+    [removeAgent]
   )
 
-  if (contextMenu) {
+  const menuItems = [
+    {
+      key: 'edit',
+      label: t('agents.edit.title'),
+      icon: <EditOutlined />,
+      onClick: (e: any) => {
+        e.domEvent.stopPropagation()
+        AssistantSettingsPopup.show({ assistant: agent })
+      }
+    },
+    {
+      key: 'create',
+      label: t('agents.add.button'),
+      icon: <PlusOutlined />,
+      onClick: (e: any) => {
+        e.domEvent.stopPropagation()
+        createAssistantFromAgent(agent)
+      }
+    },
+    {
+      key: 'sort',
+      label: t('agents.sorting.title'),
+      icon: <SortAscendingOutlined />,
+      onClick: (e: any) => {
+        e.domEvent.stopPropagation()
+        ManageAgentsPopup.show()
+      }
+    },
+    {
+      key: 'delete',
+      label: t('common.delete'),
+      icon: <DeleteOutlined />,
+      danger: true,
+      onClick: (e: any) => {
+        e.domEvent.stopPropagation()
+        handleDelete(agent)
+      }
+    }
+  ]
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current)
+    }
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  const emoji = agent.emoji || getLeadingEmoji(agent.name)
+  const prompt = (agent.description || agent.prompt).substring(0, 200).replace(/\\n/g, '')
+
+  const content = (
+    <AgentCardContainer onClick={onClick} ref={cardRef}>
+      {isVisible && (
+        <AgentCardBody>
+          <AgentCardBackground>{emoji}</AgentCardBackground>
+          <AgentCardHeader>
+            <AgentCardHeaderInfo>
+              <AgentCardHeaderInfoTitle>{agent.name}</AgentCardHeaderInfoTitle>
+              <AgentCardHeaderInfoTags>
+                {activegroup === '我的' && (
+                  <CustomTag color="#A0A0A0" size={11}>
+                    {getLocalizedGroupName('我的')}
+                  </CustomTag>
+                )}
+                {!!agent.group?.length &&
+                  agent.group.map((group) => (
+                    <CustomTag key={group} color="#A0A0A0" size={11}>
+                      {getLocalizedGroupName(group)}
+                    </CustomTag>
+                  ))}
+              </AgentCardHeaderInfoTags>
+            </AgentCardHeaderInfo>
+            {activegroup === '我的' ? (
+              <AgentCardHeaderInfoAction>
+                {emoji && <HeaderInfoEmoji>{emoji}</HeaderInfoEmoji>}
+                <Dropdown
+                  menu={{
+                    items: menuItems
+                  }}
+                  trigger={['click']}
+                  placement="bottomRight">
+                  <MenuButton
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                    }}
+                    color="default"
+                    variant="filled"
+                    shape="circle"
+                    icon={<EllipsisOutlined />}
+                  />
+                </Dropdown>
+              </AgentCardHeaderInfoAction>
+            ) : (
+              emoji && <HeaderInfoEmoji>{emoji}</HeaderInfoEmoji>
+            )}
+          </AgentCardHeader>
+          <CardInfo>
+            <AgentPrompt>{prompt}</AgentPrompt>
+          </CardInfo>
+        </AgentCardBody>
+      )}
+    </AgentCardContainer>
+  )
+
+  if (activegroup === '我的') {
     return (
       <Dropdown
         menu={{
-          items: contextMenu.map((item) => ({
-            ...item,
-            onClick: (e) => {
-              e.domEvent.stopPropagation()
-              e.domEvent.preventDefault()
-              setTimeout(() => {
-                item.onClick()
-              }, 0)
-            }
-          }))
+          items: menuItems
         }}
         trigger={['contextMenu']}>
         {content}
@@ -83,138 +168,153 @@ const AgentCard: FC<Props> = ({ agent, onClick, contextMenu, menuItems }) => {
   return content
 }
 
-const Container = styled.div`
-  width: 100%;
-  height: 180px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  text-align: center;
-  gap: 10px;
-  background-color: var(--color-background);
-  border-radius: 10px;
+const AgentCardHeaderInfoAction = styled.div`
+  width: 45px;
+  height: 45px;
   position: relative;
-  overflow: hidden;
-  cursor: pointer;
-  border: 0.5px solid var(--color-border);
-
-  &::before {
-    content: '';
-    width: 100%;
-    height: 70px;
-    position: absolute;
-    top: 0;
-    left: 0;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-    background: var(--color-background-soft);
-    transition: all 0.5s ease;
-    border-bottom: none;
-  }
-
-  * {
-    z-index: 1;
-  }
-
-  .agent-prompt {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
 `
 
-const EmojiContainer = styled.div`
-  width: 55px;
-  height: 55px;
-  min-width: 55px;
-  min-height: 55px;
-  background-color: var(--color-background);
-  border-radius: 50%;
-  border: 4px solid var(--color-border);
-  margin-top: 8px;
-  transition: all 0.5s ease;
+const HeaderInfoEmoji = styled.div`
+  width: 45px;
+  height: 45px;
+  border-radius: var(--list-item-border-radius);
+  font-size: 26px;
+  line-height: 1;
+  opacity: 0.8;
+  flex-shrink: 0;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+  background-color: var(--color-background-soft);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+`
+
+const MenuButton = styled(Button)`
+  position: absolute;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+`
+
+const AgentCardContainer = styled.div`
+  border-radius: var(--list-item-border-radius);
+  cursor: pointer;
+  border: 0.5px solid var(--color-border);
+  padding: 16px;
+  overflow: hidden;
+  transition:
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease;
+
+  --shadow-color: rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 5px 7px -3px var(--shadow-color),
+    0 2px 3px -4px var(--shadow-color);
+  &:hover {
+    box-shadow:
+      0 10px 15px -3px var(--shadow-color),
+      0 4px 6px -4px var(--shadow-color);
+    transform: translateY(-2px);
+
+    ${AgentCardHeaderInfoAction} ${HeaderInfoEmoji} {
+      opacity: 0;
+    }
+    ${AgentCardHeaderInfoAction} ${MenuButton} {
+      opacity: 1;
+    }
+  }
+  body[theme-mode='dark'] & {
+    --shadow-color: rgba(255, 255, 255, 0.02);
+  }
+`
+
+const AgentCardBody = styled.div`
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  animation: fadeIn 0.2s ease;
+`
+
+const AgentCardBackground = styled.div`
+  height: 100%;
+  position: absolute;
+  top: 0;
+  right: -50px;
+  font-size: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0.1;
+  filter: blur(20px);
+  border-radius: 99px;
+  overflow: hidden;
+`
+
+const AgentCardHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  justify-content: flex-start;
+  overflow: hidden;
+`
+
+const AgentCardHeaderInfo = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+`
+
+const AgentCardHeaderInfoTitle = styled.div`
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 600;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  word-break: break-all;
+`
+
+const AgentCardHeaderInfoTags = styled.div`
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+  flex-wrap: wrap;
 `
 
 const CardInfo = styled.div`
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.5s ease;
-  padding: 0 8px;
-  width: 100%;
-`
-
-const AgentName = styled.span`
-  font-weight: 600;
-  font-size: 16px;
-  color: var(--color-text);
-  margin-top: 5px;
-  line-height: 1.4;
-  max-width: 100%;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  word-break: break-word;
-`
-
-const AgentPrompt = styled.p`
-  color: var(--color-text-soft);
-  font-size: 12px;
-  max-width: 100%;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.5s ease;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 1.4;
-`
-
-const BannerBackground = styled.div`
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 70px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 500px;
-  opacity: 0.1;
-  filter: blur(8px);
-  z-index: 0;
-  overflow: hidden;
-  transition: all 0.5s ease;
-`
-
-const MenuContainer = styled.div`
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  margin-top: 16px;
   background-color: var(--color-background-soft);
-  width: 24px;
-  height: 24px;
-  border-radius: 12px;
-  font-size: 16px;
-  color: var(--color-icon);
-  opacity: 0;
-  transition: opacity 0.3s;
-  z-index: 2;
+  padding: 8px;
+  border-radius: 10px;
+`
 
-  ${Container}:hover & {
-    opacity: 1;
-  }
+const AgentPrompt = styled.div`
+  font-size: 12px;
+  display: -webkit-box;
+  line-height: 1.4;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--color-text-2);
 `
 
 export default memo(AgentCard)

@@ -156,20 +156,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     [setActiveTopic]
   )
 
-  const exportMenuOptions = useSelector(
-    (state: RootState) =>
-      state.settings.exportMenuOptions || {
-        image: true,
-        markdown: true,
-        markdown_reason: true,
-        notion: true,
-        yuque: true,
-        joplin: true,
-        obsidian: true,
-        siyuan: true,
-        docx: true
-      }
-  )
+  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
 
   const getTopicMenuItems = useCallback(
     (topic: Topic) => {

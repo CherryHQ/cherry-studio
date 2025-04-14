@@ -1,11 +1,7 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import {
-  useWebdavBackupModal,
-  useWebdavRestoreModal,
-  WebdavBackupModal,
-  WebdavRestoreModal
-} from '@renderer/components/WebdavModals'
+import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
+import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
@@ -38,6 +34,7 @@ const WebDavSettings: FC = () => {
   const [webdavUser, setWebdavUser] = useState<string | undefined>(webDAVUser)
   const [webdavPass, setWebdavPass] = useState<string | undefined>(webDAVPass)
   const [webdavPath, setWebdavPath] = useState<string | undefined>(webDAVPath)
+  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [syncInterval, setSyncInterval] = useState<number>(webDAVSyncInterval)
 
@@ -89,17 +86,13 @@ const WebDavSettings: FC = () => {
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
     useWebdavBackupModal()
 
-  const {
-    isRestoreModalVisible,
-    handleRestore,
-    handleCancel: handleCancelRestore,
-    restoring,
-    selectedFile,
-    setSelectedFile,
-    loadingFiles,
-    backupFiles,
-    showRestoreModal
-  } = useWebdavRestoreModal({ webdavHost, webdavUser, webdavPass, webdavPath })
+  const showBackupManager = () => {
+    setBackupManagerVisible(true)
+  }
+
+  const closeBackupManager = () => {
+    setBackupManagerVisible(false)
+  }
 
   return (
     <SettingGroup theme={theme}>
@@ -156,7 +149,10 @@ const WebDavSettings: FC = () => {
           <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button onClick={showRestoreModal} icon={<FolderOpenOutlined />} loading={restoring}>
+          <Button
+            onClick={showBackupManager}
+            icon={<FolderOpenOutlined />}
+            disabled={!webdavHost || !webdavUser || !webdavPass || !webdavPath}>
             {t('settings.data.webdav.restore.button')}
           </Button>
         </HStack>
@@ -196,15 +192,15 @@ const WebDavSettings: FC = () => {
           setCustomFileName={setCustomFileName}
         />
 
-        <WebdavRestoreModal
-          isRestoreModalVisible={isRestoreModalVisible}
-          handleRestore={handleRestore}
-          handleCancel={handleCancelRestore}
-          restoring={restoring}
-          selectedFile={selectedFile}
-          setSelectedFile={setSelectedFile}
-          loadingFiles={loadingFiles}
-          backupFiles={backupFiles}
+        <WebdavBackupManager
+          visible={backupManagerVisible}
+          onClose={closeBackupManager}
+          webdavConfig={{
+            webdavHost,
+            webdavUser,
+            webdavPass,
+            webdavPath
+          }}
         />
       </>
     </SettingGroup>

@@ -1,9 +1,9 @@
 import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { Center, VStack } from '@renderer/components/Layout'
-import { EventEmitter } from '@renderer/services/EventService'
 import { Alert, Button } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingDescription, SettingRow, SettingSubtitle } from '..'
@@ -21,6 +21,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   const [bunPath, setBunPath] = useState<string | null>(null)
   const [binariesDir, setBinariesDir] = useState<string | null>(null)
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
   const checkBinaries = async () => {
     const uvExists = await window.api.isBinaryExist('uv')
@@ -43,8 +44,8 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     } catch (error: any) {
       window.message.error({ content: `${t('settings.mcp.installError')}: ${error.message}`, key: 'mcp-install-error' })
       setIsInstallingUv(false)
-      checkBinaries()
     }
+    setTimeout(checkBinaries, 1000)
   }
 
   const installBun = async () => {
@@ -59,8 +60,8 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
         key: 'mcp-install-error'
       })
       setIsInstallingBun(false)
-      checkBinaries()
     }
+    setTimeout(checkBinaries, 1000)
   }
 
   useEffect(() => {
@@ -78,7 +79,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
         icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
         className="nodrag"
         color={installed ? 'green' : 'danger'}
-        onClick={() => EventEmitter.emit('mcp:mcp-install')}
+        onClick={() => navigate('/settings/mcp/mcp-install')}
       />
     )
   }

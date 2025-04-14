@@ -45,7 +45,9 @@ export type AssistantSettings = {
   reasoning_effort?: 'low' | 'medium' | 'high'
 }
 
-export type Agent = Omit<Assistant, 'model'>
+export type Agent = Omit<Assistant, 'model'> & {
+  group?: string[]
+}
 
 export type Message = {
   id: string
@@ -237,6 +239,7 @@ export type AppInfo = {
   resourcesPath: string
   filesPath: string
   logsPath: string
+  arch: string
 }
 
 export interface Shortcut {
@@ -336,6 +339,9 @@ export type WebSearchProvider = {
   apiKey?: string
   apiHost?: string
   engines?: string[]
+  url?: string
+  contentLimit?: number
+  usingBrowser?: boolean
 }
 
 export type WebSearchResponse = {
@@ -380,6 +386,7 @@ export interface MCPServer {
   env?: Record<string, string>
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
+  headers?: Record<string, string> // Custom headers to be sent with requests to this server
 }
 
 export interface MCPToolInputSchema {
@@ -399,6 +406,34 @@ export interface MCPTool {
   inputSchema: MCPToolInputSchema
 }
 
+export interface MCPPromptArguments {
+  name: string
+  description?: string
+  required?: boolean
+}
+
+export interface MCPPrompt {
+  id: string
+  name: string
+  description?: string
+  arguments?: MCPPromptArguments[]
+  serverId: string
+  serverName: string
+}
+
+export interface GetMCPPromptResponse {
+  description?: string
+  messages: {
+    role: string
+    content: {
+      type: 'text' | 'image' | 'audio' | 'resource'
+      text?: string
+      data?: string
+      mimeType?: string
+    }
+  }[]
+}
+
 export interface MCPConfig {
   servers: MCPServer[]
 }
@@ -408,6 +443,39 @@ export interface MCPToolResponse {
   tool: MCPTool // tool info
   status: string // 'invoking' | 'done'
   response?: any
+}
+
+export interface MCPToolResultContent {
+  type: 'text' | 'image' | 'audio' | 'resource'
+  text?: string
+  data?: string
+  mimeType?: string
+  resource?: {
+    uri?: string
+    text?: string
+    mimeType?: string
+  }
+}
+
+export interface MCPCallToolResponse {
+  content: MCPToolResultContent[]
+  isError?: boolean
+}
+
+export interface MCPResource {
+  serverId: string
+  serverName: string
+  uri: string
+  name: string
+  description?: string
+  mimeType?: string
+  size?: number
+  text?: string
+  blob?: string
+}
+
+export interface GetResourceResponse {
+  contents: MCPResource[]
 }
 
 export interface QuickPhrase {

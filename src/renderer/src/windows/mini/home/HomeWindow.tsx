@@ -87,12 +87,12 @@ const HomeWindow: FC = () => {
 
     switch (e.code) {
       case 'Enter':
+      case 'NumpadEnter':
         {
           e.preventDefault()
           if (content) {
             if (route === 'home') {
               featureMenusRef.current?.useFeature()
-              setText('')
             } else {
               // 目前文本框只在'chat'时可以继续输入，这里相当于 route === 'chat'
               setRoute('chat')
