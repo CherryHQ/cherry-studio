@@ -1,6 +1,7 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
+  isGrokModel,
   isGrokReasoningModel,
   isHunyuanSearchModel,
   isOpenAIoSeries,
@@ -382,9 +383,13 @@ export default class OpenAIProvider extends BaseProvider {
     const { signal } = abortController
     await this.checkIsCopilot()
 
-    const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
-      Boolean
-    ) as ChatCompletionMessageParam[]
+    // Grok 模型要求每条消息都不能为空，所以当是 Grok 模型且 systemMessage 内容为空时不发送 systemMessage
+    let reqMessages: ChatCompletionMessageParam[]
+    if (isGrokModel(model) && !systemMessage.content) {
+      reqMessages = [...userMessages]
+    } else {
+      reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
+    }
 
     const toolResponses: MCPToolResponse[] = []
     let firstChunk = true
