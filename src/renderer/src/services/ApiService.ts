@@ -100,8 +100,6 @@ export async function fetchChatCompletion({
       assistant.enableWebSearch &&
       assistant.model
 
-    console.log('should websearch', shouldSearch)
-
     if (!shouldSearch) return
 
     // 检查是否使用OpenAI的网络搜索
@@ -116,6 +114,7 @@ export async function fetchChatCompletion({
         webSearchProvider,
         extractResults
       )
+      console.log('webSearchResponse', webSearchResponse)
       // 处理搜索结果
       message.metadata = {
         ...message.metadata,
@@ -132,18 +131,15 @@ export async function fetchChatCompletion({
   const searchKnowledgeBase = async () => {
     const shouldSearch = hasKnowledgeBase && extractResults.tools?.includes('knowledge')
 
-    console.log('should search knowledge base', shouldSearch)
     if (!shouldSearch) return
 
     try {
-      console.log('Starting knowledge base search...')
       const knowledgeReferences: KnowledgeReference[] = await processKnowledgeSearch(
         extractResults,
         lastUserMessage.knowledgeBaseIds
       )
-      // 缓存搜索结果
+      console.log('knowledgeReferences', knowledgeReferences)
       window.keyv.set(`knowledge-search-${lastUserMessage?.id}`, knowledgeReferences)
-      console.log('Knowledge base search finished.')
     } catch (error) {
       console.error('Knowledge base search failed:', error)
       window.keyv.set(`knowledge-search-${lastUserMessage?.id}`, [])
@@ -158,7 +154,6 @@ export async function fetchChatCompletion({
     // 更新消息状态为搜索中
     onResponse({ ...message, status: 'searching' })
     await Promise.all([searchTheWeb(), searchKnowledgeBase()])
-    console.log('All searches finished.')
 
     // Get MCP tools
     const mcpTools: MCPTool[] = []
