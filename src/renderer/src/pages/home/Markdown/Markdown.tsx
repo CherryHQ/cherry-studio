@@ -36,8 +36,6 @@ const Markdown: FC<Props> = ({ message }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
 
-  const rehypeMath = useMemo(() => (mathEngine === 'KaTeX' ? rehypeKatex : rehypeMathjax), [mathEngine])
-
   const messageContent = useMemo(() => {
     const empty = isEmpty(message.content)
     const paused = message.status === 'paused'
@@ -46,8 +44,8 @@ const Markdown: FC<Props> = ({ message }) => {
   }, [message, t])
 
   const rehypePlugins = useMemo(() => {
-    return [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeMath]
-  }, [rehypeMath])
+    return [rehypeRaw, [rehypeSanitize, sanitizeSchema], mathEngine === 'KaTeX' ? rehypeKatex : rehypeMathjax]
+  }, [mathEngine])
 
   const components = useMemo(() => {
     const baseComponents = {
