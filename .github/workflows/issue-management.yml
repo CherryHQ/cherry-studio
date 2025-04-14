@@ -27,8 +27,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
-              filter: 'all',
-              per_page: 100
             })
 
             const now = new Date()
