@@ -19,7 +19,7 @@ import {
   TextPart,
   Tool
 } from '@google/generative-ai'
-import { isGemmaModel, isWebSearchModel } from '@renderer/config/models'
+import { isGemmaModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -316,7 +316,8 @@ export default class GeminiProvider extends BaseProvider {
           onChunk,
           idx,
           mcpToolCallResponseToGeminiMessage,
-          mcpTools
+          mcpTools,
+          isVisionModel(model)
         )
         if (toolResults && toolResults.length > 0) {
           history.push(messageContents)

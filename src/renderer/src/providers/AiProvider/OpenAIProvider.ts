@@ -396,7 +396,8 @@ export default class OpenAIProvider extends BaseProvider {
         onChunk,
         idx,
         mcpToolCallResponseToOpenAIMessage,
-        mcpTools
+        mcpTools,
+        isVisionModel(model)
       )
 
       if (toolResults.length > 0) {

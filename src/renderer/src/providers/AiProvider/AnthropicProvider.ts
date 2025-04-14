@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { isReasoningModel } from '@renderer/config/models'
+import { isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -296,7 +296,8 @@ export default class AnthropicProvider extends BaseProvider {
                 onChunk,
                 idx,
                 mcpToolCallResponseToAnthropicMessage,
-                mcpTools
+                mcpTools,
+                isVisionModel(model)
               )
               if (toolResults.length > 0) {
                 userMessages.push({

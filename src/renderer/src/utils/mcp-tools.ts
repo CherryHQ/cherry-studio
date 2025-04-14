@@ -416,9 +416,11 @@ export async function parseAndCallTools(
   idx: number,
   convertToMessage: (
     toolCallId: string,
-    resp: MCPCallToolResponse
+    resp: MCPCallToolResponse,
+    isVisionModel: boolean
   ) => ChatCompletionMessageParam | MessageParam | Content,
-  mcpTools?: MCPTool[]
+  mcpTools?: MCPTool[],
+  isVisionModel: boolean = false
 ): Promise<(ChatCompletionMessageParam | MessageParam | Content)[]> {
   const toolResults: (ChatCompletionMessageParam | MessageParam | Content)[] = []
   // process tool use
@@ -442,18 +444,19 @@ export async function parseAndCallTools(
 
     for (const content of toolCallResponse.content) {
       if (content.type === 'image' && content.data) {
-        images.push(content.data)
+        images.push(`data:${content.mimeType};base64,${content.data}`)
       }
     }
 
     onChunk({
+      text: '\n',
       generateImage: {
         type: 'base64',
         images: images
       }
     })
 
-    return convertToMessage(tool.id, toolCallResponse)
+    return convertToMessage(tool.tool.id, toolCallResponse, isVisionModel)
   })
 
   toolResults.push(...(await Promise.all(toolPromises)))
@@ -462,7 +465,8 @@ export async function parseAndCallTools(
 
 export function mcpToolCallResponseToOpenAIMessage(
   toolCallId: string,
-  resp: MCPCallToolResponse
+  resp: MCPCallToolResponse,
+  isVisionModel: boolean = false
 ): ChatCompletionMessageParam {
   const message = {
     role: 'user'
@@ -477,47 +481,60 @@ export function mcpToolCallResponseToOpenAIMessage(
         text: `Here is the result of tool call ${toolCallId}:`
       }
     ]
-    for (const item of resp.content) {
-      switch (item.type) {
-        case 'text':
-          content.push({
-            type: 'text',
-            text: item.text || 'no content'
-          })
-          break
-        case 'image':
-          content.push({
-            type: 'image_url',
-            image_url: {
-              url: `data:${item.mimeType};base64,${item.data}`,
-              detail: 'auto'
-            }
-          })
-          break
-        case 'audio':
-          content.push({
-            type: 'input_audio',
-            input_audio: {
-              data: `data:${item.mimeType};base64,${item.data}`,
-              format: 'mp3'
-            }
-          })
-          break
-        default:
-          content.push({
-            type: 'text',
-            text: `Unsupported type: ${item.type}`
-          })
-          break
+
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            content.push({
+              type: 'text',
+              text: item.text || 'no content'
+            })
+            break
+          case 'image':
+            content.push({
+              type: 'image_url',
+              image_url: {
+                url: `data:${item.mimeType};base64,${item.data}`,
+                detail: 'auto'
+              }
+            })
+            break
+          case 'audio':
+            content.push({
+              type: 'input_audio',
+              input_audio: {
+                data: `data:${item.mimeType};base64,${item.data}`,
+                format: 'mp3'
+              }
+            })
+            break
+          default:
+            content.push({
+              type: 'text',
+              text: `Unsupported type: ${item.type}`
+            })
+            break
+        }
       }
+    } else {
+      content.push({
+        type: 'text',
+        text: JSON.stringify(resp.content)
+      })
     }
+
     message.content = content
   }
 
   return message
 }
 
-export function mcpToolCallResponseToAnthropicMessage(toolCallId: string, resp: MCPCallToolResponse): MessageParam {
+export function mcpToolCallResponseToAnthropicMessage(
+  toolCallId: string,
+  resp: MCPCallToolResponse,
+  isVisionModel: boolean = false
+): MessageParam {
   const message = {
     role: 'user'
   } as MessageParam
@@ -530,43 +547,50 @@ export function mcpToolCallResponseToAnthropicMessage(toolCallId: string, resp: 
         text: `Here is the result of tool call ${toolCallId}:`
       }
     ]
-    for (const item of resp.content) {
-      switch (item.type) {
-        case 'text':
-          content.push({
-            type: 'text',
-            text: item.text || 'no content'
-          })
-          break
-        case 'image':
-          if (
-            item.mimeType === 'image/png' ||
-            item.mimeType === 'image/jpeg' ||
-            item.mimeType === 'image/webp' ||
-            item.mimeType === 'image/gif'
-          ) {
-            content.push({
-              type: 'image',
-              source: {
-                type: 'base64',
-                data: `data:${item.mimeType};base64,${item.data}`,
-                media_type: item.mimeType
-              }
-            })
-          } else {
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
             content.push({
               type: 'text',
-              text: `Unsupported image type: ${item.mimeType}`
+              text: item.text || 'no content'
             })
-          }
-          break
-        default:
-          content.push({
-            type: 'text',
-            text: `Unsupported type: ${item.type}`
-          })
-          break
+            break
+          case 'image':
+            if (
+              item.mimeType === 'image/png' ||
+              item.mimeType === 'image/jpeg' ||
+              item.mimeType === 'image/webp' ||
+              item.mimeType === 'image/gif'
+            ) {
+              content.push({
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  data: `data:${item.mimeType};base64,${item.data}`,
+                  media_type: item.mimeType
+                }
+              })
+            } else {
+              content.push({
+                type: 'text',
+                text: `Unsupported image type: ${item.mimeType}`
+              })
+            }
+            break
+          default:
+            content.push({
+              type: 'text',
+              text: `Unsupported type: ${item.type}`
+            })
+            break
+        }
       }
+    } else {
+      content.push({
+        type: 'text',
+        text: JSON.stringify(resp.content)
+      })
     }
     message.content = content
   }
@@ -574,7 +598,11 @@ export function mcpToolCallResponseToAnthropicMessage(toolCallId: string, resp: 
   return message
 }
 
-export function mcpToolCallResponseToGeminiMessage(toolCallId: string, resp: MCPCallToolResponse): Content {
+export function mcpToolCallResponseToGeminiMessage(
+  toolCallId: string,
+  resp: MCPCallToolResponse,
+  isVisionModel: boolean = false
+): Content {
   const message = {
     role: 'user'
   } as Content
@@ -591,33 +619,39 @@ export function mcpToolCallResponseToGeminiMessage(toolCallId: string, resp: MCP
         text: `Here is the result of tool call ${toolCallId}:`
       }
     ]
-    for (const item of resp.content) {
-      switch (item.type) {
-        case 'text':
-          parts.push({
-            text: item.text || 'no content'
-          })
-          break
-        case 'image':
-          if (!item.data) {
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
             parts.push({
-              text: 'No image data provided'
+              text: item.text || 'no content'
             })
-          } else {
+            break
+          case 'image':
+            if (!item.data) {
+              parts.push({
+                text: 'No image data provided'
+              })
+            } else {
+              parts.push({
+                inlineData: {
+                  data: item.data,
+                  mimeType: item.mimeType || 'image/png'
+                }
+              })
+            }
+            break
+          default:
             parts.push({
-              inlineData: {
-                data: item.data,
-                mimeType: item.mimeType || 'image/png'
-              }
+              text: `Unsupported type: ${item.type}`
             })
-          }
-          break
-        default:
-          parts.push({
-            text: `Unsupported type: ${item.type}`
-          })
-          break
+            break
+        }
       }
+    } else {
+      parts.push({
+        text: JSON.stringify(resp.content)
+      })
     }
     message.parts = parts
   }
