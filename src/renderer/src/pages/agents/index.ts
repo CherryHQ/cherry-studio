@@ -22,7 +22,7 @@ export function useSystemAgents() {
 
   useEffect(() => {
     runAsyncFunction(async () => {
-      if (_agents.length > 0) return
+      if (!resourcesPath || _agents.length > 0) return
       const agents = await window.api.fs.read(resourcesPath + '/data/agents.json')
       _agents = JSON.parse(agents) as Agent[]
       setAgents(_agents)
@@ -30,4 +30,21 @@ export function useSystemAgents() {
   }, [resourcesPath])
 
   return agents
+}
+
+export function groupByCategories(data: Agent[]) {
+  const groupedMap = new Map<string, Agent[]>()
+  data.forEach((item) => {
+    item.group?.forEach((category) => {
+      if (!groupedMap.has(category)) {
+        groupedMap.set(category, [])
+      }
+      groupedMap.get(category)?.push(item)
+    })
+  })
+  const result: Record<string, Agent[]> = {}
+  Array.from(groupedMap.entries()).forEach(([category, items]) => {
+    result[category] = items
+  })
+  return result
 }

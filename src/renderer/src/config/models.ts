@@ -186,7 +186,7 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-3-mini(?:-[\w-]+)?\b.*)$/i
 
 // Embedding models
 export const EMBEDDING_REGEX =
@@ -210,7 +210,8 @@ export const FUNCTION_CALLING_MODELS = [
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
-  'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
+  'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
+  'grok-3(?:-[\\w-]+)?'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -2202,12 +2203,29 @@ export function isOpenAIWebSearch(model: Model): boolean {
   return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
 }
 
-export function isSupportedResoningEffortModel(model?: Model): boolean {
+export function isSupportedReasoningEffortModel(model?: Model): boolean {
   if (!model) {
     return false
   }
 
-  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
+  if (
+    model.id.includes('claude-3-7-sonnet') ||
+    model.id.includes('claude-3.7-sonnet') ||
+    isOpenAIoSeries(model) ||
+    isGrokReasoningModel(model)
+  ) {
+    return true
+  }
+
+  return false
+}
+
+export function isGrokReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (model.id.includes('grok-3-mini')) {
     return true
   }
 
@@ -2247,6 +2265,12 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  if (model.type) {
+    if (model.type.includes('web_search')) {
+      return true
+    }
+  }
+
   const provider = getProviderByModel(model)
 
   if (!provider) {
@@ -2283,7 +2307,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'dashscope') {
-    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus']
+    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
     // matches id like qwen-max-0919, qwen-max-latest
     return models.some((i) => model.id.startsWith(i))
   }
@@ -2292,7 +2316,7 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
-  return model.type?.includes('web_search') || false
+  return false
 }
 
 export function isGenerateImageModel(model: Model): boolean {
@@ -2387,4 +2411,28 @@ export function isHunyuanSearchModel(model?: Model): boolean {
   }
 
   return false
+}
+
+/**
+ * 按 Qwen 系列模型分组
+ * @param models 模型列表
+ * @returns 分组后的模型
+ */
+export function groupQwenModels(models: Model[]): Record<string, Model[]> {
+  return models.reduce(
+    (groups, model) => {
+      // 匹配 Qwen 系列模型的前缀
+      const prefixMatch = model.id.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
+      // 匹配 qwen2.5、qwen2、qwen-7b、qwen-max、qwen-coder 等
+      const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = []
+      }
+      groups[groupKey].push(model)
+
+      return groups
+    },
+    {} as Record<string, Model[]>
+  )
 }

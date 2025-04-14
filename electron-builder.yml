@@ -85,7 +85,9 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    知识库和服务商界面更新
-    增加 Dangbei 小程序
-    可以强制使用搜索引擎覆盖模型自带搜索能力
-    修复部分公式无法正常渲染问题
+    增加对 grok-3 和 Grok-3-mini 的支持
+    助手支持使用拼音排序
+    网络搜索增加 Baidu, Google, Bing 支持（免费使用）
+    网络搜索增加 uBlacklist 订阅
+    快速面板 (QuickPanel) 进行性能优化
+    解决 mcp 依赖工具下载速度问题

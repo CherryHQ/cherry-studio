@@ -912,7 +912,6 @@
         "noServers": "Nenhum servidor configurado",
         "npx_list": {
           "actions": "Ações",
-          "desc": "Pesquise e adicione pacotes npm como serviço MCP",
           "description": "Descrição",
           "no_packages": "Nenhum pacote encontrado",
           "npm": "NPM",
@@ -921,7 +920,6 @@
           "scope_required": "Insira o escopo npm",
           "search": "Pesquisar",
           "search_error": "Falha na pesquisa",
-          "title": "Lista de Pacotes NPX",
           "usage": "Uso",
           "version": "Versão"
         },

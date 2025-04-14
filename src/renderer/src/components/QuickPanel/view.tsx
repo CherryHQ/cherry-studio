@@ -350,6 +350,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           break
 
         case 'Enter':
+        case 'NumpadEnter':
           if (isComposing.current) return
 
           if (list?.[index]) {
@@ -545,6 +546,7 @@ const QuickPanelBody = styled.div`
     background-color: rgba(240, 240, 240, 0.5);
     backdrop-filter: blur(35px) saturate(150%);
     z-index: -1;
+    border-radius: inherit;
 
     body[theme-mode='dark'] & {
       background-color: rgba(40, 40, 40, 0.4);
@@ -567,12 +569,12 @@ const QuickPanelFooterTips = styled.div<{ $footerWidth: number }>`
   justify-content: flex-end;
   flex-shrink: 0;
   gap: 16px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--color-text-3);
 `
 
 const QuickPanelFooterTitle = styled.div`
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -603,6 +605,7 @@ const QuickPanelItem = styled.div`
   cursor: pointer;
   transition: background-color 0.1s ease;
   margin-bottom: 1px;
+  font-family: Ubuntu;
   &.selected {
     background-color: var(--selected-color);
     &.focused {
@@ -635,7 +638,8 @@ const QuickPanelItemIcon = styled.span`
 
 const QuickPanelItemLabel = styled.span`
   flex: 1;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 16px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

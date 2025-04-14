@@ -1,7 +1,7 @@
-import { Readability } from '@mozilla/readability'
 import { nanoid } from '@reduxjs/toolkit'
+import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
-import TurndownService from 'turndown'
+import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
@@ -10,11 +10,7 @@ export interface SearchItem {
   url: string
 }
 
-const noContent = 'No content found'
-
 export default class LocalSearchProvider extends BaseWebSearchProvider {
-  private turndownService: TurndownService = new TurndownService()
-
   constructor(provider: WebSearchProvider) {
     if (!provider || !provider.url) {
       throw new Error('Provider URL is required')
@@ -22,11 +18,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
     super(provider)
   }
 
-  public async search(
-    query: string,
-    maxResults: number = 15,
-    excludeDomains: string[] = []
-  ): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
     const uid = nanoid()
     try {
       if (!query.trim()) {
@@ -41,22 +33,17 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       const content = await window.api.searchService.openUrlInSearchWindow(uid, url)
 
       // Parse the content to extract URLs and metadata
-      const searchItems = this.parseValidUrls(content).slice(0, maxResults)
-      console.log('Total search items:', searchItems)
+      const searchItems = this.parseValidUrls(content).slice(0, websearch.maxResults)
 
       const validItems = searchItems
-        .filter(
-          (item) =>
-            (item.url.startsWith('http') || item.url.startsWith('https')) &&
-            excludeDomains.includes(new URL(item.url).host) === false
-        )
-        .slice(0, maxResults)
+        .filter((item) => item.url.startsWith('http') || item.url.startsWith('https'))
+        .slice(0, websearch.maxResults)
       // console.log('Valid search items:', validItems)
 
       // Fetch content for each URL concurrently
       const fetchPromises = validItems.map(async (item) => {
         // console.log(`Fetching content for ${item.url}...`)
-        const result = await this.fetchPageContent(item.url, this.provider.usingBrowser)
+        const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
         if (
           this.provider.contentLimit &&
           this.provider.contentLimit != -1 &&
@@ -85,48 +72,5 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected parseValidUrls(_htmlContent: string): SearchItem[] {
     throw new Error('Not implemented')
-  }
-
-  private async fetchPageContent(url: string, usingBrowser: boolean = false): Promise<WebSearchResult> {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
-
-      let html: string
-      if (usingBrowser) {
-        html = await window.api.searchService.openUrlInSearchWindow(`search-window-${nanoid()}`, url)
-      } else {
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-          },
-          signal: controller.signal
-        })
-        if (!response.ok) {
-          throw new Error(`HTTP error: ${response.status}`)
-        }
-        html = await response.text()
-      }
-
-      clearTimeout(timeoutId) // Clear the timeout if fetch completes successfully
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(html, 'text/html')
-      const article = new Readability(doc).parse()
-      // console.log('Parsed article:', article)
-      const markdown = this.turndownService.turndown(article?.content || '')
-      return {
-        title: article?.title || url,
-        url: url,
-        content: markdown || noContent
-      }
-    } catch (e: unknown) {
-      console.error(`Failed to fetch ${url}`, e)
-      return {
-        title: url,
-        url: url,
-        content: noContent
-      }
-    }
   }
 }

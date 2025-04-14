@@ -1,9 +1,10 @@
-import { LoadingOutlined, MinusOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons'
+import { LoadingOutlined, MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import CustomTag from '@renderer/components/CustomTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import {
   getModelLogo,
+  groupQwenModels,
   isEmbeddingModel,
   isFunctionCallingModel,
   isReasoningModel,
@@ -20,6 +21,7 @@ import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/ut
 import { Avatar, Button, Empty, Flex, Modal, Tabs, Tooltip, Typography } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
+import { Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -81,7 +83,16 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     }
   })
 
-  const modelGroups = groupBy(list, 'group')
+  const modelGroups =
+    provider.id === 'dashscope'
+      ? {
+          ...groupBy(
+            list.filter((model) => !model.id.startsWith('qwen')),
+            'group'
+          ),
+          ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
+        }
+      : groupBy(list, 'group')
 
   const onOk = () => {
     setOpen(false)
@@ -170,7 +181,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       centered>
       <SearchContainer>
         <Input
-          prefix={<SearchOutlined />}
+          prefix={<Search size={14} />}
           size="large"
           ref={searchInputRef}
           placeholder={t('settings.provider.search_placeholder')}
@@ -199,7 +210,8 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
           return (
             <CustomCollapse
               key={i}
-              defaultActiveKey={i >= 5 ? [] : ['1']}
+              defaultActiveKey={['1']}
+              styles={{ body: { padding: '0 10px' } }}
               label={
                 <Flex align="center" gap={10}>
                   <span style={{ fontWeight: 600 }}>{group}</span>
@@ -233,13 +245,15 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                   />
                 </Tooltip>
               }>
-              <FlexColumn>
+              <FlexColumn style={{ margin: '10px 0' }}>
                 {modelGroups[group].map((model) => (
                   <FileItem
                     style={{
                       backgroundColor: isModelInProvider(provider, model.id)
                         ? 'rgba(0, 126, 0, 0.06)'
-                        : 'rgba(255, 255, 255, 0.04)'
+                        : 'rgba(255, 255, 255, 0.04)',
+                      border: 'none',
+                      boxShadow: 'none'
                     }}
                     key={model.id}
                     fileInfo={{
@@ -265,16 +279,14 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                           <ModelTagsWithLabel model={model} size={11} />
                         </ListItemName>
                       ),
-                      extra: (
+                      extra: model.description && (
                         <div style={{ marginTop: 6 }}>
-                          {model.description && (
-                            <Typography.Paragraph
-                              type="secondary"
-                              ellipsis={{ rows: 1, expandable: true }}
-                              style={{ marginBottom: 0, marginTop: 5 }}>
-                              {model.description}
-                            </Typography.Paragraph>
-                          )}
+                          <Typography.Paragraph
+                            type="secondary"
+                            ellipsis={{ rows: 1, expandable: true }}
+                            style={{ marginBottom: 0, marginTop: 5 }}>
+                            {model.description}
+                          </Typography.Paragraph>
                         </div>
                       ),
                       ext: '.model',

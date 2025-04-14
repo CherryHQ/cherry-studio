@@ -33,7 +33,7 @@
     },
     "assistants": {
       "title": "Assistants",
-      "abbr": "Assistant",
+      "abbr": "Assistants",
       "settings.title": "Assistant Settings",
       "clear.content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
       "clear.title": "Clear topics",
@@ -43,6 +43,7 @@
       "edit.title": "Edit Assistant",
       "save.success": "Saved successfully",
       "save.title": "Save to agent",
+      "icon.type": "Assistant Icon",
       "search": "Search assistants...",
       "settings.default_model": "Default Model",
       "settings.knowledge_base": "Knowledge Base Settings",
@@ -59,7 +60,7 @@
       "settings.reasoning_effort.low": "low",
       "settings.reasoning_effort.medium": "medium",
       "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supports OpenAI o-series and Anthropic reasoning models",
+      "settings.reasoning_effort.tip": "Only supported by OpenAI o-series, Anthropic, and Grok reasoning models",
       "settings.more": "Assistant Settings"
     },
     "auth": {
@@ -556,7 +557,8 @@
       "switch.disabled": "Please wait for the current reply to complete",
       "tools": {
         "completed": "Completed",
-        "invoking": "Invoking"
+        "invoking": "Invoking",
+        "error": "Error occurred"
       },
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
@@ -786,7 +788,10 @@
       "advanced.title": "Advanced Settings",
       "assistant": "Default Assistant",
       "assistant.model_params": "Model Parameters",
-      "assistant.show.icon": "Show model icon",
+      "assistant.icon.type": "Model Icon Type",
+      "assistant.icon.type.model": "Model Icon",
+      "assistant.icon.type.emoji": "Emoji Icon",
+      "assistant.icon.type.none": "Hide",
       "assistant.title": "Default Assistant",
       "data": {
         "app_data": "App Data",
@@ -874,6 +879,25 @@
           "backup.button": "Backup to WebDAV",
           "backup.modal.filename.placeholder": "Please enter backup filename",
           "backup.modal.title": "Backup to WebDAV",
+          "backup.manager.title": "Backup Data Management",
+          "backup.manager.refresh": "Refresh",
+          "backup.manager.delete.selected": "Delete Selected",
+          "backup.manager.delete.text": "Delete",
+          "backup.manager.restore.text": "Restore",
+          "backup.manager.restore.success": "Restore successful, application will refresh shortly",
+          "backup.manager.restore.error": "Restore failed",
+          "backup.manager.delete.confirm.title": "Confirm Delete",
+          "backup.manager.delete.confirm.single": "Are you sure you want to delete backup file \"{{fileName}}\"? This action cannot be undone.",
+          "backup.manager.delete.confirm.multiple": "Are you sure you want to delete {{count}} selected backup files? This action cannot be undone.",
+          "backup.manager.delete.success.single": "Deleted successfully",
+          "backup.manager.delete.success.multiple": "Successfully deleted {{count}} backup files",
+          "backup.manager.delete.error": "Delete failed",
+          "backup.manager.fetch.error": "Failed to get backup files",
+          "backup.manager.select.files.delete": "Please select backup files to delete",
+          "backup.manager.columns.fileName": "Filename",
+          "backup.manager.columns.modifiedTime": "Modified Time",
+          "backup.manager.columns.size": "Size",
+          "backup.manager.columns.actions": "Actions",
           "host": "WebDAV Host",
           "host.placeholder": "http://localhost:8080",
           "hour_interval_one": "{{count}} hour",
@@ -1063,7 +1087,6 @@
         "newServer": "MCP Server",
         "npx_list": {
           "actions": "Actions",
-          "desc": "Search and add npm packages as MCP servers",
           "description": "Description",
           "no_packages": "No packages found",
           "npm": "NPM",
@@ -1072,7 +1095,6 @@
           "scope_required": "Please enter npm scope",
           "search": "Search",
           "search_error": "Search error",
-          "title": "NPX Package List",
           "usage": "Usage",
           "version": "Version"
         },
@@ -1089,10 +1111,35 @@
         "url": "URL",
         "editMcpJson": "Edit MCP Configuration",
         "installHelp": "Get Installation Help",
+        "tabs": {
+          "general": "General",
+          "tools": "Tools",
+          "prompts": "Prompts",
+          "resources": "Resources"
+        },
         "tools": {
           "inputSchema": "Input Schema",
           "availableTools": "Available Tools",
-          "noToolsAvailable": "No tools available"
+          "noToolsAvailable": "No tools available",
+          "loadError": "Get tools Error"
+        },
+        "prompts": {
+          "availablePrompts": "Available Prompts",
+          "noPromptsAvailable": "No prompts available",
+          "arguments": "Arguments",
+          "requiredField": "Required Field",
+          "genericError": "Get prompt Error",
+          "loadError": "Get prompts Error"
+        },
+        "resources": {
+          "noResourcesAvailable": "No resources available",
+          "availableResources": "Available Resources",
+          "uri": "URI",
+          "mimeType": "MIME Type",
+          "size": "Size",
+          "blob": "Blob",
+          "blobInvisible": "Blob Invisible",
+          "text": "Text"
         },
         "deleteServer": "Delete Server",
         "deleteServerConfirm": "Are you sure you want to delete this server?",
@@ -1114,6 +1161,7 @@
       "messages.input.show_estimated_tokens": "Show estimated tokens",
       "messages.input.title": "Input Settings",
       "messages.input.enable_quick_triggers": "Enable '/' and '@' triggers",
+      "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
@@ -1300,6 +1348,14 @@
           "title": "Tavily"
         },
         "title": "Web Search",
+        "subscribe": "Blacklist Subscription",
+        "subscribe_update": "Update now",
+        "subscribe_add": "Add Subscription",
+        "subscribe_url": "Subscription feed address",
+        "subscribe_name": "Alternative name",
+        "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
+        "subscribe_add_success": "Subscription feed added successfully!",
+        "subscribe_delete": "Delete subscription source",
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",
         "apikey": "API key",

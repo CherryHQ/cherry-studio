@@ -1,7 +1,7 @@
 import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from '@google/generative-ai/server'
-import type { MCPServer, MCPTool } from '@renderer/types'
+import type { GetMCPPromptResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
 import type { LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
@@ -46,6 +46,7 @@ declare global {
         listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
         checkConnection: (webdavConfig: WebDavConfig) => Promise<boolean>
         createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) => Promise<void>
+        deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) => Promise<boolean>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
@@ -151,6 +152,18 @@ declare global {
         stopServer: (server: MCPServer) => Promise<void>
         listTools: (server: MCPServer) => Promise<MCPTool[]>
         callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) => Promise<any>
+        listPrompts: (server: MCPServer) => Promise<MCPPrompt[]>
+        getPrompt: ({
+          server,
+          name,
+          args
+        }: {
+          server: MCPServer
+          name: string
+          args?: Record<string, any>
+        }) => Promise<GetMCPPromptResponse>
+        listResources: (server: MCPServer) => Promise<MCPResource[]>
+        getResource: ({ server, uri }: { server: MCPServer; uri: string }) => Promise<GetResourceResponse>
         getInstallInfo: () => Promise<{ dir: string; uvPath: string; bunPath: string }>
       }
       copilot: {

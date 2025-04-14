@@ -43,6 +43,7 @@
       "edit.title": "アシスタントを編集",
       "save.success": "保存に成功しました",
       "save.title": "エージェントに保存",
+      "icon.type": "アシスタントアイコン",
       "search": "アシスタントを検索...",
       "settings.mcp": "MCP サーバー",
       "settings.mcp.enableFirst": "まず MCP 設定でこのサーバーを有効にしてください",
@@ -59,7 +60,7 @@
       "settings.reasoning_effort.low": "短い",
       "settings.reasoning_effort.medium": "中程度",
       "settings.reasoning_effort.off": "オフ",
-      "settings.reasoning_effort.tip": "OpenAIのoシリーズとAnthropicの推論モデルのみサポートしています",
+      "settings.reasoning_effort.tip": "OpenAI o-series、Anthropic、および Grok の推論モデルのみサポート",
       "settings.more": "アシスタント設定"
     },
     "auth": {
@@ -555,7 +556,8 @@
       "switch.disabled": "現在の応答が完了するまで切り替えを無効にします",
       "tools": {
         "completed": "完了",
-        "invoking": "呼び出し中"
+        "invoking": "呼び出し中",
+        "error": "エラーが発生しました"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
@@ -786,7 +788,10 @@
       "advanced.title": "詳細設定",
       "assistant": "デフォルトアシスタント",
       "assistant.model_params": "モデルパラメータ",
-      "assistant.show.icon": "モデルアイコンを表示",
+      "assistant.icon.type": "モデルアイコンタイプ",
+      "assistant.icon.type.model": "モデルアイコン",
+      "assistant.icon.type.emoji": "Emoji アイコン",
+      "assistant.icon.type.none": "表示しない",
       "assistant.title": "デフォルトアシスタント",
       "data": {
         "app_data": "アプリデータ",
@@ -874,6 +879,25 @@
           "backup.button": "WebDAVにバックアップ",
           "backup.modal.filename.placeholder": "バックアップファイル名を入力してください",
           "backup.modal.title": "WebDAV にバックアップ",
+          "backup.manager.title": "バックアップデータ管理",
+          "backup.manager.refresh": "更新",
+          "backup.manager.delete.selected": "選択したものを ",
+          "backup.manager.delete.text": "削除",
+          "backup.manager.restore.text": "復元",
+          "backup.manager.restore.success": "復元が成功しました、アプリケーションは間もなく更新されます",
+          "backup.manager.restore.error": "復元に失敗しました",
+          "backup.manager.delete.confirm.title": "削除の確認",
+          "backup.manager.delete.confirm.single": "バックアップファイル \"{{fileName}}\" を削除してもよろしいですか？この操作は元に戻せません。",
+          "backup.manager.delete.confirm.multiple": "選択した {{count}} 個のバックアップファイルを削除してもよろしいですか？この操作は元に戻せません。",
+          "backup.manager.delete.success.single": "削除が成功しました",
+          "backup.manager.delete.success.multiple": "{{count}} 個のバックアップファイルを削除しました",
+          "backup.manager.delete.error": "削除に失敗しました",
+          "backup.manager.fetch.error": "バックアップファイルの取得に失敗しました",
+          "backup.manager.select.files.delete": "削除するバックアップファイルを選択してください",
+          "backup.manager.columns.fileName": "ファイル名",
+          "backup.manager.columns.modifiedTime": "更新日時",
+          "backup.manager.columns.size": "サイズ",
+          "backup.manager.columns.actions": "操作",
           "host": "WebDAVホスト",
           "host.placeholder": "http://localhost:8080",
           "hour_interval_one": "{{count}} 時間",
@@ -1062,7 +1086,6 @@
         "newServer": "MCP サーバー",
         "npx_list": {
           "actions": "アクション",
-          "desc": "npm パッケージを検索して MCP サーバーとして追加",
           "description": "説明",
           "no_packages": "パッケージが見つかりません",
           "npm": "NPM",
@@ -1071,7 +1094,6 @@
           "scope_required": "npm スコープを入力してください",
           "search": "検索",
           "search_error": "パッケージの検索に失敗しました",
-          "title": "NPX パッケージリスト",
           "usage": "使用法",
           "version": "バージョン"
         },
@@ -1088,10 +1110,35 @@
         },
         "editMcpJson": "MCP 設定を編集",
         "installHelp": "インストールヘルプを取得",
+        "tabs": {
+          "general": "一般",
+          "tools": "ツール",
+          "prompts": "プロンプト",
+          "resources": "リソース"
+        },
         "tools": {
           "inputSchema": "入力スキーマ",
           "availableTools": "利用可能なツール",
-          "noToolsAvailable": "利用可能なツールはありません"
+          "noToolsAvailable": "利用可能なツールなし",
+          "loadError": "ツール取得エラー"
+        },
+        "prompts": {
+          "availablePrompts": "利用可能なプロンプト",
+          "noPromptsAvailable": "利用可能なプロンプトはありません",
+          "arguments": "引数",
+          "requiredField": "必須フィールド",
+          "genericError": "プロンプト取得エラー",
+          "loadError": "プロンプト取得エラー"
+        },
+        "resources": {
+          "noResourcesAvailable": "利用可能なリソースはありません",
+          "availableResources": "利用可能なリソース",
+          "uri": "URI",
+          "mimeType": "MIMEタイプ",
+          "size": "サイズ",
+          "blob": "バイナリデータ",
+          "blobInvisible": "バイナリデータを非表示",
+          "text": "テキスト"
         },
         "deleteServer": "サーバーを削除",
         "deleteServerConfirm": "このサーバーを削除してもよろしいですか？",
@@ -1113,6 +1160,7 @@
       "messages.input.show_estimated_tokens": "推定トークン数を表示",
       "messages.input.title": "入力設定",
       "messages.input.enable_quick_triggers": "'/' と '@' を有効にしてクイックメニューを表示します。",
+      "messages.input.enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
       "messages.markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "messages.math_engine": "数式エンジン",
       "messages.metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
@@ -1279,7 +1327,6 @@
       "websearch": {
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
-        "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "チェック",
         "check_failed": "検証に失敗しました",
         "check_success": "検証に成功しました",
@@ -1299,6 +1346,15 @@
           "title": "Tavily"
         },
         "title": "ウェブ検索",
+        "blacklist_tooltip": "マッチパターン: *://*.example.com/*\n正規表現: /example\\.(net|org)/",
+        "subscribe": "ブラックリスト購読",
+        "subscribe_update": "今すぐ更新",
+        "subscribe_add": "サブスクリプションを追加",
+        "subscribe_url": "フィードのURL",
+        "subscribe_name": "代替名",
+        "subscribe_name.placeholder": "ダウンロードしたフィードに名前がない場合に使用される代替名",
+        "subscribe_add_success": "フィードの追加が成功しました！",
+        "subscribe_delete": "フィードの削除",
         "overwrite": "サービス検索を上書き",
         "overwrite_tooltip": "大規模言語モデルではなく、サービス検索を使用する",
         "apikey": "API キー",

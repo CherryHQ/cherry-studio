@@ -87,6 +87,7 @@ const HomeWindow: FC = () => {
 
     switch (e.code) {
       case 'Enter':
+      case 'NumpadEnter':
         {
           e.preventDefault()
           if (content) {

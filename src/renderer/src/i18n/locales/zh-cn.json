@@ -43,6 +43,7 @@
       "edit.title": "编辑助手",
       "save.success": "保存成功",
       "save.title": "保存到智能体",
+      "icon.type": "助手图标",
       "search": "搜索助手",
       "settings.mcp": "MCP 服务器",
       "settings.mcp.enableFirst": "请先在 MCP 设置中启用此服务器",
@@ -59,7 +60,7 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "关",
-      "settings.reasoning_effort.tip": "仅支持 OpenAI o-series 和 Anthropic 推理模型",
+      "settings.reasoning_effort.tip": "仅支持 OpenAI o-series、Anthropic、Grok 推理模型",
       "settings.more": "助手设置"
     },
     "auth": {
@@ -556,7 +557,8 @@
       "switch.disabled": "请等待当前回复完成后操作",
       "tools": {
         "completed": "已完成",
-        "invoking": "调用中"
+        "invoking": "调用中",
+        "error": "发生错误"
       },
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -786,7 +788,10 @@
       "advanced.title": "高级设置",
       "assistant": "默认助手",
       "assistant.model_params": "模型参数",
-      "assistant.show.icon": "显示模型图标",
+      "assistant.icon.type": "模型图标类型",
+      "assistant.icon.type.model": "模型图标",
+      "assistant.icon.type.emoji": "Emoji 表情",
+      "assistant.icon.type.none": "不显示",
       "assistant.title": "默认助手",
       "data": {
         "app_data": "应用数据",
@@ -876,6 +881,25 @@
           "backup.button": "备份到 WebDAV",
           "backup.modal.filename.placeholder": "请输入备份文件名",
           "backup.modal.title": "备份到 WebDAV",
+          "backup.manager.title": "备份数据管理",
+          "backup.manager.refresh": "刷新",
+          "backup.manager.delete.selected": "删除选中",
+          "backup.manager.delete.text": "删除",
+          "backup.manager.restore.text": "恢复",
+          "backup.manager.restore.success": "恢复成功，应用将在几秒后刷新",
+          "backup.manager.restore.error": "恢复失败",
+          "backup.manager.delete.confirm.title": "确认删除",
+          "backup.manager.delete.confirm.single": "确定要删除备份文件 \"{{fileName}}\" 吗？此操作不可恢复。",
+          "backup.manager.delete.confirm.multiple": "确定要删除选中的 {{count}} 个备份文件吗？此操作不可恢复。",
+          "backup.manager.delete.success.single": "删除成功",
+          "backup.manager.delete.success.multiple": "成功删除 {{count}} 个备份文件",
+          "backup.manager.delete.error": "删除失败",
+          "backup.manager.fetch.error": "获取备份文件失败",
+          "backup.manager.select.files.delete": "请选择要删除的备份文件",
+          "backup.manager.columns.fileName": "文件名",
+          "backup.manager.columns.modifiedTime": "修改时间",
+          "backup.manager.columns.size": "大小",
+          "backup.manager.columns.actions": "操作",
           "host": "WebDAV 地址",
           "host.placeholder": "http://localhost:8080",
           "hour_interval_one": "{{count}} 小时",
@@ -1063,7 +1087,6 @@
         "newServer": "MCP 服务器",
         "npx_list": {
           "actions": "操作",
-          "desc": "搜索并添加 npm 包作为 MCP 服务",
           "description": "描述",
           "no_packages": "未找到包",
           "npm": "NPM",
@@ -1072,7 +1095,6 @@
           "scope_required": "请输入 npm 作用域",
           "search": "搜索",
           "search_error": "搜索失败",
-          "title": "NPX 包列表",
           "usage": "用法",
           "version": "版本"
         },
@@ -1089,10 +1111,35 @@
         "url": "URL",
         "editMcpJson": "编辑 MCP 配置",
         "installHelp": "获取安装帮助",
+        "tabs": {
+          "general": "通用",
+          "tools": "工具",
+          "prompts": "提示",
+          "resources": "资源"
+        },
         "tools": {
-          "inputSchema": "输入参数",
+          "inputSchema": "输入模式",
           "availableTools": "可用工具",
-          "noToolsAvailable": "没有可用工具"
+          "noToolsAvailable": "无可用工具",
+          "loadError": "获取工具失败"
+        },
+        "prompts": {
+          "availablePrompts": "可用提示",
+          "noPromptsAvailable": "无可用提示",
+          "arguments": "参数",
+          "requiredField": "必填字段",
+          "genericError": "获取提示错误",
+          "loadError": "获取提示失败"
+        },
+        "resources": {
+          "noResourcesAvailable": "无可用资源",
+          "availableResources": "可用资源",
+          "uri": "URI",
+          "mimeType": "MIME类型",
+          "size": "大小",
+          "blob": "二进制数据",
+          "blobInvisible": "隐藏二进制数据",
+          "text": "文本"
         },
         "deleteServer": "删除服务器",
         "deleteServerConfirm": "确定要删除此服务器吗？",
@@ -1114,6 +1161,7 @@
       "messages.input.show_estimated_tokens": "显示预估 Token 数",
       "messages.input.title": "输入设置",
       "messages.input.enable_quick_triggers": "启用 '/' 和 '@' 触发快捷菜单",
+      "messages.input.enable_delete_model": "启用删除键删除输入的模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染输入消息",
       "messages.math_engine": "数学公式引擎",
       "messages.metrics": "首字时延 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
@@ -1280,7 +1328,7 @@
       "websearch": {
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
-        "blacklist_tooltip": "请使用以下格式(换行分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
         "check": "检查",
         "check_failed": "验证失败",
         "check_success": "验证成功",
@@ -1293,6 +1341,14 @@
         "search_max_result": "搜索结果个数",
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
+        "subscribe": "黑名单订阅",
+        "subscribe_update": "立即更新",
+        "subscribe_add": "添加订阅",
+        "subscribe_url": "订阅源地址",
+        "subscribe_name": "替代名字",
+        "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
+        "subscribe_add_success": "订阅源添加成功!",
+        "subscribe_delete": "删除订阅源",
         "search_result_default": "默认",
         "search_with_time": "搜索包含日期",
         "tavily": {

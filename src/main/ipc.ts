@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
@@ -46,7 +47,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configPath: getConfigDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
-    logsPath: log.transports.file.getFile().path
+    logsPath: log.transports.file.getFile().path,
+    arch: arch()
   }))
 
   ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
@@ -152,7 +154,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
+    // 在 Windows 上，如果架构是 arm64，则不检查更新
+    if (isWin && arch().includes('arm')) {
+      return {
+        currentVersion: app.getVersion(),
+        updateInfo: null
+      }
+    }
+
     const update = await appUpdater.autoUpdater.checkForUpdates()
+
     return {
       currentVersion: appUpdater.autoUpdater.currentVersion,
       updateInfo: update?.updateInfo
@@ -171,6 +182,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles)
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
+  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)
@@ -262,6 +274,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_StopServer, mcpService.stopServer)
   ipcMain.handle(IpcChannel.Mcp_ListTools, mcpService.listTools)
   ipcMain.handle(IpcChannel.Mcp_CallTool, mcpService.callTool)
+  ipcMain.handle(IpcChannel.Mcp_ListPrompts, mcpService.listPrompts)
+  ipcMain.handle(IpcChannel.Mcp_GetPrompt, mcpService.getPrompt)
+  ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
+  ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
