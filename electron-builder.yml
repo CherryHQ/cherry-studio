@@ -1,5 +1,11 @@
 appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
+electronLanguages:
+  - zh-CN
+  - zh-TW
+  - en-GB
+  - en-US
+  - ru
 directories:
   buildResources: build
 files:
@@ -29,7 +35,7 @@ files:
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
 asarUnpack:
   - resources/**
-  - '**/*.{node,dll,metal,exp,lib}'
+  - '**/*.{metal,exp,lib}'
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
