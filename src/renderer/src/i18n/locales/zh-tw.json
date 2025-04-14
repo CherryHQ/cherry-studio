@@ -1071,6 +1071,8 @@
         "editServer": "編輯伺服器",
         "env": "環境變數",
         "envTooltip": "格式：KEY=value，每行一個",
+        "headers": "請求標頭",
+        "headersTooltip": "HTTP 請求的自定義標頭",
         "findMore": "更多 MCP",
         "searchNpx": "搜索 MCP",
         "install": "安裝",

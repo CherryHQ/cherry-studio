@@ -1072,6 +1072,8 @@
         "editServer": "Edit Server",
         "env": "Environment Variables",
         "envTooltip": "Format: KEY=value, one per line",
+        "headers": "Headers",
+        "headersTooltip": "Custom headers for HTTP requests",
         "findMore": "Find More MCP",
         "searchNpx": "Search MCP",
         "install": "Install",
