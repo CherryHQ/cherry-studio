@@ -160,12 +160,12 @@ export const processKnowledgeSearch = async (
 
       const references = await Promise.all(
         processdResults.map(async (item, index) => {
-          const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
+          // const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
           return {
             id: index + 1, // 搜索多个库会导致ID重复
             content: item.pageContent,
             sourceUrl: await getKnowledgeSourceUrl(item),
-            type: baseItem?.type
+            type: 'file' // 需要映射 baseItem.type是'localPathLoader' -> 'file'
           } as KnowledgeReference
         })
       )

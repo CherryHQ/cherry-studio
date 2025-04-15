@@ -1,4 +1,4 @@
-import { FOOTNOTE_PROMPT, REFERENCE_PROMPT } from '@renderer/config/prompts'
+import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import type {
@@ -14,7 +14,6 @@ import type {
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
-import { t } from 'i18next'
 import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
 
@@ -98,21 +97,21 @@ export default abstract class BaseProvider {
     }
 
     const webSearchReferences = await this.getWebSearchReferencesFromCache(message)
-
-    if (!isEmpty(webSearchReferences)) {
-      const referenceContent = `\`\`\`json\n${JSON.stringify(webSearchReferences, null, 2)}\n\`\`\``
-      return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
-    }
-
     const knowledgeReferences = await this.getKnowledgeBaseReferencesFromCache(message)
 
-    if (!isEmpty(message.knowledgeBaseIds) && isEmpty(knowledgeReferences)) {
-      window.message.info({ content: t('knowledge.no_match'), key: 'knowledge-base-no-match-info' })
-    }
+    // 添加偏移量以避免ID冲突
+    const reindexedKnowledgeReferences = knowledgeReferences.map((ref) => ({
+      ...ref,
+      id: ref.id + webSearchReferences.length // 为知识库引用的ID添加网络搜索引用的数量作为偏移量
+    }))
 
-    if (!isEmpty(knowledgeReferences)) {
-      const referenceContent = `\`\`\`json\n${JSON.stringify(knowledgeReferences, null, 2)}\n\`\`\``
-      return FOOTNOTE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
+    const allReferences = [...webSearchReferences, ...reindexedKnowledgeReferences]
+
+    console.log(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
+
+    if (!isEmpty(allReferences)) {
+      const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
+      return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
     }
 
     return message.content
