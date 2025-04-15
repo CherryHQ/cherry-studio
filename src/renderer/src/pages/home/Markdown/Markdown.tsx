@@ -39,17 +39,10 @@ const Markdown: FC<Props> = ({ message }) => {
     return removeSvgEmptyLines(escapeBrackets(content))
   }, [message, t])
 
-  const rehypePlugins = useMemo(() => {
-    const plugins: any[] = []
-
-    if (ALLOWED_ELEMENTS.test(messageContent)) {
-      plugins.push(rehypeRaw)
-    }
-    if (rehypeMath) {
-      plugins.push(rehypeMath)
-    }
-    return plugins
-  }, [messageContent, rehypeMath])
+  const rehypePlugins = useMemo(
+    () => [...(ALLOWED_ELEMENTS.test(messageContent) ? [rehypeRaw] : []), ...(rehypeMath ? [rehypeMath] : [])],
+    [messageContent, rehypeMath]
+  )
 
   const components = useMemo(() => {
     const baseComponents = {
