@@ -88,7 +88,7 @@ https://docs.cherry-ai.com
 主题库：https://cherrycss.com  
 Aero 主题：https://github.com/hakadao/CherryStudio-Aero  
 PaperMaterial 主题: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial  
-仿Claude 主题: https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
+仿Claude 主题: https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic  
 
 欢迎 PR 更多主题
 
