@@ -52,7 +52,7 @@ const ListItemContainer = styled.div`
 const ListItemContent = styled.div`
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 2px;
   overflow: hidden;
   font-size: 13px;
 `

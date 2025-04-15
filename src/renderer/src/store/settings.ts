@@ -113,6 +113,7 @@ export interface SettingsState {
   // 隐私设置
   enableDataCollection: boolean
   enableQuickPanelTriggers: boolean
+  enableBackspaceDeleteModel: boolean
   exportMenuOptions: {
     image: boolean
     markdown: boolean
@@ -212,6 +213,7 @@ export const initialState: SettingsState = {
   showOpenedMinappsInSidebar: true,
   enableDataCollection: false,
   enableQuickPanelTriggers: false,
+  enableBackspaceDeleteModel: true,
   exportMenuOptions: {
     image: true,
     markdown: true,
@@ -483,6 +485,9 @@ const settingsSlice = createSlice({
     },
     setEnableQuickPanelTriggers: (state, action: PayloadAction<boolean>) => {
       state.enableQuickPanelTriggers = action.payload
+    },
+    setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
+      state.enableBackspaceDeleteModel = action.payload
     }
   }
 })
@@ -570,7 +575,8 @@ export const {
   setShowOpenedMinappsInSidebar,
   setEnableDataCollection,
   setEnableQuickPanelTriggers,
-  setExportMenuOptions
+  setExportMenuOptions,
+  setEnableBackspaceDeleteModel
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

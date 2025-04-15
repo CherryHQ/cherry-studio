@@ -64,7 +64,7 @@ const initialState: WebSearchState = {
   maxResults: 5,
   excludeDomains: [],
   subscribeSources: [],
-  enhanceMode: false,
+  enhanceMode: true,
   overwrite: false
 }
 

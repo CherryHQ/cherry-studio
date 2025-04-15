@@ -1,4 +1,5 @@
-import { Tool, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
+import { ContentBlockParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
+import { MessageParam } from '@anthropic-ai/sdk/resources'
 import {
   ArraySchema,
   BaseSchema,
@@ -15,11 +16,15 @@ import {
   SimpleStringSchema,
   Tool as geminiTool
 } from '@google/generative-ai'
-import { nanoid } from '@reduxjs/toolkit'
+import { Content, Part } from '@google/generative-ai'
 import store from '@renderer/store'
-import { addMCPServer } from '@renderer/store/mcp'
-import { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
-import { ChatCompletionMessageToolCall, ChatCompletionTool } from 'openai/resources'
+import { MCPCallToolResponse, MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
+import {
+  ChatCompletionContentPart,
+  ChatCompletionMessageParam,
+  ChatCompletionMessageToolCall,
+  ChatCompletionTool
+} from 'openai/resources'
 
 import { ChunkCallbackData, CompletionsParams } from '../providers/AiProvider'
 
@@ -218,7 +223,7 @@ export function openAIToolsToMcpTool(
   }
 }
 
-export async function callMCPTool(tool: MCPTool): Promise<any> {
+export async function callMCPTool(tool: MCPTool): Promise<MCPCallToolResponse> {
   console.log(`[MCP] Calling Tool: ${tool.serverName} ${tool.name}`, tool)
   try {
     const server = getMcpServerByTool(tool)
@@ -234,24 +239,6 @@ export async function callMCPTool(tool: MCPTool): Promise<any> {
     })
 
     console.log(`[MCP] Tool called: ${tool.serverName} ${tool.name}`, resp)
-
-    if (tool.serverName === '@cherry/mcp-auto-install') {
-      if (resp.data) {
-        const mcpServer: MCPServer = {
-          id: `f${nanoid()}`,
-          name: resp.data.name,
-          description: resp.data.description,
-          baseUrl: resp.data.baseUrl,
-          command: resp.data.command,
-          args: resp.data.args,
-          env: resp.data.env,
-          registryUrl: '',
-          isActive: false
-        }
-        store.dispatch(addMCPServer(mcpServer))
-      }
-    }
-
     return resp
   } catch (e) {
     console.error(`[MCP] Error calling Tool: ${tool.serverName} ${tool.name}`, e)
@@ -269,7 +256,7 @@ export async function callMCPTool(tool: MCPTool): Promise<any> {
 
 export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> {
   return mcpTools.map((tool) => {
-    const t: Tool = {
+    const t: ToolUnion = {
       name: tool.id,
       description: tool.description,
       // @ts-ignore no check
@@ -427,9 +414,15 @@ export async function parseAndCallTools(
   toolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   idx: number,
-  mcpTools?: MCPTool[]
-): Promise<string[]> {
-  const toolResults: string[] = []
+  convertToMessage: (
+    toolCallId: string,
+    resp: MCPCallToolResponse,
+    isVisionModel: boolean
+  ) => ChatCompletionMessageParam | MessageParam | Content,
+  mcpTools?: MCPTool[],
+  isVisionModel: boolean = false
+): Promise<(ChatCompletionMessageParam | MessageParam | Content)[]> {
+  const toolResults: (ChatCompletionMessageParam | MessageParam | Content)[] = []
   // process tool use
   const tools = parseToolUse(content, mcpTools || [])
   if (!tools || tools.length === 0) {
@@ -440,22 +433,228 @@ export async function parseAndCallTools(
     upsertMCPToolResponse(toolResponses, { id: `${tool.id}-${idx}-${i}`, tool: tool.tool, status: 'invoking' }, onChunk)
   }
 
+  const images: string[] = []
   const toolPromises = tools.map(async (tool, i) => {
     const toolCallResponse = await callMCPTool(tool.tool)
-    const result = `
-          <tool_use_result>
-            <name>${tool.id}</name>
-            <result>${JSON.stringify(toolCallResponse)}</result>
-          </tool_use_result>
-          `.trim()
     upsertMCPToolResponse(
       toolResponses,
       { id: `${tool.id}-${idx}-${i}`, tool: tool.tool, status: 'done', response: toolCallResponse },
       onChunk
     )
-    return result
+
+    for (const content of toolCallResponse.content) {
+      if (content.type === 'image' && content.data) {
+        images.push(`data:${content.mimeType};base64,${content.data}`)
+      }
+    }
+
+    onChunk({
+      text: '\n',
+      generateImage: {
+        type: 'base64',
+        images: images
+      }
+    })
+
+    return convertToMessage(tool.tool.id, toolCallResponse, isVisionModel)
   })
 
   toolResults.push(...(await Promise.all(toolPromises)))
   return toolResults
+}
+
+export function mcpToolCallResponseToOpenAIMessage(
+  toolCallId: string,
+  resp: MCPCallToolResponse,
+  isVisionModel: boolean = false
+): ChatCompletionMessageParam {
+  const message = {
+    role: 'user'
+  } as ChatCompletionMessageParam
+
+  if (resp.isError) {
+    message.content = JSON.stringify(resp.content)
+  } else {
+    const content: ChatCompletionContentPart[] = [
+      {
+        type: 'text',
+        text: `Here is the result of tool call ${toolCallId}:`
+      }
+    ]
+
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            content.push({
+              type: 'text',
+              text: item.text || 'no content'
+            })
+            break
+          case 'image':
+            content.push({
+              type: 'image_url',
+              image_url: {
+                url: `data:${item.mimeType};base64,${item.data}`,
+                detail: 'auto'
+              }
+            })
+            break
+          case 'audio':
+            content.push({
+              type: 'input_audio',
+              input_audio: {
+                data: `data:${item.mimeType};base64,${item.data}`,
+                format: 'mp3'
+              }
+            })
+            break
+          default:
+            content.push({
+              type: 'text',
+              text: `Unsupported type: ${item.type}`
+            })
+            break
+        }
+      }
+    } else {
+      content.push({
+        type: 'text',
+        text: JSON.stringify(resp.content)
+      })
+    }
+
+    message.content = content
+  }
+
+  return message
+}
+
+export function mcpToolCallResponseToAnthropicMessage(
+  toolCallId: string,
+  resp: MCPCallToolResponse,
+  isVisionModel: boolean = false
+): MessageParam {
+  const message = {
+    role: 'user'
+  } as MessageParam
+  if (resp.isError) {
+    message.content = JSON.stringify(resp.content)
+  } else {
+    const content: ContentBlockParam[] = [
+      {
+        type: 'text',
+        text: `Here is the result of tool call ${toolCallId}:`
+      }
+    ]
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            content.push({
+              type: 'text',
+              text: item.text || 'no content'
+            })
+            break
+          case 'image':
+            if (
+              item.mimeType === 'image/png' ||
+              item.mimeType === 'image/jpeg' ||
+              item.mimeType === 'image/webp' ||
+              item.mimeType === 'image/gif'
+            ) {
+              content.push({
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  data: `data:${item.mimeType};base64,${item.data}`,
+                  media_type: item.mimeType
+                }
+              })
+            } else {
+              content.push({
+                type: 'text',
+                text: `Unsupported image type: ${item.mimeType}`
+              })
+            }
+            break
+          default:
+            content.push({
+              type: 'text',
+              text: `Unsupported type: ${item.type}`
+            })
+            break
+        }
+      }
+    } else {
+      content.push({
+        type: 'text',
+        text: JSON.stringify(resp.content)
+      })
+    }
+    message.content = content
+  }
+
+  return message
+}
+
+export function mcpToolCallResponseToGeminiMessage(
+  toolCallId: string,
+  resp: MCPCallToolResponse,
+  isVisionModel: boolean = false
+): Content {
+  const message = {
+    role: 'user'
+  } as Content
+
+  if (resp.isError) {
+    message.parts = [
+      {
+        text: JSON.stringify(resp.content)
+      }
+    ]
+  } else {
+    const parts: Part[] = [
+      {
+        text: `Here is the result of tool call ${toolCallId}:`
+      }
+    ]
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            parts.push({
+              text: item.text || 'no content'
+            })
+            break
+          case 'image':
+            if (!item.data) {
+              parts.push({
+                text: 'No image data provided'
+              })
+            } else {
+              parts.push({
+                inlineData: {
+                  data: item.data,
+                  mimeType: item.mimeType || 'image/png'
+                }
+              })
+            }
+            break
+          default:
+            parts.push({
+              text: `Unsupported type: ${item.type}`
+            })
+            break
+        }
+      }
+    } else {
+      parts.push({
+        text: JSON.stringify(resp.content)
+      })
+    }
+    message.parts = parts
+  }
+
+  return message
 }

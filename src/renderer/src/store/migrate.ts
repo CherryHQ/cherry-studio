@@ -1220,6 +1220,18 @@ const migrateConfig = {
       state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
       // @ts-ignore eslint-disable-next-line
       delete state.settings.showAssistantIcon
+      state.settings.enableBackspaceDeleteModel = true
+      if (state.websearch) {
+        state.websearch.enhanceMode = true
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '97': (state: RootState) => {
+    try {
+      addMiniApp(state, 'zai')
       return state
     } catch (error) {
       return state

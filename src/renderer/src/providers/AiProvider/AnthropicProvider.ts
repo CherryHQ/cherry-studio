@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { isReasoningModel } from '@renderer/config/models'
+import { isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -12,7 +12,7 @@ import {
 } from '@renderer/services/MessagesService'
 import { Assistant, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
-import { parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { mcpToolCallResponseToAnthropicMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { first, flatten, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
@@ -290,17 +290,22 @@ export default class AnthropicProvider extends BaseProvider {
           .on('finalMessage', async (message) => {
             const content = message.content[0]
             if (content && content.type === 'text') {
-              const toolResults = await parseAndCallTools(content.text, toolResponses, onChunk, idx, mcpTools)
+              const toolResults = await parseAndCallTools(
+                content.text,
+                toolResponses,
+                onChunk,
+                idx,
+                mcpToolCallResponseToAnthropicMessage,
+                mcpTools,
+                isVisionModel(model)
+              )
               if (toolResults.length > 0) {
                 userMessages.push({
                   role: message.role,
                   content: message.content
                 })
 
-                userMessages.push({
-                  role: 'user',
-                  content: toolResults.join('\n')
-                })
+                toolResults.forEach((ts) => userMessages.push(ts as MessageParam))
                 const newBody = body
                 newBody.messages = userMessages
                 await processStream(newBody, idx + 1)

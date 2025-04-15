@@ -1,9 +1,9 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setEnhanceMode, setMaxResult, setOverwrite, setSearchWithTime } from '@renderer/store/websearch'
 import { Slider, Switch, Tooltip } from 'antd'
 import { t } from 'i18next'
+import { Info } from 'lucide-react'
 import { FC } from 'react'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
@@ -31,7 +31,7 @@ const BasicSettings: FC = () => {
           <SettingRowTitle>
             {t('settings.websearch.overwrite')}
             <Tooltip title={t('settings.websearch.overwrite_tooltip')} placement="right">
-              <InfoCircleOutlined style={{ marginLeft: 5, color: 'var(--color-icon)', cursor: 'pointer' }} />
+              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
             </Tooltip>
           </SettingRowTitle>
           <Switch checked={overwrite} onChange={(checked) => dispatch(setOverwrite(checked))} />
@@ -41,7 +41,7 @@ const BasicSettings: FC = () => {
           <SettingRowTitle>
             {t('settings.websearch.enhance_mode')}
             <Tooltip title={t('settings.websearch.enhance_mode_tooltip')} placement="right">
-              <InfoCircleOutlined style={{ marginLeft: 5, color: 'var(--color-icon)', cursor: 'pointer' }} />
+              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
             </Tooltip>
           </SettingRowTitle>
           <Switch checked={enhanceMode} onChange={(checked) => dispatch(setEnhanceMode(checked))} />

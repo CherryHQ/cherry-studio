@@ -1,13 +1,11 @@
 import {
   CheckCircleFilled,
   CloseCircleFilled,
-  EditOutlined,
   ExclamationCircleFilled,
   LoadingOutlined,
   MinusCircleOutlined,
   MinusOutlined,
-  PlusOutlined,
-  SettingOutlined
+  PlusOutlined
 } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import { HStack } from '@renderer/components/Layout'
@@ -23,6 +21,7 @@ import { Model } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Flex, Tooltip, Typography } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
+import { Bolt, ListCheck } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -302,7 +301,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                         type="text"
                         onClick={() => !isChecking && onEditModel(model)}
                         disabled={isChecking}
-                        icon={<SettingOutlined />}
+                        icon={<Bolt size={16} />}
                       />
                       <Button
                         type="text"
@@ -333,7 +332,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
         )}
       </Flex>
       <Flex gap={10} style={{ marginTop: '10px' }}>
-        <Button type="primary" onClick={onManageModel} icon={<EditOutlined />}>
+        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={18} />}>
           {t('button.manage')}
         </Button>
         <Button type="default" onClick={onAddModel} icon={<PlusOutlined />}>

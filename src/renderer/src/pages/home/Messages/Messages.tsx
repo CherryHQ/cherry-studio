@@ -2,7 +2,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useMessageOperations, useTopicLoading, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
@@ -29,7 +29,6 @@ import ChatNavigation from './ChatNavigation'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
-import NewTopicButton from './NewTopicButton'
 import Prompt from './Prompt'
 
 interface MessagesProps {
@@ -50,7 +49,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [isProcessingContext, setIsProcessingContext] = useState(false)
   const messages = useTopicMessages(topic)
   const { displayCount, updateMessages, clearTopicMessages, deleteMessage } = useMessageOperations(topic)
-  const loading = useTopicLoading(topic)
   const messagesRef = useRef<Message[]>(messages)
 
   useEffect(() => {
@@ -225,7 +223,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       ref={containerRef}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-        {messages.length >= 2 && !loading && <NewTopicButton />}
         <InfiniteScroll
           dataLength={displayMessages.length}
           next={loadMoreMessages}

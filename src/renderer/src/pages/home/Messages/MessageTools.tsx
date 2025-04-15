@@ -263,7 +263,7 @@ const ToolResponseContainer = styled.div`
   padding: 12px 16px;
   overflow: auto;
   max-height: 300px;
-  border-top: 1px solid var(--color-border);
+  border-top: none;
   position: relative;
 `
 

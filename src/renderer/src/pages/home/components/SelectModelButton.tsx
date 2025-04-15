@@ -1,5 +1,4 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import ModelTags from '@renderer/components/ModelTags'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -33,13 +32,12 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
   const providerName = getProviderName(model?.provider)
 
   return (
-    <DropdownButton size="small" type="default" onClick={onSelectModel}>
+    <DropdownButton size="small" type="text" onClick={onSelectModel}>
       <ButtonContent>
         <ModelAvatar model={model} size={20} />
         <ModelName>
           {model ? model.name : t('button.select_model')} {providerName ? '| ' + providerName : ''}
         </ModelName>
-        <ModelTags model={model} showFree={false} showReasoning={false} showToolsCalling={false} />
       </ButtonContent>
     </DropdownButton>
   )

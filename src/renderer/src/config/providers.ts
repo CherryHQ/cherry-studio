@@ -1,7 +1,7 @@
 import ZhinaoProviderLogo from '@renderer/assets/images/models/360.png'
 import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
-import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.jpg'
+import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
@@ -319,9 +319,9 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://www.aliyun.com/product/bailian',
-      apiKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
+      apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
       docs: 'https://help.aliyun.com/zh/model-studio/getting-started/',
-      models: 'https://bailian.console.aliyun.com/model-market#/model-market'
+      models: 'https://bailian.console.aliyun.com/?tab=model#/model-market'
     }
   },
   stepfun: {

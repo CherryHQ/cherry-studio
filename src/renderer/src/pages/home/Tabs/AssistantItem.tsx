@@ -8,6 +8,7 @@ import {
   SortDescendingOutlined
 } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistants } from '@renderer/hooks/useAssistant'
@@ -172,7 +173,17 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
         }
       }
     ],
-    [addAgent, addAssistant, onSwitch, removeAllTopics, t, onDelete, sortByPinyinAsc, sortByPinyinDesc]
+    [
+      addAgent,
+      addAssistant,
+      onDelete,
+      onSwitch,
+      removeAllTopics,
+      setAssistantIconType,
+      sortByPinyinAsc,
+      sortByPinyinDesc,
+      t
+    ]
   )
 
   const handleSwitch = useCallback(async () => {
@@ -205,11 +216,10 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
             />
           ) : (
             assistantIconType === 'emoji' && (
-              <AssistantEmoji
-                $emoji={assistant.emoji || assistantName.slice(0, 1)}
-                className={isPending && !isActive ? 'animation-pulse' : ''}>
-                {assistant.emoji || assistantName.slice(0, 1)}
-              </AssistantEmoji>
+              <EmojiIcon
+                emoji={assistant.emoji || assistantName.slice(0, 1)}
+                className={isPending && !isActive ? 'animation-pulse' : ''}
+              />
             )
           )}
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
@@ -258,34 +268,6 @@ const AssistantNameRow = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 8px;
-`
-
-const AssistantEmoji = styled.div<{ $emoji: string }>`
-  width: 26px;
-  height: 26px;
-  border-radius: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: 15px;
-  position: relative;
-  overflow: hidden;
-  margin-right: 3px;
-  &:before {
-    width: 100%;
-    height: 100%;
-    content: ${({ $emoji }) => `'${$emoji || ' '}'`};
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 200%;
-    transform: scale(1.5);
-    filter: blur(5px);
-    opacity: 0.4;
-  }
 `
 
 const AssistantName = styled.div`
