@@ -1,5 +1,5 @@
 import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
-import aoxisProxy from '@main/services/AoxisProxy'
+import AxiosProxy from '@main/services/AoxisProxy'
 import { KnowledgeBaseParams } from '@types'
 
 import BaseReranker from './BaseReranker'
@@ -20,7 +20,7 @@ export default class JinaReranker extends BaseReranker {
     }
 
     try {
-      const { data } = await aoxisProxy.axios.post(url, requestBody, { headers: this.defaultHeaders() })
+      const { data } = await AxiosProxy.axios.post(url, requestBody, { headers: this.defaultHeaders() })
 
       const rerankResults = data.results
       return this.getRerankResult(searchResults, rerankResults)
