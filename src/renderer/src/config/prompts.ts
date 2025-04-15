@@ -11,8 +11,6 @@ Input: User input prompt content
 Output: Strictly return only the result in "Emoji: [single emoji character]" format
 `
 
-import dayjs from 'dayjs'
-
 export const AGENT_PROMPT = `
 You are a Prompt Generator. You will integrate user input information into a structured Prompt using Markdown syntax. Please do not use code blocks for output, display directly!
 
