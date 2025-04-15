@@ -1,8 +1,5 @@
-import 'katex/dist/katex.min.css'
-import 'katex/dist/contrib/copy-tex'
-import 'katex/dist/contrib/mhchem'
-
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
+import { useMarkdownMath } from '@renderer/hooks/useMarkdownMath'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { Message } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
@@ -12,9 +9,6 @@ import { isEmpty } from 'lodash'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components } from 'react-markdown'
-import rehypeKatex from 'rehype-katex'
-// @ts-ignore next-line
-import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
@@ -36,8 +30,7 @@ const disallowedElements = ['iframe']
 const Markdown: FC<Props> = ({ message }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
-
-  const rehypeMath = useMemo(() => (mathEngine === 'KaTeX' ? rehypeKatex : rehypeMathjax), [mathEngine])
+  const rehypeMath = useMarkdownMath(mathEngine)
 
   const messageContent = useMemo(() => {
     const empty = isEmpty(message.content)
@@ -47,8 +40,15 @@ const Markdown: FC<Props> = ({ message }) => {
   }, [message, t])
 
   const rehypePlugins = useMemo(() => {
-    const hasElements = ALLOWED_ELEMENTS.test(messageContent)
-    return hasElements ? [rehypeRaw, rehypeMath] : [rehypeMath]
+    const plugins: any[] = []
+
+    if (ALLOWED_ELEMENTS.test(messageContent)) {
+      plugins.push(rehypeRaw)
+    }
+    if (rehypeMath) {
+      plugins.push(rehypeMath)
+    }
+    return plugins
   }, [messageContent, rehypeMath])
 
   const components = useMemo(() => {
@@ -61,7 +61,7 @@ const Markdown: FC<Props> = ({ message }) => {
     return baseComponents
   }, [])
 
-  if (message.role === 'user' && !renderInputMessageAsMarkdown) {
+  if ((message.role === 'user' && !renderInputMessageAsMarkdown) || !rehypeMath) {
     return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
   }
 
