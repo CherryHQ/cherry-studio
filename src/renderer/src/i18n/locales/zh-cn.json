@@ -328,7 +328,7 @@
       "no_api_key": "API 密钥未配置",
       "provider_disabled": "模型提供商未启用",
       "render": {
-        "description": "渲染公式失败，请检查公式格式是否正确",
+        "description": "消息内容渲染失败，请检查消息内容格式是否正确",
         "title": "渲染错误"
       },
       "user_message_not_found": "无法找到原始用户消息",
