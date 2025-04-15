@@ -1,6 +1,7 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
+  isGrokModel,
   isGrokReasoningModel,
   isHunyuanSearchModel,
   isOpenAIoSeries,
@@ -32,7 +33,7 @@ import {
 } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
-import { parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -382,25 +383,34 @@ export default class OpenAIProvider extends BaseProvider {
     const { signal } = abortController
     await this.checkIsCopilot()
 
-    const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
-      Boolean
-    ) as ChatCompletionMessageParam[]
+    // Grok 模型要求每条消息都不能为空，所以当是 Grok 模型且 systemMessage 内容为空时不发送 systemMessage
+    let reqMessages: ChatCompletionMessageParam[]
+    if (isGrokModel(model) && !systemMessage.content) {
+      reqMessages = [...userMessages]
+    } else {
+      reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
+    }
 
     const toolResponses: MCPToolResponse[] = []
     let firstChunk = true
 
     const processToolUses = async (content: string, idx: number) => {
-      const toolResults = await parseAndCallTools(content, toolResponses, onChunk, idx, mcpTools)
+      const toolResults = await parseAndCallTools(
+        content,
+        toolResponses,
+        onChunk,
+        idx,
+        mcpToolCallResponseToOpenAIMessage,
+        mcpTools,
+        isVisionModel(model)
+      )
 
       if (toolResults.length > 0) {
         reqMessages.push({
           role: 'assistant',
           content: content
         } as ChatCompletionMessageParam)
-        reqMessages.push({
-          role: 'user',
-          content: toolResults.join('\n')
-        } as ChatCompletionMessageParam)
+        toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
 
         const newStream = await this.sdk.chat.completions
           // @ts-ignore key is not typed

@@ -2220,6 +2220,13 @@ export function isSupportedReasoningEffortModel(model?: Model): boolean {
   return false
 }
 
+export function isGrokModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return model.id.includes('grok')
+}
+
 export function isGrokReasoningModel(model?: Model): boolean {
   if (!model) {
     return false

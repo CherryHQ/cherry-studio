@@ -1228,6 +1228,14 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '97': (state: RootState) => {
+    try {
+      addMiniApp(state, 'zai')
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

@@ -1,7 +1,24 @@
 import { getLeadingEmoji } from '@renderer/utils'
+import { FC } from 'react'
 import styled from 'styled-components'
 
-const EmojiIcon = styled.div<{ $emoji: string }>`
+interface EmojiIconProps {
+  emoji: string
+  className?: string
+}
+
+const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className }) => {
+  const _emoji = getLeadingEmoji(emoji || '⭐️') || '⭐️'
+
+  return (
+    <Container className={className}>
+      <EmojiBackground>{_emoji}</EmojiBackground>
+      {_emoji}
+    </Container>
+  )
+}
+
+const Container = styled.div`
   width: 26px;
   height: 26px;
   border-radius: 13px;
@@ -13,20 +30,20 @@ const EmojiIcon = styled.div<{ $emoji: string }>`
   position: relative;
   overflow: hidden;
   margin-right: 3px;
-  &:before {
-    width: 100%;
-    height: 100%;
-    content: ${({ $emoji }) => `'${getLeadingEmoji($emoji || ' ')}'`};
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 200%;
-    transform: scale(1.5);
-    filter: blur(5px);
-    opacity: 0.4;
-  }
+`
+
+const EmojiBackground = styled.div`
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 200%;
+  transform: scale(1.5);
+  filter: blur(5px);
+  opacity: 0.4;
 `
 
 export default EmojiIcon

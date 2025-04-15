@@ -1,0 +1,76 @@
+name: Stale Issue Management
+on:
+  schedule:
+    - cron: '0 0 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  process-stale-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Process stale issues
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { Octokit } = require('@octokit/rest')
+            const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN })
+
+            const EXEMPTION_LABEL = 'pending'
+            const STALE_LABEL = 'inactive'
+            const DAYS_TO_STALE = 30
+            const DAYS_TO_CLOSE = 60
+
+            const issues = await octokit.paginate(octokit.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            })
+
+            const now = new Date()
+            
+            for (const issue of issues) {
+              if (issue.pull_request || issue.labels.some(l => l.name === EXEMPTION_LABEL)) {
+                continue
+              }
+
+              const lastUpdated = new Date(issue.updated_at)
+              const daysInactive = Math.floor((now - lastUpdated) / (1000 * 3600 * 24))
+
+              if (daysInactive > DAYS_TO_CLOSE) {
+                await octokit.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `⏰ 该 issue 因 ${DAYS_TO_CLOSE} 天无更新已自动关闭，如需跟进可重新打开`
+                })
+
+                await octokit.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  state: 'closed'
+                })
+                continue
+              }
+
+              if (daysInactive > DAYS_TO_STALE) {
+                if (!issue.labels.some(l => l.name === STALE_LABEL)) {
+                  await octokit.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    labels: [STALE_LABEL]
+                  })
+
+                  await octokit.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `⚠️ 该 issue 已 ${DAYS_TO_STALE} 天无更新，将保持跟踪。如果 ${DAYS_TO_CLOSE - DAYS_TO_STALE} 天内无更新会被自动关闭`
+                  })
+                }
+              }
+            }

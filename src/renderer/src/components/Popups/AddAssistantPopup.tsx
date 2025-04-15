@@ -188,7 +188,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             className={`agent-item ${agent.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
             onMouseEnter={() => setSelectedIndex(index)}>
             <HStack alignItems="center" gap={5} style={{ overflow: 'hidden', maxWidth: '100%' }}>
-              <EmojiIcon $emoji={agent.emoji || ''}>{agent.emoji}</EmojiIcon>
+              <EmojiIcon emoji={agent.emoji || ''} />
               <span className="text-nowrap">{agent.name}</span>
             </HStack>
             {agent.id === 'default' && <Tag color="green">{t('agents.tag.system')}</Tag>}
