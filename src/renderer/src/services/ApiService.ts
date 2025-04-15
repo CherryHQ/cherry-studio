@@ -84,7 +84,14 @@ export async function fetchChatCompletion({
       return extractInfoFromXML(keywords || '')
     } catch (e: any) {
       console.error('extract error', e)
-      throw new Error('extract error')
+      return {
+        websearch: {
+          question: [lastUserMessage.content]
+        },
+        knowledge: {
+          question: [lastUserMessage.content]
+        }
+      } as ExtractResults
     }
   }
   let extractResults: ExtractResults

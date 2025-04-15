@@ -18,10 +18,10 @@ export interface KnowledgeExtractResults {
  * @public
  * @param text 包含XML标签的文本
  * @returns 提取的信息对象
- * @throws 如果文本中没有question标签则抛出错误
+ * @throws
  */
 export const extractInfoFromXML = (text: string): ExtractResults => {
-  console.log('Extracting information from XML:', text)
+  console.log('extract text', text)
   const parser = new XMLParser({
     isArray: (name) => {
       return name === 'question' || name === 'link'
