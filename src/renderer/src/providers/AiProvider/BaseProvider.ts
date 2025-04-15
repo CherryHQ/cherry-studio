@@ -104,7 +104,6 @@ export default abstract class BaseProvider {
       return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
     }
 
-    // const knowledgeReferences = await getKnowledgeBaseReferences(message)
     const knowledgeReferences = await this.getKnowledgeBaseReferencesFromCache(message)
 
     if (!isEmpty(message.knowledgeBaseIds) && isEmpty(knowledgeReferences)) {

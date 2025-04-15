@@ -5,7 +5,7 @@ import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
 import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
-import { isEmpty, take } from 'lodash'
+import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
@@ -91,7 +91,6 @@ export const processKnowledgeSearch = async (
   extractResults: ExtractResults,
   knowledgeBaseIds: string[] | undefined
 ): Promise<KnowledgeReference[]> => {
-  // 检查 websearch 和 question 是否有效
   if (
     !extractResults.knowledge?.question ||
     extractResults.knowledge.question.length === 0 ||
@@ -118,9 +117,8 @@ export const processKnowledgeSearch = async (
   const referencesPromises = bases.map(async (base) => {
     try {
       const baseParams = getKnowledgeBaseParams(base)
-      console.log('baseParams', baseParams)
+      const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
 
-      // Perform parallel searches for all questions
       const allSearchResultsPromises = questions.map((question) =>
         window.api.knowledgeBase
           .search({
@@ -135,13 +133,13 @@ export const processKnowledgeSearch = async (
           )
       )
 
-      // Wait for all searches to complete
       const allSearchResults = await Promise.all(allSearchResultsPromises)
 
-      // Combine and deduplicate results
       const searchResults = Array.from(
         new Map(allSearchResults.flat().map((item) => [item.metadata.uniqueId || item.pageContent, item])).values()
       )
+        .sort((a, b) => b.score - a.score)
+        .slice(0, documentCount)
 
       console.log(`Knowledge base ${base.name} search results:`, searchResults)
       let rerankResults = searchResults
@@ -160,10 +158,8 @@ export const processKnowledgeSearch = async (
         })
       )
 
-      const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
-
       const references = await Promise.all(
-        take(processdResults, documentCount).map(async (item, index) => {
+        processdResults.map(async (item, index) => {
           const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
           return {
             id: index + 1, // 搜索多个库会导致ID重复

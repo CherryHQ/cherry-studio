@@ -145,7 +145,7 @@ export const SEARCH_SUMMARY_PROMPT = `
   </knowledge>
   \`
 
-  6. Follow up question: Which company had higher revenue in 2022, "Apple" or "Microsoft"?
+  6. Follow up question: Based on websearch, Which company had higher revenue in 2022, "Apple" or "Microsoft"?
   Rephrased question: \`
   <websearch>
     <question>
@@ -156,14 +156,28 @@ export const SEARCH_SUMMARY_PROMPT = `
     </question>
   </websearch>
   <knowledge>
+    <question>
+      not_needed
+    </question>
+  </knowledge>
+  \`
+
+  7. Follow up question: Based on knowledge, Fomula of Scaled Dot-Product Attention and Multi-Head Attention?
+  Rephrased question: \`
+  <websearch>
+    <question>
+      not_needed
+    </question>
+  </websearch>
+  <knowledge>
     <rewrite>
-      Between Apple and Microsoft, which one generated a higher total revenue in the year 2022?
+      What are the mathematical formulas for Scaled Dot-Product Attention and Multi-Head Attention
     </rewrite>
     <question>
-      What was Apple's revenue in 2022?
+      What is the formula for Scaled Dot-Product Attention?
     </question>
     <question>
-      What was Microsoft's revenue in 2022?
+      What is the formula for Multi-Head Attention?
     </question>
   </knowledge>
   \`
