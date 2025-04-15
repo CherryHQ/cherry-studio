@@ -1,4 +1,3 @@
-import { PlusOutlined } from '@ant-design/icons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
@@ -10,7 +9,7 @@ import { Model } from '@renderer/types'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
-import { AtSign } from 'lucide-react'
+import { AtSign, Plus } from 'lucide-react'
 import { FC, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -63,6 +62,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
                 {first(m.name)}
               </Avatar>
             ),
+            filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
             action: () => onMentionModel(m),
             isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
           }))
@@ -90,6 +90,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
               {first(m.name)}
             </Avatar>
           ),
+          filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
           action: () => onMentionModel(m),
           isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
         }))
@@ -101,7 +102,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
 
     items.push({
       label: t('settings.models.add.add_model') + '...',
-      icon: <PlusOutlined />,
+      icon: <Plus />,
       action: () => navigate('/settings/provider'),
       isSelected: false
     })

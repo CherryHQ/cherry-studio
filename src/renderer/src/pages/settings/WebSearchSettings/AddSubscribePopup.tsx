@@ -65,8 +65,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       centered>
       <Form
         form={form}
-        labelCol={{ flex: '110px' }}
-        labelAlign="left"
+        labelCol={{ flex: '150px' }}
+        labelAlign="right"
         colon={false}
         style={{ marginTop: 25 }}
         onFinish={onFinish}>

@@ -18,7 +18,9 @@ body:
       options:
         - label: I understand that issues are for feedback and problem solving, not for complaining in the comment section, and will provide as much information as possible to help solve the problem.
           required: true
-        - label: I've looked at pinned issues and searched for existing [Open Issues](https://github.com/CherryHQ/cherry-studio/issues), [Closed Issues](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed), and [Discussions](https://github.com/CherryHQ/cherry-studio/discussions), no similar issue or discussion was found.
+        - label: My issue is not listed in the [FAQ](https://github.com/CherryHQ/cherry-studio/issues/3881).
+          required: true
+        - label: I've looked at **pinned issues** and searched for existing [Open Issues](https://github.com/CherryHQ/cherry-studio/issues), [Closed Issues](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed), and [Discussions](https://github.com/CherryHQ/cherry-studio/discussions), no similar issue or discussion was found.
           required: true
         - label: I've filled in short, clear headings so that developers can quickly identify a rough idea of what to expect when flipping through the list of issues. And not "a suggestion", "stuck", etc.
           required: true

@@ -5,6 +5,7 @@ import { Center, HStack } from '@renderer/components/Layout'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { builtinMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
+import { getMcpConfigSampleFromReadme } from '@renderer/utils'
 import { Button, Card, Flex, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
@@ -19,6 +20,7 @@ interface SearchResult {
   npmLink: string
   fullName: string
   type: MCPServer['type']
+  configSample?: MCPServer['configSample']
 }
 
 const npmScopes = ['@cherry', '@modelcontextprotocol', '@gongrzhe', '@mcpmarket']
@@ -73,9 +75,13 @@ const NpxSearch: FC<{
     try {
       // Call npxFinder to search for packages
       const packages = await npxFinder(searchScope)
-
       // Map the packages to our desired format
       const formattedResults: SearchResult[] = packages.map((pkg) => {
+        let configSample
+        if (pkg.original?.readme) {
+          configSample = getMcpConfigSampleFromReadme(pkg.original.readme)
+        }
+
         return {
           key: pkg.name,
           name: pkg.name?.split('/')[1] || '',
@@ -84,7 +90,8 @@ const NpxSearch: FC<{
           usage: `npx ${pkg.name}`,
           npmLink: pkg.links?.npm || `https://www.npmjs.com/package/${pkg.name}`,
           fullName: pkg.name || '',
-          type: 'stdio'
+          type: 'stdio',
+          configSample
         }
       })
 
@@ -199,9 +206,11 @@ const NpxSearch: FC<{
                           name: record.name,
                           description: `${record.description}\n\n${t('settings.mcp.npx_list.usage')}: ${record.usage}\n${t('settings.mcp.npx_list.npm')}: ${record.npmLink}`,
                           command: 'npx',
-                          args: ['-y', record.fullName],
+                          args: record.configSample?.args ?? ['-y', record.fullName],
+                          env: record.configSample?.env,
                           isActive: false,
-                          type: record.type
+                          type: record.type,
+                          configSample: record.configSample
                         }
 
                         addMCPServer(newServer)

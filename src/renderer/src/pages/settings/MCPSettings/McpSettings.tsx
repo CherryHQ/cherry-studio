@@ -27,6 +27,7 @@ interface MCPFormValues {
   args?: string
   env?: string
   isActive: boolean
+  headers?: string
 }
 
 interface Registry {
@@ -99,6 +100,11 @@ const McpSettings: React.FC<Props> = ({ server }) => {
       args: server.args ? server.args.join('\n') : '',
       env: server.env
         ? Object.entries(server.env)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('\n')
+        : '',
+      headers: server.headers
+        ? Object.entries(server.headers)
             .map(([key, value]) => `${key}=${value}`)
             .join('\n')
         : ''
@@ -216,6 +222,20 @@ const McpSettings: React.FC<Props> = ({ server }) => {
           }
         })
         mcpServer.env = env
+      }
+
+      if (values.headers) {
+        const headers: Record<string, string> = {}
+        values.headers.split('\n').forEach((line) => {
+          if (line.trim()) {
+            const [key, ...chunks] = line.split(':')
+            const value = chunks.join(':')
+            if (key && value) {
+              headers[key.trim()] = value.trim()
+            }
+          }
+        })
+        mcpServer.headers = headers
       }
 
       try {
@@ -400,22 +420,40 @@ const McpSettings: React.FC<Props> = ({ server }) => {
             </Form.Item>
           )}
           {serverType === 'sse' && (
-            <Form.Item
-              name="baseUrl"
-              label={t('settings.mcp.url')}
-              rules={[{ required: serverType === 'sse', message: '' }]}
-              tooltip={t('settings.mcp.baseUrlTooltip')}>
-              <Input placeholder="http://localhost:3000/sse" />
-            </Form.Item>
+            <>
+              <Form.Item
+                name="baseUrl"
+                label={t('settings.mcp.url')}
+                rules={[{ required: serverType === 'sse', message: '' }]}
+                tooltip={t('settings.mcp.baseUrlTooltip')}>
+                <Input placeholder="http://localhost:3000/sse" />
+              </Form.Item>
+              <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
+                <TextArea
+                  rows={3}
+                  placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Form.Item>
+            </>
           )}
           {serverType === 'streamableHttp' && (
-            <Form.Item
-              name="baseUrl"
-              label={t('settings.mcp.url')}
-              rules={[{ required: serverType === 'streamableHttp', message: '' }]}
-              tooltip={t('settings.mcp.baseUrlTooltip')}>
-              <Input placeholder="http://localhost:3000/mcp" />
-            </Form.Item>
+            <>
+              <Form.Item
+                name="baseUrl"
+                label={t('settings.mcp.url')}
+                rules={[{ required: serverType === 'streamableHttp', message: '' }]}
+                tooltip={t('settings.mcp.baseUrlTooltip')}>
+                <Input placeholder="http://localhost:3000/mcp" />
+              </Form.Item>
+              <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
+                <TextArea
+                  rows={3}
+                  placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Form.Item>
+            </>
           )}
           {serverType === 'stdio' && (
             <>

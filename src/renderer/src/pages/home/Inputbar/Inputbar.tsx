@@ -1,12 +1,4 @@
-import {
-  CodeOutlined,
-  FileSearchOutlined,
-  HolderOutlined,
-  PaperClipOutlined,
-  PauseCircleOutlined,
-  ThunderboltOutlined,
-  TranslationOutlined
-} from '@ant-design/icons'
+import { HolderOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
@@ -39,7 +31,22 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
-import { Globe, Maximize, MessageSquareDiff, Minimize, PaintbrushVertical } from 'lucide-react'
+import {
+  AtSign,
+  CirclePause,
+  FileSearch,
+  FileText,
+  Globe,
+  Languages,
+  LucideSquareTerminal,
+  Maximize,
+  MessageSquareDiff,
+  Minimize,
+  PaintbrushVertical,
+  Paperclip,
+  Upload,
+  Zap
+} from 'lucide-react'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -261,7 +268,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               label: fileContent.origin_name || fileContent.name,
               description:
                 formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
-              icon: <FileSearchOutlined />,
+              icon: <FileText />,
               isSelected: files.some((f) => f.path === fileContent.path),
               action: async ({ item }) => {
                 item.isSelected = !item.isSelected
@@ -292,7 +299,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         {
           label: t('chat.input.upload.upload_from_local'),
           description: '',
-          icon: <PaperClipOutlined />,
+          icon: <Upload />,
           action: () => {
             attachmentButtonRef.current?.openQuickPanel()
           }
@@ -304,7 +311,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           return {
             label: base.name,
             description: `${length} ${t('files.count')}`,
-            icon: <FileSearchOutlined />,
+            icon: <FileSearch />,
             disabled: length === 0,
             isMenu: true,
             action: () => openKnowledgeFileList(base)
@@ -320,7 +327,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       {
         label: t('settings.quickPhrase.title'),
         description: '',
-        icon: <ThunderboltOutlined />,
+        icon: <Zap />,
         isMenu: true,
         action: () => {
           quickPhrasesButtonRef.current?.openQuickPanel()
@@ -329,7 +336,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       {
         label: t('agents.edit.model.select.title'),
         description: '',
-        icon: '@',
+        icon: <AtSign />,
         isMenu: true,
         action: () => {
           mentionModelsButtonRef.current?.openQuickPanel()
@@ -338,7 +345,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       {
         label: t('chat.input.knowledge_base'),
         description: '',
-        icon: <FileSearchOutlined />,
+        icon: <FileSearch />,
         isMenu: true,
         disabled: files.length > 0,
         action: () => {
@@ -348,7 +355,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       {
         label: t('settings.mcp.title'),
         description: t('settings.mcp.not_support'),
-        icon: <CodeOutlined />,
+        icon: <LucideSquareTerminal />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openQuickPanel()
@@ -357,7 +364,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       {
         label: `MCP ${t('settings.mcp.tabs.prompts')}`,
         description: '',
-        icon: <CodeOutlined />,
+        icon: <LucideSquareTerminal />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openPromptList()
@@ -366,7 +373,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       {
         label: `MCP ${t('settings.mcp.tabs.resources')}`,
         description: '',
-        icon: <CodeOutlined />,
+        icon: <LucideSquareTerminal />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openResourcesList()
@@ -375,14 +382,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       {
         label: isVisionModel(model) ? t('chat.input.upload') : t('chat.input.upload.document'),
         description: '',
-        icon: <PaperClipOutlined />,
+        icon: <Paperclip />,
         isMenu: true,
         action: openSelectFileMenu
       },
       {
         label: t('translate.title'),
         description: t('translate.menu.description'),
-        icon: <TranslationOutlined />,
+        icon: <Languages />,
         action: () => {
           if (!text) return
           translate()
@@ -1009,7 +1016,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>
-                    <PauseCircleOutlined style={{ color: 'var(--color-error)', fontSize: 20 }} />
+                    <CirclePause style={{ color: 'var(--color-error)', fontSize: 20 }} />
                   </ToolbarButton>
                 </Tooltip>
               )}

@@ -1,20 +1,29 @@
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import fs from 'node:fs'
 
 import { isLinux, isMac, isWin } from '@main/constant'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists } from '@main/utils'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
-import { GetMCPPromptResponse, GetResourceResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@types'
+import {
+  GetMCPPromptResponse,
+  GetResourceResponse,
+  MCPCallToolResponse,
+  MCPPrompt,
+  MCPResource,
+  MCPServer,
+  MCPTool
+} from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
 import { memoize } from 'lodash'
+
 import { CacheService } from './CacheService'
 import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
 
@@ -128,12 +137,19 @@ class McpService {
         transport = clientTransport
       } else if (server.baseUrl) {
         if (server.type === 'streamableHttp') {
-          transport = new StreamableHTTPClientTransport(
-            new URL(server.baseUrl!),
-            {} as StreamableHTTPClientTransportOptions
-          )
+          const options: StreamableHTTPClientTransportOptions = {
+            requestInit: {
+              headers: server.headers || {}
+            }
+          }
+          transport = new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
         } else if (server.type === 'sse') {
-          transport = new SSEClientTransport(new URL(server.baseUrl!))
+          const options: SSEClientTransportOptions = {
+            requestInit: {
+              headers: server.headers || {}
+            }
+          }
+          transport = new SSEClientTransport(new URL(server.baseUrl!), options)
         } else {
           throw new Error('Invalid server type')
         }
@@ -297,12 +313,12 @@ class McpService {
   public async callTool(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args: any }
-  ): Promise<any> {
+  ): Promise<MCPCallToolResponse> {
     try {
       Logger.info('[MCP] Calling:', server.name, name, args)
       const client = await this.initClient(server)
       const result = await client.callTool({ name, arguments: args })
-      return result
+      return result as MCPCallToolResponse
     } catch (error) {
       Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
       throw error
