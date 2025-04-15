@@ -158,6 +158,7 @@ const visionAllowedModels = [
   'grok-vision-beta',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
+  'gpt-4.1(?:-[\\w-]+)?',
   'gpt-4o(?:-[\\w-]+)?',
   'gpt-4.5(?:-[\\w-]+)',
   'chatgpt-4o(?:-[\\w-]+)?',
