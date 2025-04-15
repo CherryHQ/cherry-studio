@@ -514,15 +514,12 @@ class McpService {
 
         // 根据不同的 shell 构建不同的命令
         if (userShell.includes('zsh')) {
-          shell = '/bin/zsh'
           command =
             'source /etc/zshenv 2>/dev/null || true; source ~/.zshenv 2>/dev/null || true; source /etc/zprofile 2>/dev/null || true; source ~/.zprofile 2>/dev/null || true; source /etc/zshrc 2>/dev/null || true; source ~/.zshrc 2>/dev/null || true; source /etc/zlogin 2>/dev/null || true; source ~/.zlogin 2>/dev/null || true; echo $PATH'
         } else if (userShell.includes('bash')) {
-          shell = '/bin/bash'
           command =
             'source /etc/profile 2>/dev/null || true; source ~/.bash_profile 2>/dev/null || true; source ~/.bash_login 2>/dev/null || true; source ~/.profile 2>/dev/null || true; source ~/.bashrc 2>/dev/null || true; echo $PATH'
         } else if (userShell.includes('fish')) {
-          shell = '/bin/fish'
           command =
             'source /etc/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.local.fish 2>/dev/null || true; echo $PATH'
         } else {
