@@ -333,8 +333,6 @@ export default class OpenAIProvider extends BaseProvider {
       userMessages.push(await this.getMessageParam(message, model))
     }
 
-    const isOpenAIReasoning = this.isOpenAIReasoning(model)
-
     const isSupportStreamOutput = () => {
       return streamOutput
     }
