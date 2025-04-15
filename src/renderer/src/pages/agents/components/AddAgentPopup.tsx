@@ -31,24 +31,24 @@ type FieldType = {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
-  const { t } = useTranslation()
-  const { addAgent } = useAgents()
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
+  const { t } = useTranslation()
+  const { addAgent } = useAgents()
+  const formRef = useRef<FormInstance<FieldType>>(null)
+  const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
   const [emojiLoading, setEmojiLoading] = useState(false)
-  const [emoji, setEmoji] = useState('')
   const [tokenCount, setTokenCount] = useState(0)
-  const formRef = useRef<FormInstance<FieldType>>(null)
+  const knowledgeState = useAppSelector((state) => state.knowledge)
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const knowledgeOptions: SelectProps['options'] = []
   const emojiTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const knowledgeState = useAppSelector((state) => state.knowledge)
 
   knowledgeState.bases.forEach((base) => {
     knowledgeOptions.push({
-      value: base.id,
-      label: base.name
+      label: base.name,
+      value: base.id
     })
   })
 
