@@ -3,25 +3,23 @@ import { AxiosInstance, default as axios_ } from 'axios'
 import { proxyManager } from './ProxyManager'
 
 class AxiosProxy {
-  private cacheAxios: AxiosInstance
-  private proxyURL: string
-
-  constructor() {
-    this.proxyURL = proxyManager.getProxyUrl()
-    this.cacheAxios = axios_.create({ proxy: false })
-  }
+  private cacheAxios: AxiosInstance | undefined
+  private proxyURL: string | undefined
 
   get axios(): AxiosInstance {
-    if (this.proxyURL !== proxyManager.getProxyUrl()) {
-      this.proxyURL = proxyManager.getProxyUrl()
+    const currentProxyURL = proxyManager.getProxyUrl()
+    if (this.proxyURL !== currentProxyURL) {
+      this.proxyURL = currentProxyURL
       const agent = proxyManager.getProxyAgent()
-      if (agent) {
-        this.cacheAxios = axios_.create({ proxy: false, httpAgent: agent, httpsAgent: agent })
-      } else {
-        this.cacheAxios = axios_.create({ proxy: false })
-      }
+      this.cacheAxios = axios_.create({
+        proxy: false,
+        ...(agent && { httpAgent: agent, httpsAgent: agent })
+      })
     }
 
+    if (this.cacheAxios === undefined) {
+      this.cacheAxios = axios_.create({ proxy: false })
+    }
     return this.cacheAxios
   }
 }
