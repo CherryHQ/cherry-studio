@@ -1,6 +1,6 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import axiosProxy from '@main/services/AxiosProxy'
 import { KnowledgeBaseParams } from '@types'
-import axios from 'axios'
 
 import BaseReranker from './BaseReranker'
 
@@ -22,7 +22,7 @@ export default class SiliconFlowReranker extends BaseReranker {
     }
 
     try {
-      const { data } = await axios.post(url, requestBody, { headers: this.defaultHeaders() })
+      const { data } = await axiosProxy.axios.post(url, requestBody, { headers: this.defaultHeaders() })
 
       const rerankResults = data.results
       return this.getRerankResult(searchResults, rerankResults)
