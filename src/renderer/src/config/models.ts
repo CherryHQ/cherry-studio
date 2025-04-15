@@ -1072,16 +1072,22 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   zhipu: [
     {
-      id: 'glm-zero-preview',
+      id: 'glm-z1-air',
       provider: 'zhipu',
-      name: 'GLM-Zero-Preview',
-      group: 'GLM-Zero'
+      name: 'GLM-Z1-AIR',
+      group: 'GLM-Z1'
     },
     {
-      id: 'glm-4-0520',
+      id: 'glm-z1-airx',
       provider: 'zhipu',
-      name: 'GLM-4-0520',
-      group: 'GLM-4'
+      name: 'GLM-Z1-AIRX',
+      group: 'GLM-Z1'
+    },
+    {
+      id: 'glm-z1-flash',
+      provider: 'zhipu',
+      name: 'GLM-Z1-FLASH',
+      group: 'GLM-Z1'
     },
     {
       id: 'glm-4-long',
@@ -1096,9 +1102,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4'
     },
     {
-      id: 'glm-4-air',
+      id: 'glm-4-air-250414',
       provider: 'zhipu',
-      name: 'GLM-4-Air',
+      name: 'GLM-4-Air-250414',
       group: 'GLM-4'
     },
     {
@@ -1108,9 +1114,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4'
     },
     {
-      id: 'glm-4-flash',
+      id: 'glm-4-flash-250414',
       provider: 'zhipu',
-      name: 'GLM-4-Flash',
+      name: 'GLM-4-Flash-250414',
       group: 'GLM-4'
     },
     {
@@ -1132,9 +1138,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4v'
     },
     {
-      id: 'glm-4v-plus',
+      id: 'glm-4v-plus-0111',
       provider: 'zhipu',
-      name: 'GLM-4V-Plus',
+      name: 'GLM-4V-Plus-0111',
       group: 'GLM-4v'
     },
     {
@@ -2253,6 +2259,10 @@ export function isReasoningModel(model?: Model): boolean {
   }
 
   if (model.id.includes('gemini-2.5-pro-exp')) {
+    return true
+  }
+
+  if (model.id.includes('glm-z1')) {
     return true
   }
 
