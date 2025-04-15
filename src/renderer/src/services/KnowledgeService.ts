@@ -91,9 +91,21 @@ export const processKnowledgeSearch = async (
   extractResults: ExtractResults,
   knowledgeBaseIds: string[] | undefined
 ): Promise<KnowledgeReference[]> => {
-  const query = extractResults?.question
-  if (!query || isEmpty(knowledgeBaseIds)) {
-    console.log('Skipping knowledge search: No query or no knowledge base IDs.')
+  // 检查 websearch 和 question 是否有效
+  if (
+    !extractResults.knowledge?.question ||
+    extractResults.knowledge.question.length === 0 ||
+    isEmpty(knowledgeBaseIds)
+  ) {
+    console.log('No valid question found in extractResults.knowledge')
+    return []
+  }
+  const questions = extractResults.knowledge.question
+  const rewrite = extractResults.knowledge.rewrite
+  const firstQuestion = questions[0]
+
+  if (firstQuestion === 'not_needed') {
+    console.log('No valid knowledge base question found')
     return []
   }
 
@@ -106,22 +118,36 @@ export const processKnowledgeSearch = async (
   const referencesPromises = bases.map(async (base) => {
     try {
       const baseParams = getKnowledgeBaseParams(base)
-      const searchResults = await window.api.knowledgeBase
-        .search({
-          search: query,
-          base: baseParams
-        })
-        .then((results) =>
-          results.filter((item) => {
-            const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
-            return item.score >= threshold
-          })
-        )
+      console.log('baseParams', baseParams)
 
+      // Perform parallel searches for all questions
+      const allSearchResultsPromises = questions.map((question) =>
+        window.api.knowledgeBase
+          .search({
+            search: question,
+            base: baseParams
+          })
+          .then((results) =>
+            results.filter((item) => {
+              const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
+              return item.score >= threshold
+            })
+          )
+      )
+
+      // Wait for all searches to complete
+      const allSearchResults = await Promise.all(allSearchResultsPromises)
+
+      // Combine and deduplicate results
+      const searchResults = Array.from(
+        new Map(allSearchResults.flat().map((item) => [item.metadata.uniqueId || item.pageContent, item])).values()
+      )
+
+      console.log(`Knowledge base ${base.name} search results:`, searchResults)
       let rerankResults = searchResults
       if (base.rerankModel && searchResults.length > 0) {
         rerankResults = await window.api.knowledgeBase.rerank({
-          search: query,
+          search: rewrite,
           base: baseParams,
           results: searchResults
         })

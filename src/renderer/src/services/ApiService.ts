@@ -95,10 +95,7 @@ export async function fetchChatCompletion({
   const searchTheWeb = async () => {
     // 检查是否需要进行网络搜索
     const shouldSearch =
-      extractResults?.tools?.includes('websearch') &&
-      WebSearchService.isWebSearchEnabled() &&
-      assistant.enableWebSearch &&
-      assistant.model
+      extractResults?.websearch && WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model
 
     if (!shouldSearch) return
 
@@ -129,8 +126,7 @@ export async function fetchChatCompletion({
 
   // --- 知识库搜索 ---
   const searchKnowledgeBase = async () => {
-    const shouldSearch = hasKnowledgeBase && extractResults.tools?.includes('knowledge')
-
+    const shouldSearch = hasKnowledgeBase && extractResults.knowledge
     if (!shouldSearch) return
 
     try {

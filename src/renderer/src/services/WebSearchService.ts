@@ -1,7 +1,7 @@
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
 import { setDefaultProvider, WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
@@ -138,21 +138,43 @@ class WebSearchService {
     extractResults: ExtractResults
   ): Promise<WebSearchResponse> {
     try {
-      if (extractResults.question === 'not_needed') {
-        console.log('No need to search')
+      // 检查 websearch 和 question 是否有效
+      if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
+        console.log('No valid question found in extractResults.websearch')
         return { results: [] }
       }
 
-      if (extractResults.question === 'summarize' && extractResults.links && extractResults.links.length > 0) {
-        const contents = await fetchWebContents(extractResults.links)
+      const questions = extractResults.websearch.question
+      const links = extractResults.websearch.link
+      const firstQuestion = questions[0]
+
+      if (firstQuestion === 'not_needed') {
+        console.log('No need to search based on extracted question.')
+        return { results: [] }
+      }
+
+      if (firstQuestion === 'summarize' && links && links.length > 0) {
+        const contents = await fetchWebContents(links)
         return {
           query: 'summaries',
           results: contents
         }
       }
+      const searchPromises = questions.map((q) => this.search(webSearchProvider, q))
+      const searchResults = await Promise.allSettled(searchPromises)
+      const aggregatedResults: WebSearchResult[] = []
 
-      const query = extractResults.question
-      return await this.search(webSearchProvider, query)
+      searchResults.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          if (result.value.results) {
+            aggregatedResults.push(...result.value.results)
+          }
+        }
+      })
+      return {
+        query: questions.join(' | '),
+        results: aggregatedResults
+      }
     } catch (error) {
       console.error('Failed to process enhanced search:', error)
       return { results: [] }
