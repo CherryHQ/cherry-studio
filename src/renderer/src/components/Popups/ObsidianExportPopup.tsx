@@ -1,6 +1,4 @@
 import ObsidianExportDialog from '@renderer/components/ObsidianExportDialog'
-import i18n from '@renderer/i18n'
-import store from '@renderer/store'
 import { createRoot } from 'react-dom/client'
 
 interface ObsidianExportOptions {
@@ -17,14 +15,6 @@ interface ObsidianExportOptions {
  * @returns
  */
 const showObsidianExportDialog = async (options: ObsidianExportOptions): Promise<boolean> => {
-  const obsidianValut = store.getState().settings.obsidianValut
-  const obsidianFolder = store.getState().settings.obsidianFolder
-
-  if (!obsidianValut || !obsidianFolder) {
-    window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
-    return false
-  }
-
   return new Promise<boolean>((resolve) => {
     const div = document.createElement('div')
     document.body.appendChild(div)
@@ -35,12 +25,12 @@ const showObsidianExportDialog = async (options: ObsidianExportOptions): Promise
       document.body.removeChild(div)
       resolve(success)
     }
-    const obsidianTags = store.getState().settings.obsidianTages
+    // 不再从store中获取tag配置
     root.render(
       <ObsidianExportDialog
         title={options.title}
         markdown={options.markdown}
-        obsidianTags={obsidianTags}
+        obsidianTags=""
         processingMethod={options.processingMethod}
         open={true}
         onClose={handleClose}
@@ -49,8 +39,6 @@ const showObsidianExportDialog = async (options: ObsidianExportOptions): Promise
   })
 }
 
-const ObsidianExportPopup = {
+export default {
   show: showObsidianExportDialog
 }
-
-export default ObsidianExportPopup

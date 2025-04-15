@@ -1,5 +1,11 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import type { WebSearchProvider } from '@renderer/types'
+export interface SubscribeSource {
+  key: number
+  url: string
+  name: string
+  blacklist?: string[] // 存储从该订阅源获取的黑名单
+}
 
 export interface WebSearchState {
   // 默认搜索提供商的ID
@@ -12,8 +18,12 @@ export interface WebSearchState {
   maxResults: number
   // 要排除的域名列表
   excludeDomains: string[]
+  // 订阅源列表
+  subscribeSources: SubscribeSource[]
   // 是否启用搜索增强模式
   enhanceMode: boolean
+  // 是否覆盖服务商搜索
+  overwrite: boolean
 }
 
 const initialState: WebSearchState = {
@@ -33,13 +43,32 @@ const initialState: WebSearchState = {
       id: 'exa',
       name: 'Exa',
       apiKey: ''
+    },
+    {
+      id: 'local-google',
+      name: 'Google',
+      url: 'https://www.google.com/search?q=%s'
+    },
+    {
+      id: 'local-bing',
+      name: 'Bing',
+      url: 'https://cn.bing.com/search?q=%s&ensearch=1'
+    },
+    {
+      id: 'local-baidu',
+      name: 'Baidu',
+      url: 'https://www.baidu.com/s?wd=%s'
     }
   ],
   searchWithTime: true,
   maxResults: 5,
   excludeDomains: [],
-  enhanceMode: false
+  subscribeSources: [],
+  enhanceMode: true,
+  overwrite: false
 }
+
+export const defaultWebSearchProviders = initialState.providers
 
 const websearchSlice = createSlice({
   name: 'websearch',
@@ -69,8 +98,47 @@ const websearchSlice = createSlice({
     setExcludeDomains: (state, action: PayloadAction<string[]>) => {
       state.excludeDomains = action.payload
     },
+    // 添加订阅源
+    addSubscribeSource: (state, action: PayloadAction<Omit<SubscribeSource, 'key'>>) => {
+      state.subscribeSources = state.subscribeSources || []
+      const newKey =
+        state.subscribeSources.length > 0 ? Math.max(...state.subscribeSources.map((item) => item.key)) + 1 : 0
+      state.subscribeSources.push({
+        key: newKey,
+        url: action.payload.url,
+        name: action.payload.name,
+        blacklist: action.payload.blacklist
+      })
+    },
+    // 删除订阅源
+    removeSubscribeSource: (state, action: PayloadAction<number>) => {
+      state.subscribeSources = state.subscribeSources.filter((source) => source.key !== action.payload)
+    },
+    // 更新订阅源的黑名单
+    updateSubscribeBlacklist: (state, action: PayloadAction<{ key: number; blacklist: string[] }>) => {
+      const source = state.subscribeSources.find((s) => s.key === action.payload.key)
+      if (source) {
+        source.blacklist = action.payload.blacklist
+      }
+    },
+    // 更新订阅源列表
+    setSubscribeSources: (state, action: PayloadAction<SubscribeSource[]>) => {
+      state.subscribeSources = action.payload
+    },
     setEnhanceMode: (state, action: PayloadAction<boolean>) => {
       state.enhanceMode = action.payload
+    },
+    setOverwrite: (state, action: PayloadAction<boolean>) => {
+      state.overwrite = action.payload
+    },
+    addWebSearchProvider: (state, action: PayloadAction<WebSearchProvider>) => {
+      // Check if provider with same ID already exists
+      const exists = state.providers.some((provider) => provider.id === action.payload.id)
+
+      if (!exists) {
+        // Add the new provider to the array
+        state.providers.push(action.payload)
+      }
     }
   }
 })
@@ -83,7 +151,13 @@ export const {
   setSearchWithTime,
   setExcludeDomains,
   setMaxResult,
-  setEnhanceMode
+  addSubscribeSource,
+  removeSubscribeSource,
+  updateSubscribeBlacklist,
+  setSubscribeSources,
+  setEnhanceMode,
+  setOverwrite,
+  addWebSearchProvider
 } = websearchSlice.actions
 
 export default websearchSlice.reducer

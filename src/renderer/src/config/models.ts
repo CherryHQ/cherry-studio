@@ -130,9 +130,11 @@ import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
+import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
 
+import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
 import { getWebSearchTools } from './tools'
 
 // Vision models
@@ -142,6 +144,7 @@ const visionAllowedModels = [
   'minicpm',
   'gemini-1\\.5',
   'gemini-2\\.0',
+  'gemini-2\\.5',
   'gemini-exp',
   'claude-3',
   'vision',
@@ -149,12 +152,15 @@ const visionAllowedModels = [
   'qwen-vl',
   'qwen2-vl',
   'qwen2.5-vl',
+  'qwen2.5-omni',
   'qvq',
   'internvl2',
   'grok-vision-beta',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
+  'gpt-4.1(?:-[\\w-]+)?',
   'gpt-4o(?:-[\\w-]+)?',
+  'gpt-4.5(?:-[\\w-]+)',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
@@ -162,7 +168,15 @@ const visionAllowedModels = [
   'gemma-3(?:-[\\w-]+)'
 ]
 
-const visionExcludedModels = ['gpt-4-\\d+-preview', 'gpt-4-turbo-preview', 'gpt-4-32k', 'gpt-4-\\d+']
+const visionExcludedModels = [
+  'gpt-4-\\d+-preview',
+  'gpt-4-turbo-preview',
+  'gpt-4-32k',
+  'gpt-4-\\d+',
+  'o1-mini',
+  'o1-preview',
+  'AIDC-AI/Marco-o1'
+]
 export const VISION_REGEX = new RegExp(
   `\\b(?!(?:${visionExcludedModels.join('|')})\\b)(${visionAllowedModels.join('|')})\\b`,
   'i'
@@ -173,7 +187,7 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-3-mini(?:-[\w-]+)?\b.*)$/i
 
 // Embedding models
 export const EMBEDDING_REGEX =
@@ -190,15 +204,24 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4o-mini',
   'gpt-4',
   'gpt-4.5',
+  'o1(?:-[\\w-]+)?',
   'claude',
   'qwen',
   'hunyuan',
+  'deepseek',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
-  'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
+  'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
+  'grok-3(?:-[\\w-]+)?'
 ]
 
-const FUNCTION_CALLING_EXCLUDED_MODELS = ['aqa(?:-[\\w-]+)?', 'imagen(?:-[\\w-]+)?']
+const FUNCTION_CALLING_EXCLUDED_MODELS = [
+  'aqa(?:-[\\w-]+)?',
+  'imagen(?:-[\\w-]+)?',
+  'o1-mini',
+  'o1-preview',
+  'AIDC-AI/Marco-o1'
+]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
   `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
@@ -211,6 +234,10 @@ export function isFunctionCallingModel(model: Model): boolean {
 
   if (isEmbeddingModel(model)) {
     return false
+  }
+
+  if (model.provider === 'qiniu') {
+    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
   }
 
   if (['deepseek', 'anthropic'].includes(model.provider)) {
@@ -472,12 +499,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'o3',
       name: 'DeepSeek V3',
       group: 'DeepSeek'
-    },
-    {
-      id: 'text-embedding-3-small',
-      provider: 'o3',
-      name: 'text-embedding-3-small',
-      group: '嵌入模型'
     },
     {
       id: 'text-embedding-3-small',
@@ -1052,16 +1073,22 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   zhipu: [
     {
-      id: 'glm-zero-preview',
+      id: 'glm-z1-air',
       provider: 'zhipu',
-      name: 'GLM-Zero-Preview',
-      group: 'GLM-Zero'
+      name: 'GLM-Z1-AIR',
+      group: 'GLM-Z1'
     },
     {
-      id: 'glm-4-0520',
+      id: 'glm-z1-airx',
       provider: 'zhipu',
-      name: 'GLM-4-0520',
-      group: 'GLM-4'
+      name: 'GLM-Z1-AIRX',
+      group: 'GLM-Z1'
+    },
+    {
+      id: 'glm-z1-flash',
+      provider: 'zhipu',
+      name: 'GLM-Z1-FLASH',
+      group: 'GLM-Z1'
     },
     {
       id: 'glm-4-long',
@@ -1076,9 +1103,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4'
     },
     {
-      id: 'glm-4-air',
+      id: 'glm-4-air-250414',
       provider: 'zhipu',
-      name: 'GLM-4-Air',
+      name: 'GLM-4-Air-250414',
       group: 'GLM-4'
     },
     {
@@ -1088,9 +1115,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4'
     },
     {
-      id: 'glm-4-flash',
+      id: 'glm-4-flash-250414',
       provider: 'zhipu',
-      name: 'GLM-4-Flash',
+      name: 'GLM-4-Flash-250414',
       group: 'GLM-4'
     },
     {
@@ -1112,9 +1139,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4v'
     },
     {
-      id: 'glm-4v-plus',
+      id: 'glm-4v-plus-0111',
       provider: 'zhipu',
-      name: 'GLM-4V-Plus',
+      name: 'GLM-4V-Plus-0111',
       group: 'GLM-4v'
     },
     {
@@ -1212,7 +1239,140 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Step 1'
     }
   ],
-  doubao: [],
+  doubao: [
+    {
+      id: 'doubao-1-5-vision-pro-32k-250115',
+      provider: 'doubao',
+      name: 'doubao-1.5-vision-pro',
+      group: 'Doubao-1.5-vision-pro'
+    },
+    {
+      id: 'doubao-1-5-pro-32k-250115',
+      provider: 'doubao',
+      name: 'doubao-1.5-pro-32k',
+      group: 'Doubao-1.5-pro'
+    },
+    {
+      id: 'doubao-1-5-pro-32k-character-250228',
+      provider: 'doubao',
+      name: 'doubao-1.5-pro-32k-character',
+      group: 'Doubao-1.5-pro'
+    },
+    {
+      id: 'doubao-1-5-pro-256k-250115',
+      provider: 'doubao',
+      name: 'Doubao-1.5-pro-256k',
+      group: 'Doubao-1.5-pro'
+    },
+    {
+      id: 'deepseek-r1-250120',
+      provider: 'doubao',
+      name: 'DeepSeek-R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-distill-qwen-32b-250120',
+      provider: 'doubao',
+      name: 'DeepSeek-R1-Distill-Qwen-32B',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-distill-qwen-7b-250120',
+      provider: 'doubao',
+      name: 'DeepSeek-R1-Distill-Qwen-7B',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3-250324',
+      provider: 'doubao',
+      name: 'DeepSeek-V3',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3-250324',
+      provider: 'doubao',
+      name: 'DeepSeek-V3',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'doubao-pro-32k-241215',
+      provider: 'doubao',
+      name: 'Doubao-pro-32k',
+      group: 'Doubao-pro'
+    },
+    {
+      id: 'doubao-pro-32k-functioncall-241028',
+      provider: 'doubao',
+      name: 'Doubao-pro-32k-functioncall-241028',
+      group: 'Doubao-pro'
+    },
+    {
+      id: 'doubao-pro-32k-character-241215',
+      provider: 'doubao',
+      name: 'Doubao-pro-32k-character-241215',
+      group: 'Doubao-pro'
+    },
+    {
+      id: 'doubao-pro-256k-241115',
+      provider: 'doubao',
+      name: 'Doubao-pro-256k',
+      group: 'Doubao-pro'
+    },
+    {
+      id: 'doubao-lite-4k-character-240828',
+      provider: 'doubao',
+      name: 'Doubao-lite-4k-character-240828',
+      group: 'Doubao-lite'
+    },
+    {
+      id: 'doubao-lite-32k-240828',
+      provider: 'doubao',
+      name: 'Doubao-lite-32k',
+      group: 'Doubao-lite'
+    },
+    {
+      id: 'doubao-lite-32k-character-241015',
+      provider: 'doubao',
+      name: 'Doubao-lite-32k-character-241015',
+      group: 'Doubao-lite'
+    },
+    {
+      id: 'doubao-lite-128k-240828',
+      provider: 'doubao',
+      name: 'Doubao-lite-128k',
+      group: 'Doubao-lite'
+    },
+    {
+      id: 'doubao-1-5-lite-32k-250115',
+      provider: 'doubao',
+      name: 'Doubao-1.5-lite-32k',
+      group: 'Doubao-lite'
+    },
+    {
+      id: 'doubao-embedding-large-text-240915',
+      provider: 'doubao',
+      name: 'Doubao-embedding-large',
+      group: 'Doubao-embedding'
+    },
+    {
+      id: 'doubao-embedding-text-240715',
+      provider: 'doubao',
+      name: 'Doubao-embedding',
+      group: 'Doubao-embedding'
+    },
+    {
+      id: 'doubao-embedding-vision-241215',
+      provider: 'doubao',
+      name: 'Doubao-embedding-vision',
+      group: 'Doubao-embedding'
+    },
+    {
+      id: 'doubao-vision-lite-32k-241015',
+      provider: 'doubao',
+      name: 'Doubao-vision-lite-32k',
+      group: 'Doubao-vision-lite-32k'
+    }
+  ],
   minimax: [
     {
       id: 'abab6.5s-chat',
@@ -1541,15 +1701,15 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Llama3'
     },
     {
-      id: 'mixtral-8x7b-32768',
+      id: 'mistral-saba-24b',
       provider: 'groq',
-      name: 'Mixtral 8x7B',
-      group: 'Mixtral'
+      name: 'Mistral Saba 24B',
+      group: 'Mistral'
     },
     {
-      id: 'gemma-7b-it',
+      id: 'gemma-9b-it',
       provider: 'groq',
-      name: 'Gemma 7B',
+      name: 'Gemma 9B',
       group: 'Gemma'
     }
   ],
@@ -1860,6 +2020,56 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'rerank-2-lite',
       group: 'Voyage Rerank V2'
     }
+  ],
+  qiniu: [
+    {
+      id: 'deepseek-r1',
+      provider: 'qiniu',
+      name: 'DeepSeek R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-search',
+      provider: 'qiniu',
+      name: 'DeepSeek R1 Search',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-32b',
+      provider: 'qiniu',
+      name: 'DeepSeek R1 32B',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3',
+      provider: 'qiniu',
+      name: 'DeepSeek V3',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3-search',
+      provider: 'qiniu',
+      name: 'DeepSeek V3 Search',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3-tool',
+      provider: 'qiniu',
+      name: 'DeepSeek V3 Tool',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'qwq-32b',
+      provider: 'qiniu',
+      name: 'QWQ 32B',
+      group: 'Qwen'
+    },
+    {
+      id: 'qwen2.5-72b-instruct',
+      provider: 'qiniu',
+      name: 'Qwen2.5 72B Instruct',
+      group: 'Qwen'
+    }
   ]
 }
 
@@ -1939,6 +2149,17 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 
 export const GENERATE_IMAGE_MODELS = ['gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-exp']
 
+export const GEMINI_SEARCH_MODELS = [
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash-001',
+  'gemini-2.0-pro-exp-02-05',
+  'gemini-2.0-pro-exp',
+  'gemini-2.5-pro-exp',
+  'gemini-2.5-pro-exp-03-25'
+]
+
 export function isTextToImageModel(model: Model): boolean {
   return TEXT_TO_IMAGE_REGEX.test(model.id)
 }
@@ -1985,6 +2206,45 @@ export function isVisionModel(model: Model): boolean {
 export function isOpenAIoSeries(model: Model): boolean {
   return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
 }
+export function isOpenAIWebSearch(model: Model): boolean {
+  return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
+}
+
+export function isSupportedReasoningEffortModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (
+    model.id.includes('claude-3-7-sonnet') ||
+    model.id.includes('claude-3.7-sonnet') ||
+    isOpenAIoSeries(model) ||
+    isGrokReasoningModel(model)
+  ) {
+    return true
+  }
+
+  return false
+}
+
+export function isGrokModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return model.id.includes('grok')
+}
+
+export function isGrokReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (model.id.includes('grok-3-mini')) {
+    return true
+  }
+
+  return false
+}
 
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
@@ -1996,6 +2256,14 @@ export function isReasoningModel(model?: Model): boolean {
   }
 
   if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
+    return true
+  }
+
+  if (model.id.includes('gemini-2.5-pro-exp')) {
+    return true
+  }
+
+  if (model.id.includes('glm-z1')) {
     return true
   }
 
@@ -2015,6 +2283,12 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  if (model.type) {
+    if (model.type.includes('web_search')) {
+      return true
+    }
+  }
+
   const provider = getProviderByModel(model)
 
   if (!provider) {
@@ -2027,30 +2301,23 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  if (provider.id === 'aihubmix') {
+    const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
+    return models.includes(model?.id)
+  }
+
   if (provider?.type === 'openai') {
-    if (model?.id?.includes('gemini-2.0-flash-exp')) {
+    if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearch(model)) {
       return true
     }
   }
 
   if (provider.id === 'gemini' || provider?.type === 'gemini') {
-    const models = [
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-exp',
-      'gemini-2.0-flash-001',
-      'gemini-2.0-pro-exp-02-05',
-      'gemini-2.0-pro-exp'
-    ]
-    return models.includes(model?.id)
+    return GEMINI_SEARCH_MODELS.includes(model?.id)
   }
 
   if (provider.id === 'hunyuan') {
     return model?.id !== 'hunyuan-lite'
-  }
-
-  if (provider.id === 'aihubmix') {
-    const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
-    return models.includes(model?.id)
   }
 
   if (provider.id === 'zhipu') {
@@ -2058,7 +2325,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'dashscope') {
-    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus']
+    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
     // matches id like qwen-max-0919, qwen-max-latest
     return models.some((i) => model.id.startsWith(i))
   }
@@ -2093,12 +2360,15 @@ export function isGenerateImageModel(model: Model): boolean {
 }
 
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
+  if (WebSearchService.isWebSearchEnabled() && WebSearchService.isOverwriteEnabled()) {
+    return {}
+  }
   if (isWebSearchModel(model)) {
     if (assistant.enableWebSearch) {
       const webSearchTools = getWebSearchTools(model)
 
       if (model.provider === 'hunyuan') {
-        return { enable_enhancement: true }
+        return { enable_enhancement: true, citation: true, search_info: true }
       }
 
       if (model.provider === 'dashscope') {
@@ -2112,8 +2382,12 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
 
       if (model.provider === 'openrouter') {
         return {
-          plugins: [{ id: 'web' }]
+          plugins: [{ id: 'web', search_prompts: WEB_SEARCH_PROMPT_FOR_OPENROUTER }]
         }
+      }
+
+      if (isOpenAIWebSearch(model)) {
+        return {}
       }
 
       return {
@@ -2135,4 +2409,48 @@ export function isGemmaModel(model?: Model): boolean {
   }
 
   return model.id.includes('gemma-') || model.group === 'Gemma'
+}
+
+export function isZhipuModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return model.provider === 'zhipu'
+}
+
+export function isHunyuanSearchModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (model.provider === 'hunyuan') {
+    return model.id !== 'hunyuan-lite'
+  }
+
+  return false
+}
+
+/**
+ * 按 Qwen 系列模型分组
+ * @param models 模型列表
+ * @returns 分组后的模型
+ */
+export function groupQwenModels(models: Model[]): Record<string, Model[]> {
+  return models.reduce(
+    (groups, model) => {
+      // 匹配 Qwen 系列模型的前缀
+      const prefixMatch = model.id.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
+      // 匹配 qwen2.5、qwen2、qwen-7b、qwen-max、qwen-coder 等
+      const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = []
+      }
+      groups[groupKey].push(model)
+
+      return groups
+    },
+    {} as Record<string, Model[]>
+  )
 }

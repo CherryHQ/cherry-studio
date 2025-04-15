@@ -10,22 +10,26 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
+import AssistantMCPSettings from './AssistantMCPSettings'
 import AssistantMessagesSettings from './AssistantMessagesSettings'
 import AssistantModelSettings from './AssistantModelSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
 
 interface AssistantSettingPopupShowParams {
   assistant: Assistant
+  tab?: AssistantSettingPopupTab
 }
+
+type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
 }
 
-const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) => {
+const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...props }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const [menu, setMenu] = useState('prompt')
+  const [menu, setMenu] = useState<AssistantSettingPopupTab>(tab || 'prompt')
 
   const _useAssistant = useAssistant(props.assistant.id)
   const _useAgent = useAgent(props.assistant.id)
@@ -65,6 +69,10 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
     showKnowledgeIcon && {
       key: 'knowledge_base',
       label: t('assistants.settings.knowledge_base')
+    },
+    {
+      key: 'mcp',
+      label: t('assistants.settings.mcp')
     }
   ].filter(Boolean) as { key: string; label: string }[]
 
@@ -82,8 +90,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
         content: {
           padding: 0,
           overflow: 'hidden',
-          background: 'var(--color-background)',
-          border: `1px solid var(--color-frame-border)`
+          background: 'var(--color-background)'
         },
         header: { padding: '10px 15px', borderBottom: '0.5px solid var(--color-border)', margin: 0 }
       }}
@@ -92,12 +99,11 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
       centered>
       <HStack>
         <LeftMenu>
-          <Menu
-            style={{ width: 220, padding: 5, background: 'transparent' }}
-            defaultSelectedKeys={['prompt']}
+          <StyledMenu
+            defaultSelectedKeys={[tab || 'prompt']}
             mode="vertical"
             items={items}
-            onSelect={({ key }) => setMenu(key as string)}
+            onSelect={({ key }) => setMenu(key as AssistantSettingPopupTab)}
           />
         </LeftMenu>
         <Settings>
@@ -106,7 +112,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
               assistant={assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
-              onOk={onOk}
             />
           )}
           {menu === 'model' && (
@@ -125,6 +130,13 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, ...props }) 
           )}
           {menu === 'knowledge_base' && showKnowledgeIcon && (
             <AssistantKnowledgeBaseSettings
+              assistant={assistant}
+              updateAssistant={updateAssistant}
+              updateAssistantSettings={updateAssistantSettings}
+            />
+          )}
+          {menu === 'mcp' && (
+            <AssistantMCPSettings
               assistant={assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
@@ -178,6 +190,16 @@ const StyledModal = styled(Modal)`
       color: var(--color-text-1);
       font-weight: 500;
     }
+  }
+`
+
+const StyledMenu = styled(Menu)`
+  width: 220px;
+  padding: 5px;
+  background: transparent;
+  margin-top: 2px;
+  .ant-menu-item {
+    margin-bottom: 7px;
   }
 `
 

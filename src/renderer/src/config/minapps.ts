@@ -1,12 +1,12 @@
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
-import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
 import CiciAppLogo from '@renderer/assets/images/apps/cici.webp?url'
 import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
+import DangbeiLogo from '@renderer/assets/images/apps/dangbei.jpg?url'
 import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
 import DifyAppLogo from '@renderer/assets/images/apps/dify.svg?url'
 import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png?url'
@@ -41,6 +41,7 @@ import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
+import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
@@ -49,9 +50,7 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
-import MinApp from '@renderer/components/MinApp'
 import { MinAppType } from '@renderer/types'
-
 export const DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'openai',
@@ -311,12 +310,6 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: false
   },
   {
-    id: 'aistudio',
-    name: 'AI Studio',
-    logo: AIStudioLogo,
-    url: 'https://aistudio.google.com/'
-  },
-  {
     id: 'xiaoyi',
     name: '小艺',
     logo: XiaoYiAppLogo,
@@ -393,10 +386,19 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: ZhihuAppLogo,
     url: 'https://zhida.zhihu.com/',
     bodered: true
+  },
+  {
+    id: 'dangbei',
+    name: '当贝AI',
+    logo: DangbeiLogo,
+    url: 'https://ai.dangbei.com/',
+    bodered: true
+  },
+  {
+    id: `zai`,
+    name: `Z.ai`,
+    logo: ZaiAppLogo,
+    url: `https://chat.z.ai/`,
+    bodered: true
   }
 ]
-
-export function startMinAppById(id: string) {
-  const app = DEFAULT_MIN_APPS.find((app) => app?.id === id)
-  app && MinApp.start(app)
-}

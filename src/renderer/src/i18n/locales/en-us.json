@@ -32,7 +32,9 @@
       "title": "Agents"
     },
     "assistants": {
-      "abbr": "Assistant",
+      "title": "Assistants",
+      "abbr": "Assistants",
+      "settings.title": "Assistant Settings",
       "clear.content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
       "clear.title": "Clear topics",
       "copy.title": "Copy Assistant",
@@ -41,9 +43,15 @@
       "edit.title": "Edit Assistant",
       "save.success": "Saved successfully",
       "save.title": "Save to agent",
+      "icon.type": "Assistant Icon",
       "search": "Search assistants...",
       "settings.default_model": "Default Model",
       "settings.knowledge_base": "Knowledge Base Settings",
+      "settings.mcp": "MCP Servers",
+      "settings.mcp.enableFirst": "Enable this server in MCP settings first",
+      "settings.mcp.title": "MCP Settings",
+      "settings.mcp.noServersAvailable": "No MCP servers available. Add servers in settings",
+      "settings.mcp.description": "Default enabled MCP servers",
       "settings.model": "Model Settings",
       "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
@@ -52,8 +60,8 @@
       "settings.reasoning_effort.low": "low",
       "settings.reasoning_effort.medium": "medium",
       "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supports OpenAI o-series and Anthropic reasoning models",
-      "title": "Assistants"
+      "settings.reasoning_effort.tip": "Only supported by OpenAI o-series, Anthropic, and Grok reasoning models",
+      "settings.more": "Assistant Settings"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -143,12 +151,23 @@
         "history": "Chat History",
         "last": "Already at the last message",
         "next": "Next Message",
-        "prev": "Previous Message"
+        "prev": "Previous Message",
+        "top": "Back to top",
+        "bottom": "Back to bottom",
+        "close": "Close"
       },
       "resend": "Resend",
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
       "settings.code_wrappable": "Code block wrappable",
+      "settings.code_cacheable": "Code block cache",
+      "settings.code_cacheable.tip": "Caching code blocks can reduce the rendering time of long code blocks, but it will increase memory usage",
+      "settings.code_cache_max_size": "Max cache size",
+      "settings.code_cache_max_size.tip": "The maximum number of characters allowed to be cached (thousand characters), calculated according to the highlighted code. The length of the highlighted code is much longer than the pure text.",
+      "settings.code_cache_ttl": "Cache TTL",
+      "settings.code_cache_ttl.tip": "Cache expiration time (minutes)",
+      "settings.code_cache_threshold": "Cache threshold",
+      "settings.code_cache_threshold.tip": "The minimum number of characters allowed to be cached (thousand characters), calculated according to the actual code. Only code blocks exceeding the threshold will be cached.",
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
@@ -178,15 +197,19 @@
       "topics.export.image": "Export as image",
       "topics.export.joplin": "Export to Joplin",
       "topics.export.md": "Export as markdown",
+      "topics.export.md.reason": "Export as Markdown (with reasoning)",
       "topics.export.notion": "Export to Notion",
       "topics.export.obsidian": "Export to Obsidian",
+      "topics.export.obsidian_vault": "Vault",
+      "topics.export.obsidian_vault_placeholder": "Please select the vault name",
+      "topics.export.obsidian_path": "Path",
+      "topics.export.obsidian_path_placeholder": "Please select the path",
       "topics.export.obsidian_atributes": "Configure Note Attributes",
       "topics.export.obsidian_btn": "Confirm",
       "topics.export.obsidian_created": "Creation Time",
       "topics.export.obsidian_created_placeholder": "Please select the creation time",
       "topics.export.obsidian_export_failed": "Export failed",
       "topics.export.obsidian_export_success": "Export success",
-      "topics.export.obsidian_not_configured": "Obsidian not configured",
       "topics.export.obsidian_operate": "Operation Method",
       "topics.export.obsidian_operate_append": "Append",
       "topics.export.obsidian_operate_new_or_overwrite": "Create New (Overwrite if it exists)",
@@ -199,6 +222,13 @@
       "topics.export.obsidian_title": "Title",
       "topics.export.obsidian_title_placeholder": "Please enter the title",
       "topics.export.obsidian_title_required": "The title cannot be empty",
+      "topics.export.obsidian_no_vaults": "No Obsidian vaults found",
+      "topics.export.obsidian_loading": "Loading...",
+      "topics.export.obsidian_fetch_error": "Failed to fetch Obsidian vaults",
+      "topics.export.obsidian_fetch_folders_error": "Failed to fetch folder structure",
+      "topics.export.obsidian_no_vault_selected": "Please select a vault first",
+      "topics.export.obsidian_select_vault_first": "Please select a vault first",
+      "topics.export.obsidian_root_directory": "Root Directory",
       "topics.export.title": "Export",
       "topics.export.word": "Export as Word",
       "topics.export.yuque": "Export to Yuque",
@@ -211,7 +241,13 @@
       "topics.prompt.tips": "Topic Prompts: Additional supplementary prompts provided for the current topic",
       "topics.title": "Topics",
       "topics.unpinned": "Unpinned Topics",
-      "translate": "Translate"
+      "translate": "Translate",
+      "topics.export.siyuan": "Export to Siyuan Note",
+      "topics.export.wait_for_title_naming": "Generating title...",
+      "topics.export.title_naming_success": "Title generated successfully",
+      "topics.export.title_naming_failed": "Failed to generate title, using default title",
+      "input.translating": "Translating...",
+      "input.upload.upload_from_local": "Upload local file..."
     },
     "code_block": {
       "collapse": "Collapse",
@@ -242,6 +278,7 @@
       "duplicate": "Duplicate",
       "edit": "Edit",
       "expand": "Expand",
+      "collapse": "Collapse",
       "footnote": "Reference content",
       "footnotes": "References",
       "fullscreen": "Entered fullscreen mode. Press F11 to exit",
@@ -263,7 +300,13 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
-      "you": "You"
+      "you": "You",
+      "reasoning_content": "Deep reasoning",
+      "sort": {
+        "pinyin": "Sort by Pinyin",
+        "pinyin.asc": "Sort by Pinyin (A-Z)",
+        "pinyin.desc": "Sort by Pinyin (Z-A)"
+      }
     },
     "docs": {
       "title": "Docs"
@@ -289,7 +332,8 @@
         "description": "Failed to render formula. Please check if the formula format is correct",
         "title": "Render Error"
       },
-      "user_message_not_found": "Cannot find original user message to resend"
+      "user_message_not_found": "Cannot find original user message to resend",
+      "unknown": "Unknown error"
     },
     "export": {
       "assistant": "Assistant",
@@ -304,7 +348,7 @@
     "files": {
       "actions": "Actions",
       "all": "All Files",
-      "count": "Count",
+      "count": "files",
       "created_at": "Created At",
       "delete": "Delete",
       "delete.content": "Deleting a file will delete its reference from all messages. Are you sure you want to delete this file?",
@@ -470,6 +514,8 @@
       "error.invalid.webdav": "Invalid WebDAV settings",
       "error.joplin.export": "Failed to export to Joplin. Please keep Joplin running and check connection status or configuration",
       "error.joplin.no_config": "Joplin Authorization Token or URL is not configured",
+      "error.invalid.nutstore": "Invalid Nutstore settings",
+      "error.invalid.nutstore_token": "Invalid Nutstore Token",
       "error.markdown.export.preconf": "Failed to export the Markdown file to the preconfigured path",
       "error.markdown.export.specified": "Failed to export the Markdown file",
       "error.notion.export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
@@ -512,18 +558,35 @@
       "switch.disabled": "Please wait for the current reply to complete",
       "tools": {
         "completed": "Completed",
-        "invoking": "Invoking"
+        "invoking": "Invoking",
+        "error": "Error occurred"
       },
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
       "upgrade.success.content": "Please restart the application to complete the upgrade",
       "upgrade.success.title": "Upgrade successfully",
       "warn.notion.exporting": "Exporting to Notion, please do not request export repeatedly!",
-      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
+      "warning.rate.limit": "Too many requests. Please wait {{seconds}} seconds before trying again.",
+      "error.siyuan.export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
+      "error.siyuan.no_config": "Siyuan Note API address or token is not configured",
+      "success.siyuan.export": "Successfully exported to Siyuan Note",
+      "warn.yuque.exporting": "Exporting to Yuque, please do not request export repeatedly!",
+      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
     },
     "minapp": {
+      "popup": {
+        "refresh": "Refresh",
+        "close": "Close MinApp",
+        "minimize": "Minimize MinApp",
+        "devtools": "Developer Tools",
+        "openExternal": "Open in Browser",
+        "rightclick_copyurl": "Right-click to copy URL"
+      },
       "sidebar.add.title": "Add to sidebar",
       "sidebar.remove.title": "Remove from sidebar",
+      "sidebar.close.title": "Close",
+      "sidebar.closeall.title": "Close All",
+      "sidebar.hide.title": "Hide MinApp",
       "title": "MinApp"
     },
     "miniwindow": {
@@ -538,15 +601,19 @@
       },
       "footer": {
         "copy_last_message": "Press C to copy",
-        "esc": "Press ESC {{action}}",
-        "esc_back": "back",
-        "esc_close": "close the window"
+        "backspace_clear": "Backspace to clear",
+        "esc": "ESC to {{action}}",
+        "esc_back": "return",
+        "esc_close": "close"
       },
       "input": {
         "placeholder": {
           "empty": "Ask {{model}} for help...",
           "title": "What do you want to do with this text?"
         }
+      },
+      "tooltip": {
+        "pin": "Keep Window on Top"
       }
     },
     "models": {
@@ -651,7 +718,6 @@
       "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "Tencent Hunyuan",
@@ -680,7 +746,8 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
-      "voyageai": "Voyage AI"
+      "voyageai": "Voyage AI",
+      "qiniu": "Qiniu"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -722,7 +789,10 @@
       "advanced.title": "Advanced Settings",
       "assistant": "Default Assistant",
       "assistant.model_params": "Model Parameters",
-      "assistant.show.icon": "Show model icon",
+      "assistant.icon.type": "Model Icon Type",
+      "assistant.icon.type.model": "Model Icon",
+      "assistant.icon.type.emoji": "Emoji Icon",
+      "assistant.icon.type.none": "Hide",
       "assistant.title": "Default Assistant",
       "data": {
         "app_data": "App Data",
@@ -740,8 +810,24 @@
           "title": "Clear Cache"
         },
         "data.title": "Data Directory",
+        "divider.basic": "Basic Data Settings",
+        "divider.cloud_storage": "Cloud Backup Settings",
+        "divider.export_settings": "Export Settings",
+        "divider.third_party": "Third-party Connections",
         "hour_interval_one": "{{count}} hour",
         "hour_interval_other": "{{count}} hours",
+        "export_menu": {
+          "title": "Export Menu Settings",
+          "image": "Export as Image",
+          "markdown": "Export as Markdown",
+          "markdown_reason": "Export as Markdown (with reasoning)",
+          "notion": "Export to Notion",
+          "yuque": "Export to Yuque",
+          "obsidian": "Export to Obsidian",
+          "siyuan": "Export to SiYuan Note",
+          "joplin": "Export to Joplin",
+          "docx": "Export as Word"
+        },
         "joplin": {
           "check": {
             "button": "Check",
@@ -787,15 +873,6 @@
         "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
         "notion.split_size_placeholder": "Enter block limit per page (default 90)",
         "notion.title": "Notion Configuration",
-        "obsidian": {
-          "folder": "Folder",
-          "folder_placeholder": "Please enter the folder name",
-          "tags": "Global Tags",
-          "tags_placeholder": "Please enter the tag name, separate multiple tags with commas",
-          "title": "Obsidian Configuration",
-          "vault": "Vault",
-          "vault_placeholder": "Please enter the vault name"
-        },
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",
@@ -803,6 +880,25 @@
           "backup.button": "Backup to WebDAV",
           "backup.modal.filename.placeholder": "Please enter backup filename",
           "backup.modal.title": "Backup to WebDAV",
+          "backup.manager.title": "Backup Data Management",
+          "backup.manager.refresh": "Refresh",
+          "backup.manager.delete.selected": "Delete Selected",
+          "backup.manager.delete.text": "Delete",
+          "backup.manager.restore.text": "Restore",
+          "backup.manager.restore.success": "Restore successful, application will refresh shortly",
+          "backup.manager.restore.error": "Restore failed",
+          "backup.manager.delete.confirm.title": "Confirm Delete",
+          "backup.manager.delete.confirm.single": "Are you sure you want to delete backup file \"{{fileName}}\"? This action cannot be undone.",
+          "backup.manager.delete.confirm.multiple": "Are you sure you want to delete {{count}} selected backup files? This action cannot be undone.",
+          "backup.manager.delete.success.single": "Deleted successfully",
+          "backup.manager.delete.success.multiple": "Successfully deleted {{count}} backup files",
+          "backup.manager.delete.error": "Delete failed",
+          "backup.manager.fetch.error": "Failed to get backup files",
+          "backup.manager.select.files.delete": "Please select backup files to delete",
+          "backup.manager.columns.fileName": "Filename",
+          "backup.manager.columns.modifiedTime": "Modified Time",
+          "backup.manager.columns.size": "Size",
+          "backup.manager.columns.actions": "Actions",
           "host": "WebDAV Host",
           "host.placeholder": "http://localhost:8080",
           "hour_interval_one": "{{count}} hour",
@@ -840,16 +936,66 @@
           "title": "Yuque Configuration",
           "token": "Yuque Token",
           "token_placeholder": "Please enter the Yuque Token"
-        }
+        },
+        "obsidian": {
+          "title": "Obsidian Configuration",
+          "default_vault": "Default Obsidian Vault",
+          "default_vault_placeholder": "Please select the default Obsidian vault",
+          "default_vault_loading": "Loading Obsidian vault...",
+          "default_vault_no_vaults": "No Obsidian vaults found",
+          "default_vault_fetch_error": "Failed to fetch Obsidian vault",
+          "default_vault_export_failed": "Export failed"
+        },
+        "siyuan": {
+          "title": "Siyuan Note Configuration",
+          "api_url": "Siyuan Note API URL",
+          "api_url_placeholder": "e.g.: http://127.0.0.1:6806",
+          "token": "Siyuan Note Token",
+          "token.help": "Get Siyuan Note Token",
+          "token_placeholder": "Please enter Siyuan Note Token",
+          "box_id": "Siyuan Note Box ID",
+          "box_id_placeholder": "Please enter Siyuan Note Box ID",
+          "root_path": "Siyuan Note Root Path",
+          "root_path_placeholder": "e.g.: /CherryStudio",
+          "check": {
+            "title": "Connection Check",
+            "button": "Check",
+            "empty_config": "Please fill in the API address and token",
+            "success": "Connection successful",
+            "fail": "Connection failed, please check API address and token",
+            "error": "Connection error, please check network connection"
+          }
+        },
+        "nutstore": {
+          "title": "Nutstore Configuration",
+          "isLogin": "Logged in",
+          "notLogin": "Not logged in",
+          "login.button": "Login",
+          "logout.button": "Logout",
+          "logout.title": "Are you sure you want to logout from Nutstore?",
+          "logout.content": "After logout, you will not be able to backup to Nutstore or restore from Nutstore.",
+          "checkConnection.name": "Check Connection",
+          "checkConnection.success": "Connected to Nutstore",
+          "checkConnection.fail": "Nutstore connection failed",
+          "username": "Nutstore Username",
+          "path": "Nutstore Storage Path",
+          "path.placeholder": "Enter Nutstore storage path",
+          "backup.button": "Backup to Nutstore",
+          "restore.button": "Restore from Nutstore",
+          "pathSelector.title": "Nutstore Storage Path",
+          "pathSelector.return": "Return",
+          "pathSelector.currentPath": "Current Path",
+          "new_folder.button.confirm": "Confirm",
+          "new_folder.button.cancel": "Cancel",
+          "new_folder.button": "New Folder"
+        },
+        "message_title.use_topic_naming.title": "Use topic naming model to create titles for exported messages",
+        "message_title.use_topic_naming.help": "When enabled, use topic naming model to create titles for exported messages. This will also affect all Markdown export methods."
       },
       "display.assistant.title": "Assistant Settings",
       "display.custom.css": "Custom CSS",
       "display.custom.css.cherrycss": "Get from cherrycss.com",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
-      "display.minApp.disabled": "Hidden MinApp",
-      "display.minApp.empty": "Drag minApp from the left to hide them here",
-      "display.minApp.title": "MinApp  Settings",
-      "display.minApp.visible": "Visible MinApp",
       "display.sidebar.chat.hiddenMessage": "Assistants are basic functions, not supported for hiding",
       "display.sidebar.disabled": "Hide icons",
       "display.sidebar.empty": "Drag the hidden feature from the left side here",
@@ -862,6 +1008,20 @@
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
       "display.topic.title": "Topic Settings",
+      "miniapps": {
+        "title": "Mini Apps Settings",
+        "disabled": "Hidden Mini Apps",
+        "empty": "Drag mini apps from the left to hide them",
+        "visible": "Visible Mini Apps",
+        "cache_settings": "Cache Settings",
+        "cache_title": "Mini App Cache Limit",
+        "cache_description": "Set the maximum number of active mini apps to keep in memory",
+        "reset_tooltip": "Reset to default",
+        "display_title": "Mini App Display Settings",
+        "sidebar_title": "Sidebar Active Mini Apps Display",
+        "sidebar_description": "Show active mini apps in the sidebar",
+        "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value"
+      },
       "font_size.title": "Message font size",
       "general": "General Settings",
       "general.avatar.reset": "Reset Avatar",
@@ -870,7 +1030,7 @@
       "general.display.title": "Display Settings",
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
-      "general.manually_check_update.title": "Turn off update checking",
+      "general.auto_check_update.title": "Auto update checking",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
@@ -898,10 +1058,11 @@
         "argsTooltip": "Each argument on a new line",
         "baseUrlTooltip": "Remote server base URL",
         "command": "Command",
-        "commandRequired": "Please enter a command",
+        "sse": "Server-Sent Events (sse)",
+        "streamableHttp": "Streamable HTTP (streamableHttp)",
+        "stdio": "Standard Input/Output (stdio)",
+        "inMemory": "Memory",
         "config_description": "Configure Model Context Protocol servers",
-        "confirmDelete": "Delete Server",
-        "confirmDeleteMessage": "Are you sure you want to delete the server?",
         "deleteError": "Failed to delete server",
         "deleteSuccess": "Server deleted successfully",
         "dependenciesInstall": "Install Dependencies",
@@ -912,7 +1073,10 @@
         "editServer": "Edit Server",
         "env": "Environment Variables",
         "envTooltip": "Format: KEY=value, one per line",
-        "findMore": "Find More MCP Servers",
+        "headers": "Headers",
+        "headersTooltip": "Custom headers for HTTP requests",
+        "findMore": "Find More MCP",
+        "searchNpx": "Search MCP",
         "install": "Install",
         "installError": "Failed to install dependencies",
         "installSuccess": "Dependencies installed successfully",
@@ -922,11 +1086,10 @@
         "jsonSaveSuccess": "JSON configuration has been saved.",
         "missingDependencies": "is Missing, please install it to continue.",
         "name": "Name",
-        "nameRequired": "Please enter a server name",
         "noServers": "No servers configured",
+        "newServer": "MCP Server",
         "npx_list": {
           "actions": "Actions",
-          "desc": "Search and add npm packages as MCP servers",
           "description": "Description",
           "no_packages": "No packages found",
           "npm": "NPM",
@@ -935,18 +1098,60 @@
           "scope_required": "Please enter npm scope",
           "search": "Search",
           "search_error": "Search error",
-          "title": "NPX Package List",
           "usage": "Usage",
           "version": "Version"
+        },
+        "errors": {
+          "32000": "MCP server failed to start, please check the parameters according to the tutorial"
         },
         "serverPlural": "servers",
         "serverSingular": "server",
         "title": "MCP Servers",
-        "toggleError": "Toggle failed",
+        "startError": "Start failed",
         "type": "Type",
         "updateError": "Failed to update server",
         "updateSuccess": "Server updated successfully",
-        "url": "URL"
+        "url": "URL",
+        "editMcpJson": "Edit MCP Configuration",
+        "installHelp": "Get Installation Help",
+        "tabs": {
+          "general": "General",
+          "tools": "Tools",
+          "prompts": "Prompts",
+          "resources": "Resources"
+        },
+        "tools": {
+          "inputSchema": "Input Schema",
+          "availableTools": "Available Tools",
+          "noToolsAvailable": "No tools available",
+          "loadError": "Get tools Error"
+        },
+        "prompts": {
+          "availablePrompts": "Available Prompts",
+          "noPromptsAvailable": "No prompts available",
+          "arguments": "Arguments",
+          "requiredField": "Required Field",
+          "genericError": "Get prompt Error",
+          "loadError": "Get prompts Error"
+        },
+        "resources": {
+          "noResourcesAvailable": "No resources available",
+          "availableResources": "Available Resources",
+          "uri": "URI",
+          "mimeType": "MIME Type",
+          "size": "Size",
+          "blob": "Blob",
+          "blobInvisible": "Blob Invisible",
+          "text": "Text"
+        },
+        "deleteServer": "Delete Server",
+        "deleteServerConfirm": "Are you sure you want to delete this server?",
+        "registry": "Package Registry",
+        "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
+        "registryDefault": "Default",
+        "not_support": "Model not supported",
+        "user": "User",
+        "system": "System"
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
@@ -958,6 +1163,8 @@
       "messages.input.send_shortcuts": "Send shortcuts",
       "messages.input.show_estimated_tokens": "Show estimated tokens",
       "messages.input.title": "Input Settings",
+      "messages.input.enable_quick_triggers": "Enable '/' and '@' triggers",
+      "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
@@ -1058,7 +1265,7 @@
         "docs_more_details": "for more details",
         "get_api_key": "Get API Key",
         "is_not_support_array_content": "Enable compatible mode",
-        "no_models": "Please add models first before checking the API connection",
+        "no_models_for_check": "No models available for checking (e.g. chat models)",
         "not_checked": "Not Checked",
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",
@@ -1096,7 +1303,7 @@
         "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
         "reset_to_default": "Reset to Default",
         "search_message": "Search Message",
-        "show_app": "Show App",
+        "show_app": "Show/Hide App",
         "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",
         "toggle_new_context": "Clear Context",
@@ -1143,7 +1350,44 @@
           "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
           "title": "Tavily"
         },
-        "title": "Web Search"
+        "title": "Web Search",
+        "subscribe": "Blacklist Subscription",
+        "subscribe_update": "Update",
+        "subscribe_add": "Add Subscription",
+        "subscribe_url": "Subscription Url",
+        "subscribe_name": "Alternative name",
+        "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
+        "subscribe_add_success": "Subscription feed added successfully!",
+        "subscribe_delete": "Delete",
+        "overwrite": "Override search service",
+        "overwrite_tooltip": "Force use search service instead of LLM",
+        "apikey": "API key",
+        "free": "Free"
+      },
+      "quickPhrase": {
+        "title": "Quick Phrases",
+        "add": "Add Phrase",
+        "edit": "Edit Phrase",
+        "titleLabel": "Title",
+        "contentLabel": "Content",
+        "titlePlaceholder": "Please enter phrase title",
+        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "delete": "Delete Phrase",
+        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?"
+      },
+      "quickPanel": {
+        "title": "Quick Menu",
+        "close": "Close",
+        "select": "Select",
+        "page": "Page",
+        "confirm": "Confirm",
+        "back": "Back",
+        "forward": "Forward",
+        "multiple": "Multiple Select"
+      },
+      "privacy": {
+        "title": "Privacy Settings",
+        "enable_privacy_mode": "Anonymous reporting of errors and statistics"
       }
     },
     "translate": {
@@ -1169,7 +1413,10 @@
       "scroll_sync.disable": "Disable synced scroll",
       "scroll_sync.enable": "Enable synced scroll",
       "title": "Translation",
-      "tooltip.newline": "Newline"
+      "tooltip.newline": "Newline",
+      "menu": {
+        "description": "Translate the content of the current input box"
+      }
     },
     "tray": {
       "quit": "Quit",

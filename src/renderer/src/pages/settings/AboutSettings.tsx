@@ -1,19 +1,19 @@
 import { GithubOutlined } from '@ant-design/icons'
-import { FileProtectOutlined, GlobalOutlined, MailOutlined, SoundOutlined } from '@ant-design/icons'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack } from '@renderer/components/Layout'
-import MinApp from '@renderer/components/MinApp'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
-import { setManualUpdateCheck } from '@renderer/store/settings'
+import { setAutoCheckUpdate } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
 import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
 import { debounce } from 'lodash'
+import { FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -25,10 +25,11 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitl
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const { t } = useTranslation()
-  const { manualUpdateCheck } = useSettings()
+  const { autoCheckUpdate } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
+  const { openMinapp } = useMinappPopup()
 
   const onCheckUpdate = debounce(
     async () => {
@@ -70,7 +71,8 @@ const AboutSettings: FC = () => {
 
   const showLicense = async () => {
     const { appPath } = await window.api.getAppInfo()
-    MinApp.start({
+    openMinapp({
+      id: 'cherrystudio-license',
       name: t('settings.about.license.title'),
       url: `file://${appPath}/resources/cherry-studio/license.html`,
       logo: AppLogo
@@ -79,7 +81,8 @@ const AboutSettings: FC = () => {
 
   const showReleases = async () => {
     const { appPath } = await window.api.getAppInfo()
-    MinApp.start({
+    openMinapp({
+      id: 'cherrystudio-releases',
       name: t('settings.about.releases.title'),
       url: `file://${appPath}/resources/cherry-studio/releases.html?theme=${theme === ThemeMode.dark ? 'dark' : 'light'}`,
       logo: AppLogo
@@ -146,8 +149,8 @@ const AboutSettings: FC = () => {
         </AboutHeader>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.manually_check_update.title')}</SettingRowTitle>
-          <Switch value={manualUpdateCheck} onChange={(v) => dispatch(setManualUpdateCheck(v))} />
+          <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
+          <Switch value={autoCheckUpdate} onChange={(v) => dispatch(setAutoCheckUpdate(v))} />
         </SettingRow>
       </SettingGroup>
       {hasNewVersion && update.info && (
@@ -161,7 +164,7 @@ const AboutSettings: FC = () => {
           <UpdateNotesWrapper>
             <Markdown>
               {typeof update.info.releaseNotes === 'string'
-                ? update.info.releaseNotes.replaceAll('\n', '\n\n')
+                ? update.info.releaseNotes.replace(/\n/g, '\n\n')
                 : update.info.releaseNotes?.map((note) => note.note).join('\n')}
             </Markdown>
           </UpdateNotesWrapper>
@@ -170,7 +173,7 @@ const AboutSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingRow>
           <SettingRowTitle>
-            <SoundOutlined />
+            <Rss size={18} />
             {t('settings.about.releases.title')}
           </SettingRowTitle>
           <Button onClick={showReleases}>{t('settings.about.releases.button')}</Button>
@@ -178,7 +181,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <GlobalOutlined />
+            <Globe size={18} />
             {t('settings.about.website.title')}
           </SettingRowTitle>
           <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
@@ -186,7 +189,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <GithubOutlined />
+            <Github size={18} />
             {t('settings.about.feedback.title')}
           </SettingRowTitle>
           <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
@@ -196,7 +199,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <FileProtectOutlined />
+            <FileCheck size={18} />
             {t('settings.about.license.title')}
           </SettingRowTitle>
           <Button onClick={showLicense}>{t('settings.about.license.button')}</Button>
@@ -204,7 +207,8 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <MailOutlined /> {t('settings.about.contact.title')}
+            <Mail size={18} />
+            {t('settings.about.contact.title')}
           </SettingRowTitle>
           <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
         </SettingRow>

@@ -1,47 +1,54 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { useAppDispatch } from '@renderer/store'
+import { setFoldDisplayMode } from '@renderer/store/settings'
 import { Message, Model } from '@renderer/types'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
-import { FC, useState } from 'react'
+import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface MessageGroupModelListProps {
   messages: Message[]
+  selectMessageId: string
   setSelectedMessage: (message: Message) => void
 }
 
 type DisplayMode = 'compact' | 'expanded'
 
-const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, setSelectedMessage }) => {
+const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectMessageId, setSelectedMessage }) => {
+  const dispatch = useAppDispatch()
   const { t } = useTranslation()
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('expanded')
-  const isCompact = displayMode === 'compact'
+  const { foldDisplayMode } = useSettings()
+  const isCompact = foldDisplayMode === 'compact'
 
   return (
     <ModelsWrapper>
-      <DisplayModeToggle displayMode={displayMode} onClick={() => setDisplayMode(isCompact ? 'expanded' : 'compact')}>
+      <DisplayModeToggle
+        displayMode={foldDisplayMode}
+        onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
         <Tooltip
           title={
-            displayMode === 'compact'
+            foldDisplayMode === 'compact'
               ? t(`message.message.multi_model_style.fold.expand`)
               : t('message.message.multi_model_style.fold.compress')
           }
           placement="top">
-          {displayMode === 'compact' ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
+          {foldDisplayMode === 'compact' ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
         </Tooltip>
       </DisplayModeToggle>
 
-      <ModelsContainer $displayMode={displayMode}>
-        {displayMode === 'compact' ? (
+      <ModelsContainer $displayMode={foldDisplayMode}>
+        {foldDisplayMode === 'compact' ? (
           /* Compact style display */
           <Avatar.Group className="avatar-group">
             {messages.map((message, index) => (
               <Tooltip key={index} title={message.model?.name} placement="top" mouseEnterDelay={0.2}>
                 <AvatarWrapper
                   className="avatar-wrapper"
-                  isSelected={'foldSelected' in message ? message.foldSelected! : index === 0}
+                  isSelected={message.id === selectMessageId}
                   onClick={() => {
                     setSelectedMessage(message)
                   }}>
@@ -53,7 +60,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, setSe
         ) : (
           /* Expanded style display */
           <Segmented
-            value={messages.find((message) => message.foldSelected)?.id || messages[0].id}
+            value={selectMessageId}
             onChange={(value) => {
               const message = messages.find((message) => message.id === value) as Message
               setSelectedMessage(message)

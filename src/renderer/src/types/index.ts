@@ -1,3 +1,4 @@
+import { GroundingMetadata } from '@google/generative-ai'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
@@ -17,6 +18,7 @@ export type Assistant = {
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
   enableGenerateImage?: boolean
+  mcpServers?: MCPServer[]
 }
 
 export type AssistantMessage = {
@@ -43,7 +45,9 @@ export type AssistantSettings = {
   reasoning_effort?: 'low' | 'medium' | 'high'
 }
 
-export type Agent = Omit<Assistant, 'model'>
+export type Agent = Omit<Assistant, 'model'> & {
+  group?: string[]
+}
 
 export type Message = {
   id: string
@@ -71,9 +75,13 @@ export type Message = {
   enabledMCPs?: MCPServer[]
   metadata?: {
     // Gemini
-    groundingMetadata?: any
-    // Perplexity
+    groundingMetadata?: GroundingMetadata
+    // Perplexity Or Openrouter
     citations?: string[]
+    // OpenAI
+    annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
+    // Zhipu or Hunyuan
+    webSearchInfo?: any[]
     // Web search
     webSearch?: WebSearchResponse
     // MCP Tools
@@ -130,7 +138,7 @@ export type Provider = {
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
-export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling'
+export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
 export type Model = {
   id: string
@@ -162,7 +170,7 @@ export interface Painting {
 }
 
 export type MinAppType = {
-  id?: string | number
+  id: string
   name: string
   logo?: string
   url: string
@@ -226,10 +234,12 @@ export type AppInfo = {
   version: string
   isPackaged: boolean
   appPath: string
+  configPath: string
   appDataPath: string
   resourcesPath: string
   filesPath: string
   logsPath: string
+  arch: string
 }
 
 export interface Shortcut {
@@ -308,6 +318,7 @@ export type GenerateImageParams = {
 }
 
 export type GenerateImageResponse = {
+  type: 'url' | 'base64'
   images: string[]
 }
 
@@ -328,6 +339,9 @@ export type WebSearchProvider = {
   apiKey?: string
   apiHost?: string
   engines?: string[]
+  url?: string
+  contentLimit?: number
+  usingBrowser?: boolean
 }
 
 export type WebSearchResponse = {
@@ -361,13 +375,18 @@ export interface MCPServerParameter {
 }
 
 export interface MCPServer {
+  id: string
   name: string
+  type?: 'stdio' | 'sse' | 'inMemory' | 'streamableHttp'
   description?: string
   baseUrl?: string
   command?: string
+  registryUrl?: string
   args?: string[]
   env?: Record<string, string>
   isActive: boolean
+  disabledTools?: string[] // List of tool names that are disabled for this server
+  headers?: Record<string, string> // Custom headers to be sent with requests to this server
 }
 
 export interface MCPToolInputSchema {
@@ -380,10 +399,39 @@ export interface MCPToolInputSchema {
 
 export interface MCPTool {
   id: string
+  serverId: string
   serverName: string
   name: string
   description?: string
   inputSchema: MCPToolInputSchema
+}
+
+export interface MCPPromptArguments {
+  name: string
+  description?: string
+  required?: boolean
+}
+
+export interface MCPPrompt {
+  id: string
+  name: string
+  description?: string
+  arguments?: MCPPromptArguments[]
+  serverId: string
+  serverName: string
+}
+
+export interface GetMCPPromptResponse {
+  description?: string
+  messages: {
+    role: string
+    content: {
+      type: 'text' | 'image' | 'audio' | 'resource'
+      text?: string
+      data?: string
+      mimeType?: string
+    }
+  }[]
 }
 
 export interface MCPConfig {
@@ -395,4 +443,46 @@ export interface MCPToolResponse {
   tool: MCPTool // tool info
   status: string // 'invoking' | 'done'
   response?: any
+}
+
+export interface MCPToolResultContent {
+  type: 'text' | 'image' | 'audio' | 'resource'
+  text?: string
+  data?: string
+  mimeType?: string
+  resource?: {
+    uri?: string
+    text?: string
+    mimeType?: string
+  }
+}
+
+export interface MCPCallToolResponse {
+  content: MCPToolResultContent[]
+  isError?: boolean
+}
+
+export interface MCPResource {
+  serverId: string
+  serverName: string
+  uri: string
+  name: string
+  description?: string
+  mimeType?: string
+  size?: number
+  text?: string
+  blob?: string
+}
+
+export interface GetResourceResponse {
+  contents: MCPResource[]
+}
+
+export interface QuickPhrase {
+  id: string
+  title: string
+  content: string
+  createdAt: number
+  updatedAt: number
+  order?: number
 }

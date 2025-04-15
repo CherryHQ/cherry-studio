@@ -1,8 +1,10 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
+import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { backupToWebdav, restoreFromWebdav, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
+import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setWebdavAutoSync,
@@ -12,19 +14,12 @@ import {
   setWebdavSyncInterval as _setWebdavSyncInterval,
   setWebdavUser as _setWebdavUser
 } from '@renderer/store/settings'
-import { formatFileSize } from '@renderer/utils'
-import { Button, Input, Modal, Select, Spin, Tooltip } from 'antd'
+import { Button, Input, Select, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-
-interface BackupFile {
-  fileName: string
-  modifiedTime: string
-  size: number
-}
 
 const WebDavSettings: FC = () => {
   const {
@@ -39,17 +34,9 @@ const WebDavSettings: FC = () => {
   const [webdavUser, setWebdavUser] = useState<string | undefined>(webDAVUser)
   const [webdavPass, setWebdavPass] = useState<string | undefined>(webDAVPass)
   const [webdavPath, setWebdavPath] = useState<string | undefined>(webDAVPath)
+  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [syncInterval, setSyncInterval] = useState<number>(webDAVSyncInterval)
-
-  const [backuping, setBackuping] = useState(false)
-  const [restoring, setRestoring] = useState(false)
-  const [isModalVisible, setIsModalVisible] = useState(false)
-  const [customFileName, setCustomFileName] = useState('')
-  const [isRestoreModalVisible, setIsRestoreModalVisible] = useState(false)
-  const [backupFiles, setBackupFiles] = useState<BackupFile[]>([])
-  const [selectedFile, setSelectedFile] = useState<string>('')
-  const [loadingFiles, setLoadingFiles] = useState(false)
 
   const dispatch = useAppDispatch()
   const { theme } = useTheme()
@@ -96,86 +83,15 @@ const WebDavSettings: FC = () => {
     )
   }
 
-  const showBackupModal = async () => {
-    // 获取默认文件名
-    const deviceType = await window.api.system.getDeviceType()
-    const timestamp = dayjs().format('YYYYMMDDHHmmss')
-    const defaultFileName = `cherry-studio.${timestamp}.${deviceType}.zip`
-    setCustomFileName(defaultFileName)
-    setIsModalVisible(true)
+  const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
+    useWebdavBackupModal()
+
+  const showBackupManager = () => {
+    setBackupManagerVisible(true)
   }
 
-  const handleBackup = async () => {
-    setBackuping(true)
-    try {
-      await backupToWebdav({ showMessage: true, customFileName })
-    } finally {
-      setBackuping(false)
-      setIsModalVisible(false)
-    }
-  }
-
-  const handleCancel = () => {
-    setIsModalVisible(false)
-  }
-
-  const showRestoreModal = async () => {
-    if (!webdavHost || !webdavUser || !webdavPass || !webdavPath) {
-      window.message.error({ content: t('message.error.invalid.webdav'), key: 'webdav-error' })
-      return
-    }
-
-    setIsRestoreModalVisible(true)
-    setLoadingFiles(true)
-    try {
-      const files = await window.api.backup.listWebdavFiles({
-        webdavHost,
-        webdavUser,
-        webdavPass,
-        webdavPath
-      })
-      setBackupFiles(files)
-    } catch (error: any) {
-      window.message.error({ content: error.message, key: 'list-files-error' })
-    } finally {
-      setLoadingFiles(false)
-    }
-  }
-
-  const handleRestore = async () => {
-    if (!selectedFile || !webdavHost || !webdavUser || !webdavPass || !webdavPath) {
-      window.message.error({
-        content: !selectedFile ? t('message.error.no.file.selected') : t('message.error.invalid.webdav'),
-        key: 'restore-error'
-      })
-      return
-    }
-
-    window.modal.confirm({
-      title: t('settings.data.webdav.restore.confirm.title'),
-      content: t('settings.data.webdav.restore.confirm.content'),
-      centered: true,
-      onOk: async () => {
-        setRestoring(true)
-        try {
-          await restoreFromWebdav(selectedFile)
-          setIsRestoreModalVisible(false)
-        } catch (error: any) {
-          window.message.error({ content: error.message, key: 'restore-error' })
-        } finally {
-          setRestoring(false)
-        }
-      }
-    })
-  }
-
-  const formatFileOption = (file: BackupFile) => {
-    const date = dayjs(file.modifiedTime).format('YYYY-MM-DD HH:mm:ss')
-    const size = formatFileSize(file.size)
-    return {
-      label: `${file.fileName} (${date}, ${size})`,
-      value: file.fileName
-    }
+  const closeBackupManager = () => {
+    setBackupManagerVisible(false)
   }
 
   return (
@@ -233,7 +149,10 @@ const WebDavSettings: FC = () => {
           <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button onClick={showRestoreModal} icon={<FolderOpenOutlined />} loading={restoring}>
+          <Button
+            onClick={showBackupManager}
+            icon={<FolderOpenOutlined />}
+            disabled={!webdavHost || !webdavUser || !webdavPass || !webdavPath}>
             {t('settings.data.webdav.restore.button')}
           </Button>
         </HStack>
@@ -264,44 +183,25 @@ const WebDavSettings: FC = () => {
         </>
       )}
       <>
-        <Modal
-          title={t('settings.data.webdav.backup.modal.title')}
-          open={isModalVisible}
-          onOk={handleBackup}
-          onCancel={handleCancel}
-          okButtonProps={{ loading: backuping }}>
-          <Input
-            value={customFileName}
-            onChange={(e) => setCustomFileName(e.target.value)}
-            placeholder={t('settings.data.webdav.backup.modal.filename.placeholder')}
-          />
-        </Modal>
+        <WebdavBackupModal
+          isModalVisible={isModalVisible}
+          handleBackup={handleBackup}
+          handleCancel={handleCancel}
+          backuping={backuping}
+          customFileName={customFileName}
+          setCustomFileName={setCustomFileName}
+        />
 
-        <Modal
-          title={t('settings.data.webdav.restore.modal.title')}
-          open={isRestoreModalVisible}
-          onOk={handleRestore}
-          onCancel={() => setIsRestoreModalVisible(false)}
-          okButtonProps={{ loading: restoring }}
-          width={600}>
-          <div style={{ position: 'relative' }}>
-            <Select
-              style={{ width: '100%' }}
-              placeholder={t('settings.data.webdav.restore.modal.select.placeholder')}
-              value={selectedFile}
-              onChange={setSelectedFile}
-              options={backupFiles.map(formatFileOption)}
-              loading={loadingFiles}
-              showSearch
-              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-            />
-            {loadingFiles && (
-              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-                <Spin />
-              </div>
-            )}
-          </div>
-        </Modal>
+        <WebdavBackupManager
+          visible={backupManagerVisible}
+          onClose={closeBackupManager}
+          webdavConfig={{
+            webdavHost,
+            webdavUser,
+            webdavPass,
+            webdavPath
+          }}
+        />
       </>
     </SettingGroup>
   )

@@ -16,17 +16,19 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import { RAGApplication, RAGApplicationBuilder, TextLoader } from '@llm-tools/embedjs'
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
-import { LibSqlDb } from '@llm-tools/embedjs-libsql'
-import { SitemapLoader } from '@llm-tools/embedjs-loader-sitemap'
-import { WebLoader } from '@llm-tools/embedjs-loader-web'
+import { RAGApplication, RAGApplicationBuilder, TextLoader } from '@cherrystudio/embedjs'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
+import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
+import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import Embeddings from '@main/embeddings/Embeddings'
 import { addFileLoader } from '@main/loader'
 import Reranker from '@main/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
 import { getAllFiles } from '@main/utils/file'
+import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
@@ -91,7 +93,7 @@ class KnowledgeService {
   private workload = 0
   private processingItemCount = 0
   private knowledgeItemProcessingQueueMappingPromise: Map<LoaderTaskOfSet, () => void> = new Map()
-  private static MAXIMUM_WORKLOAD = 1024 * 1024 * 80
+  private static MAXIMUM_WORKLOAD = 80 * MB
   private static MAXIMUM_PROCESSING_ITEM_COUNT = 30
   private static ERROR_LOADER_RETURN: LoaderReturn = { entriesAdded: 0, uniqueId: '', uniqueIds: [''], loaderType: '' }
 
@@ -194,7 +196,7 @@ class KnowledgeService {
 
     const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {
       const mainWindow = windowService.getMainWindow()
-      mainWindow?.webContents.send('directory-processing-percent', {
+      mainWindow?.webContents.send(IpcChannel.DirectoryProcessingPercent, {
         itemId: item.id,
         percent: (processedFiles / totalFiles) * 100
       })
@@ -270,7 +272,7 @@ class KnowledgeService {
                 return KnowledgeService.ERROR_LOADER_RETURN
               })
           },
-          evaluateTaskWorkload: { workload: 1024 * 1024 * 2 }
+          evaluateTaskWorkload: { workload: 2 * MB }
         }
       ],
       loaderDoneReturn: null
@@ -309,7 +311,7 @@ class KnowledgeService {
                 Logger.error(err)
                 return KnowledgeService.ERROR_LOADER_RETURN
               }),
-          evaluateTaskWorkload: { workload: 1024 * 1024 * 20 }
+          evaluateTaskWorkload: { workload: 20 * MB }
         }
       ],
       loaderDoneReturn: null
@@ -475,6 +477,9 @@ class KnowledgeService {
     _: Electron.IpcMainInvokeEvent,
     { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }
   ): Promise<ExtractChunkData[]> => {
+    if (results.length === 0) {
+      return results
+    }
     return await new Reranker(base).rerank(search, results)
   }
 }

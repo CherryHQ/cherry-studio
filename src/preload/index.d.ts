@@ -1,7 +1,7 @@
+import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from '@google/generative-ai/server'
-import { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
-import type { MCPServer, MCPTool } from '@renderer/types'
+import type { GetMCPPromptResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
 import type { LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
@@ -29,7 +29,6 @@ declare global {
       setTrayOnClose: (isActive: boolean) => void
       restartTray: () => void
       setTheme: (theme: 'light' | 'dark') => void
-      minApp: (options: { url: string; windowOptions?: Electron.BrowserWindowConstructorOptions }) => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
       system: {
@@ -45,6 +44,9 @@ declare global {
         backupToWebdav: (data: string, webdavConfig: WebDavConfig) => Promise<boolean>
         restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
         listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
+        checkConnection: (webdavConfig: WebDavConfig) => Promise<boolean>
+        createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) => Promise<void>
+        deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) => Promise<boolean>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
@@ -135,6 +137,7 @@ declare global {
         hide: () => Promise<void>
         close: () => Promise<void>
         toggle: () => Promise<void>
+        setPin: (isPinned: boolean) => Promise<void>
       }
       aes: {
         encrypt: (text: string, secretKey: string, iv: string) => Promise<{ iv: string; encryptedData: string }>
@@ -144,17 +147,32 @@ declare global {
         openExternal: (url: string, options?: OpenExternalOptions) => Promise<void>
       }
       mcp: {
-        // servers
-        listServers: () => Promise<MCPServer[]>
-        addServer: (server: MCPServer) => Promise<void>
-        updateServer: (server: MCPServer) => Promise<void>
-        deleteServer: (serverName: string) => Promise<void>
-        setServerActive: (name: string, isActive: boolean) => Promise<void>
-        // tools
-        listTools: () => Promise<MCPTool[]>
-        callTool: ({ client, name, args }: { client: string; name: string; args: any }) => Promise<any>
-        // status
-        cleanup: () => Promise<void>
+        removeServer: (server: MCPServer) => Promise<void>
+        restartServer: (server: MCPServer) => Promise<void>
+        stopServer: (server: MCPServer) => Promise<void>
+        listTools: (server: MCPServer) => Promise<MCPTool[]>
+        callTool: ({
+          server,
+          name,
+          args
+        }: {
+          server: MCPServer
+          name: string
+          args: any
+        }) => Promise<MCPCallToolResponse>
+        listPrompts: (server: MCPServer) => Promise<MCPPrompt[]>
+        getPrompt: ({
+          server,
+          name,
+          args
+        }: {
+          server: MCPServer
+          name: string
+          args?: Record<string, any>
+        }) => Promise<GetMCPPromptResponse>
+        listResources: (server: MCPServer) => Promise<MCPResource[]>
+        getResource: ({ server, uri }: { server: MCPServer; uri: string }) => Promise<GetResourceResponse>
+        getInstallInfo: () => Promise<{ dir: string; uvPath: string; bunPath: string }>
       }
       copilot: {
         getAuthMessage: (
@@ -170,6 +188,19 @@ declare global {
       getBinaryPath: (name: string) => Promise<string>
       installUVBinary: () => Promise<void>
       installBunBinary: () => Promise<void>
+      protocol: {
+        onReceiveData: (callback: (data: { url: string; params: any }) => void) => () => void
+      }
+      nutstore: {
+        getSSOUrl: () => Promise<string>
+        decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
+        getDirectoryContents: (token: string, path: string) => Promise<any>
+      }
+      searchService: {
+        openSearchWindow: (uid: string) => Promise<string>
+        closeSearchWindow: (uid: string) => Promise<string>
+        openUrlInSearchWindow: (uid: string, url: string) => Promise<string>
+      }
     }
   }
 }

@@ -1,26 +1,33 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { CodeStyleVarious, ThemeMode } from '@renderer/types'
-import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react'
-import {
-  BundledLanguage,
-  bundledLanguages,
-  BundledTheme,
-  bundledThemes,
-  createHighlighter,
-  HighlighterGeneric
-} from 'shiki'
+import { CodeCacheService } from '@renderer/services/CodeCacheService'
+import { type CodeStyleVarious, ThemeMode } from '@renderer/types'
+import type React from 'react'
+import { createContext, type PropsWithChildren, use, useCallback, useMemo } from 'react'
+import { bundledLanguages, bundledThemes, createHighlighter, type Highlighter } from 'shiki'
+
+let highlighterPromise: Promise<Highlighter> | null = null
+
+async function getHighlighter() {
+  if (!highlighterPromise) {
+    highlighterPromise = createHighlighter({
+      langs: ['javascript', 'typescript', 'python', 'java', 'markdown'],
+      themes: ['one-light', 'material-theme-darker']
+    })
+  }
+
+  return await highlighterPromise
+}
 
 interface SyntaxHighlighterContextType {
-  codeToHtml: (code: string, language: string) => Promise<string>
+  codeToHtml: (code: string, language: string, enableCache: boolean) => Promise<string>
 }
 
 const SyntaxHighlighterContext = createContext<SyntaxHighlighterContextType | undefined>(undefined)
 
 export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const { theme } = useTheme()
-  const [highlighter, setHighlighter] = useState<HighlighterGeneric<BundledLanguage, BundledTheme> | null>(null)
   const { codeStyle } = useSettings()
   useMermaid()
 
@@ -32,61 +39,67 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
     return codeStyle
   }, [theme, codeStyle])
 
-  useEffect(() => {
-    const initHighlighter = async () => {
-      const commonLanguages = ['javascript', 'typescript', 'python', 'java', 'markdown']
+  const codeToHtml = useCallback(
+    async (_code: string, language: string, enableCache: boolean) => {
+      {
+        if (!_code) return ''
 
-      const hl = await createHighlighter({
-        themes: [highlighterTheme],
-        langs: commonLanguages
-      })
+        const key = CodeCacheService.generateCacheKey(_code, language, highlighterTheme)
+        const cached = enableCache ? CodeCacheService.getCachedResult(key) : null
+        if (cached) return cached
 
-      setHighlighter(hl)
+        const languageMap: Record<string, string> = {
+          vab: 'vb'
+        }
 
-      // Load all themes and languages
-      // hl.loadTheme(...(Object.keys(bundledThemes) as BundledTheme[]))
-      // hl.loadLanguage(...(Object.keys(bundledLanguages) as BundledLanguage[]))
-    }
+        const mappedLanguage = languageMap[language] || language
 
-    initHighlighter()
-  }, [highlighterTheme])
+        const code = _code?.trimEnd() ?? ''
+        const escapedCode = code?.replace(/[<>]/g, (char) => ({ '<': '&lt;', '>': '&gt;' })[char]!)
 
-  const codeToHtml = async (code: string, language: string) => {
-    if (!highlighter) return ''
+        try {
+          const highlighter = await getHighlighter()
 
-    const languageMap: Record<string, string> = {
-      vab: 'vb'
-    }
+          if (!highlighter.getLoadedThemes().includes(highlighterTheme)) {
+            const themeImportFn = bundledThemes[highlighterTheme]
+            if (themeImportFn) {
+              await highlighter.loadTheme(await themeImportFn())
+            }
+          }
 
-    const mappedLanguage = languageMap[language] || language
+          if (!highlighter.getLoadedLanguages().includes(mappedLanguage)) {
+            const languageImportFn = bundledLanguages[mappedLanguage]
+            if (languageImportFn) {
+              await highlighter.loadLanguage(await languageImportFn())
+            }
+          }
 
-    code = code?.trimEnd() ?? ''
-    const escapedCode = code?.replace(/[<>]/g, (char) => ({ '<': '&lt;', '>': '&gt;' })[char]!)
+          // 生成高亮HTML
+          const html = highlighter.codeToHtml(code, {
+            lang: mappedLanguage,
+            theme: highlighterTheme
+          })
 
-    try {
-      if (!highlighter.getLoadedLanguages().includes(mappedLanguage as BundledLanguage)) {
-        if (mappedLanguage in bundledLanguages || mappedLanguage === 'text') {
-          await highlighter.loadLanguage(mappedLanguage as BundledLanguage)
-        } else {
+          // 设置缓存
+          if (enableCache) {
+            CodeCacheService.setCachedResult(key, html, _code.length)
+          }
+
+          return html
+        } catch (error) {
+          console.debug(`Error highlighting code for language '${mappedLanguage}':`, error)
           return `<pre style="padding: 10px"><code>${escapedCode}</code></pre>`
         }
       }
+    },
+    [highlighterTheme]
+  )
 
-      return highlighter.codeToHtml(code, {
-        lang: mappedLanguage,
-        theme: highlighterTheme
-      })
-    } catch (error) {
-      console.warn(`Error highlighting code for language '${mappedLanguage}':`, error)
-      return `<pre style="padding: 10px"><code>${escapedCode}</code></pre>`
-    }
-  }
-
-  return <SyntaxHighlighterContext.Provider value={{ codeToHtml }}>{children}</SyntaxHighlighterContext.Provider>
+  return <SyntaxHighlighterContext value={{ codeToHtml }}>{children}</SyntaxHighlighterContext>
 }
 
 export const useSyntaxHighlighter = () => {
-  const context = useContext(SyntaxHighlighterContext)
+  const context = use(SyntaxHighlighterContext)
   if (!context) {
     throw new Error('useSyntaxHighlighter must be used within a SyntaxHighlighterProvider')
   }
