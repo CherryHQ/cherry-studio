@@ -1,5 +1,5 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
-import axiosProxy from '@main/services/AoxisProxy'
+import axiosProxy from '@main/services/AxiosProxy'
 import { KnowledgeBaseParams } from '@types'
 
 import BaseReranker from './BaseReranker'

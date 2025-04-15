@@ -3,7 +3,7 @@ import { app, safeStorage } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
-import aoxisProxy from './AoxisProxy'
+import aoxisProxy from './AxiosProxy'
 
 // 配置常量，集中管理
 const CONFIG = {
