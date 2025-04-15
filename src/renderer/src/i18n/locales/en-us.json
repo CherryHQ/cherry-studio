@@ -328,7 +328,7 @@
       "no_api_key": "API key is not configured",
       "provider_disabled": "Model provider is not enabled",
       "render": {
-        "description": "Failed to render formula. Please check if the formula format is correct",
+        "description": "Failed to render message content. Please check if the message content format is correct",
         "title": "Render Error"
       },
       "user_message_not_found": "Cannot find original user message to resend",
