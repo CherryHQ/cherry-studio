@@ -1362,9 +1362,9 @@
         "overwrite_tooltip": "Использовать провайдера поиска вместо LLM",
         "apikey": "API ключ",
         "free": "Бесплатно"
-      },
-      "general.auto_check_update.title": "Включить автообновление",
-      "quickPhrase": {
+            },
+            "general.auto_check_update.title": "Включить автообновление",
+            "quickPhrase": {
         "title": "Быстрые фразы",
         "add": "Добавить фразу",
         "edit": "Редактировать фразу",
