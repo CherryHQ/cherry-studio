@@ -88,7 +88,7 @@ https://docs.cherry-ai.com
 - Aero Theme: https://github.com/hakadao/CherryStudio-Aero
 - PaperMaterial Theme: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
 - Claude dynamic-style: https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
-- Maple Neon Theme: https://github.com/BoningtonChen/cherry-studio_maple-neon_theme
+- Maple Neon Theme: https://github.com/BoningtonChen/CherryStudio_themes
 
 Welcome PR for more themes
 

@@ -89,7 +89,7 @@ https://docs.cherry-ai.com
 Aero テーマ: https://github.com/hakadao/CherryStudio-Aero
 PaperMaterial テーマ: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
 Claude テーマ: https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
-メープルネオンテーマ: https://github.com/BoningtonChen/cherry-studio_maple-neon_theme
+メープルネオンテーマ: https://github.com/BoningtonChen/CherryStudio_themes
 
 より多くのテーマのPRを歓迎します
 
