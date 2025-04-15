@@ -82,14 +82,19 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         return true
       }
 
+      const pattern = lowerSearchText.split('').join('.*')
       if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
-        const pinyinText = tinyPinyin.convertToPinyin(filterText, '', true)
-        if (pinyinText.toLowerCase().includes(lowerSearchText)) {
+        try {
+          const pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
+          const regex = new RegExp(pattern, 'ig')
+          return regex.test(pinyinText)
+        } catch (error) {
           return true
         }
+      } else {
+        const regex = new RegExp(pattern, 'ig')
+        return regex.test(filterText.toLowerCase())
       }
-
-      return false
     })
 
     setIndex(newList.length > 0 ? ctx.defaultIndex || 0 : -1)
@@ -206,6 +211,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
 
     const handleInput = (e: Event) => {
+      if (isComposing.current) return
+
       const target = e.target as HTMLTextAreaElement
       const cursorPosition = target.selectionStart
       const textBeforeCursor = target.value.slice(0, cursorPosition)
@@ -225,8 +232,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       isComposing.current = true
     }
 
-    const handleCompositionEnd = () => {
+    const handleCompositionEnd = (e: CompositionEvent) => {
       isComposing.current = false
+      handleInput(e)
     }
 
     textArea.addEventListener('input', handleInput)
