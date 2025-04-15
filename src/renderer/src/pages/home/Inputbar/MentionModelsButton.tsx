@@ -63,7 +63,8 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
               </Avatar>
             ),
             action: () => onMentionModel(m),
-            isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
+            isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m)),
+            filterText: `${p.isSystem ? t(`provider.${p.id}`) : p.name} ${m.name}`
           }))
       )
 
@@ -90,7 +91,8 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
             </Avatar>
           ),
           action: () => onMentionModel(m),
-          isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
+          isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m)),
+          filterText: `${p.isSystem ? t(`provider.${p.id}`) : p.name} ${m.name}`
         }))
 
       if (providerModels.length > 0) {
