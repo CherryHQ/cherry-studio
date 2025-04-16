@@ -2,19 +2,14 @@ const fs = require('fs')
 const path = require('path')
 const yaml = require('js-yaml')
 
-async function renameFilesWithSpaces() {
+async function DeleteFilesWithSpaces() {
   const distPath = path.join('dist')
   const files = fs.readdirSync(distPath, { withFileTypes: true })
-
   // Only process files in the root of dist directory, not subdirectories
   files.forEach((file) => {
     if (file.isFile() && file.name.includes(' ')) {
-      const oldPath = path.join(distPath, file.name)
-      const newName = file.name.replace(/ /g, '-')
-      const newPath = path.join(distPath, newName)
-
-      fs.renameSync(oldPath, newPath)
-      console.log(`Renamed: ${file.name} -> ${newName}`)
+      fs.rmSync(path.join(distPath, file.name))
+      console.log(`delete: ${file.name}`)
     }
   })
 }
@@ -28,22 +23,36 @@ async function afterBuild() {
     const yamlContent = fs.readFileSync(latestYmlPath, 'utf8')
     const data = yaml.load(yamlContent)
 
-    // Remove the first element from files array
-    if (data.files && data.files.length > 1) {
-      const file = data.files.shift()
+    if (data.files) {
+      data.files.forEach((file) => {
+        if (file.url.includes(' ')) {
+          const newName = file.url.replace(/ /g, '-')
+          const newPath = path.join('dist', newName)
+          const oldPath = path.join('dist', file.url)
 
-      // Remove Cherry Studio-1.2.3-setup.exe
-      fs.rmSync(path.join('dist', file.url))
-      fs.rmSync(path.join('dist', file.url + '.blockmap'))
+          // Helper function to rename files and log the operation
+          const renameFile = (oldPath, newPath) => {
+            fs.renameSync(oldPath, newPath)
+            console.log(`Renamed: ${oldPath} -> ${newPath}`)
+          }
 
-      // Remove Cherry Studio-1.2.3-portable.exe
-      fs.rmSync(path.join('dist', file.url.replace('-setup', '-portable')))
+          // Rename main file and its blockmap
+          renameFile(oldPath, newPath)
+          renameFile(oldPath + '.blockmap', newPath + '.blockmap')
 
-      // Update path and sha512 with the new first element's data
-      if (data.files[0]) {
-        data.path = data.files[0].url
-        data.sha512 = data.files[0].sha512
-      }
+          // Handle portable version if it's a setup file
+          if (file.url.includes('-setup')) {
+            const newPortablePath = newPath.replace('-setup', '-portable')
+            const oldPortablePath = path.join('dist', file.url.replace('-setup', '-portable'))
+            renameFile(oldPortablePath, newPortablePath)
+          }
+
+          file.url = newName
+        }
+      })
+
+      data.path = data.files[0].url
+      data.sha512 = data.files[0].sha512
     }
 
     // Write back the modified YAML with specific dump options
@@ -60,7 +69,7 @@ async function afterBuild() {
     fs.writeFileSync(latestYmlPath, newYamlContent, 'utf8')
 
     // Rename files with spaces
-    await renameFilesWithSpaces()
+    await DeleteFilesWithSpaces()
 
     console.log('Successfully cleaned up latest.yml data')
   } catch (error) {
