@@ -13,6 +13,8 @@ import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import store from '@renderer/store'
+import { setGenerating } from '@renderer/store/runtime'
 
 import ChatWindow from '../chat/ChatWindow'
 import TranslateWindow from '../translate/TranslateWindow'
@@ -177,6 +179,7 @@ const HomeWindow: FC = () => {
     if (route === 'home') {
       onCloseWindow()
     } else {
+      store.dispatch(setGenerating(false))
       setRoute('home')
       setText('')
     }
