@@ -6,7 +6,7 @@ import { parseJSON } from '@renderer/utils'
 import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { type FC, useMemo } from 'react'
+import { type FC, memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
@@ -79,4 +79,4 @@ const Markdown: FC<Props> = ({ message }) => {
   )
 }
 
-export default Markdown
+export default memo(Markdown)
