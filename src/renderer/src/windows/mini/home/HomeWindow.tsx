@@ -98,7 +98,6 @@ const HomeWindow: FC = () => {
               setRoute('chat')
               onSendMessage().then()
               focusInput()
-              setTimeout(() => setText(''), 100)
             }
           }
         }
@@ -161,6 +160,7 @@ const HomeWindow: FC = () => {
         }
         EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
         setIsFirstMessage(false)
+        setText('') // ✅ 清除输入框内容
       }, 0)
     },
     [content, defaultAssistant.id, defaultAssistant.topics]
