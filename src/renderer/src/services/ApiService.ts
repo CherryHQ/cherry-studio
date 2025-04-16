@@ -282,7 +282,7 @@ export async function fetchChatCompletion({
     }
   }
 
-  console.log('message', message)
+  // console.log('message', message)
   // Emit chat completion event
   EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
   onResponse(message)
