@@ -351,9 +351,8 @@ export const sendMessage =
                 : topic.prompt
             }
 
-            // 节流
-            const throttledDispatch = throttle(handleResponseMessageUpdate, 100, { trailing: true }) // 100ms的节流时间应足够平衡用户体验和性能
-            // 寻找当前正在处理的消息在消息列表中的位置
+            // 节流，降低到 50ms，因为已经在handleResponseMessageUpdate内保证react能调度。
+            const throttledDispatch = throttle(handleResponseMessageUpdate, 50, { trailing: true })
             // const messageIndex = messages.findIndex((m) => m.id === assistantMessage.id)
             const handleMessages = (): Message[] => {
               // 找到对应的用户消息位置
