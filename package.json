@@ -23,7 +23,7 @@
     "build": "npm run typecheck && electron-vite build",
     "build:check": "yarn test && yarn typecheck && yarn check:i18n",
     "build:unpack": "dotenv npm run build && electron-builder --dir",
-    "build:win": "dotenv npm run build && electron-builder --win --x64 --arm64 && node scripts/after-build.js",
+    "build:win": "dotenv npm run build && electron-builder --win --x64 --arm64",
     "build:win:x64": "dotenv npm run build && electron-builder --win --x64",
     "build:win:arm64": "dotenv npm run build && electron-builder --win --arm64",
     "build:mac": "dotenv electron-vite build && electron-builder --mac --arm64 --x64",
