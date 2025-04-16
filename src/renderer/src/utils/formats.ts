@@ -71,8 +71,8 @@ export function withGeminiGrounding(message: Message) {
   let content = message.content
 
   groundingSupports.forEach((support) => {
-    const text = support?.segment?.text
-    const indices = support?.groundingChunkIndices
+    const text = support?.segment
+    const indices = support?.groundingChunckIndices
 
     if (!text || !indices) return
 

@@ -173,13 +173,13 @@ const ServerName = styled.div`
 
 const ServerDescription = styled.div`
   font-size: 0.85rem;
-  color: var(--color-text-2);
+  color: ${(props) => props.theme.colors?.textSecondary || '#8c8c8c'};
   margin-bottom: 3px;
 `
 
 const ServerUrl = styled.div`
   font-size: 0.8rem;
-  color: var(--color-text-3);
+  color: ${(props) => props.theme.colors?.textTertiary || '#bfbfbf'};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

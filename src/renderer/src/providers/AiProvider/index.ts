@@ -1,4 +1,4 @@
-import type { GroundingMetadata } from '@google/genai'
+import type { GroundingMetadata } from '@google/generative-ai'
 import BaseProvider from '@renderer/providers/AiProvider/BaseProvider'
 import ProviderFactory from '@renderer/providers/AiProvider/ProviderFactory'
 import type {
