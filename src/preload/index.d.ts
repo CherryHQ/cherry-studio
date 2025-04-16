@@ -1,6 +1,6 @@
 import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from '@google/generative-ai/server'
+import type { File } from '@google/genai'
 import type { GetMCPPromptResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
 import type { LoaderReturn } from '@shared/config/types'
@@ -119,11 +119,11 @@ declare global {
         resetMinimumSize: () => Promise<void>
       }
       gemini: {
-        uploadFile: (file: FileType, apiKey: string) => Promise<UploadFileResponse>
-        retrieveFile: (file: FileType, apiKey: string) => Promise<FileMetadataResponse | undefined>
+        uploadFile: (file: FileType, apiKey: string) => Promise<File>
+        retrieveFile: (file: FileType, apiKey: string) => Promise<File | undefined>
         base64File: (file: FileType) => Promise<{ data: string; mimeType: string }>
-        listFiles: (apiKey: string) => Promise<ListFilesResponse>
-        deleteFile: (apiKey: string, fileId: string) => Promise<void>
+        listFiles: (apiKey: string) => Promise<File[]>
+        deleteFile: (fileId: string, apiKey: string) => Promise<void>
       }
       selectionMenu: {
         action: (action: string) => Promise<void>
