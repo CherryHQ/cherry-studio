@@ -89,7 +89,8 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       (formattedCitations && formattedCitations.length > 0) ||
       (message?.metadata?.webSearch && message.status === 'success') ||
       (message?.metadata?.webSearchInfo && message.status === 'success') ||
-      (message?.metadata?.groundingMetadata && message.status === 'success')
+      (message?.metadata?.groundingMetadata && message.status === 'success') ||
+      (message?.metadata?.knowledge && message.status === 'success')
     )
   }, [formattedCitations, message])
 
@@ -192,7 +193,6 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
     message.content,
     citationsData
   ])
-  console.log('knowledge', message.metadata?.knowledge)
 
   if (message.status === 'sending') {
     return (

@@ -548,7 +548,7 @@
       "restore.failed": "Restore failed",
       "restore.success": "Restored successfully",
       "save.success.title": "Saved successfully",
-      "searching": "Searching the internet...",
+      "searching": "Searching...",
       "success.joplin.export": "Successfully exported to Joplin",
       "success.markdown.export.preconf": "Successfully exported the Markdown file to the preconfigured path",
       "success.markdown.export.specified": "Successfully exported the Markdown file",

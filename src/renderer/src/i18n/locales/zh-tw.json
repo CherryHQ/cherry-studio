@@ -548,7 +548,7 @@
       "restore.failed": "恢復失敗",
       "restore.success": "恢復成功",
       "save.success.title": "儲存成功",
-      "searching": "正在網路上搜尋...",
+      "searching": "正在搜尋...",
       "success.joplin.export": "成功匯出到 Joplin",
       "success.markdown.export.preconf": "成功導出 Markdown 文件到預先設定的路徑",
       "success.markdown.export.specified": "成功導出 Markdown 文件",

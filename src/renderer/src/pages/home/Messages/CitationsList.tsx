@@ -19,6 +19,7 @@ interface CitationsListProps {
 }
 
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
+  console.log('CitationsList', citations)
   if (!citations || citations.length === 0) return null
 
   return (

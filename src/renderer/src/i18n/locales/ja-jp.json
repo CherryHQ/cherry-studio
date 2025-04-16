@@ -547,7 +547,7 @@
       "restore.failed": "復元に失敗しました",
       "restore.success": "復元に成功しました",
       "save.success.title": "保存に成功しました",
-      "searching": "インターネットで検索中...",
+      "searching": "検索中...",
       "success.joplin.export": "Joplin へのエクスポートに成功しました",
       "success.markdown.export.preconf": "Markdown ファイルを事前設定されたパスに正常にエクスポートしました",
       "success.markdown.export.specified": "Markdown ファイルを正常にエクスポートしました",

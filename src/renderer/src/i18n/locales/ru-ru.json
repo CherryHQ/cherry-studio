@@ -548,7 +548,7 @@
       "restore.failed": "Восстановление не удалось",
       "restore.success": "Успешно восстановлено",
       "save.success.title": "Успешно сохранено",
-      "searching": "Поиск в Интернете...",
+      "searching": "Идет поиск...",
       "success.joplin.export": "Успешный экспорт в Joplin",
       "success.markdown.export.preconf": "Файл Markdown успешно экспортирован в предуказанный путь",
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
