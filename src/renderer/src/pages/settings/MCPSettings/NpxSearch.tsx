@@ -209,8 +209,7 @@ const NpxSearch: FC<{
                           args: record.configSample?.args ?? ['-y', record.fullName],
                           env: record.configSample?.env,
                           isActive: false,
-                          type: record.type,
-                          configSample: record.configSample
+                          type: record.type
                         }
 
                         addMCPServer(newServer)
