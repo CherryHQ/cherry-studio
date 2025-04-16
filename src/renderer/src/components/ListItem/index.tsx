@@ -4,21 +4,24 @@ import styled from 'styled-components'
 interface ListItemProps {
   active?: boolean
   icon?: ReactNode
-  title: string
+  title: ReactNode
   subtitle?: string
   titleStyle?: React.CSSProperties
   onClick?: () => void
+  rightContent?: ReactNode
+  style?: React.CSSProperties
 }
 
-const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick }: ListItemProps) => {
+const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightContent, style }: ListItemProps) => {
   return (
-    <ListItemContainer className={active ? 'active' : ''} onClick={onClick}>
+    <ListItemContainer className={active ? 'active' : ''} onClick={onClick} style={style}>
       <ListItemContent>
         {icon && <IconWrapper>{icon}</IconWrapper>}
         <TextContainer>
           <TitleText style={titleStyle}>{title}</TitleText>
           {subtitle && <SubtitleText>{subtitle}</SubtitleText>}
         </TextContainer>
+        {rightContent && <RightContentWrapper>{rightContent}</RightContentWrapper>}
       </ListItemContent>
     </ListItemContainer>
   )
@@ -49,7 +52,7 @@ const ListItemContainer = styled.div`
 const ListItemContent = styled.div`
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 2px;
   overflow: hidden;
   font-size: 13px;
 `
@@ -62,12 +65,13 @@ const IconWrapper = styled.span`
 `
 
 const TextContainer = styled.div`
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 `
 
-const TitleText = styled.div`
+const TitleText = styled.div<{ $active?: boolean }>`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -82,6 +86,10 @@ const SubtitleText = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   color: var(--color-text-3);
+`
+
+const RightContentWrapper = styled.div`
+  margin-left: auto;
 `
 
 export default ListItem

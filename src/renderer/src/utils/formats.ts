@@ -71,12 +71,16 @@ export function withGeminiGrounding(message: Message) {
   let content = message.content
 
   groundingSupports.forEach((support) => {
-    const text = support.segment.text
-    const indices = support.groundingChunkIndices
-    const nodes = indices.reduce((acc, index) => {
+    const text = support?.segment
+    const indices = support?.groundingChunckIndices
+
+    if (!text || !indices) return
+
+    const nodes = indices.reduce<string[]>((acc, index) => {
       acc.push(`<sup>${index + 1}</sup>`)
       return acc
     }, [])
+
     content = content.replace(text, `${text} ${nodes.join(' ')}`)
   })
 
@@ -177,4 +181,57 @@ export function withMessageThought(message: Message) {
   }
 
   return message
+}
+
+export function withGenerateImage(message: Message) {
+  const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
+  const imageMatches = message.content.match(imagePattern)
+
+  if (!imageMatches || imageMatches[1] === null) {
+    return message
+  }
+
+  const cleanImgContent = message.content
+    .replace(imagePattern, '')
+    .replace(/\n\s*\n/g, '\n')
+    .trim()
+
+  const downloadPattern = new RegExp(`\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
+  const downloadMatches = cleanImgContent.match(downloadPattern)
+
+  let cleanContent = cleanImgContent
+  if (downloadMatches) {
+    cleanContent = cleanImgContent
+      .replace(downloadPattern, '')
+      .replace(/\n\s*\n/g, '\n')
+      .trim()
+  }
+
+  message = {
+    ...message,
+    content: cleanContent,
+    metadata: {
+      ...message.metadata,
+      generateImage: {
+        type: 'url',
+        images: [imageMatches[1]]
+      }
+    }
+  }
+  return message
+}
+
+export function addImageFileToContents(messages: Message[]) {
+  const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
+  if (!lastAssistantMessage || !lastAssistantMessage.metadata || !lastAssistantMessage.metadata.generateImage) {
+    return messages
+  }
+
+  const imageFiles = lastAssistantMessage.metadata.generateImage.images
+  const updatedAssistantMessage = {
+    ...lastAssistantMessage,
+    images: imageFiles
+  }
+
+  return messages.map((message) => (message.role === 'assistant' ? updatedAssistantMessage : message))
 }

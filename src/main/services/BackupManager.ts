@@ -1,3 +1,4 @@
+import { IpcChannel } from '@shared/IpcChannel'
 import { WebDavConfig } from '@types'
 import AdmZip from 'adm-zip'
 import { exec } from 'child_process'
@@ -21,6 +22,7 @@ class BackupManager {
     this.backupToWebdav = this.backupToWebdav.bind(this)
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
     this.listWebdavFiles = this.listWebdavFiles.bind(this)
+    this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
@@ -79,7 +81,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('backup-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
       Logger.log('[BackupManager] backup progress', processData)
     }
 
@@ -87,9 +89,16 @@ class BackupManager {
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
-      // 将 data 写入临时文件
+      // 使用流的方式写入 data.json
       const tempDataPath = path.join(this.tempDir, 'data.json')
-      await fs.writeFile(tempDataPath, data)
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(tempDataPath)
+        writeStream.write(data)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
       // 复制 Data 目录到临时目录
@@ -132,7 +141,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('restore-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
       Logger.log('[BackupManager] restore progress', processData)
     }
 
@@ -208,8 +217,15 @@ class BackupManager {
         fs.mkdirSync(this.backupDir, { recursive: true })
       }
 
-      // sync为同步写，无须await
-      fs.writeFileSync(backupedFilePath, retrievedFile as Buffer)
+      // 使用流的方式写入文件
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(backupedFilePath)
+        writeStream.write(retrievedFile as Buffer)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
 
       return await this.restore(_, backupedFilePath)
     } catch (error: any) {
@@ -293,6 +309,16 @@ class BackupManager {
   ) {
     const webdavClient = new WebDav(webdavConfig)
     return await webdavClient.createDirectory(path, options)
+  }
+
+  async deleteWebdavFile(_: Electron.IpcMainInvokeEvent, fileName: string, webdavConfig: WebDavConfig) {
+    try {
+      const webdavClient = new WebDav(webdavConfig)
+      return await webdavClient.deleteFile(fileName)
+    } catch (error: any) {
+      Logger.error('Failed to delete WebDAV file:', error)
+      throw new Error(error.message || 'Failed to delete backup file')
+    }
   }
 }
 

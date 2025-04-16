@@ -3,6 +3,7 @@ import '@xyflow/react/dist/style.css'
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo } from '@renderer/config/models'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { RootState } from '@renderer/store'
@@ -50,7 +51,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
   let title = ''
   let backgroundColor = 'var(--bg-color)'
   let gradientColor = 'rgba(0, 0, 0, 0.03)'
-  let avatar: JSX.Element | null = null
+  let avatar: React.ReactNode | null = null
 
   // 根据消息类型设置不同的样式和图标
   if (nodeType === 'user') {
@@ -190,6 +191,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([])
   const [loading, setLoading] = useState(true)
   const { userName } = useSettings()
+  const { theme } = useTheme()
 
   const topicId = conversationId
 
@@ -478,7 +480,8 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
                 maxZoom: 1
               }}
               proOptions={{ hideAttribution: true }}
-              className="react-flow-container">
+              className="react-flow-container"
+              colorMode={theme === 'auto' ? 'system' : theme}>
               <Controls showInteractive={false} />
               <MiniMap
                 nodeStrokeWidth={3}

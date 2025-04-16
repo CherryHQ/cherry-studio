@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebDAVSyncState } from './backup'
 
@@ -19,6 +20,8 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
 ]
 
 export interface NutstoreSyncRuntime extends WebDAVSyncState {}
+
+export type AssistantIconType = 'model' | 'emoji' | 'none'
 
 export interface SettingsState {
   showAssistants: boolean
@@ -41,7 +44,7 @@ export interface SettingsState {
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
-  showAssistantIcon: boolean
+  assistantIconType: AssistantIconType
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
@@ -50,9 +53,15 @@ export interface SettingsState {
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
+  // 代码块缓存
+  codeCacheable: boolean
+  codeCacheMaxSize: number
+  codeCacheTTL: number
+  codeCacheThreshold: number
   mathEngine: 'MathJax' | 'KaTeX'
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
+  foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
   messageNavigation: 'none' | 'buttons' | 'anchor'
@@ -84,6 +93,7 @@ export interface SettingsState {
   notionPageNameKey: string | null
   markdownExportPath: string | null
   forceDollarMathInMarkdown: boolean
+  useTopicNamingForMessageTitle: boolean
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
@@ -99,11 +109,28 @@ export interface SettingsState {
   siyuanToken: string | null
   siyuanBoxId: string | null
   siyuanRootPath: string | null
+  maxKeepAliveMinapps: number
+  showOpenedMinappsInSidebar: boolean
+  // 隐私设置
+  enableDataCollection: boolean
+  enableQuickPanelTriggers: boolean
+  enableBackspaceDeleteModel: boolean
+  exportMenuOptions: {
+    image: boolean
+    markdown: boolean
+    markdown_reason: boolean
+    notion: boolean
+    yuque: boolean
+    joplin: boolean
+    obsidian: boolean
+    siyuan: boolean
+    docx: boolean
+  }
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
-const initialState: SettingsState = {
+export const initialState: SettingsState = {
   showAssistants: true,
   showTopics: true,
   sendMessageShortcut: 'Enter',
@@ -124,20 +151,25 @@ const initialState: SettingsState = {
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
-  showAssistantIcon: false,
+  assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
-  clickAssistantToShowTopic: false,
+  clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
+  codeCacheable: false,
+  codeCacheMaxSize: 1000, // 缓存最大容量，千字符数
+  codeCacheTTL: 15, // 缓存过期时间，分钟
+  codeCacheThreshold: 2, // 允许缓存的最小代码长度，千字符数
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
   codeStyle: 'auto',
+  foldDisplayMode: 'expanded',
   gridColumns: 2,
-  gridPopoverTrigger: 'hover',
+  gridPopoverTrigger: 'click',
   messageNavigation: 'none',
   webdavHost: '',
   webdavUser: '',
@@ -164,6 +196,7 @@ const initialState: SettingsState = {
   notionPageNameKey: 'Name',
   markdownExportPath: null,
   forceDollarMathInMarkdown: false,
+  useTopicNamingForMessageTitle: false,
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
   notionSplitSize: 90,
@@ -173,13 +206,28 @@ const initialState: SettingsState = {
   joplinToken: '',
   joplinUrl: '',
   defaultObsidianVault: null,
-  // 智能体
-  defaultaides: "内置",
-  // 思源笔记配置初始值
+  
+  defaultaides: "内置",// 默认智能体
   siyuanApiUrl: null,
   siyuanToken: null,
   siyuanBoxId: null,
-  siyuanRootPath: null
+  siyuanRootPath: null,
+  maxKeepAliveMinapps: 3,
+  showOpenedMinappsInSidebar: true,
+  enableDataCollection: false,
+  enableQuickPanelTriggers: false,
+  enableBackspaceDeleteModel: true,
+  exportMenuOptions: {
+    image: true,
+    markdown: true,
+    markdown_reason: true,
+    notion: true,
+    yuque: true,
+    joplin: true,
+    obsidian: true,
+    siyuan: true,
+    docx: true
+  }
 }
 
 const settingsSlice = createSlice({
@@ -203,7 +251,7 @@ const settingsSlice = createSlice({
     },
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
-      window.electron.ipcRenderer.send('miniwindow-reload')
+      window.electron.ipcRenderer.send(IpcChannel.MiniWindowReload)
     },
     setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
       state.targetLanguage = action.payload
@@ -253,8 +301,8 @@ const settingsSlice = createSlice({
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
     },
-    setShowAssistantIcon: (state, action: PayloadAction<boolean>) => {
-      state.showAssistantIcon = action.payload
+    setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
+      state.assistantIconType = action.payload
     },
     setPasteLongTextAsFile: (state, action: PayloadAction<boolean>) => {
       state.pasteLongTextAsFile = action.payload
@@ -295,8 +343,23 @@ const settingsSlice = createSlice({
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
     },
+    setCodeCacheable: (state, action: PayloadAction<boolean>) => {
+      state.codeCacheable = action.payload
+    },
+    setCodeCacheMaxSize: (state, action: PayloadAction<number>) => {
+      state.codeCacheMaxSize = action.payload
+    },
+    setCodeCacheTTL: (state, action: PayloadAction<number>) => {
+      state.codeCacheTTL = action.payload
+    },
+    setCodeCacheThreshold: (state, action: PayloadAction<number>) => {
+      state.codeCacheThreshold = action.payload
+    },
     setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
       state.mathEngine = action.payload
+    },
+    setFoldDisplayMode: (state, action: PayloadAction<'expanded' | 'compact'>) => {
+      state.foldDisplayMode = action.payload
     },
     setGridColumns: (state, action: PayloadAction<number>) => {
       state.gridColumns = action.payload
@@ -366,6 +429,9 @@ const settingsSlice = createSlice({
     setForceDollarMathInMarkdown: (state, action: PayloadAction<boolean>) => {
       state.forceDollarMathInMarkdown = action.payload
     },
+    setUseTopicNamingForMessageTitle: (state, action: PayloadAction<boolean>) => {
+      state.useTopicNamingForMessageTitle = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
@@ -410,6 +476,24 @@ const settingsSlice = createSlice({
     },
     setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
       state.defaultObsidianVault = action.payload
+    },
+    setMaxKeepAliveMinapps: (state, action: PayloadAction<number>) => {
+      state.maxKeepAliveMinapps = action.payload
+    },
+    setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
+      state.showOpenedMinappsInSidebar = action.payload
+    },
+    setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
+      state.enableDataCollection = action.payload
+    },
+    setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
+      state.exportMenuOptions = action.payload
+    },
+    setEnableQuickPanelTriggers: (state, action: PayloadAction<boolean>) => {
+      state.enableQuickPanelTriggers = action.payload
+    },
+    setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
+      state.enableBackspaceDeleteModel = action.payload
     }
   }
 })
@@ -437,7 +521,7 @@ export const {
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
-  setShowAssistantIcon,
+  setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
   setRenderInputMessageAsMarkdown,
@@ -451,7 +535,12 @@ export const {
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
+  setCodeCacheable,
+  setCodeCacheMaxSize,
+  setCodeCacheTTL,
+  setCodeCacheThreshold,
   setMathEngine,
+  setFoldDisplayMode,
   setGridColumns,
   setGridPopoverTrigger,
   setMessageStyle,
@@ -473,6 +562,7 @@ export const {
   setNotionPageNameKey,
   setmarkdownExportPath,
   setForceDollarMathInMarkdown,
+  setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
   setNotionAutoSplit,
   setNotionSplitSize,
@@ -487,7 +577,13 @@ export const {
   setSiyuanApiUrl,
   setSiyuanToken,
   setSiyuanBoxId,
-  setSiyuanRootPath
+  setSiyuanRootPath,
+  setMaxKeepAliveMinapps,
+  setShowOpenedMinappsInSidebar,
+  setEnableDataCollection,
+  setEnableQuickPanelTriggers,
+  setExportMenuOptions,
+  setEnableBackspaceDeleteModel
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

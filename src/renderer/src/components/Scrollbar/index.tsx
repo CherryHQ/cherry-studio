@@ -1,5 +1,5 @@
 import { throttle } from 'lodash'
-import { FC, forwardRef, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
@@ -7,7 +7,7 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
   ref?: any
 }
 
-const Scrollbar: FC<Props> = forwardRef<HTMLDivElement, Props>((props, ref) => {
+const Scrollbar: FC<Props> = ({ ref, ...props }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const [isScrolling, setIsScrolling] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -35,7 +35,7 @@ const Scrollbar: FC<Props> = forwardRef<HTMLDivElement, Props>((props, ref) => {
       {props.children}
     </Container>
   )
-})
+}
 
 const Container = styled.div<{ isScrolling: boolean; right?: boolean }>`
   overflow-y: auto;

@@ -1,42 +1,49 @@
-import {
-  FileSearchOutlined,
-  FolderOutlined,
-  PictureOutlined,
-  QuestionCircleOutlined,
-  TranslationOutlined
-} from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
-import { Tooltip } from 'antd'
-import { Avatar } from 'antd'
-import { Dropdown } from 'antd'
-import { FC } from 'react'
+import { Avatar, Dropdown, Tooltip } from 'antd'
+import {
+  CircleHelp,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  MessageSquareQuote,
+  Moon,
+  Palette,
+  Settings,
+  Sparkle,
+  Sun
+} from 'lucide-react'
+import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import DragableList from '../DragableList'
 import MinAppIcon from '../Icons/MinAppIcon'
-import MinApp from '../MinApp'
 import UserPopup from '../Popups/UserPopup'
 
 const Sidebar: FC = () => {
-  const { pathname } = useLocation()
-  const avatar = useAvatar()
-  const { minappShow } = useRuntime()
-  const { t } = useTranslation()
-  const navigate = useNavigate()
+  const { hideMinappPopup, openMinapp } = useMinappPopup()
+  const { minappShow, currentMinappId } = useRuntime()
   const { sidebarIcons } = useSettings()
-  const { theme, settingTheme, toggleTheme } = useTheme()
   const { pinned } = useMinapps()
+
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+
+  const { theme, settingTheme, toggleTheme } = useTheme()
+  const avatar = useAvatar()
+  const { t } = useTranslation()
 
   const onEditUser = () => UserPopup.show()
 
@@ -49,9 +56,10 @@ const Sidebar: FC = () => {
     navigate(path)
   }
 
+  const docsId = 'cherrystudio-docs'
   const onOpenDocs = () => {
-    MinApp.start({
-      id: 'docs',
+    openMinapp({
+      id: docsId,
       name: t('docs.title'),
       url: 'https://docs.cherry-ai.com/',
       logo: AppLogo
@@ -66,9 +74,10 @@ const Sidebar: FC = () => {
         <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
       )}
       <MainMenusContainer>
-        <Menus onClick={MinApp.onClose}>
+        <Menus onClick={hideMinappPopup}>
           <MainMenus />
         </Menus>
+        <SidebarOpenedMinappTabs />
         {showPinnedApps && (
           <AppsContainer>
             <Divider />
@@ -80,11 +89,8 @@ const Sidebar: FC = () => {
       </MainMenusContainer>
       <Menus>
         <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
-          <Icon
-            theme={theme}
-            onClick={onOpenDocs}
-            className={minappShow && MinApp.app?.url === 'https://docs.cherry-ai.com/' ? 'active' : ''}>
-            <QuestionCircleOutlined />
+          <Icon theme={theme} onClick={onOpenDocs} className={minappShow && currentMinappId === docsId ? 'active' : ''}>
+            <CircleHelp size={20} className="icon" />
           </Icon>
         </Tooltip>
         <Tooltip
@@ -92,22 +98,17 @@ const Sidebar: FC = () => {
           mouseEnterDelay={0.8}
           placement="right">
           <Icon theme={theme} onClick={() => toggleTheme()}>
-            {theme === 'dark' ? (
-              <i className="iconfont icon-theme icon-dark1" />
-            ) : (
-              <i className="iconfont icon-theme icon-theme-light" />
-            )}
+            {theme === 'dark' ? <Moon size={20} className="icon" /> : <Sun size={20} className="icon" />}
           </Icon>
         </Tooltip>
         <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
           <StyledLink
             onClick={async () => {
-              minappShow && (await MinApp.close())
-              await modelGenerating()
+              hideMinappPopup()
               await to('/settings/provider')
             }}>
             <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
-              <i className="iconfont icon-setting" />
+              <Settings size={20} className="icon" />
             </Icon>
           </StyledLink>
         </Tooltip>
@@ -117,6 +118,7 @@ const Sidebar: FC = () => {
 }
 
 const MainMenus: FC = () => {
+  const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
   const { pathname } = useLocation()
   const { sidebarIcons } = useSettings()
@@ -128,13 +130,13 @@ const MainMenus: FC = () => {
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
 
   const iconMap = {
-    assistants: <i className="iconfont icon-chat" />,
-    agents: <i className="iconfont icon-business-smart-assistant" />,
-    paintings: <PictureOutlined style={{ fontSize: 16 }} />,
-    translate: <TranslationOutlined />,
-    minapp: <i className="iconfont icon-appstore" />,
-    knowledge: <FileSearchOutlined />,
-    files: <FolderOutlined />
+    assistants: <MessageSquareQuote size={18} className="icon" />,
+    agents: <Sparkle size={18} className="icon" />,
+    paintings: <Palette size={18} className="icon" />,
+    translate: <Languages size={18} className="icon" />,
+    minapp: <LayoutGrid size={18} className="icon" />,
+    knowledge: <FileSearch size={18} className="icon" />,
+    files: <Folder size={17} className="icon" />
   }
 
   const pathMap = {
@@ -155,7 +157,7 @@ const MainMenus: FC = () => {
       <Tooltip key={icon} title={t(`${icon}.title`)} mouseEnterDelay={0.8} placement="right">
         <StyledLink
           onClick={async () => {
-            minappShow && (await MinApp.close())
+            hideMinappPopup()
             await modelGenerating()
             navigate(path)
           }}>
@@ -168,11 +170,103 @@ const MainMenus: FC = () => {
   })
 }
 
+/** Tabs of opened minapps in sidebar */
+const SidebarOpenedMinappTabs: FC = () => {
+  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
+  const { openMinappKeepAlive, hideMinappPopup, closeMinapp, closeAllMinapps } = useMinappPopup()
+  const { showOpenedMinappsInSidebar } = useSettings() // 获取控制显示的设置
+  const { theme } = useTheme()
+  const { t } = useTranslation()
+
+  const handleOnClick = (app) => {
+    if (minappShow && currentMinappId === app.id) {
+      hideMinappPopup()
+    } else {
+      openMinappKeepAlive(app)
+    }
+  }
+
+  // animation for minapp switch indicator
+  useEffect(() => {
+    //hacky way to get the height of the icon
+    const iconDefaultHeight = 40
+    const iconDefaultOffset = 17
+    const container = document.querySelector('.TabsContainer') as HTMLElement
+    const activeIcon = document.querySelector('.TabsContainer .opened-active') as HTMLElement
+
+    let indicatorTop = 0,
+      indicatorRight = 0
+    if (minappShow && activeIcon && container) {
+      indicatorTop = activeIcon.offsetTop + activeIcon.offsetHeight / 2 - 4 // 4 is half of the indicator's height (8px)
+      indicatorRight = 0
+    } else {
+      indicatorTop =
+        ((openedKeepAliveMinapps.length > 0 ? openedKeepAliveMinapps.length : 1) / 2) * iconDefaultHeight +
+        iconDefaultOffset -
+        4
+      indicatorRight = -50
+    }
+    container.style.setProperty('--indicator-top', `${indicatorTop}px`)
+    container.style.setProperty('--indicator-right', `${indicatorRight}px`)
+  }, [currentMinappId, openedKeepAliveMinapps, minappShow])
+
+  // 检查是否需要显示已打开小程序组件
+  const isShowOpened = showOpenedMinappsInSidebar && openedKeepAliveMinapps.length > 0
+
+  // 如果不需要显示，返回空容器保持动画效果但不显示内容
+  if (!isShowOpened) return <TabsContainer className="TabsContainer" />
+
+  return (
+    <TabsContainer className="TabsContainer">
+      <Divider />
+      <TabsWrapper>
+        <Menus>
+          {openedKeepAliveMinapps.map((app) => {
+            const menuItems: MenuProps['items'] = [
+              {
+                key: 'closeApp',
+                label: t('minapp.sidebar.close.title'),
+                onClick: () => {
+                  closeMinapp(app.id)
+                }
+              },
+              {
+                key: 'closeAllApp',
+                label: t('minapp.sidebar.closeall.title'),
+                onClick: () => {
+                  closeAllMinapps()
+                }
+              }
+            ]
+            const isActive = minappShow && currentMinappId === app.id
+
+            return (
+              <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
+                <StyledLink>
+                  <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
+                    <Icon
+                      theme={theme}
+                      onClick={() => handleOnClick(app)}
+                      className={`${isActive ? 'opened-active' : ''}`}>
+                      <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} />
+                    </Icon>
+                  </Dropdown>
+                </StyledLink>
+              </Tooltip>
+            )
+          })}
+        </Menus>
+      </TabsWrapper>
+    </TabsContainer>
+  )
+}
+
 const PinnedApps: FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
-  const { minappShow } = useRuntime()
+  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
   const { theme } = useTheme()
+  const { openMinappKeepAlive } = useMinappPopup()
 
   return (
     <DragableList list={pinned} onUpdate={updatePinnedMinapps} listStyle={{ marginBottom: 5 }}>
@@ -187,12 +281,15 @@ const PinnedApps: FC = () => {
             }
           }
         ]
-        const isActive = minappShow && MinApp.app?.id === app.id
+        const isActive = minappShow && currentMinappId === app.id
         return (
           <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
             <StyledLink>
-              <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
-                <Icon theme={theme} onClick={() => MinApp.start(app)} className={isActive ? 'active' : ''}>
+              <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
+                <Icon
+                  theme={theme}
+                  onClick={() => openMinappKeepAlive(app)}
+                  className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
                   <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} />
                 </Icon>
               </Dropdown>
@@ -265,33 +362,50 @@ const Icon = styled.div<{ theme: string }>`
   justify-content: center;
   align-items: center;
   border-radius: 50%;
+  box-sizing: border-box;
   -webkit-app-region: none;
   border: 0.5px solid transparent;
-  .iconfont,
-  .anticon {
-    color: var(--color-icon);
-    font-size: 20px;
-    text-decoration: none;
-  }
-  .anticon {
-    font-size: 17px;
-  }
   &:hover {
     background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     opacity: 0.8;
     cursor: pointer;
-    .iconfont,
-    .anticon {
+    .icon {
       color: var(--color-icon-white);
     }
   }
   &.active {
     background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     border: 0.5px solid var(--color-border);
-    .iconfont,
-    .anticon {
-      color: var(--color-icon-white);
+    .icon {
+      color: var(--color-primary);
     }
+  }
+
+  @keyframes borderBreath {
+    0% {
+      opacity: 0.1;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0.1;
+    }
+  }
+
+  &.opened-minapp {
+    position: relative;
+  }
+  &.opened-minapp::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    border-radius: inherit;
+    opacity: 0.3;
+    border: 0.5px solid var(--color-primary);
   }
 `
 
@@ -321,6 +435,39 @@ const Divider = styled.div`
   width: 50%;
   margin: 8px 0;
   border-bottom: 0.5px solid var(--color-border);
+`
+
+const TabsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  -webkit-app-region: none;
+  position: relative;
+  width: 100%;
+
+  &::after {
+    content: '';
+    position: absolute;
+    right: var(--indicator-right, 0);
+    top: var(--indicator-top, 0);
+    width: 4px;
+    height: 8px;
+    background-color: var(--color-primary);
+    transition:
+      top 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      right 0.3s ease-in-out;
+    border-radius: 2px;
+  }
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`
+
+const TabsWrapper = styled.div`
+  background-color: rgba(128, 128, 128, 0.1);
+  border-radius: 20px;
+  overflow: hidden;
 `
 
 export default Sidebar

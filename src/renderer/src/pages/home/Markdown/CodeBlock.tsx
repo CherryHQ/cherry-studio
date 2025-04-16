@@ -7,7 +7,7 @@ import { useSyntaxHighlighter } from '@renderer/context/SyntaxHighlighterProvide
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import React, { memo, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -26,50 +26,84 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '') || children?.includes('\n')
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
   const language = match?.[1] ?? 'text'
-  const [html, setHtml] = useState<string>('')
+  // const [html, setHtml] = useState<string>('')
   const { codeToHtml } = useSyntaxHighlighter()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const [shouldShowExpandButton, setShouldShowExpandButton] = useState(false)
   const codeContentRef = useRef<HTMLDivElement>(null)
+  const childrenLengthRef = useRef(0)
+  const isStreamingRef = useRef(false)
 
   const showFooterCopyButton = children && children.length > 500 && !codeCollapsible
 
   const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 
-  useEffect(() => {
-    const loadHighlightedCode = async () => {
-      const highlightedHtml = await codeToHtml(children, language)
-      setHtml(highlightedHtml)
-    }
-    loadHighlightedCode()
-  }, [children, language, codeToHtml])
+  const shouldShowExpandButtonRef = useRef(false)
+
+  const shouldHighlight = useCallback((lang: string) => {
+    const NON_HIGHLIGHT_LANGS = ['mermaid', 'plantuml', 'svg']
+    return !NON_HIGHLIGHT_LANGS.includes(lang)
+  }, [])
+
+  const highlightCode = useCallback(async () => {
+    if (!codeContentRef.current) return
+    const codeElement = codeContentRef.current
+
+    // 只在非流式输出状态才尝试启用cache
+    const highlightedHtml = await codeToHtml(children, language, !isStreamingRef.current)
+
+    codeElement.innerHTML = highlightedHtml
+    codeElement.style.opacity = '1'
+
+    const isShowExpandButton = codeElement.scrollHeight > 350
+    if (shouldShowExpandButtonRef.current === isShowExpandButton) return
+    shouldShowExpandButtonRef.current = isShowExpandButton
+    setShouldShowExpandButton(shouldShowExpandButtonRef.current)
+  }, [language, codeToHtml, children])
 
   useEffect(() => {
-    if (codeContentRef.current) {
-      setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
-    }
-  }, [html])
+    // 跳过非文本代码块
+    if (!codeContentRef.current || !shouldHighlight(language)) return
 
-  useEffect(() => {
-    if (!codeCollapsible) {
-      setIsExpanded(true)
-      setShouldShowExpandButton(false)
+    let isMounted = true
+    const codeElement = codeContentRef.current
+
+    if (childrenLengthRef.current > 0 && childrenLengthRef.current !== children?.length) {
+      isStreamingRef.current = true
     } else {
-      setIsExpanded(!codeCollapsible)
-      if (codeContentRef.current) {
-        setShouldShowExpandButton(codeContentRef.current.scrollHeight > 350)
-      }
+      isStreamingRef.current = false
+      codeElement.style.opacity = '0.1'
     }
+
+    if (childrenLengthRef.current === 0) {
+      // 挂载时显示原始代码
+      codeElement.textContent = children
+    }
+
+    const observer = new IntersectionObserver(async (entries) => {
+      if (entries[0].isIntersecting && isMounted) {
+        setTimeout(highlightCode, 0)
+        observer.disconnect()
+      }
+    })
+
+    observer.observe(codeElement)
+
+    return () => {
+      childrenLengthRef.current = children?.length
+      isMounted = false
+      observer.disconnect()
+    }
+  }, [children, highlightCode, language, shouldHighlight])
+
+  useEffect(() => {
+    setIsExpanded(!codeCollapsible)
+    setShouldShowExpandButton(codeCollapsible && (codeContentRef.current?.scrollHeight ?? 0) > 350)
   }, [codeCollapsible])
 
   useEffect(() => {
-    if (!codeWrappable) {
-      // 如果未启动代码块换行功能
-      setIsUnwrapped(true)
-    } else {
-      setIsUnwrapped(!codeWrappable) // 被换行
-    }
+    setIsUnwrapped(!codeWrappable)
   }, [codeWrappable])
 
   if (language === 'mermaid') {
@@ -95,24 +129,28 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   return match ? (
     <CodeBlockWrapper className="code-block">
       <CodeHeader>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
+      </CodeHeader>
+      <StickyWrapper>
+        <HStack
+          position="absolute"
+          gap={12}
+          alignItems="center"
+          style={{ bottom: '0.2rem', right: '1rem', height: '27px' }}>
+          {showDownloadButton && <DownloadButton language={language} data={children} />}
+          {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           {codeCollapsible && shouldShowExpandButton && (
             <CollapseIcon expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} />
           )}
-          <CodeLanguage>{'<' + language.toUpperCase() + '>'}</CodeLanguage>
-        </div>
-        <HStack gap={12} alignItems="center">
-          {showDownloadButton && <DownloadButton language={language} data={children} />}
-          {codeWrappable && <UnwrapButton unwrapped={isUnwrapped} onClick={() => setIsUnwrapped(!isUnwrapped)} />}
           <CopyButton text={children} />
         </HStack>
-      </CodeHeader>
+      </StickyWrapper>
       <CodeContent
         ref={codeContentRef}
         isShowLineNumbers={codeShowLineNumbers}
         isUnwrapped={isUnwrapped}
         isCodeWrappable={codeWrappable}
-        dangerouslySetInnerHTML={{ __html: html }}
+        // dangerouslySetInnerHTML={{ __html: html }}
         style={{
           border: '0.5px solid var(--color-code-background)',
           borderTopLeftRadius: 0,
@@ -139,15 +177,30 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
       {language === 'html' && children?.includes('</html>') && <Artifacts html={children} />}
     </CodeBlockWrapper>
   ) : (
-    <code className={className}>{children}</code>
+    <code className={className} style={{ textWrap: 'wrap' }}>
+      {children}
+    </code>
   )
 }
 
 const CollapseIcon: React.FC<{ expanded: boolean; onClick: () => void }> = ({ expanded, onClick }) => {
+  const { t } = useTranslation()
+  const [tooltipVisible, setTooltipVisible] = useState(false)
+
+  const handleClick = () => {
+    setTooltipVisible(false)
+    onClick()
+  }
+
   return (
-    <CollapseIconWrapper onClick={onClick}>
-      {expanded ? <DownOutlined style={{ fontSize: 12 }} /> : <RightOutlined style={{ fontSize: 12 }} />}
-    </CollapseIconWrapper>
+    <Tooltip
+      title={expanded ? t('code_block.collapse') : t('code_block.expand')}
+      open={tooltipVisible}
+      onOpenChange={setTooltipVisible}>
+      <CollapseIconWrapper onClick={handleClick}>
+        {expanded ? <DownOutlined style={{ fontSize: 12 }} /> : <RightOutlined style={{ fontSize: 12 }} />}
+      </CollapseIconWrapper>
+    </Tooltip>
   )
 }
 
@@ -185,6 +238,7 @@ const UnwrapButton: React.FC<{ unwrapped: boolean; onClick: () => void }> = ({ u
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
   const [copied, setCopied] = useState(false)
   const { t } = useTranslation()
+  const copy = t('common.copy')
 
   const onCopy = () => {
     if (!text) return
@@ -194,10 +248,12 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
     setTimeout(() => setCopied(false), 2000)
   }
 
-  return copied ? (
-    <CheckOutlined style={{ color: 'var(--color-primary)', ...style }} />
-  ) : (
-    <CopyIcon className="copy" style={style} onClick={onCopy} />
+  return (
+    <Tooltip title={copy}>
+      <CopyButtonWrapper onClick={onCopy} style={style}>
+        {copied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <CopyIcon className="copy" />}
+      </CopyButtonWrapper>
+    </Tooltip>
   )
 }
 
@@ -214,19 +270,24 @@ const DownloadButton = ({ language, data }: { language: string; data: string }) 
   )
 }
 
-const CodeBlockWrapper = styled.div``
+const CodeBlockWrapper = styled.div`
+  position: relative;
+`
 
 const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolean; isCodeWrappable: boolean }>`
+  transition: opacity 0.3s ease;
   .shiki {
     padding: 1em;
 
     code {
-      display: table;
+      display: flex;
+      flex-direction: column;
       width: 100%;
 
       .line {
-        display: table-row;
-        height: 1.3rem;
+        display: block;
+        min-height: 1.3rem;
+        padding-left: ${(props) => (props.isShowLineNumbers ? '2rem' : '0')};
       }
     }
   }
@@ -237,14 +298,15 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
       code {
         counter-reset: step;
         counter-increment: step 0;
+        position: relative;
       }
 
       code .line::before {
         content: counter(step);
         counter-increment: step;
         width: 1rem;
-        padding-right: 1rem;
-        display: table-cell;
+        position: absolute;
+        left: 0;
         text-align: right;
         opacity: 0.35;
       }
@@ -271,14 +333,6 @@ const CodeHeader = styled.div`
   padding: 0 10px;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
-  .copy {
-    cursor: pointer;
-    color: var(--color-text-3);
-    transition: color 0.3s;
-  }
-  .copy:hover {
-    color: var(--color-text-1);
-  }
 `
 
 const CodeLanguage = styled.div`
@@ -300,7 +354,19 @@ const CodeFooter = styled.div`
     color: var(--color-text-1);
   }
 `
+const CopyButtonWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-3);
+  transition: color 0.3s;
+  font-size: 16px;
 
+  &:hover {
+    color: var(--color-text-1);
+  }
+`
 const ExpandButtonWrapper = styled.div`
   position: relative;
   cursor: pointer;
@@ -340,7 +406,6 @@ const CollapseIconWrapper = styled.div`
   transition: all 0.2s ease;
 
   &:hover {
-    background-color: var(--color-background-soft);
     color: var(--color-text-1);
   }
 `
@@ -374,6 +439,12 @@ const DownloadWrapper = styled.div`
   &:hover {
     color: var(--color-text-1);
   }
+`
+
+const StickyWrapper = styled.div`
+  position: sticky;
+  top: 28px;
+  z-index: 10;
 `
 
 export default memo(CodeBlock)

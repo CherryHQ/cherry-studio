@@ -1,4 +1,4 @@
-import type { BaseEmbeddings } from '@llm-tools/embedjs-interfaces'
+import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { KnowledgeBaseParams } from '@types'
 
 import EmbeddingsFactory from './EmbeddingsFactory'

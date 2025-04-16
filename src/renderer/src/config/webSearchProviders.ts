@@ -31,5 +31,20 @@ export const WEB_SEARCH_PROVIDER_CONFIG = {
       official: 'https://exa.ai',
       apiKey: 'https://dashboard.exa.ai/api-keys'
     }
+  },
+  'local-google': {
+    websites: {
+      official: 'https://www.google.com'
+    }
+  },
+  'local-bing': {
+    websites: {
+      official: 'https://www.bing.com'
+    }
+  },
+  'local-baidu': {
+    websites: {
+      official: 'https://www.baidu.com'
+    }
   }
 }

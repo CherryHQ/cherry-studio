@@ -1,10 +1,11 @@
-import { LoadingOutlined, TranslationOutlined } from '@ant-design/icons'
+import { LoadingOutlined } from '@ant-design/icons'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { getUserMessage } from '@renderer/services/MessagesService'
 import { Button, Tooltip } from 'antd'
+import { Languages } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -82,7 +83,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
       title={t('chat.input.translate', { target_language: t(`languages.${targetLanguage.toString()}`) })}
       arrow>
       <ToolbarButton onClick={handleTranslate} disabled={disabled || isTranslating} style={style} type="text">
-        {isTranslating ? <LoadingOutlined spin /> : <TranslationOutlined />}
+        {isTranslating ? <LoadingOutlined spin /> : <Languages size={18} />}
       </ToolbarButton>
     </Tooltip>
   )
