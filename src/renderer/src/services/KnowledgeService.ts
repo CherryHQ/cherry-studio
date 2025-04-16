@@ -101,12 +101,6 @@ export const processKnowledgeSearch = async (
   }
   const questions = extractResults.knowledge.question
   const rewrite = extractResults.knowledge.rewrite
-  const firstQuestion = questions[0]
-
-  if (firstQuestion === 'not_needed') {
-    console.log('No valid knowledge base question found')
-    return []
-  }
 
   const bases = store.getState().knowledge.bases.filter((kb) => knowledgeBaseIds?.includes(kb.id))
   if (!bases || bases.length === 0) {

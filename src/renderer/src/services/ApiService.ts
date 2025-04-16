@@ -70,8 +70,6 @@ export async function fetchChatCompletion({
 
   // 网络搜索/知识库 关键词提取
   const extract = async () => {
-    // 更新消息状态为搜索中
-    onResponse({ ...message, status: 'searching' })
     const summaryAssistant = {
       ...assistant,
       prompt: SEARCH_SUMMARY_PROMPT
@@ -102,16 +100,20 @@ export async function fetchChatCompletion({
   const searchTheWeb = async () => {
     // 检查是否需要进行网络搜索
     const shouldSearch =
-      extractResults?.websearch && WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model
+      extractResults?.websearch &&
+      WebSearchService.isWebSearchEnabled() &&
+      assistant.enableWebSearch &&
+      assistant.model &&
+      extractResults.websearch.question[0] !== 'not_needed'
+
+    console.log('shouldSearch', shouldSearch)
 
     if (!shouldSearch) return
 
+    onResponse({ ...message, status: 'searching' })
     // 检查是否使用OpenAI的网络搜索
     const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model!)
     if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model!)) return
-
-    // 更新消息状态为搜索中
-    onResponse({ ...message, status: 'searching' })
 
     try {
       const webSearchResponse: WebSearchResponse = await WebSearchService.processWebsearch(
@@ -133,9 +135,13 @@ export async function fetchChatCompletion({
 
   // --- 知识库搜索 ---
   const searchKnowledgeBase = async () => {
-    const shouldSearch = hasKnowledgeBase && extractResults.knowledge
+    const shouldSearch =
+      hasKnowledgeBase && extractResults.knowledge && extractResults.knowledge.question[0] !== 'not_needed'
+
+    console.log('shouldSearch', shouldSearch)
     if (!shouldSearch) return
 
+    onResponse({ ...message, status: 'searching' })
     try {
       const knowledgeReferences: KnowledgeReference[] = await processKnowledgeSearch(
         extractResults,
@@ -158,9 +164,6 @@ export async function fetchChatCompletion({
     let _messages: Message[] = []
     let isFirstChunk = true
 
-    // --- 并行执行搜索 ---
-    // 更新消息状态为搜索中
-    onResponse({ ...message, status: 'searching' })
     await Promise.all([searchTheWeb(), searchKnowledgeBase()])
 
     // Get MCP tools

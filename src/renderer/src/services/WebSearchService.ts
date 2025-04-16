@@ -148,11 +148,6 @@ class WebSearchService {
       const links = extractResults.websearch.link
       const firstQuestion = questions[0]
 
-      if (firstQuestion === 'not_needed') {
-        console.log('No need to search based on extracted question.')
-        return { results: [] }
-      }
-
       if (firstQuestion === 'summarize' && links && links.length > 0) {
         const contents = await fetchWebContents(links)
         return {
