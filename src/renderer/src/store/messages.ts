@@ -190,22 +190,24 @@ const handleResponseMessageUpdate = (
   dispatch: AppDispatch,
   getState: () => RootState
 ) => {
-  setTimeout(() => dispatch(setStreamMessage({ topicId, message })), 0)
-  if (message.status !== 'pending') {
-    // When message is complete, commit to messages and sync with DB
-    if (message.status === 'success') {
-      autoRenameTopic(assistant, topicId)
-    }
+  setTimeout(() => {
+    dispatch(setStreamMessage({ topicId, message }))
+    if (message.status !== 'pending') {
+      // When message is complete, commit to messages and sync with DB
+      if (message.status === 'success') {
+        autoRenameTopic(assistant, topicId)
+      }
 
-    if (message.status !== 'sending') {
-      dispatch(commitStreamMessage({ topicId, messageId: message.id }))
-      const state = getState()
-      const topicMessages = state.messages.messagesByTopic[topicId]
-      if (topicMessages) {
-        syncMessagesWithDB(topicId, topicMessages)
+      if (message.status !== 'sending') {
+        dispatch(commitStreamMessage({ topicId, messageId: message.id }))
+        const state = getState()
+        const topicMessages = state.messages.messagesByTopic[topicId]
+        if (topicMessages) {
+          syncMessagesWithDB(topicId, topicMessages)
+        }
       }
     }
-  }
+  }, 0)
 }
 
 // Helper function to sync messages with database
