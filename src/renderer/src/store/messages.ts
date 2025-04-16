@@ -190,7 +190,7 @@ const handleResponseMessageUpdate = (
   dispatch: AppDispatch,
   getState: () => RootState
 ) => {
-  dispatch(setStreamMessage({ topicId, message }))
+  setTimeout(() => dispatch(setStreamMessage({ topicId, message })), 0)
   if (message.status !== 'pending') {
     // When message is complete, commit to messages and sync with DB
     if (message.status === 'success') {
