@@ -130,6 +130,13 @@ export async function fetchChatCompletion({
     let _messages: Message[] = []
     let isFirstChunk = true
 
+    // chunk buffer相关变量，用于合并 chunk 减轻主线程压力。
+    let _bufferedText = ''
+    let _bufferTimer: NodeJS.Timeout | null = null
+    const CHUNK_BUFFER_INTERVAL = 33 // 毫秒
+    const CHUNK_BUFFER_SIZE = 100 // 字符数
+    const CHUNK_SEMBOUNDARY_REGEX = /[.!?。！？\n]$/
+
     // Search web
     await searchTheWeb()
 
@@ -178,6 +185,13 @@ export async function fetchChatCompletion({
         if (isFirstChunk) {
           isFirstChunk = false
         }
+
+        // 累积文本到缓冲区
+        _bufferedText += text || ''
+        if (reasoning_content) {
+          _bufferedText += reasoning_content || ''
+        }
+
         message.content = message.content + text || ''
         message.usage = usage
         message.metrics = metrics
@@ -246,10 +260,50 @@ export async function fetchChatCompletion({
           }
         }
 
-        onResponse({ ...message, status: 'pending' })
+        // 设置更新条件
+        const shouldUpdate =
+          _bufferedText.length >= CHUNK_BUFFER_SIZE || // 大小阈值
+          (text && CHUNK_SEMBOUNDARY_REGEX.test(text)) || // 正文语义边界
+          (reasoning_content && CHUNK_SEMBOUNDARY_REGEX.test(reasoning_content)) || // 推理内容语义边界
+          !text || // 可能是结束信号
+          citations ||
+          annotations || // 重要元数据
+          mcpToolResponse ||
+          generateImage // 工具响应或图像生成
+
+        if (shouldUpdate) {
+          if (_bufferTimer) {
+            clearTimeout(_bufferTimer)
+            _bufferTimer = null
+          }
+
+          onResponse({ ...message, status: 'pending' })
+
+          _bufferedText = ''
+        } else if (!_bufferTimer) {
+          // 确保即使没达到条件也会更新
+          _bufferTimer = setTimeout(() => {
+            if (_bufferedText) {
+              onResponse({ ...message, status: 'pending' })
+              _bufferedText = ''
+            }
+            _bufferTimer = null
+          }, CHUNK_BUFFER_INTERVAL)
+        }
       },
       mcpTools: mcpTools
     })
+
+    // 确保定时器被清理
+    if (_bufferTimer) {
+      clearTimeout(_bufferTimer)
+      _bufferTimer = null
+
+      // 如果还有未发送的缓冲文本，发送一次
+      if (_bufferedText) {
+        onResponse({ ...message, status: 'pending' })
+      }
+    }
 
     message.status = 'success'
     message = withGenerateImage(message)
