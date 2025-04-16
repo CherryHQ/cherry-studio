@@ -142,6 +142,11 @@ export async function fetchChatCompletion({
         lastUserMessage.knowledgeBaseIds
       )
       console.log('knowledgeReferences', knowledgeReferences)
+      // 处理搜索结果
+      message.metadata = {
+        ...message.metadata,
+        knowledge: knowledgeReferences
+      }
       window.keyv.set(`knowledge-search-${lastUserMessage?.id}`, knowledgeReferences)
     } catch (error) {
       console.error('Knowledge base search failed:', error)
