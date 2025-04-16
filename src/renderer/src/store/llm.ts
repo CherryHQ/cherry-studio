@@ -2,6 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { Model, Provider } from '@renderer/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -132,6 +133,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiKey: '',
     apiHost: 'https://cloud.infini-ai.com/maas',
     models: SYSTEM_MODELS.infini,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'qiniu',
+    name: 'Qiniu',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.qnaigc.com',
+    models: SYSTEM_MODELS.qiniu,
     isSystem: true,
     enabled: false
   },
@@ -530,7 +541,7 @@ export const moveProvider = (providers: Provider[], id: string, position: number
   return newProviders
 }
 
-const settingsSlice = createSlice({
+const llmSlice = createSlice({
   name: 'llm',
   initialState: isLocalAi ? getIntegratedInitialState() : initialState,
   reducers: {
@@ -572,7 +583,7 @@ const settingsSlice = createSlice({
     },
     setDefaultModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.defaultModel = action.payload.model
-      window.electron.ipcRenderer.send('miniwindow-reload')
+      window.electron.ipcRenderer.send(IpcChannel.MiniWindowReload)
     },
     setTopicNamingModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.topicNamingModel = action.payload.model
@@ -621,6 +632,6 @@ export const {
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,
   updateModel
-} = settingsSlice.actions
+} = llmSlice.actions
 
-export default settingsSlice.reducer
+export default llmSlice.reducer

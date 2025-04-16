@@ -1,8 +1,8 @@
+import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
 import { setDefaultProvider, WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import WebSearchEngineProvider from '@renderer/webSearchProvider/WebSearchEngineProvider'
 import dayjs from 'dayjs'
 
 /**
@@ -31,6 +31,10 @@ class WebSearchService {
       return false
     }
 
+    if (provider.id.startsWith('local-')) {
+      return true
+    }
+
     if (hasObjectKey(provider, 'apiKey')) {
       return provider.apiKey !== ''
     }
@@ -50,6 +54,16 @@ class WebSearchService {
   public isEnhanceModeEnabled(): boolean {
     const { enhanceMode } = this.getWebSearchState()
     return enhanceMode
+  }
+
+  /**
+   * 检查是否启用覆盖搜索
+   * @public
+   * @returns 如果启用覆盖搜索则返回true，否则返回false
+   */
+  public isOverwriteEnabled(): boolean {
+    const { overwrite } = this.getWebSearchState()
+    return overwrite
   }
 
   /**
@@ -83,21 +97,20 @@ class WebSearchService {
    * @returns 搜索响应
    */
   public async search(provider: WebSearchProvider, query: string): Promise<WebSearchResponse> {
-    const { searchWithTime, maxResults, excludeDomains } = this.getWebSearchState()
+    const websearch = this.getWebSearchState()
     const webSearchEngine = new WebSearchEngineProvider(provider)
 
     let formattedQuery = query
-    if (searchWithTime) {
+    // 有待商榷，效果一般
+    if (websearch.searchWithTime) {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
 
     try {
-      return await webSearchEngine.search(formattedQuery, maxResults, excludeDomains)
+      return await webSearchEngine.search(formattedQuery, websearch)
     } catch (error) {
       console.error('Search failed:', error)
-      return {
-        results: []
-      }
+      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -110,11 +123,42 @@ class WebSearchService {
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
-
+      console.log('Search response:', response)
       // 优化的判断条件：检查结果是否有效且没有错误
-      return { valid: response.results.length > 0, error: undefined }
+      return { valid: response.results !== undefined, error: undefined }
     } catch (error) {
       return { valid: false, error }
+    }
+  }
+
+  /**
+   * 从带有XML标签的文本中提取信息
+   * @public
+   * @param text 包含XML标签的文本
+   * @returns 提取的信息对象
+   * @throws 如果文本中没有question标签则抛出错误
+   */
+  public extractInfoFromXML(text: string): { question: string; links?: string[] } {
+    // 提取question标签内容
+    const questionMatch = text.match(/<question>([\s\S]*?)<\/question>/)
+    if (!questionMatch) {
+      throw new Error('Missing required <question> tag')
+    }
+    const question = questionMatch[1].trim()
+
+    // 提取links标签内容（可选）
+    const linksMatch = text.match(/<links>([\s\S]*?)<\/links>/)
+    const links = linksMatch
+      ? linksMatch[1]
+          .trim()
+          .split('\n')
+          .map((link) => link.trim())
+          .filter((link) => link !== '')
+      : undefined
+
+    return {
+      question,
+      links
     }
   }
 }

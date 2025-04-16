@@ -5,6 +5,8 @@ import { XMLParser } from 'fast-xml-parser'
 import { isNil, partial } from 'lodash'
 import { type FileStat } from 'webdav'
 
+import { createOAuthUrl, decryptSecret } from '../integration/nutstore/sso/lib/index.mjs'
+
 interface OAuthResponse {
   username: string
   userid: string
@@ -30,18 +32,18 @@ interface WebDAVResponse {
 }
 
 export async function getNutstoreSSOUrl() {
-  const { createOAuthUrl } = await import('../integration/nutstore/sso/lib')
-
-  const url = createOAuthUrl({
+  const url = await createOAuthUrl({
     app: 'cherrystudio'
   })
   return url
 }
 
 export async function decryptToken(token: string) {
-  const { decrypt } = await import('../integration/nutstore/sso/lib')
   try {
-    const decrypted = decrypt('cherrystudio', token)
+    const decrypted = await decryptSecret({
+      app: 'cherrystudio',
+      s: token
+    })
     return JSON.parse(decrypted) as OAuthResponse
   } catch (error) {
     console.error('解密失败:', error)
@@ -112,10 +114,10 @@ function convertToFileStat(serverBase: string, item: WebDAVResponse['multistatus
   const props = item.propstat.prop
   const isDir = !isNil(props.resourcetype?.collection)
   const href = decodeURIComponent(item.href)
-  const filename = serverBase === '/' ? href : path.join('/', href.replace(serverBase, ''))
+  const filename = serverBase === '/' ? href : path.posix.join('/', href.replace(serverBase, ''))
 
   return {
-    filename,
+    filename: filename.endsWith('/') ? filename.slice(0, -1) : filename,
     basename: path.basename(filename),
     lastmod: props.getlastmodified || '',
     size: props.getcontentlength ? parseInt(props.getcontentlength, 10) : 0,

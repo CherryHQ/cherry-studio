@@ -1,568 +1,576 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { isLinux, isMac, isWin } from '@main/constant'
-import { getBinaryPath } from '@main/utils/process'
-import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { MCPServer, MCPTool } from '@types'
-import log from 'electron-log'
-import { EventEmitter } from 'events'
-import { v4 as uuidv4 } from 'uuid'
+import { createInMemoryMCPServer } from '@main/mcpServers/factory'
+import { makeSureDirExists } from '@main/utils'
+import { getBinaryName, getBinaryPath } from '@main/utils/process'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
+import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import { nanoid } from '@reduxjs/toolkit'
+import {
+  GetMCPPromptResponse,
+  GetResourceResponse,
+  MCPCallToolResponse,
+  MCPPrompt,
+  MCPResource,
+  MCPServer,
+  MCPTool
+} from '@types'
+import { app } from 'electron'
+import Logger from 'electron-log'
+import { memoize } from 'lodash'
 
 import { CacheService } from './CacheService'
-import { windowService } from './WindowService'
+import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
+
+// Generic type for caching wrapped functions
+type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
 /**
- * Service for managing Model Context Protocol servers and tools
+ * Higher-order function to add caching capability to any async function
+ * @param fn The original function to be wrapped with caching
+ * @param getCacheKey Function to generate a cache key from the function arguments
+ * @param ttl Time to live for the cache entry in milliseconds
+ * @param logPrefix Prefix for log messages
+ * @returns The wrapped function with caching capability
  */
-export default class MCPService extends EventEmitter {
-  private servers: MCPServer[] = []
-  private activeServers: Map<string, any> = new Map()
-  private clients: { [key: string]: any } = {}
-  private Client: typeof Client | undefined
-  private stdioTransport: typeof StdioClientTransport | undefined
-  private sseTransport: typeof SSEClientTransport | undefined
-  private initialized = false
-  private initPromise: Promise<void> | null = null
+function withCache<T extends unknown[], R>(
+  fn: (...args: T) => Promise<R>,
+  getCacheKey: (...args: T) => string,
+  ttl: number,
+  logPrefix: string
+): CachedFunction<T, R> {
+  return async (...args: T): Promise<R> => {
+    const cacheKey = getCacheKey(...args)
 
-  // Simplified server loading state management
-  private readyState = {
-    serversLoaded: false,
-    promise: null as Promise<void> | null,
-    resolve: null as ((value: void) => void) | null
+    if (CacheService.has(cacheKey)) {
+      Logger.info(`${logPrefix} loaded from cache`)
+      const cachedData = CacheService.get<R>(cacheKey)
+      if (cachedData) {
+        return cachedData
+      }
+    }
+
+    const result = await fn(...args)
+    CacheService.set(cacheKey, result, ttl)
+    return result
   }
+}
 
-  constructor() {
-    super()
-    this.createServerLoadingPromise()
-    this.init().catch((err) => this.logError('Failed to initialize MCP service', err))
-  }
+class McpService {
+  private clients: Map<string, Client> = new Map()
 
-  /**
-   * Create a promise that resolves when servers are loaded
-   */
-  private createServerLoadingPromise(): void {
-    this.readyState.promise = new Promise<void>((resolve) => {
-      this.readyState.resolve = resolve
+  private getServerKey(server: MCPServer): string {
+    return JSON.stringify({
+      baseUrl: server.baseUrl,
+      command: server.command,
+      args: server.args,
+      registryUrl: server.registryUrl,
+      env: server.env,
+      id: server.id
     })
   }
 
-  /**
-   * Set servers received from Redux and trigger initialization if needed
-   */
-  public setServers(servers: MCPServer[]): void {
-    this.servers = servers
-    log.info(`[MCP] Received ${servers.length} servers from Redux`)
-
-    // Mark servers as loaded and resolve the waiting promise
-    if (!this.readyState.serversLoaded && this.readyState.resolve) {
-      this.readyState.serversLoaded = true
-      this.readyState.resolve()
-      this.readyState.resolve = null
-    }
-
-    // Initialize if not already initialized
-    if (!this.initialized) {
-      this.init().catch((err) => this.logError('Failed to initialize MCP service', err))
-    }
+  constructor() {
+    this.initClient = this.initClient.bind(this)
+    this.listTools = this.listTools.bind(this)
+    this.callTool = this.callTool.bind(this)
+    this.listPrompts = this.listPrompts.bind(this)
+    this.getPrompt = this.getPrompt.bind(this)
+    this.listResources = this.listResources.bind(this)
+    this.getResource = this.getResource.bind(this)
+    this.closeClient = this.closeClient.bind(this)
+    this.removeServer = this.removeServer.bind(this)
+    this.restartServer = this.restartServer.bind(this)
+    this.stopServer = this.stopServer.bind(this)
+    this.cleanup = this.cleanup.bind(this)
   }
 
-  /**
-   * Initialize the MCP service if not already initialized
-   */
-  public async init(): Promise<void> {
-    // If already initialized, return immediately
-    if (this.initialized) return
+  async initClient(server: MCPServer): Promise<Client> {
+    const serverKey = this.getServerKey(server)
 
-    // If initialization is in progress, return that promise
-    if (this.initPromise) return this.initPromise
-
-    this.initPromise = (async () => {
+    // Check if we already have a client for this server configuration
+    const existingClient = this.clients.get(serverKey)
+    if (existingClient) {
       try {
-        log.info('[MCP] Starting initialization')
-
-        // Wait for servers to be loaded from Redux
-        await this.waitForServers()
-
-        // Load SDK components in parallel for better performance
-        const [Client, StdioTransport, SSETransport] = await Promise.all([
-          this.importClient(),
-          this.importStdioClientTransport(),
-          this.importSSEClientTransport()
-        ])
-
-        this.Client = Client
-        this.stdioTransport = StdioTransport
-        this.sseTransport = SSETransport
-
-        // Mark as initialized before loading servers
-        this.initialized = true
-
-        // Load active servers
-        await this.loadActiveServers()
-        log.info('[MCP] Initialization successfully')
-
-        return
-      } catch (err) {
-        this.initialized = false // Reset flag on error
-        log.error('[MCP] Failed to initialize:', err)
-        throw err
-      } finally {
-        this.initPromise = null
+        // Check if the existing client is still connected
+        const pingResult = await existingClient.ping()
+        Logger.info(`[MCP] Ping result for ${server.name}:`, pingResult)
+        // If the ping fails, remove the client from the cache
+        // and create a new one
+        if (!pingResult) {
+          this.clients.delete(serverKey)
+        } else {
+          return existingClient
+        }
+      } catch (error) {
+        Logger.error(`[MCP] Error pinging server ${server.name}:`, error)
+        this.clients.delete(serverKey)
       }
-    })()
-
-    return this.initPromise
-  }
-
-  /**
-   * Wait for servers to be loaded from Redux
-   */
-  private async waitForServers(): Promise<void> {
-    if (!this.readyState.serversLoaded && this.readyState.promise) {
-      log.info('[MCP] Waiting for servers data from Redux...')
-      await this.readyState.promise
-      log.info('[MCP] Servers received, continuing initialization')
     }
-  }
+    // Create new client instance for each connection
+    const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
-  /**
-   * Helper to create consistent error logging functions
-   */
-  private logError(message: string, err?: any): void {
-    log.error(`[MCP] ${message}`, err)
-  }
-
-  /**
-   * Import the MCP client SDK
-   */
-  private async importClient() {
-    try {
-      const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
-      return Client
-    } catch (err) {
-      this.logError('Failed to import Client:', err)
-      throw err
-    }
-  }
-
-  /**
-   * Import the stdio transport
-   */
-  private async importStdioClientTransport() {
-    try {
-      const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
-      return StdioClientTransport
-    } catch (err) {
-      log.error('[MCP] Failed to import StdioTransport:', err)
-      throw err
-    }
-  }
-
-  /**
-   * Import the SSE transport
-   */
-  private async importSSEClientTransport() {
-    try {
-      const { SSEClientTransport } = await import('@modelcontextprotocol/sdk/client/sse.js')
-      return SSEClientTransport
-    } catch (err) {
-      log.error('[MCP] Failed to import SSETransport:', err)
-      throw err
-    }
-  }
-
-  /**
-   * List all available MCP servers
-   */
-  public async listAvailableServices(): Promise<MCPServer[]> {
-    await this.ensureInitialized()
-    return this.servers
-  }
-
-  /**
-   * Ensure the service is initialized before operations
-   */
-  private async ensureInitialized() {
-    if (!this.initialized) {
-      log.debug('[MCP] Ensuring initialization')
-      await this.init()
-    }
-  }
-
-  /**
-   * Add a new MCP server
-   */
-  public async addServer(server: MCPServer): Promise<void> {
-    await this.ensureInitialized()
-
-    // Check for duplicate name
-    if (this.servers.some((s) => s.name === server.name)) {
-      throw new Error(`Server with name ${server.name} already exists`)
-    }
-
-    // Activate if needed
-    if (server.isActive) {
-      await this.activate(server)
-    }
-
-    // Add to servers list
-    this.servers = [...this.servers, server]
-    this.notifyReduxServersChanged(this.servers)
-  }
-
-  /**
-   * Update an existing MCP server
-   */
-  public async updateServer(server: MCPServer): Promise<void> {
-    await this.ensureInitialized()
-
-    const index = this.servers.findIndex((s) => s.name === server.name)
-    if (index === -1) {
-      throw new Error(`Server ${server.name} not found`)
-    }
-
-    // Check activation status change
-    const wasActive = this.servers[index].isActive
-    if (wasActive && !server.isActive) {
-      await this.deactivate(server.name)
-    } else if (!wasActive && server.isActive) {
-      await this.activate(server)
-    } else {
-      await this.restartServer(server)
-    }
-
-    // Update servers list
-    const updatedServers = [...this.servers]
-    updatedServers[index] = server
-    this.servers = updatedServers
-
-    // Notify Redux
-    this.notifyReduxServersChanged(updatedServers)
-  }
-
-  public async restartServer(_server: MCPServer): Promise<void> {
-    await this.ensureInitialized()
-
-    const server = this.servers.find((s) => s.name === _server.name)
-
-    if (server) {
-      if (server.isActive) {
-        await this.deactivate(server.name)
-      }
-      await this.activate(server)
-    }
-  }
-  /**
-   * Delete an MCP server
-   */
-  public async deleteServer(serverName: string): Promise<void> {
-    await this.ensureInitialized()
-
-    // Deactivate if running
-    if (this.clients[serverName]) {
-      await this.deactivate(serverName)
-    }
-
-    // Update servers list
-    const filteredServers = this.servers.filter((s) => s.name !== serverName)
-    this.servers = filteredServers
-    this.notifyReduxServersChanged(filteredServers)
-  }
-
-  /**
-   * Set a server's active state
-   */
-  public async setServerActive(params: { name: string; isActive: boolean }): Promise<void> {
-    await this.ensureInitialized()
-
-    const { name, isActive } = params
-    const server = this.servers.find((s) => s.name === name)
-
-    if (!server) {
-      throw new Error(`Server ${name} not found`)
-    }
-
-    // Activate or deactivate as needed
-    if (isActive) {
-      await this.activate(server)
-    } else {
-      await this.deactivate(name)
-    }
-
-    // Update server status
-    server.isActive = isActive
-    this.notifyReduxServersChanged([...this.servers])
-  }
-
-  /**
-   * Notify Redux in the renderer process about server changes
-   */
-  private notifyReduxServersChanged(servers: MCPServer[]): void {
-    const mainWindow = windowService.getMainWindow()
-    if (mainWindow) {
-      mainWindow.webContents.send('mcp:servers-changed', servers)
-    }
-  }
-
-  /**
-   * Activate an MCP server
-   */
-  public async activate(server: MCPServer): Promise<void> {
-    await this.ensureInitialized()
-
-    const { name, baseUrl, command, env } = server
     const args = [...(server.args || [])]
 
-    // Skip if already running
-    if (this.clients[name]) {
-      log.info(`[MCP] Server ${name} is already running`)
-      return
-    }
-
-    let transport: StdioClientTransport | SSEClientTransport
+    let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
 
     try {
       // Create appropriate transport based on configuration
-      if (baseUrl) {
-        transport = new this.sseTransport!(new URL(baseUrl))
-      } else if (command) {
-        let cmd: string = command
-        if (command === 'npx') {
-          cmd = await getBinaryPath('bun')
-
-          if (cmd === 'bun') {
-            cmd = 'npx'
+      if (server.type === 'inMemory') {
+        Logger.info(`[MCP] Using in-memory transport for server: ${server.name}`)
+        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+        // start the in-memory server with the given name and environment variables
+        const inMemoryServer = createInMemoryMCPServer(server.name, args, server.env || {})
+        try {
+          await inMemoryServer.connect(serverTransport)
+          Logger.info(`[MCP] In-memory server started: ${server.name}`)
+        } catch (error: Error | any) {
+          Logger.error(`[MCP] Error starting in-memory server: ${error}`)
+          throw new Error(`Failed to start in-memory server: ${error.message}`)
+        }
+        // set the client transport to the client
+        transport = clientTransport
+      } else if (server.baseUrl) {
+        if (server.type === 'streamableHttp') {
+          const options: StreamableHTTPClientTransportOptions = {
+            requestInit: {
+              headers: server.headers || {}
+            }
           }
+          transport = new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+        } else if (server.type === 'sse') {
+          const options: SSEClientTransportOptions = {
+            requestInit: {
+              headers: server.headers || {}
+            }
+          }
+          transport = new SSEClientTransport(new URL(server.baseUrl!), options)
+        } else {
+          throw new Error('Invalid server type')
+        }
+      } else if (server.command) {
+        let cmd = server.command
 
-          log.info(`[MCP] Using command: ${cmd}`)
+        if (server.command === 'npx' || server.command === 'bun' || server.command === 'bunx') {
+          cmd = await getBinaryPath('bun')
+          Logger.info(`[MCP] Using command: ${cmd}`)
 
           // add -x to args if args exist
           if (args && args.length > 0) {
             if (!args.includes('-y')) {
-              args.unshift('-y')
+              !args.includes('-y') && args.unshift('-y')
             }
-            if (cmd.includes('bun') && !args.includes('x')) {
+            if (!args.includes('x')) {
               args.unshift('x')
             }
           }
-        } else if (command === 'uvx') {
-          cmd = await getBinaryPath('uvx')
+          if (server.registryUrl) {
+            server.env = {
+              ...server.env,
+              NPM_CONFIG_REGISTRY: server.registryUrl
+            }
+
+            // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
+            if (server.name.includes('mcp-auto-install')) {
+              const binPath = await getBinaryPath()
+              makeSureDirExists(binPath)
+              server.env.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
+            }
+          }
+        } else if (server.command === 'uvx' || server.command === 'uv') {
+          cmd = await getBinaryPath(server.command)
+          if (server.registryUrl) {
+            server.env = {
+              ...server.env,
+              UV_DEFAULT_INDEX: server.registryUrl,
+              PIP_INDEX_URL: server.registryUrl
+            }
+          }
         }
 
-        log.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
+        Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
+        // Logger.info(`[MCP] Environment variables for server:`, server.env)
 
-        transport = new this.stdioTransport!({
+        transport = new StdioClientTransport({
           command: cmd,
           args,
-          stderr: 'pipe',
           env: {
-            PATH: this.getEnhancedPath(process.env.PATH || ''),
-            ...env
-          }
+            ...getDefaultEnvironment(),
+            PATH: await this.getEnhancedPath(process.env.PATH || ''),
+            ...server.env
+          },
+          stderr: 'pipe'
         })
+        transport.stderr?.on('data', (data) =>
+          Logger.info(`[MCP] Stdio stderr for server: ${server.name} `, data.toString())
+        )
       } else {
         throw new Error('Either baseUrl or command must be provided')
       }
 
-      // Create and connect client
-      const client = new this.Client!({ name, version: '1.0.0' }, { capabilities: {} })
-
       await client.connect(transport)
 
-      // Store client and server info
-      this.clients[name] = client
-      this.activeServers.set(name, { client, server })
+      // Store the new client in the cache
+      this.clients.set(serverKey, client)
 
-      log.info(`[MCP] Activated server: ${server.name}`)
-      this.emit('server-started', { name })
-    } catch (error) {
-      log.error(`[MCP] Error activating server ${name}:`, error)
-      this.setServerActive({ name, isActive: false })
-      throw error
+      Logger.info(`[MCP] Activated server: ${server.name}`)
+      return client
+    } catch (error: any) {
+      Logger.error(`[MCP] Error activating server ${server.name}:`, error)
+      throw new Error(`[MCP] Error activating server ${server.name}: ${error.message}`)
     }
   }
 
-  /**
-   * Deactivate an MCP server
-   */
-  public async deactivate(name: string): Promise<void> {
-    await this.ensureInitialized()
-
-    if (!this.clients[name]) {
-      log.warn(`[MCP] Server ${name} is not running`)
-      return
-    }
-
-    try {
-      log.info(`[MCP] Stopping server: ${name}`)
-      await this.clients[name].close()
-      delete this.clients[name]
-      this.activeServers.delete(name)
-      this.emit('server-stopped', { name })
-    } catch (error) {
-      log.error(`[MCP] Error deactivating server ${name}:`, error)
-      throw error
+  async closeClient(serverKey: string) {
+    const client = this.clients.get(serverKey)
+    if (client) {
+      // Remove the client from the cache
+      await client.close()
+      Logger.info(`[MCP] Closed server: ${serverKey}`)
+      this.clients.delete(serverKey)
+      CacheService.remove(`mcp:list_tool:${serverKey}`)
+      Logger.info(`[MCP] Cleared cache for server: ${serverKey}`)
+    } else {
+      Logger.warn(`[MCP] No client found for server: ${serverKey}`)
     }
   }
 
-  /**
-   * List available tools from active MCP servers
-   */
-  public async listTools(serverName?: string): Promise<MCPTool[]> {
-    await this.ensureInitialized()
-    log.info(`[MCP] Listing tools from ${serverName || 'all active servers'}`)
+  async stopServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
+    const serverKey = this.getServerKey(server)
+    Logger.info(`[MCP] Stopping server: ${server.name}`)
+    await this.closeClient(serverKey)
+  }
 
-    try {
-      // If server name provided, list tools for that server only
-      if (serverName) {
-        return await this.listToolsFromServer(serverName)
+  async removeServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
+    const serverKey = this.getServerKey(server)
+    const existingClient = this.clients.get(serverKey)
+    if (existingClient) {
+      await this.closeClient(serverKey)
+    }
+  }
+
+  async restartServer(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
+    Logger.info(`[MCP] Restarting server: ${server.name}`)
+    const serverKey = this.getServerKey(server)
+    await this.closeClient(serverKey)
+    await this.initClient(server)
+  }
+
+  async cleanup() {
+    for (const [key] of this.clients) {
+      try {
+        await this.closeClient(key)
+      } catch (error) {
+        Logger.error(`[MCP] Failed to close client: ${error}`)
       }
+    }
+  }
 
-      // Otherwise list tools from all active servers
-      let allTools: MCPTool[] = []
-
-      for (const clientName in this.clients) {
-        log.info(`[MCP] Listing tools from ${clientName}`)
-        try {
-          const tools = await this.listToolsFromServer(clientName)
-          allTools = allTools.concat(tools)
-        } catch (error) {
-          this.logError(`Error listing tools for ${clientName}`, error)
+  private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
+    Logger.info(`[MCP] Listing tools for server: ${server.name}`)
+    const client = await this.initClient(server)
+    try {
+      const { tools } = await client.listTools()
+      const serverTools: MCPTool[] = []
+      tools.map((tool: any) => {
+        const serverTool: MCPTool = {
+          ...tool,
+          id: `f${nanoid()}`,
+          serverId: server.id,
+          serverName: server.name
         }
-      }
-
-      log.info(`[MCP] Total tools listed: ${allTools.length}`)
-      return allTools
+        serverTools.push(serverTool)
+      })
+      return serverTools
     } catch (error) {
-      this.logError('Error listing tools:', error)
+      Logger.error(`[MCP] Failed to list tools for server: ${server.name}`, error)
       return []
     }
   }
 
-  /**
-   * Helper method to list tools from a specific server
-   */
-  private async listToolsFromServer(serverName: string): Promise<MCPTool[]> {
-    log.info(`[MCP] start list tools from ${serverName}:`)
-    if (!this.clients[serverName]) {
-      throw new Error(`MCP Client ${serverName} not found`)
-    }
-    const cacheKey = `mcp:list_tool:${serverName}`
+  async listTools(_: Electron.IpcMainInvokeEvent, server: MCPServer) {
+    const cachedListTools = withCache<[MCPServer], MCPTool[]>(
+      this.listToolsImpl.bind(this),
+      (server) => {
+        const serverKey = this.getServerKey(server)
+        return `mcp:list_tool:${serverKey}`
+      },
+      5 * 60 * 1000, // 5 minutes TTL
+      `[MCP] Tools from ${server.name}`
+    )
 
-    if (CacheService.has(cacheKey)) {
-      log.info(`[MCP] Tools from ${serverName} loaded from cache`)
-      // Check if cache is still valid
-      const cachedTools = CacheService.get<MCPTool[]>(cacheKey)
-      if (cachedTools && cachedTools.length > 0) {
-        return cachedTools
-      }
-      CacheService.remove(cacheKey)
-    }
-
-    const { tools } = await this.clients[serverName].listTools()
-
-    const transformedTools = tools.map((tool: any) => ({
-      ...tool,
-      serverName,
-      id: 'f' + uuidv4().replace(/-/g, '')
-    }))
-
-    // Cache the tools for 5 minutes
-    if (transformedTools.length > 0) {
-      CacheService.set(cacheKey, transformedTools, 5 * 60 * 1000)
-    }
-
-    log.info(`[MCP] Tools from ${serverName}:`, transformedTools)
-    return transformedTools
+    return cachedListTools(server)
   }
 
   /**
    * Call a tool on an MCP server
    */
-  public async callTool(params: { client: string; name: string; args: any }): Promise<any> {
-    await this.ensureInitialized()
-
-    const { client, name, args } = params
-
-    if (!this.clients[client]) {
-      throw new Error(`MCP Client ${client} not found`)
-    }
-
-    log.info('[MCP] Calling:', client, name, args)
-
+  public async callTool(
+    _: Electron.IpcMainInvokeEvent,
+    { server, name, args }: { server: MCPServer; name: string; args: any }
+  ): Promise<MCPCallToolResponse> {
     try {
-      return await this.clients[client].callTool({
-        name,
-        arguments: args
-      })
+      Logger.info('[MCP] Calling:', server.name, name, args)
+      const client = await this.initClient(server)
+      const result = await client.callTool({ name, arguments: args })
+      return result as MCPCallToolResponse
     } catch (error) {
-      log.error(`[MCP] Error calling tool ${name} on ${client}:`, error)
+      Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
       throw error
     }
   }
 
-  /**
-   * Clean up all MCP resources
-   */
-  public async cleanup(): Promise<void> {
-    const clientNames = Object.keys(this.clients)
-
-    if (clientNames.length === 0) {
-      log.info('[MCP] No active servers to clean up')
-      return
-    }
-
-    log.info(`[MCP] Cleaning up ${clientNames.length} active servers`)
-
-    // Deactivate all clients
-    await Promise.allSettled(
-      clientNames.map((name) =>
-        this.deactivate(name).catch((err) => {
-          log.error(`[MCP] Error during cleanup of ${name}:`, err)
-        })
-      )
-    )
-
-    this.clients = {}
-    this.activeServers.clear()
-    log.info('[MCP] All servers cleaned up')
+  public async getInstallInfo() {
+    const dir = path.join(os.homedir(), '.cherrystudio', 'bin')
+    const uvName = await getBinaryName('uv')
+    const bunName = await getBinaryName('bun')
+    const uvPath = path.join(dir, uvName)
+    const bunPath = path.join(dir, bunName)
+    return { dir, uvPath, bunPath }
   }
 
   /**
-   * Load all active servers
+   * List prompts available on an MCP server
    */
-  private async loadActiveServers(): Promise<void> {
-    const activeServers = this.servers.filter((server) => server.isActive)
-
-    if (activeServers.length === 0) {
-      log.info('[MCP] No active servers to load')
-      return
+  private async listPromptsImpl(server: MCPServer): Promise<MCPPrompt[]> {
+    Logger.info(`[MCP] Listing prompts for server: ${server.name}`)
+    const client = await this.initClient(server)
+    try {
+      const { prompts } = await client.listPrompts()
+      const serverPrompts = prompts.map((prompt: any) => ({
+        ...prompt,
+        id: `p${nanoid()}`,
+        serverId: server.id,
+        serverName: server.name
+      }))
+      return serverPrompts
+    } catch (error) {
+      Logger.error(`[MCP] Failed to list prompts for server: ${server.name}`, error)
+      return []
     }
+  }
 
-    log.info(`[MCP] Start loading ${activeServers.length} active servers`)
+  /**
+   * List prompts available on an MCP server with caching
+   */
+  public async listPrompts(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPPrompt[]> {
+    const cachedListPrompts = withCache<[MCPServer], MCPPrompt[]>(
+      this.listPromptsImpl.bind(this),
+      (server) => {
+        const serverKey = this.getServerKey(server)
+        return `mcp:list_prompts:${serverKey}`
+      },
+      60 * 60 * 1000, // 60 minutes TTL
+      `[MCP] Prompts from ${server.name}`
+    )
+    return cachedListPrompts(server)
+  }
 
-    // Activate servers in parallel for better performance
-    await Promise.allSettled(
-      activeServers.map(async (server) => {
-        try {
-          await this.activate(server)
-        } catch (error) {
-          this.logError(`Failed to activate server ${server.name}`, error)
-          this.emit('server-error', { name: server.name, error })
+  /**
+   * Get a specific prompt from an MCP server (implementation)
+   */
+  private async getPromptImpl(
+    server: MCPServer,
+    name: string,
+    args?: Record<string, any>
+  ): Promise<GetMCPPromptResponse> {
+    Logger.info(`[MCP] Getting prompt ${name} from server: ${server.name}`)
+    const client = await this.initClient(server)
+    return await client.getPrompt({ name, arguments: args })
+  }
+
+  /**
+   * Get a specific prompt from an MCP server with caching
+   */
+  public async getPrompt(
+    _: Electron.IpcMainInvokeEvent,
+    { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
+  ): Promise<GetMCPPromptResponse> {
+    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetMCPPromptResponse>(
+      this.getPromptImpl.bind(this),
+      (server, name, args) => {
+        const serverKey = this.getServerKey(server)
+        const argsKey = args ? JSON.stringify(args) : 'no-args'
+        return `mcp:get_prompt:${serverKey}:${name}:${argsKey}`
+      },
+      30 * 60 * 1000, // 30 minutes TTL
+      `[MCP] Prompt ${name} from ${server.name}`
+    )
+    return await cachedGetPrompt(server, name, args)
+  }
+
+  /**
+   * List resources available on an MCP server (implementation)
+   */
+  private async listResourcesImpl(server: MCPServer): Promise<MCPResource[]> {
+    Logger.info(`[MCP] Listing resources for server: ${server.name}`)
+    const client = await this.initClient(server)
+    try {
+      const result = await client.listResources()
+      const resources = result.resources || []
+      const serverResources = (Array.isArray(resources) ? resources : []).map((resource: any) => ({
+        ...resource,
+        serverId: server.id,
+        serverName: server.name
+      }))
+      return serverResources
+    } catch (error) {
+      Logger.error(`[MCP] Failed to list resources for server: ${server.name}`, error)
+      return []
+    }
+  }
+
+  /**
+   * List resources available on an MCP server with caching
+   */
+  public async listResources(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<MCPResource[]> {
+    const cachedListResources = withCache<[MCPServer], MCPResource[]>(
+      this.listResourcesImpl.bind(this),
+      (server) => {
+        const serverKey = this.getServerKey(server)
+        return `mcp:list_resources:${serverKey}`
+      },
+      60 * 60 * 1000, // 60 minutes TTL
+      `[MCP] Resources from ${server.name}`
+    )
+    return cachedListResources(server)
+  }
+
+  /**
+   * Get a specific resource from an MCP server (implementation)
+   */
+  private async getResourceImpl(server: MCPServer, uri: string): Promise<GetResourceResponse> {
+    Logger.info(`[MCP] Getting resource ${uri} from server: ${server.name}`)
+    const client = await this.initClient(server)
+    try {
+      const result = await client.readResource({ uri: uri })
+      const contents: MCPResource[] = []
+      if (result.contents && result.contents.length > 0) {
+        result.contents.forEach((content: any) => {
+          contents.push({
+            ...content,
+            serverId: server.id,
+            serverName: server.name
+          })
+        })
+      }
+      return {
+        contents: contents
+      }
+    } catch (error: Error | any) {
+      Logger.error(`[MCP] Failed to get resource ${uri} from server: ${server.name}`, error)
+      throw new Error(`Failed to get resource ${uri} from server: ${server.name}: ${error.message}`)
+    }
+  }
+
+  /**
+   * Get a specific resource from an MCP server with caching
+   */
+  public async getResource(
+    _: Electron.IpcMainInvokeEvent,
+    { server, uri }: { server: MCPServer; uri: string }
+  ): Promise<GetResourceResponse> {
+    const cachedGetResource = withCache<[MCPServer, string], GetResourceResponse>(
+      this.getResourceImpl.bind(this),
+      (server, uri) => {
+        const serverKey = this.getServerKey(server)
+        return `mcp:get_resource:${serverKey}:${uri}`
+      },
+      30 * 60 * 1000, // 30 minutes TTL
+      `[MCP] Resource ${uri} from ${server.name}`
+    )
+    return await cachedGetResource(server, uri)
+  }
+
+  private getSystemPath = memoize(async (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      let command: string
+      let shell: string
+
+      if (process.platform === 'win32') {
+        shell = 'powershell.exe'
+        command = '$env:PATH'
+      } else {
+        // 尝试获取当前用户的默认 shell
+
+        let userShell = process.env.SHELL
+        if (!userShell) {
+          if (fs.existsSync('/bin/zsh')) {
+            userShell = '/bin/zsh'
+          } else if (fs.existsSync('/bin/bash')) {
+            userShell = '/bin/bash'
+          } else if (fs.existsSync('/bin/fish')) {
+            userShell = '/bin/fish'
+          } else {
+            userShell = '/bin/sh'
+          }
+        }
+        shell = userShell
+
+        // 根据不同的 shell 构建不同的命令
+        if (userShell.includes('zsh')) {
+          command =
+            'source /etc/zshenv 2>/dev/null || true; source ~/.zshenv 2>/dev/null || true; source /etc/zprofile 2>/dev/null || true; source ~/.zprofile 2>/dev/null || true; source /etc/zshrc 2>/dev/null || true; source ~/.zshrc 2>/dev/null || true; source /etc/zlogin 2>/dev/null || true; source ~/.zlogin 2>/dev/null || true; echo $PATH'
+        } else if (userShell.includes('bash')) {
+          command =
+            'source /etc/profile 2>/dev/null || true; source ~/.bash_profile 2>/dev/null || true; source ~/.bash_login 2>/dev/null || true; source ~/.profile 2>/dev/null || true; source ~/.bashrc 2>/dev/null || true; echo $PATH'
+        } else if (userShell.includes('fish')) {
+          command =
+            'source /etc/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.local.fish 2>/dev/null || true; echo $PATH'
+        } else {
+          // 默认使用 zsh
+          shell = '/bin/zsh'
+          command =
+            'source /etc/zshenv 2>/dev/null || true; source ~/.zshenv 2>/dev/null || true; source /etc/zprofile 2>/dev/null || true; source ~/.zprofile 2>/dev/null || true; source /etc/zshrc 2>/dev/null || true; source ~/.zshrc 2>/dev/null || true; source /etc/zlogin 2>/dev/null || true; source ~/.zlogin 2>/dev/null || true; echo $PATH'
+        }
+      }
+
+      console.log(`Using shell: ${shell} with command: ${command}`)
+      const child = require('child_process').spawn(shell, ['-c', command], {
+        env: { ...process.env },
+        cwd: app.getPath('home')
+      })
+
+      let path = ''
+      child.stdout.on('data', (data) => {
+        path += data.toString()
+      })
+
+      child.stderr.on('data', (data) => {
+        console.error('Error getting PATH:', data.toString())
+      })
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          const trimmedPath = path.trim()
+          resolve(trimmedPath)
+        } else {
+          reject(new Error(`Failed to get system PATH, exit code: ${code}`))
         }
       })
-    )
-
-    log.info(`[MCP] End loading ${Object.keys(this.clients).length} active servers`)
-  }
+    })
+  })
 
   /**
    * Get enhanced PATH including common tool locations
    */
-  private getEnhancedPath(originalPath: string): string {
+  private async getEnhancedPath(originalPath: string): Promise<string> {
+    let systemPath = ''
+    try {
+      systemPath = await this.getSystemPath()
+    } catch (error) {
+      Logger.error('[MCP] Failed to get system PATH:', error)
+    }
     // 将原始 PATH 按分隔符分割成数组
     const pathSeparator = process.platform === 'win32' ? ';' : ':'
-    const existingPaths = new Set(originalPath.split(pathSeparator).filter(Boolean))
+    const existingPaths = new Set(
+      [...systemPath.split(pathSeparator), ...originalPath.split(pathSeparator)].filter(Boolean)
+    )
     const homeDir = process.env.HOME || process.env.USERPROFILE || ''
 
     // 定义要添加的新路径
@@ -581,6 +589,7 @@ export default class MCPService extends EventEmitter {
         `${homeDir}/.npm-global/bin`,
         `${homeDir}/.yarn/bin`,
         `${homeDir}/.cargo/bin`,
+        `${homeDir}/.cherrystudio/bin`,
         '/opt/local/bin'
       )
     }
@@ -594,12 +603,18 @@ export default class MCPService extends EventEmitter {
         `${homeDir}/.npm-global/bin`,
         `${homeDir}/.yarn/bin`,
         `${homeDir}/.cargo/bin`,
+        `${homeDir}/.cherrystudio/bin`,
         '/snap/bin'
       )
     }
 
     if (isWin) {
-      newPaths.push(`${process.env.APPDATA}\\npm`, `${homeDir}\\AppData\\Local\\Yarn\\bin`, `${homeDir}\\.cargo\\bin`)
+      newPaths.push(
+        `${process.env.APPDATA}\\npm`,
+        `${homeDir}\\AppData\\Local\\Yarn\\bin`,
+        `${homeDir}\\.cargo\\bin`,
+        `${homeDir}\\.cherrystudio\\bin`
+      )
     }
 
     // 只添加不存在的路径
@@ -613,3 +628,6 @@ export default class MCPService extends EventEmitter {
     return Array.from(existingPaths).join(pathSeparator)
   }
 }
+
+const mcpService = new McpService()
+export default mcpService

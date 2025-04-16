@@ -1,8 +1,10 @@
 import fs from 'node:fs'
+import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
-import { MCPServer, Shortcut, ThemeMode } from '@types'
+import { IpcChannel } from '@shared/IpcChannel'
+import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
 
@@ -16,38 +18,40 @@ import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
-import MCPService from './services/MCPService'
-import ObsidianVaultService from './services/ObsidianVaultService'
+import mcpService from './services/MCPService'
 import * as NutstoreService from './services/NutstoreService'
+import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
+import { searchService } from './services/SearchService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getFilesDir } from './utils/file'
+import { getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
-const mcpService = new MCPService()
 const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
 
-  ipcMain.handle('app:info', () => ({
+  ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
     filesPath: getFilesDir(),
+    configPath: getConfigDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
-    logsPath: log.transports.file.getFile().path
+    logsPath: log.transports.file.getFile().path,
+    arch: arch()
   }))
 
-  ipcMain.handle('app:proxy', async (_, proxy: string) => {
+  ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
     let proxyConfig: ProxyConfig
 
     if (proxy === 'system') {
@@ -61,19 +65,19 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     await proxyManager.configureProxy(proxyConfig)
   })
 
-  ipcMain.handle('app:reload', () => mainWindow.reload())
-  ipcMain.handle('open:website', (_, url: string) => shell.openExternal(url))
+  ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
+  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
 
   // Update
-  ipcMain.handle('app:show-update-dialog', () => appUpdater.showUpdateDialog(mainWindow))
+  ipcMain.handle(IpcChannel.App_ShowUpdateDialog, () => appUpdater.showUpdateDialog(mainWindow))
 
   // language
-  ipcMain.handle('app:set-language', (_, language) => {
+  ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
     configManager.setLanguage(language)
   })
 
   // launch on boot
-  ipcMain.handle('app:set-launch-on-boot', (_, openAtLogin: boolean) => {
+  ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, (_, openAtLogin: boolean) => {
     // Set login item settings for windows and mac
     // linux is not supported because it requires more file operations
     if (isWin || isMac) {
@@ -82,32 +86,32 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // launch to tray
-  ipcMain.handle('app:set-launch-to-tray', (_, isActive: boolean) => {
+  ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
     configManager.setLaunchToTray(isActive)
   })
 
   // tray
-  ipcMain.handle('app:set-tray', (_, isActive: boolean) => {
+  ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
     configManager.setTray(isActive)
   })
 
   // to tray on close
-  ipcMain.handle('app:set-tray-on-close', (_, isActive: boolean) => {
+  ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
     configManager.setTrayOnClose(isActive)
   })
 
-  ipcMain.handle('app:restart-tray', () => TrayService.getInstance().restartTray())
+  ipcMain.handle(IpcChannel.App_RestartTray, () => TrayService.getInstance().restartTray())
 
-  ipcMain.handle('config:set', (_, key: string, value: any) => {
+  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any) => {
     configManager.set(key, value)
   })
 
-  ipcMain.handle('config:get', (_, key: string) => {
+  ipcMain.handle(IpcChannel.Config_Get, (_, key: string) => {
     return configManager.get(key)
   })
 
   // theme
-  ipcMain.handle('app:set-theme', (event, theme: ThemeMode) => {
+  ipcMain.handle(IpcChannel.App_SetTheme, (event, theme: ThemeMode) => {
     if (theme === configManager.getTheme()) return
 
     configManager.setTheme(theme)
@@ -118,7 +122,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     // 向其他窗口广播主题变化
     windows.forEach((win) => {
       if (win.webContents.id !== senderWindowId) {
-        win.webContents.send('theme:change', theme)
+        win.webContents.send(IpcChannel.ThemeChange, theme)
       }
     })
 
@@ -127,7 +131,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // clear cache
-  ipcMain.handle('app:clear-cache', async () => {
+  ipcMain.handle(IpcChannel.App_ClearCache, async () => {
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
 
     try {
@@ -149,8 +153,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // check for update
-  ipcMain.handle('app:check-for-update', async () => {
+  ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
     const update = await appUpdater.autoUpdater.checkForUpdates()
+
     return {
       currentVersion: appUpdater.autoUpdater.currentVersion,
       updateInfo: update?.updateInfo
@@ -158,62 +163,51 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // zip
-  ipcMain.handle('zip:compress', (_, text: string) => compress(text))
-  ipcMain.handle('zip:decompress', (_, text: Buffer) => decompress(text))
+  ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
+  ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
 
   // backup
-  ipcMain.handle('backup:backup', backupManager.backup)
-  ipcMain.handle('backup:restore', backupManager.restore)
-  ipcMain.handle('backup:backupToWebdav', backupManager.backupToWebdav)
-  ipcMain.handle('backup:restoreFromWebdav', backupManager.restoreFromWebdav)
-  ipcMain.handle('backup:listWebdavFiles', backupManager.listWebdavFiles)
-  ipcMain.handle('backup:checkConnection', backupManager.checkConnection)
-  ipcMain.handle('backup:createDirectory', backupManager.createDirectory)
+  ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup)
+  ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore)
+  ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav)
+  ipcMain.handle(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav)
+  ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles)
+  ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
+  ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
+  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
 
   // file
-  ipcMain.handle('file:open', fileManager.open)
-  ipcMain.handle('file:openPath', fileManager.openPath)
-  ipcMain.handle('file:save', fileManager.save)
-  ipcMain.handle('file:select', fileManager.selectFile)
-  ipcMain.handle('file:upload', fileManager.uploadFile)
-  ipcMain.handle('file:clear', fileManager.clear)
-  ipcMain.handle('file:read', fileManager.readFile)
-  ipcMain.handle('file:delete', fileManager.deleteFile)
-  ipcMain.handle('file:get', fileManager.getFile)
-  ipcMain.handle('file:selectFolder', fileManager.selectFolder)
-  ipcMain.handle('file:create', fileManager.createTempFile)
-  ipcMain.handle('file:write', fileManager.writeFile)
-  ipcMain.handle('file:saveImage', fileManager.saveImage)
-  ipcMain.handle('file:base64Image', fileManager.base64Image)
-  ipcMain.handle('file:download', fileManager.downloadFile)
-  ipcMain.handle('file:copy', fileManager.copyFile)
-  ipcMain.handle('file:binaryFile', fileManager.binaryFile)
+  ipcMain.handle(IpcChannel.File_Open, fileManager.open)
+  ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath)
+  ipcMain.handle(IpcChannel.File_Save, fileManager.save)
+  ipcMain.handle(IpcChannel.File_Select, fileManager.selectFile)
+  ipcMain.handle(IpcChannel.File_Upload, fileManager.uploadFile)
+  ipcMain.handle(IpcChannel.File_Clear, fileManager.clear)
+  ipcMain.handle(IpcChannel.File_Read, fileManager.readFile)
+  ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile)
+  ipcMain.handle(IpcChannel.File_Get, fileManager.getFile)
+  ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
+  ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
+  ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
+  ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
+  ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
+  ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
+  ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
+  ipcMain.handle(IpcChannel.File_BinaryFile, fileManager.binaryFile)
 
   // fs
-  ipcMain.handle('fs:read', FileService.readFile)
-
-  // minapp
-  ipcMain.handle('minapp', (_, args) => {
-    windowService.createMinappWindow({
-      url: args.url,
-      parent: mainWindow,
-      windowOptions: {
-        ...mainWindow.getBounds(),
-        ...args.windowOptions
-      }
-    })
-  })
+  ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile)
 
   // export
-  ipcMain.handle('export:word', exportService.exportToWord)
+  ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord)
 
   // open path
-  ipcMain.handle('open:path', async (_, path: string) => {
+  ipcMain.handle(IpcChannel.Open_Path, async (_, path: string) => {
     await shell.openPath(path)
   })
 
   // shortcuts
-  ipcMain.handle('shortcuts:update', (_, shortcuts: Shortcut[]) => {
+  ipcMain.handle(IpcChannel.Shortcuts_Update, (_, shortcuts: Shortcut[]) => {
     configManager.setShortcuts(shortcuts)
     // Refresh shortcuts registration
     if (mainWindow) {
@@ -223,20 +217,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // knowledge base
-  ipcMain.handle('knowledge-base:create', KnowledgeService.create)
-  ipcMain.handle('knowledge-base:reset', KnowledgeService.reset)
-  ipcMain.handle('knowledge-base:delete', KnowledgeService.delete)
-  ipcMain.handle('knowledge-base:add', KnowledgeService.add)
-  ipcMain.handle('knowledge-base:remove', KnowledgeService.remove)
-  ipcMain.handle('knowledge-base:search', KnowledgeService.search)
-  ipcMain.handle('knowledge-base:rerank', KnowledgeService.rerank)
+  ipcMain.handle(IpcChannel.KnowledgeBase_Create, KnowledgeService.create)
+  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, KnowledgeService.reset)
+  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, KnowledgeService.delete)
+  ipcMain.handle(IpcChannel.KnowledgeBase_Add, KnowledgeService.add)
+  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, KnowledgeService.remove)
+  ipcMain.handle(IpcChannel.KnowledgeBase_Search, KnowledgeService.search)
+  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank)
 
   // window
-  ipcMain.handle('window:set-minimum-size', (_, width: number, height: number) => {
+  ipcMain.handle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
     mainWindow?.setMinimumSize(width, height)
   })
 
-  ipcMain.handle('window:reset-minimum-size', () => {
+  ipcMain.handle(IpcChannel.Windows_ResetMinimumSize, () => {
     mainWindow?.setMinimumSize(1080, 600)
     const [width, height] = mainWindow?.getSize() ?? [1080, 600]
     if (width < 1080) {
@@ -245,76 +239,76 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // gemini
-  ipcMain.handle('gemini:upload-file', GeminiService.uploadFile)
-  ipcMain.handle('gemini:base64-file', GeminiService.base64File)
-  ipcMain.handle('gemini:retrieve-file', GeminiService.retrieveFile)
-  ipcMain.handle('gemini:list-files', GeminiService.listFiles)
-  ipcMain.handle('gemini:delete-file', GeminiService.deleteFile)
+  ipcMain.handle(IpcChannel.Gemini_UploadFile, GeminiService.uploadFile)
+  ipcMain.handle(IpcChannel.Gemini_Base64File, GeminiService.base64File)
+  ipcMain.handle(IpcChannel.Gemini_RetrieveFile, GeminiService.retrieveFile)
+  ipcMain.handle(IpcChannel.Gemini_ListFiles, GeminiService.listFiles)
+  ipcMain.handle(IpcChannel.Gemini_DeleteFile, GeminiService.deleteFile)
 
   // mini window
-  ipcMain.handle('miniwindow:show', () => windowService.showMiniWindow())
-  ipcMain.handle('miniwindow:hide', () => windowService.hideMiniWindow())
-  ipcMain.handle('miniwindow:close', () => windowService.closeMiniWindow())
-  ipcMain.handle('miniwindow:toggle', () => windowService.toggleMiniWindow())
+  ipcMain.handle(IpcChannel.MiniWindow_Show, () => windowService.showMiniWindow())
+  ipcMain.handle(IpcChannel.MiniWindow_Hide, () => windowService.hideMiniWindow())
+  ipcMain.handle(IpcChannel.MiniWindow_Close, () => windowService.closeMiniWindow())
+  ipcMain.handle(IpcChannel.MiniWindow_Toggle, () => windowService.toggleMiniWindow())
+  ipcMain.handle(IpcChannel.MiniWindow_SetPin, (_, isPinned) => windowService.setPinMiniWindow(isPinned))
 
   // aes
-  ipcMain.handle('aes:encrypt', (_, text: string, secretKey: string, iv: string) => encrypt(text, secretKey, iv))
-  ipcMain.handle('aes:decrypt', (_, encryptedData: string, iv: string, secretKey: string) =>
+  ipcMain.handle(IpcChannel.Aes_Encrypt, (_, text: string, secretKey: string, iv: string) =>
+    encrypt(text, secretKey, iv)
+  )
+  ipcMain.handle(IpcChannel.Aes_Decrypt, (_, encryptedData: string, iv: string, secretKey: string) =>
     decrypt(encryptedData, iv, secretKey)
   )
 
   // Register MCP handlers
-  ipcMain.on('mcp:servers-from-renderer', (_, servers) => mcpService.setServers(servers))
-  ipcMain.handle('mcp:list-servers', async () => mcpService.listAvailableServices())
-  ipcMain.handle('mcp:add-server', async (_, server: MCPServer) => mcpService.addServer(server))
-  ipcMain.handle('mcp:update-server', async (_, server: MCPServer) => mcpService.updateServer(server))
-  ipcMain.handle('mcp:delete-server', async (_, serverName: string) => mcpService.deleteServer(serverName))
-  ipcMain.handle('mcp:set-server-active', async (_, { name, isActive }) =>
-    mcpService.setServerActive({ name, isActive })
-  )
+  ipcMain.handle(IpcChannel.Mcp_RemoveServer, mcpService.removeServer)
+  ipcMain.handle(IpcChannel.Mcp_RestartServer, mcpService.restartServer)
+  ipcMain.handle(IpcChannel.Mcp_StopServer, mcpService.stopServer)
+  ipcMain.handle(IpcChannel.Mcp_ListTools, mcpService.listTools)
+  ipcMain.handle(IpcChannel.Mcp_CallTool, mcpService.callTool)
+  ipcMain.handle(IpcChannel.Mcp_ListPrompts, mcpService.listPrompts)
+  ipcMain.handle(IpcChannel.Mcp_GetPrompt, mcpService.getPrompt)
+  ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
+  ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
+  ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
 
-  // According to preload, this should take no parameters, but our implementation accepts
-  // an optional serverName for better flexibility
-  ipcMain.handle('mcp:list-tools', async (_, serverName?: string) => mcpService.listTools(serverName))
-  ipcMain.handle('mcp:call-tool', async (_, params: { client: string; name: string; args: any }) =>
-    mcpService.callTool(params)
-  )
-
-  ipcMain.handle('mcp:cleanup', async () => mcpService.cleanup())
-
-  ipcMain.handle('app:is-binary-exist', (_, name: string) => isBinaryExists(name))
-  ipcMain.handle('app:get-binary-path', (_, name: string) => getBinaryPath(name))
-  ipcMain.handle('app:install-uv-binary', () => runInstallScript('install-uv.js'))
-  ipcMain.handle('app:install-bun-binary', () => runInstallScript('install-bun.js'))
-
-  // Listen for changes in MCP servers and notify renderer
-  mcpService.on('servers-updated', (servers) => {
-    mainWindow?.webContents.send('mcp:servers-updated', servers)
-  })
-
-  app.on('before-quit', () => mcpService.cleanup())
+  ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
+  ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
+  ipcMain.handle(IpcChannel.App_InstallUvBinary, () => runInstallScript('install-uv.js'))
+  ipcMain.handle(IpcChannel.App_InstallBunBinary, () => runInstallScript('install-bun.js'))
 
   //copilot
-  ipcMain.handle('copilot:get-auth-message', CopilotService.getAuthMessage)
-  ipcMain.handle('copilot:get-copilot-token', CopilotService.getCopilotToken)
-  ipcMain.handle('copilot:save-copilot-token', CopilotService.saveCopilotToken)
-  ipcMain.handle('copilot:get-token', CopilotService.getToken)
-  ipcMain.handle('copilot:logout', CopilotService.logout)
-  ipcMain.handle('copilot:get-user', CopilotService.getUser)
+  ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, CopilotService.getAuthMessage)
+  ipcMain.handle(IpcChannel.Copilot_GetCopilotToken, CopilotService.getCopilotToken)
+  ipcMain.handle(IpcChannel.Copilot_SaveCopilotToken, CopilotService.saveCopilotToken)
+  ipcMain.handle(IpcChannel.Copilot_GetToken, CopilotService.getToken)
+  ipcMain.handle(IpcChannel.Copilot_Logout, CopilotService.logout)
+  ipcMain.handle(IpcChannel.Copilot_GetUser, CopilotService.getUser)
 
   // Obsidian service
-  ipcMain.handle('obsidian:get-vaults', () => {
+  ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
     return obsidianVaultService.getVaults()
   })
 
-  ipcMain.handle('obsidian:get-files', (_event, vaultName) => {
+  ipcMain.handle(IpcChannel.Obsidian_GetFiles, (_event, vaultName) => {
     return obsidianVaultService.getFilesByVaultName(vaultName)
   })
 
   // nutstore
-  ipcMain.handle('nutstore:get-sso-url', NutstoreService.getNutstoreSSOUrl)
-  ipcMain.handle('nutstore:decrypt-token', (_, token: string) => NutstoreService.decryptToken(token))
-  ipcMain.handle('nutstore:get-directory-contents', (_, token: string, path: string) =>
+  ipcMain.handle(IpcChannel.Nutstore_GetSsoUrl, NutstoreService.getNutstoreSSOUrl)
+  ipcMain.handle(IpcChannel.Nutstore_DecryptToken, (_, token: string) => NutstoreService.decryptToken(token))
+  ipcMain.handle(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
   )
+
+  // search window
+  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string) => {
+    await searchService.openSearchWindow(uid)
+  })
+  ipcMain.handle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
+    await searchService.closeSearchWindow(uid)
+  })
+  ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
+    return await searchService.openUrlInSearchWindow(uid, url)
+  })
 }

@@ -23,17 +23,8 @@ function getShortcutHandler(shortcut: Shortcut) {
         configManager.setZoomFactor(1)
       }
     case 'show_app':
-      return (window: BrowserWindow) => {
-        if (window.isVisible()) {
-          if (window.isFocused()) {
-            window.hide()
-          } else {
-            window.focus()
-          }
-        } else {
-          window.show()
-          window.focus()
-        }
+      return () => {
+        windowService.toggleMainWindow()
       }
     case 'mini_window':
       return () => {
