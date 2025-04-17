@@ -92,9 +92,14 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       return {
         query: result.query,
         results: result.results.slice(0, websearch.maxResults).map((result) => {
+          let content = result.content || ''
+          if (websearch.contentLimit && content.length > websearch.contentLimit) {
+            content = content.slice(0, websearch.contentLimit) + '...'
+          }
+
           return {
             title: result.title || 'No title',
-            content: result.content || '',
+            content: content,
             url: result.url || ''
           }
         })

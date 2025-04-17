@@ -50,6 +50,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   oneClick: false
   include: build/nsis-installer.nsh
+  buildUniversalInstaller: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
 mac:
@@ -77,6 +78,7 @@ electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
+artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     全新图标风格

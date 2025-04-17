@@ -89,7 +89,8 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       (formattedCitations && formattedCitations.length > 0) ||
       (message?.metadata?.webSearch && message.status === 'success') ||
       (message?.metadata?.webSearchInfo && message.status === 'success') ||
-      (message?.metadata?.groundingMetadata && message.status === 'success')
+      (message?.metadata?.groundingMetadata && message.status === 'success') ||
+      (message?.metadata?.knowledge && message.status === 'success')
     )
   }, [formattedCitations, message])
 
@@ -111,6 +112,16 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       data.set(result.url || result.uri || result.link, {
         url: result.url || result.uri || result.link,
         title: result.title || result.hostname,
+        content: result.content
+      })
+    })
+
+    // 添加knowledge结果
+    const knowledgeResults = message.metadata?.knowledge
+    knowledgeResults?.forEach((result) => {
+      data.set(result.sourceUrl, {
+        url: result.sourceUrl,
+        title: result.id,
         content: result.content
       })
     })
@@ -156,7 +167,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
 
     // Convert [n] format to superscript numbers and make them clickable
     // Use <sup> tag for superscript and make it a link with citation data
-    if (message.metadata?.webSearch) {
+    if (message.metadata?.webSearch || message.metadata.knowledge) {
       content = content.replace(/\[\[(\d+)\]\]|\[(\d+)\]/g, (match, num1, num2) => {
         const num = num1 || num2
         const index = parseInt(num) - 1
@@ -276,14 +287,24 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
                   }))}
                 />
               )}
-              {message?.metadata?.webSearch && message.status === 'success' && (
+              {(message?.metadata?.webSearch || message.metadata?.knowledge) && message.status === 'success' && (
                 <CitationsList
-                  citations={message.metadata.webSearch.results.map((result, index) => ({
-                    number: index + 1,
-                    url: result.url,
-                    title: result.title,
-                    showFavicon: true
-                  }))}
+                  citations={[
+                    ...(message.metadata.webSearch?.results.map((result, index) => ({
+                      number: index + 1,
+                      url: result.url,
+                      title: result.title,
+                      showFavicon: true,
+                      type: 'websearch'
+                    })) || []),
+                    ...(message.metadata.knowledge?.map((result, index) => ({
+                      number: (message.metadata?.webSearch?.results?.length || 0) + index + 1,
+                      url: result.sourceUrl,
+                      title: result.sourceUrl,
+                      showFavicon: true,
+                      type: 'knowledge'
+                    })) || [])
+                  ]}
                 />
               )}
               {message?.metadata?.webSearchInfo && message.status === 'success' && (
@@ -300,6 +321,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           )}
         </CitationsContainer>
       )}
+
       <MessageAttachments message={message} />
     </Fragment>
   )

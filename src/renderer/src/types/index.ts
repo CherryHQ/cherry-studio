@@ -88,6 +88,8 @@ export type Message = {
     mcpTools?: MCPToolResponse[]
     // Generate Image
     generateImage?: GenerateImageResponse
+    // knowledge
+    knowledge?: KnowledgeReference[]
   }
   // 多模型消息样式
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'

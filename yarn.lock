@@ -3668,13 +3668,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/js-yaml@npm:^4":
-  version: 4.0.9
-  resolution: "@types/js-yaml@npm:4.0.9"
-  checksum: 10c0/24de857aa8d61526bbfbbaa383aa538283ad17363fcd5bb5148e2c7f604547db36646440e739d78241ed008702a8920665d1add5618687b6743858fae00da211
-  languageName: node
-  linkType: hard
-
 "@types/json-schema@npm:^7.0.15":
   version: 7.0.15
   resolution: "@types/json-schema@npm:7.0.15"
@@ -4192,7 +4185,6 @@ __metadata:
     "@types/adm-zip": "npm:^0"
     "@types/diff": "npm:^7"
     "@types/fs-extra": "npm:^11"
-    "@types/js-yaml": "npm:^4"
     "@types/lodash": "npm:^4.17.5"
     "@types/markdown-it": "npm:^14"
     "@types/md5": "npm:^2.3.5"
@@ -4237,14 +4229,13 @@ __metadata:
     eslint-plugin-react-hooks: "npm:^5.2.0"
     eslint-plugin-simple-import-sort: "npm:^12.1.1"
     eslint-plugin-unused-imports: "npm:^4.1.4"
-    fast-xml-parser: "npm:^5.0.9"
+    fast-xml-parser: "npm:^5.2.0"
     fetch-socks: "npm:^1.3.2"
     fs-extra: "npm:^11.2.0"
     got-scraping: "npm:^4.1.1"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
     i18next: "npm:^23.11.5"
-    js-yaml: "npm:^4.1.0"
     jsdom: "npm:^26.0.0"
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
@@ -7863,7 +7854,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fast-xml-parser@npm:^5.0.9":
+"fast-xml-parser@npm:^5.2.0":
   version: 5.2.0
   resolution: "fast-xml-parser@npm:5.2.0"
   dependencies:

@@ -548,7 +548,7 @@
       "restore.failed": "恢复失败",
       "restore.success": "恢复成功",
       "save.success.title": "保存成功",
-      "searching": "正在联网搜索...",
+      "searching": "正在搜索...",
       "success.joplin.export": "成功导出到 Joplin",
       "success.markdown.export.preconf": "成功导出 Markdown 文件到预先设定的路径",
       "success.markdown.export.specified": "成功导出 Markdown 文件",
@@ -1361,7 +1361,9 @@
         },
         "title": "网络搜索",
         "apikey": "API 密钥",
-        "free": "免费"
+        "free": "免费",
+        "content_limit": "内容长度限制",
+        "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断"
       },
       "quickPhrase": {
         "title": "快捷短语",

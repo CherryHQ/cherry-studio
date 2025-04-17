@@ -548,7 +548,7 @@
       "restore.failed": "Восстановление не удалось",
       "restore.success": "Успешно восстановлено",
       "save.success.title": "Успешно сохранено",
-      "searching": "Поиск в Интернете...",
+      "searching": "Идет поиск...",
       "success.joplin.export": "Успешный экспорт в Joplin",
       "success.markdown.export.preconf": "Файл Markdown успешно экспортирован в предуказанный путь",
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
@@ -1360,7 +1360,9 @@
         "overwrite": "Переопределить провайдера поиска",
         "overwrite_tooltip": "Использовать провайдера поиска вместо LLM",
         "apikey": "API ключ",
-        "free": "Бесплатно"
+        "free": "Бесплатно",
+        "content_limit": "Ограничение длины текста",
+        "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
       },
       "general.auto_check_update.title": "Включить автообновление",
       "quickPhrase": {

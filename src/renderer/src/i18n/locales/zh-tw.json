@@ -548,7 +548,7 @@
       "restore.failed": "恢復失敗",
       "restore.success": "恢復成功",
       "save.success.title": "儲存成功",
-      "searching": "正在網路上搜尋...",
+      "searching": "正在搜尋...",
       "success.joplin.export": "成功匯出到 Joplin",
       "success.markdown.export.preconf": "成功導出 Markdown 文件到預先設定的路徑",
       "success.markdown.export.specified": "成功導出 Markdown 文件",
@@ -1360,7 +1360,9 @@
         "overwrite": "覆蓋搜尋服務商",
         "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋",
         "apikey": "API 金鑰",
-        "free": "免費"
+        "free": "免費",
+        "content_limit": "內容長度限制",
+        "content_limit_tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷。"
       },
       "general.auto_check_update.title": "啟用自動更新檢查",
       "quickPhrase": {
