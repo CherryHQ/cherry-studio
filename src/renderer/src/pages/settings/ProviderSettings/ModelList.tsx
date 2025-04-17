@@ -31,7 +31,7 @@ import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Flex, Tooltip, Typography } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
 import { Bolt, ListCheck } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -190,6 +190,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
   const modelsWebsite = providerConfig?.websites?.models
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
+  const [isWideLayout, setIsWideLayout] = useState<boolean>(true)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const resizeObserver = useRef<ResizeObserver | null>(null)
 
   // 缓存模型标签状态，避免重复计算
   const modelTagsMap = useMemo(() => {
@@ -211,13 +214,34 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
     return tagsMap
   }, [models])
 
-  // 高效地获取模型是否有标签
   const modelHasTags = useCallback(
     (model: Model) => {
       return modelTagsMap.get(model.id) || false
     },
     [modelTagsMap]
   )
+
+  // 设置ResizeObserver监听容器大小变化
+  useEffect(() => {
+    if (containerRef.current && !resizeObserver.current) {
+      resizeObserver.current = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const width = entry.contentRect.width
+          // 根据宽度决定布局方式
+          const wideLayout = width > 550
+          setIsWideLayout(wideLayout)
+        }
+      })
+
+      resizeObserver.current.observe(containerRef.current)
+    }
+
+    return () => {
+      if (resizeObserver.current) {
+        resizeObserver.current.disconnect()
+      }
+    }
+  }, [])
 
   const modelGroups = useMemo(() => {
     const filteredModels = searchText
@@ -279,7 +303,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
 
   return (
     <>
-      <Flex gap={12} vertical>
+      <Flex gap={12} vertical ref={containerRef}>
         {Object.keys(sortedModelGroups).map((group, i) => (
           <CustomCollapse
             defaultActiveKey={i <= 5 ? ['1'] : []}
@@ -307,17 +331,21 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
 
                 return (
                   <ListItem key={model.id}>
-                    <HStack alignItems="flex-start" gap={10} style={{ flex: 1 }}>
+                    <HStack alignItems={isWideLayout ? 'center' : 'flex-start'} gap={10} style={{ flex: 1 }}>
                       <Avatar
                         src={getModelLogo(model.id)}
                         style={{
                           width: 26,
                           height: 26,
-                          marginTop: modelHasTags(model) ? '2px' : '0'
+                          marginTop: isWideLayout ? '0' : modelHasTags(model) ? '2px' : '0'
                         }}>
                         {model?.name?.[0]?.toUpperCase()}
                       </Avatar>
-                      <ListItemName className={modelHasTags(model) ? 'has-tags' : 'no-tags'}>
+                      <ListItemName
+                        className={[
+                          modelHasTags(model) ? 'has-tags' : 'no-tags',
+                          isWideLayout ? 'wide-layout' : 'narrow-layout'
+                        ].join(' ')}>
                         <Tooltip
                           styles={{
                             root: {
@@ -404,7 +432,7 @@ const ListItem = styled.div`
   font-size: 14px;
   line-height: 1;
   min-height: 36px;
-  padding: 4px 0;
+  padding: 2px 0;
 `
 
 const ListItemName = styled.div`
@@ -417,6 +445,21 @@ const ListItemName = styled.div`
   line-height: 1;
   font-weight: 600;
 
+  &.wide-layout {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+
+    span {
+      margin-right: 6px;
+    }
+  }
+
+  &.narrow-layout {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   &.no-tags {
     justify-content: center;
     height: 100%;
@@ -425,6 +468,10 @@ const ListItemName = styled.div`
 
   &.no-tags span {
     line-height: 28px;
+  }
+
+  &.wide-layout.no-tags span {
+    line-height: normal;
   }
 
   span {
