@@ -1,5 +1,5 @@
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
-import { useMarkdownMath } from '@renderer/hooks/useMarkdownMath'
+import { RehypePluginName, useRehypePlugins } from '@renderer/context/MarkdownPluginProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { Message } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
@@ -9,7 +9,6 @@ import { isEmpty } from 'lodash'
 import { type FC, memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components } from 'react-markdown'
-import rehypeRaw from 'rehype-raw'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -30,7 +29,6 @@ const disallowedElements = ['iframe']
 const Markdown: FC<Props> = ({ message }) => {
   const { t } = useTranslation()
   const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
-  const rehypeMath = useMarkdownMath(mathEngine)
 
   const messageContent = useMemo(() => {
     const empty = isEmpty(message.content)
@@ -39,10 +37,25 @@ const Markdown: FC<Props> = ({ message }) => {
     return removeSvgEmptyLines(escapeBrackets(content))
   }, [message, t])
 
-  const rehypePlugins = useMemo(
-    () => [...(ALLOWED_ELEMENTS.test(messageContent) ? [rehypeRaw] : []), ...(rehypeMath ? [rehypeMath] : [])],
-    [messageContent, rehypeMath]
-  )
+  const needHtml = useMemo(() => {
+    return ALLOWED_ELEMENTS.test(messageContent)
+  }, [messageContent])
+
+  // 决定需要加载哪些rehype插件
+  const neededRehypePlugins = useMemo(() => {
+    const plugins: RehypePluginName[] = []
+
+    plugins.push(mathEngine === 'KaTeX' ? 'rehype-katex' : 'rehype-mathjax')
+
+    if (needHtml) {
+      plugins.push('rehype-raw')
+    }
+
+    return plugins
+  }, [mathEngine, needHtml])
+
+  // 加载所需的rehype插件
+  const rehypePlugins = useRehypePlugins(neededRehypePlugins)
 
   const components = useMemo(() => {
     const baseComponents = {
@@ -54,7 +67,7 @@ const Markdown: FC<Props> = ({ message }) => {
     return baseComponents
   }, [])
 
-  if ((message.role === 'user' && !renderInputMessageAsMarkdown) || !rehypeMath) {
+  if ((message.role === 'user' && !renderInputMessageAsMarkdown) || rehypePlugins.length === 0) {
     return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
   }
 
