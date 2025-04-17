@@ -163,6 +163,8 @@ const visionAllowedModels = [
   'gpt-4.5(?:-[\\w-]+)',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
+  'o3(?:-[\\w-]+)?',
+  'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)'
@@ -174,6 +176,7 @@ const visionExcludedModels = [
   'gpt-4-32k',
   'gpt-4-\\d+',
   'o1-mini',
+  'o3-mini',
   'o1-preview',
   'AIDC-AI/Marco-o1'
 ]
@@ -259,8 +262,9 @@ export function getModelLogo(modelId: string) {
     jina: isLight ? JinaModelLogo : JinaModelLogoDark,
     abab: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     minimax: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
-    o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     o1: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
+    o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
+    o4: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
@@ -2204,8 +2208,9 @@ export function isVisionModel(model: Model): boolean {
 }
 
 export function isOpenAIoSeries(model: Model): boolean {
-  return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
+  return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3') || model.id.includes('o4')
 }
+
 export function isOpenAIWebSearch(model: Model): boolean {
   return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
 }
