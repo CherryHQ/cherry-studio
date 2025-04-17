@@ -129,6 +129,7 @@ export enum IpcChannel {
 
   // system
   System_GetDeviceType = 'system:getDeviceType',
+  System_GetHostname = 'system:getHostname',
 
   // events
   SelectionAction = 'selection-action',

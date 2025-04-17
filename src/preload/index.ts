@@ -23,7 +23,8 @@ const api = {
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
-    getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType)
+    getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
+    getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
   },
   zip: {
     compress: (text: string) => ipcRenderer.invoke(IpcChannel.Zip_Compress, text),
