@@ -10,7 +10,15 @@ import {
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
-import { getModelLogo } from '@renderer/config/models'
+import {
+  getModelLogo,
+  isEmbeddingModel,
+  isFunctionCallingModel,
+  isReasoningModel,
+  isRerankModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -18,6 +26,7 @@ import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
 import { Model } from '@renderer/types'
+import { isFreeModel } from '@renderer/utils'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Flex, Tooltip, Typography } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
@@ -182,6 +191,34 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
 
+  // 缓存模型标签状态，避免重复计算
+  const modelTagsMap = useMemo(() => {
+    const tagsMap = new Map<string, boolean>()
+
+    models.forEach((model) => {
+      tagsMap.set(
+        model.id,
+        isVisionModel(model) ||
+          isWebSearchModel(model) ||
+          isReasoningModel(model) ||
+          isFunctionCallingModel(model) ||
+          isEmbeddingModel(model) ||
+          isFreeModel(model) ||
+          isRerankModel(model)
+      )
+    })
+
+    return tagsMap
+  }, [models])
+
+  // 高效地获取模型是否有标签
+  const modelHasTags = useCallback(
+    (model: Model) => {
+      return modelTagsMap.get(model.id) || false
+    },
+    [modelTagsMap]
+  )
+
   const modelGroups = useMemo(() => {
     const filteredModels = searchText
       ? models.filter((model) => model.name.toLowerCase().includes(searchText.toLowerCase()))
@@ -270,11 +307,17 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
 
                 return (
                   <ListItem key={model.id}>
-                    <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
-                      <Avatar src={getModelLogo(model.id)} style={{ width: 26, height: 26 }}>
+                    <HStack alignItems="flex-start" gap={10} style={{ flex: 1 }}>
+                      <Avatar
+                        src={getModelLogo(model.id)}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          marginTop: modelHasTags(model) ? '2px' : '0'
+                        }}>
                         {model?.name?.[0]?.toUpperCase()}
                       </Avatar>
-                      <ListItemName>
+                      <ListItemName className={modelHasTags(model) ? 'has-tags' : 'no-tags'}>
                         <Tooltip
                           styles={{
                             root: {
@@ -294,7 +337,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                         <ModelTagsWithLabel model={model} size={11} />
                       </ListItemName>
                     </HStack>
-                    <Flex gap={4} align="center">
+                    <Flex gap={4} align="center" style={{ alignSelf: 'center' }}>
                       {renderLatencyText(modelStatus)}
                       {renderStatusIndicator(modelStatus)}
                       <Button
@@ -355,29 +398,43 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
 const ListItem = styled.div`
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   color: var(--color-text);
   font-size: 14px;
   line-height: 1;
+  min-height: 36px;
+  padding: 4px 0;
 `
 
 const ListItemName = styled.div`
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   color: var(--color-text);
   font-size: 14px;
   line-height: 1;
   font-weight: 600;
+
+  &.no-tags {
+    justify-content: center;
+    height: 100%;
+    min-height: 28px;
+  }
+
+  &.no-tags span {
+    line-height: 28px;
+  }
+
   span {
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-word;
     cursor: help;
     font-family: 'Ubuntu';
-    line-height: 30px;
+    line-height: 1.3;
     font-size: 14px;
   }
 `
