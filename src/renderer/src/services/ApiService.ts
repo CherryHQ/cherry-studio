@@ -8,8 +8,18 @@ import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import { Assistant, MCPTool, Message, Model, Provider, Suggestion } from '@renderer/types'
+import {
+  Assistant,
+  KnowledgeReference,
+  MCPTool,
+  Message,
+  Model,
+  Provider,
+  Suggestion,
+  WebSearchResponse
+} from '@renderer/types'
 import { formatMessageError, isAbortError } from '@renderer/utils/error'
+import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { withGenerateImage } from '@renderer/utils/formats'
 import {
   cleanLinkCommas,
@@ -25,13 +35,13 @@ import { cloneDeep, findLast, isEmpty } from 'lodash'
 import AiProvider from '../providers/AiProvider'
 import {
   getAssistantProvider,
-  getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
   getTopNamingModel,
   getTranslateModel
 } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
+import { processKnowledgeSearch } from './KnowledgeService'
 import { filterContextMessages, filterMessages, filterUsefulMessages } from './MessagesService'
 import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
@@ -51,67 +61,108 @@ export async function fetchChatCompletion({
   const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
 
+  const lastUserMessage = findLast(messages, (m) => m.role === 'user')
+  const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
+  const hasKnowledgeBase = !isEmpty(lastUserMessage?.knowledgeBaseIds)
+  if (!lastUserMessage) {
+    return
+  }
+
+  // 网络搜索/知识库 关键词提取
+  const extract = async () => {
+    const summaryAssistant = {
+      ...assistant,
+      prompt: SEARCH_SUMMARY_PROMPT
+    }
+    const keywords = await fetchSearchSummary({
+      messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
+      assistant: summaryAssistant
+    })
+    try {
+      return extractInfoFromXML(keywords || '')
+    } catch (e: any) {
+      console.error('extract error', e)
+      return {
+        websearch: {
+          question: [lastUserMessage.content]
+        },
+        knowledge: {
+          question: [lastUserMessage.content]
+        }
+      } as ExtractResults
+    }
+  }
+  let extractResults: ExtractResults
+  if (assistant.enableWebSearch || hasKnowledgeBase) {
+    extractResults = await extract()
+  }
+
+  const searchTheWeb = async () => {
+    // 检查是否需要进行网络搜索
+    const shouldSearch =
+      extractResults?.websearch &&
+      WebSearchService.isWebSearchEnabled() &&
+      assistant.enableWebSearch &&
+      assistant.model &&
+      extractResults.websearch.question[0] !== 'not_needed'
+
+    if (!shouldSearch) return
+
+    onResponse({ ...message, status: 'searching' })
+    // 检查是否使用OpenAI的网络搜索
+    const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model!)
+    if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model!)) return
+
+    try {
+      const webSearchResponse: WebSearchResponse = await WebSearchService.processWebsearch(
+        webSearchProvider,
+        extractResults
+      )
+      // console.log('webSearchResponse', webSearchResponse)
+      // 处理搜索结果
+      message.metadata = {
+        ...message.metadata,
+        webSearch: webSearchResponse
+      }
+
+      window.keyv.set(`web-search-${lastUserMessage?.id}`, webSearchResponse)
+    } catch (error) {
+      console.error('Web search failed:', error)
+    }
+  }
+
+  // --- 知识库搜索 ---
+  const searchKnowledgeBase = async () => {
+    const shouldSearch =
+      hasKnowledgeBase && extractResults.knowledge && extractResults.knowledge.question[0] !== 'not_needed'
+
+    if (!shouldSearch) return
+
+    onResponse({ ...message, status: 'searching' })
+    try {
+      const knowledgeReferences: KnowledgeReference[] = await processKnowledgeSearch(
+        extractResults,
+        lastUserMessage.knowledgeBaseIds
+      )
+      console.log('knowledgeReferences', knowledgeReferences)
+      // 处理搜索结果
+      message.metadata = {
+        ...message.metadata,
+        knowledge: knowledgeReferences
+      }
+      window.keyv.set(`knowledge-search-${lastUserMessage?.id}`, knowledgeReferences)
+    } catch (error) {
+      console.error('Knowledge base search failed:', error)
+      window.keyv.set(`knowledge-search-${lastUserMessage?.id}`, [])
+    }
+  }
+
   try {
     let _messages: Message[] = []
     let isFirstChunk = true
-    let query = ''
 
-    // Search web
-    if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
-      const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
-      if (isEmpty(webSearchParams) && !isOpenAIWebSearch(assistant.model)) {
-        const lastMessage = findLast(messages, (m) => m.role === 'user')
-        const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
-        const hasKnowledgeBase = !isEmpty(lastMessage?.knowledgeBaseIds)
+    await Promise.all([searchTheWeb(), searchKnowledgeBase()])
 
-        if (lastMessage) {
-          if (hasKnowledgeBase) {
-            window.message.info({
-              content: i18n.t('message.ignore.knowledge.base'),
-              key: 'knowledge-base-no-match-info'
-            })
-          }
-
-          // 更新消息状态为搜索中
-          onResponse({ ...message, status: 'searching' })
-
-          try {
-            // 等待关键词生成完成
-            const searchSummaryAssistant = getDefaultAssistant()
-            searchSummaryAssistant.model = assistant.model || getDefaultModel()
-            searchSummaryAssistant.prompt = SEARCH_SUMMARY_PROMPT
-
-            // 如果启用搜索增强模式，则使用搜索增强模式
-            if (WebSearchService.isEnhanceModeEnabled()) {
-              const keywords = await fetchSearchSummary({
-                messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
-                assistant: searchSummaryAssistant
-              })
-              if (keywords) {
-                query = keywords
-              }
-            } else {
-              query = lastMessage.content
-            }
-
-            // 等待搜索完成
-            const webSearch = await WebSearchService.search(webSearchProvider, query)
-
-            // 处理搜索结果
-            message.metadata = {
-              ...message.metadata,
-              webSearch: webSearch
-            }
-
-            window.keyv.set(`web-search-${lastMessage?.id}`, webSearch)
-          } catch (error) {
-            console.error('Web search failed:', error)
-          }
-        }
-      }
-    }
-
-    const lastUserMessage = findLast(messages, (m) => m.role === 'user')
     // Get MCP tools
     const mcpTools: MCPTool[] = []
     const enabledMCPs = lastUserMessage?.enabledMCPs
@@ -260,6 +311,7 @@ export async function fetchChatCompletion({
     }
   }
 
+  // console.log('message', message)
   // Emit chat completion event
   EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
   onResponse(message)

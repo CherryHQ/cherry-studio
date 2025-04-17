@@ -1,13 +1,16 @@
 import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPServer, MCPTool } from '@renderer/types'
-import { Button, Flex, Form, Input, Radio, Switch } from 'antd'
+import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import { Button, Flex, Form, Input, Radio, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
+import MCPPromptsSection from './McpPrompt'
+import MCPResourcesSection from './McpResource'
 import MCPToolsSection from './McpTool'
 
 interface Props {
@@ -24,6 +27,7 @@ interface MCPFormValues {
   args?: string
   env?: string
   isActive: boolean
+  headers?: string
 }
 
 interface Registry {
@@ -40,6 +44,8 @@ const PipRegistry: Registry[] = [
   { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
+type TabKey = 'settings' | 'tools' | 'prompts' | 'resources'
+
 const McpSettings: React.FC<Props> = ({ server }) => {
   const { t } = useTranslation()
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
@@ -48,10 +54,15 @@ const McpSettings: React.FC<Props> = ({ server }) => {
   const [loading, setLoading] = useState(false)
   const [isFormChanged, setIsFormChanged] = useState(false)
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<TabKey>('settings')
 
   const [tools, setTools] = useState<MCPTool[]>([])
+  const [prompts, setPrompts] = useState<MCPPrompt[]>([])
+  const [resources, setResources] = useState<MCPResource[]>([])
   const [isShowRegistry, setIsShowRegistry] = useState(false)
   const [registry, setRegistry] = useState<Registry[]>()
+
+  const navigate = useNavigate()
 
   useEffect(() => {
     const serverType: MCPServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
@@ -91,6 +102,11 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         ? Object.entries(server.env)
             .map(([key, value]) => `${key}=${value}`)
             .join('\n')
+        : '',
+      headers: server.headers
+        ? Object.entries(server.headers)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('\n')
         : ''
     })
   }, [server, form])
@@ -109,12 +125,47 @@ const McpSettings: React.FC<Props> = ({ server }) => {
         setLoadingServer(server.id)
         const localTools = await window.api.mcp.listTools(server)
         setTools(localTools)
-        // window.message.success(t('settings.mcp.toolsLoaded'))
       } catch (error) {
         window.message.error({
-          content: t('settings.mcp.toolsLoadError') + formatError(error),
+          content: t('settings.mcp.tools.loadError') + ' ' + formatError(error),
           key: 'mcp-tools-error'
         })
+      } finally {
+        setLoadingServer(null)
+      }
+    }
+  }
+
+  const fetchPrompts = async () => {
+    if (server.isActive) {
+      try {
+        setLoadingServer(server.id)
+        const localPrompts = await window.api.mcp.listPrompts(server)
+        setPrompts(localPrompts)
+      } catch (error) {
+        window.message.error({
+          content: t('settings.mcp.prompts.loadError') + ' ' + formatError(error),
+          key: 'mcp-prompts-error'
+        })
+        setPrompts([])
+      } finally {
+        setLoadingServer(null)
+      }
+    }
+  }
+
+  const fetchResources = async () => {
+    if (server.isActive) {
+      try {
+        setLoadingServer(server.id)
+        const localResources = await window.api.mcp.listResources(server)
+        setResources(localResources)
+      } catch (error) {
+        window.message.error({
+          content: t('settings.mcp.resources.loadError') + ' ' + formatError(error),
+          key: 'mcp-resources-error'
+        })
+        setResources([])
       } finally {
         setLoadingServer(null)
       }
@@ -124,6 +175,8 @@ const McpSettings: React.FC<Props> = ({ server }) => {
   useEffect(() => {
     if (server.isActive) {
       fetchTools()
+      fetchPrompts()
+      fetchResources()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, server.isActive])
@@ -169,6 +222,20 @@ const McpSettings: React.FC<Props> = ({ server }) => {
           }
         })
         mcpServer.env = env
+      }
+
+      if (values.headers) {
+        const headers: Record<string, string> = {}
+        values.headers.split('\n').forEach((line) => {
+          if (line.trim()) {
+            const [key, ...chunks] = line.split(':')
+            const value = chunks.join(':')
+            if (key && value) {
+              headers[key.trim()] = value.trim()
+            }
+          }
+        })
+        mcpServer.headers = headers
       }
 
       try {
@@ -234,6 +301,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
             window.message.success({ content: t('settings.mcp.deleteSuccess'), key: 'mcp-list' })
+            navigate('/settings/mcp')
           }
         })
       } catch (error: any) {
@@ -256,6 +324,12 @@ const McpSettings: React.FC<Props> = ({ server }) => {
   }
 
   const onToggleActive = async (active: boolean) => {
+
+    if (isFormChanged && active) {
+      await onSave()
+      return
+    }
+
     await form.validateFields()
     setLoadingServer(server.id)
     const oldActiveState = server.isActive
@@ -264,6 +338,12 @@ const McpSettings: React.FC<Props> = ({ server }) => {
       if (active) {
         const localTools = await window.api.mcp.listTools(server)
         setTools(localTools)
+
+        const localPrompts = await window.api.mcp.listPrompts(server)
+        setPrompts(localPrompts)
+
+        const localResources = await window.api.mcp.listResources(server)
+        setResources(localResources)
       } else {
         await window.api.mcp.stopServer(server)
       }
@@ -309,35 +389,16 @@ const McpSettings: React.FC<Props> = ({ server }) => {
     [server, updateMCPServer]
   )
 
-  return (
-    <SettingContainer>
-      <SettingGroup style={{ marginBottom: 0 }}>
-        <SettingTitle>
-          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-            <ServerName className="text-nowrap">{server?.name}</ServerName>
-            {!(server.type === 'inMemory') && (
-              <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
-            )}
-          </Flex>
-          <Flex align="center" gap={16}>
-            <Switch
-              value={server.isActive}
-              key={server.id}
-              loading={loadingServer === server.id}
-              onChange={onToggleActive}
-            />
-            <Button type="primary" icon={<SaveOutlined />} onClick={onSave} loading={loading} disabled={!isFormChanged}>
-              {t('common.save')}
-            </Button>
-          </Flex>
-        </SettingTitle>
-        <SettingDivider />
+  const tabs = [
+    {
+      key: 'settings',
+      label: t('settings.mcp.tabs.general'),
+      children: (
         <Form
           form={form}
           layout="vertical"
           onValuesChange={() => setIsFormChanged(true)}
           style={{
-            // height: 'calc(100vh - var(--navbar-height) - 315px)',
             overflowY: 'auto',
             width: 'calc(100% + 10px)',
             paddingRight: '10px'
@@ -365,22 +426,40 @@ const McpSettings: React.FC<Props> = ({ server }) => {
             </Form.Item>
           )}
           {serverType === 'sse' && (
-            <Form.Item
-              name="baseUrl"
-              label={t('settings.mcp.url')}
-              rules={[{ required: serverType === 'sse', message: '' }]}
-              tooltip={t('settings.mcp.baseUrlTooltip')}>
-              <Input placeholder="http://localhost:3000/sse" />
-            </Form.Item>
+            <>
+              <Form.Item
+                name="baseUrl"
+                label={t('settings.mcp.url')}
+                rules={[{ required: serverType === 'sse', message: '' }]}
+                tooltip={t('settings.mcp.baseUrlTooltip')}>
+                <Input placeholder="http://localhost:3000/sse" />
+              </Form.Item>
+              <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
+                <TextArea
+                  rows={3}
+                  placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Form.Item>
+            </>
           )}
           {serverType === 'streamableHttp' && (
-            <Form.Item
-              name="baseUrl"
-              label={t('settings.mcp.url')}
-              rules={[{ required: serverType === 'streamableHttp', message: '' }]}
-              tooltip={t('settings.mcp.baseUrlTooltip')}>
-              <Input placeholder="http://localhost:3000/mcp" />
-            </Form.Item>
+            <>
+              <Form.Item
+                name="baseUrl"
+                label={t('settings.mcp.url')}
+                rules={[{ required: serverType === 'streamableHttp', message: '' }]}
+                tooltip={t('settings.mcp.baseUrlTooltip')}>
+                <Input placeholder="http://localhost:3000/mcp" />
+              </Form.Item>
+              <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
+                <TextArea
+                  rows={3}
+                  placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Form.Item>
+            </>
           )}
           {serverType === 'stdio' && (
             <>
@@ -440,7 +519,63 @@ const McpSettings: React.FC<Props> = ({ server }) => {
             </>
           )}
         </Form>
-        {server.isActive && <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />}
+      )
+    }
+  ]
+
+  if (server.isActive) {
+    tabs.push(
+      {
+        key: 'tools',
+        label: t('settings.mcp.tabs.tools'),
+        children: <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />
+      },
+      {
+        key: 'prompts',
+        label: t('settings.mcp.tabs.prompts'),
+        children: <MCPPromptsSection prompts={prompts} />
+      },
+      {
+        key: 'resources',
+        label: t('settings.mcp.tabs.resources'),
+        children: <MCPResourcesSection resources={resources} />
+      }
+    )
+  }
+
+  return (
+    <SettingContainer>
+      <SettingGroup style={{ marginBottom: 0 }}>
+        <SettingTitle>
+          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
+            <ServerName className="text-nowrap">{server?.name}</ServerName>
+            <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
+          </Flex>
+          <Flex align="center" gap={16}>
+            <Switch
+              value={server.isActive}
+              key={server.id}
+              loading={loadingServer === server.id}
+              onChange={onToggleActive}
+            />
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              onClick={onSave}
+              loading={loading}
+              disabled={!isFormChanged || activeTab !== 'settings'}>
+              {t('common.save')}
+            </Button>
+          </Flex>
+        </SettingTitle>
+        <SettingDivider />
+
+        <Tabs
+          defaultActiveKey="settings"
+          items={tabs}
+          onChange={(key) => setActiveTab(key as TabKey)}
+          style={{ marginTop: 8 }}
+        />
       </SettingGroup>
     </SettingContainer>
   )

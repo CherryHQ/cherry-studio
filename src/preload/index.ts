@@ -41,7 +41,9 @@ const api = {
     checkConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
     createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options)
+      ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
+    deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),
@@ -130,8 +132,14 @@ const api = {
     restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
     stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
     listTools: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListTools, server),
-    callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) =>
+    callTool: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_CallTool, { server, name, args }),
+    listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
+    getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
+      ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
+    listResources: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
+    getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
+      ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo)
   },
   shell: {
@@ -169,6 +177,11 @@ const api = {
     decryptToken: (token: string) => ipcRenderer.invoke(IpcChannel.Nutstore_DecryptToken, token),
     getDirectoryContents: (token: string, path: string) =>
       ipcRenderer.invoke(IpcChannel.Nutstore_GetDirectoryContents, token, path)
+  },
+  searchService: {
+    openSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Open, uid),
+    closeSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Close, uid),
+    openUrlInSearchWindow: (uid: string, url: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_OpenUrl, uid, url)
   }
 }
 

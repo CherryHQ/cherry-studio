@@ -1,6 +1,7 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
+  isGrokReasoningModel,
   isHunyuanSearchModel,
   isOpenAIoSeries,
   isOpenAIWebSearch,
@@ -31,7 +32,7 @@ import {
 } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
-import { parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -243,6 +244,12 @@ export default class OpenAIProvider extends BaseProvider {
         }
       }
 
+      if (isGrokReasoningModel(model)) {
+        return {
+          reasoning_effort: assistant?.settings?.reasoning_effort
+        }
+      }
+
       if (isOpenAIoSeries(model)) {
         return {
           reasoning_effort: assistant?.settings?.reasoning_effort
@@ -286,7 +293,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns True if the model is an OpenAI reasoning model, false otherwise
    */
   private isOpenAIReasoning(model: Model) {
-    return model.id.startsWith('o1') || model.id.startsWith('o3')
+    return model.id.startsWith('o1') || model.id.startsWith('o3') || model.id.startsWith('o4')
   }
 
   /**
@@ -325,12 +332,7 @@ export default class OpenAIProvider extends BaseProvider {
       userMessages.push(await this.getMessageParam(message, model))
     }
 
-    const isOpenAIReasoning = this.isOpenAIReasoning(model)
-
     const isSupportStreamOutput = () => {
-      if (isOpenAIReasoning) {
-        return false
-      }
       return streamOutput
     }
 
@@ -371,29 +373,39 @@ export default class OpenAIProvider extends BaseProvider {
     let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
+
     const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
     await this.checkIsCopilot()
 
-    const reqMessages: ChatCompletionMessageParam[] = [systemMessage, ...userMessages].filter(
-      Boolean
-    ) as ChatCompletionMessageParam[]
+    //当 systemMessage 内容为空时不发送 systemMessage
+    let reqMessages: ChatCompletionMessageParam[]
+    if (!systemMessage.content) {
+      reqMessages = [...userMessages]
+    } else {
+      reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
+    }
 
     const toolResponses: MCPToolResponse[] = []
     let firstChunk = true
 
     const processToolUses = async (content: string, idx: number) => {
-      const toolResults = await parseAndCallTools(content, toolResponses, onChunk, idx, mcpTools)
+      const toolResults = await parseAndCallTools(
+        content,
+        toolResponses,
+        onChunk,
+        idx,
+        mcpToolCallResponseToOpenAIMessage,
+        mcpTools,
+        isVisionModel(model)
+      )
 
       if (toolResults.length > 0) {
         reqMessages.push({
           role: 'assistant',
           content: content
         } as ChatCompletionMessageParam)
-        reqMessages.push({
-          role: 'user',
-          content: toolResults.join('\n')
-        } as ChatCompletionMessageParam)
+        toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
 
         const newStream = await this.sdk.chat.completions
           // @ts-ignore key is not typed
@@ -492,7 +504,7 @@ export default class OpenAIProvider extends BaseProvider {
 
       await processToolUses(content, idx)
     }
-
+    // console.log('reqMessages', reqMessages)
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(

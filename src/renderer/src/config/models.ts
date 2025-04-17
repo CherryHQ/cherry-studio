@@ -158,10 +158,13 @@ const visionAllowedModels = [
   'grok-vision-beta',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
+  'gpt-4.1(?:-[\\w-]+)?',
   'gpt-4o(?:-[\\w-]+)?',
   'gpt-4.5(?:-[\\w-]+)',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
+  'o3(?:-[\\w-]+)?',
+  'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)'
@@ -173,6 +176,7 @@ const visionExcludedModels = [
   'gpt-4-32k',
   'gpt-4-\\d+',
   'o1-mini',
+  'o3-mini',
   'o1-preview',
   'AIDC-AI/Marco-o1'
 ]
@@ -186,7 +190,7 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-3-mini(?:-[\w-]+)?\b.*)$/i
 
 // Embedding models
 export const EMBEDDING_REGEX =
@@ -210,7 +214,8 @@ export const FUNCTION_CALLING_MODELS = [
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
-  'gemini(?:-[\\w-]+)?' // 提前排除了gemini的嵌入模型
+  'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
+  'grok-3(?:-[\\w-]+)?'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -234,6 +239,10 @@ export function isFunctionCallingModel(model: Model): boolean {
     return false
   }
 
+  if (model.provider === 'qiniu') {
+    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
+  }
+
   if (['deepseek', 'anthropic'].includes(model.provider)) {
     return true
   }
@@ -253,8 +262,9 @@ export function getModelLogo(modelId: string) {
     jina: isLight ? JinaModelLogo : JinaModelLogoDark,
     abab: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     minimax: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
-    o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     o1: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
+    o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
+    o4: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
@@ -493,12 +503,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'o3',
       name: 'DeepSeek V3',
       group: 'DeepSeek'
-    },
-    {
-      id: 'text-embedding-3-small',
-      provider: 'o3',
-      name: 'text-embedding-3-small',
-      group: '嵌入模型'
     },
     {
       id: 'text-embedding-3-small',
@@ -1073,16 +1077,22 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   zhipu: [
     {
-      id: 'glm-zero-preview',
+      id: 'glm-z1-air',
       provider: 'zhipu',
-      name: 'GLM-Zero-Preview',
-      group: 'GLM-Zero'
+      name: 'GLM-Z1-AIR',
+      group: 'GLM-Z1'
     },
     {
-      id: 'glm-4-0520',
+      id: 'glm-z1-airx',
       provider: 'zhipu',
-      name: 'GLM-4-0520',
-      group: 'GLM-4'
+      name: 'GLM-Z1-AIRX',
+      group: 'GLM-Z1'
+    },
+    {
+      id: 'glm-z1-flash',
+      provider: 'zhipu',
+      name: 'GLM-Z1-FLASH',
+      group: 'GLM-Z1'
     },
     {
       id: 'glm-4-long',
@@ -1097,9 +1107,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4'
     },
     {
-      id: 'glm-4-air',
+      id: 'glm-4-air-250414',
       provider: 'zhipu',
-      name: 'GLM-4-Air',
+      name: 'GLM-4-Air-250414',
       group: 'GLM-4'
     },
     {
@@ -1109,9 +1119,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4'
     },
     {
-      id: 'glm-4-flash',
+      id: 'glm-4-flash-250414',
       provider: 'zhipu',
-      name: 'GLM-4-Flash',
+      name: 'GLM-4-Flash-250414',
       group: 'GLM-4'
     },
     {
@@ -1133,9 +1143,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4v'
     },
     {
-      id: 'glm-4v-plus',
+      id: 'glm-4v-plus-0111',
       provider: 'zhipu',
-      name: 'GLM-4V-Plus',
+      name: 'GLM-4V-Plus-0111',
       group: 'GLM-4v'
     },
     {
@@ -2015,7 +2025,56 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Voyage Rerank V2'
     }
   ],
-  qiniu: []
+  qiniu: [
+    {
+      id: 'deepseek-r1',
+      provider: 'qiniu',
+      name: 'DeepSeek R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-search',
+      provider: 'qiniu',
+      name: 'DeepSeek R1 Search',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1-32b',
+      provider: 'qiniu',
+      name: 'DeepSeek R1 32B',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3',
+      provider: 'qiniu',
+      name: 'DeepSeek V3',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3-search',
+      provider: 'qiniu',
+      name: 'DeepSeek V3 Search',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3-tool',
+      provider: 'qiniu',
+      name: 'DeepSeek V3 Tool',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'qwq-32b',
+      provider: 'qiniu',
+      name: 'QWQ 32B',
+      group: 'Qwen'
+    },
+    {
+      id: 'qwen2.5-72b-instruct',
+      provider: 'qiniu',
+      name: 'Qwen2.5 72B Instruct',
+      group: 'Qwen'
+    }
+  ]
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -2149,18 +2208,43 @@ export function isVisionModel(model: Model): boolean {
 }
 
 export function isOpenAIoSeries(model: Model): boolean {
-  return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
+  return model.id.includes('o1') || model.id.includes('o3') || model.id.includes('o4')
 }
+
 export function isOpenAIWebSearch(model: Model): boolean {
   return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
 }
 
-export function isSupportedResoningEffortModel(model?: Model): boolean {
+export function isSupportedReasoningEffortModel(model?: Model): boolean {
   if (!model) {
     return false
   }
 
-  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
+  if (
+    model.id.includes('claude-3-7-sonnet') ||
+    model.id.includes('claude-3.7-sonnet') ||
+    isOpenAIoSeries(model) ||
+    isGrokReasoningModel(model)
+  ) {
+    return true
+  }
+
+  return false
+}
+
+export function isGrokModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return model.id.includes('grok')
+}
+
+export function isGrokReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (model.id.includes('grok-3-mini')) {
     return true
   }
 
@@ -2184,6 +2268,10 @@ export function isReasoningModel(model?: Model): boolean {
     return true
   }
 
+  if (model.id.includes('glm-z1')) {
+    return true
+  }
+
   return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
 }
 
@@ -2198,6 +2286,12 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
 export function isWebSearchModel(model: Model): boolean {
   if (!model) {
     return false
+  }
+
+  if (model.type) {
+    if (model.type.includes('web_search')) {
+      return true
+    }
   }
 
   const provider = getProviderByModel(model)
@@ -2236,7 +2330,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'dashscope') {
-    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus']
+    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
     // matches id like qwen-max-0919, qwen-max-latest
     return models.some((i) => model.id.startsWith(i))
   }
@@ -2245,7 +2339,7 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
-  return model.type?.includes('web_search') || false
+  return false
 }
 
 export function isGenerateImageModel(model: Model): boolean {
@@ -2340,4 +2434,28 @@ export function isHunyuanSearchModel(model?: Model): boolean {
   }
 
   return false
+}
+
+/**
+ * 按 Qwen 系列模型分组
+ * @param models 模型列表
+ * @returns 分组后的模型
+ */
+export function groupQwenModels(models: Model[]): Record<string, Model[]> {
+  return models.reduce(
+    (groups, model) => {
+      // 匹配 Qwen 系列模型的前缀
+      const prefixMatch = model.id.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
+      // 匹配 qwen2.5、qwen2、qwen-7b、qwen-max、qwen-coder 等
+      const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = []
+      }
+      groups[groupKey].push(model)
+
+      return groups
+    },
+    {} as Record<string, Model[]>
+  )
 }

@@ -14,6 +14,7 @@ import { RootState } from '.'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
+import { defaultWebSearchProviders } from './websearch'
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
@@ -48,6 +49,17 @@ function addProvider(state: RootState, id: string) {
     const _provider = INITIAL_PROVIDERS.find((p) => p.id === id)
     if (_provider) {
       state.llm.providers.push(_provider)
+    }
+  }
+}
+
+function addWebSearchProvider(state: RootState, id: string) {
+  if (state.websearch && state.websearch.providers) {
+    if (!state.websearch.providers.find((p) => p.id === id)) {
+      const provider = defaultWebSearchProviders.find((p) => p.id === id)
+      if (provider) {
+        state.websearch.providers.push(provider)
+      }
     }
   }
 }
@@ -985,21 +997,9 @@ const migrateConfig = {
   },
   '77': (state: RootState) => {
     try {
+      addWebSearchProvider(state, 'searxng')
+      addWebSearchProvider(state, 'exa')
       if (state.websearch) {
-        if (!state.websearch.providers.find((p) => p.id === 'searxng')) {
-          state.websearch.providers.push(
-            {
-              id: 'searxng',
-              name: 'Searxng',
-              apiHost: ''
-            },
-            {
-              id: 'exa',
-              name: 'Exa',
-              apiKey: ''
-            }
-          )
-        }
         state.websearch.providers.forEach((p) => {
           // @ts-ignore eslint-disable-next-line
           delete p.enabled
@@ -1188,6 +1188,50 @@ const migrateConfig = {
   '94': (state: RootState) => {
     try {
       state.settings.enableQuickPanelTriggers = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '95': (state: RootState) => {
+    try {
+      addWebSearchProvider(state, 'local-google')
+      addWebSearchProvider(state, 'local-bing')
+      addWebSearchProvider(state, 'local-baidu')
+
+      if (state.websearch) {
+        if (isEmpty(state.websearch.subscribeSources)) {
+          state.websearch.subscribeSources = []
+        }
+      }
+
+      const qiniuProvider = state.llm.providers.find((provider) => provider.id === 'qiniu')
+      if (qiniuProvider && isEmpty(qiniuProvider.models)) {
+        qiniuProvider.models = SYSTEM_MODELS.qiniu
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '96': (state: RootState) => {
+    try {
+      // @ts-ignore eslint-disable-next-line
+      state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.showAssistantIcon
+      state.settings.enableBackspaceDeleteModel = true
+      if (state.websearch) {
+        state.websearch.enhanceMode = true
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '97': (state: RootState) => {
+    try {
+      addMiniApp(state, 'zai')
       return state
     } catch (error) {
       return state

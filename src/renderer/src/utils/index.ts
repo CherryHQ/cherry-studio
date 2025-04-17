@@ -501,4 +501,30 @@ export function hasObjectKey(obj: any, key: string) {
   return Object.keys(obj).includes(key)
 }
 
+/**
+ * 从npm readme中提取 npx mcp config
+ * @param readme readme字符串
+ * @returns mcp config sample
+ */
+export function getMcpConfigSampleFromReadme(readme: string) {
+  if (readme) {
+    // 使用正则表达式匹配 mcpServers 对象内容
+    const regex = /"mcpServers"\s*:\s*({(?:[^{}]*|{(?:[^{}]*|{[^{}]*})*})*})/
+    const match = readme.match(regex)
+    console.log('match', match)
+    if (match && match[1]) {
+      // 添加缺失的闭合括号检测
+      try {
+        let orgSample = JSON.parse(match[1])
+        orgSample = orgSample[Object.keys(orgSample)[0] ?? '']
+        if (orgSample.command === 'npx') {
+          return orgSample
+        }
+      } catch (e) {
+        console.log(e)
+      }
+    }
+  }
+}
+
 export { classNames }
