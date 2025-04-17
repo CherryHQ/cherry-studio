@@ -1,4 +1,4 @@
-import react from '@vitejs/plugin-react'
+import viteReact from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -6,7 +6,7 @@ import { visualizer } from 'rollup-plugin-visualizer'
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
 }
-
+// const viteReact = await import('@vitejs/plugin-react')
 export default defineConfig({
   main: {
     plugins: [
@@ -42,11 +42,16 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@shared': resolve('packages/shared')
+      }
+    }
   },
   renderer: {
     plugins: [
-      react({
+      viteReact({
         babel: {
           plugins: [
             [
@@ -70,7 +75,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js', 'chunk-ALDIEZMG.js', 'chunk-4X6ZJEXY.js']
+      exclude: []
     }
   }
 })

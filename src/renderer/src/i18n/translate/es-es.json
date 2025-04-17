@@ -130,7 +130,10 @@
         "first": "Ya es el primer mensaje",
         "last": "Ya es el último mensaje",
         "next": "Siguiente mensaje",
-        "prev": "Mensaje anterior"
+        "prev": "Mensaje anterior",
+        "top": "Volver arriba",
+        "bottom": "Volver abajo",
+        "close": "Cerrar"
       },
       "resend": "Reenviar",
       "save": "Guardar",
@@ -640,7 +643,6 @@
       "gitee-ai": "Gitee IA",
       "github": "GitHub Modelos",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "Tencent Hùnyuán",
@@ -910,7 +912,6 @@
         "noServers": "No se han configurado servidores",
         "npx_list": {
           "actions": "Acciones",
-          "desc": "Buscar y agregar paquetes npm como servicios MCP",
           "description": "Descripción",
           "no_packages": "No se encontraron paquetes",
           "npm": "NPM",
@@ -919,7 +920,6 @@
           "scope_required": "Por favor ingrese el ámbito npm",
           "search": "Buscar",
           "search_error": "Error de búsqueda",
-          "title": "Lista de paquetes NPX",
           "usage": "Uso",
           "version": "Versión"
         },

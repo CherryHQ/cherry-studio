@@ -14,7 +14,7 @@
 
 Cherry Studio は、複数の LLM プロバイダーをサポートするデスクトップクライアントで、Windows、Mac、Linux で利用可能です。
 
-👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(472019156)](https://qm.qq.com/q/CbZiBWwCXu)
+👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
 
 ❤️ Cherry Studio をお気に入りにしましたか？小さな星をつけてください 🌟 または [スポンサー](sponsor.md) をして開発をサポートしてください！❤️
 
@@ -85,8 +85,11 @@ https://docs.cherry-ai.com
 
 # 🌈 テーマ
 
-テーマギャラリー: https://cherrycss.com  
-Aero テーマ: https://github.com/hakadao/CherryStudio-Aero
+- テーマギャラリー: https://cherrycss.com
+- Aero テーマ: https://github.com/hakadao/CherryStudio-Aero
+- PaperMaterial テーマ: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
+- Claude テーマ: https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
+- メープルネオンテーマ: https://github.com/BoningtonChen/CherryStudio_themes
 
 より多くのテーマのPRを歓迎します
 

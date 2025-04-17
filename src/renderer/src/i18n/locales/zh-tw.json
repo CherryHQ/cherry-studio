@@ -43,6 +43,7 @@
       "edit.title": "編輯助手",
       "save.success": "儲存成功",
       "save.title": "儲存到智慧代理人",
+      "icon.type": "助手圖示",
       "search": "搜尋助手...",
       "settings.mcp": "MCP 伺服器",
       "settings.mcp.enableFirst": "請先在 MCP 設定中啟用此伺服器",
@@ -59,7 +60,7 @@
       "settings.reasoning_effort.low": "短",
       "settings.reasoning_effort.medium": "中",
       "settings.reasoning_effort.off": "關",
-      "settings.reasoning_effort.tip": "僅支援 OpenAI o-series 和 Anthropic 推理模型",
+      "settings.reasoning_effort.tip": "僅支援 OpenAI o-series、Anthropic 和 Grok 推理模型",
       "settings.more": "助手設定"
     },
     "auth": {
@@ -150,12 +151,23 @@
         "history": "聊天歷史",
         "last": "已經是最後一條訊息",
         "next": "下一條訊息",
-        "prev": "上一條訊息"
+        "prev": "上一條訊息",
+        "top": "回到頂部",
+        "bottom": "回到底部",
+        "close": "關閉"
       },
       "resend": "重新傳送",
       "save": "儲存",
       "settings.code_collapsible": "程式碼區塊可折疊",
       "settings.code_wrappable": "程式碼區塊可自動換行",
+      "settings.code_cacheable": "程式碼區塊快取",
+      "settings.code_cacheable.tip": "快取程式碼區塊可以減少長程式碼區塊的渲染時間，但會增加記憶體使用量",
+      "settings.code_cache_max_size": "快取上限",
+      "settings.code_cache_max_size.tip": "允許快取的字元數上限（千字符），按照高亮後的程式碼計算。高亮後的程式碼長度相比純文字會長很多。",
+      "settings.code_cache_ttl": "快取期限",
+      "settings.code_cache_ttl.tip": "快取的存活時間（分鐘）",
+      "settings.code_cache_threshold": "快取門檻",
+      "settings.code_cache_threshold.tip": "允許快取的最小程式碼長度（千字符），超過門檻的程式碼區塊才會被快取",
       "settings.context_count": "上下文",
       "settings.context_count.tip": "在上下文中保留的前幾則訊息。",
       "settings.max": "最大",
@@ -185,6 +197,7 @@
       "topics.export.image": "匯出為圖片",
       "topics.export.joplin": "匯出到 Joplin",
       "topics.export.md": "匯出為 Markdown",
+      "topics.export.md.reason": "匯出為 Markdown (包含思考)",
       "topics.export.notion": "匯出到 Notion",
       "topics.export.obsidian": "匯出到 Obsidian",
       "topics.export.obsidian_vault": "保管庫",
@@ -232,7 +245,9 @@
       "topics.export.siyuan": "匯出到思源筆記",
       "topics.export.wait_for_title_naming": "正在生成標題...",
       "topics.export.title_naming_success": "標題生成成功",
-      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題"
+      "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
+      "input.translating": "翻譯中...",
+      "input.upload.upload_from_local": "上傳本地文件..."
     },
     "code_block": {
       "collapse": "折疊",
@@ -263,6 +278,7 @@
       "duplicate": "複製",
       "edit": "編輯",
       "expand": "展開",
+      "collapse": "折疊",
       "footnote": "引用內容",
       "footnotes": "引用",
       "fullscreen": "已進入全螢幕模式，按 F11 結束",
@@ -283,7 +299,13 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
-      "you": "您"
+      "you": "您",
+      "reasoning_content": "已深度思考",
+      "sort": {
+        "pinyin": "按拼音排序",
+        "pinyin.asc": "按拼音升序",
+        "pinyin.desc": "按拼音降序"
+      }
     },
     "docs": {
       "title": "說明文件"
@@ -306,7 +328,7 @@
       "no_api_key": "API 金鑰未設定",
       "provider_disabled": "模型供應商未啟用",
       "render": {
-        "description": "渲染公式失敗，請檢查公式格式是否正確",
+        "description": "消息內容渲染失敗，請檢查消息內容格式是否正確",
         "title": "渲染錯誤"
       },
       "user_message_not_found": "無法找到原始用戶訊息",
@@ -325,7 +347,7 @@
     "files": {
       "actions": "操作",
       "all": "所有檔案",
-      "count": "數量",
+      "count": "個檔案",
       "created_at": "建立時間",
       "delete": "刪除",
       "delete.content": "刪除檔案會刪除檔案在所有訊息中的引用，確定要刪除此檔案嗎？",
@@ -526,7 +548,7 @@
       "restore.failed": "恢復失敗",
       "restore.success": "恢復成功",
       "save.success.title": "儲存成功",
-      "searching": "正在網路上搜尋...",
+      "searching": "正在搜尋...",
       "success.joplin.export": "成功匯出到 Joplin",
       "success.markdown.export.preconf": "成功導出 Markdown 文件到預先設定的路徑",
       "success.markdown.export.specified": "成功導出 Markdown 文件",
@@ -535,7 +557,8 @@
       "switch.disabled": "請等待當前回覆完成",
       "tools": {
         "completed": "已完成",
-        "invoking": "調用中"
+        "invoking": "調用中",
+        "error": "發生錯誤"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
@@ -579,13 +602,17 @@
         "copy_last_message": "按 C 鍵複製",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
-        "esc_close": "關閉視窗"
+        "esc_close": "關閉視窗",
+        "backspace_clear": "按 Backspace 清空"
       },
       "input": {
         "placeholder": {
           "empty": "詢問 {{model}} 取得幫助...",
           "title": "你想對下方文字做什麼"
         }
+      },
+      "tooltip": {
+        "pin": "窗口置頂"
       }
     },
     "models": {
@@ -690,7 +717,6 @@
       "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "騰訊混元",
@@ -719,7 +745,8 @@
       "yi": "零一萬物",
       "zhinao": "360 智腦",
       "zhipu": "智譜 AI",
-      "voyageai": "Voyage AI"
+      "voyageai": "Voyage AI",
+      "qiniu": "七牛雲"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -761,7 +788,10 @@
       "advanced.title": "進階設定",
       "assistant": "預設助手",
       "assistant.model_params": "模型參數",
-      "assistant.show.icon": "顯示模型圖示",
+      "assistant.icon.type": "模型圖示類型",
+      "assistant.icon.type.model": "模型圖示",
+      "assistant.icon.type.emoji": "Emoji 表情",
+      "assistant.icon.type.none": "不顯示",
       "assistant.title": "預設助手",
       "data": {
         "app_data": "應用程式資料",
@@ -779,8 +809,24 @@
           "title": "清除快取"
         },
         "data.title": "資料目錄",
+        "divider.basic": "基礎數據設定",
+        "divider.cloud_storage": "雲備份設定",
+        "divider.export_settings": "匯出設定",
+        "divider.third_party": "第三方連接",
         "hour_interval_one": "{{count}} 小時",
         "hour_interval_other": "{{count}} 小時",
+        "export_menu": {
+          "title": "匯出選單設定",
+          "image": "匯出為圖片",
+          "markdown": "匯出為Markdown",
+          "markdown_reason": "匯出為Markdown（包含思考）",
+          "notion": "匯出到Notion",
+          "yuque": "匯出到語雀",
+          "obsidian": "匯出到Obsidian",
+          "siyuan": "匯出到思源筆記",
+          "joplin": "匯出到Joplin",
+          "docx": "匯出為Word"
+        },
         "joplin": {
           "check": {
             "button": "檢查",
@@ -833,6 +879,25 @@
           "backup.button": "備份到 WebDAV",
           "backup.modal.filename.placeholder": "請輸入備份文件名",
           "backup.modal.title": "備份到 WebDAV",
+          "backup.manager.title": "備份數據管理",
+          "backup.manager.refresh": "刷新",
+          "backup.manager.delete.selected": "刪除選中",
+          "backup.manager.delete.text": "刪除",
+          "backup.manager.restore.text": "恢復",
+          "backup.manager.restore.success": "恢復成功，應用將在幾秒後刷新",
+          "backup.manager.restore.error": "恢復失敗",
+          "backup.manager.delete.confirm.title": "確認刪除",
+          "backup.manager.delete.confirm.single": "確定要刪除備份文件 \"{{fileName}}\" 嗎？此操作不可恢復。",
+          "backup.manager.delete.confirm.multiple": "確定要刪除選中的 {{count}} 個備份文件嗎？此操作不可恢復。",
+          "backup.manager.delete.success.single": "刪除成功",
+          "backup.manager.delete.success.multiple": "成功刪除 {{count}} 個備份文件",
+          "backup.manager.delete.error": "刪除失敗",
+          "backup.manager.fetch.error": "獲取備份文件失敗",
+          "backup.manager.select.files.delete": "請選擇要刪除的備份文件",
+          "backup.manager.columns.fileName": "文件名",
+          "backup.manager.columns.modifiedTime": "修改時間",
+          "backup.manager.columns.size": "大小",
+          "backup.manager.columns.actions": "操作",
           "host": "WebDAV 主機位址",
           "host.placeholder": "http://localhost:8080",
           "hour_interval_one": "{{count}} 小時",
@@ -922,7 +987,9 @@
           "new_folder.button.confirm": "確定",
           "new_folder.button.cancel": "取消",
           "new_folder.button": "新建文件夾"
-        }
+        },
+        "message_title.use_topic_naming.title": "使用話題命名模型為導出的消息創建標題",
+        "message_title.use_topic_naming.help": "此設定會影響所有通過Markdown導出的方式，如Notion、語雀等。"
       },
       "display.assistant.title": "助手設定",
       "display.custom.css": "自訂 CSS",
@@ -989,6 +1056,10 @@
         "argsTooltip": "每個參數佔一行",
         "baseUrlTooltip": "遠端 URL 地址",
         "command": "指令",
+        "sse": "伺服器傳送事件 (sse)",
+        "streamableHttp": "可串流的HTTP (streamableHttp)",
+        "stdio": "標準輸入/輸出 (stdio)",
+        "inMemory": "記憶體",
         "config_description": "設定模型上下文協議伺服器",
         "deleteError": "刪除伺服器失敗",
         "deleteSuccess": "伺服器刪除成功",
@@ -1000,6 +1071,8 @@
         "editServer": "編輯伺服器",
         "env": "環境變數",
         "envTooltip": "格式：KEY=value，每行一個",
+        "headers": "請求標頭",
+        "headersTooltip": "HTTP 請求的自定義標頭",
         "findMore": "更多 MCP",
         "searchNpx": "搜索 MCP",
         "install": "安裝",
@@ -1015,7 +1088,6 @@
         "newServer": "MCP 伺服器",
         "npx_list": {
           "actions": "操作",
-          "desc": "搜索並添加 npm 包作為 MCP 服務",
           "description": "描述",
           "no_packages": "未找到包",
           "npm": "NPM",
@@ -1024,7 +1096,6 @@
           "scope_required": "請輸入 npm 作用域",
           "search": "搜索",
           "search_error": "搜索失敗",
-          "title": "NPX 包列表",
           "usage": "用法",
           "version": "版本"
         },
@@ -1041,16 +1112,44 @@
         "url": "URL",
         "editMcpJson": "編輯 MCP 配置",
         "installHelp": "獲取安裝幫助",
+        "tabs": {
+          "general": "通用",
+          "tools": "工具",
+          "prompts": "提示",
+          "resources": "資源"
+        },
         "tools": {
-          "inputSchema": "輸入參數",
+          "inputSchema": "輸入模式",
           "availableTools": "可用工具",
-          "noToolsAvailable": "沒有可用工具"
+          "noToolsAvailable": "無可用工具",
+          "loadError": "獲取工具失敗"
+        },
+        "prompts": {
+          "availablePrompts": "可用提示",
+          "noPromptsAvailable": "無可用提示",
+          "arguments": "參數",
+          "requiredField": "必填欄位",
+          "genericError": "獲取提示錯誤",
+          "loadError": "獲取提示失敗"
+        },
+        "resources": {
+          "noResourcesAvailable": "無可用資源",
+          "availableResources": "可用資源",
+          "uri": "URI",
+          "mimeType": "MIME類型",
+          "size": "大小",
+          "blob": "二進位數據",
+          "blobInvisible": "隱藏二進位數據",
+          "text": "文字"
         },
         "deleteServer": "刪除伺服器",
         "deleteServerConfirm": "確定要刪除此伺服器嗎？",
         "registry": "套件管理源",
         "registryTooltip": "選擇用於安裝套件的源，以解決預設源的網路問題。",
-        "registryDefault": "預設"
+        "registryDefault": "預設",
+        "not_support": "不支援此模型",
+        "user": "用戶",
+        "system": "系統"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -1062,6 +1161,8 @@
       "messages.input.send_shortcuts": "傳送快捷鍵",
       "messages.input.show_estimated_tokens": "顯示預估 Token 數",
       "messages.input.title": "輸入設定",
+      "messages.input.enable_quick_triggers": "啟用 '/' 和 '@' 觸發快捷選單",
+      "messages.input.enable_delete_model": "啟用刪除鍵刪除模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息",
       "messages.math_engine": "Markdown 渲染輸入訊息",
       "messages.metrics": "首字延遲 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
@@ -1226,20 +1327,10 @@
       "tray.show": "顯示系统匣圖示",
       "tray.title": "系统匣",
       "websearch": {
-        "blacklist": "黑名單",
-        "blacklist_description": "以下網站不會出現在搜尋結果中",
-        "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
-        "check": "檢查",
-        "check_failed": "驗證失敗",
         "check_success": "驗證成功",
         "enhance_mode": "搜索增強模式",
         "enhance_mode_tooltip": "使用預設模型提取關鍵詞後搜索",
         "get_api_key": "點選這裡取得金鑰",
-        "no_provider_selected": "請選擇搜尋服務商後再檢查",
-        "search_max_result": "搜尋結果個數",
-        "search_provider": "搜尋服務商",
-        "search_provider_placeholder": "選擇一個搜尋服務商",
-        "search_result_default": "預設",
         "search_with_time": "搜尋包含日期",
         "tavily": {
           "api_key": "Tavily API 金鑰",
@@ -1247,11 +1338,58 @@
           "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
           "title": "Tavily"
         },
-        "title": "網路搜尋"
+        "blacklist": "黑名單",
+        "blacklist_description": "以下網站不會出現在搜索結果中",
+        "search_max_result": "搜尋結果個數",
+        "search_result_default": "預設",
+        "check": "檢查",
+        "search_provider": "搜尋服務商",
+        "search_provider_placeholder": "選擇一個搜尋服務商",
+        "no_provider_selected": "請選擇搜索服務商後再檢查",
+        "check_failed": "驗證失敗",
+        "blacklist_tooltip": "匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
+        "subscribe": "黑名單訂閱",
+        "subscribe_update": "更新",
+        "subscribe_add": "添加訂閱",
+        "subscribe_url": "訂閱源地址",
+        "subscribe_name": "替代名稱",
+        "subscribe_name.placeholder": "當下載的訂閱源沒有名稱時所使用的替代名稱",
+        "subscribe_add_success": "訂閱源添加成功!",
+        "subscribe_delete": "刪除",
+        "title": "網路搜尋",
+        "overwrite": "覆蓋搜尋服務商",
+        "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋",
+        "apikey": "API 金鑰",
+        "free": "免費",
+        "content_limit": "內容長度限制",
+        "content_limit_tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷。"
       },
       "general.auto_check_update.title": "啟用自動更新檢查",
-      "message_title.use_topic_naming.title": "使用話題命名模型為匯出的訊息建立標題",
-      "message_title.use_topic_naming.help": "開啟後，使用話題命名模型為匯出的訊息建立標題。該項也會影響所有透過Markdown匯出的方式。"
+      "quickPhrase": {
+        "title": "快捷短語",
+        "add": "新增短語",
+        "edit": "編輯短語",
+        "titleLabel": "標題",
+        "contentLabel": "內容",
+        "titlePlaceholder": "請輸入短語標題",
+        "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。",
+        "delete": "刪除短語",
+        "deleteConfirm": "刪除後無法復原，是否繼續？"
+      },
+      "quickPanel": {
+        "title": "快捷選單",
+        "close": "關閉",
+        "select": "選擇",
+        "page": "翻頁",
+        "confirm": "確認",
+        "back": "後退",
+        "forward": "前進",
+        "multiple": "多選"
+      },
+      "privacy": {
+        "title": "隱私設定",
+        "enable_privacy_mode": "匿名發送錯誤報告和資料統計"
+      }
     },
     "translate": {
       "any.language": "任意語言",
@@ -1276,7 +1414,10 @@
       "scroll_sync.disable": "關閉滾動同步",
       "scroll_sync.enable": "開啟滾動同步",
       "title": "翻譯",
-      "tooltip.newline": "換行"
+      "tooltip.newline": "換行",
+      "menu": {
+        "description": "對當前輸入框內容進行翻譯"
+      }
     },
     "tray": {
       "quit": "結束",

@@ -43,6 +43,7 @@
       "edit.title": "Редактировать ассистента",
       "save.success": "Успешно сохранено",
       "save.title": "Сохранить в агента",
+      "icon.type": "Иконка ассистента",
       "search": "Поиск ассистентов...",
       "settings.mcp": "Серверы MCP",
       "settings.mcp.enableFirst": "Сначала включите этот сервер в настройках MCP",
@@ -59,7 +60,7 @@
       "settings.reasoning_effort.low": "Короткая",
       "settings.reasoning_effort.medium": "Средняя",
       "settings.reasoning_effort.off": "Выключено",
-      "settings.reasoning_effort.tip": "Поддерживается только моделями с рассуждением OpenAI o-series и Anthropic",
+      "settings.reasoning_effort.tip": "Поддерживается только моделями рассуждений OpenAI o-series, Anthropic и Grok",
       "settings.more": "Настройки ассистента"
     },
     "auth": {
@@ -150,12 +151,23 @@
         "history": "История чата",
         "last": "Уже последнее сообщение",
         "next": "Следующее сообщение",
-        "prev": "Предыдущее сообщение"
+        "prev": "Предыдущее сообщение",
+        "top": "Вернуться наверх",
+        "bottom": "Вернуться вниз",
+        "close": "Закрыть"
       },
       "resend": "Переотправить",
       "save": "Сохранить",
       "settings.code_collapsible": "Блок кода свернут",
       "settings.code_wrappable": "Блок кода можно переносить",
+      "settings.code_cacheable": "Кэш блока кода",
+      "settings.code_cacheable.tip": "Кэширование блока кода может уменьшить время рендеринга длинных блоков кода, но увеличит использование памяти",
+      "settings.code_cache_max_size": "Максимальный размер кэша",
+      "settings.code_cache_max_size.tip": "Максимальное количество символов, которое может быть кэшировано (тысяч символов), рассчитывается по кэшированному коду. Длина кэшированного кода значительно превышает длину чистого текста.",
+      "settings.code_cache_ttl": "Время жизни кэша",
+      "settings.code_cache_ttl.tip": "Время жизни кэша (минуты)",
+      "settings.code_cache_threshold": "Пороговое значение кэша",
+      "settings.code_cache_threshold.tip": "Минимальное количество символов для кэширования (тысяч символов), рассчитывается по фактическому коду. Будут кэшированы только те блоки кода, которые превышают пороговое значение",
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
@@ -185,6 +197,7 @@
       "topics.export.image": "Экспорт как изображение",
       "topics.export.joplin": "Экспорт в Joplin",
       "topics.export.md": "Экспорт как markdown",
+      "topics.export.md.reason": "Экспорт в Markdown (с рассуждениями)",
       "topics.export.notion": "Экспорт в Notion",
       "topics.export.obsidian": "Экспорт в Obsidian",
       "topics.export.obsidian_vault": "Хранилище",
@@ -232,7 +245,9 @@
       "topics.export.siyuan": "Экспорт в Siyuan Note",
       "topics.export.wait_for_title_naming": "Создание заголовка...",
       "topics.export.title_naming_success": "Заголовок успешно создан",
-      "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию"
+      "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",
+      "input.translating": "Перевод...",
+      "input.upload.upload_from_local": "Загрузить локальный файл..."
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -263,6 +278,7 @@
       "duplicate": "Дублировать",
       "edit": "Редактировать",
       "expand": "Развернуть",
+      "collapse": "Свернуть",
       "footnote": "Цитируемый контент",
       "footnotes": "Сноски",
       "fullscreen": "Вы вошли в полноэкранный режим. Нажмите F11 для выхода",
@@ -283,7 +299,13 @@
       "select": "Выбрать",
       "topics": "Топики",
       "warning": "Предупреждение",
-      "you": "Вы"
+      "you": "Вы",
+      "reasoning_content": "Глубокий анализ",
+      "sort": {
+        "pinyin": "Сортировать по пиньинь",
+        "pinyin.asc": "Сортировать по пиньинь (А-Я)",
+        "pinyin.desc": "Сортировать по пиньинь (Я-А)"
+      }
     },
     "docs": {
       "title": "Документация"
@@ -306,7 +328,7 @@
       "no_api_key": "Ключ API не настроен",
       "provider_disabled": "Провайдер моделей не включен",
       "render": {
-        "description": "Не удалось рендерить формулу. Пожалуйста, проверьте, правильно ли формат формулы",
+        "description": "Не удалось рендерить содержимое сообщения. Пожалуйста, проверьте, правильно ли формат содержимого сообщения",
         "title": "Ошибка рендеринга"
       },
       "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
@@ -325,7 +347,7 @@
     "files": {
       "actions": "Действия",
       "all": "Все файлы",
-      "count": "Количество",
+      "count": "файлов",
       "created_at": "Дата создания",
       "delete": "Удалить",
       "delete.content": "Удаление файла удалит его из всех сообщений, вы уверены, что хотите удалить этот файл?",
@@ -526,7 +548,7 @@
       "restore.failed": "Восстановление не удалось",
       "restore.success": "Успешно восстановлено",
       "save.success.title": "Успешно сохранено",
-      "searching": "Поиск в Интернете...",
+      "searching": "Идет поиск...",
       "success.joplin.export": "Успешный экспорт в Joplin",
       "success.markdown.export.preconf": "Файл Markdown успешно экспортирован в предуказанный путь",
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
@@ -535,7 +557,8 @@
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "tools": {
         "completed": "Завершено",
-        "invoking": "Вызов"
+        "invoking": "Вызов",
+        "error": "Произошла ошибка"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -579,13 +602,17 @@
         "copy_last_message": "Нажмите C для копирования",
         "esc": "Нажмите ESC {{action}}",
         "esc_back": "возвращения",
-        "esc_close": "закрытия окна"
+        "esc_close": "закрытия окна",
+        "backspace_clear": "Нажмите Backspace, чтобы очистить"
       },
       "input": {
         "placeholder": {
           "empty": "Задайте вопрос {{model}}...",
           "title": "Что вы хотите сделать с этим текстом?"
         }
+      },
+      "tooltip": {
+        "pin": "Верхнее окно"
       }
     },
     "models": {
@@ -690,7 +717,6 @@
       "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "Tencent Hunyuan",
@@ -719,7 +745,8 @@
       "yi": "Yi",
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
-      "voyageai": "Voyage AI"
+      "voyageai": "Voyage AI",
+      "qiniu": "Qiniu"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
@@ -761,7 +788,10 @@
       "advanced.title": "Расширенные настройки",
       "assistant": "Ассистент по умолчанию",
       "assistant.model_params": "Параметры модели",
-      "assistant.show.icon": "Показывать модельный иконки",
+      "assistant.icon.type": "Тип модели иконки",
+      "assistant.icon.type.model": "Модель иконки",
+      "assistant.icon.type.emoji": "Emoji иконка",
+      "assistant.icon.type.none": "Не отображать",
       "assistant.title": "Ассистент по умолчанию",
       "data": {
         "app_data": "Данные приложения",
@@ -779,8 +809,24 @@
           "title": "Очистка кэша"
         },
         "data.title": "Каталог данных",
+        "divider.basic": "Основные настройки данных",
+        "divider.cloud_storage": "Настройки облачного резервирования",
+        "divider.export_settings": "Настройки экспорта",
+        "divider.third_party": "Сторонние подключения",
         "hour_interval_one": "{{count}} час",
         "hour_interval_other": "{{count}} часов",
+        "export_menu": {
+          "title": "Настройки меню экспорта",
+          "image": "Экспорт как изображение",
+          "markdown": "Экспорт в Markdown",
+          "markdown_reason": "Экспорт в Markdown (с рассуждениями)",
+          "notion": "Экспорт в Notion",
+          "yuque": "Экспорт в Yuque",
+          "obsidian": "Экспорт в Obsidian",
+          "siyuan": "Экспорт в SiYuan Note",
+          "joplin": "Экспорт в Joplin",
+          "docx": "Экспорт в Word"
+        },
         "joplin": {
           "check": {
             "button": "Проверить",
@@ -833,6 +879,25 @@
           "backup.button": "Резервное копирование на WebDAV",
           "backup.modal.filename.placeholder": "Введите имя файла резервной копии",
           "backup.modal.title": "Резервное копирование на WebDAV",
+          "backup.manager.title": "Управление резервными копиями",
+          "backup.manager.refresh": "Обновить",
+          "backup.manager.delete.selected": "Удалить выбранные",
+          "backup.manager.delete.text": "Удалить",
+          "backup.manager.restore.text": "Восстановить",
+          "backup.manager.restore.success": "Восстановление прошло успешно, приложение скоро обновится",
+          "backup.manager.restore.error": "Ошибка восстановления",
+          "backup.manager.delete.confirm.title": "Подтверждение удаления",
+          "backup.manager.delete.confirm.single": "Вы уверены, что хотите удалить резервную копию \"{{fileName}}\"? Это действие нельзя отменить.",
+          "backup.manager.delete.confirm.multiple": "Вы уверены, что хотите удалить {{count}} выбранных резервных копий? Это действие нельзя отменить.",
+          "backup.manager.delete.success.single": "Успешно удалено",
+          "backup.manager.delete.success.multiple": "Успешно удалено {{count}} резервных копий",
+          "backup.manager.delete.error": "Ошибка удаления",
+          "backup.manager.fetch.error": "Ошибка получения файлов резервных копий",
+          "backup.manager.select.files.delete": "Выберите файлы резервных копий для удаления",
+          "backup.manager.columns.fileName": "Имя файла",
+          "backup.manager.columns.modifiedTime": "Время изменения",
+          "backup.manager.columns.size": "Размер",
+          "backup.manager.columns.actions": "Действия",
           "host": "Хост WebDAV",
           "host.placeholder": "http://localhost:8080",
           "hour_interval_one": "{{count}} час",
@@ -922,7 +987,9 @@
           "new_folder.button.confirm": "Подтвердить",
           "new_folder.button.cancel": "Отмена",
           "new_folder.button": "Новая папка"
-        }
+        },
+        "message_title.use_topic_naming.title": "Использовать модель именования тем для создания заголовков сообщений",
+        "message_title.use_topic_naming.help": "Этот параметр влияет на все методы экспорта в Markdown, такие как Notion, Yuque и т.д."
       },
       "display.assistant.title": "Настройки ассистентов",
       "display.custom.css": "Пользовательский CSS",
@@ -989,6 +1056,10 @@
         "argsTooltip": "Каждый аргумент с новой строки",
         "baseUrlTooltip": "Адрес удаленного URL",
         "command": "Команда",
+        "sse": "События, отправляемые сервером (sse)",
+        "streamableHttp": "Потоковый HTTP (streamableHttp)",
+        "stdio": "Стандартный ввод/вывод (stdio)",
+        "inMemory": "Память",
         "config_description": "Настройка серверов протокола контекста модели",
         "deleteError": "Не удалось удалить сервер",
         "deleteSuccess": "Сервер успешно удален",
@@ -1000,6 +1071,8 @@
         "editServer": "Редактировать сервер",
         "env": "Переменные окружения",
         "envTooltip": "Формат: KEY=value, по одной на строку",
+        "headers": "Заголовки",
+        "headersTooltip": "Пользовательские заголовки для HTTP-запросов",
         "findMore": "Найти больше MCP",
         "searchNpx": "Найти MCP",
         "install": "Установить",
@@ -1015,7 +1088,6 @@
         "newServer": "MCP сервер",
         "npx_list": {
           "actions": "Действия",
-          "desc": "Поиск и добавление npm пакетов в качестве MCP серверов",
           "description": "Описание",
           "no_packages": "Ничего не найдено",
           "npm": "NPM",
@@ -1024,7 +1096,6 @@
           "scope_required": "Пожалуйста, введите область npm",
           "search": "Поиск",
           "search_error": "Ошибка поиска",
-          "title": "Список пакетов NPX",
           "usage": "Использование",
           "version": "Версия"
         },
@@ -1041,16 +1112,44 @@
         "url": "URL",
         "editMcpJson": "Редактировать MCP",
         "installHelp": "Получить помощь по установке",
+        "tabs": {
+          "general": "Общие",
+          "tools": "Инструменты",
+          "prompts": "Подсказки",
+          "resources": "Ресурсы"
+        },
         "tools": {
-          "inputSchema": "входные параметры",
-          "availableTools": "доступные инструменты",
-          "noToolsAvailable": "нет доступных инструментов"
+          "inputSchema": "Схема ввода",
+          "availableTools": "Доступные инструменты",
+          "noToolsAvailable": "Нет доступных инструментов",
+          "loadError": "Ошибка получения инструментов"
+        },
+        "prompts": {
+          "availablePrompts": "Доступные подсказки",
+          "noPromptsAvailable": "Нет доступных подсказок",
+          "arguments": "Аргументы",
+          "requiredField": "Обязательное поле",
+          "genericError": "Ошибка получения подсказки",
+          "loadError": "Ошибка получения подсказок"
+        },
+        "resources": {
+          "noResourcesAvailable": "Нет доступных ресурсов",
+          "availableResources": "Доступные ресурсы",
+          "uri": "URI",
+          "mimeType": "MIME-тип",
+          "size": "Размер",
+          "blob": "Двоичные данные",
+          "blobInvisible": "Скрытые двоичные данные",
+          "text": "Текст"
         },
         "deleteServer": "Удалить сервер",
         "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",
         "registry": "Реестр пакетов",
         "registryTooltip": "Выберите реестр для установки пакетов, если возникают проблемы с сетью при использовании реестра по умолчанию.",
-        "registryDefault": "По умолчанию"
+        "registryDefault": "По умолчанию",
+        "not_support": "Модель не поддерживается",
+        "user": "Пользователь",
+        "system": "Система"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
@@ -1062,6 +1161,8 @@
       "messages.input.send_shortcuts": "Горячие клавиши для отправки",
       "messages.input.show_estimated_tokens": "Показывать затраты токенов",
       "messages.input.title": "Настройки ввода",
+      "messages.input.enable_quick_triggers": "Включите '/' и '@', чтобы вызвать быстрое меню.",
+      "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
       "messages.metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
@@ -1228,7 +1329,6 @@
       "websearch": {
         "blacklist": "Черный список",
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
-        "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "проверка",
         "check_failed": "Проверка не прошла",
         "check_success": "Проверка успешна",
@@ -1247,11 +1347,49 @@
           "description": "Tavily — это поисковая система, специально разработанная для ИИ-агентов, предоставляющая актуальные результаты, умные предложения по запросам и глубокие исследовательские возможности",
           "title": "Tavily"
         },
-        "title": "Поиск в Интернете"
+        "title": "Поиск в Интернете",
+        "blacklist_tooltip": "Шаблон: *://*.example.com/*\nРегулярное выражение: /example\\.(net|org)/",
+        "subscribe": "Подписка на черный список",
+        "subscribe_update": "Обновить",
+        "subscribe_add": "Добавить",
+        "subscribe_url": "URL подписки",
+        "subscribe_name": "Альтернативное имя",
+        "subscribe_name.placeholder": "Альтернативное имя, если в подписке нет названия.",
+        "subscribe_add_success": "Подписка успешно добавлена!",
+        "subscribe_delete": "Удалить",
+        "overwrite": "Переопределить провайдера поиска",
+        "overwrite_tooltip": "Использовать провайдера поиска вместо LLM",
+        "apikey": "API ключ",
+        "free": "Бесплатно",
+        "content_limit": "Ограничение длины текста",
+        "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
       },
-      "general.auto_check_update.title": "Включить автоматическую проверку обновлений",
-      "message_title.use_topic_naming.title": "Использовать модель именования тем для создания заголовков экспортируемых сообщений",
-      "message_title.use_topic_naming.help": "При включении использует модель именования тем для создания заголовков экспортируемых сообщений. Это также повлияет на все методы экспорта Markdown."
+      "general.auto_check_update.title": "Включить автообновление",
+      "quickPhrase": {
+        "title": "Быстрые фразы",
+        "add": "Добавить фразу",
+        "edit": "Редактировать фразу",
+        "titleLabel": "Заголовок",
+        "contentLabel": "Содержание",
+        "titlePlaceholder": "Введите заголовок фразы",
+        "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
+        "delete": "Удалить фразу",
+        "deleteConfirm": "После удаления фраза не может быть восстановлена, продолжить?"
+      },
+      "quickPanel": {
+        "title": "Быстрое меню",
+        "close": "Закрыть",
+        "select": "Выбрать",
+        "page": "Страница",
+        "confirm": "Подтвердить",
+        "back": "Назад",
+        "forward": "Вперед",
+        "multiple": "Множественный выбор"
+      },
+      "privacy": {
+        "title": "Настройки приватности",
+        "enable_privacy_mode": "Анонимная отправка отчетов об ошибках и статистики"
+      }
     },
     "translate": {
       "any.language": "Любой язык",
@@ -1276,7 +1414,10 @@
       "scroll_sync.disable": "Отключить синхронизацию прокрутки",
       "scroll_sync.enable": "Включить синхронизацию прокрутки",
       "title": "Перевод",
-      "tooltip.newline": "Перевести"
+      "tooltip.newline": "Перевести",
+      "menu": {
+        "description": "Перевести содержимое текущего ввода"
+      }
     },
     "tray": {
       "quit": "Выйти",

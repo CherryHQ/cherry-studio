@@ -1,10 +1,13 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app, ipcMain } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
+import Logger from 'electron-log'
 
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
+import mcpService from './services/MCPService'
 import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } from './services/ProtocolClient'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
@@ -52,7 +55,7 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
     }
-    ipcMain.handle('system:getDeviceType', () => {
+    ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
       return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
     })
   })
@@ -89,6 +92,15 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => {
     app.isQuitting = true
+  })
+
+  app.on('will-quit', async () => {
+    // event.preventDefault()
+    try {
+      await mcpService.cleanup()
+    } catch (error) {
+      Logger.error('Error cleaning up MCP service:', error)
+    }
   })
 
   // In this file you can include the rest of your app"s specific main process

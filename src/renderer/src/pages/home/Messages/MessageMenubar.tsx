@@ -1,17 +1,4 @@
-import {
-  CheckOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  ForkOutlined,
-  LikeFilled,
-  LikeOutlined,
-  MenuOutlined,
-  QuestionCircleOutlined,
-  SaveOutlined,
-  SyncOutlined,
-  TranslationOutlined
-} from '@ant-design/icons'
-import { UploadOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
@@ -21,6 +8,7 @@ import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessag
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
+import { RootState } from '@renderer/store'
 import type { Message, Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, removeTrailingDoubleSpaces } from '@renderer/utils'
@@ -36,8 +24,22 @@ import { withMessageThought } from '@renderer/utils/formats'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { clone } from 'lodash'
+import {
+  AtSign,
+  Copy,
+  FilePenLine,
+  Languages,
+  Menu,
+  RefreshCw,
+  Save,
+  Share,
+  Split,
+  ThumbsUp,
+  Trash
+} from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 interface Props {
@@ -67,6 +69,8 @@ const MessageMenubar: FC<Props> = (props) => {
   const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
+
+  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
 
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
@@ -108,6 +112,14 @@ const MessageMenubar: FC<Props> = (props) => {
 
     let textToEdit = message.content
 
+    // 如果是包含图片的消息，添加图片的 markdown 格式
+    if (message.metadata?.generateImage?.images) {
+      const imageMarkdown = message.metadata.generateImage.images
+        .map((image, index) => `![image-${index}](${image})`)
+        .join('\n')
+      textToEdit = `${textToEdit}\n\n${imageMarkdown}`
+    }
+
     if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
       const processedMessage = withMessageThought(clone(message))
       textToEdit = processedMessage.content
@@ -131,8 +143,47 @@ const MessageMenubar: FC<Props> = (props) => {
     })
 
     if (editedText && editedText !== textToEdit) {
-      await editMessage(message.id, { content: editedText })
-      resendMessage && handleResendUserMessage({ ...message, content: editedText })
+      // 解析编辑后的文本，提取图片 URL
+      const imageRegex = /!\[image-\d+\]\((.*?)\)/g
+      const imageUrls: string[] = []
+      let match
+      let content = editedText
+
+      while ((match = imageRegex.exec(editedText)) !== null) {
+        imageUrls.push(match[1])
+        content = content.replace(match[0], '')
+      }
+
+      // 更新消息内容，保留图片信息
+      await editMessage(message.id, {
+        content: content.trim(),
+        metadata: {
+          ...message.metadata,
+          generateImage:
+            imageUrls.length > 0
+              ? {
+                  type: 'url',
+                  images: imageUrls
+                }
+              : undefined
+        }
+      })
+
+      resendMessage &&
+        handleResendUserMessage({
+          ...message,
+          content: content.trim(),
+          metadata: {
+            ...message.metadata,
+            generateImage:
+              imageUrls.length > 0
+                ? {
+                    type: 'url',
+                    images: imageUrls
+                  }
+                : undefined
+          }
+        })
     }
   }, [message, editMessage, handleResendUserMessage, t])
 
@@ -169,20 +220,30 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.save'),
         key: 'save',
-        icon: <SaveOutlined />,
+        icon: <Save size={16} />,
         onClick: () => {
           const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
           window.api.file.save(fileName, message.content)
         }
       },
-      { label: t('common.edit'), key: 'edit', icon: <EditOutlined />, onClick: onEdit },
-      { label: t('chat.message.new.branch'), key: 'new-branch', icon: <ForkOutlined />, onClick: onNewBranch },
+      {
+        label: t('common.edit'),
+        key: 'edit',
+        icon: <FilePenLine size={16} />,
+        onClick: onEdit
+      },
+      {
+        label: t('chat.message.new.branch'),
+        key: 'new-branch',
+        icon: <Split size={16} />,
+        onClick: onNewBranch
+      },
       {
         label: t('chat.topics.export.title'),
         key: 'export',
-        icon: <UploadOutlined />,
+        icon: <Share size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
         children: [
-          {
+          exportMenuOptions.image && {
             label: t('chat.topics.copy.image'),
             key: 'img',
             onClick: async () => {
@@ -193,7 +254,7 @@ const MessageMenubar: FC<Props> = (props) => {
               })
             }
           },
-          {
+          exportMenuOptions.image && {
             label: t('chat.topics.export.image'),
             key: 'image',
             onClick: async () => {
@@ -204,9 +265,17 @@ const MessageMenubar: FC<Props> = (props) => {
               }
             }
           },
-          { label: t('chat.topics.export.md'), key: 'markdown', onClick: () => exportMessageAsMarkdown(message) },
-
-          {
+          exportMenuOptions.markdown && {
+            label: t('chat.topics.export.md'),
+            key: 'markdown',
+            onClick: () => exportMessageAsMarkdown(message)
+          },
+          exportMenuOptions.markdown_reason && {
+            label: t('chat.topics.export.md.reason'),
+            key: 'markdown_reason',
+            onClick: () => exportMessageAsMarkdown(message, true)
+          },
+          exportMenuOptions.docx && {
             label: t('chat.topics.export.word'),
             key: 'word',
             onClick: async () => {
@@ -215,7 +284,7 @@ const MessageMenubar: FC<Props> = (props) => {
               window.api.export.toWord(markdown, title)
             }
           },
-          {
+          exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
             key: 'notion',
             onClick: async () => {
@@ -224,7 +293,7 @@ const MessageMenubar: FC<Props> = (props) => {
               exportMarkdownToNotion(title, markdown)
             }
           },
-          {
+          exportMenuOptions.yuque && {
             label: t('chat.topics.export.yuque'),
             key: 'yuque',
             onClick: async () => {
@@ -233,7 +302,7 @@ const MessageMenubar: FC<Props> = (props) => {
               exportMarkdownToYuque(title, markdown)
             }
           },
-          {
+          exportMenuOptions.obsidian && {
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
@@ -242,7 +311,7 @@ const MessageMenubar: FC<Props> = (props) => {
               await ObsidianExportPopup.show({ title, markdown, processingMethod: '1' })
             }
           },
-          {
+          exportMenuOptions.joplin && {
             label: t('chat.topics.export.joplin'),
             key: 'joplin',
             onClick: async () => {
@@ -251,7 +320,7 @@ const MessageMenubar: FC<Props> = (props) => {
               exportMarkdownToJoplin(title, markdown)
             }
           },
-          {
+          exportMenuOptions.siyuan && {
             label: t('chat.topics.export.siyuan'),
             key: 'siyuan',
             onClick: async () => {
@@ -260,10 +329,10 @@ const MessageMenubar: FC<Props> = (props) => {
               exportMarkdownToSiyuan(title, markdown)
             }
           }
-        ]
+        ].filter(Boolean)
       }
     ],
-    [message, messageContainerRef, onEdit, onNewBranch, t, topic.name]
+    [message, messageContainerRef, onEdit, onNewBranch, t, topic.name, exportMenuOptions]
   )
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
@@ -309,7 +378,7 @@ const MessageMenubar: FC<Props> = (props) => {
       )}
       <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
         <ActionButton className="message-action-button" onClick={onCopy}>
-          {!copied && <i className="iconfont icon-copy"></i>}
+          {!copied && <Copy size={16} />}
           {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
         </ActionButton>
       </Tooltip>
@@ -326,7 +395,7 @@ const MessageMenubar: FC<Props> = (props) => {
             open={showRegenerateTooltip}
             onOpenChange={setShowRegenerateTooltip}>
             <ActionButton className="message-action-button">
-              <SyncOutlined />
+              <RefreshCw size={16} />
             </ActionButton>
           </Tooltip>
         </Popconfirm>
@@ -334,7 +403,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {isAssistantMessage && (
         <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onMentionModel}>
-            <i className="iconfont icon-at" style={{ fontSize: 16 }}></i>
+            <AtSign size={16} />
           </ActionButton>
         </Tooltip>
       )}
@@ -360,7 +429,7 @@ const MessageMenubar: FC<Props> = (props) => {
           arrow>
           <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
             <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-              <TranslationOutlined />
+              <Languages size={16} />
             </ActionButton>
           </Tooltip>
         </Dropdown>
@@ -368,7 +437,11 @@ const MessageMenubar: FC<Props> = (props) => {
       {isAssistantMessage && isGrouped && (
         <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onUseful}>
-            {message.useful ? <LikeFilled /> : <LikeOutlined />}
+            {message.useful ? (
+              <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
+            ) : (
+              <ThumbsUp size={16} />
+            )}
           </ActionButton>
         </Tooltip>
       )}
@@ -384,7 +457,7 @@ const MessageMenubar: FC<Props> = (props) => {
             mouseEnterDelay={1}
             open={showDeleteTooltip}
             onOpenChange={setShowDeleteTooltip}>
-            <DeleteOutlined />
+            <Trash size={16} />
           </Tooltip>
         </ActionButton>
       </Popconfirm>
@@ -395,7 +468,7 @@ const MessageMenubar: FC<Props> = (props) => {
           placement="topRight"
           arrow>
           <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-            <MenuOutlined />
+            <Menu size={19} />
           </ActionButton>
         </Dropdown>
       )}

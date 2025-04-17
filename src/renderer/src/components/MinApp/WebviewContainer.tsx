@@ -38,13 +38,6 @@ const WebviewContainer = memo(
     useEffect(() => {
       if (!webviewRef.current) return
 
-      const handleNewWindow = (event: any) => {
-        event.preventDefault()
-        if (webviewRef.current?.loadURL) {
-          webviewRef.current.loadURL(event.url)
-        }
-      }
-
       const handleLoaded = () => {
         onLoadedCallback(appid)
       }
@@ -53,7 +46,6 @@ const WebviewContainer = memo(
         onNavigateCallback(appid, event.url)
       }
 
-      webviewRef.current.addEventListener('new-window', handleNewWindow)
       webviewRef.current.addEventListener('did-finish-load', handleLoaded)
       webviewRef.current.addEventListener('did-navigate-in-page', handleNavigate)
 
@@ -61,7 +53,6 @@ const WebviewContainer = memo(
       webviewRef.current.src = url
 
       return () => {
-        webviewRef.current?.removeEventListener('new-window', handleNewWindow)
         webviewRef.current?.removeEventListener('did-finish-load', handleLoaded)
         webviewRef.current?.removeEventListener('did-navigate-in-page', handleNavigate)
       }
@@ -76,7 +67,6 @@ const WebviewContainer = memo(
         style={WebviewStyle}
         allowpopups={'true' as any}
         partition="persist:webview"
-        nodeintegration={'true' as any}
       />
     )
   }

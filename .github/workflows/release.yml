@@ -88,13 +88,12 @@ jobs:
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
-        run: yarn build:win
+        run: |
+          yarn build:npm windows
+          yarn build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
-
-      - name: Replace spaces in filenames
-        run: node scripts/replace-spaces.js
 
       - name: Release
         uses: ncipollo/release-action@v1

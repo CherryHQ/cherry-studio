@@ -22,7 +22,8 @@ function downloadNpmPackage(packageName, url) {
     console.log(`Extracting ${filename}...`)
     execSync(`tar -xvf ${filename}`)
     execSync(`rm -rf ${filename}`)
-    execSync(`mv package ${targetDir}`)
+    execSync(`mkdir -p ${targetDir}`)
+    execSync(`mv package/* ${targetDir}/`)
   } catch (error) {
     console.error(`Error processing ${packageName}: ${error.message}`)
     if (fs.existsSync(filename)) {

@@ -130,7 +130,10 @@
         "first": "Ήδη το πρώτο μήνυμα",
         "last": "Ήδη το τελευταίο μήνυμα",
         "next": "Επόμενο μήνυμα",
-        "prev": "Προηγούμενο μήνυμα"
+        "prev": "Προηγούμενο μήνυμα",
+        "top": "Επιστροφή στην κορυφή",
+        "bottom": "Επιστροφή στο κάτω μέρος",
+        "close": "Κλείσιμο"
       },
       "resend": "Ξαναστείλε",
       "save": "Αποθήκευση",
@@ -640,7 +643,6 @@
       "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
-      "graphrag-kylin-mountain": "GraphRAG",
       "grok": "Grok",
       "groq": "Groq",
       "hunyuan": "Tencent Hunyuan",
@@ -910,7 +912,6 @@
         "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
         "npx_list": {
           "actions": "Ενέργειες",
-          "desc": "Αναζητήστε και προσθέστε πακέτα npm ως υπηρεσίες MCP",
           "description": "Περιγραφή",
           "no_packages": "Δεν βρέθηκαν πακέτα",
           "npm": "NPM",
@@ -919,7 +920,6 @@
           "scope_required": "Παρακαλώ εισαγάγετε το σκοπό του npm",
           "search": "Αναζήτηση",
           "search_error": "Η αναζήτηση απέτυχε",
-          "title": "Λίστα πακέτων NPX",
           "usage": "Χρήση",
           "version": "Έκδοση"
         },

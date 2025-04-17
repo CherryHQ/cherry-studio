@@ -1,3 +1,4 @@
+import { IpcChannel } from '@shared/IpcChannel'
 import { WebDavConfig } from '@types'
 import AdmZip from 'adm-zip'
 import { exec } from 'child_process'
@@ -21,6 +22,7 @@ class BackupManager {
     this.backupToWebdav = this.backupToWebdav.bind(this)
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
     this.listWebdavFiles = this.listWebdavFiles.bind(this)
+    this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
@@ -79,7 +81,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('backup-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
       Logger.log('[BackupManager] backup progress', processData)
     }
 
@@ -139,7 +141,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('restore-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
       Logger.log('[BackupManager] restore progress', processData)
     }
 
@@ -307,6 +309,16 @@ class BackupManager {
   ) {
     const webdavClient = new WebDav(webdavConfig)
     return await webdavClient.createDirectory(path, options)
+  }
+
+  async deleteWebdavFile(_: Electron.IpcMainInvokeEvent, fileName: string, webdavConfig: WebDavConfig) {
+    try {
+      const webdavClient = new WebDav(webdavConfig)
+      return await webdavClient.deleteFile(fileName)
+    } catch (error: any) {
+      Logger.error('Failed to delete WebDAV file:', error)
+      throw new Error(error.message || 'Failed to delete backup file')
+    }
   }
 }
 

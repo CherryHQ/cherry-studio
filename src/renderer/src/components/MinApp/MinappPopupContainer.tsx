@@ -86,6 +86,7 @@ const MinappPopupContainer: React.FC = () => {
       lastMinappId.current = currentMinappId
       lastMinappShow.current = minappShow
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [minappShow, currentMinappId])
 
   useEffect(() => {

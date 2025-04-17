@@ -2,6 +2,7 @@ import '@renderer/databases'
 
 import { useSettings } from '@renderer/hooks/useSettings'
 import store, { persistor, useAppDispatch } from '@renderer/store'
+import { message } from 'antd'
 import { setCustomCss } from '@renderer/store/settings'
 import { useEffect, useState } from 'react'
 import { Provider } from 'react-redux'
@@ -57,12 +58,17 @@ function useMiniWindowCustomCss() {
 }
 
 function MiniWindow(): React.ReactElement {
+  //miniWindow should register its own message component
+  const [messageApi, messageContextHolder] = message.useMessage()
+  window.message = messageApi
+
   return (
     <Provider store={store}>
       <ThemeProvider>
         <AntdProvider>
           <SyntaxHighlighterProvider>
             <PersistGate loading={null} persistor={persistor}>
+              {messageContextHolder}
               <MiniWindowContent />
             </PersistGate>
           </SyntaxHighlighterProvider>

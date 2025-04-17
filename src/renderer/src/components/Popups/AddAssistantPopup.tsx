@@ -1,4 +1,3 @@
-import { SearchOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
@@ -9,10 +8,12 @@ import { Agent, Assistant } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Divider, Input, InputRef, Modal, Tag } from 'antd'
 import { take } from 'lodash'
+import { Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import EmojiIcon from '../EmojiIcon'
 import { HStack } from '../Layout'
 import Scrollbar from '../Scrollbar'
 
@@ -98,6 +99,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           setSelectedIndex((prev) => (prev <= 0 ? displayedAgents.length - 1 : prev - 1))
           break
         case 'Enter':
+        case 'NumpadEnter':
           // 如果焦点在输入框且有搜索内容，则默认选择第一项
           if (document.activeElement === inputRef.current?.input && searchText.trim()) {
             e.preventDefault()
@@ -163,7 +165,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <Input
           prefix={
             <SearchIcon>
-              <SearchOutlined />
+              <Search size={14} />
             </SearchIcon>
           }
           ref={inputRef}
@@ -177,7 +179,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           size="middle"
         />
       </HStack>
-      <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
+      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
       <Container ref={containerRef}>
         {take(agents, 100).map((agent, index) => (
           <AgentItem
@@ -185,12 +187,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             onClick={() => onCreateAssistant(agent)}
             className={`agent-item ${agent.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
             onMouseEnter={() => setSelectedIndex(index)}>
-            <HStack
-              alignItems="center"
-              gap={5}
-              style={{ overflow: 'hidden', maxWidth: '100%' }}
-              className="text-nowrap">
-              {agent.emoji} {agent.name}
+            <HStack alignItems="center" gap={5} style={{ overflow: 'hidden', maxWidth: '100%' }}>
+              <EmojiIcon emoji={agent.emoji || ''} />
+              <span className="text-nowrap">{agent.name}</span>
             </HStack>
             {agent.id === 'default' && <Tag color="green">{t('agents.tag.system')}</Tag>}
             {agent.type === 'agent' && <Tag color="orange">{t('agents.tag.agent')}</Tag>}
@@ -219,13 +218,11 @@ const AgentItem = styled.div`
   margin-bottom: 8px;
   cursor: pointer;
   overflow: hidden;
-  border: 1px solid transparent;
   &.default {
     background-color: var(--color-background-mute);
   }
   &.keyboard-selected {
     background-color: var(--color-background-mute);
-    border: 1px solid var(--color-primary);
   }
   .anticon {
     font-size: 16px;
@@ -237,8 +234,8 @@ const AgentItem = styled.div`
 `
 
 const SearchIcon = styled.div`
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   flex-direction: row;

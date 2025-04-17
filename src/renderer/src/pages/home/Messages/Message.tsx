@@ -47,7 +47,7 @@ const MessageItem: FC<Props> = ({
   const { isBubbleStyle } = useMessageStyle()
   const { showMessageDivider, messageFont, fontSize } = useSettings()
   const messageContainerRef = useRef<HTMLDivElement>(null)
-  // const topic = useTopic(assistant, _topic?.id)
+
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
   const [selectedText, setSelectedText] = useState<string>('')
@@ -213,6 +213,8 @@ const MessageContainer = styled.div`
   .menubar {
     opacity: 0;
     transition: opacity 0.2s ease;
+    transform: translateZ(0);
+    will-change: opacity;
     &.show {
       opacity: 1;
     }

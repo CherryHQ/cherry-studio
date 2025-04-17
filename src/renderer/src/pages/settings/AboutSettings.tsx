@@ -1,5 +1,4 @@
 import { GithubOutlined } from '@ant-design/icons'
-import { FileProtectOutlined, GlobalOutlined, MailOutlined, SoundOutlined } from '@ant-design/icons'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack } from '@renderer/components/Layout'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
@@ -14,6 +13,7 @@ import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
 import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
 import { debounce } from 'lodash'
+import { FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -173,7 +173,7 @@ const AboutSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingRow>
           <SettingRowTitle>
-            <SoundOutlined />
+            <Rss size={18} />
             {t('settings.about.releases.title')}
           </SettingRowTitle>
           <Button onClick={showReleases}>{t('settings.about.releases.button')}</Button>
@@ -181,7 +181,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <GlobalOutlined />
+            <Globe size={18} />
             {t('settings.about.website.title')}
           </SettingRowTitle>
           <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
@@ -189,7 +189,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <GithubOutlined />
+            <Github size={18} />
             {t('settings.about.feedback.title')}
           </SettingRowTitle>
           <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
@@ -199,7 +199,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <FileProtectOutlined />
+            <FileCheck size={18} />
             {t('settings.about.license.title')}
           </SettingRowTitle>
           <Button onClick={showLicense}>{t('settings.about.license.button')}</Button>
@@ -207,7 +207,8 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <MailOutlined /> {t('settings.about.contact.title')}
+            <Mail size={18} />
+            {t('settings.about.contact.title')}
           </SettingRowTitle>
           <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
         </SettingRow>

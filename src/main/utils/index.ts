@@ -46,3 +46,9 @@ export function dumpPersistState() {
 export const runAsyncFunction = async (fn: () => void) => {
   await fn()
 }
+
+export function makeSureDirExists(dir: string) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+}

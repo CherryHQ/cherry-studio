@@ -199,3 +199,11 @@
   overflow-y: auto;
   overflow-x: hidden;
 }
+
+.ant-collapse {
+  border: 1px solid var(--color-border);
+}
+
+.ant-collapse-content {
+  border-top: 1px solid var(--color-border) !important;
+}
