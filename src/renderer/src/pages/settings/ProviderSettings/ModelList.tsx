@@ -306,13 +306,15 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
 
                 return (
                   <ListItem key={model.id}>
-                    <HStack alignItems={'flex-start'} gap={10} style={{ flex: 1 }}>
+                    <HStack alignItems={'center'} gap={10} style={{ flex: 1 }}>
                       <Avatar
                         src={getModelLogo(model.id)}
                         style={{
                           width: 26,
                           height: 26,
-                          marginTop: modelHasTags(model) ? '2px' : '0'
+                          marginTop: modelHasTags(model) ? '2px' : '0',
+                          alignSelf: 'center',
+                          flexShrink: 0
                         }}>
                         {model?.name?.[0]?.toUpperCase()}
                       </Avatar>
@@ -398,6 +400,7 @@ const ListItem = styled.div`
   display: flex;
   flex-direction: row;
   align-items: flex-start;
+  align-items: center;
   gap: 10px;
   color: var(--color-text);
   font-size: 14px;
