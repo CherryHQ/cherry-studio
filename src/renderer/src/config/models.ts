@@ -2264,7 +2264,7 @@ export function isReasoningModel(model?: Model): boolean {
     return true
   }
 
-  if (model.id.includes('gemini-2.5-pro-exp')) {
+  if (model.id.includes('gemini-2.5')) {
     return true
   }
 
