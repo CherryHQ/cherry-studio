@@ -153,7 +153,8 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
         message.metadata?.citations ||
         message.metadata?.webSearch ||
         message.metadata?.webSearchInfo ||
-        message.metadata?.annotations
+        message.metadata?.annotations ||
+        message.metadata?.knowledge
       )
     ) {
       return message.content
@@ -161,20 +162,26 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
 
     let content = message.content
 
-    const searchResultsCitations = message?.metadata?.webSearch?.results?.map((result) => result.url) || []
+    const websearchResultsCitations = message?.metadata?.webSearch?.results?.map((result) => result.url) || []
+    const knowledgeResultsCitations = message?.metadata?.knowledge?.map((result) => result.sourceUrl) || []
+
+    const searchResultsCitations = [...websearchResultsCitations, ...knowledgeResultsCitations]
 
     const citations = message?.metadata?.citations || searchResultsCitations
 
     // Convert [n] format to superscript numbers and make them clickable
     // Use <sup> tag for superscript and make it a link with citation data
-    if (message.metadata?.webSearch || message.metadata.knowledge) {
+    if (message.metadata?.webSearch || message.metadata?.knowledge) {
       content = content.replace(/\[\[(\d+)\]\]|\[(\d+)\]/g, (match, num1, num2) => {
         const num = num1 || num2
         const index = parseInt(num) - 1
         if (index >= 0 && index < citations.length) {
           const link = citations[index]
+          const isWebLink = link && (link.startsWith('http://') || link.startsWith('https://'))
           const citationData = link ? encodeHTML(JSON.stringify(citationsData.get(link) || { url: link })) : null
-          return link ? `[<sup data-citation='${citationData}'>${num}</sup>](${link})` : `<sup>${num}</sup>`
+          return link && isWebLink
+            ? `[<sup data-citation='${citationData}'>${num}</sup>](${link})`
+            : `<sup>${num}</sup>`
         }
         return match
       })
@@ -188,6 +195,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   }, [
     message.metadata?.citations,
     message.metadata?.webSearch,
+    message.metadata?.knowledge,
     message.metadata?.webSearchInfo,
     message.metadata?.annotations,
     message.content,
