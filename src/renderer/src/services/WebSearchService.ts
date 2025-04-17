@@ -145,7 +145,7 @@ class WebSearchService {
       }
 
       const questions = extractResults.websearch.question
-      const links = extractResults.websearch.link
+      const links = extractResults.websearch.links
       const firstQuestion = questions[0]
 
       if (firstQuestion === 'summarize' && links && links.length > 0) {

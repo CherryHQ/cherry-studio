@@ -6,7 +6,7 @@ export interface ExtractResults {
 
 export interface WebsearchExtractResults {
   question: string[]
-  link?: string[]
+  links?: string[]
 }
 
 export interface KnowledgeExtractResults {
@@ -21,13 +21,13 @@ export interface KnowledgeExtractResults {
  * @throws
  */
 export const extractInfoFromXML = (text: string): ExtractResults => {
-  console.log('extract text', text)
+  // console.log('extract text', text)
   const parser = new XMLParser({
     isArray: (name) => {
-      return name === 'question' || name === 'link'
+      return name === 'question' || name === 'links'
     }
   })
   const extractResults: ExtractResults = parser.parse(text)
-  console.log('Extracted results:', extractResults)
+  // console.log('Extracted results:', extractResults)
   return extractResults
 }

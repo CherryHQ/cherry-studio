@@ -504,7 +504,7 @@ export default class OpenAIProvider extends BaseProvider {
 
       await processToolUses(content, idx)
     }
-    console.log('reqMessages', reqMessages)
+    // console.log('reqMessages', reqMessages)
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(

@@ -106,8 +106,6 @@ export async function fetchChatCompletion({
       assistant.model &&
       extractResults.websearch.question[0] !== 'not_needed'
 
-    console.log('shouldSearch', shouldSearch)
-
     if (!shouldSearch) return
 
     onResponse({ ...message, status: 'searching' })
@@ -120,7 +118,7 @@ export async function fetchChatCompletion({
         webSearchProvider,
         extractResults
       )
-      console.log('webSearchResponse', webSearchResponse)
+      // console.log('webSearchResponse', webSearchResponse)
       // 处理搜索结果
       message.metadata = {
         ...message.metadata,
@@ -138,7 +136,6 @@ export async function fetchChatCompletion({
     const shouldSearch =
       hasKnowledgeBase && extractResults.knowledge && extractResults.knowledge.question[0] !== 'not_needed'
 
-    console.log('shouldSearch', shouldSearch)
     if (!shouldSearch) return
 
     onResponse({ ...message, status: 'searching' })
