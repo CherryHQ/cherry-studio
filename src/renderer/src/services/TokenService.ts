@@ -1,4 +1,5 @@
-import { Assistant, FileType, FileTypes, Message } from '@renderer/types'
+import { Assistant, FileType, FileTypes } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
 import { flatten, takeRight } from 'lodash'
 import { CompletionUsage } from 'openai/resources'
 import { approximateTokenSize } from 'tokenx'
@@ -52,7 +53,7 @@ export function estimateImageTokens(file: FileType) {
   return Math.floor(file.size / 100)
 }
 
-export async function estimateMessageUsage(message: Message): Promise<CompletionUsage> {
+export async function estimateMessageUsage(message): Promise<CompletionUsage> {
   let imageTokens = 0
 
   if (message.files) {

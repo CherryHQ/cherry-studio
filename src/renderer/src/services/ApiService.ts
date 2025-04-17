@@ -1,27 +1,13 @@
-import {
-  getOpenAIWebSearchParams,
-  isHunyuanSearchModel,
-  isOpenAIWebSearch,
-  isZhipuModel
-} from '@renderer/config/models'
+import { getOpenAIWebSearchParams, isOpenAIWebSearch } from '@renderer/config/models'
 import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
-import store from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
-import { Assistant, MCPTool, Message, Model, Provider, Suggestion, WebSearchResponse } from '@renderer/types'
-import { formatMessageError, isAbortError } from '@renderer/utils/error'
+import type { ChunkCallbackData } from '@renderer/providers/AiProvider'
+import type { Assistant, MCPTool, Model, Provider, Suggestion, WebSearchResponse } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
 import { fetchWebContents } from '@renderer/utils/fetch'
-import { withGenerateImage } from '@renderer/utils/formats'
-import {
-  cleanLinkCommas,
-  completeLinks,
-  convertLinks,
-  convertLinksToHunyuan,
-  convertLinksToOpenRouter,
-  convertLinksToZhipu,
-  extractUrlsFromMarkdown
-} from '@renderer/utils/linkConverter'
-import { cloneDeep, findLast, isEmpty } from 'lodash'
+import { filterContextMessages, filterMessages, filterUsefulMessages } from '@renderer/utils/messageUtils/filters'
+import { getMessageContent } from '@renderer/utils/messageUtils/find'
+import { findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
 import {
@@ -32,112 +18,87 @@ import {
   getTopNamingModel,
   getTranslateModel
 } from './AssistantService'
-import { EVENT_NAMES, EventEmitter } from './EventService'
-import { filterContextMessages, filterMessages, filterUsefulMessages } from './MessagesService'
-import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
 
 export async function fetchChatCompletion({
-  message,
   messages,
   assistant,
-  onResponse
+  onChunkReceived
 }: {
-  message: Message
   messages: Message[]
   assistant: Assistant
-  onResponse: (message: Message) => void
+  onChunkReceived: (chunk: ChunkCallbackData | { type: 'final'; status: 'success' | 'error'; error?: any }) => void
 }) {
   const provider = getAssistantProvider(assistant)
   const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
 
-  const searchTheWeb = async () => {
+  const searchTheWeb = async (): Promise<WebSearchResponse | null> => {
     if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
       let query = ''
-      let webSearchResponse: WebSearchResponse = {
-        results: []
-      }
+      let webSearchResponse: WebSearchResponse = { results: [] }
       const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
+
       if (isEmpty(webSearchParams) && !isOpenAIWebSearch(assistant.model)) {
         const lastMessage = findLast(messages, (m) => m.role === 'user')
-        const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
-        const hasKnowledgeBase = !isEmpty(lastMessage?.knowledgeBaseIds)
 
         if (lastMessage) {
-          if (hasKnowledgeBase) {
-            window.message.info({
-              content: i18n.t('message.ignore.knowledge.base'),
-              key: 'knowledge-base-no-match-info'
-            })
-          }
-
-          // 更新消息状态为搜索中
-          onResponse({ ...message, status: 'searching' })
-
           try {
-            // 等待关键词生成完成
             const searchSummaryAssistant = getDefaultAssistant()
             searchSummaryAssistant.model = assistant.model || getDefaultModel()
             searchSummaryAssistant.prompt = SEARCH_SUMMARY_PROMPT
 
-            // 如果启用搜索增强模式，则使用搜索增强模式
             if (WebSearchService.isEnhanceModeEnabled()) {
               const keywords = await fetchSearchSummary({
-                messages: lastAnswer ? [lastAnswer, lastMessage] : [lastMessage],
+                messages: messages,
                 assistant: searchSummaryAssistant
               })
 
               try {
                 const result = WebSearchService.extractInfoFromXML(keywords || '')
                 if (result.question === 'not_needed') {
-                  // 如果不需要搜索，则直接返回
                   console.log('No need to search')
-                  return
+                  return null
                 } else if (result.question === 'summarize' && result.links && result.links.length > 0) {
                   const contents = await fetchWebContents(result.links)
-                  webSearchResponse = {
-                    query: 'summaries',
-                    results: contents
-                  }
+                  webSearchResponse = { query: 'summaries', results: contents }
                 } else {
                   query = result.question
                   webSearchResponse = await WebSearchService.search(webSearchProvider, query)
                 }
               } catch (error) {
                 console.error('Failed to extract info from XML:', error)
+                return null
               }
             } else {
-              query = lastMessage.content
+              query = getMessageContent(lastMessage)
+
+              if (query) {
+                webSearchResponse = await WebSearchService.search(webSearchProvider, query)
+              } else {
+                console.warn('Cannot search, last user message has no content in its main block.')
+                return null
+              }
             }
 
-            // 处理搜索结果
-            message.metadata = {
-              ...message.metadata,
-              webSearch: webSearchResponse
-            }
-
-            window.keyv.set(`web-search-${lastMessage?.id}`, webSearchResponse)
+            window.keyv.set(`web-search-${lastMessage.id}`, webSearchResponse)
+            return webSearchResponse
           } catch (error) {
             console.error('Web search failed:', error)
+            return null
           }
         }
       }
     }
+    return null
   }
 
   try {
-    let _messages: Message[] = []
-    let isFirstChunk = true
-
-    // Search web
     await searchTheWeb()
 
     const lastUserMessage = findLast(messages, (m) => m.role === 'user')
-    // Get MCP tools
-    const mcpTools: MCPTool[] = []
     const enabledMCPs = lastUserMessage?.enabledMCPs
-
+    const mcpTools: MCPTool[] = []
     if (enabledMCPs && enabledMCPs.length > 0) {
       for (const mcpServer of enabledMCPs) {
         const tools = await window.api.mcp.listTools(mcpServer)
@@ -146,150 +107,23 @@ export async function fetchChatCompletion({
       }
     }
 
+    const filteredMessages = filterUsefulMessages(filterContextMessages(messages))
+
     await AI.completions({
-      messages: filterUsefulMessages(filterContextMessages(messages)),
+      messages: filteredMessages,
       assistant,
-      onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({
-        text,
-        reasoning_content,
-        usage,
-        metrics,
-        webSearch,
-        search,
-        annotations,
-        citations,
-        mcpToolResponse,
-        generateImage
-      }) => {
-        if (assistant.model) {
-          if (isOpenAIWebSearch(assistant.model)) {
-            text = convertLinks(text || '', isFirstChunk)
-          } else if (assistant.model.provider === 'openrouter' && assistant.enableWebSearch) {
-            text = convertLinksToOpenRouter(text || '', isFirstChunk)
-          } else if (assistant.enableWebSearch) {
-            if (isZhipuModel(assistant.model)) {
-              text = convertLinksToZhipu(text || '', isFirstChunk)
-            } else if (isHunyuanSearchModel(assistant.model)) {
-              text = convertLinksToHunyuan(text || '', webSearch || [], isFirstChunk)
-            }
-          }
-        }
-        if (isFirstChunk) {
-          isFirstChunk = false
-        }
-        message.content = message.content + text || ''
-        message.usage = usage
-        message.metrics = metrics
-
-        if (reasoning_content) {
-          message.reasoning_content = (message.reasoning_content || '') + reasoning_content
-        }
-
-        if (mcpToolResponse) {
-          message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
-        }
-
-        if (generateImage && generateImage.images.length > 0) {
-          const existingImages = message.metadata?.generateImage?.images || []
-          generateImage.images = [...existingImages, ...generateImage.images]
-          console.log('generateImage', generateImage)
-          message.metadata = {
-            ...message.metadata,
-            generateImage: generateImage
-          }
-        }
-
-        // Handle citations from Perplexity API
-        if (citations) {
-          message.metadata = {
-            ...message.metadata,
-            citations
-          }
-        }
-
-        // Handle web search from Gemini
-        if (search) {
-          message.metadata = { ...message.metadata, groundingMetadata: search }
-        }
-
-        // Handle annotations from OpenAI
-        if (annotations) {
-          message.metadata = {
-            ...message.metadata,
-            annotations: annotations
-          }
-        }
-
-        // Handle web search from Zhipu or Hunyuan
-        if (webSearch) {
-          message.metadata = {
-            ...message.metadata,
-            webSearchInfo: webSearch
-          }
-        }
-
-        // Handle citations from Openrouter
-        if (assistant.model?.provider === 'openrouter' && assistant.enableWebSearch) {
-          const extractedUrls = extractUrlsFromMarkdown(message.content)
-          if (extractedUrls.length > 0) {
-            message.metadata = {
-              ...message.metadata,
-              citations: extractedUrls
-            }
-          }
-        }
-        if (assistant.enableWebSearch) {
-          message.content = cleanLinkCommas(message.content)
-          if (webSearch && isZhipuModel(assistant.model)) {
-            message.content = completeLinks(message.content, webSearch)
-          }
-        }
-
-        onResponse({ ...message, status: 'pending' })
+      onFilterMessages: () => {},
+      onChunk: (chunkData: ChunkCallbackData) => {
+        onChunkReceived(chunkData)
       },
       mcpTools: mcpTools
     })
-
-    message.status = 'success'
-    message = withGenerateImage(message)
-
-    if (!message.usage || !message?.usage?.completion_tokens) {
-      message.usage = await estimateMessagesUsage({
-        assistant,
-        messages: [..._messages, message]
-      })
-      // Set metrics.completion_tokens
-      if (message.metrics && message?.usage?.completion_tokens) {
-        if (!message.metrics?.completion_tokens) {
-          message = {
-            ...message,
-            metrics: {
-              ...message.metrics,
-              completion_tokens: message.usage.completion_tokens
-            }
-          }
-        }
-      }
-    }
-    // console.log('message', message)
+    onChunkReceived({ type: 'final', status: 'success' })
   } catch (error: any) {
-    if (isAbortError(error)) {
-      message.status = 'paused'
-    } else {
-      message.status = 'error'
-      message.error = formatMessageError(error)
-    }
+    console.error('Error during AI.completions call:', error)
+    onChunkReceived({ type: 'final', status: 'error', error })
+    throw error
   }
-
-  // console.log('message', message)
-  // Emit chat completion event
-  EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
-  onResponse(message)
-
-  // Reset generating state
-  store.dispatch(setGenerating(false))
-  return message
 }
 
 interface FetchTranslateProps {
@@ -332,7 +166,6 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   try {
     const text = await AI.summaries(filterMessages(messages), assistant)
-    // Remove all quotes from the text
     return text?.replace(/["']/g, '') || null
   } catch (error: any) {
     return null
@@ -381,11 +214,7 @@ export async function fetchSuggestions({
   assistant: Assistant
 }): Promise<Suggestion[]> {
   const model = assistant.model
-  if (!model) {
-    return []
-  }
-
-  if (model.id.endsWith('global')) {
+  if (!model || model.id.endsWith('global')) {
     return []
   }
 
@@ -399,7 +228,26 @@ export async function fetchSuggestions({
   }
 }
 
-// Helper function to validate provider's basic settings such as API key, host, and model list
+function hasApiKey(provider: Provider) {
+  if (!provider) return false
+  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
+  return !isEmpty(provider.apiKey)
+}
+
+export async function fetchModels(provider: Provider) {
+  const AI = new AiProvider(provider)
+
+  try {
+    return await AI.models()
+  } catch (error) {
+    return []
+  }
+}
+
+export const formatApiKeys = (value: string) => {
+  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
+}
+
 export function checkApiProvider(provider: Provider): {
   valid: boolean
   error: Error | null
@@ -456,29 +304,4 @@ export async function checkApi(provider: Provider, model: Model) {
     valid,
     error
   }
-}
-
-function hasApiKey(provider: Provider) {
-  if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
-  return !isEmpty(provider.apiKey)
-}
-
-export async function fetchModels(provider: Provider) {
-  const AI = new AiProvider(provider)
-
-  try {
-    return await AI.models()
-  } catch (error) {
-    return []
-  }
-}
-
-/**
- * Format API keys
- * @param value Raw key string
- * @returns Formatted key string
- */
-export const formatApiKeys = (value: string) => {
-  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
 }

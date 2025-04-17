@@ -1,6 +1,9 @@
-import { isReasoningModel } from '@renderer/config/models'
-import { getAssistantById } from '@renderer/services/AssistantService'
-import { Message } from '@renderer/types'
+import store from '@renderer/store'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import type { CitationBlock, Message } from '@renderer/types/newMessageTypes'
+import { MessageBlockType } from '@renderer/types/newMessageTypes'
+
+import { findImageBlocks, getMessageContent } from './messageUtils/find'
 
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
@@ -61,14 +64,34 @@ export function removeSvgEmptyLines(text: string): string {
   })
 }
 
-export function withGeminiGrounding(message: Message) {
-  const { groundingSupports } = message?.metadata?.groundingMetadata || {}
-
-  if (!groundingSupports) {
-    return message.content
+// Helper function to find the first citation block with grounding metadata
+// Ideally, move this to find.ts later
+const findCitationBlockWithGrounding = (message: Message): CitationBlock | undefined => {
+  if (!message || !message.blocks || message.blocks.length === 0) {
+    return undefined
   }
+  const state = store.getState()
+  for (const blockId of message.blocks) {
+    const block = messageBlocksSelectors.selectById(state, blockId)
+    if (block && block.type === MessageBlockType.CITATION) {
+      const citation = block
+      if (citation.citationType === 'grounding' && citation.groundingMetadata) {
+        return citation
+      }
+    }
+  }
+  return undefined
+}
 
-  let content = message.content
+export function withGeminiGrounding(message: Message): string {
+  const citationBlock = findCitationBlockWithGrounding(message)
+  const groundingSupports = citationBlock?.groundingMetadata?.groundingSupports
+
+  let content = getMessageContent(message)
+
+  if (!groundingSupports || groundingSupports.length === 0) {
+    return content
+  }
 
   groundingSupports.forEach((support) => {
     const text = support?.segment?.text
@@ -76,10 +99,10 @@ export function withGeminiGrounding(message: Message) {
 
     if (!text || !indices) return
 
-    const nodes = indices.reduce<string[]>((acc, index) => {
+    const nodes = indices.reduce((acc, index) => {
       acc.push(`<sup>${index + 1}</sup>`)
       return acc
-    }, [])
+    }, [] as string[])
 
     content = content.replace(text, `${text} ${nodes.join(' ')}`)
   })
@@ -156,78 +179,76 @@ const thinkTagProcessor: ThoughtProcessor = {
   }
 }
 
-export function withMessageThought(message: Message) {
-  if (message.role !== 'assistant') {
-    return message
-  }
-
-  const model = message.model
-  if (!model || !isReasoningModel(model)) return message
-
-  const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
-  if (isClaude37Sonnet) {
-    const assistant = getAssistantById(message.assistantId)
-    if (!assistant?.settings?.reasoning_effort) return message
-  }
-
-  const content = message.content.trim()
-  const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor]
-
-  const processor = processors.find((p) => p.canProcess(content, message))
-  if (processor) {
-    const { reasoning, content: processedContent } = processor.process(content)
-    message.reasoning_content = reasoning
-    message.content = processedContent
-  }
-
+export function withMessageThought(message: Message): Message {
   return message
+  // const originalContent = getMessageContent(message).trim()
+
+  // if (message.role !== 'assistant') {
+  //   return message
+  // }
+
+  // const model = message.model
+  // if (!model || !isReasoningModel(model)) return message
+
+  // const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
+  // if (isClaude37Sonnet) {
+  //   const assistant = getAssistantById(message.assistantId)
+  //   if (!assistant?.settings?.reasoning_effort) return message
+  // }
+  // const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor]
+  // const processor = processors.find((p) => p.canProcess(originalContent, message))
+
+  // if (processor) {
+  //   const { reasoning, content: processedContent } = processor.process(originalContent)
+
+  //   const thinkingBlock = createThinkingBlock(message.id, reasoning, {
+  //     status: MessageBlockStatus.SUCCESS
+  //   })
+
+  //   return { reasoning: reasoning || undefined, content: processedContent }
+  // }
+
+  // return { content: originalContent }
 }
 
-export function withGenerateImage(message: Message) {
+export function withGenerateImage(message: Message): { content: string; images?: string[] } {
+  const originalContent = getMessageContent(message)
   const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
-  const imageMatches = message.content.match(imagePattern)
+  const images: string[] = []
+  let processedContent = originalContent
 
-  if (!imageMatches || imageMatches[1] === null) {
-    return message
-  }
+  processedContent = originalContent.replace(imagePattern, (match, url) => {
+    if (url) {
+      images.push(url)
+    }
+    return ''
+  })
 
-  const cleanImgContent = message.content
-    .replace(imagePattern, '')
+  processedContent = processedContent.replace(/\n\s*\n/g, '\n').trim()
+
+  const downloadPattern = /\[[^\]]*\]\((.*?)\s*("(?:.*[^"])")?\s*\)/g
+  processedContent = processedContent
+    .replace(downloadPattern, '')
     .replace(/\n\s*\n/g, '\n')
     .trim()
 
-  const downloadPattern = new RegExp(`\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
-  const downloadMatches = cleanImgContent.match(downloadPattern)
-
-  let cleanContent = cleanImgContent
-  if (downloadMatches) {
-    cleanContent = cleanImgContent
-      .replace(downloadPattern, '')
-      .replace(/\n\s*\n/g, '\n')
-      .trim()
+  if (images.length > 0) {
+    return { content: processedContent, images }
   }
 
-  message = {
-    ...message,
-    content: cleanContent,
-    metadata: {
-      ...message.metadata,
-      generateImage: {
-        type: 'url',
-        images: [imageMatches[1]]
-      }
-    }
-  }
-  return message
+  return { content: originalContent }
 }
 
 export function addImageFileToContents(messages: Message[]) {
   const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
-  if (!lastAssistantMessage || !lastAssistantMessage.metadata || !lastAssistantMessage.metadata.generateImage) {
+  if (!lastAssistantMessage) return messages
+  const blocks = findImageBlocks(lastAssistantMessage)
+  if (!blocks || blocks.length === 0) return messages
+  if (blocks.every((v) => !v.metadata?.generateImage)) {
     return messages
   }
 
-  const imageFiles = lastAssistantMessage.metadata.generateImage.images
+  const imageFiles = blocks.map((v) => v.metadata?.generateImage?.images).flat()
   const updatedAssistantMessage = {
     ...lastAssistantMessage,
     images: imageFiles

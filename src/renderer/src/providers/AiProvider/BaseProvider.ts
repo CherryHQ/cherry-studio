@@ -6,15 +6,16 @@ import type {
   Assistant,
   GenerateImageParams,
   KnowledgeReference,
-  Message,
   Model,
   Provider,
   Suggestion,
   WebSearchResponse
 } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
+import { getKnowledgeBaseIds, getMessageContent } from '@renderer/utils/messageUtils/find'
 import { t } from 'i18next'
 import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
@@ -93,34 +94,36 @@ export default abstract class BaseProvider {
     }
   }
 
-  public async getMessageContent(message: Message) {
-    if (isEmpty(message.content)) {
-      return message.content
+  public async getMessageContent(message: Message): Promise<string> {
+    const content = getMessageContent(message)
+    if (isEmpty(content)) {
+      return ''
     }
 
     const webSearchReferences = await this.getWebSearchReferences(message)
-
     if (!isEmpty(webSearchReferences)) {
       const referenceContent = `\`\`\`json\n${JSON.stringify(webSearchReferences, null, 2)}\n\`\`\``
-      return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
+      return REFERENCE_PROMPT.replace('{question}', content).replace('{references}', referenceContent)
     }
 
     const knowledgeReferences = await getKnowledgeBaseReferences(message)
+    const knowledgeBaseIds = getKnowledgeBaseIds(message)
 
-    if (!isEmpty(message.knowledgeBaseIds) && isEmpty(knowledgeReferences)) {
+    if (!isEmpty(knowledgeBaseIds) && isEmpty(knowledgeReferences)) {
       window.message.info({ content: t('knowledge.no_match'), key: 'knowledge-base-no-match-info' })
     }
 
     if (!isEmpty(knowledgeReferences)) {
       const referenceContent = `\`\`\`json\n${JSON.stringify(knowledgeReferences, null, 2)}\n\`\`\``
-      return FOOTNOTE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
+      return FOOTNOTE_PROMPT.replace('{question}', content).replace('{references}', referenceContent)
     }
 
-    return message.content
+    return content
   }
 
   private async getWebSearchReferences(message: Message) {
-    if (isEmpty(message.content)) {
+    const content = getMessageContent(message)
+    if (isEmpty(content)) {
       return []
     }
     const webSearch: WebSearchResponse = window.keyv.get(`web-search-${message.id}`)

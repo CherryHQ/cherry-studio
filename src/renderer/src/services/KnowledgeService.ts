@@ -3,7 +3,8 @@ import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
-import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference, Message } from '@renderer/types'
+import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
 import { isEmpty, take } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'

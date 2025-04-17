@@ -10,9 +10,11 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { mcpToolCallResponseToAnthropicMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { findFileBlocks, findImageBlocks, getMessageContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { first, flatten, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
@@ -59,8 +61,12 @@ export default class AnthropicProvider extends BaseProvider {
       }
     ]
 
-    for (const file of message.files || []) {
-      if (file.type === FileTypes.IMAGE) {
+    // Get and process image blocks
+    const imageBlocks = findImageBlocks(message)
+    for (const imageBlock of imageBlocks) {
+      if (imageBlock.file) {
+        // Handle uploaded file
+        const file = imageBlock.file
         const base64Data = await window.api.file.base64Image(file.id + file.ext)
         parts.push({
           type: 'image',
@@ -72,17 +78,21 @@ export default class AnthropicProvider extends BaseProvider {
         })
       }
 
-      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
-        parts.push({
-          type: 'text',
-          text: file.origin_name + '\n' + fileContent
-        })
+      // Get and process file blocks
+      const fileBlocks = findFileBlocks(message)
+      for (const fileBlock of fileBlocks) {
+        const file = fileBlock.file
+        if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+          const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+          parts.push({
+            type: 'text',
+            text: file.origin_name + '\n' + fileContent
+          })
+        }
       }
     }
-
     return {
-      role: message.role,
+      role: message.role === 'system' ? 'user' : message.role,
       content: parts
     }
   }
@@ -355,16 +365,15 @@ export default class AnthropicProvider extends BaseProvider {
   public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const messages = [
-      { role: 'system', content: assistant.prompt },
-      { role: 'user', content: message.content }
-    ]
+    const content = getMessageContent(message)
 
-    const stream = onResponse ? true : false
+    const messagesForApi = [{ role: 'user' as const, content: content }]
+
+    const stream = !!onResponse
 
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
-      messages: messages.filter((m) => m.role === 'user') as MessageParam[],
+      messages: messagesForApi,
       max_tokens: 4096,
       temperature: assistant?.settings?.temperature,
       system: assistant.prompt
@@ -402,7 +411,7 @@ export default class AnthropicProvider extends BaseProvider {
       .filter((message) => !message.isPreset)
       .map((message) => ({
         role: message.role,
-        content: message.content
+        content: getMessageContent(message)
       }))
 
     if (first(userMessages)?.role === 'assistant') {
@@ -410,8 +419,8 @@ export default class AnthropicProvider extends BaseProvider {
     }
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
-      const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
-      return prev + (prev ? '\n' : '') + content
+      const currentContent = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
+      return prev + (prev ? '\n' : '') + currentContent
     }, '')
 
     const systemMessage = {
@@ -432,9 +441,8 @@ export default class AnthropicProvider extends BaseProvider {
       max_tokens: 4096
     })
 
-    const content = message.content[0].type === 'text' ? message.content[0].text : ''
-
-    return removeSpecialCharactersForTopicName(content)
+    const responseContent = message.content[0].type === 'text' ? message.content[0].text : ''
+    return removeSpecialCharactersForTopicName(responseContent)
   }
 
   /**
@@ -445,33 +453,28 @@ export default class AnthropicProvider extends BaseProvider {
    */
   public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
     const model = assistant.model || getDefaultModel()
-    //这里只有上一条回答和当前的搜索消息
-    const systemMessage = {
-      role: 'system',
-      content: assistant.prompt
-    }
+    const systemMessage = { content: assistant.prompt }
+
+    const userMessageContent = messages.map((m) => getMessageContent(m)).join('\n')
 
     const userMessage = {
-      role: 'user',
-      content: messages.map((m) => m.content).join('\n')
+      role: 'user' as const,
+      content: userMessageContent
     }
 
     const response = await this.sdk.messages.create(
       {
-        messages: [userMessage] as Anthropic.Messages.MessageParam[],
+        messages: [userMessage],
         model: model.id,
         system: systemMessage.content,
         stream: false,
         max_tokens: 4096
       },
-      {
-        timeout: 20 * 1000
-      }
+      { timeout: 20 * 1000 }
     )
 
-    const content = response.content[0].type === 'text' ? response.content[0].text : ''
-
-    return content
+    const responseContent = response.content[0].type === 'text' ? response.content[0].text : ''
+    return responseContent
   }
 
   /**

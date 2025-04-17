@@ -1,27 +1,47 @@
+import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { estimateMessageUsage } from '@renderer/services/TokenService'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  clearStreamMessage,
-  clearTopicMessages,
-  commitStreamMessage,
-  deleteMessageAction,
-  resendMessage,
-  selectDisplayCount,
-  selectTopicLoading,
-  selectTopicMessages,
-  setStreamMessage,
-  setTopicLoading,
-  updateMessages,
-  updateMessageThunk
-} from '@renderer/store/messages'
-import type { Assistant, Message, Topic } from '@renderer/types'
+import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
+import { messageBlocksSelectors, updateOneBlock as updateMessageBlock } from '@renderer/store/messageBlock'
+import { clearTopicMessages as clearTopicMessagesThunk, deleteMessageAction } from '@renderer/store/messages'
+import { newMessagesActions } from '@renderer/store/newMessage'
+import type { Assistant, Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
+import { MessageBlockType } from '@renderer/types/newMessageTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { useCallback } from 'react'
 
 import { TopicManager } from './useTopic'
+
+const findMainTextBlockId = (message: Message): string | undefined => {
+  if (!message || !message.blocks) return undefined
+  const state = store.getState()
+  for (const blockId of message.blocks) {
+    const block = messageBlocksSelectors.selectById(state, String(blockId))
+    if (block && block.type === MessageBlockType.MAIN_TEXT) {
+      return block.id
+    }
+  }
+  return undefined
+}
+
+const selectMessagesState = (state: RootState) => state.messages
+
+export const selectNewTopicMessages = createSelector(
+  [selectMessagesState, (state: RootState, topicId: string) => topicId],
+  (messagesState, topicId) => messagesState.messagesByTopic[topicId] || []
+)
+
+export const selectNewTopicLoading = createSelector(
+  [selectMessagesState, (state: RootState, topicId: string) => topicId],
+  (messagesState, topicId) => messagesState.loadingByTopic[topicId] || false
+)
+
+export const selectNewDisplayCount = createSelector(
+  [selectMessagesState],
+  (messagesState) => messagesState.displayCount
+)
+
 /**
- * 自定义Hook，提供消息操作相关的功能
  *
  * @param topic 当前主题
  * @returns 一组消息操作方法
@@ -31,9 +51,11 @@ export function useMessageOperations(topic: Topic) {
 
   /**
    * 删除单个消息
+   * TODO: Needs a new thunk to delete message from newMessages and associated blocks from messageBlocks
    */
   const deleteMessage = useCallback(
     async (id: string) => {
+      console.warn('[TODO] deleteMessage needs update for new stores')
       await dispatch(deleteMessageAction(topic, id))
     },
     [dispatch, topic]
@@ -41,107 +63,78 @@ export function useMessageOperations(topic: Topic) {
 
   /**
    * 删除一组消息（基于askId）
+   * TODO: Needs a new thunk similar to deleteMessage
    */
   const deleteGroupMessages = useCallback(
     async (askId: string) => {
+      console.warn('[TODO] deleteGroupMessages needs update for new stores')
       await dispatch(deleteMessageAction(topic, askId, 'askId'))
     },
     [dispatch, topic]
   )
 
   /**
-   * 编辑消息内容
+   * 编辑消息 (Uses newMessagesActions.updateMessage)
    */
   const editMessage = useCallback(
     async (messageId: string, updates: Partial<Message>) => {
-      // 如果更新包含内容变更，重新计算 token
-      if ('content' in updates) {
-        const messages = store.getState().messages.messagesByTopic[topic.id]
-        const message = messages?.find((m) => m.id === messageId)
-        if (message) {
-          const updatedMessage = { ...message, ...updates }
-          const usage = await estimateMessageUsage(updatedMessage)
-          updates.usage = usage
-        }
-      }
-      await dispatch(updateMessageThunk(topic.id, messageId, updates))
+      await dispatch(newMessagesActions.updateMessage({ topicId: topic.id, messageId, updates }))
     },
     [dispatch, topic.id]
   )
 
   /**
    * 重新发送消息
+   * TODO: Needs a new thunk (e.g., resendNewMessageThunk) interacting with new stores
    */
   const resendMessageAction = useCallback(
-    async (message: Message, assistant: Assistant, isMentionModel = false) => {
-      return dispatch(resendMessage(message, assistant, topic, isMentionModel))
+    // Suppress unused variable warnings for placeholder function
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async (message: Message, assistant: Assistant) => {
+      console.warn('[TODO] resendMessageAction needs new thunk')
+      // Placeholder: No dispatch, needs new thunk
+      // Example: await dispatch(resendNewMessageThunk(message, assistant, topic))
+      return Promise.resolve()
     },
-    [dispatch, topic]
+    [dispatch] // Keep dispatch as dependency
   )
 
   /**
    * 重新发送用户消息（编辑后）
+   * TODO: Depends on the new resend thunk
    */
   const resendUserMessageWithEdit = useCallback(
+    // Suppress unused variable warnings for placeholder function
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async (message: Message, editedContent: string, assistant: Assistant) => {
-      // 先更新消息内容
-      await editMessage(message.id, { content: editedContent })
-      // 然后重新发送
-      return dispatch(resendMessage({ ...message, content: editedContent }, assistant, topic))
-    },
-    [dispatch, editMessage, topic]
-  )
+      const mainTextBlockId = findMainTextBlockId(message)
+      if (!mainTextBlockId) {
+        console.error('Cannot resend edited message: Main text block not found.')
+        return
+      }
+      // 1. Update the block content directly
+      await dispatch(updateMessageBlock({ id: mainTextBlockId, changes: { content: editedContent } }))
 
-  /**
-   * 设置流式消息
-   */
-  const setStreamMessageAction = useCallback(
-    (message: Message | null) => {
-      dispatch(setStreamMessage({ topicId: topic.id, message }))
+      // 2. Call the (future) resend thunk
+      console.warn('[TODO] resendUserMessageWithEdit needs new resend thunk')
+      // Example: await dispatch(resendNewMessageThunk({ ...message, blocks: [...] }, assistant, topic)) // Need to reconstruct message if needed by thunk
+      return Promise.resolve()
     },
-    [dispatch, topic.id]
-  )
-
-  /**
-   * 提交流式消息
-   */
-  const commitStreamMessageAction = useCallback(
-    (messageId: string) => {
-      dispatch(commitStreamMessage({ topicId: topic.id, messageId }))
-    },
-    [dispatch, topic.id]
-  )
-
-  /**
-   * 清除流式消息
-   */
-  const clearStreamMessageAction = useCallback(
-    (messageId: string) => {
-      dispatch(clearStreamMessage({ topicId: topic.id, messageId }))
-    },
-    [dispatch, topic.id]
+    [dispatch] // Keep dispatch as dependency, removed comment
   )
 
   /**
    * 清除会话消息
+   * TODO: Needs a new thunk to clear messages from newMessages and associated blocks from messageBlocks
    */
   const clearTopicMessagesAction = useCallback(
     async (_topicId?: string) => {
       const topicId = _topicId || topic.id
-      await dispatch(clearTopicMessages(topicId))
+      console.warn('[TODO] clearTopicMessagesAction needs update for new stores')
+      await dispatch(clearTopicMessagesThunk(topicId))
       await TopicManager.clearTopicMessages(topicId)
     },
     [dispatch, topic.id]
-  )
-
-  /**
-   * 更新消息数据
-   */
-  const updateMessagesAction = useCallback(
-    async (messages: Message[]) => {
-      await dispatch(updateMessages(topic, messages))
-    },
-    [dispatch, topic]
   )
 
   /**
@@ -151,81 +144,54 @@ export function useMessageOperations(topic: Topic) {
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [])
 
-  const displayCount = useAppSelector(selectDisplayCount)
-  // /**
-  //  * 获取当前消息列表
-  //  */
-  // const getMessages = useCallback(() => messages, [messages])
-
-  /**
-   * 暂停消息生成
-   */
-  // const pauseMessage = useCallback(
-  //   // 存的是用户消息的id，也就是助手消息的askId
-  //   async (message: Message) => {
-  //     // 1. 调用 abort
-
-  //     // 2. 更新消息状态,
-  //     // await editMessage(message.id, { status: 'paused', content: message.content })
-
-  //     // 3.更改loading状态
-  //     dispatch(setTopicLoading({ topicId: message.topicId, loading: false }))
-
-  //     // 4. 清理流式消息
-  //     // clearStreamMessageAction(message.id)
-  //   },
-  //   [editMessage, dispatch, clearStreamMessageAction]
-  // )
+  const displayCount = useAppSelector(selectNewDisplayCount)
 
   const pauseMessages = useCallback(async () => {
-    // 暂停的消息不需要在这更改status,通过catch判断abort错误之后设置message.status
-    const streamMessages = store.getState().messages.streamMessagesByTopic[topic.id]
-    if (!streamMessages) return
-    // 不需要重复暂停
-    const askIds = [...new Set(Object.values(streamMessages).map((m) => m?.askId))]
+    const state = store.getState()
+    const topicMessages = state.messages?.messagesByTopic?.[topic.id]
+    if (!topicMessages) return
+
+    const streamingMessages = topicMessages.filter((m) => m.status === 'processing' || m.status === 'sending')
+
+    const askIds = [...new Set(streamingMessages.map((m) => m.askId).filter((id): id is string => !!id))]
 
     for (const askId of askIds) {
-      askId && abortCompletion(askId)
+      abortCompletion(askId)
     }
-    dispatch(setTopicLoading({ topicId: topic.id, loading: false }))
+    dispatch(newMessagesActions.setTopicLoading({ topicId: topic.id, loading: false }))
   }, [topic.id, dispatch])
 
   /**
    * 恢复/重发消息
-   * 暂时不需要
+   * TODO: Depends on the new resend thunk
    */
   const resumeMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
-      return resendMessageAction(message, assistant)
+      return resendMessageAction(message, assistant) // Calls the placeholder
     },
     [resendMessageAction]
   )
 
   return {
     displayCount,
-    updateMessages: updateMessagesAction,
     deleteMessage,
     deleteGroupMessages,
     editMessage,
     resendMessage: resendMessageAction,
     resendUserMessageWithEdit,
-    setStreamMessage: setStreamMessageAction,
-    commitStreamMessage: commitStreamMessageAction,
-    clearStreamMessage: clearStreamMessageAction,
     createNewContext,
     clearTopicMessages: clearTopicMessagesAction,
-    // pauseMessage,
     pauseMessages,
     resumeMessage
   }
 }
 
 export const useTopicMessages = (topic: Topic) => {
-  const messages = useAppSelector((state) => selectTopicMessages(state, topic.id))
+  const messages = useAppSelector((state) => selectNewTopicMessages(state, topic.id))
   return messages
 }
 
 export const useTopicLoading = (topic: Topic) => {
-  const loading = useAppSelector((state) => selectTopicLoading(state, topic.id))
+  const loading = useAppSelector((state) => selectNewTopicLoading(state, topic.id))
   return loading
 }

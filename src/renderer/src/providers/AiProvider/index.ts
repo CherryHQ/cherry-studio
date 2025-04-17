@@ -7,12 +7,12 @@ import type {
   GenerateImageResponse,
   MCPTool,
   MCPToolResponse,
-  Message,
   Metrics,
   Model,
   Provider,
   Suggestion
 } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
 import OpenAI from 'openai'
 
 export interface ChunkCallbackData {

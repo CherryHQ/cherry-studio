@@ -20,8 +20,8 @@ import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
-import { sendMessage as _sendMessage } from '@renderer/store/messages'
 import { setSearching } from '@renderer/store/runtime'
+import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, MCPServer, Message, Model, Topic } from '@renderer/types'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
@@ -47,6 +47,7 @@ import {
   Upload,
   Zap
 } from 'lucide-react'
+import { CompletionUsage } from 'openai/resources'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -186,34 +187,43 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     try {
       // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
-      const userMessage = getUserMessage({ assistant, topic, type: 'text', content: text })
 
+      const baseUserMessage: {
+        assistant: Assistant
+        topic: Topic
+        type: Message['type']
+        content?: string
+        files?: FileType[]
+        knowledgeBaseIds?: string[]
+        mentions?: Model[]
+        enabledMCPs?: MCPServer[]
+        usage?: CompletionUsage
+      } = { assistant, topic, type: 'text', content: text }
+
+      // getUserMessage()
       if (uploadedFiles) {
-        userMessage.files = uploadedFiles
+        baseUserMessage.files = uploadedFiles
       }
-
       const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
 
       if (knowledgeBaseIds) {
-        userMessage.knowledgeBaseIds = knowledgeBaseIds
+        baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
       }
 
       if (mentionModels) {
-        userMessage.mentions = mentionModels
+        baseUserMessage.mentions = mentionModels
       }
 
       if (!isEmpty(enabledMCPs) && !isEmpty(activedMcpServers)) {
-        userMessage.enabledMCPs = activedMcpServers.filter((server) => enabledMCPs?.some((s) => s.id === server.id))
+        baseUserMessage.enabledMCPs = activedMcpServers.filter((server) => enabledMCPs?.some((s) => s.id === server.id))
       }
 
-      userMessage.usage = await estimateMessageUsage(userMessage)
-      currentMessageId.current = userMessage.id
+      baseUserMessage.usage = await estimateMessageUsage(baseUserMessage)
+      const { message, blocks } = getUserMessage(baseUserMessage)
 
-      dispatch(
-        _sendMessage(userMessage, assistant, topic, {
-          mentions: mentionModels
-        })
-      )
+      currentMessageId.current = message.id
+      console.log('message,blocks', message, blocks)
+      dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
       // Clear input
       setText('')

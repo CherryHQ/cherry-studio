@@ -23,9 +23,11 @@ import {
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, FileType, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { mcpToolCallResponseToGeminiMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { findFileBlocks, findImageBlocks, getMessageContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
 import axios from 'axios'
@@ -96,29 +98,33 @@ export default class GeminiProvider extends BaseProvider {
    */
   private async getMessageContents(message: Message): Promise<Content> {
     const role = message.role === 'user' ? 'user' : 'model'
-
     const parts: Part[] = [{ text: await this.getMessageContent(message) }]
     // Add any generated images from previous responses
-    if (message.metadata?.generateImage?.images && message.metadata.generateImage.images.length > 0) {
-      for (const imageUrl of message.metadata.generateImage.images) {
-        if (imageUrl && imageUrl.startsWith('data:')) {
-          // Extract base64 data and mime type from the data URL
-          const matches = imageUrl.match(/^data:(.+);base64,(.*)$/)
-          if (matches && matches.length === 3) {
-            const mimeType = matches[1]
-            const base64Data = matches[2]
-            parts.push({
-              inlineData: {
-                data: base64Data,
-                mimeType: mimeType
-              } as Part['inlineData']
-            })
+    const imageBlocks = findImageBlocks(message)
+    for (const imageBlock of imageBlocks) {
+      if (imageBlock.metadata?.generateImage?.images && imageBlock.metadata.generateImage.images.length > 0) {
+        for (const imageUrl of imageBlock.metadata.generateImage.images) {
+          if (imageUrl && imageUrl.startsWith('data:')) {
+            // Extract base64 data and mime type from the data URL
+            const matches = imageUrl.match(/^data:(.+);base64,(.*)$/)
+            if (matches && matches.length === 3) {
+              const mimeType = matches[1]
+              const base64Data = matches[2]
+              parts.push({
+                inlineData: {
+                  data: base64Data,
+                  mimeType: mimeType
+                } as Part['inlineData']
+              })
+            }
           }
         }
       }
     }
 
-    for (const file of message.files || []) {
+    const fileBlocks = findFileBlocks(message)
+    for (const fileBlock of fileBlocks) {
+      const file = fileBlock.file
       if (file.type === FileTypes.IMAGE) {
         const base64Data = await window.api.file.base64Image(file.id + file.ext)
         parts.push({
@@ -133,7 +139,6 @@ export default class GeminiProvider extends BaseProvider {
         parts.push(await this.handlePdfFile(file))
         continue
       }
-
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
         parts.push({
@@ -412,11 +417,12 @@ export default class GeminiProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const { maxTokens } = getAssistantSettings(assistant)
     const model = assistant.model || defaultModel
+    const _content = getMessageContent(message)
 
     const content =
       isGemmaModel(model) && assistant.prompt
-        ? `<start_of_turn>user\n${assistant.prompt}<end_of_turn>\n<start_of_turn>user\n${message.content}<end_of_turn>`
-        : message.content
+        ? `<start_of_turn>user\n${assistant.prompt}<end_of_turn>\n<start_of_turn>user\n${_content}<end_of_turn>`
+        : _content
     if (!onResponse) {
       const response = await this.sdk.models.generateContent({
         model: model.id,
@@ -472,7 +478,8 @@ export default class GeminiProvider extends BaseProvider {
       .filter((message) => !message.isPreset)
       .map((message) => ({
         role: message.role,
-        content: message.content
+        // Get content using helper
+        content: getMessageContent(message)
       }))
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
@@ -559,14 +566,12 @@ export default class GeminiProvider extends BaseProvider {
       content: assistant.prompt
     }
 
-    const userMessage = {
-      role: 'user',
-      content: messages.map((m) => m.content).join('\n')
-    }
+    // Get content using helper
+    const userMessageContent = messages.map(getMessageContent).join('\n')
 
     const content = isGemmaModel(model)
-      ? `<start_of_turn>user\n${systemMessage.content}<end_of_turn>\n<start_of_turn>user\n${userMessage.content}<end_of_turn>`
-      : userMessage.content
+      ? `<start_of_turn>user\n${systemMessage.content}<end_of_turn>\n<start_of_turn>user\n${userMessageContent}<end_of_turn>`
+      : userMessageContent
 
     const response = await this.sdk.models.generateContent({
       model: model.id,

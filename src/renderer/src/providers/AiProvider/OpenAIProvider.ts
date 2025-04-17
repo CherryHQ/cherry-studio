@@ -25,16 +25,17 @@ import {
   FileTypes,
   GenerateImageParams,
   MCPToolResponse,
-  Message,
   Model,
   Provider,
   Suggestion
 } from '@renderer/types'
+import { Message } from '@renderer/types/newMessageTypes'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { findFileBlocks, findImageBlocks, getMessageContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { isEmpty, takeRight } from 'lodash'
+import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionContentPart,
@@ -94,14 +95,18 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The file content
    */
   private async extractFileContent(message: Message) {
-    if (message.files && message.files.length > 0) {
-      const textFiles = message.files.filter((file) => [FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type))
+    const fileBlocks = findFileBlocks(message)
+    if (fileBlocks.length > 0) {
+      const textFileBlocks = fileBlocks.filter(
+        (fb) => fb.file && [FileTypes.TEXT, FileTypes.DOCUMENT].includes(fb.file.type)
+      )
 
-      if (textFiles.length > 0) {
+      if (textFileBlocks.length > 0) {
         let text = ''
         const divider = '\n\n---\n\n'
 
-        for (const file of textFiles) {
+        for (const fileBlock of textFileBlocks) {
+          const file = fileBlock.file
           const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
           const fileNameRow = 'file: ' + file.origin_name + '\n\n'
           text = text + fileNameRow + fileContent + divider
@@ -126,11 +131,12 @@ export default class OpenAIProvider extends BaseProvider {
   ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
     const isVision = isVisionModel(model)
     const content = await this.getMessageContent(message)
+    const fileBlocks = findFileBlocks(message)
+    const imageBlocks = findImageBlocks(message)
 
-    // If the message does not have files, return the message
-    if (isEmpty(message.files)) {
+    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
       return {
-        role: message.role,
+        role: message.role === 'system' ? 'user' : message.role,
         content
       }
     }
@@ -140,7 +146,7 @@ export default class OpenAIProvider extends BaseProvider {
       const fileContent = await this.extractFileContent(message)
 
       return {
-        role: message.role,
+        role: message.role === 'system' ? 'user' : message.role,
         content: content + '\n\n---\n\n' + fileContent
       }
     }
@@ -152,14 +158,21 @@ export default class OpenAIProvider extends BaseProvider {
       parts.push({ type: 'text', text: content })
     }
 
-    for (const file of message.files || []) {
-      if (file.type === FileTypes.IMAGE && isVision) {
-        const image = await window.api.file.base64Image(file.id + file.ext)
-        parts.push({
-          type: 'image_url',
-          image_url: { url: image.data }
-        })
+    for (const imageBlock of imageBlocks) {
+      if (isVision) {
+        if (imageBlock.file) {
+          const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
+          parts.push({ type: 'image_url', image_url: { url: image.data } })
+        } else if (imageBlock.url && imageBlock.url.startsWith('data:')) {
+          parts.push({ type: 'image_url', image_url: { url: imageBlock.url } })
+        }
       }
+    }
+
+    for (const fileBlock of fileBlocks) {
+      const file = fileBlock.file
+      if (!file) continue
+
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
         parts.push({
@@ -170,7 +183,7 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     return {
-      role: message.role,
+      role: message.role === 'system' ? 'user' : message.role,
       content: parts
     } as ChatCompletionMessageParam
   }
@@ -543,10 +556,11 @@ export default class OpenAIProvider extends BaseProvider {
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const messages = message.content
+    const content = await this.getMessageContent(message)
+    const messagesForApi = content
       ? [
           { role: 'system', content: assistant.prompt },
-          { role: 'user', content: message.content }
+          { role: 'user', content }
         ]
       : [{ role: 'user', content: assistant.prompt }]
 
@@ -569,7 +583,7 @@ export default class OpenAIProvider extends BaseProvider {
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
-      messages: messages as ChatCompletionMessageParam[],
+      messages: messagesForApi as ChatCompletionMessageParam[],
       stream,
       keep_alive: this.keepAliveTime,
       temperature: assistant?.settings?.temperature
@@ -621,7 +635,7 @@ export default class OpenAIProvider extends BaseProvider {
       .filter((message) => !message.isPreset)
       .map((message) => ({
         role: message.role,
-        content: message.content
+        content: getMessageContent(message)
       }))
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
@@ -671,9 +685,12 @@ export default class OpenAIProvider extends BaseProvider {
       content: assistant.prompt
     }
 
+    const messageContents = messages.map((m) => getMessageContent(m))
+    const userMessageContent = messageContents.join('\n')
+
     const userMessage = {
       role: 'user',
-      content: messages.map((m) => m.content).join('\n')
+      content: userMessageContent
     }
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create(
@@ -734,11 +751,18 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
+    const userMessagesForApi = messages
+      .filter((m) => m.role === 'user')
+      .map((m) => ({
+        role: m.role,
+        content: getMessageContent(m)
+      }))
+
     const response: any = await this.sdk.request({
       method: 'post',
       path: '/advice_questions',
       body: {
-        messages: messages.filter((m) => m.role === 'user').map((m) => ({ role: m.role, content: m.content })),
+        messages: userMessagesForApi,
         model: model.id,
         max_tokens: 0,
         temperature: 0,

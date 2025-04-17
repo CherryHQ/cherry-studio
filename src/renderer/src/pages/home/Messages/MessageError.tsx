@@ -1,4 +1,4 @@
-import { Message } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert as AntdAlert } from 'antd'
 import { FC } from 'react'

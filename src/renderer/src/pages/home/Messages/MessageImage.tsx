@@ -8,14 +8,14 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined
 } from '@ant-design/icons'
-import { Message } from '@renderer/types'
+import type { ImageMessageBlock } from '@renderer/types/newMessageTypes'
 import { Image as AntdImage, Space } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
-  message: Message
+  message: ImageMessageBlock
 }
 
 const MessageImage: FC<Props> = ({ message }) => {

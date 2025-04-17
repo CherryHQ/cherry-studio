@@ -4,7 +4,7 @@ import 'katex/dist/contrib/mhchem'
 
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { Message } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessageTypes'
 import { parseJSON } from '@renderer/utils'
 import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
 import { findCitationInChildren } from '@renderer/utils/markdown'
@@ -28,7 +28,8 @@ const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
 
 interface Props {
-  message: Message
+  message: Message & { content: string }
+  // block: MainTextMessageBlock
 }
 
 const remarkPlugins = [remarkMath, remarkGfm, remarkCjkFriendly]

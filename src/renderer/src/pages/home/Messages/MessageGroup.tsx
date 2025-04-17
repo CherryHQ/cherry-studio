@@ -9,8 +9,8 @@ import { Popover } from 'antd'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import styled, { css } from 'styled-components'
 
+import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
-import MessageStream from './MessageStream'
 
 interface Props {
   messages: (Message & { index: number })[]
@@ -171,7 +171,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
             [multiModelMessageStyle]: isGrouped,
             selected: message.id === getSelectedMessageId()
           })}>
-          <MessageStream {...messageProps} />
+          <MessageItem {...messageProps} />
         </MessageWrapper>
       )
 
@@ -185,7 +185,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
                 $selected={index === selectedIndex}
                 $isGrouped={isGrouped}
                 $isInPopover={true}>
-                <MessageStream {...messageProps} />
+                <MessageItem {...messageProps} />
               </MessageWrapper>
             }
             trigger={gridPopoverTrigger}

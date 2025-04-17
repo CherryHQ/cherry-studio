@@ -1,7 +1,7 @@
-import { GroundingMetadata } from '@google/genai'
-import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
+
+import type { Message } from './newMessageTypes'
 
 export type Assistant = {
   id: string
@@ -47,52 +47,6 @@ export type AssistantSettings = {
 
 export type Agent = Omit<Assistant, 'model'> & {
   group?: string[]
-}
-
-export type Message = {
-  id: string
-  assistantId: string
-  role: 'user' | 'assistant'
-  content: string
-  reasoning_content?: string
-  translatedContent?: string
-  topicId: string
-  createdAt: string
-  status: 'sending' | 'pending' | 'searching' | 'success' | 'paused' | 'error'
-  modelId?: string
-  model?: Model
-  files?: FileType[]
-  images?: string[]
-  usage?: OpenAI.Completions.CompletionUsage
-  metrics?: Metrics
-  knowledgeBaseIds?: string[]
-  type: 'text' | '@' | 'clear'
-  isPreset?: boolean
-  mentions?: Model[]
-  askId?: string
-  useful?: boolean
-  error?: Record<string, any>
-  enabledMCPs?: MCPServer[]
-  metadata?: {
-    // Gemini
-    groundingMetadata?: GroundingMetadata
-    // Perplexity Or Openrouter
-    citations?: string[]
-    // OpenAI
-    annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
-    // Zhipu or Hunyuan
-    webSearchInfo?: any[]
-    // Web search
-    webSearch?: WebSearchResponse
-    // MCP Tools
-    mcpTools?: MCPToolResponse[]
-    // Generate Image
-    generateImage?: GenerateImageResponse
-  }
-  // 多模型消息样式
-  multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
-  // fold时是否选中
-  foldSelected?: boolean
 }
 
 export type Metrics = {
