@@ -52,6 +52,8 @@ export async function fetchChatCompletion({
   const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
 
+  store.dispatch(setGenerating(true))
+
   const searchTheWeb = async () => {
     if (WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch && assistant.model) {
       let query = ''
