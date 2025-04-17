@@ -432,7 +432,7 @@ const AIDebatesButton: FC<Props> = ({
       <Section>
         <SectionHeader>
           <SectionTitle>
-            <span>{t('assistants.abbr')}</span>
+            <span>{t('chat.aidebates.assistant')}</span>
             <Tooltip placement="top" title={t('chat.aidebates.question.assistant')} arrow>
               <QuestionIcon size={14} />
             </Tooltip>

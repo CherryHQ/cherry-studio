@@ -251,6 +251,7 @@
       "aidebates": {
         "title": "AI Debates",
         "experimental": "Experimental Feature",
+        "assistant": "User Assistant",
         "auto_mode": "Auto Debates",
         "rounds": "Rounds",
         "mind_token_consumption": "Mind token consumption",
@@ -260,7 +261,7 @@
         "use_topic_assistant": "Use Topic Assistant",
         "return_topic": "Return to AI Debates Topic",
         "question": {
-          "assistant": "Assistant used for debates, defaults to same as topic. Can also select from existing assistants. To adjust prompts, context length, model etc., please create new assistant or modify existing one",
+          "assistant": "The assistant representing the user. By default, it is the same as the topic assistant, but users can also choose other assistants they've created. By modifying the user assistant, different prompts, models, and context settings can be applied compared to the topic assistant.",
           "auto_mode": "Auto: AI acts as user and debates automatically for specified rounds. Manual: AI generates reply but doesn't send automatically"
         },
         "hints": {

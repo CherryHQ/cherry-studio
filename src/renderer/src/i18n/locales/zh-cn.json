@@ -251,6 +251,7 @@
       "aidebates": {
         "title": "AI互辩",
         "experimental": "实验性功能",
+        "assistant": "用户助手",
         "auto_mode": "自动互辩",
         "rounds": "轮次",
         "mind_token_consumption": "请注意Token消耗",
@@ -260,7 +261,7 @@
         "use_topic_assistant": "使用话题助手",
         "return_topic": "返回互辩话题",
         "question": {
-          "assistant": "互辩使用的助手，默认与话题相同，也可从已建立的助手中选择。若需调整提示词、上下文数、模型等，请新建助手或修改已有助手",
+          "assistant": "互辩时代表用户的助手，默认与话题助手相同，也可选择创建的其他助手，通过修改用户助手，可以使用和话题不同的提示词、模型和上下文设置等",
           "auto_mode": "自动：AI代替用户，按指定轮次进行自动互辩。手动：AI生成回复后不自动发送"
         },
         "hints": {

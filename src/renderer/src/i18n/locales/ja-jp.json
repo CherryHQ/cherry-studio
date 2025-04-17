@@ -251,6 +251,7 @@
       "aidebates": {
         "title": "AIディベート",
         "experimental": "実験的機能",
+        "assistant": "ユーザーアシスタント",
         "auto_mode": "自動ディベート",
         "rounds": "ラウンド数",
         "mind_token_consumption": "トークン消費量に注意してください",

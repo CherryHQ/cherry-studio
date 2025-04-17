@@ -251,6 +251,7 @@
       "aidebates": {
         "title": "AI辯論",
         "experimental": "實驗性功能",
+        "assistant": "使用者助手",
         "auto_mode": "自動辯論",
         "rounds": "回合數",
         "mind_token_consumption": "請注意Token消耗量",
@@ -260,7 +261,7 @@
         "use_topic_assistant": "使用主題助手",
         "return_topic": "返回辯論主題",
         "question": {
-          "assistant": "辯論使用的助手，預設與主題相同，也可從已建立的助手中選擇。如需調整提示詞、上下文數、模型等，請新增助手或修改既有助手",
+          "assistant": "在辯論時代表使用者的AI助手，預設會跟主題助手相同，也可以選擇其他你創建的助手。透過自訂使用者助手，就能設定跟主題不同的指令詞、AI模型和對話記憶長度等參數。",
           "auto_mode": "自動：AI代替使用者，按指定回合數進行自動辯論。手動：AI生成回覆後不自動發送"
         },
         "hints": {

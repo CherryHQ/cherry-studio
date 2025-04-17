@@ -251,6 +251,7 @@
       "aidebates": {
         "title": "AI Дебаты",
         "experimental": "Экспериментальная функция",
+        "assistant": "Ассистент пользователя",
         "auto_mode": "Авто-дебаты",
         "rounds": "Раунды",
         "mind_token_consumption": "Учитывайте расход токенов",
