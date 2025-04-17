@@ -5,6 +5,8 @@ import { XMLParser } from 'fast-xml-parser'
 import { isNil, partial } from 'lodash'
 import { type FileStat } from 'webdav'
 
+import { createOAuthUrl, decryptSecret } from '../integration/nutstore/sso/lib/index.mjs'
+
 interface OAuthResponse {
   username: string
   userid: string
@@ -30,18 +32,18 @@ interface WebDAVResponse {
 }
 
 export async function getNutstoreSSOUrl() {
-  const { createOAuthUrl } = await import('../integration/nutstore/sso/lib')
-
-  const url = createOAuthUrl({
+  const url = await createOAuthUrl({
     app: 'cherrystudio'
   })
   return url
 }
 
 export async function decryptToken(token: string) {
-  const { decrypt } = await import('../integration/nutstore/sso/lib')
   try {
-    const decrypted = decrypt('cherrystudio', token)
+    const decrypted = await decryptSecret({
+      app: 'cherrystudio',
+      s: token
+    })
     return JSON.parse(decrypted) as OAuthResponse
   } catch (error) {
     console.error('解密失败:', error)

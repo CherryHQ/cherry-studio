@@ -158,10 +158,13 @@ const visionAllowedModels = [
   'grok-vision-beta',
   'pixtral',
   'gpt-4(?:-[\\w-]+)',
+  'gpt-4.1(?:-[\\w-]+)?',
   'gpt-4o(?:-[\\w-]+)?',
   'gpt-4.5(?:-[\\w-]+)',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
+  'o3(?:-[\\w-]+)?',
+  'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)'
@@ -173,6 +176,7 @@ const visionExcludedModels = [
   'gpt-4-32k',
   'gpt-4-\\d+',
   'o1-mini',
+  'o3-mini',
   'o1-preview',
   'AIDC-AI/Marco-o1'
 ]
@@ -258,8 +262,9 @@ export function getModelLogo(modelId: string) {
     jina: isLight ? JinaModelLogo : JinaModelLogoDark,
     abab: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     minimax: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
-    o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     o1: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
+    o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
+    o4: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
@@ -1072,16 +1077,22 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   zhipu: [
     {
-      id: 'glm-zero-preview',
+      id: 'glm-z1-air',
       provider: 'zhipu',
-      name: 'GLM-Zero-Preview',
-      group: 'GLM-Zero'
+      name: 'GLM-Z1-AIR',
+      group: 'GLM-Z1'
     },
     {
-      id: 'glm-4-0520',
+      id: 'glm-z1-airx',
       provider: 'zhipu',
-      name: 'GLM-4-0520',
-      group: 'GLM-4'
+      name: 'GLM-Z1-AIRX',
+      group: 'GLM-Z1'
+    },
+    {
+      id: 'glm-z1-flash',
+      provider: 'zhipu',
+      name: 'GLM-Z1-FLASH',
+      group: 'GLM-Z1'
     },
     {
       id: 'glm-4-long',
@@ -1096,9 +1107,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4'
     },
     {
-      id: 'glm-4-air',
+      id: 'glm-4-air-250414',
       provider: 'zhipu',
-      name: 'GLM-4-Air',
+      name: 'GLM-4-Air-250414',
       group: 'GLM-4'
     },
     {
@@ -1108,9 +1119,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4'
     },
     {
-      id: 'glm-4-flash',
+      id: 'glm-4-flash-250414',
       provider: 'zhipu',
-      name: 'GLM-4-Flash',
+      name: 'GLM-4-Flash-250414',
       group: 'GLM-4'
     },
     {
@@ -1132,9 +1143,9 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'GLM-4v'
     },
     {
-      id: 'glm-4v-plus',
+      id: 'glm-4v-plus-0111',
       provider: 'zhipu',
-      name: 'GLM-4V-Plus',
+      name: 'GLM-4V-Plus-0111',
       group: 'GLM-4v'
     },
     {
@@ -2197,8 +2208,9 @@ export function isVisionModel(model: Model): boolean {
 }
 
 export function isOpenAIoSeries(model: Model): boolean {
-  return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3')
+  return model.id.includes('o1') || model.id.includes('o3') || model.id.includes('o4')
 }
+
 export function isOpenAIWebSearch(model: Model): boolean {
   return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
 }
@@ -2218,6 +2230,13 @@ export function isSupportedReasoningEffortModel(model?: Model): boolean {
   }
 
   return false
+}
+
+export function isGrokModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return model.id.includes('grok')
 }
 
 export function isGrokReasoningModel(model?: Model): boolean {
@@ -2246,6 +2265,10 @@ export function isReasoningModel(model?: Model): boolean {
   }
 
   if (model.id.includes('gemini-2.5-pro-exp')) {
+    return true
+  }
+
+  if (model.id.includes('glm-z1')) {
     return true
   }
 

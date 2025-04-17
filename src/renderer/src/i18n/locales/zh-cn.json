@@ -357,7 +357,7 @@
       "no_api_key": "API 密钥未配置",
       "provider_disabled": "模型提供商未启用",
       "render": {
-        "description": "渲染公式失败，请检查公式格式是否正确",
+        "description": "消息内容渲染失败，请检查消息内容格式是否正确",
         "title": "渲染错误"
       },
       "user_message_not_found": "无法找到原始用户消息",
@@ -577,7 +577,7 @@
       "restore.failed": "恢复失败",
       "restore.success": "恢复成功",
       "save.success.title": "保存成功",
-      "searching": "正在联网搜索...",
+      "searching": "正在搜索...",
       "success.joplin.export": "成功导出到 Joplin",
       "success.markdown.export.preconf": "成功导出 Markdown 文件到预先设定的路径",
       "success.markdown.export.specified": "成功导出 Markdown 文件",
@@ -1101,6 +1101,8 @@
         "editServer": "编辑服务器",
         "env": "环境变量",
         "envTooltip": "格式：KEY=value，每行一个",
+        "headers": "请求头",
+        "headersTooltip": "HTTP 请求的自定义请求头",
         "findMore": "更多 MCP",
         "searchNpx": "搜索 MCP",
         "install": "安装",
@@ -1388,7 +1390,9 @@
         },
         "title": "网络搜索",
         "apikey": "API 密钥",
-        "free": "免费"
+        "free": "免费",
+        "content_limit": "内容长度限制",
+        "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断"
       },
       "quickPhrase": {
         "title": "快捷短语",

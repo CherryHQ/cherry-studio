@@ -19,10 +19,12 @@ const api = {
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
   restartTray: () => ipcRenderer.invoke(IpcChannel.App_RestartTray),
   setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
+  setCustomCss: (css: string) => ipcRenderer.invoke(IpcChannel.App_SetCustomCss, css),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
-    getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType)
+    getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
+    getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
   },
   zip: {
     compress: (text: string) => ipcRenderer.invoke(IpcChannel.Zip_Compress, text),

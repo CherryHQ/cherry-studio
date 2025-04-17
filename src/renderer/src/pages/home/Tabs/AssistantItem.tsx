@@ -217,10 +217,9 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
           ) : (
             assistantIconType === 'emoji' && (
               <EmojiIcon
-                $emoji={assistant.emoji || assistantName.slice(0, 1)}
-                className={isPending && !isActive ? 'animation-pulse' : ''}>
-                {assistant.emoji || assistantName.slice(0, 1)}
-              </EmojiIcon>
+                emoji={assistant.emoji || assistantName.slice(0, 1)}
+                className={isPending && !isActive ? 'animation-pulse' : ''}
+              />
             )
           )}
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>

@@ -1,10 +1,8 @@
-import { FileSearchOutlined } from '@ant-design/icons'
-import { PlusOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
 import { KnowledgeBase } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { FileSearch } from 'lucide-react'
+import { FileSearch, Plus } from 'lucide-react'
 import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -49,13 +47,13 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
     const newList: QuickPanelListItem[] = knowledgeState.bases.map((base) => ({
       label: base.name,
       description: `${base.items.length} ${t('files.count')}`,
-      icon: <FileSearchOutlined />,
+      icon: <FileSearch />,
       action: () => handleBaseSelect(base),
       isSelected: selectedBases?.some((selected) => selected.id === base.id)
     }))
     newList.push({
       label: t('knowledge.add.title') + '...',
-      icon: <PlusOutlined />,
+      icon: <Plus />,
       action: () => navigate('/knowledge'),
       isSelected: false
     })

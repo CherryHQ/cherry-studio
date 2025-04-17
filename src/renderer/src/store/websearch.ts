@@ -24,6 +24,7 @@ export interface WebSearchState {
   enhanceMode: boolean
   // 是否覆盖服务商搜索
   overwrite: boolean
+  contentLimit?: number
 }
 
 const initialState: WebSearchState = {
@@ -139,6 +140,9 @@ const websearchSlice = createSlice({
         // Add the new provider to the array
         state.providers.push(action.payload)
       }
+    },
+    setContentLimit: (state, action: PayloadAction<number>) => {
+      state.contentLimit = action.payload
     }
   }
 })
@@ -157,7 +161,8 @@ export const {
   setSubscribeSources,
   setEnhanceMode,
   setOverwrite,
-  addWebSearchProvider
+  addWebSearchProvider,
+  setContentLimit
 } = websearchSlice.actions
 
 export default websearchSlice.reducer

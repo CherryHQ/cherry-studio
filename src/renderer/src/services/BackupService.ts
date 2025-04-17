@@ -84,13 +84,15 @@ export async function backupToWebdav({
 
   const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
   let deviceType = 'unknown'
+  let hostname = 'unknown'
   try {
     deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+    hostname = (await window.api.system.getHostname()) || 'unknown'
   } catch (error) {
-    Logger.error('[Backup] Failed to get device type:', error)
+    Logger.error('[Backup] Failed to get device type or hostname:', error)
   }
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
-  const backupFileName = customFileName || `cherry-studio.${timestamp}.${deviceType}.zip`
+  const backupFileName = customFileName || `cherry-studio.${timestamp}.${deviceType}.${hostname}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
   const backupData = await getBackupData()
 

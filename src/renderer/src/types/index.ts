@@ -1,4 +1,4 @@
-import { GroundingMetadata } from '@google/generative-ai'
+import { GroundingMetadata } from '@google/genai'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
@@ -88,6 +88,8 @@ export type Message = {
     mcpTools?: MCPToolResponse[]
     // Generate Image
     generateImage?: GenerateImageResponse
+    // knowledge
+    knowledge?: KnowledgeReference[]
   }
   // 多模型消息样式
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -374,6 +376,12 @@ export interface MCPServerParameter {
   description: string
 }
 
+export interface MCPConfigSample {
+  command: string
+  args: string[]
+  env?: Record<string, string> | undefined
+}
+
 export interface MCPServer {
   id: string
   name: string
@@ -386,6 +394,8 @@ export interface MCPServer {
   env?: Record<string, string>
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
+  configSample?: MCPConfigSample
+  headers?: Record<string, string> // Custom headers to be sent with requests to this server
 }
 
 export interface MCPToolInputSchema {
@@ -442,6 +452,23 @@ export interface MCPToolResponse {
   tool: MCPTool // tool info
   status: string // 'invoking' | 'done'
   response?: any
+}
+
+export interface MCPToolResultContent {
+  type: 'text' | 'image' | 'audio' | 'resource'
+  text?: string
+  data?: string
+  mimeType?: string
+  resource?: {
+    uri?: string
+    text?: string
+    mimeType?: string
+  }
+}
+
+export interface MCPCallToolResponse {
+  content: MCPToolResultContent[]
+  isError?: boolean
 }
 
 export interface MCPResource {

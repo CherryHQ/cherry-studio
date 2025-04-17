@@ -1,21 +1,34 @@
+import crypto from 'node:crypto'
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import fs from 'node:fs'
 
 import { isLinux, isMac, isWin } from '@main/constant'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists } from '@main/utils'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
-import { GetMCPPromptResponse, GetResourceResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@types'
+import {
+  GetMCPPromptResponse,
+  GetResourceResponse,
+  MCPCallToolResponse,
+  MCPPrompt,
+  MCPResource,
+  MCPServer,
+  MCPTool
+} from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
+import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
+
 import { CacheService } from './CacheService'
+import { CallBackServer } from './mcp/oauth/callback'
+import { McpOAuthClientProvider } from './mcp/oauth/provider'
 import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
 
 // Generic type for caching wrapped functions
@@ -108,9 +121,17 @@ class McpService {
 
     const args = [...(server.args || [])]
 
-    let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
+    // let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
+    const authProvider = new McpOAuthClientProvider({
+      serverUrlHash: crypto
+        .createHash('md5')
+        .update(server.baseUrl || '')
+        .digest('hex')
+    })
 
-    try {
+    const initTransport = async (): Promise<
+      StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
+    > => {
       // Create appropriate transport based on configuration
       if (server.type === 'inMemory') {
         Logger.info(`[MCP] Using in-memory transport for server: ${server.name}`)
@@ -125,22 +146,31 @@ class McpService {
           throw new Error(`Failed to start in-memory server: ${error.message}`)
         }
         // set the client transport to the client
-        transport = clientTransport
+        return clientTransport
       } else if (server.baseUrl) {
         if (server.type === 'streamableHttp') {
-          transport = new StreamableHTTPClientTransport(
-            new URL(server.baseUrl!),
-            {} as StreamableHTTPClientTransportOptions
-          )
+          const options: StreamableHTTPClientTransportOptions = {
+            requestInit: {
+              headers: server.headers || {}
+            },
+            authProvider
+          }
+          return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
         } else if (server.type === 'sse') {
-          transport = new SSEClientTransport(new URL(server.baseUrl!))
+          const options: SSEClientTransportOptions = {
+            requestInit: {
+              headers: server.headers || {}
+            },
+            authProvider
+          }
+          return new SSEClientTransport(new URL(server.baseUrl!), options)
         } else {
           throw new Error('Invalid server type')
         }
       } else if (server.command) {
         let cmd = server.command
 
-        if (server.command === 'npx' || server.command === 'bun' || server.command === 'bunx') {
+        if (server.command === 'npx') {
           cmd = await getBinaryPath('bun')
           Logger.info(`[MCP] Using command: ${cmd}`)
 
@@ -180,7 +210,7 @@ class McpService {
         Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
         // Logger.info(`[MCP] Environment variables for server:`, server.env)
 
-        transport = new StdioClientTransport({
+        const stdioTransport = new StdioClientTransport({
           command: cmd,
           args,
           env: {
@@ -190,14 +220,72 @@ class McpService {
           },
           stderr: 'pipe'
         })
-        transport.stderr?.on('data', (data) =>
+        stdioTransport.stderr?.on('data', (data) =>
           Logger.info(`[MCP] Stdio stderr for server: ${server.name} `, data.toString())
         )
+        return stdioTransport
       } else {
         throw new Error('Either baseUrl or command must be provided')
       }
+    }
 
-      await client.connect(transport)
+    const handleAuth = async (client: Client, transport: SSEClientTransport | StreamableHTTPClientTransport) => {
+      Logger.info(`[MCP] Starting OAuth flow for server: ${server.name}`)
+      // Create an event emitter for the OAuth callback
+      const events = new EventEmitter()
+
+      // Create a callback server
+      const callbackServer = new CallBackServer({
+        port: authProvider.config.callbackPort,
+        path: authProvider.config.callbackPath || '/oauth/callback',
+        events
+      })
+
+      // Set a timeout to close the callback server
+      const timeoutId = setTimeout(() => {
+        Logger.warn(`[MCP] OAuth flow timed out for server: ${server.name}`)
+        callbackServer.close()
+      }, 300000) // 5 minutes timeout
+
+      try {
+        // Wait for the authorization code
+        const authCode = await callbackServer.waitForAuthCode()
+        Logger.info(`[MCP] Received auth code: ${authCode}`)
+
+        // Complete the OAuth flow
+        await transport.finishAuth(authCode)
+
+        Logger.info(`[MCP] OAuth flow completed for server: ${server.name}`)
+
+        const newTransport = await initTransport()
+        // Try to connect again
+        await client.connect(newTransport)
+
+        Logger.info(`[MCP] Successfully authenticated with server: ${server.name}`)
+      } catch (oauthError) {
+        Logger.error(`[MCP] OAuth authentication failed for server ${server.name}:`, oauthError)
+        throw new Error(
+          `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
+        )
+      } finally {
+        // Clear the timeout and close the callback server
+        clearTimeout(timeoutId)
+        callbackServer.close()
+      }
+    }
+
+    try {
+      const transport = await initTransport()
+      try {
+        await client.connect(transport)
+      } catch (error: Error | any) {
+        if (error instanceof Error && (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))) {
+          Logger.info(`[MCP] Authentication required for server: ${server.name}`)
+          await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
+        } else {
+          throw error
+        }
+      }
 
       // Store the new client in the cache
       this.clients.set(serverKey, client)
@@ -297,12 +385,12 @@ class McpService {
   public async callTool(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args: any }
-  ): Promise<any> {
+  ): Promise<MCPCallToolResponse> {
     try {
       Logger.info('[MCP] Calling:', server.name, name, args)
       const client = await this.initClient(server)
       const result = await client.callTool({ name, arguments: args })
-      return result
+      return result as MCPCallToolResponse
     } catch (error) {
       Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
       throw error
@@ -498,15 +586,12 @@ class McpService {
 
         // 根据不同的 shell 构建不同的命令
         if (userShell.includes('zsh')) {
-          shell = '/bin/zsh'
           command =
             'source /etc/zshenv 2>/dev/null || true; source ~/.zshenv 2>/dev/null || true; source /etc/zprofile 2>/dev/null || true; source ~/.zprofile 2>/dev/null || true; source /etc/zshrc 2>/dev/null || true; source ~/.zshrc 2>/dev/null || true; source /etc/zlogin 2>/dev/null || true; source ~/.zlogin 2>/dev/null || true; echo $PATH'
         } else if (userShell.includes('bash')) {
-          shell = '/bin/bash'
           command =
             'source /etc/profile 2>/dev/null || true; source ~/.bash_profile 2>/dev/null || true; source ~/.bash_login 2>/dev/null || true; source ~/.profile 2>/dev/null || true; source ~/.bashrc 2>/dev/null || true; echo $PATH'
         } else if (userShell.includes('fish')) {
-          shell = '/bin/fish'
           command =
             'source /etc/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.local.fish 2>/dev/null || true; echo $PATH'
         } else {
@@ -524,15 +609,15 @@ class McpService {
       })
 
       let path = ''
-      child.stdout.on('data', (data) => {
+      child.stdout.on('data', (data: Buffer) => {
         path += data.toString()
       })
 
-      child.stderr.on('data', (data) => {
+      child.stderr.on('data', (data: Buffer) => {
         console.error('Error getting PATH:', data.toString())
       })
 
-      child.on('close', (code) => {
+      child.on('close', (code: number) => {
         if (code === 0) {
           const trimmedPath = path.trim()
           resolve(trimmedPath)

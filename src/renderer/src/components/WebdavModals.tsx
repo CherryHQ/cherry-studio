@@ -42,8 +42,9 @@ export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof b
   const showBackupModal = useCallback(async () => {
     // 获取默认文件名
     const deviceType = await window.api.system.getDeviceType()
+    const hostname = await window.api.system.getHostname()
     const timestamp = dayjs().format('YYYYMMDDHHmmss')
-    const defaultFileName = `cherry-studio.${timestamp}.${deviceType}.zip`
+    const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
     setCustomFileName(defaultFileName)
     setIsModalVisible(true)
   }, [])
