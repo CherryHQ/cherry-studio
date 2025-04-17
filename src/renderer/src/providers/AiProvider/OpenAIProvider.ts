@@ -293,7 +293,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns True if the model is an OpenAI reasoning model, false otherwise
    */
   private isOpenAIReasoning(model: Model) {
-    return model.id.startsWith('o1') || model.id.startsWith('o3')
+    return model.id.startsWith('o1') || model.id.startsWith('o3') || model.id.startsWith('o4')
   }
 
   /**

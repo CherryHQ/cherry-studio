@@ -2208,7 +2208,7 @@ export function isVisionModel(model: Model): boolean {
 }
 
 export function isOpenAIoSeries(model: Model): boolean {
-  return ['o1', 'o1-2024-12-17'].includes(model.id) || model.id.includes('o3') || model.id.includes('o4')
+  return model.id.includes('o1') || model.id.includes('o3') || model.id.includes('o4')
 }
 
 export function isOpenAIWebSearch(model: Model): boolean {
