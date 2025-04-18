@@ -7,7 +7,6 @@ import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle, resetAssistantMessage } from '@renderer/services/MessagesService'
-import { translateText } from '@renderer/services/TranslateService'
 import { RootState } from '@renderer/store'
 import type { Message, Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
@@ -61,12 +60,10 @@ const MessageMenubar: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [translationCopied, setTranslationCopied] = useState(false)
-  const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const assistantModel = assistant?.model
-  const { editMessage, setStreamMessage, deleteMessage, resendMessage, commitStreamMessage, clearStreamMessage } =
-    useMessageOperations(topic)
+  const { editMessage, deleteMessage, resendMessage, translateMessage } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
@@ -202,34 +199,6 @@ const MessageMenubar: FC<Props> = (props) => {
     }
   }, [message, editMessage, handleResendUserMessage, t])
 
-  const handleTranslate = useCallback(
-    async (language: string) => {
-      if (isTranslating) return
-
-      await editMessage(message.id, { translatedContent: t('translate.processing') })
-
-      setIsTranslating(true)
-
-      try {
-        await translateText(message.content, language, (text) => {
-          // 使用 setStreamMessage 来更新翻译内容
-          setStreamMessage({ ...message, translatedContent: text })
-        })
-
-        // 翻译完成后，提交流消息
-        commitStreamMessage(message.id)
-      } catch (error) {
-        console.error('Translation failed:', error)
-        window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
-        await editMessage(message.id, { translatedContent: undefined })
-        clearStreamMessage(message.id)
-      } finally {
-        setIsTranslating(false)
-      }
-    },
-    [isTranslating, message, editMessage, setStreamMessage, commitStreamMessage, clearStreamMessage, t]
-  )
-
   const dropdownItems = useMemo(
     () => [
       {
@@ -296,7 +265,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const markdown = messageToMarkdown(message)
               const title = await getMessageTitle(message)
-              window.api.export.toWord(markdown, title)
+              await window.api.export.toWord(markdown, title)
             }
           },
           exportMenuOptions.notion && {
@@ -429,23 +398,26 @@ const MessageMenubar: FC<Props> = (props) => {
               ...TranslateLanguageOptions.map((item) => ({
                 label: item.emoji + ' ' + item.label,
                 key: item.value,
-                onClick: () => handleTranslate(item.value)
+                onClick: () => translateMessage(message.id, item.value)
               })),
               {
                 label: '✖ ' + t('translate.close'),
                 key: 'translate-close',
                 onClick: () => editMessage(message.id, { translatedContent: undefined })
               },
-              {
-                label: '📋 ' + t('translate.copy'),
-                key: 'translate-copy',
-                disabled: !message.translatedContent,
-                icon: translationCopied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : null,
-                onClick: (e) => {
-                  e.domEvent.stopPropagation()
-                  onCopyTranslation(e.domEvent as unknown as React.MouseEvent)
-                }
-              }
+              ...(message.translatedContent
+                ? [
+                    {
+                      label: '📋 ' + t('translate.copy'),
+                      key: 'translate-copy',
+                      icon: translationCopied ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : null,
+                      onClick: (e) => {
+                        e.domEvent.stopPropagation()
+                        onCopyTranslation(e.domEvent as unknown as React.MouseEvent)
+                      }
+                    }
+                  ]
+                : [])
             ],
             onClick: (e) => e.domEvent.stopPropagation()
           }}
