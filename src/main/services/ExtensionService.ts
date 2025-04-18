@@ -34,7 +34,6 @@ export class ExtensionService extends EventEmitter {
   private chromeWebStoreInitialized = false
   private extensionWindow: BrowserWindow | null = null
   private tabs: Tabs | null = null
-  private popup: any = null
 
   private constructor() {
     super()
@@ -260,7 +259,6 @@ export class ExtensionService extends EventEmitter {
 
       this.extensions.on('browser-action-popup-created', (popup) => {
         Logger.info('[Extension] Browser action popup created:', popup)
-        this.popup = popup
       })
 
       this.mainSession.serviceWorkers.on('running-status-changed', (event) => {
@@ -609,15 +607,15 @@ export class ExtensionService extends EventEmitter {
   /**
    * 辅助函数：获取扩展图标的 Data URI
    */
-  private getExtensionIconDataUri(extension: Electron.Extension): string | undefined {
-    if (!extension.manifest.icons) {
-      return undefined
-    }
-    // Get the first available icon size
-    const iconSizes = Object.keys(extension.manifest.icons)
-    const iconSize = iconSizes.length > 0 ? extension.manifest.icons[iconSizes[0]] : undefined
-    return `crx://extension-icon/${extension.id}/${iconSize}/2`
-  }
+  // private getExtensionIconDataUri(extension: Electron.Extension): string | undefined {
+  //   if (!extension.manifest.icons) {
+  //     return undefined
+  //   }
+  //   // Get the first available icon size
+  //   const iconSizes = Object.keys(extension.manifest.icons)
+  //   const iconSize = iconSizes.length > 0 ? extension.manifest.icons[iconSizes[0]] : undefined
+  //   return `crx://extension-icon/${extension.id}/${iconSize}/2`
+  // }
 
   /**
    * 辅助函数：获取扩展图标路径 (保持此函数，可能在其他地方有用)
