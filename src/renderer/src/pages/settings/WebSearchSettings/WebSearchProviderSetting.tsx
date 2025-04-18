@@ -12,15 +12,7 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import {
-  SettingDivider,
-  SettingHelpLink,
-  SettingHelpText,
-  SettingHelpTextRow,
-  SettingRow,
-  SettingSubtitle,
-  SettingTitle
-} from '..'
+import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 import ApiCheckPopup from '../ProviderSettings/ApiCheckPopup'
 
 interface Props {
@@ -209,8 +201,10 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
             </Button>
           </Flex>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
-          <SettingRow>
+          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.basic_auth')}
+          </SettingSubtitle>
+          <Flex>
             <Form
               layout="inline"
               initialValues={{
@@ -246,7 +240,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
                 />
               </Form.Item>
             </Form>
-          </SettingRow>
+          </Flex>
         </>
       )}
     </>

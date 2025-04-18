@@ -1230,7 +1230,7 @@
         "api_key": "API 密钥",
         "api_key.tip": "多个密钥使用逗号分隔",
         "api_version": "API 版本",
-        "basic_auth": "Basic Auth",
+        "basic_auth": "基本认证",
         "basic_auth.user_name": "用户名",
         "basic_auth.user_name.tip": "留空以禁用",
         "basic_auth.password": "密码",
