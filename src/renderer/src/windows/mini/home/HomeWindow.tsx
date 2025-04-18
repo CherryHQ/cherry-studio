@@ -193,22 +193,22 @@ const HomeWindow: FC = () => {
     if (route === 'home') {
       onCloseWindow()
     } else {
-      store.dispatch(setGenerating(false))
-      if (messageIdRef.current) {
-        abortCompletion(messageIdRef.current)//停止输出
-      }
+      stopMessageGeneration()
       setRoute('home')
       setText('')
     }
   })
 
-  const onPause = async () => {
+  const stopMessageGeneration = () => {
     store.dispatch(setGenerating(false))
     if (messageIdRef.current) {
-      abortCompletion(messageIdRef.current)//停止输出
+      abortCompletion(messageIdRef.current) // 停止输出
     }
   }
 
+  const onPause = async () => {
+    stopMessageGeneration()
+  }
   useEffect(() => {
     window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
     window.electron.ipcRenderer.on(IpcChannel.SelectionAction, (_, { action, selectedText }) => {
