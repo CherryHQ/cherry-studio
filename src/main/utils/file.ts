@@ -79,3 +79,7 @@ export function getFilesDir() {
 export function getConfigDir() {
   return path.join(os.homedir(), '.cherrystudio', 'config')
 }
+
+export function getAppConfigDir(name: string) {
+  return path.join(getConfigDir(), name)
+}

@@ -43,6 +43,7 @@
       "edit.title": "Редактировать ассистента",
       "save.success": "Успешно сохранено",
       "save.title": "Сохранить в агента",
+      "icon.type": "Иконка ассистента",
       "search": "Поиск ассистентов...",
       "settings.mcp": "Серверы MCP",
       "settings.mcp.enableFirst": "Сначала включите этот сервер в настройках MCP",
@@ -59,7 +60,7 @@
       "settings.reasoning_effort.low": "Короткая",
       "settings.reasoning_effort.medium": "Средняя",
       "settings.reasoning_effort.off": "Выключено",
-      "settings.reasoning_effort.tip": "Поддерживается только моделями с рассуждением OpenAI o-series и Anthropic",
+      "settings.reasoning_effort.tip": "Поддерживается только моделями рассуждений OpenAI o-series, Anthropic и Grok",
       "settings.more": "Настройки ассистента"
     },
     "auth": {
@@ -299,7 +300,12 @@
       "topics": "Топики",
       "warning": "Предупреждение",
       "you": "Вы",
-      "reasoning_content": "Глубокий анализ"
+      "reasoning_content": "Глубокий анализ",
+      "sort": {
+        "pinyin": "Сортировать по пиньинь",
+        "pinyin.asc": "Сортировать по пиньинь (А-Я)",
+        "pinyin.desc": "Сортировать по пиньинь (Я-А)"
+      }
     },
     "docs": {
       "title": "Документация"
@@ -322,7 +328,7 @@
       "no_api_key": "Ключ API не настроен",
       "provider_disabled": "Провайдер моделей не включен",
       "render": {
-        "description": "Не удалось рендерить формулу. Пожалуйста, проверьте, правильно ли формат формулы",
+        "description": "Не удалось рендерить содержимое сообщения. Пожалуйста, проверьте, правильно ли формат содержимого сообщения",
         "title": "Ошибка рендеринга"
       },
       "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
@@ -542,7 +548,7 @@
       "restore.failed": "Восстановление не удалось",
       "restore.success": "Успешно восстановлено",
       "save.success.title": "Успешно сохранено",
-      "searching": "Поиск в Интернете...",
+      "searching": "Идет поиск...",
       "success.joplin.export": "Успешный экспорт в Joplin",
       "success.markdown.export.preconf": "Файл Markdown успешно экспортирован в предуказанный путь",
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
@@ -551,7 +557,8 @@
       "switch.disabled": "Пожалуйста, дождитесь завершения текущего ответа",
       "tools": {
         "completed": "Завершено",
-        "invoking": "Вызов"
+        "invoking": "Вызов",
+        "error": "Произошла ошибка"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -781,7 +788,10 @@
       "advanced.title": "Расширенные настройки",
       "assistant": "Ассистент по умолчанию",
       "assistant.model_params": "Параметры модели",
-      "assistant.show.icon": "Показывать модельный иконки",
+      "assistant.icon.type": "Тип модели иконки",
+      "assistant.icon.type.model": "Модель иконки",
+      "assistant.icon.type.emoji": "Emoji иконка",
+      "assistant.icon.type.none": "Не отображать",
       "assistant.title": "Ассистент по умолчанию",
       "data": {
         "app_data": "Данные приложения",
@@ -869,6 +879,25 @@
           "backup.button": "Резервное копирование на WebDAV",
           "backup.modal.filename.placeholder": "Введите имя файла резервной копии",
           "backup.modal.title": "Резервное копирование на WebDAV",
+          "backup.manager.title": "Управление резервными копиями",
+          "backup.manager.refresh": "Обновить",
+          "backup.manager.delete.selected": "Удалить выбранные",
+          "backup.manager.delete.text": "Удалить",
+          "backup.manager.restore.text": "Восстановить",
+          "backup.manager.restore.success": "Восстановление прошло успешно, приложение скоро обновится",
+          "backup.manager.restore.error": "Ошибка восстановления",
+          "backup.manager.delete.confirm.title": "Подтверждение удаления",
+          "backup.manager.delete.confirm.single": "Вы уверены, что хотите удалить резервную копию \"{{fileName}}\"? Это действие нельзя отменить.",
+          "backup.manager.delete.confirm.multiple": "Вы уверены, что хотите удалить {{count}} выбранных резервных копий? Это действие нельзя отменить.",
+          "backup.manager.delete.success.single": "Успешно удалено",
+          "backup.manager.delete.success.multiple": "Успешно удалено {{count}} резервных копий",
+          "backup.manager.delete.error": "Ошибка удаления",
+          "backup.manager.fetch.error": "Ошибка получения файлов резервных копий",
+          "backup.manager.select.files.delete": "Выберите файлы резервных копий для удаления",
+          "backup.manager.columns.fileName": "Имя файла",
+          "backup.manager.columns.modifiedTime": "Время изменения",
+          "backup.manager.columns.size": "Размер",
+          "backup.manager.columns.actions": "Действия",
           "host": "Хост WebDAV",
           "host.placeholder": "http://localhost:8080",
           "hour_interval_one": "{{count}} час",
@@ -1027,8 +1056,9 @@
         "argsTooltip": "Каждый аргумент с новой строки",
         "baseUrlTooltip": "Адрес удаленного URL",
         "command": "Команда",
-        "sse": "События, отправляемые сервером(sse)",
-        "stdio": "Стандартный ввод/вывод(stdio)",
+        "sse": "События, отправляемые сервером (sse)",
+        "streamableHttp": "Потоковый HTTP (streamableHttp)",
+        "stdio": "Стандартный ввод/вывод (stdio)",
         "inMemory": "Память",
         "config_description": "Настройка серверов протокола контекста модели",
         "deleteError": "Не удалось удалить сервер",
@@ -1041,6 +1071,8 @@
         "editServer": "Редактировать сервер",
         "env": "Переменные окружения",
         "envTooltip": "Формат: KEY=value, по одной на строку",
+        "headers": "Заголовки",
+        "headersTooltip": "Пользовательские заголовки для HTTP-запросов",
         "findMore": "Найти больше MCP",
         "searchNpx": "Найти MCP",
         "install": "Установить",
@@ -1056,7 +1088,6 @@
         "newServer": "MCP сервер",
         "npx_list": {
           "actions": "Действия",
-          "desc": "Поиск и добавление npm пакетов в качестве MCP серверов",
           "description": "Описание",
           "no_packages": "Ничего не найдено",
           "npm": "NPM",
@@ -1065,7 +1096,6 @@
           "scope_required": "Пожалуйста, введите область npm",
           "search": "Поиск",
           "search_error": "Ошибка поиска",
-          "title": "Список пакетов NPX",
           "usage": "Использование",
           "version": "Версия"
         },
@@ -1082,10 +1112,35 @@
         "url": "URL",
         "editMcpJson": "Редактировать MCP",
         "installHelp": "Получить помощь по установке",
+        "tabs": {
+          "general": "Общие",
+          "tools": "Инструменты",
+          "prompts": "Подсказки",
+          "resources": "Ресурсы"
+        },
         "tools": {
-          "inputSchema": "входные параметры",
-          "availableTools": "доступные инструменты",
-          "noToolsAvailable": "нет доступных инструментов"
+          "inputSchema": "Схема ввода",
+          "availableTools": "Доступные инструменты",
+          "noToolsAvailable": "Нет доступных инструментов",
+          "loadError": "Ошибка получения инструментов"
+        },
+        "prompts": {
+          "availablePrompts": "Доступные подсказки",
+          "noPromptsAvailable": "Нет доступных подсказок",
+          "arguments": "Аргументы",
+          "requiredField": "Обязательное поле",
+          "genericError": "Ошибка получения подсказки",
+          "loadError": "Ошибка получения подсказок"
+        },
+        "resources": {
+          "noResourcesAvailable": "Нет доступных ресурсов",
+          "availableResources": "Доступные ресурсы",
+          "uri": "URI",
+          "mimeType": "MIME-тип",
+          "size": "Размер",
+          "blob": "Двоичные данные",
+          "blobInvisible": "Скрытые двоичные данные",
+          "text": "Текст"
         },
         "deleteServer": "Удалить сервер",
         "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",
@@ -1106,6 +1161,8 @@
       "messages.input.send_shortcuts": "Горячие клавиши для отправки",
       "messages.input.show_estimated_tokens": "Показывать затраты токенов",
       "messages.input.title": "Настройки ввода",
+      "messages.input.enable_quick_triggers": "Включите '/' и '@', чтобы вызвать быстрое меню.",
+      "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
       "messages.metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
@@ -1272,7 +1329,6 @@
       "websearch": {
         "blacklist": "Черный список",
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
-        "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "проверка",
         "check_failed": "Проверка не прошла",
         "check_success": "Проверка успешна",
@@ -1292,10 +1348,23 @@
           "title": "Tavily"
         },
         "title": "Поиск в Интернете",
-        "overwrite": "Переопределить поставщика поиска",
-        "overwrite_tooltip": "Использовать поставщика поиска вместо LLM"
+        "blacklist_tooltip": "Шаблон: *://*.example.com/*\nРегулярное выражение: /example\\.(net|org)/",
+        "subscribe": "Подписка на черный список",
+        "subscribe_update": "Обновить",
+        "subscribe_add": "Добавить",
+        "subscribe_url": "URL подписки",
+        "subscribe_name": "Альтернативное имя",
+        "subscribe_name.placeholder": "Альтернативное имя, если в подписке нет названия.",
+        "subscribe_add_success": "Подписка успешно добавлена!",
+        "subscribe_delete": "Удалить",
+        "overwrite": "Переопределить провайдера поиска",
+        "overwrite_tooltip": "Использовать провайдера поиска вместо LLM",
+        "apikey": "API ключ",
+        "free": "Бесплатно",
+        "content_limit": "Ограничение длины текста",
+        "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
       },
-      "general.auto_check_update.title": "Включить автоматическую проверку обновлений",
+      "general.auto_check_update.title": "Включить автообновление",
       "quickPhrase": {
         "title": "Быстрые фразы",
         "add": "Добавить фразу",

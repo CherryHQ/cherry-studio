@@ -22,6 +22,7 @@ class BackupManager {
     this.backupToWebdav = this.backupToWebdav.bind(this)
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
     this.listWebdavFiles = this.listWebdavFiles.bind(this)
+    this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
@@ -308,6 +309,16 @@ class BackupManager {
   ) {
     const webdavClient = new WebDav(webdavConfig)
     return await webdavClient.createDirectory(path, options)
+  }
+
+  async deleteWebdavFile(_: Electron.IpcMainInvokeEvent, fileName: string, webdavConfig: WebDavConfig) {
+    try {
+      const webdavClient = new WebDav(webdavConfig)
+      return await webdavClient.deleteFile(fileName)
+    } catch (error: any) {
+      Logger.error('Failed to delete WebDAV file:', error)
+      throw new Error(error.message || 'Failed to delete backup file')
+    }
   }
 }
 

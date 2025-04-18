@@ -31,6 +31,8 @@ const Container = styled.div`
   align-items: center;
   margin-bottom: 10px;
   margin-top: -10px;
+  padding: 0;
+  min-height: auto;
 `
 
 const Button = styled(AntdButton)<{ $theme: ThemeMode }>`

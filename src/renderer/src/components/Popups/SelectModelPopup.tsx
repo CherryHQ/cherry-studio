@@ -1,4 +1,4 @@
-import { PushpinOutlined, SearchOutlined } from '@ant-design/icons'
+import { PushpinOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import db from '@renderer/databases'
@@ -7,12 +7,13 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
 import { Avatar, Divider, Empty, Input, InputRef, Menu, MenuProps, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
+import { Search } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { HStack } from '../Layout'
-import ModelTags from '../ModelTags'
+import ModelTagsWithLabel from '../ModelTagsWithLabel'
 import Scrollbar from '../Scrollbar'
 
 type MenuItem = Required<MenuProps>['items'][number]
@@ -130,7 +131,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         label: (
           <ModelItem>
             <ModelNameRow>
-              <span>{m?.name}</span> <ModelTags model={m} />
+              <span>{m?.name}</span> <ModelTagsWithLabel model={m} size={11} showLabel={false} />
             </ModelNameRow>
             <PinIcon
               onClick={(e) => {
@@ -184,7 +185,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
               <span>
                 {m.model?.name} | {m.provider.isSystem ? t(`provider.${m.provider.id}`) : m.provider.name}
               </span>{' '}
-              <ModelTags model={m.model} />
+              <ModelTagsWithLabel model={m.model} size={11} showLabel={false} />
             </ModelNameRow>
             <PinIcon
               onClick={(e) => {
@@ -383,7 +384,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         <Input
           prefix={
             <SearchIcon>
-              <SearchOutlined />
+              <Search size={15} />
             </SearchIcon>
           }
           ref={inputRef}
@@ -403,7 +404,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           }}
         />
       </HStack>
-      <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
+      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
       <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
         <Container>
           {processedItems.length > 0 ? (
@@ -456,8 +457,7 @@ const StyledMenu = styled(Menu)`
   /* Simple animation that changes background color when sticky */
   @keyframes background-change {
     to {
-      background-color: var(--color-background-soft);
-      opacity: 0.95;
+      background-color: var(--color-background);
     }
   }
 
@@ -480,6 +480,10 @@ const StyledMenu = styled(Menu)`
           opacity: 0.3;
         }
       }
+    }
+
+    .anticon {
+      min-width: auto;
     }
   }
 `
@@ -507,8 +511,8 @@ const EmptyState = styled.div`
 `
 
 const SearchIcon = styled.div`
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   flex-direction: row;

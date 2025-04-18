@@ -75,7 +75,7 @@ const WebviewContainer = memo(
 const WebviewStyle: React.CSSProperties = {
   width: 'calc(100vw - var(--sidebar-width))',
   height: 'calc(100vh - var(--navbar-height))',
-  backgroundColor: 'white',
+  backgroundColor: 'var(--color-background)',
   display: 'inline-flex'
 }
 

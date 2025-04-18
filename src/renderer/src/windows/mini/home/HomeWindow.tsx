@@ -87,18 +87,17 @@ const HomeWindow: FC = () => {
 
     switch (e.code) {
       case 'Enter':
+      case 'NumpadEnter':
         {
           e.preventDefault()
           if (content) {
             if (route === 'home') {
               featureMenusRef.current?.useFeature()
-              setText('')
             } else {
               // 目前文本框只在'chat'时可以继续输入，这里相当于 route === 'chat'
               setRoute('chat')
               onSendMessage().then()
               focusInput()
-              setTimeout(() => setText(''), 100)
             }
           }
         }
@@ -161,6 +160,7 @@ const HomeWindow: FC = () => {
         }
         EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
         setIsFirstMessage(false)
+        setText('') // ✅ 清除输入框内容
       }, 0)
     },
     [content, defaultAssistant.id, defaultAssistant.topics]

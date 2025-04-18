@@ -8,6 +8,7 @@ import Logger from 'electron-log'
 
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
+import mcpService from './services/MCPService'
 import { extensionService } from './services/ExtensionService'
 import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } from './services/ProtocolClient'
 import { reduxService } from './services/ReduxService'
@@ -120,6 +121,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
       return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
     })
+
+    ipcMain.handle(IpcChannel.System_GetHostname, () => {
+      return require('os').hostname()
+    })
   })
 
   registerProtocolClient(app)
@@ -154,6 +159,15 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => {
     app.isQuitting = true
+  })
+
+  app.on('will-quit', async () => {
+    // event.preventDefault()
+    try {
+      await mcpService.cleanup()
+    } catch (error) {
+      Logger.error('Error cleaning up MCP service:', error)
+    }
   })
 
   // In this file you can include the rest of your app"s specific main process

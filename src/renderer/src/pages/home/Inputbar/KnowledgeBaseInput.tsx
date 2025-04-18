@@ -1,6 +1,6 @@
 import { FileSearchOutlined } from '@ant-design/icons'
+import CustomTag from '@renderer/components/CustomTag'
 import { KnowledgeBase } from '@renderer/types'
-import { ConfigProvider, Flex, Tag } from 'antd'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -9,34 +9,27 @@ const KnowledgeBaseInput: FC<{
   onRemoveKnowledgeBase: (knowledgeBase: KnowledgeBase) => void
 }> = ({ selectedKnowledgeBases, onRemoveKnowledgeBase }) => {
   return (
-    <Container gap="4px 0" wrap>
-      <ConfigProvider
-        theme={{
-          components: {
-            Tag: {
-              borderRadiusSM: 100
-            }
-          }
-        }}>
-        {selectedKnowledgeBases.map((knowledgeBase) => (
-          <Tag
-            icon={<FileSearchOutlined />}
-            bordered={false}
-            color="success"
-            key={knowledgeBase.id}
-            closable
-            onClose={() => onRemoveKnowledgeBase(knowledgeBase)}>
-            {knowledgeBase.name}
-          </Tag>
-        ))}
-      </ConfigProvider>
+    <Container>
+      {selectedKnowledgeBases.map((knowledgeBase) => (
+        <CustomTag
+          icon={<FileSearchOutlined />}
+          color="#3d9d0f"
+          key={knowledgeBase.id}
+          closable
+          onClose={() => onRemoveKnowledgeBase(knowledgeBase)}>
+          {knowledgeBase.name}
+        </CustomTag>
+      ))}
     </Container>
   )
 }
 
-const Container = styled(Flex)`
+const Container = styled.div`
   width: 100%;
-  padding: 5px 15px 0 10px;
+  padding: 5px 15px 5px 15px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 4px;
 `
 
 export default KnowledgeBaseInput
