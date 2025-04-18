@@ -389,7 +389,7 @@ class McpService {
     try {
       Logger.info('[MCP] Calling:', server.name, name, args)
       const client = await this.initClient(server)
-      const result = await client.callTool({ name, arguments: args })
+      const result = await client.callTool({ name, arguments: args },undefined,{ timeout: 1800000 })
       return result as MCPCallToolResponse
     } catch (error) {
       Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
