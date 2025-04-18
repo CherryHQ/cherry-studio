@@ -1,4 +1,3 @@
-import { AppstoreAddOutlined } from '@ant-design/icons'
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import ExtensionPopup from '@renderer/components/Popups/ExtensionPopup'
@@ -16,7 +15,7 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Puzzle, Search } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -111,7 +110,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
             <ExtensionPopup>
               <Tooltip title={t('extensions.title')} mouseEnterDelay={0.8}>
                 <NarrowIcon>
-                  <AppstoreAddOutlined />
+                  <Puzzle size={18} />
                 </NarrowIcon>
               </Tooltip>
             </ExtensionPopup>

@@ -1,4 +1,3 @@
-import { AppstoreAddOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -20,6 +19,7 @@ import {
   MessageSquareQuote,
   Moon,
   Palette,
+  Puzzle,
   Settings,
   Sparkle,
   Sun
@@ -138,7 +138,7 @@ const MainMenus: FC = () => {
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
     files: <Folder size={17} className="icon" />,
-    extensions: <AppstoreAddOutlined />
+    extensions: <Puzzle size={18} className="icon" />
   }
 
   const pathMap = {
