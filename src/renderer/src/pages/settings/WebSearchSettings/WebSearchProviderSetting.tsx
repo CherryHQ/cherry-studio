@@ -5,7 +5,7 @@ import { formatApiKeys } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Flex, Form, Input } from 'antd'
+import { Avatar, Button, Divider, Flex, Form, Input, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Info } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -203,6 +203,9 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.basic_auth')}
+            <Tooltip title={t('settings.provider.basic_auth.tip')} placement="right">
+              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
+            </Tooltip>
           </SettingSubtitle>
           <Flex>
             <Form
