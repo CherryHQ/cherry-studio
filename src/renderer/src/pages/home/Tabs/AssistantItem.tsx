@@ -1,6 +1,7 @@
 import {
   DeleteOutlined,
   EditOutlined,
+  MessageOutlined,
   MinusCircleOutlined,
   SaveOutlined,
   SmileOutlined,
@@ -10,20 +11,21 @@ import {
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import { useActiveTopicContext } from '@renderer/context/ActiveTopicContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useTopicsQueueStateWithEvent } from '@renderer/hooks/useQueue'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
-import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
 import { omit } from 'lodash'
-import { FC, startTransition, useCallback, useEffect, useState } from 'react'
+import { FC, startTransition, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
@@ -31,7 +33,7 @@ import * as tinyPinyin from 'tiny-pinyin'
 interface AssistantItemProps {
   assistant: Assistant
   isActive: boolean
-  onSwitch: (assistant: Assistant) => void
+  onSwitch: (assistant: Assistant | null) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
   addAgent: (agent: any) => void
@@ -40,21 +42,15 @@ interface AssistantItemProps {
 
 const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, onDelete, addAgent, addAssistant }) => {
   const { t } = useTranslation()
-  const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
   const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
   const defaultModel = getDefaultModel()
   const { assistants, updateAssistants } = useAssistants()
 
-  const [isPending, setIsPending] = useState(false)
-  useEffect(() => {
-    if (isActive) {
-      setIsPending(false)
-    }
-    const hasPending = assistant.topics.some((topic) => hasTopicPendingRequests(topic.id))
-    if (hasPending) {
-      setIsPending(true)
-    }
-  }, [isActive, assistant.topics])
+  const { setActiveTopic } = useActiveTopicContext()
+  const { topics, removeAllTopics } = useAssistant(assistant.id)
+
+  // 使用基于事件的Hook监听队列状态
+  const isSpeaking = useTopicsQueueStateWithEvent(topics)
 
   const sortByPinyinAsc = useCallback(() => {
     const sorted = [...assistants].sort((a, b) => {
@@ -77,6 +73,14 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
   const getMenuItems = useCallback(
     (assistant: Assistant): ItemType[] => [
       {
+        label: t('assistants.new_topic.title'),
+        key: 'new_topic',
+        icon: <MessageOutlined />,
+        onClick: async () => {
+          EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC, assistant.id)
+        }
+      },
+      {
         label: t('assistants.edit.title'),
         key: 'edit',
         icon: <EditOutlined />,
@@ -87,9 +91,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
         key: 'duplicate',
         icon: <CopyIcon />,
         onClick: async () => {
-          const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
-          addAssistant(_assistant)
-          onSwitch(_assistant)
+          addAssistant({ ...assistant, id: uuid() })
         }
       },
       {
@@ -163,13 +165,30 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
         icon: <DeleteOutlined />,
         danger: true,
         onClick: () => {
-          window.modal.confirm({
-            title: t('assistants.delete.title'),
-            content: t('assistants.delete.content'),
-            centered: true,
-            okButtonProps: { danger: true },
-            onOk: () => onDelete(assistant)
-          })
+          if (topics.length > 0) {
+            window.modal.warning({
+              title: t('assistants.delete.has_topics.title'),
+              content: t('assistants.delete.has_topics.content', { count: topics.length }),
+              centered: true
+            })
+          } else {
+            window.modal.confirm({
+              title: t('assistants.delete.title'),
+              content: (
+                <div>
+                  <span>
+                    {t('assistants.delete.double_check_name')}
+                    {assistant.emoji ? assistant.emoji : ''}
+                    {assistant.name}
+                  </span>
+                  <div>{t('assistants.delete.content')}</div>
+                </div>
+              ),
+              centered: true,
+              okButtonProps: { danger: true },
+              onOk: () => onDelete(assistant)
+            })
+          }
         }
       }
     ],
@@ -177,29 +196,48 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
       addAgent,
       addAssistant,
       onDelete,
-      onSwitch,
       removeAllTopics,
       setAssistantIconType,
       sortByPinyinAsc,
       sortByPinyinDesc,
-      t
+      t,
+      topics.length
     ]
   )
 
+  // 在这里“切换”助手只是筛选话题列表，这尽量保持了以前的行为
   const handleSwitch = useCallback(async () => {
+    // 取消选中，不筛选话题
+    if (isActive) {
+      onSwitch(null)
+      return
+    }
+
+    if (topics.length === 0) {
+      window.message.warning({
+        content: t('assistants.no_topics.title'),
+        key: 'no-topics'
+      })
+      return
+    }
+
     await modelGenerating()
 
     if (clickAssistantToShowTopic) {
       if (topicPosition === 'left') {
         EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
       }
-      onSwitch(assistant)
+      // 保持以前的行为，“切换”助手也切换话题
+      setActiveTopic(topics[0])
     } else {
       startTransition(() => {
-        onSwitch(assistant)
+        setActiveTopic(topics[0])
       })
     }
-  }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
+
+    // 仅切换助手
+    onSwitch(assistant)
+  }, [isActive, topics, topicPosition, clickAssistantToShowTopic, setActiveTopic, onSwitch, assistant, t])
 
   const assistantName = assistant.name || t('chat.default.name')
   const fullAssistantName = assistant.emoji ? `${assistant.emoji} ${assistantName}` : assistantName
@@ -212,23 +250,21 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
             <ModelAvatar
               model={assistant.model || defaultModel}
               size={24}
-              className={isPending && !isActive ? 'animation-pulse' : ''}
+              className={isSpeaking ? 'animation-pulse' : ''}
             />
           ) : (
             assistantIconType === 'emoji' && (
               <EmojiIcon
                 emoji={assistant.emoji || assistantName.slice(0, 1)}
-                className={isPending && !isActive ? 'animation-pulse' : ''}
+                className={isSpeaking ? 'animation-pulse' : ''}
               />
             )
           )}
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
-        {isActive && (
-          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-            <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
-          </MenuButton>
-        )}
+        <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
+          <TopicCount className="topics-count">{topics.length}</TopicCount>
+        </MenuButton>
       </Container>
     </Dropdown>
   )

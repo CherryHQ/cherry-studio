@@ -3,7 +3,7 @@ import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, Topic } from '@renderer/types'
+import { Assistant } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Segmented as AntSegmented, SegmentedProps } from 'antd'
 import { FC, useEffect, useState } from 'react'
@@ -15,10 +15,9 @@ import Settings from './SettingsTab'
 import Topics from './TopicsTab'
 
 interface Props {
+  selectedAssistant: Assistant | null
+  setSelectedAssistant: (assistant: Assistant | null) => void
   activeAssistant: Assistant
-  activeTopic: Topic
-  setActiveAssistant: (assistant: Assistant) => void
-  setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
 }
 
@@ -26,7 +25,7 @@ type Tab = 'assistants' | 'topic' | 'settings'
 
 let _tab: any = ''
 
-const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant, setActiveTopic, position }) => {
+const HomeTabs: FC<Props> = ({ selectedAssistant, setSelectedAssistant, activeAssistant, position }) => {
   const { addAssistant } = useAssistants()
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const { topicPosition } = useSettings()
@@ -51,14 +50,12 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
   }
 
   const onCreateAssistant = async () => {
-    const assistant = await AddAssistantPopup.show()
-    assistant && setActiveAssistant(assistant)
+    await AddAssistantPopup.show()
   }
 
   const onCreateDefaultAssistant = () => {
     const assistant = { ...defaultAssistant, id: uuid() }
     addAssistant(assistant)
-    setActiveAssistant(assistant)
   }
 
   useEffect(() => {
@@ -117,16 +114,14 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
       <TabContent className="home-tabs-content">
         {tab === 'assistants' && (
           <Assistants
-            activeAssistant={activeAssistant}
-            setActiveAssistant={setActiveAssistant}
+            selectedAssistant={selectedAssistant}
+            setSelectedAssistant={setSelectedAssistant}
             onCreateAssistant={onCreateAssistant}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
           />
         )}
-        {tab === 'topic' && (
-          <Topics assistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
-        )}
-        {tab === 'settings' && <Settings assistant={activeAssistant} />}
+        {tab === 'topic' && <Topics assistant={activeAssistant} selectedAssistant={selectedAssistant} />}
+        {tab === 'settings' && <Settings assistant={selectedAssistant || activeAssistant} />}
       </TabContent>
     </Container>
   )

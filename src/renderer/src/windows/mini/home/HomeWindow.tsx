@@ -1,15 +1,18 @@
 import { isMac } from '@renderer/config/constant'
-import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useAssistant, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useAppDispatch } from '@renderer/store'
+import { addTopic } from '@renderer/store/topics'
 import { uuid } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
-import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -29,12 +32,14 @@ const HomeWindow: FC = () => {
   const [text, setText] = useState('')
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
   const textChange = useState(() => {})[1]
-  const { defaultAssistant } = useDefaultAssistant()
+  const { defaultAssistant: _defaultAssistant } = useDefaultAssistant()
+  const { assistant: defaultAssistant, topics } = useAssistant(_defaultAssistant.id)
   const { defaultModel: model } = useDefaultModel()
   const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
+  const dispatch = useAppDispatch()
 
   const referenceText = selectedText || clipboardText || text
 
@@ -148,12 +153,21 @@ const HomeWindow: FC = () => {
       }
 
       setTimeout(() => {
+        let topicId: string
+        if (topics?.length > 0) {
+          topicId = topics[0].id
+        } else {
+          const defaultTopic = getDefaultTopic(defaultAssistant.id)
+          dispatch(addTopic({ topic: defaultTopic, assistantId: defaultAssistant.id }))
+          topicId = defaultTopic.id
+        }
+
         const message = {
           id: uuid(),
           role: 'user',
           content: prompt ? `${prompt}\n\n${content}` : content,
           assistantId: defaultAssistant.id,
-          topicId: defaultAssistant.topics[0].id || uuid(),
+          topicId: topicId,
           createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
           type: 'text',
           status: 'success'
@@ -163,7 +177,7 @@ const HomeWindow: FC = () => {
         setText('') // ✅ 清除输入框内容
       }, 0)
     },
-    [content, defaultAssistant.id, defaultAssistant.topics]
+    [content, defaultAssistant, dispatch, topics]
   )
 
   const clearClipboard = () => {

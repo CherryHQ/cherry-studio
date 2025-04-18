@@ -4,10 +4,10 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
-import { Divider, Flex } from 'antd'
+import { Divider, Flex, Tooltip } from 'antd'
 import { clone } from 'lodash'
 import { Search } from 'lucide-react'
-import React, { Fragment, useMemo, useState } from 'react'
+import React, { Fragment, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -31,6 +31,21 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const message = withMessageThought(clone(_message))
   const isWebCitation = model && (isOpenAIWebSearch(model) || model.provider === 'openrouter')
   const [citationsCollapsed, setCitationsCollapsed] = useState(true)
+
+  const renderMentions = useCallback(() => {
+    return (
+      <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
+        {message.mentions?.map((asst) => {
+          const key = `${asst.id}-${getModelUniqId(asst.model)}`
+          return (
+            <Tooltip title={`${asst.emoji} ${asst.name}`} key={key} mouseEnterDelay={0.5}>
+              <MentionTag key={key}>{'@' + asst.model.name}</MentionTag>
+            </Tooltip>
+          )
+        })}
+      </Flex>
+    )
+  }, [message.mentions])
 
   // HTML实体编码辅助函数
   const encodeHTML = (str: string) => {
@@ -231,9 +246,7 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const toolUseRegex = /<tool_use>([\s\S]*?)<\/tool_use>/g
   return (
     <Fragment>
-      <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
-        {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
-      </Flex>
+      {renderMentions()}
       <MessageThought message={message} />
       <MessageTools message={message} />
       <Markdown message={{ ...message, content: processedContent.replace(toolUseRegex, '') }} />

@@ -1,25 +1,18 @@
-import { db } from '@renderer/databases'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
-  addTopic,
-  removeAllTopics,
   removeAssistant,
-  removeTopic,
   setModel,
   updateAssistant,
   updateAssistants,
   updateAssistantSettings,
-  updateDefaultAssistant,
-  updateTopic,
-  updateTopics
+  updateDefaultAssistant
 } from '@renderer/store/assistants'
 import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
+import { removeAssistantTopics, selectTopicsByAssistantId } from '@renderer/store/topics'
+import { addTopic as addTopicToState } from '@renderer/store/topics'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { useCallback } from 'react'
-
-import { TopicManager } from './useTopic'
 
 export function useAssistants() {
   const { assistants } = useAppSelector((state) => state.assistants)
@@ -29,47 +22,27 @@ export function useAssistants() {
     assistants,
     updateAssistants: (assistants: Assistant[]) => dispatch(updateAssistants(assistants)),
     addAssistant: (assistant: Assistant) => dispatch(addAssistant(assistant)),
-    removeAssistant: (id: string) => {
-      dispatch(removeAssistant({ id }))
-      const assistant = assistants.find((a) => a.id === id)
-      const topics = assistant?.topics || []
-      topics.forEach(({ id }) => TopicManager.removeTopic(id))
-    }
+    removeAssistant: (id: string) => dispatch(removeAssistant({ id }))
   }
 }
 
 export function useAssistant(id: string) {
   const assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id) as Assistant)
+  const topics = useAppSelector((state) => selectTopicsByAssistantId(state, assistant.id))
+
   const dispatch = useAppDispatch()
   const { defaultModel } = useDefaultModel()
 
   return {
     assistant,
+    topics, // 该助手负责的话题（不一定是所有它参与的话题）
     model: assistant?.model ?? assistant?.defaultModel ?? defaultModel,
-    addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
-    removeTopic: (topic: Topic) => {
-      TopicManager.removeTopic(topic.id)
-      dispatch(removeTopic({ assistantId: assistant.id, topic }))
+    addTopic: (topic: Topic) => {
+      dispatch(addTopicToState({ topic, assistantId: assistant.id }))
     },
-    moveTopic: (topic: Topic, toAssistant: Assistant) => {
-      dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
-      dispatch(removeTopic({ assistantId: assistant.id, topic }))
-      // update topic messages in database
-      db.topics
-        .where('id')
-        .equals(topic.id)
-        .modify((dbTopic) => {
-          if (dbTopic.messages) {
-            dbTopic.messages = dbTopic.messages.map((message) => ({
-              ...message,
-              assistantId: toAssistant.id
-            }))
-          }
-        })
+    removeAllTopics: () => {
+      dispatch(removeAssistantTopics(assistant.id))
     },
-    updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
-    updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
-    removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
     setModel: useCallback(
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]
@@ -86,10 +59,7 @@ export function useDefaultAssistant() {
   const dispatch = useAppDispatch()
 
   return {
-    defaultAssistant: {
-      ...defaultAssistant,
-      topics: [getDefaultTopic(defaultAssistant.id)]
-    },
+    defaultAssistant,
     updateDefaultAssistant: (assistant: Assistant) => dispatch(updateDefaultAssistant({ assistant }))
   }
 }

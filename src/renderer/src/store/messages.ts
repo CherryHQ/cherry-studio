@@ -3,10 +3,10 @@ import db from '@renderer/databases'
 import { autoRenameTopic, TopicManager } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { consolidateMentionedAssistant } from '@renderer/services/AssistantService'
 import { getAssistantMessage, resetAssistantMessage } from '@renderer/services/MessagesService'
 import type { AppDispatch, RootState } from '@renderer/store'
-import type { Assistant, Message, Topic } from '@renderer/types'
-import type { Model } from '@renderer/types'
+import type { Assistant, MentionedAssistant, Message, Topic } from '@renderer/types'
 import { clearTopicQueue, getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
 import { isEmpty, throttle } from 'lodash'
 
@@ -227,7 +227,7 @@ export const sendMessage =
     options?: {
       resendAssistantMessage?: Message | Message[]
       isMentionModel?: boolean
-      mentions?: Model[]
+      mentions?: MentionedAssistant[]
     }
   ) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
@@ -267,8 +267,9 @@ export const sendMessage =
         // 为每个被 mention 的模型创建一个助手消息
         if (options?.mentions?.length) {
           assistantMessages = options?.mentions.map((m) => {
-            const assistantMessage = getAssistantMessage({ assistant: { ...assistant, model: m }, topic })
-            assistantMessage.model = m
+            const solidAssistant = consolidateMentionedAssistant(m)
+            const assistantMessage = getAssistantMessage({ assistant: solidAssistant, topic })
+            assistantMessage.model = solidAssistant.model
             assistantMessage.askId = userMessage.id
             assistantMessage.status = 'sending'
             return assistantMessage
