@@ -204,18 +204,18 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_data')}</SettingRowTitle>
-                <HStack alignItems="center" gap="5px">
+                <PathRow>
                   <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</PathText>
-                  <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} />
-                </HStack>
+                  <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
+                </PathRow>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_logs')}</SettingRowTitle>
-                <HStack alignItems="center" gap="5px">
+                <PathRow>
                   <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.logsPath}</PathText>
-                  <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} />
-                </HStack>
+                  <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
+                </PathRow>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
@@ -281,11 +281,23 @@ const MenuList = styled.div`
 `
 
 const PathText = styled(Typography.Text)`
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   display: inline-block;
   vertical-align: middle;
+  text-align: right;
+  margin-left: 5px;
+`
+
+const PathRow = styled(HStack)`
+  min-width: 0;
+  flex: 1;
+  width: 0;
+  align-items: center;
+  gap: 5px;
 `
 
 export default DataSettings
