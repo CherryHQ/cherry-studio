@@ -20,6 +20,14 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  // Extension
+  Extensions_Install = 'extensions:install',
+  Extensions_Update = 'extensions:update',
+  Extensions_Uninstall = 'extensions:uninstall',
+  Extensions_OpenChromeStore = 'extensions:open-chrome-store',
+  Extensions_Load = 'extensions:load',
+  Extensions_Unload = 'extensions:unload',
+  Extensions_OpenPopup = 'extensions:open-popup',
   // Open
   Open_Path = 'open:path',
   Open_Website = 'open:website',

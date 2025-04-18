@@ -1,5 +1,6 @@
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
+import ExtensionPopup from '@renderer/components/Popups/ExtensionPopup'
 import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
@@ -14,7 +15,7 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Puzzle, Search } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -104,6 +105,15 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
                 </NarrowIcon>
               </Tooltip>
             </MinAppsPopover>
+          )}
+          {sidebarIcons.visible.includes('extensions') && (
+            <ExtensionPopup>
+              <Tooltip title={t('extensions.title')} mouseEnterDelay={0.8}>
+                <NarrowIcon>
+                  <Puzzle size={18} />
+                </NarrowIcon>
+              </Tooltip>
+            </ExtensionPopup>
           )}
           {topicPosition === 'right' && (
             <NarrowIcon onClick={toggleShowTopics}>

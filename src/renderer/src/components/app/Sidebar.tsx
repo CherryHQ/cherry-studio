@@ -19,6 +19,7 @@ import {
   MessageSquareQuote,
   Moon,
   Palette,
+  Puzzle,
   Settings,
   Sparkle,
   Sun
@@ -136,7 +137,8 @@ const MainMenus: FC = () => {
     translate: <Languages size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
-    files: <Folder size={17} className="icon" />
+    files: <Folder size={17} className="icon" />,
+    extensions: <Puzzle size={18} className="icon" />
   }
 
   const pathMap = {
@@ -146,7 +148,8 @@ const MainMenus: FC = () => {
     translate: '/translate',
     minapp: '/apps',
     knowledge: '/knowledge',
-    files: '/files'
+    files: '/files',
+    extensions: '/extensions'
   }
 
   return sidebarIcons.visible.map((icon) => {

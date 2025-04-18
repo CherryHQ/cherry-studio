@@ -3,7 +3,7 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 import type { File } from '@google/genai'
 import type { GetMCPPromptResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
-import type { LoaderReturn } from '@shared/config/types'
+import type { ChromeWebStoreOptions, InstallExtensionOptions, LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
 import type { UpdateInfo } from 'electron-updater'
 
@@ -50,6 +50,15 @@ declare global {
         checkConnection: (webdavConfig: WebDavConfig) => Promise<boolean>
         createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) => Promise<void>
         deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) => Promise<boolean>
+      }
+      extensions: {
+        install: (options: InstallExtensionOptions) => Promise<Extension>
+        uninstall: (extensionId: string) => Promise<void>
+        update: () => Promise<void>
+        openChromeStore: (options: ChromeWebStoreOptions) => Promise<void>
+        load: (extensionId: string) => Promise<void>
+        unload: (extensionId: string) => Promise<void>
+        openPopup: (extensionId: string, rect: { x: number; y: number; width: number; height: number }) => Promise<void>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>

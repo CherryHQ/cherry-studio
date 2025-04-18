@@ -19,7 +19,7 @@
   },
   "scripts": {
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev -- --trace-warnings",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "yarn test && yarn typecheck && yarn check:i18n",
     "build:unpack": "dotenv npm run build && electron-builder --dir",
@@ -77,6 +77,9 @@
     "color": "^5.0.0",
     "diff": "^7.0.0",
     "docx": "^9.0.2",
+    "electron-chrome-context-menu": "^1.1.0",
+    "electron-chrome-extensions": "patch:electron-chrome-extensions@npm%3A4.7.0#~/.yarn/patches/electron-chrome-extensions-npm-4.7.0-86ba189b0b.patch",
+    "electron-chrome-web-store": "^0.11.0",
     "electron-log": "^5.1.5",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.9",
@@ -144,7 +147,7 @@
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
     "dotenv-cli": "^7.4.2",
-    "electron": "31.7.6",
+    "electron": "^35.1.4",
     "electron-builder": "26.0.13",
     "electron-devtools-installer": "^3.2.0",
     "electron-icon-builder": "^2.0.1",
@@ -196,7 +199,8 @@
     "tokenx": "^0.4.1",
     "typescript": "^5.6.2",
     "uuid": "^10.0.0",
-    "vite": "6.2.6"
+    "vite": "6.2.6",
+    "vite-plugin-static-copy": "^2.3.1"
   },
   "resolutions": {
     "pdf-parse@npm:1.1.1": "patch:pdf-parse@npm%3A1.1.1#~/.yarn/patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",

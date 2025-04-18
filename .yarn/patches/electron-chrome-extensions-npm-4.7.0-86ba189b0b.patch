@@ -1,0 +1,13 @@
+diff --git a/dist/chrome-extension-api.preload.js b/dist/chrome-extension-api.preload.js
+index d5f115c546cde3413d8382a1e7076fd1c77eb9ee..430f44dfa4ff37919136958e143f19b2b07a5d50 100644
+--- a/dist/chrome-extension-api.preload.js
++++ b/dist/chrome-extension-api.preload.js
+@@ -590,7 +590,7 @@
+   };
+ 
+   // src/preload.ts
+-  if (process.type === "service-worker" || location.href.startsWith("chrome-extension://")) {
++  if (process.type === "service-worker" || process.type === "renderer" || process.type === "browser" || location.href.startsWith("chrome-extension://")) {
+     injectExtensionAPIs();
+   }
+ })();

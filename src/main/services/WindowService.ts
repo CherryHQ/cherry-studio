@@ -16,6 +16,7 @@ export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
+  private extensionWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
   //hacky-fix: store the focused status of mainWindow before miniWindow shows
   //to restore the focus status when miniWindow hides
@@ -504,7 +505,7 @@ export class WindowService {
     this.showMiniWindow()
   }
 
-  public setPinMiniWindow(isPinned) {
+  public setPinMiniWindow(isPinned: boolean) {
     this.isPinnedMiniWindow = isPinned
   }
 
@@ -574,6 +575,127 @@ export class WindowService {
 
   public setLastSelectedText(text: string) {
     this.lastSelectedText = text
+  }
+
+  /**
+   * 创建或获取扩展窗口
+   * 用于显示Chrome商店和扩展相关内容
+   * 这是一个共享窗口，用于显示所有扩展相关内容
+   */
+  public createExtensionWindow(): BrowserWindow {
+    if (this.extensionWindow && !this.extensionWindow.isDestroyed()) {
+      this.extensionWindow.show()
+      this.extensionWindow.focus()
+      return this.extensionWindow
+    }
+
+    Logger.info('[WindowService] Creating extension window')
+
+    this.extensionWindow = new BrowserWindow({
+      width: 1280,
+      height: 800,
+      minWidth: 800,
+      minHeight: 600,
+      show: false,
+      resizable: true,
+      title: 'Extensions',
+      webPreferences: {
+        sandbox: true,
+        webSecurity: false,
+        webviewTag: true,
+        allowRunningInsecureContent: true
+      }
+    })
+
+    // emulate UA
+    const userAgent = this.extensionWindow.webContents.session
+      .getUserAgent()
+      .replace(/\sElectron\/\S+/, '')
+      .replace(new RegExp(`\\s${app.getName()}/\\S+`), '')
+    console.log('userAgent', userAgent)
+    this.extensionWindow.webContents.session.setUserAgent(userAgent)
+
+    // 设置会话配置，允许访问扩展资源
+    this.extensionWindow.webContents.session.webRequest.onBeforeRequest(
+      { urls: ['chrome-extension://*/*'] },
+      (_details, callback) => {
+        callback({ cancel: false })
+      }
+    )
+
+    // 允许跨域请求
+    this.extensionWindow.webContents.session.webRequest.onHeadersReceived(
+      { urls: ['*://*/*'] },
+      (details, callback) => {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Access-Control-Allow-Origin': ['*']
+          }
+        })
+      }
+    )
+
+    this.setupExtensionWindow(this.extensionWindow)
+    return this.extensionWindow
+  }
+
+  /**
+   * 设置扩展窗口
+   */
+  private setupExtensionWindow(extensionWindow: BrowserWindow) {
+    // 设置窗口事件
+    extensionWindow.once('ready-to-show', () => {
+      extensionWindow.show()
+      extensionWindow.focus()
+    })
+
+    extensionWindow.on('close', (event) => {
+      // Log to confirm this handler is being reached
+      Logger.info(`[WindowService] 'close' event intercepted for extensionWindow (ID: ${extensionWindow.id})`)
+
+      // Prevent the window from being destroyed
+      event.preventDefault()
+
+      // Hide the window instead so it can be reused
+      extensionWindow.hide()
+    })
+
+    extensionWindow.on('closed', () => {
+      this.extensionWindow = null
+    })
+
+    // 设置网页内容处理
+    this.setupWebContentsHandlers(extensionWindow)
+  }
+
+  /**
+   * 加载URL到扩展窗口
+   * 注意：这个方法保留为了兼容性，新代码应该使用ExtensionService的createExtensionTab方法
+   */
+  public loadURLInExtensionWindow(url: string): void {
+    Logger.warn(
+      '[WindowService] loadURLInExtensionWindow is deprecated, use ExtensionService.createExtensionTab instead'
+    )
+    const win = this.createExtensionWindow()
+    win.loadURL(url)
+  }
+
+  /**
+   * 获取扩展窗口
+   */
+  public getExtensionWindow(): BrowserWindow | null {
+    return this.extensionWindow
+  }
+
+  /**
+   * 关闭扩展窗口
+   */
+  public closeExtensionWindow(): void {
+    if (this.extensionWindow && !this.extensionWindow.isDestroyed()) {
+      this.extensionWindow.close()
+      this.extensionWindow = null
+    }
   }
 }
 
