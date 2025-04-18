@@ -2224,7 +2224,8 @@ export function isSupportedReasoningEffortModel(model?: Model): boolean {
     model.id.includes('claude-3-7-sonnet') ||
     model.id.includes('claude-3.7-sonnet') ||
     isOpenAIoSeries(model) ||
-    isGrokReasoningModel(model)
+    isGrokReasoningModel(model) ||
+    isGemini25ReasoningModel(model)
   ) {
     return true
   }
@@ -2251,6 +2252,18 @@ export function isGrokReasoningModel(model?: Model): boolean {
   return false
 }
 
+export function isGemini25ReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (model.id.includes('gemini-2.5')) {
+    return true
+  }
+
+  return false
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -2264,7 +2277,7 @@ export function isReasoningModel(model?: Model): boolean {
     return true
   }
 
-  if (model.id.includes('gemini-2.5')) {
+  if (isGemini25ReasoningModel(model)) {
     return true
   }
 
