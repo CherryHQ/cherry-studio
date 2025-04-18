@@ -209,14 +209,18 @@ export default class GeminiProvider extends BaseProvider {
       const maxBudgetToken = 24576 // https://ai.google.dev/gemini-api/docs/thinking
       const budgetTokens = Math.max(1024, Math.trunc(maxBudgetToken * effortRatio))
       if (!effortRatio) {
-        return {}
+        return {
+          thinkingConfig: {
+            thinkingBudget: 0
+          } as ThinkingConfig
+        }
       }
-      const thinkingConfig: ThinkingConfig = {
-        thinkingBudget: budgetTokens,
-        includeThoughts: true
-      }
+
       return {
-        thinkingConfig
+        thinkingConfig: {
+          thinkingBudget: budgetTokens,
+          includeThoughts: true
+        } as ThinkingConfig
       }
     }
     return {}
@@ -349,6 +353,7 @@ export default class GeminiProvider extends BaseProvider {
         text: response.text,
         usage: {
           prompt_tokens: response.usageMetadata?.promptTokenCount || 0,
+          thoughts_tokens: response.usageMetadata?.thoughtsTokenCount || 0,
           completion_tokens: response.usageMetadata?.candidatesTokenCount || 0,
           total_tokens: response.usageMetadata?.totalTokenCount || 0
         },
@@ -425,6 +430,7 @@ export default class GeminiProvider extends BaseProvider {
           usage: {
             prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
             completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
+            thoughts_tokens: chunk.usageMetadata?.thoughtsTokenCount || 0,
             total_tokens: chunk.usageMetadata?.totalTokenCount || 0
           },
           metrics: {
