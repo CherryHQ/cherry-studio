@@ -1429,6 +1429,10 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "extensions": {
+      "title": "Extensions",
+      "search.placeholder": "Search Extensions..."
     }
   }
 }

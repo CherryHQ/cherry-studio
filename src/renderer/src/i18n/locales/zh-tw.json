@@ -1429,6 +1429,10 @@
       "quit": "結束",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
+    },
+    "extensions": {
+      "title": "擴展",
+      "search.placeholder": "搜索擴展..."
     }
   }
 }

@@ -1429,6 +1429,10 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "extensions": {
+      "title": "拡張",
+      "search.placeholder": "拡張を検索..."
     }
   }
 }

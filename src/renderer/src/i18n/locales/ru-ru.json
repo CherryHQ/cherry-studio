@@ -1429,6 +1429,10 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "extensions": {
+      "title": "Расширения",
+      "search.placeholder": "Поиск расширений..."
     }
   }
 }
