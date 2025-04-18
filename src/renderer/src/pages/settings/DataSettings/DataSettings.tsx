@@ -205,7 +205,7 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_data')}</SettingRowTitle>
                 <HStack alignItems="center" gap="5px">
-                  <Typography.Text style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</Typography.Text>
+                  <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} />
                 </HStack>
               </SettingRow>
@@ -213,7 +213,7 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_logs')}</SettingRowTitle>
                 <HStack alignItems="center" gap="5px">
-                  <Typography.Text style={{ color: 'var(--color-text-3)' }}>{appInfo?.logsPath}</Typography.Text>
+                  <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.logsPath}</PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} />
                 </HStack>
               </SettingRow>
@@ -278,6 +278,14 @@ const MenuList = styled.div`
     color: var(--color-text-2);
     line-height: 16px;
   }
+`
+
+const PathText = styled(Typography.Text)`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
 `
 
 export default DataSettings
