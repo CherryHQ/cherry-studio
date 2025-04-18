@@ -100,6 +100,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setTrayOnClose(isActive)
   })
 
+  // auto update
+  ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
+    configManager.setAutoUpdate(isActive)
+  })
+
   ipcMain.handle(IpcChannel.App_RestartTray, () => TrayService.getInstance().restartTray())
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any) => {

@@ -8,7 +8,6 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
-import { setAutoCheckUpdate } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
 import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
@@ -25,7 +24,7 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitl
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const { t } = useTranslation()
-  const { autoCheckUpdate } = useSettings()
+  const { autoCheckUpdate, setAutoCheckUpdate } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -150,7 +149,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
-          <Switch value={autoCheckUpdate} onChange={(v) => dispatch(setAutoCheckUpdate(v))} />
+          <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
         </SettingRow>
       </SettingGroup>
       {hasNewVersion && update.info && (

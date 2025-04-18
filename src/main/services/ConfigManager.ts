@@ -14,7 +14,8 @@ enum ConfigKeys {
   ZoomFactor = 'ZoomFactor',
   Shortcuts = 'shortcuts',
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
-  EnableQuickAssistant = 'enableQuickAssistant'
+  EnableQuickAssistant = 'enableQuickAssistant',
+  AutoUpdate = 'autoUpdate'
 }
 
 export class ConfigManager {
@@ -134,6 +135,14 @@ export class ConfigManager {
 
   setEnableQuickAssistant(value: boolean) {
     this.set(ConfigKeys.EnableQuickAssistant, value)
+  }
+
+  getAutoUpdate(): boolean {
+    return this.get<boolean>(ConfigKeys.AutoUpdate, true)
+  }
+
+  setAutoUpdate(value: boolean) {
+    this.set(ConfigKeys.AutoUpdate, value)
   }
 
   set(key: string, value: unknown) {

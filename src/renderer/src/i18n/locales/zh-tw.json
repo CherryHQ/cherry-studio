@@ -1364,7 +1364,7 @@
         "content_limit": "內容長度限制",
         "content_limit_tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷。"
       },
-      "general.auto_check_update.title": "啟用自動更新檢查",
+      "general.auto_check_update.title": "啟用自動更新",
       "quickPhrase": {
         "title": "快捷短語",
         "add": "新增短語",
