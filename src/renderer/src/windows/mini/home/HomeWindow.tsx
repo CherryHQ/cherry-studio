@@ -13,6 +13,10 @@ import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import store from '@renderer/store'
+import { setGenerating } from '@renderer/store/runtime'
+import { useRuntime } from '@renderer/hooks/useRuntime'
+import { addAbortController,abortCompletion } from '@renderer/utils/abortController'
 
 import ChatWindow from '../chat/ChatWindow'
 import TranslateWindow from '../translate/TranslateWindow'
@@ -20,6 +24,9 @@ import ClipboardPreview from './components/ClipboardPreview'
 import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+import SendMessageButton from '../../../pages/home/Inputbar/SendMessageButton'
+import { Button, Tooltip } from 'antd'
+import { CirclePause } from 'lucide-react'
 
 const HomeWindow: FC = () => {
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
@@ -35,6 +42,7 @@ const HomeWindow: FC = () => {
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
+  const messageIdRef = useRef<string>(null)//message id
 
   const referenceText = selectedText || clipboardText || text
 
@@ -141,9 +149,15 @@ const HomeWindow: FC = () => {
     setText(e.target.value)
   }
 
+  const controller = new AbortController()
+  const { generating } = useRuntime()
   const onSendMessage = useCallback(
     async (prompt?: string) => {
       if (isEmpty(content)) {
+        return
+      }
+      
+      if (generating) {
         return
       }
 
@@ -159,6 +173,8 @@ const HomeWindow: FC = () => {
           status: 'success'
         }
         EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
+        messageIdRef.current=message.id
+        addAbortController(messageIdRef.current, () => controller.abort())//注册messageid
         setIsFirstMessage(false)
         setText('') // ✅ 清除输入框内容
       }, 0)
@@ -177,10 +193,21 @@ const HomeWindow: FC = () => {
     if (route === 'home') {
       onCloseWindow()
     } else {
+      store.dispatch(setGenerating(false))
+      if (messageIdRef.current) {
+        abortCompletion(messageIdRef.current)//停止输出
+      }
       setRoute('home')
       setText('')
     }
   })
+
+  const onPause = async () => {
+    store.dispatch(setGenerating(false))
+    if (messageIdRef.current) {
+      abortCompletion(messageIdRef.current)//停止输出
+    }
+  }
 
   useEffect(() => {
     window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
@@ -223,6 +250,8 @@ const HomeWindow: FC = () => {
       <Container style={{ backgroundColor: backgroundColor() }}>
         {route === 'chat' && (
           <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <div style={{ flex: 1, marginRight: 10 }}>
             <InputBar
               text={text}
               model={model}
@@ -232,6 +261,18 @@ const HomeWindow: FC = () => {
               handleChange={handleChange}
               ref={inputBarRef}
             />
+            </div>
+            <ToolbarMenu>
+              {generating && (
+                <Tooltip placement="top" title={t('chat.input.pause')} arrow>
+                  <ToolbarButton type="text" onClick={onPause} >
+                    <CirclePause style={{ color: 'var(--color-error)', fontSize: 20 }} />
+                  </ToolbarButton>
+                </Tooltip>
+              )}
+              {!generating && <SendMessageButton sendMessage={() => onSendMessage()} disabled={generating || isEmpty(content)} />}
+             </ToolbarMenu>
+             </div> 
             <Divider style={{ margin: '10px 0' }} />
           </>
         )}
@@ -309,5 +350,52 @@ const Main = styled.main`
   flex: 1;
   overflow: hidden;
 `
+const ToolbarMenu = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+`
+const ToolbarButton = styled(Button)`
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  color: var(--color-icon);
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  &.anticon,
+  &.iconfont {
+    transition: all 0.3s ease;
+    color: var(--color-icon);
+  }
+  .icon-a-addchat {
+    font-size: 18px;
+    margin-bottom: -2px;
+  }
+  &:hover {
+    background-color: var(--color-background-soft);
+    .anticon,
+    .iconfont {
+      color: var(--color-text-1);
+    }
+  }
+  &.active {
+    background-color: var(--color-primary) !important;
+    .anticon,
+    .iconfont {
+      color: var(--color-white-soft);
+    }
+    &:hover {
+      background-color: var(--color-primary);
+    }
+  }
+`
+
 
 export default HomeWindow

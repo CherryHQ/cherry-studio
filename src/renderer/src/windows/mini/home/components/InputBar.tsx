@@ -37,7 +37,7 @@ const InputBar = ({
         autoFocus
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        disabled={generating}
+        // disabled={generating}
         ref={inputRef}
       />
     </InputWrapper>
