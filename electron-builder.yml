@@ -5,7 +5,13 @@ electronLanguages:
   - zh-TW
   - en-GB
   - en-US
+  - zh_CN # for mac
+  - zh_TW # for mac
+  - en_GB # for mac
+  - en_US # for mac
+  - en # for mac
   - ru
+
 directories:
   buildResources: build
 files:
