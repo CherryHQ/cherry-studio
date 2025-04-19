@@ -445,7 +445,11 @@
       "topN_tooltip": "返回的匹配結果數量，數值越大，匹配結果越多，但消耗的 Token 也越多",
       "url_added": "網址已新增",
       "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "dimensions": "嵌入維度",
+      "dimensions_size_tooltip": "嵌入維度大小，數值越大，嵌入維度越大，但消耗的 Token 也越多",
+      "dimensions_size_placeholder": "預設值（不建議修改）",
+      "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）"
     },
     "languages": {
       "arabic": "阿拉伯文",

@@ -445,7 +445,11 @@
       "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "dimensions": "Embedding dimension",
+      "dimensions_size_tooltip": "The size of the embedding dimension; the larger the value, the larger the embedding dimension, but it also consumes more tokens.",
+      "dimensions_size_placeholder": "Default value (modification not recommended)",
+      "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}})."
     },
     "languages": {
       "arabic": "Arabic",

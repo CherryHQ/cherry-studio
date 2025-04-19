@@ -445,7 +445,11 @@
       "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "dimensions": "埋め込み次元",
+      "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど埋め込み次元も大きくなりますが、消費するトークンも増えます。",
+      "dimensions_size_placeholder": "デフォルト値（変更はお勧めしません）",
+      "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。"
     },
     "languages": {
       "arabic": "アラビア語",
