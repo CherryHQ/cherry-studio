@@ -49,8 +49,5 @@ local
 
 # test
 coverage
-__snapshots__/*
-**/__snapshots__/*
-*.snap
 .vitest-cache
 vitest.config.*.timestamp-*

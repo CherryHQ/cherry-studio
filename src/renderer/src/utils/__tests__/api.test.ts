@@ -6,7 +6,7 @@ describe('api', () => {
   describe('formatApiHost', () => {
     it('should return original host when it ends with a slash', () => {
       expect(formatApiHost('https://api.example.com/')).toBe('https://api.example.com/')
-      expect(formatApiHost('http://localhost:3000/')).toBe('http://localhost:3000/')
+      expect(formatApiHost('http://localhost:5173/')).toBe('http://localhost:5173/')
     })
 
     it('should return original host when it ends with volces.com/api/v3', () => {
@@ -16,7 +16,7 @@ describe('api', () => {
 
     it('should append /v1/ to hosts that do not match special conditions', () => {
       expect(formatApiHost('https://api.example.com')).toBe('https://api.example.com/v1/')
-      expect(formatApiHost('http://localhost:3000')).toBe('http://localhost:3000/v1/')
+      expect(formatApiHost('http://localhost:5173')).toBe('http://localhost:5173/v1/')
       expect(formatApiHost('https://api.openai.com')).toBe('https://api.openai.com/v1/')
     })
 
