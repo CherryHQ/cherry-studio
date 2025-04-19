@@ -1,7 +1,10 @@
+import { CheckOutlined } from '@ant-design/icons'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
-import { FileSearch, Info } from 'lucide-react'
-import React from 'react'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { Collapse, message as antdMessage, Tooltip } from 'antd'
+import { FileSearch } from 'lucide-react'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -16,31 +19,80 @@ interface Citation {
 
 interface CitationsListProps {
   citations: Citation[]
-  hideTitle?: boolean
+  citationCount?: number
 }
 
-const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
+const CitationsList: React.FC<CitationsListProps> = ({ citations, citationCount }) => {
+  const [activeKey, setActiveKey] = useState<'citations' | ''>('')
+  const [copied, setCopied] = useState(false)
   const { t } = useTranslation()
+  const { messageFont } = useSettings()
+  useMemo(() => {
+    return messageFont === 'serif'
+      ? 'serif'
+      : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans","Helvetica Neue", sans-serif'
+  }, [messageFont])
 
   if (!citations || citations.length === 0) return null
 
+  const count = citationCount || citations.length
+
+  const copyAllCitations = () => {
+    // 获取所有引用URL并复制到剪贴板
+    const urls = citations
+      .map((citation) => citation.url)
+      .filter(Boolean)
+      .join('\n')
+
+    if (urls) {
+      navigator.clipboard.writeText(urls)
+      antdMessage.success({ content: t('message.copied'), key: 'copy-citations' })
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   return (
-    <CitationsContainer className="footnotes">
-      <CitationsTitle>
-        <span>{t('message.citations')}</span>
-        <Info size={14} style={{ opacity: 0.6 }} />
-      </CitationsTitle>
-      {citations.map((citation) => (
-        <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{citation.number}.</span>
-          {citation.type === 'websearch' ? (
-            <WebSearchCitation citation={citation} />
-          ) : (
-            <KnowledgeCitation citation={citation} />
-          )}
-        </HStack>
-      ))}
-    </CitationsContainer>
+    <CollapseContainer
+      activeKey={activeKey}
+      size="small"
+      onChange={() => setActiveKey((key) => (key ? '' : 'citations'))}
+      className="message-thought-container"
+      items={[
+        {
+          key: 'citations',
+          label: (
+            <MessageTitleLabel>
+              <TitleText>
+                {t('message.citations')} ({count})
+              </TitleText>
+              <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
+                <ActionButton
+                  className="message-action-button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    copyAllCitations()
+                  }}
+                  aria-label={t('common.copy')}>
+                  {!copied && <i className="iconfont icon-copy"></i>}
+                  {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+                </ActionButton>
+              </Tooltip>
+            </MessageTitleLabel>
+          ),
+          children: citations.map((citation) => (
+            <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{citation.number}.</span>
+              {citation.type === 'websearch' ? (
+                <WebSearchCitation citation={citation} />
+              ) : (
+                <KnowledgeCitation citation={citation} />
+              )}
+            </HStack>
+          ))
+        }
+      ]}
+    />
   )
 }
 
@@ -87,27 +139,51 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   )
 }
 
-const CitationsContainer = styled.div`
-  background-color: rgb(242, 247, 253);
-  border-radius: 10px;
-  padding: 8px 12px;
-  margin: 12px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
-  body[theme-mode='dark'] & {
-    background-color: rgba(255, 255, 255, 0.05);
-  }
+const CollapseContainer = styled(Collapse)`
+  margin-bottom: 15px;
 `
 
-const CitationsTitle = styled.div`
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--color-text-1);
+const MessageTitleLabel = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: 22px;
+  gap: 15px;
+`
+
+const TitleText = styled.span`
+  color: var(--color-text-2);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+`
+
+const ActionButton = styled.button`
+  background: none;
+  border: none;
+  color: var(--color-text-2);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  opacity: 0.6;
+  transition: all 0.3s;
+
+  &:hover {
+    opacity: 1;
+    color: var(--color-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .iconfont {
+    font-size: 14px;
+  }
 `
 
 const CitationLink = styled.a`

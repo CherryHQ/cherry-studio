@@ -253,68 +253,60 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       {hasCitations && (
         <>
           {message?.metadata?.groundingMetadata && message.status === 'success' && (
-            <>
-              <CitationsList
-                citations={
-                  message.metadata.groundingMetadata?.groundingChunks?.map((chunk, index) => ({
-                    number: index + 1,
-                    url: chunk?.web?.uri || '',
-                    title: chunk?.web?.title,
-                    showFavicon: false
-                  })) || []
-                }
-              />
-              <SearchEntryPoint
-                dangerouslySetInnerHTML={{
-                  __html: message.metadata.groundingMetadata?.searchEntryPoint?.renderedContent
-                    ? message.metadata.groundingMetadata.searchEntryPoint.renderedContent
-                        .replace(/@media \(prefers-color-scheme: light\)/g, 'body[theme-mode="light"]')
-                        .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]')
-                    : ''
-                }}
-              />
-            </>
+            <SearchEntryPoint
+              dangerouslySetInnerHTML={{
+                __html: message.metadata.groundingMetadata?.searchEntryPoint?.renderedContent
+                  ? message.metadata.groundingMetadata.searchEntryPoint.renderedContent
+                      .replace(/@media \(prefers-color-scheme: light\)/g, 'body[theme-mode="light"]')
+                      .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]')
+                  : ''
+              }}
+            />
           )}
-          {formattedCitations && (
-            <CitationsList
-              citations={formattedCitations.map((citation) => ({
+
+          <CitationsList
+            citationCount={
+              (formattedCitations?.length || 0) +
+              (message?.metadata?.webSearch?.results?.length || 0) +
+              (message?.metadata?.knowledge?.length || 0) +
+              (message?.metadata?.webSearchInfo?.length || 0) +
+              (message?.metadata?.groundingMetadata?.groundingChunks?.length || 0)
+            }
+            citations={[
+              ...(message?.metadata?.groundingMetadata?.groundingChunks?.map((chunk, index) => ({
+                number: index + 1,
+                url: chunk?.web?.uri || '',
+                title: chunk?.web?.title,
+                showFavicon: false
+              })) || []),
+              ...(formattedCitations?.map((citation) => ({
                 number: citation.number,
                 url: citation.url,
                 hostname: citation.hostname,
                 showFavicon: isWebCitation
-              }))}
-            />
-          )}
-          {(message?.metadata?.webSearch || message.metadata?.knowledge) && message.status === 'success' && (
-            <CitationsList
-              citations={[
-                ...(message.metadata.webSearch?.results.map((result, index) => ({
-                  number: index + 1,
-                  url: result.url,
-                  title: result.title,
-                  showFavicon: true,
-                  type: 'websearch'
-                })) || []),
-                ...(message.metadata.knowledge?.map((result, index) => ({
-                  number: (message.metadata?.webSearch?.results?.length || 0) + index + 1,
-                  url: result.sourceUrl,
-                  title: result.sourceUrl,
-                  showFavicon: true,
-                  type: 'knowledge'
-                })) || [])
-              ]}
-            />
-          )}
-          {message?.metadata?.webSearchInfo && message.status === 'success' && (
-            <CitationsList
-              citations={message.metadata.webSearchInfo.map((result, index) => ({
+              })) || []),
+              ...(message?.metadata?.webSearch?.results?.map((result, index) => ({
+                number: index + 1,
+                url: result.url,
+                title: result.title,
+                showFavicon: true,
+                type: 'websearch'
+              })) || []),
+              ...(message?.metadata?.knowledge?.map((result, index) => ({
+                number: (message.metadata?.webSearch?.results?.length || 0) + index + 1,
+                url: result.sourceUrl,
+                title: result.sourceUrl,
+                showFavicon: true,
+                type: 'knowledge'
+              })) || []),
+              ...(message?.metadata?.webSearchInfo?.map((result, index) => ({
                 number: index + 1,
                 url: result.link || result.url,
                 title: result.title,
                 showFavicon: true
-              }))}
-            />
-          )}
+              })) || [])
+            ].filter(Boolean)}
+          />
         </>
       )}
 
