@@ -46,3 +46,8 @@ local
 .aider*
 .cursorrules
 .cursor/rules
+
+# test
+coverage
+.vitest-cache
+vitest.config.*.timestamp-*

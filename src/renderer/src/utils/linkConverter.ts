@@ -384,6 +384,6 @@ function isValidUrl(url: string): boolean {
  * @returns 清理后的文本
  */
 export function cleanLinkCommas(text: string): string {
-  // 匹配两个 Markdown 链接之间的逗号（可能包含空格）
-  return text.replace(/\]\([^)]+\)\s*,\s*\[/g, ']()[')
+  // 匹配两个 Markdown 链接之间的英文逗号（可能包含空格）
+  return text.replace(/\]\(([^)]+)\)\s*,\s*\[/g, ']($1)[')
 }
