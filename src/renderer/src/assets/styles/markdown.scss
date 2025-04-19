@@ -125,7 +125,7 @@
     overflow-x: auto;
     font-family: 'Fira Code', 'Courier New', Courier, monospace;
     background-color: var(--color-background-mute);
-    &:has(> .mermaid) {
+    &:has(.mermaid) {
       background-color: transparent;
     }
     &:not(pre pre) {
@@ -303,4 +303,29 @@ emoji-picker {
 }
 mjx-container {
   overflow-x: auto;
+}
+
+/* CodeMirror 相关样式 */
+.cm-editor {
+  padding: 0;
+  border-radius: 0;
+
+  .cm-scroller {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    padding: 0.5em;
+
+    .cm-gutters {
+      line-height: 1.6;
+    }
+
+    .cm-content {
+      line-height: 1.6;
+      padding-left: 0.25em;
+    }
+
+    .cm-lineWrapping * {
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+  }
 }

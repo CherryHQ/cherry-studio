@@ -18,6 +18,7 @@ import {
   removeSpecialCharactersForFileName,
   runAsyncFunction
 } from '@renderer/utils'
+import { updateCodeBlock } from '@renderer/utils/markdown'
 import { flatten, last, take } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,7 +49,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
   const messages = useTopicMessages(topic)
-  const { displayCount, updateMessages, clearTopicMessages, deleteMessage } = useMessageOperations(topic)
+  const { displayCount, updateMessages, clearTopicMessages, deleteMessage, editMessage } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
 
   useEffect(() => {
@@ -177,7 +178,34 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           const file = await db.files.get({ id: f?.id })
           file && db.files.update(file.id, { count: file.count + 1 })
         })
-      })
+      }),
+      EventEmitter.on(
+        EVENT_NAMES.EDIT_CODE_BLOCK,
+        async (data: { messageId: string; codeBlockId: string; newContent: string }) => {
+          const { messageId, codeBlockId, newContent } = data
+
+          const message = messagesRef.current.find((m) => m.id === messageId)
+
+          if (message) {
+            try {
+              const updatedRaw = updateCodeBlock(message.content, codeBlockId, newContent)
+              await editMessage(messageId, { content: updatedRaw })
+              window.message.success({ content: t('code_block.edit.save.success'), key: 'save-code' })
+            } catch (error) {
+              console.error(`Failed to save code block ${codeBlockId} content to message ${messageId}:`, error)
+              window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+            }
+          } else {
+            console.error(
+              `Trying to edit a code block ${codeBlockId} but the message ID ${messageId} is not found. CodeBlock content: ${newContent}`
+            )
+            window.message.error({
+              content: t('code_block.edit.save.failed.message_not_found'),
+              key: 'save-code-message-not-found'
+            })
+          }
+        }
+      )
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
