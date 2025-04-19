@@ -92,7 +92,7 @@ export async function backupToWebdav({
     Logger.error('[Backup] Failed to get device type or hostname:', error)
   }
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
-  const backupFileName = customFileName || `cherry-studio.${timestamp}.${deviceType}.${hostname}.zip`
+  const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
   const backupData = await getBackupData()
 
@@ -126,10 +126,16 @@ export async function backupToWebdav({
             webdavPath
           })
 
-          // 如果文件数量超过最大保留数量，删除最旧的文件
-          if (files.length > webdavMaxBackups) {
+          // 筛选当前设备的备份文件
+          const currentDeviceFiles = files.filter((file) => {
+            // 检查文件名是否包含当前设备的标识信息
+            return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
+          })
+
+          // 如果当前设备的备份文件数量超过最大保留数量，删除最旧的文件
+          if (currentDeviceFiles.length > webdavMaxBackups) {
             // 文件已按修改时间降序排序，所以最旧的文件在末尾
-            const filesToDelete = files.slice(webdavMaxBackups)
+            const filesToDelete = currentDeviceFiles.slice(webdavMaxBackups)
 
             for (const file of filesToDelete) {
               try {
