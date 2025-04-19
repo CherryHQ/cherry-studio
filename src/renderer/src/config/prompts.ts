@@ -1,5 +1,16 @@
 import dayjs from 'dayjs'
 
+export const EMOJI_GENERATOR_PROMPT = `
+You are a designer and an Emoji expert who is good at conceptual abstraction, and you need to generate a very matching single Emoji as avatar based on the prompts.
+Important requirements:
+1. Must and can only return a single essential Emoji character; do not use multiple Emoji combinations
+2. Do not return complex emojis or emojis with shoulder and belly combination characters (such as 👨‍💻)
+3. Use only common base emojis, such as 💻 or 😄 , instead of variants with modified symbols
+4. The return content must use the following format: "Emoji: [emoji character]" (for example, "Emoji: 🤖")
+Input: User input prompt content
+Output: Strictly return only the result in "Emoji: [single emoji character]" format
+`
+
 export const AGENT_PROMPT = `
 You are a Prompt Generator. You will integrate user input information into a structured Prompt using Markdown syntax. Please do not use code blocks for output, display directly!
 
