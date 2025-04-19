@@ -44,6 +44,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "check:i18n": "node scripts/check-i18n.js",
+    "test": "yarn test:renderer",
     "test:node": "npx -y tsx --test src/**/*.test.ts",
     "test:renderer": "vitest",
     "test:renderer:ui": "vitest --ui",
