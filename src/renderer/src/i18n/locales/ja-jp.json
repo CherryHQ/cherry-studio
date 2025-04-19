@@ -560,6 +560,7 @@
         "error": "エラーが発生しました"
       },
       "topic.added": "新しいトピックが追加されました",
+      "translation.copied": "翻訳結果をコピーしました",
       "upgrade.success.button": "再起動",
       "upgrade.success.content": "アップグレードを完了するためにアプリケーションを再起動してください",
       "upgrade.success.title": "アップグレードに成功しました",
@@ -1407,6 +1408,7 @@
         "content": "翻訳すると元のテキストが上書きされます。続行しますか？",
         "title": "翻訳確認"
       },
+      "copy": "翻訳をコピー",
       "error.failed": "翻訳に失敗しました",
       "error.not_configured": "翻訳モデルが設定されていません",
       "history": {

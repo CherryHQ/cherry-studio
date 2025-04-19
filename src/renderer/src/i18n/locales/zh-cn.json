@@ -561,6 +561,7 @@
         "error": "发生错误"
       },
       "topic.added": "话题添加成功",
+      "translation.copied": "翻译已复制",
       "upgrade.success.button": "重启",
       "upgrade.success.content": "重启用以完成升级",
       "upgrade.success.title": "升级成功",
@@ -1407,6 +1408,7 @@
         "content": "翻译后将覆盖原文，是否继续？",
         "title": "翻译确认"
       },
+      "copy": "复制翻译",
       "error.failed": "翻译失败",
       "error.not_configured": "翻译模型未配置",
       "history": {
