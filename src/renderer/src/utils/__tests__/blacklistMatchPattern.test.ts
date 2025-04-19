@@ -26,13 +26,13 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { MatchPatternMap } from './blacklistMatchPattern'
+import { MatchPatternMap } from '../blacklistMatchPattern'
 
 function get(map: MatchPatternMap<number>, url: string) {
   return map.get(url).sort()
 }
 
-describe('MatchPatternMap', () => {
+describe('blacklistMatchPattern', () => {
   // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns
   it('MDN Examples', () => {
     const map = new MatchPatternMap<number>()
