@@ -206,8 +206,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
     if (apiKey.includes(',')) {
       const keys = apiKey
-        .split(',')
+        .split(/(?<!\\),/)
         .map((k) => k.trim())
+        .map(k => k.replace(/\\,/g, ','))
         .filter((k) => k)
 
       const result = await ApiCheckPopup.show({
