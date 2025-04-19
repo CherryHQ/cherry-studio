@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { AvailableTools, buildSystemPrompt } from '../prompt'
 
-describe('Prompt Utils', () => {
+describe('prompt', () => {
   // 辅助函数：创建符合 MCPTool 类型的工具对象
   const createMcpTool = (id: string, description: string, inputSchema: any): MCPTool => ({
     id,

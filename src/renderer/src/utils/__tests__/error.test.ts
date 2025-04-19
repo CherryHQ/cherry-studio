@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { formatErrorMessage, formatMessageError, getErrorDetails, getErrorMessage, isAbortError } from '../error'
 
-describe('Error Utils', () => {
+describe('error', () => {
   describe('getErrorDetails', () => {
     it('should handle null or non-object values', () => {
       expect(getErrorDetails(null)).toBeNull()

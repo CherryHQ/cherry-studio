@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { findCitationInChildren, MARKDOWN_ALLOWED_TAGS, sanitizeSchema } from '../markdown'
+import {
+  convertMathFormula,
+  findCitationInChildren,
+  MARKDOWN_ALLOWED_TAGS,
+  removeTrailingDoubleSpaces,
+  sanitizeSchema
+} from '../markdown'
 
 describe('markdown', () => {
   describe('findCitationInChildren', () => {
@@ -84,6 +90,72 @@ describe('markdown', () => {
 
     it('sanitizeSchema matches snapshot', () => {
       expect(sanitizeSchema).toMatchSnapshot()
+    })
+  })
+
+  describe('convertMathFormula', () => {
+    it('should convert LaTeX block delimiters to $$$$', () => {
+      // 验证将 LaTeX 块分隔符转换为 $$$$
+      const input = 'Some text \\[math formula\\] more text'
+      const result = convertMathFormula(input)
+      expect(result).toBe('Some text $$math formula$$ more text')
+    })
+
+    it('should convert LaTeX inline delimiters to $$', () => {
+      // 验证将 LaTeX 内联分隔符转换为 $$
+      const input = 'Some text \\(inline math\\) more text'
+      const result = convertMathFormula(input)
+      expect(result).toBe('Some text $inline math$ more text')
+    })
+
+    it('should handle multiple delimiters in input', () => {
+      // 验证处理输入中的多个分隔符
+      const input = 'Text \\[block1\\] and \\(inline\\) and \\[block2\\]'
+      const result = convertMathFormula(input)
+      expect(result).toBe('Text $$block1$$ and $inline$ and $$block2$$')
+    })
+
+    it('should return input unchanged if no delimiters', () => {
+      // 验证没有分隔符时返回原始输入
+      const input = 'Some text without math'
+      const result = convertMathFormula(input)
+      expect(result).toBe('Some text without math')
+    })
+
+    it('should return input if null or empty', () => {
+      // 验证空输入或 null 输入时返回原值
+      expect(convertMathFormula('')).toBe('')
+      expect(convertMathFormula(null)).toBe(null)
+    })
+  })
+
+  describe('removeTrailingDoubleSpaces', () => {
+    it('should remove trailing double spaces from each line', () => {
+      // 验证移除每行末尾的两个空格
+      const input = 'Line one  \nLine two  \nLine three'
+      const result = removeTrailingDoubleSpaces(input)
+      expect(result).toBe('Line one\nLine two\nLine three')
+    })
+
+    it('should handle single line with trailing double spaces', () => {
+      // 验证处理单行末尾的两个空格
+      const input = 'Single line  '
+      const result = removeTrailingDoubleSpaces(input)
+      expect(result).toBe('Single line')
+    })
+
+    it('should return unchanged if no trailing double spaces', () => {
+      // 验证没有末尾两个空格时返回原始输入
+      const input = 'Line one\nLine two \nLine three'
+      const result = removeTrailingDoubleSpaces(input)
+      expect(result).toBe('Line one\nLine two \nLine three')
+    })
+
+    it('should handle empty string', () => {
+      // 验证处理空字符串
+      const input = ''
+      const result = removeTrailingDoubleSpaces(input)
+      expect(result).toBe('')
     })
   })
 })

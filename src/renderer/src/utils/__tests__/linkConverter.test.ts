@@ -10,7 +10,7 @@ import {
   extractUrlsFromMarkdown
 } from '../linkConverter'
 
-describe('Link Conversion Utils', () => {
+describe('linkConverter', () => {
   describe('convertLinksToZhipu', () => {
     it('should correctly convert complete [ref_N] format', () => {
       const input = '这里有一个参考文献 [ref_1] 和另一个 [ref_2]'
