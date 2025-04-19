@@ -18,7 +18,7 @@ import dayjs from 'dayjs'
  * @returns string 提取的标题
  */
 export function getTitleFromString(str: string, length: number = 80) {
-  let title = str.split('\n')[0]
+  let title = str.trimStart().split('\n')[0]
 
   if (title.includes('。')) {
     title = title.split('。')[0]
