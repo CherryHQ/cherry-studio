@@ -48,6 +48,9 @@ if (!app.requestSingleInstanceLock()) {
 
     registerIpc(mainWindow, app)
 
+    // 注意: MsTTS IPC处理程序已在ipc.ts中注册
+    // 不需要再次调用registerMsTTSIpcHandlers()
+
     replaceDevtoolsFont(mainWindow)
 
     if (process.env.NODE_ENV === 'development') {

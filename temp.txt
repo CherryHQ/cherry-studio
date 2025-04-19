@@ -1,0 +1,8 @@
+          // 不再自动清除回调函数，允许持续接收语音识别结果
+          // setTimeout(() => {
+          //   // 发送重置命令，确保浏览器不会继续发送结果
+          //   ASRService.cancelRecording()
+          //
+          //   // 清除ASRService中的回调函数，防止后续结果被处理
+          //   ASRService.resultCallback = null
+          // }, 2000) // 2秒后强制取消，作为安全措施

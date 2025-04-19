@@ -2,6 +2,7 @@ import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } fro
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
+import TTSButton from '@renderer/components/TTSButton'
 import { isReasoningModel } from '@renderer/config/models'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -71,6 +72,9 @@ const MessageMenubar: FC<Props> = (props) => {
   const isUserMessage = message.role === 'user'
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+
+  // 获取TTS设置
+  const ttsEnabled = useSelector((state: RootState) => state.settings.ttsEnabled)
 
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
@@ -146,7 +150,7 @@ const MessageMenubar: FC<Props> = (props) => {
       // 解析编辑后的文本，提取图片 URL
       const imageRegex = /!\[image-\d+\]\((.*?)\)/g
       const imageUrls: string[] = []
-      let match
+      let match: RegExpExecArray | null
       let content = editedText
 
       while ((match = imageRegex.exec(editedText)) !== null) {
@@ -214,6 +218,8 @@ const MessageMenubar: FC<Props> = (props) => {
     },
     [isTranslating, message, editMessage, setStreamMessage, commitStreamMessage, clearStreamMessage, t]
   )
+
+  // TTS功能已移至TTSButton组件
 
   const dropdownItems = useMemo(
     () => [
@@ -407,6 +413,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </ActionButton>
         </Tooltip>
       )}
+      {isAssistantMessage && ttsEnabled && <TTSButton message={message} className="message-action-button" />}
       {!isUserMessage && (
         <Dropdown
           menu={{

@@ -9,6 +9,8 @@ electronLanguages:
 directories:
   buildResources: build
 files:
+  - out/**/*
+  - package.json
   - '!{.vscode,.yarn,.github}'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
@@ -33,9 +35,18 @@ files:
   - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
-asarUnpack:
+asarUnpack: # Removed ASR server rules from 'files' section
   - resources/**
   - '**/*.{metal,exp,lib}'
+extraResources: # Add extraResources to copy the prepared asr-server directory
+  - from: asr-server # Copy the folder from project root
+    to: app/asr-server # Copy TO the 'app' subfolder within resources
+    filter:
+      - '**/*' # Include everything inside
+  - from: resources/data # Copy the data folder with agents.json
+    to: data # Copy TO the 'data' subfolder within resources
+    filter:
+      - '**/*' # Include everything inside
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}

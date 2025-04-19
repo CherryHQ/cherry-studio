@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 const translationsDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
-const baseLocale = 'zh-CN'
+const baseLocale = 'zh-cn'
 const baseFileName = `${baseLocale}.json`
 const baseFilePath = path.join(translationsDir, baseFileName)
 

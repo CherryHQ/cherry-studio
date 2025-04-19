@@ -30,6 +30,7 @@ import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
+import TTSStopButton from './TTSStopButton'
 
 interface MessagesProps {
   assistant: Assistant
@@ -249,6 +250,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+      <TTSStopButton />
     </Container>
   )
 }

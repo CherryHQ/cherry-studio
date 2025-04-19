@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { CodeStyleVarious, LanguageVarious, Model, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebDAVSyncState } from './backup'
@@ -113,8 +113,56 @@ export interface SettingsState {
   showOpenedMinappsInSidebar: boolean
   // 隐私设置
   enableDataCollection: boolean
+  // TTS配置
+  ttsEnabled: boolean
+  ttsServiceType: string // TTS服务类型：openai、edge、siliconflow或mstts
+  ttsApiKey: string
+  ttsApiUrl: string
+  ttsVoice: string
+  ttsModel: string
+  ttsCustomVoices: string[]
+  ttsCustomModels: string[]
+  showTTSProgressBar: boolean // 是否显示TTS进度条
+  // 浏览器 TTS配置
+  ttsEdgeVoice: string
+  // 硅基流动 TTS配置
+  ttsSiliconflowApiKey: string
+  ttsSiliconflowApiUrl: string
+  ttsSiliconflowVoice: string
+  ttsSiliconflowModel: string
+  ttsSiliconflowResponseFormat: string
+  ttsSiliconflowSpeed: number
+  // 免费在线 TTS配置
+  ttsMsVoice: string
+  ttsMsOutputFormat: string
+  // TTS过滤选项
+  ttsFilterOptions: {
+    filterThinkingProcess: boolean // 过滤思考过程
+    filterMarkdown: boolean // 过滤Markdown标记
+    filterCodeBlocks: boolean // 过滤代码块
+    filterHtmlTags: boolean // 过滤HTML标签
+    filterEmojis: boolean // 过滤表情符号
+    maxTextLength: number // 最大文本长度
+  }
+  // ASR配置（语音识别）
+  asrEnabled: boolean
+  asrServiceType: string // ASR服务类型：openai或browser
+  asrApiKey: string
+  asrApiUrl: string
+  asrModel: string
+  asrAutoStartServer: boolean // 启动应用时自动启动ASR服务器
+  asrLanguage: string // 语音识别语言
+  // 语音通话配置
+  voiceCallEnabled: boolean
+  voiceCallModel: Model | null
+  voiceCallPrompt: string | null // 语音通话自定义提示词
+  isVoiceCallActive: boolean // 语音通话窗口是否激活
+  lastPlayedMessageId: string | null // 最后一次播放的消息ID
+  skipNextAutoTTS: boolean // 是否跳过下一次自动TTS
+  // Quick Panel Triggers
   enableQuickPanelTriggers: boolean
   enableBackspaceDeleteModel: boolean
+  // Export Menu Options
   exportMenuOptions: {
     image: boolean
     markdown: boolean
@@ -214,8 +262,54 @@ export const initialState: SettingsState = {
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
   enableDataCollection: false,
-  enableQuickPanelTriggers: false,
+  // TTS配置
+  ttsEnabled: false,
+  ttsServiceType: 'openai', // 默认使用 OpenAI TTS
+  ttsApiKey: '',
+  ttsApiUrl: 'https://api.openai.com/v1/audio/speech',
+  ttsVoice: '',
+  ttsModel: '',
+  ttsCustomVoices: [],
+  ttsCustomModels: [],
+  showTTSProgressBar: true, // 默认显示TTS进度条
+  // Edge TTS配置
+  ttsEdgeVoice: 'zh-CN-XiaoxiaoNeural', // 默认使用小小的声音
+  // 硅基流动 TTS配置
+  ttsSiliconflowApiKey: '',
+  ttsSiliconflowApiUrl: 'https://api.siliconflow.cn/v1/audio/speech',
+  ttsSiliconflowVoice: 'FunAudioLLM/CosyVoice2-0.5B:alex',
+  ttsSiliconflowModel: 'FunAudioLLM/CosyVoice2-0.5B',
+  ttsSiliconflowResponseFormat: 'mp3',
+  ttsSiliconflowSpeed: 1.0,
+  // 免费在线 TTS配置
+  ttsMsVoice: 'zh-CN-XiaoxiaoNeural',
+  ttsMsOutputFormat: 'audio-24khz-48kbitrate-mono-mp3',
+  ttsFilterOptions: {
+    filterThinkingProcess: true, // 默认过滤思考过程
+    filterMarkdown: true, // 默认过滤Markdown标记
+    filterCodeBlocks: true, // 默认过滤代码块
+    filterHtmlTags: true, // 默认过滤HTML标签
+    filterEmojis: true, // 默认过滤表情符号
+    maxTextLength: 4000 // 默认最大文本长度
+  },
+  // ASR配置（语音识别）
+  asrEnabled: false,
+  asrServiceType: 'openai', // 默认使用 OpenAI ASR
+  asrApiKey: '',
+  asrApiUrl: 'https://api.openai.com/v1/audio/transcriptions',
+  asrModel: 'whisper-1',
+  asrAutoStartServer: false, // 默认不自动启动ASR服务器
+  asrLanguage: 'zh-CN', // 默认使用中文
+  // 语音通话配置
+  voiceCallEnabled: true,
+  voiceCallModel: null,
+  voiceCallPrompt: null, // 默认为null，表示使用默认提示词
+  isVoiceCallActive: false, // 语音通话窗口是否激活
+  lastPlayedMessageId: null, // 最后一次播放的消息ID
+  skipNextAutoTTS: false, // 是否跳过下一次自动TTS
+  enableQuickPanelTriggers: false, // Quick Panel Triggers
   enableBackspaceDeleteModel: true,
+  // Export Menu Options
   exportMenuOptions: {
     image: true,
     markdown: true,
@@ -485,11 +579,194 @@ const settingsSlice = createSlice({
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
-    setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
-      state.exportMenuOptions = action.payload
+    // TTS相关的action
+    setTtsEnabled: (state, action: PayloadAction<boolean>) => {
+      state.ttsEnabled = action.payload
     },
+    setTtsServiceType: (state, action: PayloadAction<string>) => {
+      state.ttsServiceType = action.payload
+    },
+    setTtsApiKey: (state, action: PayloadAction<string>) => {
+      state.ttsApiKey = action.payload
+    },
+    setTtsApiUrl: (state, action: PayloadAction<string>) => {
+      state.ttsApiUrl = action.payload
+    },
+    setTtsEdgeVoice: (state, action: PayloadAction<string>) => {
+      state.ttsEdgeVoice = action.payload
+    },
+    // 硅基流动TTS相关的action
+    setTtsSiliconflowApiKey: (state, action: PayloadAction<string>) => {
+      state.ttsSiliconflowApiKey = action.payload
+    },
+    setTtsSiliconflowApiUrl: (state, action: PayloadAction<string>) => {
+      state.ttsSiliconflowApiUrl = action.payload
+    },
+    setTtsSiliconflowVoice: (state, action: PayloadAction<string>) => {
+      state.ttsSiliconflowVoice = action.payload
+    },
+    setTtsSiliconflowModel: (state, action: PayloadAction<string>) => {
+      state.ttsSiliconflowModel = action.payload
+    },
+    setTtsSiliconflowResponseFormat: (state, action: PayloadAction<string>) => {
+      state.ttsSiliconflowResponseFormat = action.payload
+    },
+    setTtsSiliconflowSpeed: (state, action: PayloadAction<number>) => {
+      state.ttsSiliconflowSpeed = action.payload
+    },
+    // 免费在线TTS相关的action
+    setTtsMsVoice: (state, action: PayloadAction<string>) => {
+      state.ttsMsVoice = action.payload
+    },
+    setTtsMsOutputFormat: (state, action: PayloadAction<string>) => {
+      state.ttsMsOutputFormat = action.payload
+    },
+    setTtsVoice: (state, action: PayloadAction<string>) => {
+      state.ttsVoice = action.payload
+    },
+    setTtsModel: (state, action: PayloadAction<string>) => {
+      state.ttsModel = action.payload
+    },
+    setTtsCustomVoices: (state, action: PayloadAction<string[]>) => {
+      // 确保所有值都是字符串
+      state.ttsCustomVoices = action.payload
+        .filter((voice) => voice !== null && voice !== undefined)
+        .map((voice) => (typeof voice === 'string' ? voice : String(voice)))
+    },
+    setTtsCustomModels: (state, action: PayloadAction<string[]>) => {
+      // 确保所有值都是字符串
+      state.ttsCustomModels = action.payload
+        .filter((model) => model !== null && model !== undefined)
+        .map((model) => (typeof model === 'string' ? model : String(model)))
+    },
+    resetTtsCustomValues: (state) => {
+      // 重置所有自定义音色和模型
+      state.ttsCustomVoices = []
+      state.ttsCustomModels = []
+    },
+    addTtsCustomVoice: (state, action: PayloadAction<string>) => {
+      // 确保添加的是字符串
+      const voiceStr = typeof action.payload === 'string' ? action.payload : String(action.payload)
+
+      // 检查是否已存在相同的音色
+      const exists = state.ttsCustomVoices.some((voice) => {
+        if (typeof voice === 'string') {
+          return voice === voiceStr
+        }
+        return String(voice) === voiceStr
+      })
+
+      if (!exists) {
+        state.ttsCustomVoices.push(voiceStr)
+      }
+    },
+    addTtsCustomModel: (state, action: PayloadAction<string>) => {
+      // 确保添加的是字符串
+      const modelStr = typeof action.payload === 'string' ? action.payload : String(action.payload)
+
+      // 检查是否已存在相同的模型
+      const exists = state.ttsCustomModels.some((model) => {
+        if (typeof model === 'string') {
+          return model === modelStr
+        }
+        return String(model) === modelStr
+      })
+
+      if (!exists) {
+        state.ttsCustomModels.push(modelStr)
+      }
+    },
+    removeTtsCustomVoice: (state, action: PayloadAction<string>) => {
+      // 确保删除的是字符串
+      const voiceStr = typeof action.payload === 'string' ? action.payload : String(action.payload)
+
+      // 过滤掉要删除的音色
+      state.ttsCustomVoices = state.ttsCustomVoices.filter((voice) => {
+        if (typeof voice === 'string') {
+          return voice !== voiceStr
+        }
+        return String(voice) !== voiceStr
+      })
+    },
+    removeTtsCustomModel: (state, action: PayloadAction<string>) => {
+      // 确保删除的是字符串
+      const modelStr = typeof action.payload === 'string' ? action.payload : String(action.payload)
+
+      // 过滤掉要删除的模型
+      state.ttsCustomModels = state.ttsCustomModels.filter((model) => {
+        if (typeof model === 'string') {
+          return model !== modelStr
+        }
+        return String(model) !== modelStr
+      })
+    },
+    // TTS过滤选项的action
+    setTtsFilterOptions: (
+      state,
+      action: PayloadAction<{
+        filterThinkingProcess?: boolean
+        filterMarkdown?: boolean
+        filterCodeBlocks?: boolean
+        filterHtmlTags?: boolean
+        filterEmojis?: boolean
+        maxTextLength?: number
+      }>
+    ) => {
+      state.ttsFilterOptions = {
+        ...state.ttsFilterOptions,
+        ...action.payload
+      }
+    },
+    // 设置是否显示TTS进度条
+    setShowTTSProgressBar: (state, action: PayloadAction<boolean>) => {
+      state.showTTSProgressBar = action.payload
+    },
+    // ASR相关的action
+    setAsrEnabled: (state, action: PayloadAction<boolean>) => {
+      state.asrEnabled = action.payload
+    },
+    setAsrServiceType: (state, action: PayloadAction<string>) => {
+      state.asrServiceType = action.payload
+    },
+    setAsrApiKey: (state, action: PayloadAction<string>) => {
+      state.asrApiKey = action.payload
+    },
+    setAsrApiUrl: (state, action: PayloadAction<string>) => {
+      state.asrApiUrl = action.payload
+    },
+    setAsrModel: (state, action: PayloadAction<string>) => {
+      state.asrModel = action.payload
+    },
+    setAsrAutoStartServer: (state, action: PayloadAction<boolean>) => {
+      state.asrAutoStartServer = action.payload
+    },
+    setAsrLanguage: (state, action: PayloadAction<string>) => {
+      state.asrLanguage = action.payload
+    },
+    setVoiceCallEnabled: (state, action: PayloadAction<boolean>) => {
+      state.voiceCallEnabled = action.payload
+    },
+    setVoiceCallModel: (state, action: PayloadAction<Model | null>) => {
+      state.voiceCallModel = action.payload
+    },
+    setVoiceCallPrompt: (state, action: PayloadAction<string | null>) => {
+      state.voiceCallPrompt = action.payload
+    },
+    setIsVoiceCallActive: (state, action: PayloadAction<boolean>) => {
+      state.isVoiceCallActive = action.payload
+    },
+    setLastPlayedMessageId: (state, action: PayloadAction<string | null>) => {
+      state.lastPlayedMessageId = action.payload
+    },
+    setSkipNextAutoTTS: (state, action: PayloadAction<boolean>) => {
+      state.skipNextAutoTTS = action.payload
+    },
+    // Quick Panel Triggers action
     setEnableQuickPanelTriggers: (state, action: PayloadAction<boolean>) => {
       state.enableQuickPanelTriggers = action.payload
+    },
+    setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
+      state.exportMenuOptions = action.payload
     },
     setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
       state.enableBackspaceDeleteModel = action.payload
@@ -582,6 +859,43 @@ export const {
   setEnableDataCollection,
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
+  setTtsEnabled,
+  setTtsServiceType,
+  setTtsApiKey,
+  setTtsApiUrl,
+  setTtsEdgeVoice,
+  setTtsSiliconflowApiKey,
+  setTtsSiliconflowApiUrl,
+  setTtsSiliconflowVoice,
+  setTtsSiliconflowModel,
+  setTtsSiliconflowResponseFormat,
+  setTtsSiliconflowSpeed,
+  setTtsMsVoice,
+  setTtsMsOutputFormat,
+  setTtsVoice,
+  setTtsModel,
+  setTtsCustomVoices,
+  setTtsCustomModels,
+  resetTtsCustomValues,
+  addTtsCustomVoice,
+  addTtsCustomModel,
+  removeTtsCustomVoice,
+  removeTtsCustomModel,
+  setTtsFilterOptions,
+  setShowTTSProgressBar,
+  setAsrEnabled,
+  setAsrServiceType,
+  setAsrApiKey,
+  setAsrApiUrl,
+  setAsrModel,
+  setAsrAutoStartServer,
+  setAsrLanguage,
+  setVoiceCallEnabled,
+  setVoiceCallModel,
+  setVoiceCallPrompt,
+  setIsVoiceCallActive,
+  setLastPlayedMessageId,
+  setSkipNextAutoTTS,
   setEnableBackspaceDeleteModel
 } = settingsSlice.actions
 

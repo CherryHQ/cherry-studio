@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cherry Studio ASR</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 1em;
+        }
+
+        #status {
+            margin-top: 1em;
+            font-style: italic;
+            color: #555;
+        }
+
+        #result {
+            margin-top: 0.5em;
+            border: 1px solid #ccc;
+            padding: 0.5em;
+            min-height: 50px;
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>浏览器语音识别中继页面</h1>
+    <p>这个页面需要在浏览器中保持打开，以便应用使用其语音识别功能。</p>
+    <div id="status">正在连接到服务器...</div>
+    <div id="result"></div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+        // 尝试连接到WebSocket服务器
+        let ws;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        const reconnectInterval = 2000; // 2秒
+
+        function connectWebSocket() {
+            try {
+                ws = new WebSocket('ws://localhost:34515');
+
+                ws.onopen = () => {
+                    reconnectAttempts = 0;
+                    updateStatus('已连接到服务器，等待指令...');
+                    ws.send(JSON.stringify({ type: 'identify', role: 'browser' }));
+                };
+
+                ws.onmessage = handleMessage;
+
+                ws.onerror = (error) => {
+                    console.error('[Browser Page] WebSocket Error:', error);
+                    updateStatus('WebSocket 连接错误！请检查服务器是否运行。');
+                };
+
+                ws.onclose = () => {
+                    console.log('[Browser Page] WebSocket Connection Closed');
+                    updateStatus('与服务器断开连接。尝试重新连接...');
+                    stopRecognition();
+
+                    // 尝试重新连接
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        updateStatus(`与服务器断开连接。尝试重新连接 (${reconnectAttempts}/${maxReconnectAttempts})...`);
+                        setTimeout(connectWebSocket, reconnectInterval);
+                    } else {
+                        updateStatus('无法连接到服务器。请刷新页面或重启应用。');
+                    }
+                };
+            } catch (error) {
+                console.error('[Browser Page] Error creating WebSocket:', error);
+                updateStatus('创建WebSocket连接时出错。请刷新页面或重启应用。');
+            }
+        }
+
+        // 初始连接
+        connectWebSocket();
+        let recognition = null;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        function updateStatus(message) {
+            console.log(`[Browser Page Status] ${message}`);
+            statusDiv.textContent = message;
+        }
+
+        function handleMessage(event) {
+            let data;
+            try {
+                data = JSON.parse(event.data);
+                console.log('[Browser Page] Received command:', data);
+            } catch (e) {
+                console.error('[Browser Page] Received non-JSON message:', event.data);
+                return;
+            }
+
+            if (data.type === 'start') {
+                startRecognition();
+            } else if (data.type === 'stop') {
+                stopRecognition();
+            } else if (data.type === 'reset') {
+                // 强制重置语音识别
+                forceResetRecognition();
+            } else {
+                console.warn('[Browser Page] Received unknown command type:', data.type);
+            }
+        };
+
+
+
+        function setupRecognition() {
+            if (!SpeechRecognition) {
+                updateStatus('错误：此浏览器不支持 Web Speech API。');
+                return false;
+            }
+            if (recognition && recognition.recognizing) {
+                console.log('[Browser Page] Recognition already active.');
+                return true;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-CN';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            // 增加以下设置提高语音识别的可靠性
+            recognition.maxAlternatives = 3; // 返回多个可能的识别结果
+            // 设置较短的语音识别时间，使用户能更快地看到结果
+            // 注意：这个属性不是标准的，可能不是所有浏览器都支持
+            try {
+                // @ts-ignore
+                recognition.audioStart = 0.1; // 尝试设置较低的起始音量阈值
+            } catch (e) {
+                console.log('[Browser Page] audioStart property not supported');
+            }
+
+            recognition.onstart = () => {
+                updateStatus("🎤 正在识别...");
+                console.log('[Browser Page] SpeechRecognition started.');
+            };
+
+            recognition.onresult = (event) => {
+                console.log('[Browser Page] Recognition result event:', event);
+
+                let interim_transcript = '';
+                let final_transcript = '';
+
+                // 输出识别结果的详细信息便于调试
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const confidence = event.results[i][0].confidence;
+                    console.log(`[Browser Page] Result ${i}: ${event.results[i][0].transcript} (Confidence: ${confidence.toFixed(2)})`);
+
+                    if (event.results[i].isFinal) {
+                        final_transcript += event.results[i][0].transcript;
+                    } else {
+                        interim_transcript += event.results[i][0].transcript;
+                    }
+                }
+
+                const resultText = final_transcript || interim_transcript;
+                resultDiv.textContent = resultText;
+
+                // 更新状态显示
+                if (resultText) {
+                    updateStatus(`🎤 正在识别... (已捕捉到语音)`);
+                }
+
+                if (ws.readyState === WebSocket.OPEN) {
+                    console.log(`[Browser Page] Sending ${final_transcript ? 'final' : 'interim'} result to server:`, resultText);
+                    ws.send(JSON.stringify({ type: 'result', data: { text: resultText, isFinal: !!final_transcript } }));
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error(`[Browser Page] SpeechRecognition Error - Type: ${event.error}, Message: ${event.message}`);
+
+                // 根据错误类型提供更友好的错误提示
+                let errorMessage = '';
+                switch (event.error) {
+                    case 'no-speech':
+                        errorMessage = '未检测到语音，请确保麦克风工作正常并尝试说话。';
+                        // 尝试重新启动语音识别
+                        setTimeout(() => {
+                            if (recognition) {
+                                try {
+                                    recognition.start();
+                                    console.log('[Browser Page] Restarting recognition after no-speech error');
+                                } catch (e) {
+                                    console.error('[Browser Page] Failed to restart recognition:', e);
+                                }
+                            }
+                        }, 1000);
+                        break;
+                    case 'audio-capture':
+                        errorMessage = '无法捕获音频，请确保麦克风已连接并已授权。';
+                        break;
+                    case 'not-allowed':
+                        errorMessage = '浏览器不允许使用麦克风，请检查权限设置。';
+                        break;
+                    case 'network':
+                        errorMessage = '网络错误导致语音识别失败。';
+                        break;
+                    case 'aborted':
+                        errorMessage = '语音识别被用户或系统中止。';
+                        break;
+                    default:
+                        errorMessage = `识别错误: ${event.error}`;
+                }
+
+                updateStatus(`错误: ${errorMessage}`);
+
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        data: {
+                            error: event.error,
+                            message: errorMessage || event.message || `Recognition error: ${event.error}`
+                        }
+                    }));
+                }
+            };
+
+            recognition.onend = () => {
+                console.log('[Browser Page] SpeechRecognition ended.');
+
+                // 检查是否是由于错误或用户手动停止导致的结束
+                const isErrorOrStopped = statusDiv.textContent.includes('错误') || statusDiv.textContent.includes('停止');
+
+                if (!isErrorOrStopped) {
+                    // 如果不是由于错误或手动停止，则自动重新启动语音识别
+                    updateStatus("识别暂停，正在重新启动...");
+
+                    // 保存当前的recognition对象
+                    const currentRecognition = recognition;
+
+                    // 尝试重新启动语音识别
+                    setTimeout(() => {
+                        try {
+                            if (currentRecognition && currentRecognition === recognition) {
+                                currentRecognition.start();
+                                console.log('[Browser Page] Automatically restarting recognition');
+                            } else {
+                                // 如果recognition对象已经变化，重新创建一个
+                                setupRecognition();
+                                if (recognition) {
+                                    recognition.start();
+                                    console.log('[Browser Page] Created new recognition instance and started');
+                                }
+                            }
+                        } catch (e) {
+                            console.error('[Browser Page] Failed to restart recognition:', e);
+                            updateStatus("识别已停止。等待指令...");
+                        }
+                    }, 300);
+                } else {
+                    updateStatus("识别已停止。等待指令...");
+
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'status', message: 'stopped' }));
+                    }
+
+                    // 只有在手动停止或错误时才重置recognition对象
+                    recognition = null;
+                }
+            };
+            return true;
+        }
+
+        function startRecognition() {
+            if (!SpeechRecognition) {
+                updateStatus('错误：浏览器不支持 Web Speech API。');
+                return;
+            }
+
+            // 显示正在准备的状态
+            updateStatus('正在准备麦克风...');
+
+            if (recognition) {
+                console.log('[Browser Page] Recognition already exists, stopping first.');
+                stopRecognition();
+            }
+
+            if (!setupRecognition()) return;
+
+            console.log('[Browser Page] Attempting to start recognition...');
+            try {
+                // 设置更长的超时时间，确保有足够的时间获取麦克风权限
+                const micPermissionTimeout = setTimeout(() => {
+                    updateStatus('获取麦克风权限超时，请刷新页面重试。');
+                }, 10000); // 10秒超时
+
+                navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                })
+                    .then(stream => {
+                        clearTimeout(micPermissionTimeout);
+                        console.log('[Browser Page] Microphone access granted.');
+
+                        // 检查麦克风音量级别
+                        const audioContext = new AudioContext();
+                        const analyser = audioContext.createAnalyser();
+                        const microphone = audioContext.createMediaStreamSource(stream);
+                        const javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+
+                        analyser.smoothingTimeConstant = 0.8;
+                        analyser.fftSize = 1024;
+
+                        microphone.connect(analyser);
+                        analyser.connect(javascriptNode);
+                        javascriptNode.connect(audioContext.destination);
+
+                        javascriptNode.onaudioprocess = function () {
+                            const array = new Uint8Array(analyser.frequencyBinCount);
+                            analyser.getByteFrequencyData(array);
+                            let values = 0;
+
+                            const length = array.length;
+                            for (let i = 0; i < length; i++) {
+                                values += (array[i]);
+                            }
+
+                            const average = values / length;
+                            console.log('[Browser Page] Microphone volume level:', average);
+
+                            // 如果音量太低，显示提示
+                            if (average < 5) {
+                                updateStatus('麦克风音量很低，请说话或检查麦克风设置。');
+                            } else {
+                                updateStatus('🎤 正在识别...');
+                            }
+
+                            // 只检查一次就断开连接
+                            microphone.disconnect();
+                            analyser.disconnect();
+                            javascriptNode.disconnect();
+                        };
+
+                        // 释放测试用的音频流
+                        setTimeout(() => {
+                            stream.getTracks().forEach(track => track.stop());
+                            audioContext.close();
+                        }, 1000);
+
+                        // 启动语音识别
+                        if (recognition) {
+                            recognition.start();
+                            updateStatus('🎤 正在识别...');
+                        } else {
+                            updateStatus('错误：Recognition 实例丢失。');
+                            console.error('[Browser Page] Recognition instance lost before start.');
+                        }
+                    })
+                    .catch(err => {
+                        clearTimeout(micPermissionTimeout);
+                        console.error('[Browser Page] Microphone access error:', err);
+
+                        let errorMsg = `无法访问麦克风 (${err.name})`;
+                        if (err.name === 'NotAllowedError') {
+                            errorMsg = '麦克风访问被拒绝。请在浏览器设置中允许麦克风访问权限。';
+                        } else if (err.name === 'NotFoundError') {
+                            errorMsg = '未找到麦克风设备。请确保麦克风已连接。';
+                        }
+
+                        updateStatus(`错误: ${errorMsg}`);
+                        recognition = null;
+                    });
+            } catch (e) {
+                console.error('[Browser Page] Error calling recognition.start():', e);
+                updateStatus(`启动识别时出错: ${e.message}`);
+                recognition = null;
+            }
+        }
+
+        function stopRecognition() {
+            if (recognition) {
+                console.log('[Browser Page] Stopping recognition...');
+                updateStatus("正在停止识别...");
+                try {
+                    recognition.stop();
+                } catch (e) {
+                    console.error('[Browser Page] Error calling recognition.stop():', e);
+                    recognition = null;
+                    updateStatus("停止时出错，已强制重置。");
+                }
+            } else {
+                console.log('[Browser Page] Recognition not active, nothing to stop.');
+                updateStatus("识别未运行。");
+            }
+        }
+
+        function forceResetRecognition() {
+            console.log('[Browser Page] Force resetting recognition...');
+            updateStatus("强制重置语音识别...");
+
+            // 先尝试停止当前的识别
+            if (recognition) {
+                try {
+                    recognition.stop();
+                } catch (e) {
+                    console.error('[Browser Page] Error stopping recognition during reset:', e);
+                }
+            }
+
+            // 强制设置为null，丢弃所有后续结果
+            recognition = null;
+
+            // 通知服务器已重置
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'status', message: 'reset_complete' }));
+            }
+
+            updateStatus("语音识别已重置，等待新指令。");
+        }
+    </script>
+</body>
+
+</html>

@@ -1,4 +1,5 @@
 import { SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import TTSHighlightedText from '@renderer/components/TTSHighlightedText'
 import { isOpenAIWebSearch } from '@renderer/config/models'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
@@ -7,7 +8,7 @@ import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
 import { clone } from 'lodash'
 import { Search } from 'lucide-react'
-import React, { Fragment, useMemo } from 'react'
+import React, { Fragment, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -30,6 +31,23 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const { t } = useTranslation()
   const message = withMessageThought(clone(_message))
   const isWebCitation = model && (isOpenAIWebSearch(model) || model.provider === 'openrouter')
+  const [isSegmentedPlayback, setIsSegmentedPlayback] = useState(false)
+
+  // 监听分段播放状态变化
+  useEffect(() => {
+    const handleSegmentedPlaybackUpdate = (event: CustomEvent) => {
+      const { isSegmentedPlayback } = event.detail
+      setIsSegmentedPlayback(isSegmentedPlayback)
+    }
+
+    // 添加事件监听器
+    window.addEventListener('tts-segmented-playback-update', handleSegmentedPlaybackUpdate as EventListener)
+
+    // 组件卸载时移除事件监听器
+    return () => {
+      window.removeEventListener('tts-segmented-playback-update', handleSegmentedPlaybackUpdate as EventListener)
+    }
+  }, [])
 
   // HTML实体编码辅助函数
   const encodeHTML = (str: string) => {
@@ -236,7 +254,11 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       </Flex>
       <MessageThought message={message} />
       <MessageTools message={message} />
-      <Markdown message={{ ...message, content: processedContent.replace(toolUseRegex, '') }} />
+      {isSegmentedPlayback ? (
+        <TTSHighlightedText text={processedContent.replace(toolUseRegex, '')} />
+      ) : (
+        <Markdown message={{ ...message, content: processedContent.replace(toolUseRegex, '') }} />
+      )}
       {message.metadata?.generateImage && <MessageImage message={message} />}
       {message.translatedContent && (
         <Fragment>

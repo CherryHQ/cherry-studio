@@ -4,7 +4,8 @@ import path from 'node:path'
 import { app } from 'electron'
 
 export function getResourcePath() {
-  return path.join(app.getAppPath(), 'resources')
+  // 在打包环境中，使用process.resourcesPath，否则使用app.getAppPath()/resources
+  return app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources')
 }
 
 export function getDataPath() {

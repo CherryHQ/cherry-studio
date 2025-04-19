@@ -501,3 +501,12 @@ export interface QuickPhrase {
   updatedAt: number
   order?: number
 }
+
+export type TTSProvider = {
+  id: string
+  name: string
+  apiKey?: string
+  apiUrl?: string
+  voice?: string
+  model?: string
+}

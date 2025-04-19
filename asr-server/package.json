@@ -1,0 +1,10 @@
+{
+  "name": "cherry-asr-server",
+  "version": "1.0.0",
+  "description": "Cherry Studio ASR Server",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.13.0"
+  }
+}

@@ -3,6 +3,7 @@ import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
+import ASRServerService from '@renderer/services/ASRServerService'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
@@ -19,7 +20,18 @@ import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
+  const {
+    proxyUrl,
+    language,
+    windowStyle,
+    autoCheckUpdate,
+    proxyMode,
+    customCss,
+    enableDataCollection,
+    asrEnabled,
+    asrServiceType,
+    asrAutoStartServer
+  } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -108,4 +120,18 @@ export function useAppInit() {
   useEffect(() => {
     enableDataCollection ? initAnalytics() : disableAnalytics()
   }, [enableDataCollection])
+
+  // 自动启动ASR服务器
+  useEffect(() => {
+    if (asrEnabled && asrServiceType === 'local' && asrAutoStartServer) {
+      console.log('自动启动ASR服务器...')
+      ASRServerService.startServer().then((success) => {
+        if (success) {
+          console.log('ASR服务器自动启动成功')
+        } else {
+          console.error('ASR服务器自动启动失败')
+        }
+      })
+    }
+  }, [asrEnabled, asrServiceType, asrAutoStartServer])
 }

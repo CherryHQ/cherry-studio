@@ -20,6 +20,17 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  // ASR Server
+  Asr_StartServer = 'start-asr-server',
+  Asr_StopServer = 'stop-asr-server',
+
+  // MsTTS
+  MsTTS_GetVoices = 'mstts:get-voices',
+  MsTTS_Synthesize = 'mstts:synthesize',
+  MsTTS_SynthesizeStream = 'mstts:synthesize-stream',
+  MsTTS_StreamData = 'mstts:stream-data',
+  MsTTS_StreamEnd = 'mstts:stream-end',
+
   // Open
   Open_Path = 'open:path',
   Open_Website = 'open:website',
