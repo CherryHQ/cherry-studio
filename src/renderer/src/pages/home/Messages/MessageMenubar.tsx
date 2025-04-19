@@ -106,7 +106,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onNewBranch = useCallback(async () => {
     if (loading) return
-    await EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
+    EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
     window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
   }, [index, t, loading])
 
@@ -182,7 +182,7 @@ const MessageMenubar: FC<Props> = (props) => {
       })
 
       resendMessage &&
-        (await handleResendUserMessage({
+        (handleResendUserMessage({
           ...message,
           content: content.trim(),
           metadata: {
@@ -265,7 +265,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const markdown = messageToMarkdown(message)
               const title = await getMessageTitle(message)
-              await window.api.export.toWord(markdown, title)
+              window.api.export.toWord(markdown, title)
             }
           },
           exportMenuOptions.notion && {
@@ -274,7 +274,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              await exportMarkdownToNotion(title, markdown)
+              exportMarkdownToNotion(title, markdown)
             }
           },
           exportMenuOptions.yuque && {
@@ -283,7 +283,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              await exportMarkdownToYuque(title, markdown)
+              exportMarkdownToYuque(title, markdown)
             }
           },
           exportMenuOptions.obsidian && {
@@ -301,7 +301,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              await exportMarkdownToJoplin(title, markdown)
+              exportMarkdownToJoplin(title, markdown)
             }
           },
           exportMenuOptions.siyuan && {
@@ -310,7 +310,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              await exportMarkdownToSiyuan(title, markdown)
+              exportMarkdownToSiyuan(title, markdown)
             }
           }
         ].filter(Boolean)
@@ -324,8 +324,8 @@ const MessageMenubar: FC<Props> = (props) => {
     if (loading) return
     const selectedModel = isGrouped ? model : assistantModel
     const _message = resetAssistantMessage(message, selectedModel)
-    await editMessage(message.id, { ..._message })
-    await resendMessage(_message, assistant)
+    editMessage(message.id, { ..._message })
+    resendMessage(_message, assistant)
   }
 
   const onMentionModel = async (e: React.MouseEvent) => {
@@ -333,7 +333,7 @@ const MessageMenubar: FC<Props> = (props) => {
     if (loading) return
     const selectedModel = await SelectModelPopup.show({ model })
     if (!selectedModel) return
-    await resendMessage(message, { ...assistant, model: selectedModel }, true)
+    resendMessage(message, { ...assistant, model: selectedModel }, true)
   }
 
   const onUseful = useCallback(

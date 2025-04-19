@@ -131,7 +131,7 @@ export function useMessageOperations(topic: Topic) {
   const clearTopicMessagesAction = useCallback(
     async (_topicId?: string) => {
       const topicId = _topicId || topic.id
-      dispatch(clearTopicMessages(topicId))
+      await dispatch(clearTopicMessages(topicId))
       await TopicManager.clearTopicMessages(topicId)
     },
     [dispatch, topic.id]
@@ -151,7 +151,7 @@ export function useMessageOperations(topic: Topic) {
    * 创建新的上下文（clear message）
    */
   const createNewContext = useCallback(async () => {
-    await EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [])
 
   const displayCount = useAppSelector(selectDisplayCount)
