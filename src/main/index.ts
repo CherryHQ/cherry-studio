@@ -12,6 +12,7 @@ import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } fro
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import { setAppDataDir } from './utils/file'
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -49,6 +50,8 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc(mainWindow, app)
 
     replaceDevtoolsFont(mainWindow)
+
+    setAppDataDir()
 
     if (process.env.NODE_ENV === 'development') {
       installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
