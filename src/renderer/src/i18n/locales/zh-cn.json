@@ -596,7 +596,8 @@
         "chat": "回答此问题",
         "explanation": "解释说明",
         "summary": "内容总结",
-        "translate": "文本翻译"
+        "translate": "文本翻译",
+        "directSend": "直接发送"
       },
       "footer": {
         "copy_last_message": "按 C 键复制",

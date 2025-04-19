@@ -151,7 +151,7 @@ const HomeWindow: FC = () => {
         const message = {
           id: uuid(),
           role: 'user',
-          content: prompt ? `${prompt}\n\n${content}` : content,
+          content: prompt ? `${prompt.replace('【holderReplace】', content)}` : content,
           assistantId: defaultAssistant.id,
           topicId: defaultAssistant.topics[0].id || uuid(),
           createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
@@ -294,12 +294,14 @@ const HomeWindow: FC = () => {
 
 const Container = styled.div`
   display: flex;
-  flex: 1;
+  /* flex: 1; // 移除 flex: 1 */
   height: 100%;
   width: 100%;
   flex-direction: column;
   -webkit-app-region: drag;
   padding: 8px 10px;
+  overflow: hidden; /* 强制隐藏容器自身的溢出 */
+  box-sizing: border-box; /* 确保 padding 包含在 height 内 */
 `
 
 const Main = styled.main`
@@ -307,7 +309,9 @@ const Main = styled.main`
   flex-direction: column;
 
   flex: 1;
-  overflow: hidden;
+  overflow-x: hidden; /* 保持水平方向隐藏 */
+  overflow-y: hidden; /* 强制隐藏 Main 的垂直溢出 */
+  min-height: 0; /* 允许 flex item 在空间不足时收缩 */
 `
 
 export default HomeWindow

@@ -596,7 +596,8 @@
         "chat": "Answer this question",
         "explanation": "Explanation",
         "summary": "Content summary",
-        "translate": "Text translation"
+        "translate": "Text translation",
+        "directSend": "Direct Send"
       },
       "footer": {
         "copy_last_message": "Press C to copy",
