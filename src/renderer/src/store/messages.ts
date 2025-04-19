@@ -190,22 +190,24 @@ const handleResponseMessageUpdate = (
   dispatch: AppDispatch,
   getState: () => RootState
 ) => {
-  dispatch(setStreamMessage({ topicId, message }))
-  if (message.status !== 'pending') {
-    // When message is complete, commit to messages and sync with DB
-    if (message.status === 'success') {
-      autoRenameTopic(assistant, topicId)
-    }
+  setTimeout(() => {
+    dispatch(setStreamMessage({ topicId, message }))
+    if (message.status !== 'pending') {
+      // When message is complete, commit to messages and sync with DB
+      if (message.status === 'success') {
+        autoRenameTopic(assistant, topicId)
+      }
 
-    if (message.status !== 'sending') {
-      dispatch(commitStreamMessage({ topicId, messageId: message.id }))
-      const state = getState()
-      const topicMessages = state.messages.messagesByTopic[topicId]
-      if (topicMessages) {
-        syncMessagesWithDB(topicId, topicMessages)
+      if (message.status !== 'sending') {
+        dispatch(commitStreamMessage({ topicId, messageId: message.id }))
+        const state = getState()
+        const topicMessages = state.messages.messagesByTopic[topicId]
+        if (topicMessages) {
+          syncMessagesWithDB(topicId, topicMessages)
+        }
       }
     }
-  }
+  }, 0)
 }
 
 // Helper function to sync messages with database
@@ -351,9 +353,8 @@ export const sendMessage =
                 : topic.prompt
             }
 
-            // 节流
-            const throttledDispatch = throttle(handleResponseMessageUpdate, 100, { trailing: true }) // 100ms的节流时间应足够平衡用户体验和性能
-            // 寻找当前正在处理的消息在消息列表中的位置
+            // 节流，降低到 50ms，因为已经在handleResponseMessageUpdate内保证react能调度。
+            const throttledDispatch = throttle(handleResponseMessageUpdate, 50, { trailing: true })
             // const messageIndex = messages.findIndex((m) => m.id === assistantMessage.id)
             const handleMessages = (): Message[] => {
               // 找到对应的用户消息位置
