@@ -14,20 +14,12 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: [],
-    include: ['src/renderer/**/*.{test,spec}.{ts,tsx}', 'src/renderer/**/__tests__/**/*.{ts,tsx}'],
-    exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/out/**',
-      '**/build/**',
-      '**/.cursor/**',
-      '**/.yarn/**',
-      '**/.vscode/**',
-      '**/.github/**',
-      '**/.husky/**',
-      'src/main/**',
-      'src/preload/**'
+    include: [
+      // 只测试渲染进程
+      'src/renderer/**/*.{test,spec}.{ts,tsx}',
+      'src/renderer/**/__tests__/**/*.{ts,tsx}'
     ],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/build/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
@@ -36,9 +28,12 @@ export default defineConfig({
         '**/dist/**',
         '**/out/**',
         '**/build/**',
-        '**/.yarn/**',
         '**/coverage/**',
+        '**/.yarn/**',
         '**/.cursor/**',
+        '**/.vscode/**',
+        '**/.github/**',
+        '**/.husky/**',
         '**/*.d.ts',
         '**/types/**',
         '**/__tests__/**',
