@@ -179,6 +179,13 @@ const messagesSlice = createSlice({
       if (state.streamMessagesByTopic[topicId]) {
         delete state.streamMessagesByTopic[topicId][messageId]
       }
+    },
+    // New reducer to clean up temporary topic state from memory
+    removeTemporaryTopicState: (state, action: PayloadAction<string>) => {
+      const topicId = action.payload
+      delete state.messagesByTopic[topicId]
+      delete state.streamMessagesByTopic[topicId]
+      delete state.loadingByTopic[topicId]
     }
   }
 })
@@ -194,7 +201,12 @@ const handleResponseMessageUpdate = (
   if (message.status !== 'pending') {
     // When message is complete, commit to messages and sync with DB
     if (message.status === 'success') {
-      autoRenameTopic(assistant, topicId)
+      const state = getState()
+      const topic = state.messages.currentTopic
+      const isTemporary = topic && topic.id === topicId && topic.isTemporary === true
+      if (!isTemporary) {
+        autoRenameTopic(assistant, topicId)
+      }
     }
 
     if (message.status !== 'sending') {
@@ -202,7 +214,11 @@ const handleResponseMessageUpdate = (
       const state = getState()
       const topicMessages = state.messages.messagesByTopic[topicId]
       if (topicMessages) {
-        syncMessagesWithDB(topicId, topicMessages)
+        const topic = state.messages.currentTopic
+        const isTemporary = topic && topic.id === topicId && topic.isTemporary === true
+        if (!isTemporary) {
+          syncMessagesWithDB(topicId, topicMessages)
+        }
       }
     }
   }
@@ -327,7 +343,8 @@ export const sendMessage =
         const state = getState()
         const currentTopicMessages = state.messages.messagesByTopic[topic.id]
 
-        if (currentTopicMessages) {
+        // Only sync to DB if the topic is not temporary
+        if (currentTopicMessages && !topic.isTemporary) {
           await syncMessagesWithDB(topic.id, currentTopicMessages)
         }
 
@@ -501,9 +518,13 @@ export const clearTopicMessagesThunk = (topic: Topic) => async (dispatch: AppDis
     // Clear the topic's request queue
     clearTopicQueue(topic.id)
 
-    // Clear messages from state and database
+    // Clear messages from state
     dispatch(clearTopicMessages(topic.id))
-    await db.topics.update(topic.id, { messages: [] })
+
+    // Only update database for non-temporary topics
+    if (!topic.isTemporary) {
+      await db.topics.update(topic.id, { messages: [] })
+    }
 
     // Update current topic
     dispatch(setCurrentTopic(topic))
@@ -525,8 +546,13 @@ export const deleteMessageAction =
 
 // 修改的 updateMessages thunk，同时更新缓存
 export const updateMessages = (topic: Topic, messages: Message[]) => async (dispatch: AppDispatch) => {
+  if (topic.isTemporary) {
+    dispatch(loadTopicMessages({ topicId: topic.id, messages }))
+    return
+  }
+
   try {
-    // 更新数据库
+    // 更新数据库，跳过临时会话
     await db.topics.update(topic.id, { messages })
 
     // 更新 Redux store
@@ -544,13 +570,23 @@ export const updateMessageThunk =
       // 先更新 Redux 状态
       dispatch(updateMessage({ topicId, messageId, updates }))
 
-      // 然后同步到数据库
+      // 然后同步到数据库，跳过临时会话
       const state = getState()
-      const topicMessages = state.messages.messagesByTopic[topicId]
-      if (topicMessages) {
-        await db.topics.update(topicId, {
-          messages: topicMessages
-        })
+      const topic = state.messages.currentTopic
+      const isTemporary = topic && topic.id === topicId && topic.isTemporary === true
+
+      if (!isTemporary) {
+        const topicMessages = state.messages.messagesByTopic[topicId]
+        if (topicMessages) {
+          const topicExists = await db.topics.get(topicId)
+          if (topicExists) {
+            await db.topics.update(topicId, {
+              messages: topicMessages
+            })
+          } else {
+            console.error(`updateMessageThunk: Topic ${topicId} not found in DB, cannot update messages.`)
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to update message:', error)
@@ -602,7 +638,8 @@ export const {
   setStreamMessage,
   commitStreamMessage,
   clearStreamMessage,
-  appendMessage
+  appendMessage,
+  removeTemporaryTopicState
 } = messagesSlice.actions
 
 export default messagesSlice.reducer

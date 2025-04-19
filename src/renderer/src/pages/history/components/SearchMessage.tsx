@@ -26,7 +26,7 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
     runAsyncFunction(async () => {
       if (message?.topicId) {
         const topic = await getTopicById(message.topicId)
-        setTopic(topic)
+        setTopic(topic || null)
       }
     })
   }, [message])

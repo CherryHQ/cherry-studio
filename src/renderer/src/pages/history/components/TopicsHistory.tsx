@@ -56,7 +56,9 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
                 key={topic.id}
                 onClick={async () => {
                   const _topic = await getTopicById(topic.id)
-                  onClick(_topic)
+                  if (_topic) {
+                    onClick(_topic)
+                  }
                 }}>
                 <TopicName>{topic.name.substring(0, 50)}</TopicName>
                 <TopicDate>{dayjs(topic.updatedAt).format('HH:mm')}</TopicDate>

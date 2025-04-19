@@ -1,26 +1,42 @@
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
-import store from '@renderer/store'
+import store, { useAppDispatch } from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
-import { prepareTopicMessages } from '@renderer/store/messages'
+import { prepareTopicMessages, removeTemporaryTopicState } from '@renderer/store/messages'
 import { Assistant, Topic } from '@renderer/types'
 import { find, isEmpty } from 'lodash'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
 
 const renamingTopics = new Set<string>()
 
-let _activeTopic: Topic
-let _setActiveTopic: (topic: Topic) => void
+let _activeTopic: Topic | null = null
+let _setActiveTopic: (topic: Topic | null) => void = () => {}
 
-export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
+export function useActiveTopic(_assistant: Assistant, initialTopic?: Topic) {
   const { assistant } = useAssistant(_assistant.id)
-  const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
+  const dispatch = useAppDispatch()
+  const [activeTopic, _setActiveTopicInternal] = useState<Topic | null>(
+    initialTopic || _activeTopic || assistant?.topics[0] || null
+  )
 
   _activeTopic = activeTopic
+
+  const setActiveTopic = useCallback(
+    (newTopic: Topic | null) => {
+      // Check if current activeTopic (before update) is temporary
+      if (_activeTopic && _activeTopic.isTemporary && _activeTopic.id !== newTopic?.id) {
+        dispatch(removeTemporaryTopicState(_activeTopic.id))
+      }
+      _setActiveTopicInternal(newTopic)
+      _activeTopic = newTopic
+    },
+    [dispatch]
+  )
+
   _setActiveTopic = setActiveTopic
 
   useEffect(() => {
@@ -30,32 +46,51 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
   }, [activeTopic])
 
   useEffect(() => {
-    // activeTopic not in assistant.topics
-    if (assistant && !find(assistant.topics, { id: activeTopic?.id })) {
-      setActiveTopic(assistant.topics[0])
+    if (activeTopic?.isTemporary) {
+      return
     }
-  }, [activeTopic?.id, assistant])
+    // activeTopic not in assistant.topics (and not temporary)
+    if (assistant && !find(assistant.topics, { id: activeTopic?.id })) {
+      // Fallback to the first topic in the assistant's list
+      setActiveTopic(assistant.topics[0] || null)
+    }
+  }, [activeTopic, assistant, setActiveTopic])
 
   return { activeTopic, setActiveTopic }
 }
 
 export function useTopic(assistant: Assistant, topicId?: string) {
+  if (topicId?.startsWith('_temp-')) return undefined
   return assistant?.topics.find((topic) => topic.id === topicId)
 }
 
 export function getTopic(assistant: Assistant, topicId: string) {
+  if (topicId?.startsWith('_temp-')) return undefined
   return assistant?.topics.find((topic) => topic.id === topicId)
 }
 
 export async function getTopicById(topicId: string) {
+  if (topicId?.startsWith('_temp-')) {
+    const currentTopic = store.getState().messages.currentTopic
+    if (currentTopic && currentTopic.id === topicId && currentTopic.isTemporary) {
+      const messages = store.getState().messages.messagesByTopic[topicId] || []
+      return { ...currentTopic, messages }
+    }
+    return undefined
+  }
+
   const assistants = store.getState().assistants.assistants
   const topics = assistants.map((assistant) => assistant.topics).flat()
   const topic = topics.find((topic) => topic.id === topicId)
   const messages = await TopicManager.getTopicMessages(topicId)
-  return { ...topic, messages } as Topic
+  return topic ? ({ ...topic, messages } as Topic) : undefined
 }
 
 export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
+  if (topicId?.startsWith('_temp-')) {
+    return
+  }
+
   if (renamingTopics.has(topicId)) {
     return
   }
@@ -66,7 +101,11 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     const topic = await getTopicById(topicId)
     const enableTopicNaming = getStoreSetting('enableTopicNaming')
 
-    if (isEmpty(topic.messages)) {
+    if (!topic || isEmpty(topic.messages)) {
+      return
+    }
+
+    if (topic.isTemporary) {
       return
     }
 
@@ -110,6 +149,7 @@ export const TopicManager = {
   },
 
   async getTopic(id: string) {
+    if (id?.startsWith('_temp-')) return undefined
     return await db.topics.get(id)
   },
 
@@ -118,11 +158,17 @@ export const TopicManager = {
   },
 
   async getTopicMessages(id: string) {
+    if (id?.startsWith('_temp-')) {
+      return store.getState().messages.messagesByTopic[id] || []
+    }
+    // For persistent topics, get from DB
     const topic = await TopicManager.getTopic(id)
     return topic ? topic.messages : []
   },
 
   async removeTopic(id: string) {
+    if (id?.startsWith('_temp-')) return
+    // For persistent topics, remove messages and the topic entry from DB
     const messages = await TopicManager.getTopicMessages(id)
 
     for (const message of messages) {
@@ -133,6 +179,8 @@ export const TopicManager = {
   },
 
   async clearTopicMessages(id: string) {
+    if (id?.startsWith('_temp-')) return
+    // For persistent topics, clear messages in DB
     const topic = await TopicManager.getTopic(id)
 
     if (topic) {

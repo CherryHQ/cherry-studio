@@ -45,6 +45,10 @@ const HomePage: FC = () => {
     }
   }, [showAssistants, showTopics, topicPosition])
 
+  if (!activeTopic) {
+    return <div>Loading topic...</div> // unlikely
+  }
+
   return (
     <Container id="home-page">
       <Navbar activeAssistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
