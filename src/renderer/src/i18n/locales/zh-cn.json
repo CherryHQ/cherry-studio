@@ -921,7 +921,9 @@
           "syncError": "备份错误",
           "syncStatus": "备份状态",
           "title": "WebDAV",
-          "user": "WebDAV 用户名"
+          "user": "WebDAV 用户名",
+          "maxBackups": "最大备份数",
+          "maxBackups.unlimited": "无限制"
         },
         "yuque": {
           "check": {

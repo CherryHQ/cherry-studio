@@ -919,7 +919,9 @@
           "syncError": "Ошибка резервного копирования",
           "syncStatus": "Статус резервного копирования",
           "title": "WebDAV",
-          "user": "Пользователь WebDAV"
+          "user": "Пользователь WebDAV",
+          "maxBackups": "Максимальное количество резервных копий",
+          "maxBackups.unlimited": "Без ограничений"
         },
         "yuque": {
           "check": {

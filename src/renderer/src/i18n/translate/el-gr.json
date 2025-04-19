@@ -814,7 +814,9 @@
           "syncError": "Σφάλμα στην αντιγραφή ασφαλείας",
           "syncStatus": "Κατάσταση αντιγραφής ασφαλείας",
           "title": "WebDAV",
-          "user": "Όνομα χρήστη WebDAV"
+          "user": "Όνομα χρήστη WebDAV",
+          "maxBackups": "Μέγιστο αριθμό αρχείων αντιγραφής ασφαλείας",
+          "maxBackups.unlimited": "Απεριόριστο"
         },
         "yuque": {
           "check": {

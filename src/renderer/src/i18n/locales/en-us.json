@@ -919,7 +919,9 @@
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",
           "title": "WebDAV",
-          "user": "WebDAV User"
+          "user": "WebDAV User",
+          "maxBackups": "Maximum Backups",
+          "maxBackups.unlimited": "Unlimited"
         },
         "yuque": {
           "check": {

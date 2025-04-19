@@ -82,7 +82,7 @@ export async function backupToWebdav({
 
   store.dispatch(setWebDAVSyncState({ syncing: true, lastSyncError: null }))
 
-  const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
+  const { webdavHost, webdavUser, webdavPass, webdavPath, webdavMaxBackups } = store.getState().settings
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
@@ -113,6 +113,41 @@ export async function backupToWebdav({
       )
       if (showMessage && !autoBackupProcess) {
         window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
+      }
+
+      // 清理旧备份文件
+      if (webdavMaxBackups > 0) {
+        try {
+          // 获取所有备份文件
+          const files = await window.api.backup.listWebdavFiles({
+            webdavHost,
+            webdavUser,
+            webdavPass,
+            webdavPath
+          })
+
+          // 如果文件数量超过最大保留数量，删除最旧的文件
+          if (files.length > webdavMaxBackups) {
+            // 文件已按修改时间降序排序，所以最旧的文件在末尾
+            const filesToDelete = files.slice(webdavMaxBackups)
+
+            for (const file of filesToDelete) {
+              try {
+                await window.api.backup.deleteWebdavFile(file.fileName, {
+                  webdavHost,
+                  webdavUser,
+                  webdavPass,
+                  webdavPath
+                })
+                Logger.log(`[Backup] Deleted old backup file: ${file.fileName}`)
+              } catch (error) {
+                Logger.error(`[Backup] Failed to delete old backup file: ${file.fileName}`, error)
+              }
+            }
+          }
+        } catch (error) {
+          Logger.error('[Backup] Failed to clean up old backup files:', error)
+        }
       }
     } else {
       // if auto backup process, throw error
