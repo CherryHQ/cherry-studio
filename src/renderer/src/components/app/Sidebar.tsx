@@ -7,11 +7,13 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { backupToWebdav } from '@renderer/services/BackupService'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Avatar, Dropdown, Tooltip } from 'antd'
 import {
   CircleHelp,
+  CloudUpload,
   FileSearch,
   Folder,
   Languages,
@@ -91,6 +93,15 @@ const Sidebar: FC = () => {
         <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
           <Icon theme={theme} onClick={onOpenDocs} className={minappShow && currentMinappId === docsId ? 'active' : ''}>
             <CircleHelp size={20} className="icon" />
+          </Icon>
+        </Tooltip>
+        <Tooltip title={t('settings.data.webdav.backup.button')} mouseEnterDelay={0.8} placement="right">
+          <Icon
+            theme={theme}
+            onClick={async () => {
+              backupToWebdav({ showMessage: true })
+            }}>
+            <CloudUpload size={20} className="icon" />
           </Icon>
         </Tooltip>
         <Tooltip
