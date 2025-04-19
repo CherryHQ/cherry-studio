@@ -1,10 +1,8 @@
 const { Arch } = require('electron-builder')
-const { default: removeLocales } = require('./remove-locales')
 const fs = require('fs')
 const path = require('path')
 
 exports.default = async function (context) {
-  await removeLocales(context)
   const platform = context.packager.platform.name
   const arch = context.arch
 
