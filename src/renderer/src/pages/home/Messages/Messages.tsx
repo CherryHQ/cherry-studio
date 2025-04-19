@@ -221,6 +221,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       style={{ maxWidth }}
       key={assistant.id}
       ref={containerRef}
+      alwaysShowScrollbar={assistant.settings?.alwaysShowScrollbar}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll

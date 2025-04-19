@@ -1175,6 +1175,7 @@
       "messages.navigation.none": "表示しない",
       "messages.title": "メッセージ設定",
       "messages.use_serif_font": "セリフフォントを使用",
+      "messages.always_show_scrollbar": "スクロールバーを常に表示",
       "model": "デフォルトモデル",
       "models.add.add_model": "モデルを追加",
       "models.add.group_name": "グループ名",

@@ -1175,6 +1175,7 @@
       "messages.navigation.none": "Не показывать",
       "messages.title": "Настройки сообщений",
       "messages.use_serif_font": "Использовать serif шрифт",
+      "messages.always_show_scrollbar": "Показывать полосу прокрутки",
       "model": "Модель по умолчанию",
       "models.add.add_model": "Добавить модель",
       "models.add.group_name": "Имя группы",

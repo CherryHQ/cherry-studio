@@ -5,13 +5,20 @@ import styled from 'styled-components'
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   right?: boolean
   ref?: any
+  alwaysShowScrollbar?: boolean
 }
 
-const Scrollbar: FC<Props> = ({ ref, ...props }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
-  const [isScrolling, setIsScrolling] = useState(false)
+const Scrollbar: FC<Props> = ({
+  ref,
+  alwaysShowScrollbar = false,
+  ...props
+}: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
+  const [isScrolling, setIsScrolling] = useState(alwaysShowScrollbar)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleScroll = useCallback(() => {
+    if (alwaysShowScrollbar) return
+
     setIsScrolling(true)
 
     if (timeoutRef.current) {
@@ -19,9 +26,13 @@ const Scrollbar: FC<Props> = ({ ref, ...props }: Props & { ref?: React.RefObject
     }
 
     timeoutRef.current = setTimeout(() => setIsScrolling(false), 1500)
-  }, [])
+  }, [alwaysShowScrollbar])
 
   const throttledHandleScroll = throttle(handleScroll, 200)
+
+  useEffect(() => {
+    setIsScrolling(alwaysShowScrollbar)
+  }, [alwaysShowScrollbar])
 
   useEffect(() => {
     return () => {
@@ -31,7 +42,7 @@ const Scrollbar: FC<Props> = ({ ref, ...props }: Props & { ref?: React.RefObject
   }, [throttledHandleScroll])
 
   return (
-    <Container {...props} isScrolling={isScrolling} onScroll={throttledHandleScroll} ref={ref}>
+    <Container {...props} isScrolling={isScrolling || alwaysShowScrollbar} onScroll={throttledHandleScroll} ref={ref}>
       {props.children}
     </Container>
   )

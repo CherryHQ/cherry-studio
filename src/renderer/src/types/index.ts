@@ -43,6 +43,7 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: 'low' | 'medium' | 'high'
+  alwaysShowScrollbar?: boolean
 }
 
 export type Agent = Omit<Assistant, 'model'> & {

@@ -65,6 +65,7 @@ const SettingsTab: FC<Props> = (props) => {
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
+  const [alwaysShowScrollbar, setAlwaysShowScrollbar] = useState(assistant?.settings?.alwaysShowScrollbar ?? false)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -449,6 +450,18 @@ const SettingsTab: FC<Props> = (props) => {
             size="small"
             checked={thoughtAutoCollapse}
             onChange={(checked) => dispatch(setThoughtAutoCollapse(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.always_show_scrollbar')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={alwaysShowScrollbar}
+            onChange={(checked) => {
+              setAlwaysShowScrollbar(checked)
+              onUpdateAssistantSettings({ alwaysShowScrollbar: checked })
+            }}
           />
         </SettingRow>
         <SettingDivider />
