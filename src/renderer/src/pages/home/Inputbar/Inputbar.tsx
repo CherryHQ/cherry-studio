@@ -53,6 +53,7 @@ import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
+import AIDebatesButton from './AIDebatesButton'
 import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
 import GenerateImageButton from './GenerateImageButton'
@@ -69,13 +70,14 @@ import TokenCount from './TokenCount'
 interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
+  setActiveAssistant: (assistant: Assistant) => void
   topic: Topic
 }
 
 let _text = ''
 let _files: FileType[] = []
 
-const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
+const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveAssistant, topic }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
   const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
@@ -119,6 +121,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const { activedMcpServers } = useMCPServers()
   const { bases: knowledgeBases } = useKnowledgeBases()
 
+  const [isAIDebatesRunning, setIsAIDebatesRunning] = useState(false)
+
   const quickPanel = useQuickPanel()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
@@ -131,6 +135,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
+
+  // any function that want to disable tools button should set this ref to true
+  const isDisableToolsButton = isAIDebatesRunning
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -156,17 +163,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   _text = text
   _files = files
 
-  const resizeTextArea = useCallback(() => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      // 如果已经手动设置了高度,则不自动调整
-      if (textareaHeight) {
-        return
+  const resizeTextArea = useCallback(
+    (height: number = 400) => {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        // 如果已经手动设置了高度,则不自动调整
+        if (textareaHeight) {
+          return
+        }
+        textArea.style.height = 'auto'
+        textArea.style.height = textArea?.scrollHeight > height ? `${height}px` : `${textArea?.scrollHeight}px`
       }
-      textArea.style.height = 'auto'
-      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
-    }
-  }, [textareaHeight])
+    },
+    [textareaHeight]
+  )
 
   // Reset to assistant knowledge mcp servers
   useEffect(() => {
@@ -174,7 +184,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [assistant.mcpServers])
 
   const sendMessage = useCallback(async () => {
-    if (inputEmpty || loading) {
+    //use _text instead of text to avoid the stale closure issue
+    const currentText = _text
+
+    if ((isEmpty(currentText.trim()) && files.length === 0) || loading) {
       return
     }
     if (checkRateLimit(assistant)) {
@@ -186,7 +199,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     try {
       // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
-      const userMessage = getUserMessage({ assistant, topic, type: 'text', content: text })
+      const userMessage = getUserMessage({ assistant, topic, type: 'text', content: currentText })
 
       if (uploadedFiles) {
         userMessage.files = uploadedFiles
@@ -229,12 +242,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     dispatch,
     enabledMCPs,
     files,
-    inputEmpty,
     loading,
     mentionModels,
     resizeTextArea,
     selectedKnowledgeBases,
-    text,
     topic,
     activedMcpServers
   ])
@@ -931,6 +942,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             disabled={searching}
             onPaste={(e) => onPaste(e.nativeEvent)}
             onClick={() => searching && dispatch(setSearching(false))}
+            readOnly={isDisableToolsButton}
           />
           <DragHandle onMouseDown={handleDragStart}>
             <HolderOutlined />
@@ -948,12 +960,23 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 files={files}
                 setFiles={setFiles}
                 ToolbarButton={ToolbarButton}
+                disabled={isDisableToolsButton}
               />
               <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
-                <ToolbarButton type="text" onClick={onEnableWebSearch}>
+                <ToolbarButton
+                  type="text"
+                  onClick={onEnableWebSearch}
+                  disabled={isDisableToolsButton}
+                  className={isDisableToolsButton ? 'disabled' : ''}>
                   <Globe
                     size={18}
-                    style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
+                    style={
+                      isDisableToolsButton
+                        ? {}
+                        : {
+                            color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)'
+                          }
+                    }
                   />
                 </ToolbarButton>
               </Tooltip>
@@ -963,7 +986,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   selectedBases={selectedKnowledgeBases}
                   onSelect={handleKnowledgeBaseSelect}
                   ToolbarButton={ToolbarButton}
-                  disabled={files.length > 0}
+                  disabled={files.length > 0 || isDisableToolsButton}
                 />
               )}
               <MCPToolsButton
@@ -973,27 +996,35 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 ToolbarButton={ToolbarButton}
                 setInputValue={setText}
                 resizeTextArea={resizeTextArea}
+                disabled={isDisableToolsButton}
               />
               <GenerateImageButton
                 model={model}
                 assistant={assistant}
                 onEnableGenerateImage={onEnableGenerateImage}
                 ToolbarButton={ToolbarButton}
+                disabled={isDisableToolsButton}
               />
               <MentionModelsButton
                 ref={mentionModelsButtonRef}
                 mentionModels={mentionModels}
                 onMentionModel={onMentionModel}
                 ToolbarButton={ToolbarButton}
+                disabled={isDisableToolsButton}
               />
               <QuickPhrasesButton
                 ref={quickPhrasesButtonRef}
                 setInputValue={setText}
                 resizeTextArea={resizeTextArea}
                 ToolbarButton={ToolbarButton}
+                disabled={isDisableToolsButton}
               />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
-                <ToolbarButton type="text" onClick={clearTopic}>
+                <ToolbarButton
+                  type="text"
+                  onClick={clearTopic}
+                  disabled={isDisableToolsButton}
+                  className={isDisableToolsButton ? 'disabled' : ''}>
                   <PaintbrushVertical size={18} />
                 </ToolbarButton>
               </Tooltip>
@@ -1002,7 +1033,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
                 </ToolbarButton>
               </Tooltip>
-              <NewContextButton onNewContext={onNewContext} ToolbarButton={ToolbarButton} />
+              <NewContextButton
+                onNewContext={onNewContext}
+                ToolbarButton={ToolbarButton}
+                disabled={isDisableToolsButton}
+              />
               <TokenCount
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
@@ -1012,7 +1047,34 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               />
             </ToolbarMenu>
             <ToolbarMenu>
-              <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
+              <AIDebatesButton
+                assistant={assistant}
+                topic={topic}
+                isTextEmpty={inputEmpty}
+                setActiveTopic={setActiveTopic}
+                setActiveAssistant={setActiveAssistant}
+                onStreamContent={(content: string) => {
+                  setText(content)
+
+                  const textArea = textareaRef.current?.resizableTextArea?.textArea
+                  if (textArea) {
+                    resizeTextArea(150)
+                    textArea.scrollTo(0, textArea.scrollHeight)
+                  }
+                }}
+                onRunning={(isRunning: boolean) => {
+                  setIsAIDebatesRunning(isRunning)
+                }}
+                sendMessage={sendMessage}
+                ToolbarButton={ToolbarButton}
+              />
+              <TranslateButton
+                text={text}
+                onTranslated={onTranslated}
+                isLoading={isTranslating}
+                disabled={isDisableToolsButton}
+                ToolbarButton={ToolbarButton}
+              />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>
@@ -1020,7 +1082,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   </ToolbarButton>
                 </Tooltip>
               )}
-              {!loading && <SendMessageButton sendMessage={sendMessage} disabled={loading || inputEmpty} />}
+              {!loading && (
+                <SendMessageButton sendMessage={sendMessage} disabled={loading || inputEmpty || isDisableToolsButton} />
+              )}
             </ToolbarMenu>
           </Toolbar>
         </InputBarContainer>
@@ -1146,6 +1210,17 @@ const ToolbarButton = styled(Button)`
     }
     &:hover {
       background-color: var(--color-primary);
+    }
+  }
+  &.disabled {
+    color: var(--color-text-3);
+    cursor: default;
+    &:hover {
+      background-color: transparent;
+      .anticon,
+      .iconfont {
+        color: var(--color-text-3);
+      }
     }
   }
 `

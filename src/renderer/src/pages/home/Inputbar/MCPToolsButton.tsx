@@ -20,6 +20,7 @@ interface Props {
   resizeTextArea: () => void
   toggelEnableMCP: (server: MCPServer) => void
   ToolbarButton: any
+  disabled?: boolean
 }
 
 const MCPToolsButton: FC<Props> = ({
@@ -28,7 +29,8 @@ const MCPToolsButton: FC<Props> = ({
   resizeTextArea,
   enabledMCPs,
   toggelEnableMCP,
-  ToolbarButton
+  ToolbarButton,
+  disabled = false
 }) => {
   const { activedMcpServers } = useMCPServers()
   const { t } = useTranslation()
@@ -411,8 +413,15 @@ const MCPToolsButton: FC<Props> = ({
 
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <SquareTerminal size={18} color={buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)'} />
+      <ToolbarButton
+        type="text"
+        onClick={handleOpenQuickPanel}
+        disabled={disabled}
+        className={disabled ? 'disabled' : ''}>
+        <SquareTerminal
+          size={18}
+          {...(!disabled && { color: buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)' })}
+        />
       </ToolbarButton>
     </Tooltip>
   )
