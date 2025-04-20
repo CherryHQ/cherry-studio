@@ -5,7 +5,7 @@ electronLanguages:
   - zh-TW
   - en-GB
   - en-US
-  - ru
+  - ru-RU
 directories:
   buildResources: build
 files:
