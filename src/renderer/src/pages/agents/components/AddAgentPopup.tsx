@@ -6,13 +6,13 @@ import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { fetchGenerate } from '@renderer/services/ApiService'
+import { fetchEmojiSuggestion, fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppSelector } from '@renderer/store'
 import { Agent, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
-import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
+import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps, Space, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,13 +35,15 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [form] = Form.useForm()
   const { t } = useTranslation()
   const { addAgent } = useAgents()
-  const formRef = useRef<FormInstance>(null)
+  const formRef = useRef<FormInstance<FieldType>>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
+  const [emojiLoading, setEmojiLoading] = useState(false)
   const [tokenCount, setTokenCount] = useState(0)
   const knowledgeState = useAppSelector((state) => state.knowledge)
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const knowledgeOptions: SelectProps['options'] = []
+  const emojiTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   knowledgeState.bases.forEach((base) => {
     knowledgeOptions.push({
@@ -49,6 +51,20 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       value: base.id
     })
   })
+
+  // 组件卸载时清除定时器
+  useEffect(() => {
+    // 初始化时记录一下状态
+    console.log('AddAgentPopup初始化, emoji:', emoji)
+
+    // 返回清理函数
+    return () => {
+      console.log('AddAgentPopup卸载，清除定时器')
+      if (emojiTimeoutRef.current) {
+        clearTimeout(emojiTimeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -126,6 +142,27 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     setLoading(false)
   }
 
+  // 生成emoji的函数
+  const generateEmoji = async () => {
+    const name = formRef.current?.getFieldValue('name')
+    if (!name) return
+
+    setEmojiLoading(true)
+    try {
+      const suggestedEmoji = await fetchEmojiSuggestion(name)
+      setEmoji(suggestedEmoji)
+      console.log('生成的emoji:', suggestedEmoji) // 调试用
+    } catch (error) {
+      console.error('Error generating emoji:', error)
+      // 出错时使用默认emoji
+      const defaultEmojis = ['🤖', '��', '✨', '🧠', '📚']
+      const defaultEmoji = defaultEmojis[Math.floor(Math.random() * defaultEmojis.length)]
+      setEmoji(defaultEmoji)
+    } finally {
+      setEmojiLoading(false)
+    }
+  }
+
   // Compute label width based on the longest label
   const labelWidth = [t('agents.add.name'), t('agents.add.prompt'), t('agents.add.knowledge_base')]
     .map((labelText) => stringWidth(labelText) * 8)
@@ -156,13 +193,51 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             setTokenCount(count)
           }
         }}>
-        <Form.Item name="name" label="Emoji">
-          <Popover content={<EmojiPicker onEmojiClick={setEmoji} />} arrow>
-            <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
-          </Popover>
+        <Form.Item name="emoji" label="Emoji">
+          <Space>
+            <Popover content={<EmojiPicker onEmojiClick={setEmoji} />} arrow>
+              <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
+            </Popover>
+            <Tooltip title={t('common.generate_emoji')}>
+              <Button
+                type="text"
+                icon={emojiLoading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+                onClick={generateEmoji}
+                loading={emojiLoading}
+                disabled={!formRef.current?.getFieldValue('name')}
+              />
+            </Tooltip>
+          </Space>
         </Form.Item>
         <Form.Item name="name" label={t('agents.add.name')} rules={[{ required: true }]}>
-          <Input placeholder={t('agents.add.name.placeholder')} spellCheck={false} allowClear />
+          <Input
+            placeholder={t('agents.add.name.placeholder')}
+            spellCheck={false}
+            allowClear
+            onChange={(e) => {
+              const newName = e.target.value
+              console.log('📝名称输入变化:', newName)
+
+              // 当名称为空时，清除emoji
+              if (!newName) {
+                setEmoji('')
+                return
+              }
+
+              // 如果有名称内容，设置定时器自动生成emoji
+              // 清除之前的定时器
+              if (emojiTimeoutRef.current) {
+                clearTimeout(emojiTimeoutRef.current)
+              }
+
+              // 设置新的定时器，延迟300ms执行
+              console.log('即将延迟生成emoji')
+              emojiTimeoutRef.current = setTimeout(async () => {
+                console.log('⚡执行自动生成emoji')
+                generateEmoji()
+              }, 300)
+            }}
+          />
         </Form.Item>
         <div style={{ position: 'relative' }}>
           <Form.Item
