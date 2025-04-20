@@ -46,6 +46,21 @@ const PipRegistry: Registry[] = [
 
 type TabKey = 'settings' | 'tools' | 'prompts' | 'resources'
 
+const parseKeyValueString = (str: string): Record<string, string> => {
+  const result: Record<string, string> = {}
+  str.split('\n').forEach((line) => {
+    if (line.trim()) {
+      const [key, ...value] = line.split('=')
+      const formatValue = value.join('=').trim()
+      const formatKey = key.trim()
+      if (formatKey && formatValue) {
+        result[formatKey] = formatValue
+      }
+    }
+  })
+  return result
+}
+
 const McpSettings: React.FC<Props> = ({ server }) => {
   const { t } = useTranslation()
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
@@ -211,31 +226,11 @@ const McpSettings: React.FC<Props> = ({ server }) => {
 
       // set env variables
       if (values.env) {
-        const env: Record<string, string> = {}
-        values.env.split('\n').forEach((line) => {
-          if (line.trim()) {
-            const [key, ...chunks] = line.split('=')
-            const value = chunks.join('=')
-            if (key && value) {
-              env[key.trim()] = value.trim()
-            }
-          }
-        })
-        mcpServer.env = env
+        mcpServer.env = parseKeyValueString(values.env)
       }
 
       if (values.headers) {
-        const headers: Record<string, string> = {}
-        values.headers.split('\n').forEach((line) => {
-          if (line.trim()) {
-            const [key, ...chunks] = line.split(':')
-            const value = chunks.join(':')
-            if (key && value) {
-              headers[key.trim()] = value.trim()
-            }
-          }
-        })
-        mcpServer.headers = headers
+        mcpServer.headers = parseKeyValueString(values.headers)
       }
 
       try {

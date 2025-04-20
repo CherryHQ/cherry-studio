@@ -24,13 +24,11 @@ https://docs.cherry-ai.com
 
 # 🌠 界面
 
-![](https://github.com/user-attachments/assets/28585d83-4bf0-4714-b561-8c7bf57cc600)
-![](https://github.com/user-attachments/assets/8576863a-f632-4776-bc12-657eeced9da3)
-![](https://github.com/user-attachments/assets/790790d7-b462-48dd-bde1-91c1697a4648)
+![](https://github.com/user-attachments/assets/082efa42-c4df-4863-a9cb-80435cecce0f)
+![](https://github.com/user-attachments/assets/f8411a65-c51f-47d3-9273-62ae384cc6f1)
+![](https://github.com/user-attachments/assets/0d235b3e-65ae-45ab-987f-8dbe003c52be)
 
 # 🌟 主要特性
-
-![](https://github.com/user-attachments/assets/995910f3-177a-4d1e-97ea-04e3b009ba36)
 
 1. **多样化 LLM 服务支持**：
 
