@@ -5,13 +5,11 @@ electronLanguages:
   - zh-TW
   - en-GB
   - en-US
-  - ru
-
+  - ru # mac/linux/win
   - zh_CN # for mac
   - zh_TW # for mac
   - en_GB # for mac
   - en # for mac
-  - ru_RU # for mac
 directories:
   buildResources: build
 files:
