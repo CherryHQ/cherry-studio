@@ -4634,7 +4634,7 @@ __metadata:
 
 "app-builder-lib@patch:app-builder-lib@npm%3A26.0.13#~/.yarn/patches/app-builder-lib-npm-26.0.13-a064c9e1d0.patch":
   version: 26.0.13
-  resolution: "app-builder-lib@patch:app-builder-lib@npm%3A26.0.13#~/.yarn/patches/app-builder-lib-npm-26.0.13-a064c9e1d0.patch::version=26.0.13&hash=f79d94"
+  resolution: "app-builder-lib@patch:app-builder-lib@npm%3A26.0.13#~/.yarn/patches/app-builder-lib-npm-26.0.13-a064c9e1d0.patch::version=26.0.13&hash=ba34e0"
   dependencies:
     "@develar/schema-utils": "npm:~2.6.5"
     "@electron/asar": "npm:3.2.18"
@@ -4672,7 +4672,7 @@ __metadata:
   peerDependencies:
     dmg-builder: 26.0.13
     electron-builder-squirrel-windows: 26.0.13
-  checksum: 10c0/a8f0630dfeab087b3f8c9a88fa04e431caf70244d7bf73ed21b8cf98608e42c12b7d72b7aa9266a17d83c8b084f56d123640da61e39aa67ef254403d72a04a82
+  checksum: 10c0/4a84db5f93398e0004a5b7138ca62ddb36d5c7281703fc42471d77601ecd17c3e6d77678ae799098d3a9457af1a852e1949cc942db4dd8eaf899d5bfc2151339
   languageName: node
   linkType: hard
 
