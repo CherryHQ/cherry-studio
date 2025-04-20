@@ -1,9 +1,17 @@
 appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
 electronLanguages:
-  - zh
-  - en
+  - zh-CN
+  - zh-TW
+  - en-GB
+  - en-US
   - ru
+
+  - zh_CN # for mac
+  - zh_TW # for mac
+  - en_GB # for mac
+  - en # for mac
+  - ru_RU # for mac
 directories:
   buildResources: build
 files:
