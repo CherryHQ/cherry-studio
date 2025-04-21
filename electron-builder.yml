@@ -74,6 +74,8 @@ linux:
     - target: AppImage
   maintainer: electronjs.org
   category: Utility
+  desktop:
+    StartupWMClass: CherryStudio
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
