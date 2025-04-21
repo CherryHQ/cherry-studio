@@ -328,7 +328,7 @@
       "no_api_key": "API key is not configured",
       "provider_disabled": "Model provider is not enabled",
       "render": {
-        "description": "Failed to render formula. Please check if the formula format is correct",
+        "description": "Failed to render message content. Please check if the message content format is correct",
         "title": "Render Error"
       },
       "user_message_not_found": "Cannot find original user message to resend",
@@ -548,7 +548,7 @@
       "restore.failed": "Restore failed",
       "restore.success": "Restored successfully",
       "save.success.title": "Saved successfully",
-      "searching": "Searching the internet...",
+      "searching": "Searching...",
       "success.joplin.export": "Successfully exported to Joplin",
       "success.markdown.export.preconf": "Successfully exported the Markdown file to the preconfigured path",
       "success.markdown.export.specified": "Successfully exported the Markdown file",
@@ -919,7 +919,9 @@
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",
           "title": "WebDAV",
-          "user": "WebDAV User"
+          "user": "WebDAV User",
+          "maxBackups": "Maximum Backups",
+          "maxBackups.unlimited": "Unlimited"
         },
         "yuque": {
           "check": {
@@ -1029,7 +1031,7 @@
       "general.display.title": "Display Settings",
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
-      "general.auto_check_update.title": "Auto update checking",
+      "general.auto_check_update.title": "Auto Update",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
@@ -1230,6 +1232,12 @@
         "api_key": "API Key",
         "api_key.tip": "Multiple keys separated by commas",
         "api_version": "API Version",
+        "basic_auth": "HTTP authentication",
+        "basic_auth.tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
+        "basic_auth.user_name": "Username",
+        "basic_auth.user_name.tip": "Left empty to disable",
+        "basic_auth.password": "Password",
+        "basic_auth.password.tip": "",
         "charge": "Charge",
         "check": "Check",
         "check_all_keys": "Check All Keys",
@@ -1361,7 +1369,9 @@
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",
         "apikey": "API key",
-        "free": "Free"
+        "free": "Free",
+        "content_limit": "Content length limit",
+        "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated."
       },
       "quickPhrase": {
         "title": "Quick Phrases",

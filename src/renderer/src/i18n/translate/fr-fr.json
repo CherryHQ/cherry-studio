@@ -814,7 +814,9 @@
           "syncError": "Erreur de sauvegarde",
           "syncStatus": "Statut de la sauvegarde",
           "title": "WebDAV",
-          "user": "Nom d'utilisateur WebDAV"
+          "user": "Nom d'utilisateur WebDAV",
+          "maxBackups": "Nombre maximal de sauvegardes",
+          "maxBackups.unlimited": "Illimité"
         },
         "yuque": {
           "check": {

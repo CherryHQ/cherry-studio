@@ -1,6 +1,5 @@
-import { Assistant, FileType, FileTypes, Message } from '@renderer/types'
+import { Assistant, FileType, FileTypes, Message, Usage } from '@renderer/types'
 import { flatten, takeRight } from 'lodash'
-import { CompletionUsage } from 'openai/resources'
 import { approximateTokenSize } from 'tokenx'
 
 import { getAssistantSettings } from './AssistantService'
@@ -52,7 +51,7 @@ export function estimateImageTokens(file: FileType) {
   return Math.floor(file.size / 100)
 }
 
-export async function estimateMessageUsage(message: Message): Promise<CompletionUsage> {
+export async function estimateMessageUsage(message: Message): Promise<Usage> {
   let imageTokens = 0
 
   if (message.files) {
@@ -80,17 +79,17 @@ export async function estimateMessagesUsage({
 }: {
   assistant: Assistant
   messages: Message[]
-}): Promise<CompletionUsage> {
+}): Promise<Usage> {
   const outputMessage = messages.pop()!
 
   const prompt_tokens = await estimateHistoryTokens(assistant, messages)
   const { completion_tokens } = await estimateMessageUsage(outputMessage)
 
   return {
-    prompt_tokens: await estimateHistoryTokens(assistant, messages),
+    prompt_tokens,
     completion_tokens,
     total_tokens: prompt_tokens + completion_tokens
-  } as CompletionUsage
+  } as Usage
 }
 
 export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[]) {

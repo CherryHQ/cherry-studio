@@ -44,12 +44,8 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       const fetchPromises = validItems.map(async (item) => {
         // console.log(`Fetching content for ${item.url}...`)
         const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
-        if (
-          this.provider.contentLimit &&
-          this.provider.contentLimit != -1 &&
-          result.content.length > this.provider.contentLimit
-        ) {
-          result.content = result.content.slice(0, this.provider.contentLimit) + '...'
+        if (websearch.contentLimit && result.content.length > websearch.contentLimit) {
+          result.content = result.content.slice(0, websearch.contentLimit) + '...'
         }
         return result
       })

@@ -58,6 +58,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
       return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
     })
+
+    ipcMain.handle(IpcChannel.System_GetHostname, () => {
+      return require('os').hostname()
+    })
   })
 
   registerProtocolClient(app)

@@ -1,7 +1,6 @@
-import { FOOTNOTE_PROMPT, REFERENCE_PROMPT } from '@renderer/config/prompts'
+import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
-import { getKnowledgeBaseReferences } from '@renderer/services/KnowledgeService'
 import type {
   Assistant,
   GenerateImageParams,
@@ -15,7 +14,6 @@ import type {
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
-import { t } from 'i18next'
 import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
 
@@ -98,28 +96,28 @@ export default abstract class BaseProvider {
       return message.content
     }
 
-    const webSearchReferences = await this.getWebSearchReferences(message)
+    const webSearchReferences = await this.getWebSearchReferencesFromCache(message)
+    const knowledgeReferences = await this.getKnowledgeBaseReferencesFromCache(message)
 
-    if (!isEmpty(webSearchReferences)) {
-      const referenceContent = `\`\`\`json\n${JSON.stringify(webSearchReferences, null, 2)}\n\`\`\``
+    // 添加偏移量以避免ID冲突
+    const reindexedKnowledgeReferences = knowledgeReferences.map((ref) => ({
+      ...ref,
+      id: ref.id + webSearchReferences.length // 为知识库引用的ID添加网络搜索引用的数量作为偏移量
+    }))
+
+    const allReferences = [...webSearchReferences, ...reindexedKnowledgeReferences]
+
+    console.log(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
+
+    if (!isEmpty(allReferences)) {
+      const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
       return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
-    }
-
-    const knowledgeReferences = await getKnowledgeBaseReferences(message)
-
-    if (!isEmpty(message.knowledgeBaseIds) && isEmpty(knowledgeReferences)) {
-      window.message.info({ content: t('knowledge.no_match'), key: 'knowledge-base-no-match-info' })
-    }
-
-    if (!isEmpty(knowledgeReferences)) {
-      const referenceContent = `\`\`\`json\n${JSON.stringify(knowledgeReferences, null, 2)}\n\`\`\``
-      return FOOTNOTE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
     }
 
     return message.content
   }
 
-  private async getWebSearchReferences(message: Message) {
+  private async getWebSearchReferencesFromCache(message: Message) {
     if (isEmpty(message.content)) {
       return []
     }
@@ -137,6 +135,23 @@ export default abstract class BaseProvider {
       )
     }
 
+    return []
+  }
+
+  /**
+   * 从缓存中获取知识库引用
+   */
+  private async getKnowledgeBaseReferencesFromCache(message: Message): Promise<KnowledgeReference[]> {
+    if (isEmpty(message.content)) {
+      return []
+    }
+    const knowledgeReferences: KnowledgeReference[] = window.keyv.get(`knowledge-search-${message.id}`)
+
+    if (!isEmpty(knowledgeReferences)) {
+      console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
+      return knowledgeReferences
+    }
+    console.log(`No knowledge base references found in cache for ID: ${message.id}`)
     return []
   }
 

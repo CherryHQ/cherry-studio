@@ -19,6 +19,7 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
+import { processReqMessages } from '@renderer/services/ModelMessageService'
 import store from '@renderer/store'
 import {
   Assistant,
@@ -45,7 +46,7 @@ import {
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
 
-type ReasoningEffort = 'high' | 'medium' | 'low'
+type ReasoningEffort = 'low' | 'medium' | 'high'
 
 export default class OpenAIProvider extends BaseProvider {
   private sdk: OpenAI
@@ -293,7 +294,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns True if the model is an OpenAI reasoning model, false otherwise
    */
   private isOpenAIReasoning(model: Model) {
-    return model.id.startsWith('o1') || model.id.startsWith('o3')
+    return model.id.startsWith('o1') || model.id.startsWith('o3') || model.id.startsWith('o4')
   }
 
   /**
@@ -373,6 +374,7 @@ export default class OpenAIProvider extends BaseProvider {
     let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
+
     const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
     await this.checkIsCopilot()
@@ -406,6 +408,9 @@ export default class OpenAIProvider extends BaseProvider {
         } as ChatCompletionMessageParam)
         toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
 
+        console.debug('[tool] reqMessages before processing', model.id, reqMessages)
+        reqMessages = processReqMessages(model, reqMessages)
+        console.debug('[tool] reqMessages', model.id, reqMessages)
         const newStream = await this.sdk.chat.completions
           // @ts-ignore key is not typed
           .create(
@@ -504,6 +509,9 @@ export default class OpenAIProvider extends BaseProvider {
       await processToolUses(content, idx)
     }
 
+    console.debug('[completions] reqMessages before processing', model.id, reqMessages)
+    reqMessages = processReqMessages(model, reqMessages)
+    console.debug('[completions] reqMessages', model.id, reqMessages)
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
@@ -566,6 +574,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
+    console.debug('[translate] reqMessages', model.id, messages)
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -641,6 +650,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
+    console.debug('[summaries] reqMessages', model.id, [systemMessage, userMessage])
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -675,6 +685,7 @@ export default class OpenAIProvider extends BaseProvider {
       role: 'user',
       content: messages.map((m) => m.content).join('\n')
     }
+    console.debug('[summaryForSearch] reqMessages', model.id, [systemMessage, userMessage])
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create(
       {
@@ -766,6 +777,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     try {
       await this.checkIsCopilot()
+      console.debug('[checkModel] body', model.id, body)
       const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
 
       return {

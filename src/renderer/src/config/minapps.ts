@@ -399,6 +399,9 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: `Z.ai`,
     logo: ZaiAppLogo,
     url: `https://chat.z.ai/`,
-    bodered: true
+    bodered: true,
+    style: {
+      padding: 10
+    }
   }
 ]

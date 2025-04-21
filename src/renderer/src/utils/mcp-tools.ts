@@ -1,186 +1,165 @@
 import { ContentBlockParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { MessageParam } from '@anthropic-ai/sdk/resources'
-import {
-  ArraySchema,
-  BaseSchema,
-  BooleanSchema,
-  EnumStringSchema,
-  FunctionCall,
-  FunctionDeclaration,
-  FunctionDeclarationSchema,
-  FunctionDeclarationSchemaProperty,
-  IntegerSchema,
-  NumberSchema,
-  ObjectSchema,
-  SchemaType,
-  SimpleStringSchema,
-  Tool as geminiTool
-} from '@google/generative-ai'
-import { Content, Part } from '@google/generative-ai'
+import { Content, FunctionCall, Part } from '@google/genai'
 import store from '@renderer/store'
 import { MCPCallToolResponse, MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
-import {
-  ChatCompletionContentPart,
-  ChatCompletionMessageParam,
-  ChatCompletionMessageToolCall,
-  ChatCompletionTool
-} from 'openai/resources'
+import { ChatCompletionContentPart, ChatCompletionMessageParam, ChatCompletionMessageToolCall } from 'openai/resources'
 
 import { ChunkCallbackData, CompletionsParams } from '../providers/AiProvider'
 
-const ensureValidSchema = (obj: Record<string, any>): FunctionDeclarationSchemaProperty => {
-  // Filter out unsupported keys for Gemini
-  const filteredObj = filterUnsupportedKeys(obj)
+// const ensureValidSchema = (obj: Record<string, any>) => {
+//   // Filter out unsupported keys for Gemini
+//   const filteredObj = filterUnsupportedKeys(obj)
 
-  // Handle base schema properties
-  const baseSchema = {
-    description: filteredObj.description,
-    nullable: filteredObj.nullable
-  } as BaseSchema
+//   // Handle base schema properties
+//   const baseSchema = {
+//     description: filteredObj.description,
+//     nullable: filteredObj.nullable
+//   } as BaseSchema
 
-  // Handle string type
-  if (filteredObj.type?.toLowerCase() === SchemaType.STRING) {
-    if (filteredObj.enum && Array.isArray(filteredObj.enum)) {
-      return {
-        ...baseSchema,
-        type: SchemaType.STRING,
-        format: 'enum',
-        enum: filteredObj.enum as string[]
-      } as EnumStringSchema
-    }
-    return {
-      ...baseSchema,
-      type: SchemaType.STRING,
-      format: filteredObj.format === 'date-time' ? 'date-time' : undefined
-    } as SimpleStringSchema
-  }
+//   // Handle string type
+//   if (filteredObj.type?.toLowerCase() === SchemaType.STRING) {
+//     if (filteredObj.enum && Array.isArray(filteredObj.enum)) {
+//       return {
+//         ...baseSchema,
+//         type: SchemaType.STRING,
+//         format: 'enum',
+//         enum: filteredObj.enum as string[]
+//       } as EnumStringSchema
+//     }
+//     return {
+//       ...baseSchema,
+//       type: SchemaType.STRING,
+//       format: filteredObj.format === 'date-time' ? 'date-time' : undefined
+//     } as SimpleStringSchema
+//   }
 
-  // Handle number type
-  if (filteredObj.type?.toLowerCase() === SchemaType.NUMBER) {
-    return {
-      ...baseSchema,
-      type: SchemaType.NUMBER,
-      format: ['float', 'double'].includes(filteredObj.format) ? (filteredObj.format as 'float' | 'double') : undefined
-    } as NumberSchema
-  }
+//   // Handle number type
+//   if (filteredObj.type?.toLowerCase() === SchemaType.NUMBER) {
+//     return {
+//       ...baseSchema,
+//       type: SchemaType.NUMBER,
+//       format: ['float', 'double'].includes(filteredObj.format) ? (filteredObj.format as 'float' | 'double') : undefined
+//     } as NumberSchema
+//   }
 
-  // Handle integer type
-  if (filteredObj.type?.toLowerCase() === SchemaType.INTEGER) {
-    return {
-      ...baseSchema,
-      type: SchemaType.INTEGER,
-      format: ['int32', 'int64'].includes(filteredObj.format) ? (filteredObj.format as 'int32' | 'int64') : undefined
-    } as IntegerSchema
-  }
+//   // Handle integer type
+//   if (filteredObj.type?.toLowerCase() === SchemaType.INTEGER) {
+//     return {
+//       ...baseSchema,
+//       type: SchemaType.INTEGER,
+//       format: ['int32', 'int64'].includes(filteredObj.format) ? (filteredObj.format as 'int32' | 'int64') : undefined
+//     } as IntegerSchema
+//   }
 
-  // Handle boolean type
-  if (filteredObj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-    return {
-      ...baseSchema,
-      type: SchemaType.BOOLEAN
-    } as BooleanSchema
-  }
+//   // Handle boolean type
+//   if (filteredObj.type?.toLowerCase() === SchemaType.BOOLEAN) {
+//     return {
+//       ...baseSchema,
+//       type: SchemaType.BOOLEAN
+//     } as BooleanSchema
+//   }
 
-  // Handle array type
-  if (filteredObj.type?.toLowerCase() === SchemaType.ARRAY) {
-    return {
-      ...baseSchema,
-      type: SchemaType.ARRAY,
-      items: filteredObj.items
-        ? ensureValidSchema(filteredObj.items as Record<string, any>)
-        : ({ type: SchemaType.STRING } as SimpleStringSchema),
-      minItems: filteredObj.minItems,
-      maxItems: filteredObj.maxItems
-    } as ArraySchema
-  }
+//   // Handle array type
+//   if (filteredObj.type?.toLowerCase() === SchemaType.ARRAY) {
+//     return {
+//       ...baseSchema,
+//       type: SchemaType.ARRAY,
+//       items: filteredObj.items
+//         ? ensureValidSchema(filteredObj.items as Record<string, any>)
+//         : ({ type: SchemaType.STRING } as SimpleStringSchema),
+//       minItems: filteredObj.minItems,
+//       maxItems: filteredObj.maxItems
+//     } as ArraySchema
+//   }
 
-  // Handle object type (default)
-  const properties = filteredObj.properties
-    ? Object.fromEntries(
-        Object.entries(filteredObj.properties).map(([key, value]) => [
-          key,
-          ensureValidSchema(value as Record<string, any>)
-        ])
-      )
-    : { _empty: { type: SchemaType.STRING } as SimpleStringSchema } // Ensure properties is never empty
+//   // Handle object type (default)
+//   const properties = filteredObj.properties
+//     ? Object.fromEntries(
+//         Object.entries(filteredObj.properties).map(([key, value]) => [
+//           key,
+//           ensureValidSchema(value as Record<string, any>)
+//         ])
+//       )
+//     : { _empty: { type: SchemaType.STRING } as SimpleStringSchema } // Ensure properties is never empty
 
-  return {
-    ...baseSchema,
-    type: SchemaType.OBJECT,
-    properties,
-    required: Array.isArray(filteredObj.required) ? filteredObj.required : undefined
-  } as ObjectSchema
-}
+//   return {
+//     ...baseSchema,
+//     type: SchemaType.OBJECT,
+//     properties,
+//     required: Array.isArray(filteredObj.required) ? filteredObj.required : undefined
+//   } as ObjectSchema
+// }
 
-function filterUnsupportedKeys(obj: Record<string, any>): Record<string, any> {
-  const supportedBaseKeys = ['description', 'nullable']
-  const supportedStringKeys = [...supportedBaseKeys, 'type', 'format', 'enum']
-  const supportedNumberKeys = [...supportedBaseKeys, 'type', 'format']
-  const supportedBooleanKeys = [...supportedBaseKeys, 'type']
-  const supportedArrayKeys = [...supportedBaseKeys, 'type', 'items', 'minItems', 'maxItems']
-  const supportedObjectKeys = [...supportedBaseKeys, 'type', 'properties', 'required']
+// function filterUnsupportedKeys(obj: Record<string, any>): Record<string, any> {
+//   const supportedBaseKeys = ['description', 'nullable']
+//   const supportedStringKeys = [...supportedBaseKeys, 'type', 'format', 'enum']
+//   const supportedNumberKeys = [...supportedBaseKeys, 'type', 'format']
+//   const supportedBooleanKeys = [...supportedBaseKeys, 'type']
+//   const supportedArrayKeys = [...supportedBaseKeys, 'type', 'items', 'minItems', 'maxItems']
+//   const supportedObjectKeys = [...supportedBaseKeys, 'type', 'properties', 'required']
 
-  const filtered: Record<string, any> = {}
+//   const filtered: Record<string, any> = {}
 
-  let keysToKeep: string[]
+//   let keysToKeep: string[]
 
-  if (obj.type?.toLowerCase() === SchemaType.STRING) {
-    keysToKeep = supportedStringKeys
-  } else if (obj.type?.toLowerCase() === SchemaType.NUMBER) {
-    keysToKeep = supportedNumberKeys
-  } else if (obj.type?.toLowerCase() === SchemaType.INTEGER) {
-    keysToKeep = supportedNumberKeys
-  } else if (obj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-    keysToKeep = supportedBooleanKeys
-  } else if (obj.type?.toLowerCase() === SchemaType.ARRAY) {
-    keysToKeep = supportedArrayKeys
-  } else {
-    // Default to object type
-    keysToKeep = supportedObjectKeys
-  }
+//   if (obj.type?.toLowerCase() === SchemaType.STRING) {
+//     keysToKeep = supportedStringKeys
+//   } else if (obj.type?.toLowerCase() === SchemaType.NUMBER) {
+//     keysToKeep = supportedNumberKeys
+//   } else if (obj.type?.toLowerCase() === SchemaType.INTEGER) {
+//     keysToKeep = supportedNumberKeys
+//   } else if (obj.type?.toLowerCase() === SchemaType.BOOLEAN) {
+//     keysToKeep = supportedBooleanKeys
+//   } else if (obj.type?.toLowerCase() === SchemaType.ARRAY) {
+//     keysToKeep = supportedArrayKeys
+//   } else {
+//     // Default to object type
+//     keysToKeep = supportedObjectKeys
+//   }
 
-  // copy supported keys
-  for (const key of keysToKeep) {
-    if (obj[key] !== undefined) {
-      filtered[key] = obj[key]
-    }
-  }
+//   // copy supported keys
+//   for (const key of keysToKeep) {
+//     if (obj[key] !== undefined) {
+//       filtered[key] = obj[key]
+//     }
+//   }
 
-  return filtered
-}
+//   return filtered
+// }
 
-function filterPropertieAttributes(tool: MCPTool, filterNestedObj: boolean = false): Record<string, object> {
-  const properties = tool.inputSchema.properties
-  if (!properties) {
-    return {}
-  }
+// function filterPropertieAttributes(tool: MCPTool, filterNestedObj: boolean = false): Record<string, object> {
+//   const properties = tool.inputSchema.properties
+//   if (!properties) {
+//     return {}
+//   }
 
-  // For OpenAI, we don't need to validate as strictly
-  if (!filterNestedObj) {
-    return properties
-  }
+//   // For OpenAI, we don't need to validate as strictly
+//   if (!filterNestedObj) {
+//     return properties
+//   }
 
-  const processedProperties = Object.fromEntries(
-    Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
-  )
+//   const processedProperties = Object.fromEntries(
+//     Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
+//   )
 
-  return processedProperties
-}
+//   return processedProperties
+// }
 
-export function mcpToolsToOpenAITools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
-  return mcpTools.map((tool) => ({
-    type: 'function',
-    name: tool.name,
-    function: {
-      name: tool.id,
-      description: tool.description,
-      parameters: {
-        type: 'object',
-        properties: filterPropertieAttributes(tool)
-      }
-    }
-  }))
-}
+// export function mcpToolsToOpenAITools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
+//   return mcpTools.map((tool) => ({
+//     type: 'function',
+//     name: tool.name,
+//     function: {
+//       name: tool.id,
+//       description: tool.description,
+//       parameters: {
+//         type: 'object',
+//         properties: filterPropertieAttributes(tool)
+//       }
+//     }
+//   }))
+// }
 
 export function openAIToolsToMcpTool(
   mcpTools: MCPTool[] | undefined,
@@ -277,35 +256,35 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
   return tool
 }
 
-export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiTool[] {
-  if (!mcpTools || mcpTools.length === 0) {
-    // No tools available
-    return []
-  }
-  const functions: FunctionDeclaration[] = []
+// export function mcpToolsToGeminiTools(mcpTools: MCPTool[] | undefined): geminiTool[] {
+//   if (!mcpTools || mcpTools.length === 0) {
+//     // No tools available
+//     return []
+//   }
+//   const functions: FunctionDeclaration[] = []
 
-  for (const tool of mcpTools) {
-    const properties = filterPropertieAttributes(tool, true)
-    const functionDeclaration: FunctionDeclaration = {
-      name: tool.id,
-      description: tool.description,
-      parameters: {
-        type: SchemaType.OBJECT,
-        properties:
-          Object.keys(properties).length > 0
-            ? Object.fromEntries(
-                Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
-              )
-            : { _empty: { type: SchemaType.STRING } as SimpleStringSchema }
-      } as FunctionDeclarationSchema
-    }
-    functions.push(functionDeclaration)
-  }
-  const tool: geminiTool = {
-    functionDeclarations: functions
-  }
-  return [tool]
-}
+//   for (const tool of mcpTools) {
+//     const properties = filterPropertieAttributes(tool, true)
+//     const functionDeclaration: FunctionDeclaration = {
+//       name: tool.id,
+//       description: tool.description,
+//       parameters: {
+//         type: SchemaType.OBJECT,
+//         properties:
+//           Object.keys(properties).length > 0
+//             ? Object.fromEntries(
+//                 Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
+//               )
+//             : { _empty: { type: SchemaType.STRING } as SimpleStringSchema }
+//       } as FunctionDeclarationSchema
+//     }
+//     functions.push(functionDeclaration)
+//   }
+//   const tool: geminiTool = {
+//     functionDeclarations: functions
+//   }
+//   return [tool]
+// }
 
 export function geminiFunctionCallToMcpTool(
   mcpTools: MCPTool[] | undefined,
