@@ -501,3 +501,5 @@ export interface QuickPhrase {
   updatedAt: number
   order?: number
 }
+
+export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
