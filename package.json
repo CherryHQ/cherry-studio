@@ -94,6 +94,7 @@
     "jsdom": "^26.0.0",
     "markdown-it": "^14.1.0",
     "officeparser": "^4.1.1",
+    "os-proxy-config": "^1.1.1",
     "proxy-agent": "^6.5.0",
     "tar": "^7.4.3",
     "turndown": "^7.2.0",
