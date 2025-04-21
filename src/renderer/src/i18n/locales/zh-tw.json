@@ -1336,8 +1336,6 @@
       "tray.title": "系统匣",
       "websearch": {
         "check_success": "驗證成功",
-        "enhance_mode": "搜索增強模式",
-        "enhance_mode_tooltip": "使用預設模型提取關鍵詞後搜索",
         "get_api_key": "點選這裡取得金鑰",
         "search_with_time": "搜尋包含日期",
         "tavily": {

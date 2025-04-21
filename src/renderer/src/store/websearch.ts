@@ -20,8 +20,6 @@ export interface WebSearchState {
   excludeDomains: string[]
   // 订阅源列表
   subscribeSources: SubscribeSource[]
-  // 是否启用搜索增强模式
-  enhanceMode: boolean
   // 是否覆盖服务商搜索
   overwrite: boolean
   contentLimit?: number
@@ -65,7 +63,6 @@ const initialState: WebSearchState = {
   maxResults: 5,
   excludeDomains: [],
   subscribeSources: [],
-  enhanceMode: true,
   overwrite: false
 }
 
@@ -126,9 +123,6 @@ const websearchSlice = createSlice({
     setSubscribeSources: (state, action: PayloadAction<SubscribeSource[]>) => {
       state.subscribeSources = action.payload
     },
-    setEnhanceMode: (state, action: PayloadAction<boolean>) => {
-      state.enhanceMode = action.payload
-    },
     setOverwrite: (state, action: PayloadAction<boolean>) => {
       state.overwrite = action.payload
     },
@@ -159,7 +153,6 @@ export const {
   removeSubscribeSource,
   updateSubscribeBlacklist,
   setSubscribeSources,
-  setEnhanceMode,
   setOverwrite,
   addWebSearchProvider,
   setContentLimit

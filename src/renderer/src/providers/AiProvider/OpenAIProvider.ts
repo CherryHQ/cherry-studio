@@ -408,6 +408,9 @@ export default class OpenAIProvider extends BaseProvider {
         } as ChatCompletionMessageParam)
         toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
 
+        console.debug('[tool] reqMessages before processing', model.id, reqMessages)
+        reqMessages = processReqMessages(model, reqMessages)
+        console.debug('[tool] reqMessages', model.id, reqMessages)
         const newStream = await this.sdk.chat.completions
           // @ts-ignore key is not typed
           .create(
@@ -506,9 +509,9 @@ export default class OpenAIProvider extends BaseProvider {
       await processToolUses(content, idx)
     }
 
-    // console.log('[before] reqMessages', reqMessages)
+    console.debug('[completions] reqMessages before processing', model.id, reqMessages)
     reqMessages = processReqMessages(model, reqMessages)
-    // console.log('[after] reqMessages', reqMessages)
+    console.debug('[completions] reqMessages', model.id, reqMessages)
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
@@ -571,6 +574,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
+    console.debug('[translate] reqMessages', model.id, messages)
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -646,6 +650,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
+    console.debug('[summaries] reqMessages', model.id, [systemMessage, userMessage])
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -680,6 +685,7 @@ export default class OpenAIProvider extends BaseProvider {
       role: 'user',
       content: messages.map((m) => m.content).join('\n')
     }
+    console.debug('[summaryForSearch] reqMessages', model.id, [systemMessage, userMessage])
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create(
       {
@@ -771,6 +777,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     try {
       await this.checkIsCopilot()
+      console.debug('[checkModel] body', model.id, body)
       const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
 
       return {

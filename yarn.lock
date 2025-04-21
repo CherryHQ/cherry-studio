@@ -77,80 +77,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@analytics/cookie-utils@npm:^0.2.12":
-  version: 0.2.12
-  resolution: "@analytics/cookie-utils@npm:0.2.12"
-  dependencies:
-    "@analytics/global-storage-utils": "npm:^0.1.7"
-  checksum: 10c0/b631b5d482b6865984fd72ed24c66c0e3ba90d9aff21f7ec6edee597c60e68d4c34195058efab108167e9e34b2d4a65b452bafd6996e7a942a9e8e165099d767
-  languageName: node
-  linkType: hard
-
-"@analytics/core@npm:^0.12.17":
-  version: 0.12.17
-  resolution: "@analytics/core@npm:0.12.17"
-  dependencies:
-    "@analytics/global-storage-utils": "npm:^0.1.7"
-    "@analytics/type-utils": "npm:^0.6.2"
-    analytics-utils: "npm:^1.0.14"
-  checksum: 10c0/752ccaca1187297fe1665ffcfc23923b28f2a097c2e0c76024ef253e9a848f3f16e430a5155a4bc665931ba84da813ca88ee1634ef8c9491e28975d95ce5a8e1
-  languageName: node
-  linkType: hard
-
-"@analytics/global-storage-utils@npm:^0.1.7":
-  version: 0.1.7
-  resolution: "@analytics/global-storage-utils@npm:0.1.7"
-  dependencies:
-    "@analytics/type-utils": "npm:^0.6.2"
-  checksum: 10c0/c9f4e412106edc590cf3df73743ae9da5579cac3f452ff80e67a9c205ba6afa58f21804f3ffc4433628faf8d9e1306249cdba951a3947da3e93e3382e772a28b
-  languageName: node
-  linkType: hard
-
-"@analytics/google-analytics@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "@analytics/google-analytics@npm:1.1.0"
-  checksum: 10c0/b5adb9741d20c97c22bee10eb01a60658d7564dc6607b93729e908485533597adab3b9816dfdc83cf3d9c9fe5fd5196640a1122fb578c6123dd16926736433d4
-  languageName: node
-  linkType: hard
-
-"@analytics/localstorage-utils@npm:^0.1.10":
-  version: 0.1.10
-  resolution: "@analytics/localstorage-utils@npm:0.1.10"
-  dependencies:
-    "@analytics/global-storage-utils": "npm:^0.1.7"
-  checksum: 10c0/a540eb8b02f209858f339e7bba328e6076f5e9680b07b58a9e0278e990b3030c94067ba9f8f5501361fbb0b12841b2e3c99f777d18c7606a51a0e3c08208f3a6
-  languageName: node
-  linkType: hard
-
-"@analytics/session-storage-utils@npm:^0.0.7":
-  version: 0.0.7
-  resolution: "@analytics/session-storage-utils@npm:0.0.7"
-  dependencies:
-    "@analytics/global-storage-utils": "npm:^0.1.7"
-  checksum: 10c0/742aec35eea9cf8f79037408bd3bc256ac3ba009bb11c424bfec910126b7cb3ab8edb8be810ab3bcaead152da6cdb756592b0abfbfbde7e82c420b2e94e03897
-  languageName: node
-  linkType: hard
-
-"@analytics/storage-utils@npm:^0.4.2":
-  version: 0.4.2
-  resolution: "@analytics/storage-utils@npm:0.4.2"
-  dependencies:
-    "@analytics/cookie-utils": "npm:^0.2.12"
-    "@analytics/global-storage-utils": "npm:^0.1.7"
-    "@analytics/localstorage-utils": "npm:^0.1.10"
-    "@analytics/session-storage-utils": "npm:^0.0.7"
-    "@analytics/type-utils": "npm:^0.6.2"
-  checksum: 10c0/68e884e2a5356c8c40a76508574603c3923cf58e87309190f71951c6a12123ab8eb2fb125d6cf45efaf662aa02df1ddddecf0e49be261e5cac2c0893e037cc5a
-  languageName: node
-  linkType: hard
-
-"@analytics/type-utils@npm:^0.6.2":
-  version: 0.6.2
-  resolution: "@analytics/type-utils@npm:0.6.2"
-  checksum: 10c0/63332155ed4f361a30a240a43dc73d0809f66aa2f484d870c900634ef32d3bf363dccf4961a9592bb0de627da401f88fada6afa3045aa695acfb0acdaea14988
-  languageName: node
-  linkType: hard
-
 "@ant-design/colors@npm:^7.0.0, @ant-design/colors@npm:^7.2.0":
   version: 7.2.0
   resolution: "@ant-design/colors@npm:7.2.0"
@@ -4293,7 +4219,6 @@ __metadata:
     "@agentic/exa": "npm:^7.3.3"
     "@agentic/searxng": "npm:^7.3.3"
     "@agentic/tavily": "npm:^7.3.3"
-    "@analytics/google-analytics": "npm:^1.1.0"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/sdk": "npm:^0.38.0"
     "@cherrystudio/embedjs": "npm:^0.1.28"
@@ -4345,7 +4270,6 @@ __metadata:
     "@vitest/ui": "npm:^3.1.1"
     "@xyflow/react": "npm:^12.4.4"
     adm-zip: "npm:^0.5.16"
-    analytics: "npm:^0.8.16"
     antd: "npm:^5.22.5"
     applescript: "npm:^1.0.0"
     async-mutex: "npm:^0.5.0"
@@ -4395,6 +4319,7 @@ __metadata:
     openai: "patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch"
     os-proxy-config: "npm:^1.1.1"
     p-queue: "npm:^8.1.0"
+    posthog-js: "npm:^1.236.2"
     prettier: "npm:^3.5.3"
     proxy-agent: "npm:^6.5.0"
     rc-virtual-list: "npm:^3.18.5"
@@ -4576,28 +4501,6 @@ __metadata:
     json-schema-traverse: "npm:^1.0.0"
     require-from-string: "npm:^2.0.2"
   checksum: 10c0/ec3ba10a573c6b60f94639ffc53526275917a2df6810e4ab5a6b959d87459f9ef3f00d5e7865b82677cb7d21590355b34da14d1d0b9c32d75f95a187e76fff35
-  languageName: node
-  linkType: hard
-
-"analytics-utils@npm:^1.0.14":
-  version: 1.0.14
-  resolution: "analytics-utils@npm:1.0.14"
-  dependencies:
-    "@analytics/type-utils": "npm:^0.6.2"
-    dlv: "npm:^1.1.3"
-  peerDependencies:
-    "@types/dlv": ^1.0.0
-  checksum: 10c0/8a55d5592f4588d7d0e555b3baeed9dca63d1a6e44f5c128ac1bc32616c4cc23361d69611c0490339bedbca11407bf9e62b3f2fddaf52c66fd82e749ebdfaf48
-  languageName: node
-  linkType: hard
-
-"analytics@npm:^0.8.16":
-  version: 0.8.16
-  resolution: "analytics@npm:0.8.16"
-  dependencies:
-    "@analytics/core": "npm:^0.12.17"
-    "@analytics/storage-utils": "npm:^0.4.2"
-  checksum: 10c0/818cdb0b4fa308d501f6db435aed7653b0137387b3c9f5002ebf9c8b7400afdda05538dba76f43c93ce18606f19792e456604e353e196aee0e11a6e40d188155
   languageName: node
   linkType: hard
 
@@ -6060,6 +5963,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"core-js@npm:^3.38.1":
+  version: 3.41.0
+  resolution: "core-js@npm:3.41.0"
+  checksum: 10c0/a29ed0b7fe81acf49d04ce5c17a1947166b1c15197327a5d12f95bbe84b46d60c3c13de701d808f41da06fa316285f3f55ce5903abc8d5642afc1eac4457afc8
+  languageName: node
+  linkType: hard
+
 "core-util-is@npm:1.0.2":
   version: 1.0.2
   resolution: "core-util-is@npm:1.0.2"
@@ -6670,13 +6580,6 @@ __metadata:
   dependencies:
     path-type: "npm:^4.0.0"
   checksum: 10c0/dcac00920a4d503e38bb64001acb19df4efc14536ada475725e12f52c16777afdee4db827f55f13a908ee7efc0cb282e2e3dbaeeb98c0993dd93d1802d3bf00c
-  languageName: node
-  linkType: hard
-
-"dlv@npm:^1.1.3":
-  version: 1.1.3
-  resolution: "dlv@npm:1.1.3"
-  checksum: 10c0/03eb4e769f19a027fd5b43b59e8a05e3fd2100ac239ebb0bf9a745de35d449e2f25cfaf3aa3934664551d72856f4ae8b7822016ce5c42c2d27c18ae79429ec42
   languageName: node
   linkType: hard
 
@@ -8179,6 +8082,13 @@ __metadata:
   version: 0.8.1
   resolution: "fflate@npm:0.8.1"
   checksum: 10c0/c8e8e118738cdbbe7b38d0afebd9166539ce71bbc42cc78e497b58b173f7b7d2efc80f6ed77199283c3665e2e606e56a9f5019a32ceb4ffe5a6fa680dfd9648b
+  languageName: node
+  linkType: hard
+
+"fflate@npm:^0.4.8":
+  version: 0.4.8
+  resolution: "fflate@npm:0.4.8"
+  checksum: 10c0/29d1eddaaa5deab61b1c6b0d21282adacadbc4d2c01e94d8b1ee784398151673b9c563e53f97a801bc410a1ae55e8de5378114a743430e643e7a0644ba8e5a42
   languageName: node
   linkType: hard
 
@@ -13730,6 +13640,33 @@ __metadata:
   languageName: node
   linkType: hard
 
+"posthog-js@npm:^1.236.2":
+  version: 1.236.2
+  resolution: "posthog-js@npm:1.236.2"
+  dependencies:
+    core-js: "npm:^3.38.1"
+    fflate: "npm:^0.4.8"
+    preact: "npm:^10.19.3"
+    web-vitals: "npm:^4.2.4"
+  peerDependencies:
+    "@rrweb/types": 2.0.0-alpha.17
+    rrweb-snapshot: 2.0.0-alpha.17
+  peerDependenciesMeta:
+    "@rrweb/types":
+      optional: true
+    rrweb-snapshot:
+      optional: true
+  checksum: 10c0/b425637978876f5f7647f60eb73ee539563f4647f60ac30ece1e201915b66faf2583617161db12aec2a0356c804d39261b4a66673dfc1bb40c7e0bd2dfc18b9d
+  languageName: node
+  linkType: hard
+
+"preact@npm:^10.19.3":
+  version: 10.26.5
+  resolution: "preact@npm:10.26.5"
+  checksum: 10c0/542a924009489c21b24e9588a5580dac03239a60951d10e6ad1207db66c8e719e1d46a38af6577c8f324b238fbe2aa92e0ffc04d3a71dbe182f56426c8abe632
+  languageName: node
+  linkType: hard
+
 "prebuild-install@npm:^5.3.5":
   version: 5.3.6
   resolution: "prebuild-install@npm:5.3.6"
@@ -17641,6 +17578,13 @@ __metadata:
   version: 3.3.3
   resolution: "web-streams-polyfill@npm:3.3.3"
   checksum: 10c0/64e855c47f6c8330b5436147db1c75cb7e7474d924166800e8e2aab5eb6c76aac4981a84261dd2982b3e754490900b99791c80ae1407a9fa0dcff74f82ea3a7f
+  languageName: node
+  linkType: hard
+
+"web-vitals@npm:^4.2.4":
+  version: 4.2.4
+  resolution: "web-vitals@npm:4.2.4"
+  checksum: 10c0/383c9281d5b556bcd190fde3c823aeb005bb8cf82e62c75b47beb411014a4ed13fa5c5e0489ed0f1b8d501cd66b0bebcb8624c1a75750bd5df13e2a3b1b2d194
   languageName: node
   linkType: hard
 

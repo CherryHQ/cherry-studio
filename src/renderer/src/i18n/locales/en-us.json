@@ -1342,8 +1342,6 @@
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
-        "enhance_mode": "Search enhance mode",
-        "enhance_mode_tooltip": "Use the default model to extract search keywords from the problem and search",
         "get_api_key": "Get API Key",
         "no_provider_selected": "Please select a search service provider before checking.",
         "search_max_result": "Number of search results",

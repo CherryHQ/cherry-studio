@@ -1342,8 +1342,6 @@
         "check": "检查",
         "check_failed": "验证失败",
         "check_success": "验证成功",
-        "enhance_mode": "搜索增强模式",
-        "enhance_mode_tooltip": "使用默认模型提取关键词后搜索",
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
         "get_api_key": "点击这里获取密钥",

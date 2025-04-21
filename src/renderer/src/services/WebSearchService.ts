@@ -49,16 +49,6 @@ class WebSearchService {
   }
 
   /**
-   * 检查是否启用搜索增强模式
-   * @public
-   * @returns 如果启用搜索增强模式则返回true，否则返回false
-   */
-  public isEnhanceModeEnabled(): boolean {
-    const { enhanceMode } = this.getWebSearchState()
-    return enhanceMode
-  }
-
-  /**
    * 检查是否启用覆盖搜索
    * @public
    * @returns 如果启用覆盖搜索则返回true，否则返回false

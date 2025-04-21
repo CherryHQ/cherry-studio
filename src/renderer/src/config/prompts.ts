@@ -52,6 +52,7 @@ export const SUMMARIZE_PROMPT =
 // https://github.com/ItzCrazyKns/Perplexica/blob/master/src/lib/prompts/webSearch.ts
 export const SEARCH_SUMMARY_PROMPT = `
   You are an AI question rephraser. Your role is to rephrase follow-up queries from a conversation into standalone queries that can be used by another LLM to retrieve information, either through web search or from a knowledge base.
+  **Use user's language to rephrase the question.**
   Follow these guidelines:
   1. If the question is a simple writing task, greeting (e.g., Hi, Hello, How are you), or does not require searching for information (unless the greeting contains a follow-up question), return 'not_needed' in the 'question' XML block. This indicates that no search is required.
   2. If the user asks a question related to a specific URL, PDF, or webpage, include the links in the 'links' XML block and the question in the 'question' XML block. If the request is to summarize content from a URL or PDF, return 'summarize' in the 'question' XML block and include the relevant links in the 'links' XML block.
@@ -193,6 +194,7 @@ export const SEARCH_SUMMARY_PROMPT = `
   {chat_history}
   </conversation>
 
+  **Use user's language to rephrase the question.**
   Follow up question: {question}
   Rephrased question:
 `
