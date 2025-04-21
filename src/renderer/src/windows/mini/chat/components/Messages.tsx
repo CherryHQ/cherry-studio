@@ -77,6 +77,7 @@ const Messages: FC<Props> = ({ assistant, route }) => {
 const Container = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
+  align-items: center;
   padding-bottom: 20px;
   overflow-x: hidden;
   min-width: 100%;

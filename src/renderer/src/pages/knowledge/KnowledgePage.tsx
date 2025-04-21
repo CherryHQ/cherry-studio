@@ -1,12 +1,17 @@
-import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { DeleteOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons'
+import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import DragableList from '@renderer/components/DragableList'
+import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { NavbarIcon } from '@renderer/pages/home/Navbar'
+import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
 import { KnowledgeBase } from '@renderer/types'
 import { Dropdown, Empty, MenuProps } from 'antd'
+import { Book, Plus, Search } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -22,7 +27,10 @@ const KnowledgePage: FC = () => {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleAddKnowledge = async () => {
-    await AddKnowledgePopup.show({ title: t('knowledge.add.title') })
+    const newBase = await AddKnowledgePopup.show({ title: t('knowledge.add.title') })
+    if (newBase) {
+      setSelectedBase(newBase)
+    }
   }
 
   useEffect(() => {
@@ -65,6 +73,7 @@ const KnowledgePage: FC = () => {
               title: t('knowledge.delete_confirm'),
               centered: true,
               onOk: () => {
+                setSelectedBase(undefined)
                 deleteKnowledgeBase(base.id)
               }
             })
@@ -77,10 +86,23 @@ const KnowledgePage: FC = () => {
     [deleteKnowledgeBase, renameKnowledgeBase, t]
   )
 
+  useShortcut('search_message', () => {
+    if (selectedBase) {
+      KnowledgeSearchPopup.show({ base: selectedBase }).then()
+    }
+  })
+
   return (
     <Container>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
+        <NavbarRight>
+          <HStack alignItems="center">
+            <NarrowIcon onClick={() => selectedBase && KnowledgeSearchPopup.show({ base: selectedBase })}>
+              <Search size={18} />
+            </NarrowIcon>
+          </HStack>
+        </NavbarRight>
       </Navbar>
       <ContentContainer id="content-container">
         <SideNav>
@@ -96,7 +118,7 @@ const KnowledgePage: FC = () => {
                   <div>
                     <ListItem
                       active={selectedBase?.id === base.id}
-                      icon={<FileTextOutlined />}
+                      icon={<Book size={16} />}
                       title={base.name}
                       onClick={() => setSelectedBase(base)}
                     />
@@ -107,7 +129,7 @@ const KnowledgePage: FC = () => {
             {!isDragging && (
               <AddKnowledgeItem onClick={handleAddKnowledge}>
                 <AddKnowledgeName>
-                  <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
+                  <Plus size={18} />
                   {t('button.add')}
                 </AddKnowledgeName>
               </AddKnowledgeItem>
@@ -150,7 +172,7 @@ const MainContent = styled(Scrollbar)`
 `
 
 const SideNav = styled.div`
-  width: var(--assistants-width);
+  min-width: var(--settings-width);
   border-right: 0.5px solid var(--color-border);
   padding: 12px 10px;
   display: flex;
@@ -215,6 +237,16 @@ const AddKnowledgeName = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+`
+
+const NarrowIcon = styled(NavbarIcon)`
+  @media (max-width: 1000px) {
+    display: none;
+  }
 `
 
 export default KnowledgePage

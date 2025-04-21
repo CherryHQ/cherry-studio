@@ -1,6 +1,6 @@
 @font-face {
   font-family: 'iconfont'; /* Project id 4753420 */
-  src: url('iconfont.woff2?t=1738750230250') format('woff2');
+  src: url('iconfont.woff2?t=1742184675192') format('woff2');
 }
 
 .iconfont {
@@ -9,6 +9,14 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-obsidian:before {
+  content: '\e677';
+}
+
+.icon-notion:before {
+  content: '\e690';
 }
 
 .icon-thinking:before {
@@ -25,10 +33,6 @@
 
 .icon-at1:before {
   content: '\e630';
-}
-
-.icon-a-darkmode:before {
-  content: '\e6cd';
 }
 
 .icon-ai-model:before {

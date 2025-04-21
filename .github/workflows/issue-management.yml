@@ -1,0 +1,39 @@
+name: "Stale Issue Management"
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+env:
+  daysBeforeStale: 30 # Number of days of inactivity before marking as stale
+  daysBeforeClose: 30 # Number of days to wait after marking as stale before closing
+
+jobs:
+  stale:
+    if: github.repository_owner == 'CherryHQ'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write # Workaround for https://github.com/actions/stale/issues/1090
+      issues: write
+      # Completely disable stalling for PRs
+      pull-requests: none
+      contents: none
+    steps:
+      - name: Close inactive issues
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          days-before-stale: ${{ env.daysBeforeStale }}
+          days-before-close: ${{ env.daysBeforeClose }}
+          stale-issue-label: "inactive"
+          stale-issue-message: |
+            This issue has been inactive for a prolonged period and will be closed automatically in ${{ env.daysBeforeClose }} days.
+            该问题已长时间处于闲置状态，${{ env.daysBeforeClose }} 天后将自动关闭。
+          exempt-issue-labels: "pending, Dev Team, enhancement"
+          days-before-pr-stale: -1 # Completely disable stalling for PRs
+          days-before-pr-close: -1 # Completely disable closing for PRs
+
+          # Temporary to reduce the huge issues number
+          operations-per-run: 100
+          debug-only: false

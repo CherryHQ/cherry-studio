@@ -1,3 +1,4 @@
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
@@ -36,7 +37,9 @@ const Chat: FC<Props> = (props) => {
               topic={props.activeTopic}
               setActiveTopic={props.setActiveTopic}
             />
-            <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} />
+            <QuickPanelProvider>
+              <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+            </QuickPanelProvider>
           </Main>
         </Allotment.Pane>
         {topicPosition === 'right' && showTopics && (
@@ -66,6 +69,8 @@ const Container = styled.div`
 
 const Main = styled(Flex)`
   height: calc(100vh - var(--navbar-height));
+  // 设置为containing block，方便子元素fixed定位
+  transform: translateZ(0);
 `
 
 export default Chat

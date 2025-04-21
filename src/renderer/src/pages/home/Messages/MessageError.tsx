@@ -1,4 +1,5 @@
 import { Message } from '@renderer/types'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert as AntdAlert } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,8 +9,16 @@ import Markdown from '../Markdown/Markdown'
 const MessageError: FC<{ message: Message }> = ({ message }) => {
   return (
     <>
-      <MessageErrorInfo message={message} />
       <Markdown message={message} />
+      {message.error && (
+        <Markdown
+          message={{
+            ...message,
+            content: formatErrorMessage(message.error)
+          }}
+        />
+      )}
+      <MessageErrorInfo message={message} />
     </>
   )
 }
@@ -27,7 +36,7 @@ const MessageErrorInfo: FC<{ message: Message }> = ({ message }) => {
 }
 
 const Alert = styled(AntdAlert)`
-  margin-bottom: 15px;
+  margin: 15px 0 8px;
   padding: 10px;
   font-size: 12px;
 `

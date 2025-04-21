@@ -1,0 +1,18 @@
+diff --git a/dist/index.node.js b/dist/index.node.js
+index bb108cbc210af5b99e864fd1dd8c555e948ecf7a..8ef8c1aab59215c21d161c0e52125724528ecab8 100644
+--- a/dist/index.node.js
++++ b/dist/index.node.js
+@@ -1,8 +1,11 @@
+ let crypto;
+ crypto =
+     globalThis.crypto?.webcrypto ?? // Node.js 16 REPL has globalThis.crypto as node:crypto
+-        globalThis.crypto ?? // Node.js 18+ 
+-        (await import("node:crypto")).webcrypto; // Node.js 16 non-REPL
++        globalThis.crypto ?? // Node.js 18+
++        (async() => {
++            const crypto = await import("node:crypto");
++            return crypto.webcrypto;
++        })();
+ /**
+  * Creates an array of length `size` of random bytes
+  * @param size

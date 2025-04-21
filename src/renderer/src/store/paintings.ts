@@ -33,7 +33,7 @@ const paintingsSlice = createSlice({
       state.paintings = action.payload
     },
     addPainting: (state, action: PayloadAction<Painting>) => {
-      state.paintings.push(action.payload)
+      state.paintings.unshift(action.payload)
     },
     removePainting: (state, action: PayloadAction<Painting>) => {
       if (state.paintings.length === 1) {

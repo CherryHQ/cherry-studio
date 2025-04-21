@@ -9,28 +9,27 @@ interface Props extends ButtonProps {
   onSuccess?: (key: string) => void
 }
 
-const OAuthButton: FC<Props> = ({ provider, ...props }) => {
+const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
   const { t } = useTranslation()
-
   const onAuth = () => {
-    const onSuccess = (key: string) => {
+    const handleSuccess = (key: string) => {
       if (key.trim()) {
-        props.onSuccess?.(key)
+        onSuccess?.(key)
         window.message.success({ content: t('auth.get_key_success'), key: 'auth-success' })
       }
     }
 
     if (provider.id === 'silicon') {
-      oauthWithSiliconFlow(onSuccess)
+      oauthWithSiliconFlow(handleSuccess)
     }
 
     if (provider.id === 'aihubmix') {
-      oauthWithAihubmix(onSuccess)
+      oauthWithAihubmix(handleSuccess)
     }
   }
 
   return (
-    <Button onClick={onAuth} {...props}>
+    <Button onClick={onAuth} {...buttonProps}>
       {t('auth.get_key')}
     </Button>
   )

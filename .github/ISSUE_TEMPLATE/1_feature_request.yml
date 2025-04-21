@@ -1,4 +1,4 @@
-name: 💡 Feature Request
+name: 💡 Feature Request (English)
 description: Suggest an idea for this project
 title: '[Feature]: '
 labels: ['enhancement']
@@ -6,7 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to suggest a new feature!
+        Thank you for taking the time to submit a feature request!
+        Before submitting this issue, please make sure you have reviewed the [Project Roadmap](https://docs.cherry-ai.com/cherrystudio/planning) and the [Feature Overview](https://docs.cherry-ai.com/cherrystudio/preview).
 
   - type: checkboxes
     id: checklist
@@ -15,9 +16,13 @@ body:
       description: |
         Before submitting an issue, please make sure you have completed the following steps
       options:
-        - label: I have viewed the pinned issues and searched existing issues but couldn't find anything similar.
+        - label: I understand that issues are for reporting problems and requesting features, not for off-topic comments, and I will provide as much detail as possible to help resolve the issue.
           required: true
-        - label: I have filled out the issue title correctly.
+        - label: I have checked the pinned issues and searched through the existing [open issues](https://github.com/CherryHQ/cherry-studio/issues), [closed issues](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed), and [discussions](https://github.com/CherryHQ/cherry-studio/discussions) and did not find a similar suggestion.
+          required: true
+        - label: I have provided a short and descriptive title so that developers can quickly understand the issue when browsing the issue list, rather than vague titles like "A suggestion" or "Stuck."
+          required: true
+        - label: The latest version of Cherry Studio does not include the feature I am suggesting.
           required: true
 
   - type: dropdown
@@ -44,28 +49,28 @@ body:
   - type: textarea
     id: problem
     attributes:
-      label: Is your feature request related to a problem?
-      description: A clear and concise description of what the problem is
-      placeholder: I'm always frustrated when...
+      label: Is your feature request related to an existing issue?
+      description: Please briefly describe the problem you are experiencing. If possible, include screenshots or recordings to help illustrate the current situation or pain points.
+      placeholder: I often feel frustrated because... (Remember to attach screenshots/recordings if applicable)
     validations:
       required: true
 
   - type: textarea
     id: solution
     attributes:
-      label: Describe the solution you'd like
-      description: A clear and concise description of what you want to happen
+      label: Desired Solution
+      description: Please briefly describe what you would like to happen. You can include mockups, screenshots, or screen recordings to better illustrate your proposed solution.
     validations:
       required: true
 
   - type: textarea
     id: alternatives
     attributes:
-      label: Describe alternatives you've considered
-      description: A clear and concise description of any alternative solutions or features you've considered
+      label: Alternative Solutions
+      description: Please briefly describe any alternative solutions or features you have considered. Feel free to include screenshots or mockups of alternative approaches.
 
   - type: textarea
     id: additional
     attributes:
-      label: Additional Context
-      description: Add any other context or screenshots about the feature request here
+      label: Additional Information
+      description: Add any other context, screenshots, mockups or recordings that can help us better understand your feature request.

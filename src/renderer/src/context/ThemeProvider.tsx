@@ -1,16 +1,18 @@
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
-import { isMiniWindow } from '@renderer/utils'
-import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
+import { IpcChannel } from '@shared/IpcChannel'
+import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
 
 interface ThemeContextType {
   theme: ThemeMode
+  settingTheme: ThemeMode
   toggleTheme: () => void
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: ThemeMode.light,
+  settingTheme: ThemeMode.light,
   toggleTheme: () => {}
 })
 
@@ -40,16 +42,23 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
 
   useEffect(() => {
     document.body.setAttribute('theme-mode', _theme)
-    if (!isMiniWindow()) {
-      window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
-    }
+    // 移除迷你窗口的条件判断，让所有窗口都能设置主题
+    window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
   }, [_theme])
 
   useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
-  }, [])
 
-  return <ThemeContext.Provider value={{ theme: _theme, toggleTheme }}>{children}</ThemeContext.Provider>
+    // listen theme change from main process from other windows
+    const themeChangeListenerRemover = window.electron.ipcRenderer.on(IpcChannel.ThemeChange, (_, newTheme) => {
+      setTheme(newTheme)
+    })
+    return () => {
+      themeChangeListenerRemover()
+    }
+  })
+
+  return <ThemeContext value={{ theme: _theme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
 }
 
-export const useTheme = () => useContext(ThemeContext)
+export const useTheme = () => use(ThemeContext)

@@ -98,7 +98,7 @@ export default class ClipboardMonitor {
   private handleTextSelected(text: string) {
     if (!text) return
 
-    console.debug('[ClipboardMonitor] handleTextSelected', text)
+    console.log('[ClipboardMonitor] handleTextSelected', text)
 
     windowService.setLastSelectedText(text)
 

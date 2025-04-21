@@ -1,4 +1,4 @@
-name: 🐛 错误报告
+name: 🐛 错误报告 (中文)
 description: 创建一个报告以帮助我们改进
 title: '[错误]: '
 labels: ['bug']
@@ -7,17 +7,22 @@ body:
     attributes:
       value: |
         感谢您花时间填写此错误报告！
+        在提交此问题之前，请确保您已经了解了[常见问题](https://docs.cherry-ai.com/question-contact/questions)和[知识科普](https://docs.cherry-ai.com/question-contact/knowledge)
 
   - type: checkboxes
     id: checklist
     attributes:
-      label: Issue 检查清单
+      label: 提交前检查
       description: |
         在提交 Issue 前请确保您已经完成了以下所有步骤
       options:
-        - label: 我已经查看了置顶 Issue 并搜索了现有的 Issue，但没有找到类似的问题。
+        - label: 我理解 Issue 是用于反馈和解决问题的，而非吐槽评论区，将尽可能提供更多信息帮助问题解决。
           required: true
-        - label: 正确填写了 Issue 标题。
+        - label: 我的问题不是 [常见问题](https://github.com/CherryHQ/cherry-studio/issues/3881) 中的内容。
+          required: true
+        - label: 我已经查看了 **置顶 Issue** 并搜索了现有的 [开放Issue](https://github.com/CherryHQ/cherry-studio/issues)和[已关闭Issue](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed%20)，没有找到类似的问题。
+          required: true
+        - label: 我填写了简短且清晰明确的标题，以便开发者在翻阅 Issue 列表时能快速确定大致问题。而不是“一个建议”、“卡住了”等。
           required: true
 
   - type: dropdown
@@ -45,8 +50,8 @@ body:
     id: description
     attributes:
       label: 错误描述
-      description: 清晰简洁地描述错误是什么
-      placeholder: 告诉我们发生了什么...
+      description: 描述问题时请尽可能详细。请尽可能提供截图或屏幕录制，以帮助我们更好地理解问题。
+      placeholder: 告诉我们发生了什么...(记得附上截图/录屏，如果适用)
     validations:
       required: true
 
@@ -54,12 +59,14 @@ body:
     id: reproduction
     attributes:
       label: 重现步骤
-      description: 重现行为的步骤
+      description: 提供详细的重现步骤，以便于我们的开发人员可以准确地重现问题。请尽可能为每个步骤提供截图或屏幕录制。
       placeholder: |
         1. 转到 '...'
         2. 点击 '....'
         3. 向下滚动到 '....'
         4. 看到错误
+
+        记得尽可能为每个步骤附上截图/录屏！
     validations:
       required: true
 
@@ -82,4 +89,4 @@ body:
     id: additional
     attributes:
       label: 附加信息
-      description: 在此添加有关问题的任何其他上下文
+      description: 任何能让我们对你所遇到的问题有更多了解的东西

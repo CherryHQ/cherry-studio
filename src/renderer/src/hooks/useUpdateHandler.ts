@@ -1,6 +1,7 @@
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
-import type { ProgressInfo, UpdateInfo } from 'electron-updater'
+import { IpcChannel } from '@shared/IpcChannel'
+import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,13 +15,13 @@ export default function useUpdateHandler() {
     const ipcRenderer = window.electron.ipcRenderer
 
     const removers = [
-      ipcRenderer.on('update-not-available', () => {
+      ipcRenderer.on(IpcChannel.UpdateNotAvailable, () => {
         dispatch(setUpdateState({ checking: false }))
         if (window.location.hash.includes('settings/about')) {
           window.message.success(t('settings.about.updateNotAvailable'))
         }
       }),
-      ipcRenderer.on('update-available', (_, releaseInfo: UpdateInfo) => {
+      ipcRenderer.on(IpcChannel.UpdateAvailable, (_, releaseInfo: UpdateInfo) => {
         dispatch(
           setUpdateState({
             checking: false,
@@ -30,7 +31,7 @@ export default function useUpdateHandler() {
           })
         )
       }),
-      ipcRenderer.on('download-update', () => {
+      ipcRenderer.on(IpcChannel.DownloadUpdate, () => {
         dispatch(
           setUpdateState({
             checking: false,
@@ -38,7 +39,7 @@ export default function useUpdateHandler() {
           })
         )
       }),
-      ipcRenderer.on('download-progress', (_, progress: ProgressInfo) => {
+      ipcRenderer.on(IpcChannel.DownloadProgress, (_, progress: ProgressInfo) => {
         dispatch(
           setUpdateState({
             downloading: progress.percent < 100,
@@ -46,10 +47,16 @@ export default function useUpdateHandler() {
           })
         )
       }),
-      ipcRenderer.on('update-downloaded', () => {
-        dispatch(setUpdateState({ downloading: false }))
+      ipcRenderer.on(IpcChannel.UpdateDownloaded, (_, releaseInfo: UpdateInfo) => {
+        dispatch(
+          setUpdateState({
+            downloading: false,
+            info: releaseInfo,
+            downloaded: true
+          })
+        )
       }),
-      ipcRenderer.on('update-error', (_, error) => {
+      ipcRenderer.on(IpcChannel.UpdateError, (_, error) => {
         dispatch(
           setUpdateState({
             checking: false,

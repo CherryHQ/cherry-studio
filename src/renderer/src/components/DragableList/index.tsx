@@ -9,6 +9,7 @@ import {
   ResponderProvided
 } from '@hello-pangea/dnd'
 import { droppableReorder } from '@renderer/utils'
+import VirtualList from 'rc-virtual-list'
 import { FC } from 'react'
 
 interface Props<T> {
@@ -46,23 +47,30 @@ const DragableList: FC<Props<any>> = ({
     <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
       <Droppable droppableId="droppable" {...droppableProps}>
         {(provided) => (
-          <div {...provided.droppableProps} ref={provided.innerRef} style={{ ...style }}>
-            {list.map((item, index) => {
-              const id = item.id || item
-              return (
-                <Draggable key={`draggable_${id}_${index}`} draggableId={id} index={index} {...droppableProps}>
-                  {(provided) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      {...provided.dragHandleProps}
-                      style={{ ...provided.draggableProps.style, marginBottom: 8, ...listStyle }}>
-                      {children(item, index)}
-                    </div>
-                  )}
-                </Draggable>
-              )
-            })}
+          <div {...provided.droppableProps} ref={provided.innerRef} style={style}>
+            <VirtualList data={list} itemKey="id">
+              {(item, index) => {
+                const id = item.id || item
+                return (
+                  <Draggable key={`draggable_${id}_${index}`} draggableId={id} index={index}>
+                    {(provided) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        {...provided.dragHandleProps}
+                        style={{
+                          ...listStyle,
+                          ...provided.draggableProps.style,
+                          marginBottom: 8
+                        }}>
+                        {children(item, index)}
+                      </div>
+                    )}
+                  </Draggable>
+                )
+              }}
+            </VirtualList>
+            {provided.placeholder}
           </div>
         )}
       </Droppable>

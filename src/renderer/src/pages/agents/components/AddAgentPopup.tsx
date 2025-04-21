@@ -8,14 +8,16 @@ import { useAgents } from '@renderer/hooks/useAgents'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppSelector } from '@renderer/store'
-import { Agent } from '@renderer/types'
+import { Agent, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import stringWidth from 'string-width'
+import styled from 'styled-components'
 
 interface Props {
   resolve: (data: Agent | null) => void
@@ -25,7 +27,7 @@ type FieldType = {
   id: string
   name: string
   prompt: string
-  knowledge_base_id: string
+  knowledge_base_ids: string[]
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
@@ -36,9 +38,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
+  const [tokenCount, setTokenCount] = useState(0)
   const knowledgeState = useAppSelector((state) => state.knowledge)
-  const knowledgeOptions: SelectProps['options'] = []
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
+  const knowledgeOptions: SelectProps['options'] = []
 
   knowledgeState.bases.forEach((base) => {
     knowledgeOptions.push({
@@ -46,6 +49,20 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       value: base.id
     })
   })
+
+  useEffect(() => {
+    const updateTokenCount = async () => {
+      const prompt = formRef.current?.getFieldValue('prompt')
+      if (prompt) {
+        const count = await estimateTextTokens(prompt)
+        setTokenCount(count)
+      } else {
+        setTokenCount(0)
+      }
+    }
+    updateTokenCount()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.getFieldValue('prompt')])
 
   const onFinish = (values: FieldType) => {
     const _emoji = emoji || getLeadingEmoji(values.name)
@@ -57,7 +74,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     const _agent: Agent = {
       id: uuid(),
       name: values.name,
-      knowledge_base: knowledgeState.bases.find((t) => t.id === values.knowledge_base_id),
+      knowledge_bases: values.knowledge_base_ids
+        ?.map((id) => knowledgeState.bases.find((t) => t.id === id))
+        ?.filter((base): base is KnowledgeBase => base !== undefined),
       emoji: _emoji,
       prompt: values.prompt,
       defaultModel: getDefaultModel(),
@@ -99,7 +118,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         prompt: AGENT_PROMPT,
         content: promptText
       })
-      formRef.current?.setFieldValue('prompt', generatedText)
+      form.setFieldsValue({ prompt: generatedText })
     } catch (error) {
       console.error('Error fetching data:', error)
     }
@@ -121,6 +140,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       maskClosable={false}
       afterClose={onClose}
       okText={t('agents.add.title')}
+      width={800}
       centered>
       <Form
         ref={formRef}
@@ -129,7 +149,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}
-        onFinish={onFinish}>
+        onFinish={onFinish}
+        onValuesChange={async (changedValues) => {
+          if (changedValues.prompt) {
+            const count = await estimateTextTokens(changedValues.prompt)
+            setTokenCount(count)
+          }
+        }}>
         <Form.Item name="name" label="Emoji">
           <Popover content={<EmojiPicker onEmojiClick={setEmoji} />} arrow>
             <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
@@ -146,6 +172,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             style={{ position: 'relative' }}>
             <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
           </Form.Item>
+          <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
             icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
             onClick={handleButtonClick}
@@ -154,12 +181,18 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           />
         </div>
         {showKnowledgeIcon && (
-          <Form.Item name="knowledge_base_id" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
+          <Form.Item name="knowledge_base_ids" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
             <Select
+              mode="multiple"
               allowClear
               placeholder={t('agents.add.knowledge_base.placeholder')}
               menuItemSelectedIcon={<CheckOutlined />}
               options={knowledgeOptions}
+              filterOption={(input, option) =>
+                String(option?.label ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
             />
           </Form.Item>
         )}
@@ -167,6 +200,18 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     </Modal>
   )
 }
+
+const TokenCount = styled.div`
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background-color: var(--color-background-soft);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--color-text-2);
+  user-select: none;
+`
 
 export default class AddAgentPopup {
   static topviewId = 0

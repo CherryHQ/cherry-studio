@@ -19,9 +19,9 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import { FileType, KnowledgeBase, ProcessingStatus } from '@renderer/types'
-import { KnowledgeItem } from '@renderer/types'
+import { FileType, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
+import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { v4 as uuidv4 } from 'uuid'
@@ -198,6 +198,32 @@ export const useKnowledge = (baseId: string) => {
     return base?.items.filter((item) => item.type === type && item.processingStatus !== undefined) || []
   }
 
+  // 获取目录处理进度
+  const getDirectoryProcessingPercent = (itemId?: string) => {
+    const [percent, setPercent] = useState<number>(0)
+
+    useEffect(() => {
+      if (!itemId) {
+        return
+      }
+
+      const cleanup = window.electron.ipcRenderer.on(
+        IpcChannel.DirectoryProcessingPercent,
+        (_, { itemId: id, percent }: { itemId: string; percent: number }) => {
+          if (itemId === id) {
+            setPercent(percent)
+          }
+        }
+      )
+
+      return () => {
+        cleanup()
+      }
+    }, [itemId])
+
+    return percent
+  }
+
   // 清除已完成的项目
   const clearCompleted = () => {
     dispatch(clearCompletedProcessing({ baseId }))
@@ -280,6 +306,7 @@ export const useKnowledge = (baseId: string) => {
     refreshItem,
     getProcessingStatus,
     getProcessingItemsByType,
+    getDirectoryProcessingPercent,
     clearCompleted,
     clearAll,
     removeItem,
@@ -307,16 +334,22 @@ export const useKnowledgeBases = () => {
 
     // remove assistant knowledge_base
     const _assistants = assistants.map((assistant) => {
-      if (assistant.knowledge_base?.id === baseId) {
-        return { ...assistant, knowledge_base: undefined }
+      if (assistant.knowledge_bases?.find((kb) => kb.id === baseId)) {
+        return {
+          ...assistant,
+          knowledge_bases: assistant.knowledge_bases.filter((kb) => kb.id !== baseId)
+        }
       }
       return assistant
     })
 
     // remove agent knowledge_base
     const _agents = agents.map((agent) => {
-      if (agent.knowledge_base?.id === baseId) {
-        return { ...agent, knowledge_base: undefined }
+      if (agent.knowledge_bases?.find((kb) => kb.id === baseId)) {
+        return {
+          ...agent,
+          knowledge_bases: agent.knowledge_bases.filter((kb) => kb.id !== baseId)
+        }
       }
       return agent
     })

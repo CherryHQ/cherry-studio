@@ -1,84 +1,96 @@
-import { FileSearchOutlined } from '@ant-design/icons'
+import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
 import { KnowledgeBase } from '@renderer/types'
-import { Button, Popover, Tooltip } from 'antd'
-import { FC } from 'react'
+import { Tooltip } from 'antd'
+import { FileSearch, Plus } from 'lucide-react'
+import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import { useNavigate } from 'react-router'
+
+export interface KnowledgeBaseButtonRef {
+  openQuickPanel: () => void
+}
 
 interface Props {
-  selectedBase?: KnowledgeBase
-  onSelect: (base?: KnowledgeBase) => void
+  ref?: React.RefObject<KnowledgeBaseButtonRef | null>
+  selectedBases?: KnowledgeBase[]
+  onSelect: (bases: KnowledgeBase[]) => void
   disabled?: boolean
-  ToolbarButton?: any
+  ToolbarButton: any
 }
 
-const KnowledgeBaseSelector: FC<Props> = ({ selectedBase, onSelect }) => {
+const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled, ToolbarButton }) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const quickPanel = useQuickPanel()
   const knowledgeState = useAppSelector((state) => state.knowledge)
+  const selectedBasesRef = useRef(selectedBases)
 
-  return (
-    <SelectorContainer>
-      {knowledgeState.bases.length === 0 ? (
-        <EmptyMessage>{t('knowledge.no_bases')}</EmptyMessage>
-      ) : (
-        <>
-          {selectedBase && (
-            <Button type="link" block onClick={() => onSelect(undefined)} style={{ textAlign: 'left' }}>
-              {t('knowledge.clear_selection')}
-            </Button>
-          )}
-          {knowledgeState.bases.map((base) => (
-            <Button
-              key={base.id}
-              type={selectedBase?.id === base.id ? 'primary' : 'text'}
-              block
-              onClick={() => onSelect(base)}
-              style={{ textAlign: 'left' }}>
-              {base.name}
-            </Button>
-          ))}
-        </>
-      )}
-    </SelectorContainer>
+  useEffect(() => {
+    selectedBasesRef.current = selectedBases
+  }, [selectedBases])
+
+  const handleBaseSelect = useCallback(
+    (base: KnowledgeBase) => {
+      const currentSelectedBases = selectedBasesRef.current
+
+      if (currentSelectedBases?.some((selected) => selected.id === base.id)) {
+        onSelect(currentSelectedBases.filter((selected) => selected.id !== base.id))
+      } else {
+        onSelect([...(currentSelectedBases || []), base])
+      }
+    },
+    [onSelect]
   )
-}
 
-const KnowledgeBaseButton: FC<Props> = ({ selectedBase, onSelect, disabled, ToolbarButton }) => {
-  const { t } = useTranslation()
+  const baseItems = useMemo<QuickPanelListItem[]>(() => {
+    const newList: QuickPanelListItem[] = knowledgeState.bases.map((base) => ({
+      label: base.name,
+      description: `${base.items.length} ${t('files.count')}`,
+      icon: <FileSearch />,
+      action: () => handleBaseSelect(base),
+      isSelected: selectedBases?.some((selected) => selected.id === base.id)
+    }))
+    newList.push({
+      label: t('knowledge.add.title') + '...',
+      icon: <Plus />,
+      action: () => navigate('/knowledge'),
+      isSelected: false
+    })
+    return newList
+  }, [knowledgeState.bases, handleBaseSelect, selectedBases, t, navigate])
 
-  if (selectedBase) {
-    return (
-      <Tooltip placement="top" title={selectedBase.name} arrow>
-        <ToolbarButton type="text" onClick={() => onSelect(undefined)}>
-          <FileSearchOutlined style={{ color: selectedBase ? 'var(--color-link)' : 'var(--color-icon)' }} />
-        </ToolbarButton>
-      </Tooltip>
-    )
-  }
+  const openQuickPanel = useCallback(() => {
+    quickPanel.open({
+      title: t('chat.input.knowledge_base'),
+      list: baseItems,
+      symbol: '#',
+      multiple: true,
+      afterAction({ item }) {
+        item.isSelected = !item.isSelected
+      }
+    })
+  }, [baseItems, quickPanel, t])
+
+  const handleOpenQuickPanel = useCallback(() => {
+    if (quickPanel.isVisible && quickPanel.symbol === '#') {
+      quickPanel.close()
+    } else {
+      openQuickPanel()
+    }
+  }, [openQuickPanel, quickPanel])
+
+  useImperativeHandle(ref, () => ({
+    openQuickPanel
+  }))
 
   return (
     <Tooltip placement="top" title={t('chat.input.knowledge_base')} arrow>
-      <Popover
-        placement="top"
-        content={<KnowledgeBaseSelector selectedBase={selectedBase} onSelect={onSelect} />}
-        overlayStyle={{ maxWidth: 400 }}
-        trigger="click">
-        <ToolbarButton type="text" onClick={() => selectedBase && onSelect(undefined)} disabled={disabled}>
-          <FileSearchOutlined style={{ color: selectedBase ? 'var(--color-link)' : 'var(--color-icon)' }} />
-        </ToolbarButton>
-      </Popover>
+      <ToolbarButton type="text" onClick={handleOpenQuickPanel} disabled={disabled}>
+        <FileSearch size={18} />
+      </ToolbarButton>
     </Tooltip>
   )
 }
-
-const SelectorContainer = styled.div`
-  max-height: 300px;
-  overflow-y: auto;
-`
-
-const EmptyMessage = styled.div`
-  padding: 8px;
-`
 
 export default KnowledgeBaseButton

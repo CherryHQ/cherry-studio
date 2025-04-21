@@ -54,7 +54,7 @@ function syncRecursively(target: any, template: any): boolean {
 
 function syncTranslations() {
   if (!fs.existsSync(baseFilePath)) {
-    console.error(`主模板文件 ${baseFileName} 不存在，请检查路径或文件名。`)
+    console.error(`主模板文件 ${baseFileName} 不存在，请检查路径或文件名`)
     return
   }
 
@@ -84,13 +84,13 @@ function syncTranslations() {
 
     if (isUpdated) {
       try {
-        fs.writeFileSync(filePath, JSON.stringify(targetJson, null, 2), 'utf-8')
-        console.log(`文件 ${file} 已更新同步主模板的内容。`)
+        fs.writeFileSync(filePath, JSON.stringify(targetJson, null, 2) + '\n', 'utf-8')
+        console.log(`文件 ${file} 已更新同步主模板的内容`)
       } catch (error) {
         console.error(`写入 ${file} 出错:`, error)
       }
     } else {
-      console.log(`文件 ${file} 无需更新。`)
+      console.log(`文件 ${file} 无需更新`)
     }
   }
 }

@@ -1,11 +1,13 @@
+import { CheckOutlined } from '@ant-design/icons'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { Message } from '@renderer/types'
-import { Collapse } from 'antd'
-import { FC, useEffect, useState, useMemo } from 'react'
+import { Collapse, message as antdMessage, Tooltip } from 'antd'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
 import styled from 'styled-components'
+
 import Markdown from '../Markdown/Markdown'
-import { useSettings } from '@renderer/hooks/useSettings'
 
 interface Props {
   message: Message
@@ -13,9 +15,10 @@ interface Props {
 
 const MessageThought: FC<Props> = ({ message }) => {
   const [activeKey, setActiveKey] = useState<'thought' | ''>('thought')
+  const [copied, setCopied] = useState(false)
   const isThinking = !message.content
   const { t } = useTranslation()
-  const { messageFont, fontSize } = useSettings()
+  const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
   const fontFamily = useMemo(() => {
     return messageFont === 'serif'
       ? 'serif'
@@ -23,19 +26,30 @@ const MessageThought: FC<Props> = ({ message }) => {
   }, [messageFont])
 
   useEffect(() => {
-    if (!isThinking) setActiveKey('')
-  }, [isThinking])
+    if (!isThinking && thoughtAutoCollapse) setActiveKey('')
+  }, [isThinking, thoughtAutoCollapse])
 
   if (!message.reasoning_content) {
     return null
   }
 
+  const copyThought = () => {
+    if (message.reasoning_content) {
+      navigator.clipboard.writeText(message.reasoning_content)
+      antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   const thinkingTime = message.metrics?.time_thinking_millsec || 0
   const thinkingTimeSeconds = (thinkingTime / 1000).toFixed(1)
+  const isPaused = message.status === 'paused'
 
   return (
     <CollapseContainer
       activeKey={activeKey}
+      size="small"
       onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
       className="message-thought-container"
       items={[
@@ -46,7 +60,21 @@ const MessageThought: FC<Props> = ({ message }) => {
               <TinkingText>
                 {isThinking ? t('chat.thinking') : t('chat.deeply_thought', { secounds: thinkingTimeSeconds })}
               </TinkingText>
-              {isThinking && <BarLoader color="#9254de" />}
+              {isThinking && !isPaused && <BarLoader color="#9254de" />}
+              {(!isThinking || isPaused) && (
+                <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
+                  <ActionButton
+                    className="message-action-button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      copyThought()
+                    }}
+                    aria-label={t('common.copy')}>
+                    {!copied && <i className="iconfont icon-copy"></i>}
+                    {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+                  </ActionButton>
+                </Tooltip>
+              )}
             </MessageTitleLabel>
           ),
           children: (
@@ -74,6 +102,34 @@ const MessageTitleLabel = styled.div`
 
 const TinkingText = styled.span`
   color: var(--color-text-2);
+`
+
+const ActionButton = styled.button`
+  background: none;
+  border: none;
+  color: var(--color-text-2);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  opacity: 0.6;
+  transition: all 0.3s;
+
+  &:hover {
+    opacity: 1;
+    color: var(--color-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .iconfont {
+    font-size: 14px;
+  }
 `
 
 export default MessageThought

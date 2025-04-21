@@ -1,4 +1,4 @@
-name: 🐛 Bug Report
+name: 🐛 Bug Report (English)
 description: Create a report to help us improve
 title: '[Bug]: '
 labels: ['bug']
@@ -6,7 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
+        Thank you for taking the time to fill out this bug report!
+        Before submitting this issue, please make sure that you have understood the [FAQ](https://docs.cherry-ai.com/question-contact/questions) and [Knowledge Science](https://docs.cherry-ai.com/question-contact/knowledge)
 
   - type: checkboxes
     id: checklist
@@ -15,9 +16,13 @@ body:
       description: |
         Before submitting an issue, please make sure you have completed the following steps
       options:
-        - label: I have viewed the pinned issues and searched existing issues but couldn't find anything similar.
+        - label: I understand that issues are for feedback and problem solving, not for complaining in the comment section, and will provide as much information as possible to help solve the problem.
           required: true
-        - label: I have filled out the issue title correctly.
+        - label: My issue is not listed in the [FAQ](https://github.com/CherryHQ/cherry-studio/issues/3881).
+          required: true
+        - label: I've looked at **pinned issues** and searched for existing [Open Issues](https://github.com/CherryHQ/cherry-studio/issues), [Closed Issues](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed), and [Discussions](https://github.com/CherryHQ/cherry-studio/discussions), no similar issue or discussion was found.
+          required: true
+        - label: I've filled in short, clear headings so that developers can quickly identify a rough idea of what to expect when flipping through the list of issues. And not "a suggestion", "stuck", etc.
           required: true
 
   - type: dropdown
@@ -45,8 +50,8 @@ body:
     id: description
     attributes:
       label: Bug Description
-      description: A clear and concise description of what the bug is
-      placeholder: Tell us what happened...
+      description: Please be as detailed as possible when describing the problem. Please provide screenshots or screen recordings whenever possible to help us better understand the issue.
+      placeholder: Tell us what happened... (Remember to attach screenshots/recordings if applicable)
     validations:
       required: true
 
@@ -54,12 +59,14 @@ body:
     id: reproduction
     attributes:
       label: Steps To Reproduce
-      description: Steps to reproduce the behavior
+      description: Provide detailed steps to reproduce the issue so that our developers can reproduce the issue accurately. Please include screenshots or screen recordings for each step when possible.
       placeholder: |
         1. Go to '...'
         2. Click on '....'
         3. Scroll down to '....'
         4. See error
+
+        Remember to attach screenshots/recordings for each step when possible!
     validations:
       required: true
 
@@ -82,4 +89,4 @@ body:
     id: additional
     attributes:
       label: Additional Context
-      description: Add any other context about the problem here
+      description: Anything that gives us a better understanding of the problem you're experiencing

@@ -1,11 +1,13 @@
+import { GroundingMetadata } from '@google/genai'
 import OpenAI from 'openai'
+import React from 'react'
 import { BuiltinTheme } from 'shiki'
 
 export type Assistant = {
   id: string
   name: string
   prompt: string
-  knowledge_base?: KnowledgeBase
+  knowledge_bases?: KnowledgeBase[]
   topics: Topic[]
   type: string
   emoji?: string
@@ -15,6 +17,8 @@ export type Assistant = {
   settings?: Partial<AssistantSettings>
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
+  enableGenerateImage?: boolean
+  mcpServers?: MCPServer[]
 }
 
 export type AssistantMessage = {
@@ -41,7 +45,9 @@ export type AssistantSettings = {
   reasoning_effort?: 'low' | 'medium' | 'high'
 }
 
-export type Agent = Omit<Assistant, 'model'>
+export type Agent = Omit<Assistant, 'model'> & {
+  group?: string[]
+}
 
 export type Message = {
   id: string
@@ -52,26 +58,47 @@ export type Message = {
   translatedContent?: string
   topicId: string
   createdAt: string
-  status: 'sending' | 'pending' | 'success' | 'paused' | 'error'
+  status: 'sending' | 'pending' | 'searching' | 'success' | 'paused' | 'error'
   modelId?: string
   model?: Model
   files?: FileType[]
   images?: string[]
-  usage?: OpenAI.Completions.CompletionUsage
+  usage?: Usage
   metrics?: Metrics
   knowledgeBaseIds?: string[]
   type: 'text' | '@' | 'clear'
   isPreset?: boolean
   mentions?: Model[]
-  metadata?: {
-    // Gemini
-    groundingMetadata?: any
-    // Perplexity
-    citations?: string[]
-  }
   askId?: string
   useful?: boolean
   error?: Record<string, any>
+  enabledMCPs?: MCPServer[]
+  metadata?: {
+    // Gemini
+    groundingMetadata?: GroundingMetadata
+    // Perplexity Or Openrouter
+    citations?: string[]
+    // OpenAI
+    annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
+    // Zhipu or Hunyuan
+    webSearchInfo?: any[]
+    // Web search
+    webSearch?: WebSearchResponse
+    // MCP Tools
+    mcpTools?: MCPToolResponse[]
+    // Generate Image
+    generateImage?: GenerateImageResponse
+    // knowledge
+    knowledge?: KnowledgeReference[]
+  }
+  // 多模型消息样式
+  multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
+  // fold时是否选中
+  foldSelected?: boolean
+}
+
+export type Usage = OpenAI.Completions.CompletionUsage & {
+  thoughts_tokens?: number
 }
 
 export type Metrics = {
@@ -90,6 +117,7 @@ export type Topic = {
   messages: Message[]
   pinned?: boolean
   prompt?: string
+  isNameManuallyEdited?: boolean
 }
 
 export type User = {
@@ -109,11 +137,14 @@ export type Provider = {
   models: Model[]
   enabled?: boolean
   isSystem?: boolean
+  isAuthed?: boolean
+  rateLimit?: number
+  isNotSupportArrayContent?: boolean
 }
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
-export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning'
+export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
 export type Model = {
   id: string
@@ -145,12 +176,13 @@ export interface Painting {
 }
 
 export type MinAppType = {
-  id?: string | number
+  id: string
   name: string
   logo?: string
   url: string
   bodered?: boolean
   background?: string
+  style?: React.CSSProperties
 }
 
 export interface FileType {
@@ -161,7 +193,7 @@ export interface FileType {
   size: number
   ext: string
   type: FileTypes
-  created_at: Date
+  created_at: string
   count: number
   tokens?: number
 }
@@ -181,9 +213,18 @@ export enum ThemeMode {
   auto = 'auto'
 }
 
-export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'en-US' | 'ru-RU' | 'ja-JP'
+export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
 
-export type TranslateLanguageVarious = 'chinese' | 'chinese-traditional' | 'english' | 'japanese' | 'russian'
+export type TranslateLanguageVarious =
+  | 'chinese'
+  | 'chinese-traditional'
+  | 'greek'
+  | 'english'
+  | 'spanish'
+  | 'french'
+  | 'japanese'
+  | 'portuguese'
+  | 'russian'
 
 export type CodeStyleVarious = BuiltinTheme | 'auto'
 
@@ -192,16 +233,19 @@ export type WebDavConfig = {
   webdavUser: string
   webdavPass: string
   webdavPath: string
+  fileName?: string
 }
 
 export type AppInfo = {
   version: string
   isPackaged: boolean
   appPath: string
+  configPath: string
   appDataPath: string
   resourcesPath: string
   filesPath: string
   logsPath: string
+  arch: string
 }
 
 export interface Shortcut {
@@ -223,6 +267,7 @@ export type KnowledgeItem = {
   uniqueIds?: string[]
   type: KnowledgeItemType
   content: string | FileType
+  remark?: string
   created_at: number
   updated_at: number
   processingStatus?: ProcessingStatus
@@ -245,6 +290,8 @@ export interface KnowledgeBase {
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
+  rerankModel?: Model
+  topN?: number
 }
 
 export type KnowledgeBaseParams = {
@@ -256,6 +303,11 @@ export type KnowledgeBaseParams = {
   baseURL: string
   chunkSize?: number
   chunkOverlap?: number
+  rerankApiKey?: string
+  rerankBaseURL?: string
+  rerankModel?: string
+  rerankModelProvider?: string
+  topN?: number
 }
 
 export type GenerateImageParams = {
@@ -271,4 +323,181 @@ export type GenerateImageParams = {
   promptEnhancement?: boolean
 }
 
+export type GenerateImageResponse = {
+  type: 'url' | 'base64'
+  images: string[]
+}
+
+export interface TranslateHistory {
+  id: string
+  sourceText: string
+  targetText: string
+  sourceLanguage: string
+  targetLanguage: string
+  createdAt: string
+}
+
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
+
+export type WebSearchProvider = {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
+  engines?: string[]
+  url?: string
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+  contentLimit?: number
+  usingBrowser?: boolean
+}
+
+export type WebSearchResponse = {
+  query?: string
+  results: WebSearchResult[]
+}
+
+export type WebSearchResult = {
+  title: string
+  content: string
+  url: string
+}
+
+export type KnowledgeReference = {
+  id: number
+  content: string
+  sourceUrl: string
+  type: KnowledgeItemType
+  file?: FileType
+}
+
+export type MCPArgType = 'string' | 'list' | 'number'
+export type MCPEnvType = 'string' | 'number'
+export type MCPArgParameter = { [key: string]: MCPArgType }
+export type MCPEnvParameter = { [key: string]: MCPEnvType }
+
+export interface MCPServerParameter {
+  name: string
+  type: MCPArgType | MCPEnvType
+  description: string
+}
+
+export interface MCPConfigSample {
+  command: string
+  args: string[]
+  env?: Record<string, string> | undefined
+}
+
+export interface MCPServer {
+  id: string
+  name: string
+  type?: 'stdio' | 'sse' | 'inMemory' | 'streamableHttp'
+  description?: string
+  baseUrl?: string
+  command?: string
+  registryUrl?: string
+  args?: string[]
+  env?: Record<string, string>
+  isActive: boolean
+  disabledTools?: string[] // List of tool names that are disabled for this server
+  configSample?: MCPConfigSample
+  headers?: Record<string, string> // Custom headers to be sent with requests to this server
+}
+
+export interface MCPToolInputSchema {
+  type: string
+  title: string
+  description?: string
+  required?: string[]
+  properties: Record<string, object>
+}
+
+export interface MCPTool {
+  id: string
+  serverId: string
+  serverName: string
+  name: string
+  description?: string
+  inputSchema: MCPToolInputSchema
+}
+
+export interface MCPPromptArguments {
+  name: string
+  description?: string
+  required?: boolean
+}
+
+export interface MCPPrompt {
+  id: string
+  name: string
+  description?: string
+  arguments?: MCPPromptArguments[]
+  serverId: string
+  serverName: string
+}
+
+export interface GetMCPPromptResponse {
+  description?: string
+  messages: {
+    role: string
+    content: {
+      type: 'text' | 'image' | 'audio' | 'resource'
+      text?: string
+      data?: string
+      mimeType?: string
+    }
+  }[]
+}
+
+export interface MCPConfig {
+  servers: MCPServer[]
+}
+
+export interface MCPToolResponse {
+  id: string // tool call id, it should be unique
+  tool: MCPTool // tool info
+  status: string // 'invoking' | 'done'
+  response?: any
+}
+
+export interface MCPToolResultContent {
+  type: 'text' | 'image' | 'audio' | 'resource'
+  text?: string
+  data?: string
+  mimeType?: string
+  resource?: {
+    uri?: string
+    text?: string
+    mimeType?: string
+  }
+}
+
+export interface MCPCallToolResponse {
+  content: MCPToolResultContent[]
+  isError?: boolean
+}
+
+export interface MCPResource {
+  serverId: string
+  serverName: string
+  uri: string
+  name: string
+  description?: string
+  mimeType?: string
+  size?: number
+  text?: string
+  blob?: string
+}
+
+export interface GetResourceResponse {
+  contents: MCPResource[]
+}
+
+export interface QuickPhrase {
+  id: string
+  title: string
+  content: string
+  createdAt: number
+  updatedAt: number
+  order?: number
+}

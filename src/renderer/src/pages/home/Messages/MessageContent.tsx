@@ -1,18 +1,25 @@
-import { InfoCircleOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import { SyncOutlined, TranslationOutlined } from '@ant-design/icons'
+import { isOpenAIWebSearch } from '@renderer/config/models'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
 import { withMessageThought } from '@renderer/utils/formats'
 import { Divider, Flex } from 'antd'
+import { clone } from 'lodash'
+import { Search } from 'lucide-react'
 import React, { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import BarLoader from 'react-spinners/BarLoader'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import Markdown from '../Markdown/Markdown'
+import CitationsList from './CitationsList'
 import MessageAttachments from './MessageAttachments'
 import MessageError from './MessageError'
-import MessageSearchResults from './MessageSearchResults'
+import MessageImage from './MessageImage'
 import MessageThought from './MessageThought'
+import MessageTools from './MessageTools'
 
 interface Props {
   message: Message
@@ -21,47 +28,195 @@ interface Props {
 
 const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const { t } = useTranslation()
-  const message = withMessageThought(_message)
+  const message = withMessageThought(clone(_message))
+  const isWebCitation = model && (isOpenAIWebSearch(model) || model.provider === 'openrouter')
 
-  // Process content to make citation numbers clickable
-  const processedContent = useMemo(() => {
-    if (!message.content || !message.metadata?.citations) return message.content
-
-    let content = message.content
-    const citations = message.metadata.citations
-
-    // Convert [n] format to superscript numbers and make them clickable
-    content = content.replace(/\[(\d+)\]/g, (match, num) => {
-      const index = parseInt(num) - 1
-      if (index >= 0 && index < citations.length) {
-        // Use <sup> tag for superscript and make it a link
-        return `[<sup>${num}</sup>](${citations[index]})`
+  // HTML实体编码辅助函数
+  const encodeHTML = (str: string) => {
+    return str.replace(/[&<>"']/g, (match) => {
+      const entities: { [key: string]: string } = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&apos;'
       }
-      return match
+      return entities[match]
     })
-
-    return content
-  }, [message.content, message.metadata?.citations])
+  }
 
   // Format citations for display
   const formattedCitations = useMemo(() => {
-    if (!message.metadata?.citations?.length) return null
+    if (!message.metadata?.citations?.length && !message.metadata?.annotations?.length) return null
 
-    return message.metadata.citations.map((url, index) => {
-      try {
-        const hostname = new URL(url).hostname
-        return { number: index + 1, url, hostname }
-      } catch {
-        return { number: index + 1, url, hostname: url }
+    let citations: any[] = []
+
+    if (model && isOpenAIWebSearch(model)) {
+      citations =
+        message.metadata.annotations?.map((url, index) => {
+          return { number: index + 1, url: url.url_citation?.url, hostname: url.url_citation.title }
+        }) || []
+    } else {
+      citations =
+        message.metadata?.citations?.map((url, index) => {
+          try {
+            const hostname = new URL(url).hostname
+            return { number: index + 1, url, hostname }
+          } catch {
+            return { number: index + 1, url, hostname: url }
+          }
+        }) || []
+    }
+
+    // Deduplicate by URL
+    const urlSet = new Set()
+    return citations
+      .filter((citation) => {
+        if (!citation.url || urlSet.has(citation.url)) return false
+        urlSet.add(citation.url)
+        return true
+      })
+      .map((citation, index) => ({
+        ...citation,
+        number: index + 1 // Renumber citations sequentially after deduplication
+      }))
+  }, [message.metadata?.citations, message.metadata?.annotations, model])
+
+  // 判断是否有引用内容
+  const hasCitations = useMemo(() => {
+    return !!(
+      (formattedCitations && formattedCitations.length > 0) ||
+      (message?.metadata?.webSearch && message.status === 'success') ||
+      (message?.metadata?.webSearchInfo && message.status === 'success') ||
+      (message?.metadata?.groundingMetadata && message.status === 'success') ||
+      (message?.metadata?.knowledge && message.status === 'success')
+    )
+  }, [formattedCitations, message])
+
+  // 获取引用数据
+  const citationsData = useMemo(() => {
+    const searchResults =
+      message?.metadata?.webSearch?.results ||
+      message?.metadata?.webSearchInfo ||
+      message?.metadata?.groundingMetadata?.groundingChunks?.map((chunk) => chunk?.web) ||
+      message?.metadata?.annotations?.map((annotation) => annotation.url_citation) ||
+      []
+    const citationsUrls = formattedCitations || []
+
+    // 合并引用数据
+    const data = new Map()
+
+    // 添加webSearch结果
+    searchResults.forEach((result) => {
+      data.set(result.url || result.uri || result.link, {
+        url: result.url || result.uri || result.link,
+        title: result.title || result.hostname,
+        content: result.content
+      })
+    })
+
+    // 添加knowledge结果
+    const knowledgeResults = message.metadata?.knowledge
+    knowledgeResults?.forEach((result) => {
+      data.set(result.sourceUrl, {
+        url: result.sourceUrl,
+        title: result.id,
+        content: result.content
+      })
+    })
+
+    // 添加citations
+    citationsUrls.forEach((result) => {
+      if (!data.has(result.url)) {
+        data.set(result.url, {
+          url: result.url,
+          title: result.title || result.hostname || undefined,
+          content: result.content || undefined
+        })
       }
     })
-  }, [message.metadata?.citations])
+
+    return data
+  }, [
+    formattedCitations,
+    message.metadata?.annotations,
+    message.metadata?.groundingMetadata?.groundingChunks,
+    message.metadata?.knowledge,
+    message.metadata?.webSearch?.results,
+    message.metadata?.webSearchInfo
+  ])
+
+  // Process content to make citation numbers clickable
+  const processedContent = useMemo(() => {
+    if (
+      !(
+        message.metadata?.citations ||
+        message.metadata?.webSearch ||
+        message.metadata?.webSearchInfo ||
+        message.metadata?.annotations ||
+        message.metadata?.knowledge
+      )
+    ) {
+      return message.content
+    }
+
+    let content = message.content
+
+    const websearchResultsCitations = message?.metadata?.webSearch?.results?.map((result) => result.url) || []
+    const knowledgeResultsCitations = message?.metadata?.knowledge?.map((result) => result.sourceUrl) || []
+
+    const searchResultsCitations = [...websearchResultsCitations, ...knowledgeResultsCitations]
+
+    const citations = message?.metadata?.citations || searchResultsCitations
+
+    // Convert [n] format to superscript numbers and make them clickable
+    // Use <sup> tag for superscript and make it a link with citation data
+    if (message.metadata?.webSearch || message.metadata?.knowledge) {
+      content = content.replace(/\[\[(\d+)\]\]|\[(\d+)\]/g, (match, num1, num2) => {
+        const num = num1 || num2
+        const index = parseInt(num) - 1
+        if (index >= 0 && index < citations.length) {
+          const link = citations[index]
+          const isWebLink = link && (link.startsWith('http://') || link.startsWith('https://'))
+          const citationData = link ? encodeHTML(JSON.stringify(citationsData.get(link) || { url: link })) : null
+          return link && isWebLink
+            ? `[<sup data-citation='${citationData}'>${num}</sup>](${link})`
+            : `<sup>${num}</sup>`
+        }
+        return match
+      })
+    } else {
+      content = content.replace(/\[<sup>(\d+)<\/sup>\]\(([^)]+)\)/g, (_, num, url) => {
+        const citationData = url ? encodeHTML(JSON.stringify(citationsData.get(url) || { url })) : null
+        return `[<sup data-citation='${citationData}'>${num}</sup>](${url})`
+      })
+    }
+    return content
+  }, [
+    message.metadata?.citations,
+    message.metadata?.webSearch,
+    message.metadata?.knowledge,
+    message.metadata?.webSearchInfo,
+    message.metadata?.annotations,
+    message.content,
+    citationsData
+  ])
 
   if (message.status === 'sending') {
     return (
       <MessageContentLoading>
         <SyncOutlined spin size={24} />
       </MessageContentLoading>
+    )
+  }
+
+  if (message.status === 'searching') {
+    return (
+      <SearchingContainer>
+        <Search size={24} />
+        <SearchingText>{t('message.searching')}</SearchingText>
+        <BarLoader color="#1677ff" />
+      </SearchingContainer>
     )
   }
 
@@ -73,27 +228,16 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
     const content = `[@${model.name}](#)  ${getBriefInfo(message.content)}`
     return <Markdown message={{ ...message, content }} />
   }
-
+  const toolUseRegex = /<tool_use>([\s\S]*?)<\/tool_use>/g
   return (
     <Fragment>
       <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
-        {message.mentions?.map((model) => <MentionTag key={model.id}>{'@' + model.name}</MentionTag>)}
+        {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
       </Flex>
       <MessageThought message={message} />
-      <Markdown message={{ ...message, content: processedContent }} />
-      {formattedCitations && (
-        <CitationsContainer>
-          <CitationsTitle>
-            {t('message.citations')}
-            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-          </CitationsTitle>
-          {formattedCitations.map(({ number, url, hostname }) => (
-            <CitationLink key={number} href={url} target="_blank" rel="noopener noreferrer">
-              {number}. <span className="hostname">{hostname}</span>
-            </CitationLink>
-          ))}
-        </CitationsContainer>
-      )}
+      <MessageTools message={message} />
+      <Markdown message={{ ...message, content: processedContent.replace(toolUseRegex, '') }} />
+      {message.metadata?.generateImage && <MessageImage message={message} />}
       {message.translatedContent && (
         <Fragment>
           <Divider style={{ margin: 0, marginBottom: 10 }}>
@@ -106,8 +250,75 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
           )}
         </Fragment>
       )}
+      {hasCitations && (
+        <>
+          {message?.metadata?.groundingMetadata && message.status === 'success' && (
+            <>
+              <CitationsList
+                citations={
+                  message.metadata.groundingMetadata?.groundingChunks?.map((chunk, index) => ({
+                    number: index + 1,
+                    url: chunk?.web?.uri || '',
+                    title: chunk?.web?.title,
+                    showFavicon: false
+                  })) || []
+                }
+              />
+              <SearchEntryPoint
+                dangerouslySetInnerHTML={{
+                  __html: message.metadata.groundingMetadata?.searchEntryPoint?.renderedContent
+                    ? message.metadata.groundingMetadata.searchEntryPoint.renderedContent
+                        .replace(/@media \(prefers-color-scheme: light\)/g, 'body[theme-mode="light"]')
+                        .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]')
+                    : ''
+                }}
+              />
+            </>
+          )}
+          {formattedCitations && (
+            <CitationsList
+              citations={formattedCitations.map((citation) => ({
+                number: citation.number,
+                url: citation.url,
+                hostname: citation.hostname,
+                showFavicon: isWebCitation
+              }))}
+            />
+          )}
+          {(message?.metadata?.webSearch || message.metadata?.knowledge) && message.status === 'success' && (
+            <CitationsList
+              citations={[
+                ...(message.metadata.webSearch?.results.map((result, index) => ({
+                  number: index + 1,
+                  url: result.url,
+                  title: result.title,
+                  showFavicon: true,
+                  type: 'websearch'
+                })) || []),
+                ...(message.metadata.knowledge?.map((result, index) => ({
+                  number: (message.metadata?.webSearch?.results?.length || 0) + index + 1,
+                  url: result.sourceUrl,
+                  title: result.sourceUrl,
+                  showFavicon: true,
+                  type: 'knowledge'
+                })) || [])
+              ]}
+            />
+          )}
+          {message?.metadata?.webSearchInfo && message.status === 'success' && (
+            <CitationsList
+              citations={message.metadata.webSearchInfo.map((result, index) => ({
+                number: index + 1,
+                url: result.link || result.url,
+                title: result.title,
+                showFavicon: true
+              }))}
+            />
+          )}
+        </>
+      )}
+
       <MessageAttachments message={message} />
-      <MessageSearchResults message={message} />
     </Fragment>
   )
 }
@@ -121,43 +332,30 @@ const MessageContentLoading = styled.div`
   margin-bottom: 5px;
 `
 
+const SearchingContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  background-color: var(--color-background-mute);
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  gap: 10px;
+`
+
 const MentionTag = styled.span`
   color: var(--color-link);
 `
 
-const CitationsContainer = styled.div`
-  background-color: rgb(242, 247, 253);
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin: 12px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
-  body[theme-mode='dark'] & {
-    background-color: rgba(255, 255, 255, 0.05);
-  }
-`
-
-const CitationsTitle = styled.div`
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--color-text-1);
-`
-
-const CitationLink = styled.a`
+const SearchingText = styled.div`
   font-size: 14px;
   line-height: 1.6;
   text-decoration: none;
   color: var(--color-text-1);
+`
 
-  .hostname {
-    color: var(--color-link);
-  }
-
-  &:hover {
-    text-decoration: underline;
-  }
+const SearchEntryPoint = styled.div`
+  margin: 10px 2px;
 `
 
 export default React.memo(MessageContent)

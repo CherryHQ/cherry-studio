@@ -33,6 +33,10 @@ async function downloadNpm(platform) {
       '@libsql/win32-x64-msvc',
       'https://registry.npmjs.org/@libsql/win32-x64-msvc/-/win32-x64-msvc-0.4.7.tgz'
     )
+    downloadNpmPackage(
+      '@strongtz/win32-arm64-msvc',
+      'https://registry.npmjs.org/@strongtz/win32-arm64-msvc/-/win32-arm64-msvc-0.4.7.tgz'
+    )
   }
 }
 

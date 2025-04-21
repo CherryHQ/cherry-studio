@@ -1,5 +1,14 @@
 appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
+electronLanguages:
+  - zh-CN
+  - zh-TW
+  - en-US
+  - ja # macOS/linux/win
+  - ru # macOS/linux/win
+  - zh_CN # for macOS
+  - zh_TW # for macOS
+  - en # for macOS
 directories:
   buildResources: build
 files:
@@ -24,26 +33,29 @@ files:
   - '!**/{LICENSE,LICENSE.txt,LICENSE-MIT.txt,*.LICENSE.txt,NOTICE.txt,README.md,CHANGELOG.md}'
   - '!node_modules/rollup-plugin-visualizer'
   - '!node_modules/js-tiktoken'
+  - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
-  - '!node_modules/html2canvas/dist/{html2canvas.min.js,html2canvas.esm.js}'
 asarUnpack:
   - resources/**
-  - '**/*.{node,dll,metal,exp,lib}'
+  - '**/*.{metal,exp,lib}'
 win:
   executableName: Cherry Studio
-  artifactName: ${productName}-${version}-portable.${ext}
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
     - target: portable
 nsis:
-  artifactName: ${productName}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
   allowToChangeInstallationDirectory: true
   oneClick: false
   include: build/nsis-installer.nsh
+  buildUniversalInstaller: false
+portable:
+  artifactName: ${productName}-${version}-${arch}-portable.${ext}
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
@@ -55,36 +67,23 @@ mac:
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   target:
     - target: dmg
-      arch:
-        - arm64
-        - x64
     - target: zip
-      arch:
-        - arm64
-        - x64
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   target:
     - target: AppImage
-      arch:
-        - arm64
-        - x64
   maintainer: electronjs.org
   category: Utility
 publish:
   provider: generic
-  url: https://cherrystudio.ocool.online
+  url: https://releases.cherry-ai.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
+artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    增加服务商 LM Studio、魔搭、Perplexity、无问芯穹、DMXAPI
-    提及功能支持上下按键循环选择模型
-    小程序增加小艺
-    增加Notion连接检测功能
-    编辑模型弹窗搜索模型时，同时搜索模型的名字和ID
-    编辑模型弹窗增加推理模型筛选按钮
-    修复思考模型思考时间显示错误
-    修复部分模型翻译出错
+    全新图标风格
+    新的智能体界面
+    WebDAV 增加文件管理功能

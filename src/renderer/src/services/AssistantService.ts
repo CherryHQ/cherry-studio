@@ -12,6 +12,7 @@ export function getDefaultAssistant(): Assistant {
   return {
     id: 'default',
     name: i18n.t('chat.default.name'),
+    emoji: '😀',
     prompt: '',
     topics: [getDefaultTopic('default')],
     messages: [],
@@ -30,8 +31,8 @@ export function getDefaultTranslateAssistant(targetLanguage: string, text: strin
 
   assistant.prompt = store
     .getState()
-    .settings.translateModelPrompt.replace('{{target_language}}', targetLanguage)
-    .replace('{{text}}', text)
+    .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage)
+    .replaceAll('{{text}}', text)
   return assistant
 }
 
@@ -46,7 +47,8 @@ export function getDefaultTopic(assistantId: string): Topic {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     name: i18n.t('chat.default.topic.name'),
-    messages: []
+    messages: [],
+    isNameManuallyEdited: false
   }
 }
 
@@ -110,10 +112,6 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   }
 }
 
-export function getAssistantNameWithAgent(agent: Agent) {
-  return agent.emoji ? agent.emoji + ' ' + agent.name : agent.name
-}
-
 export function getAssistantById(id: string) {
   const assistants = store.getState().assistants.assistants
   return assistants.find((a) => a.id === id)
@@ -139,8 +137,11 @@ export async function addAssistantMessagesToTopic({ assistant, topic }: { assist
     message.usage = await estimateMessageUsage(message)
     messages.push(message)
   }
-
-  db.topics.put({ id: topic.id, messages }, topic.id)
+  if (await db.topics.get(topic.id)) {
+    await db.topics.update(topic.id, { messages })
+  } else {
+    await db.topics.add({ id: topic.id, messages })
+  }
 
   return messages
 }
@@ -152,7 +153,8 @@ export async function createAssistantFromAgent(agent: Agent) {
   const assistant: Assistant = {
     ...agent,
     id: assistantId,
-    name: agent.emoji ? agent.emoji + ' ' + agent.name : agent.name,
+    name: agent.name,
+    emoji: agent.emoji,
     topics: [topic],
     model: agent.defaultModel,
     type: 'assistant'

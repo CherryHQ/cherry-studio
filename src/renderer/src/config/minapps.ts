@@ -1,9 +1,14 @@
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
-import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
+import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
+import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
+import CiciAppLogo from '@renderer/assets/images/apps/cici.webp?url'
+import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
+import DangbeiLogo from '@renderer/assets/images/apps/dangbei.jpg?url'
 import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
+import DifyAppLogo from '@renderer/assets/images/apps/dify.svg?url'
 import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png?url'
 import DuckDuckGoAppLogo from '@renderer/assets/images/apps/duckduckgo.webp?url'
 import FeloAppLogo from '@renderer/assets/images/apps/felo.png?url'
@@ -14,25 +19,30 @@ import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?
 import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
-import KimiAppLogo from '@renderer/assets/images/apps/kimi.jpg?url'
+import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
+import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
+import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
+import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
 import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
+import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
 import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png?url'
 import QwenlmAppLogo from '@renderer/assets/images/apps/qwenlm.webp?url'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png?url'
-import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.png?url'
+import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.webp?url'
 import ThinkAnyLogo from '@renderer/assets/images/apps/thinkany.webp?url'
 import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
+import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webp?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
-import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.png?url'
-import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
+import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
+import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
+import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
-import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png?url'
@@ -40,9 +50,7 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
-import MinApp from '@renderer/components/MinApp'
 import { MinAppType } from '@renderer/types'
-
 export const DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'openai',
@@ -114,6 +122,12 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: DoubaoAppLogo
   },
   {
+    id: 'cici',
+    name: 'Cici',
+    url: 'https://www.cici.com/chat/',
+    logo: CiciAppLogo
+  },
+  {
     id: 'minimax',
     name: '海螺',
     url: 'https://hailuoai.com/',
@@ -136,6 +150,16 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: '文心一言',
     logo: BaiduAiAppLogo,
     url: 'https://yiyan.baidu.com/'
+  },
+  {
+    id: 'baidu-ai-search',
+    name: '百度AI搜索',
+    logo: BaiduAiSearchLogo,
+    url: 'https://chat.baidu.com/',
+    bodered: true,
+    style: {
+      padding: 5
+    }
   },
   {
     id: 'tencent-yuanbao',
@@ -171,7 +195,7 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'perplexity',
-    name: 'perplexity',
+    name: 'Perplexity',
     logo: PerplexityAppLogo,
     url: 'https://www.perplexity.ai/'
   },
@@ -186,13 +210,6 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: '天工AI',
     logo: TiangongAiLogo,
     url: 'https://www.tiangong.cn/',
-    bodered: true
-  },
-  {
-    id: 'zhihu-zhiada',
-    name: '知乎直答',
-    logo: ZhihuAppLogo,
-    url: 'https://zhida.zhihu.com/',
     bodered: true
   },
   {
@@ -241,7 +258,10 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'ThinkAny',
     logo: ThinkAnyLogo,
     url: 'https://thinkany.ai/',
-    bodered: true
+    bodered: true,
+    style: {
+      padding: 5
+    }
   },
   {
     id: 'hika',
@@ -290,12 +310,6 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: false
   },
   {
-    id: 'aistudio',
-    name: 'AI Studio',
-    logo: AIStudioLogo,
-    url: 'https://aistudio.google.com/'
-  },
-  {
     id: 'xiaoyi',
     name: '小艺',
     logo: XiaoYiAppLogo,
@@ -306,7 +320,7 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'notebooklm',
     name: 'NotebookLM',
     logo: NotebookLMAppLogo,
-    url: 'https://notebooklm.google.com/',
+    url: 'https://notebooklm.google.com/'
   },
   {
     id: 'coze',
@@ -314,10 +328,80 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: CozeAppLogo,
     url: 'https://www.coze.com/space',
     bodered: true
+  },
+  {
+    id: 'dify',
+    name: 'Dify',
+    logo: DifyAppLogo,
+    url: 'https://cloud.dify.ai/apps',
+    bodered: true,
+    style: {
+      padding: 5
+    }
+  },
+  {
+    id: 'wpslingxi',
+    name: 'WPS灵犀',
+    logo: WPSLingXiLogo,
+    url: 'https://copilot.wps.cn/',
+    bodered: true
+  },
+  {
+    id: 'lechat',
+    name: 'LeChat',
+    logo: LeChatLogo,
+    url: 'https://chat.mistral.ai/chat',
+    bodered: true
+  },
+  {
+    id: 'abacus',
+    name: 'Abacus',
+    logo: AbacusLogo,
+    url: 'https://apps.abacus.ai/chatllm',
+    bodered: true
+  },
+  {
+    id: 'lambdachat',
+    name: 'Lambda Chat',
+    logo: LambdaChatLogo,
+    url: 'https://lambda.chat/',
+    bodered: true
+  },
+  {
+    id: 'monica',
+    name: 'Monica',
+    logo: MonicaLogo,
+    url: 'https://monica.im/home/',
+    bodered: true
+  },
+  {
+    id: 'you',
+    name: 'You',
+    logo: YouLogo,
+    url: 'https://you.com/'
+  },
+  {
+    id: 'zhihu',
+    name: '知乎直答',
+    logo: ZhihuAppLogo,
+    url: 'https://zhida.zhihu.com/',
+    bodered: true
+  },
+  {
+    id: 'dangbei',
+    name: '当贝AI',
+    logo: DangbeiLogo,
+    url: 'https://ai.dangbei.com/',
+    bodered: true
+  },
+  {
+    id: `zai`,
+    name: `Z.ai`,
+    logo: ZaiAppLogo,
+    url: `https://chat.z.ai/`,
+    bodered: true,
+    style: {
+      padding: 10
+    }
   }
 ]
-
-export function startMinAppById(id: string) {
-  const app = DEFAULT_MIN_APPS.find((app) => app?.id === id)
-  app && MinApp.start(app)
-}

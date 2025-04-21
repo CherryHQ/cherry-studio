@@ -51,6 +51,46 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
     }
   }
 
+  const handleCopyImage = async () => {
+    try {
+      const element = document.getElementById(mermaidId)
+      if (!element) return
+
+      const svgElement = element.querySelector('svg')
+      if (!svgElement) return
+
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+
+      const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
+      const width = viewBox[2] || svgElement.clientWidth || svgElement.getBoundingClientRect().width
+      const height = viewBox[3] || svgElement.clientHeight || svgElement.getBoundingClientRect().height
+
+      const svgData = new XMLSerializer().serializeToString(svgElement)
+      const svgBase64 = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`
+
+      img.onload = async () => {
+        const scale = 3
+        canvas.width = width * scale
+        canvas.height = height * scale
+
+        if (ctx) {
+          ctx.scale(scale, scale)
+          ctx.drawImage(img, 0, 0, width, height)
+          const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'))
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+          window.message.success(t('message.copy.success'))
+        }
+      }
+      img.src = svgBase64
+    } catch (error) {
+      console.error('Copy failed:', error)
+      window.message.error(t('message.copy.failed'))
+    }
+  }
+
   const handleDownload = async (format: 'svg' | 'png') => {
     try {
       const element = document.getElementById(mermaidId)
@@ -132,6 +172,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
             <>
               <Button onClick={() => handleZoom(0.1)}>{t('mermaid.resize.zoom-in')}</Button>
               <Button onClick={() => handleZoom(-0.1)}>{t('mermaid.resize.zoom-out')}</Button>
+              <Button onClick={() => handleCopyImage()}>{t('common.copy')}</Button>
               <Button onClick={() => handleDownload('svg')}>{t('mermaid.download.svg')}</Button>
               <Button onClick={() => handleDownload('png')}>{t('mermaid.download.png')}</Button>
             </>

@@ -1,6 +1,6 @@
-name: ❓ 提问
-description: 提出一个问题或寻求帮助
-title: '[问题]: '
+name: ❓ 讨论 & 提问 (中文)
+description: 寻求帮助、讨论问题、提出疑问等...
+title: '[讨论]: '
 labels: ['question']
 body:
   - type: markdown
@@ -15,9 +15,9 @@ body:
       description: |
         在提交 Issue 前请确保您已经完成了以下所有步骤
       options:
-        - label: 我已经查看了置顶 Issue 并搜索了现有的 Issue，但没有找到类似的问题。
+        - label: 我理解 Issue 是用于反馈和解决问题的，而非吐槽评论区，将尽可能提供更多信息帮助问题解决。
           required: true
-        - label: 正确填写了 Issue 标题。
+        - label: 我确认自己需要的是提出问题并且讨论问题，而不是 Bug 反馈或需求建议。
           required: true
 
   - type: dropdown

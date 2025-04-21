@@ -31,6 +31,11 @@ const PaintingsList: FC<PaintingsListProps> = ({
 
   return (
     <Container style={{ paddingBottom: dragging ? 80 : 10 }}>
+      {!dragging && (
+        <NewPaintingButton onClick={onNewPainting}>
+          <PlusOutlined />
+        </NewPaintingButton>
+      )}
       <DragableList
         list={paintings}
         onUpdate={updatePaintings}
@@ -55,11 +60,6 @@ const PaintingsList: FC<PaintingsListProps> = ({
           </CanvasWrapper>
         )}
       </DragableList>
-      {!dragging && (
-        <NewPaintingButton onClick={onNewPainting}>
-          <PlusOutlined />
-        </NewPaintingButton>
-      )}
     </Container>
   )
 }
@@ -134,7 +134,6 @@ const NewPaintingButton = styled.div`
   width: 80px;
   height: 80px;
   min-height: 80px;
-  margin-top: -10px;
   background-color: var(--color-background-soft);
   cursor: pointer;
   transition: background-color 0.2s ease;

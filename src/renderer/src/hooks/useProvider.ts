@@ -5,6 +5,7 @@ import {
   addProvider,
   removeModel,
   removeProvider,
+  updateModel,
   updateProvider,
   updateProviders
 } from '@renderer/store/llm'
@@ -51,7 +52,8 @@ export function useProvider(id: string) {
     models: provider?.models || [],
     updateProvider: (provider: Provider) => dispatch(updateProvider(provider)),
     addModel: (model: Model) => dispatch(addModel({ providerId: id, model })),
-    removeModel: (model: Model) => dispatch(removeModel({ providerId: id, model }))
+    removeModel: (model: Model) => dispatch(removeModel({ providerId: id, model })),
+    updateModel: (model: Model) => dispatch(updateModel({ providerId: id, model }))
   }
 }
 

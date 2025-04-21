@@ -1,6 +1,6 @@
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { KnowledgeBase, ProcessingStatus } from '@renderer/types'
-import { Tooltip } from 'antd'
+import { Progress, Tooltip } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -9,11 +9,14 @@ interface StatusIconProps {
   sourceId: string
   base: KnowledgeBase
   getProcessingStatus: (sourceId: string) => ProcessingStatus | undefined
+  getProcessingPercent?: (sourceId: string) => number | undefined
+  type: string
 }
 
-const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus }) => {
+const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus, getProcessingPercent, type }) => {
   const { t } = useTranslation()
   const status = getProcessingStatus(sourceId)
+  const percent = getProcessingPercent?.(sourceId)
   const item = base.items.find((item) => item.id === sourceId)
   const errorText = item?.processingError
 
@@ -39,12 +42,16 @@ const StatusIcon: FC<StatusIconProps> = ({ sourceId, base, getProcessingStatus }
           <StatusDot $status="pending" />
         </Tooltip>
       )
-    case 'processing':
-      return (
+
+    case 'processing': {
+      return type === 'directory' ? (
+        <Progress type="circle" size={14} percent={Number(percent?.toFixed(0))} />
+      ) : (
         <Tooltip title={t('knowledge.status_processing')} placement="left">
           <StatusDot $status="processing" />
         </Tooltip>
       )
+    }
     case 'completed':
       return (
         <Tooltip title={t('knowledge.status_completed')} placement="left">

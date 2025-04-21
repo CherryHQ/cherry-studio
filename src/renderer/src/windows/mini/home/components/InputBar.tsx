@@ -1,7 +1,8 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { Input as AntdInput } from 'antd'
-import { FC } from 'react'
+import { InputRef } from 'rc-input/lib/interface'
+import React, { useRef } from 'react'
 import styled from 'styled-components'
 
 interface InputBarProps {
@@ -10,26 +11,39 @@ interface InputBarProps {
   referenceText: string
   placeholder: string
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
-  setText: (text: string) => void
+  handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }
 
-const InputBar: FC<InputBarProps> = ({ text, model, placeholder, handleKeyDown, setText }) => {
+const InputBar = ({
+  ref,
+  text,
+  model,
+  placeholder,
+  handleKeyDown,
+  handleChange
+}: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const { generating } = useRuntime()
+  const inputRef = useRef<InputRef>(null)
+  if (!generating) {
+    setTimeout(() => inputRef.current?.input?.focus(), 0)
+  }
   return (
-    <InputWrapper>
+    <InputWrapper ref={ref}>
       <ModelAvatar model={model} size={30} />
       <Input
         value={text}
         placeholder={placeholder}
-        bordered={false}
+        variant="borderless"
         autoFocus
         onKeyDown={handleKeyDown}
-        onChange={(e) => setText(e.target.value)}
+        onChange={handleChange}
         disabled={generating}
+        ref={inputRef}
       />
     </InputWrapper>
   )
 }
+InputBar.displayName = 'InputBar'
 
 const InputWrapper = styled.div`
   display: flex;

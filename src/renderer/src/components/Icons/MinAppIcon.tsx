@@ -24,6 +24,7 @@ const MinAppIcon: FC<Props> = ({ app, size = 48, style }) => {
         width: `${size}px`,
         height: `${size}px`,
         backgroundColor: _app.background,
+        ...app.style,
         ...style
       }}
     />

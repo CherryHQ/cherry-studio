@@ -2,13 +2,14 @@ import { isMac } from '@renderer/config/constant'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { EVENT_NAMES } from '@renderer/services/EventService'
-import { EventEmitter } from '@renderer/services/EventService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { uuid } from '@renderer/utils'
+import { defaultLanguage } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
-import { FC, useCallback, useEffect, useState } from 'react'
+import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -16,57 +17,128 @@ import styled from 'styled-components'
 import ChatWindow from '../chat/ChatWindow'
 import TranslateWindow from '../translate/TranslateWindow'
 import ClipboardPreview from './components/ClipboardPreview'
-import FeatureMenus from './components/FeatureMenus'
+import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
 
 const HomeWindow: FC = () => {
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
+  const [isFirstMessage, setIsFirstMessage] = useState(true)
   const [clipboardText, setClipboardText] = useState('')
   const [selectedText, setSelectedText] = useState('')
   const [text, setText] = useState('')
+  const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
+  const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const { defaultModel: model } = useDefaultModel()
-  const { language } = useSettings()
+  const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
+  const inputBarRef = useRef<HTMLDivElement>(null)
+  const featureMenusRef = useRef<FeatureMenusRef>(null)
 
   const referenceText = selectedText || clipboardText || text
 
-  const content = (referenceText === text ? text : `${referenceText}\n\n${text}`).trim()
+  const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
-  const onReadClipboard = useCallback(async () => {
-    const text = await navigator.clipboard.readText()
-    setClipboardText(text.trim())
-  }, [])
+  const readClipboard = useCallback(async () => {
+    if (!readClipboardAtStartup) return
+
+    const text = await navigator.clipboard.readText().catch(() => null)
+    if (text && text !== lastClipboardText) {
+      setLastClipboardText(text)
+      setClipboardText(text.trim())
+    }
+  }, [readClipboardAtStartup, lastClipboardText])
+
+  const focusInput = () => {
+    if (inputBarRef.current) {
+      const input = inputBarRef.current.querySelector('input')
+      if (input) {
+        input.focus()
+      }
+    }
+  }
+
+  const onWindowShow = useCallback(async () => {
+    featureMenusRef.current?.resetSelectedIndex()
+    readClipboard().then()
+    focusInput()
+  }, [readClipboard])
 
   useEffect(() => {
-    onReadClipboard()
-  }, [onReadClipboard])
+    readClipboard()
+  }, [readClipboard])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || 'en-US')
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   const onCloseWindow = () => window.api.miniWindow.hide()
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const isEnterPressed = e.keyCode == 13
-
-    if (e.key === 'Escape') {
-      setText('')
-      setRoute('home')
-      route === 'home' && onCloseWindow()
+    // 使用非直接输入法时（例如中文、日文输入法），存在输入法键入过程
+    // 键入过程不应有任何响应
+    // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
+    // 输入法可以`Esc`终止候选词过程
+    // 这两个例子的`Enter`和`Esc`快捷助手都不应该响应
+    if (e.key === 'Process') {
       return
     }
 
-    if (isEnterPressed) {
-      e.preventDefault()
-      if (content) {
-        setRoute('chat')
-        onSendMessage()
-        setTimeout(() => setText(''), 100)
-      }
+    switch (e.code) {
+      case 'Enter':
+      case 'NumpadEnter':
+        {
+          e.preventDefault()
+          if (content) {
+            if (route === 'home') {
+              featureMenusRef.current?.useFeature()
+            } else {
+              // 目前文本框只在'chat'时可以继续输入，这里相当于 route === 'chat'
+              setRoute('chat')
+              onSendMessage().then()
+              focusInput()
+            }
+          }
+        }
+        break
+      case 'Backspace':
+        {
+          textChange(() => {
+            if (text.length === 0) {
+              clearClipboard()
+            }
+          })
+        }
+        break
+      case 'ArrowUp':
+        {
+          if (route === 'home') {
+            e.preventDefault()
+            featureMenusRef.current?.prevFeature()
+          }
+        }
+        break
+      case 'ArrowDown':
+        {
+          if (route === 'home') {
+            e.preventDefault()
+            featureMenusRef.current?.nextFeature()
+          }
+        }
+        break
+      case 'Escape':
+        {
+          setText('')
+          setRoute('home')
+          route === 'home' && onCloseWindow()
+        }
+        break
     }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setText(e.target.value)
   }
 
   const onSendMessage = useCallback(
@@ -87,6 +159,8 @@ const HomeWindow: FC = () => {
           status: 'success'
         }
         EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
+        setIsFirstMessage(false)
+        setText('') // ✅ 清除输入框内容
       }, 0)
     },
     [content, defaultAssistant.id, defaultAssistant.topics]
@@ -95,9 +169,10 @@ const HomeWindow: FC = () => {
   const clearClipboard = () => {
     setClipboardText('')
     setSelectedText('')
-    navigator.clipboard.writeText('')
+    focusInput()
   }
 
+  // If the input is focused, the `Esc` callback will not be triggered here.
   useHotkeys('esc', () => {
     if (route === 'home') {
       onCloseWindow()
@@ -108,22 +183,44 @@ const HomeWindow: FC = () => {
   })
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('show-mini-window', onReadClipboard)
-    window.electron.ipcRenderer.on('selection-action', (_, { action, selectedText }) => {
+    window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
+    window.electron.ipcRenderer.on(IpcChannel.SelectionAction, (_, { action, selectedText }) => {
       selectedText && setSelectedText(selectedText)
       action && setRoute(action)
       action === 'chat' && onSendMessage()
     })
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners('show-mini-window')
-      window.electron.ipcRenderer.removeAllListeners('selection-action')
+      window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
+      window.electron.ipcRenderer.removeAllListeners(IpcChannel.SelectionAction)
     }
-  }, [onReadClipboard, onSendMessage, setRoute])
+  }, [onWindowShow, onSendMessage, setRoute])
+
+  // 当路由为home时，初始化isFirstMessage为true
+  useEffect(() => {
+    if (route === 'home') {
+      setIsFirstMessage(true)
+    }
+  }, [route])
+
+  const backgroundColor = () => {
+    // ONLY MAC: when transparent style + light theme: use vibrancy effect
+    // because the dark style under mac's vibrancy effect has not been implemented
+    if (
+      isMac &&
+      windowStyle === 'transparent' &&
+      theme === 'light' &&
+      !window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
+      return 'transparent'
+    }
+
+    return 'var(--color-background)'
+  }
 
   if (['chat', 'summary', 'explanation'].includes(route)) {
     return (
-      <Container>
+      <Container style={{ backgroundColor: backgroundColor() }}>
         {route === 'chat' && (
           <>
             <InputBar
@@ -132,7 +229,8 @@ const HomeWindow: FC = () => {
               referenceText={referenceText}
               placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
               handleKeyDown={handleKeyDown}
-              setText={setText}
+              handleChange={handleChange}
+              ref={inputBarRef}
             />
             <Divider style={{ margin: '10px 0' }} />
           </>
@@ -151,7 +249,7 @@ const HomeWindow: FC = () => {
 
   if (route === 'translate') {
     return (
-      <Container>
+      <Container style={{ backgroundColor: backgroundColor() }}>
         <TranslateWindow text={referenceText} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
@@ -160,7 +258,7 @@ const HomeWindow: FC = () => {
   }
 
   return (
-    <Container>
+    <Container style={{ backgroundColor: backgroundColor() }}>
       <InputBar
         text={text}
         model={model}
@@ -171,16 +269,19 @@ const HomeWindow: FC = () => {
             : t('miniwindow.input.placeholder.empty', { model: model.name })
         }
         handleKeyDown={handleKeyDown}
-        setText={setText}
+        handleChange={handleChange}
+        ref={inputBarRef}
       />
       <Divider style={{ margin: '10px 0' }} />
       <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
       <Main>
-        <FeatureMenus setRoute={setRoute} onSendMessage={onSendMessage} text={content} />
+        <FeatureMenus setRoute={setRoute} onSendMessage={onSendMessage} text={content} ref={featureMenusRef} />
       </Main>
       <Divider style={{ margin: '10px 0' }} />
       <Footer
         route={route}
+        canUseBackspace={text.length > 0 || clipboardText.length == 0}
+        clearClipboard={clearClipboard}
         onExit={() => {
           setRoute('home')
           setText('')
@@ -195,14 +296,16 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   height: 100%;
+  width: 100%;
   flex-direction: column;
   -webkit-app-region: drag;
   padding: 8px 10px;
-  background-color: ${isMac ? 'transparent' : 'var(--color-background)'};
 `
 
 const Main = styled.main`
   display: flex;
+  flex-direction: column;
+
   flex: 1;
   overflow: hidden;
 `

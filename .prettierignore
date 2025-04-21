@@ -6,3 +6,4 @@ tsconfig.json
 tsconfig.*.json
 CHANGELOG*.md
 agents.json
+src/renderer/src/integration/nutstore/sso/lib
