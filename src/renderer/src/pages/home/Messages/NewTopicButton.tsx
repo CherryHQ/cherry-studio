@@ -4,6 +4,7 @@ import { EventEmitter } from '@renderer/services/EventService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import { ThemeMode } from '@renderer/types'
 import { Button as AntdButton } from 'antd'
+import { EyeOff } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -16,10 +17,17 @@ const NewTopicButton: FC = () => {
     EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
   }
 
+  const addTemporaryTopic = () => {
+    EventEmitter.emit(EVENT_NAMES.ADD_NEW_TEMPORARY_TOPIC)
+  }
+
   return (
     <Container>
       <Button size="small" color="primary" icon={<FormOutlined />} onClick={addNewTopic} $theme={theme}>
         {t('chat.topics.new')}
+      </Button>
+      <Button size="small" color="primary" icon={<EyeOff />} onClick={addTemporaryTopic} $theme={theme}>
+        {t('chat.topics.new_temporary')}
       </Button>
     </Container>
   )
@@ -30,8 +38,8 @@ const Container = styled.div`
   justify-content: center;
   align-items: center;
   margin-bottom: 10px;
-  margin-top: -10px;
-  padding: 0;
+  margin-top: 10px;
+  padding: 0 10px;
   min-height: auto;
 `
 

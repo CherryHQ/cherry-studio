@@ -65,7 +65,10 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     for (const message of messages) {
       const cleanContent = removeMarkdown(message.content.toLowerCase())
       if (newSearchTerms.every((term) => cleanContent.includes(term))) {
-        results.push({ message, topic: await getTopicById(message.topicId)! })
+        const topic = await getTopicById(message.topicId)
+        if (topic) {
+          results.push({ message, topic })
+        }
       }
     }
 
@@ -119,7 +122,9 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
                 style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
                 onClick={async () => {
                   const _topic = await getTopicById(topic.id)
-                  onTopicClick(_topic)
+                  if (_topic) {
+                    onTopicClick(_topic)
+                  }
                 }}>
                 {topic.name}
               </Title>

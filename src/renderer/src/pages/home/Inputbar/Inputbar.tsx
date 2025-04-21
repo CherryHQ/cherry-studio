@@ -23,7 +23,7 @@ import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/messages'
 import { setSearching } from '@renderer/store/runtime'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, MCPServer, Message, Model, Topic } from '@renderer/types'
-import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
+import { classNames, delay, formatFileSize, getFileExtension, uuid } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Tooltip } from 'antd'
@@ -34,6 +34,7 @@ import { debounce, isEmpty } from 'lodash'
 import {
   AtSign,
   CirclePause,
+  EyeOff,
   FileSearch,
   FileText,
   Globe,
@@ -516,6 +517,35 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant, setActiveTopic, setModel])
 
+  const addNewTemporaryTopic = useCallback(async () => {
+    await modelGenerating()
+
+    const tempTopicId = `_temp-${uuid()}`
+    const temporaryTopic: Topic = {
+      id: tempTopicId,
+      assistantId: assistant.id,
+      name: tempTopicId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      isTemporary: true,
+      prompt: assistant.prompt
+    }
+
+    // Set as active topic, update messages.currentTopic
+    setActiveTopic(temporaryTopic)
+
+    setText('')
+    setFiles([])
+    setSelectedKnowledgeBases([])
+    setMentionModels([])
+    setEnabledMCPs(assistant.mcpServers || [])
+    setTimeout(() => resizeTextArea(), 0)
+    setExpend(false)
+
+    textareaRef.current?.focus()
+  }, [assistant, setActiveTopic, resizeTextArea])
+
   const onPause = async () => {
     await pauseMessages()
   }
@@ -713,6 +743,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
       }),
       EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
+      EventEmitter.on(EVENT_NAMES.ADD_NEW_TEMPORARY_TOPIC, addNewTemporaryTopic),
       EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
         setText((prevText) => {
           const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
@@ -723,7 +754,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [addNewTopic, resizeTextArea])
+  }, [addNewTopic, addNewTemporaryTopic, resizeTextArea])
 
   useEffect(() => {
     textareaRef.current?.focus()
@@ -940,6 +971,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
                 <ToolbarButton type="text" onClick={addNewTopic}>
                   <MessageSquareDiff size={19} />
+                </ToolbarButton>
+              </Tooltip>
+              <Tooltip placement="top" title={t('chat.input.new_temporary_topic')} arrow>
+                <ToolbarButton type="text" onClick={addNewTemporaryTopic}>
+                  <EyeOff size={18} color={topic.isTemporary ? 'var(--color-primary)' : 'var(--color-icon)'} />
                 </ToolbarButton>
               </Tooltip>
               <AttachmentButton

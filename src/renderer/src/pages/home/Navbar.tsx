@@ -14,7 +14,7 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { EyeOff, LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -64,11 +64,20 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
-          <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
-              <MessageSquareDiff size={18} />
-            </NavbarIcon>
-          </Tooltip>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
+              <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+                <MessageSquareDiff size={18} />
+              </NavbarIcon>
+            </Tooltip>
+            <Tooltip title={t('chat.topics.new_temporary')} mouseEnterDelay={0.8}>
+              <NavbarIcon
+                onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TEMPORARY_TOPIC)}
+                style={{ marginRight: 5 }}>
+                <EyeOff size={18} />
+              </NavbarIcon>
+            </Tooltip>
+          </div>
         </NavbarLeft>
       )}
       <NavbarRight style={{ justifyContent: 'space-between', flex: 1 }} className="home-navbar-right">

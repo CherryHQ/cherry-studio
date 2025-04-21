@@ -67,7 +67,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const isPending = useCallback(
     (topicId: string) => {
       const hasPending = hasTopicPendingRequests(topicId)
-      if (topicId === activeTopic.id && !hasPending) {
+      if (topicId === activeTopic?.id && !hasPending) {
         pendingTopics.delete(topicId)
         return false
       }
@@ -80,7 +80,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       }
       return false
     },
-    [activeTopic.id, pendingTopics]
+    [activeTopic, pendingTopics]
   )
 
   const handleDeleteClick = useCallback((topicId: string, e: React.MouseEvent) => {
@@ -214,7 +214,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               (() => {
                 const updatedTopic = { ...topic, prompt: prompt.trim() }
                 updateTopic(updatedTopic)
-                topic.id === activeTopic.id && setActiveTopic(updatedTopic)
+                topic.id === activeTopic?.id && setActiveTopic(updatedTopic)
               })()
           }
         },
@@ -377,9 +377,12 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     ]
   )
 
+  // Filter out temporary topics before rendering the list
+  const visibleTopics = useMemo(() => assistant.topics.filter((topic) => !topic.isTemporary), [assistant.topics])
+
   return (
     <Container right={topicPosition === 'right'} className="topics-tab">
-      <DragableList list={assistant.topics} onUpdate={updateTopics}>
+      <DragableList list={visibleTopics} onUpdate={updateTopics}>
         {(topic) => {
           const isActive = topic.id === activeTopic?.id
           const topicName = topic.name.replace('`', '')
