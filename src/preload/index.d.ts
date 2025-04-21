@@ -29,10 +29,13 @@ declare global {
       setTrayOnClose: (isActive: boolean) => void
       restartTray: () => void
       setTheme: (theme: 'light' | 'dark') => void
+      setCustomCss: (css: string) => void
+      setAutoUpdate: (isActive: boolean) => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
       system: {
         getDeviceType: () => Promise<'mac' | 'windows' | 'linux'>
+        getHostname: () => Promise<string>
       }
       zip: {
         compress: (text: string) => Promise<Buffer>

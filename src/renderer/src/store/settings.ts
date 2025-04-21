@@ -72,6 +72,7 @@ export interface SettingsState {
   webdavPath: string
   webdavAutoSync: boolean
   webdavSyncInterval: number
+  webdavMaxBackups: number
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   enableTopicNaming: boolean
@@ -176,6 +177,7 @@ export const initialState: SettingsState = {
   webdavPath: '/cherry-studio',
   webdavAutoSync: false,
   webdavSyncInterval: 0,
+  webdavMaxBackups: 0,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   enableTopicNaming: true,
@@ -286,6 +288,9 @@ const settingsSlice = createSlice({
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
       state.theme = action.payload
     },
+    setCustomCss: (state, action: PayloadAction<string>) => {
+      state.customCss = action.payload
+    },
     setFontSize: (state, action: PayloadAction<number>) => {
       state.fontSize = action.payload
     },
@@ -330,6 +335,9 @@ const settingsSlice = createSlice({
     },
     setWebdavSyncInterval: (state, action: PayloadAction<number>) => {
       state.webdavSyncInterval = action.payload
+    },
+    setWebdavMaxBackups: (state, action: PayloadAction<number>) => {
+      state.webdavMaxBackups = action.payload
     },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
       state.codeShowLineNumbers = action.payload
@@ -381,9 +389,6 @@ const settingsSlice = createSlice({
     },
     setPasteLongTextThreshold: (state, action: PayloadAction<number>) => {
       state.pasteLongTextThreshold = action.payload
-    },
-    setCustomCss: (state, action: PayloadAction<string>) => {
-      state.customCss = action.payload
     },
     setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
       state.topicNamingPrompt = action.payload
@@ -526,6 +531,7 @@ export const {
   setWebdavPath,
   setWebdavAutoSync,
   setWebdavSyncInterval,
+  setWebdavMaxBackups,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,

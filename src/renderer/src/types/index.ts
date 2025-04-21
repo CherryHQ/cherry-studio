@@ -63,7 +63,7 @@ export type Message = {
   model?: Model
   files?: FileType[]
   images?: string[]
-  usage?: OpenAI.Completions.CompletionUsage
+  usage?: Usage
   metrics?: Metrics
   knowledgeBaseIds?: string[]
   type: 'text' | '@' | 'clear'
@@ -95,6 +95,10 @@ export type Message = {
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
   // fold时是否选中
   foldSelected?: boolean
+}
+
+export type Usage = OpenAI.Completions.CompletionUsage & {
+  thoughts_tokens?: number
 }
 
 export type Metrics = {
@@ -342,6 +346,8 @@ export type WebSearchProvider = {
   apiHost?: string
   engines?: string[]
   url?: string
+  basicAuthUsername?: string
+  basicAuthPassword?: string
   contentLimit?: number
   usingBrowser?: boolean
 }

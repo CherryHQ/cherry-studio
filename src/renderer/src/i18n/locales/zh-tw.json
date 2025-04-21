@@ -328,7 +328,7 @@
       "no_api_key": "API 金鑰未設定",
       "provider_disabled": "模型供應商未啟用",
       "render": {
-        "description": "渲染公式失敗，請檢查公式格式是否正確",
+        "description": "消息內容渲染失敗，請檢查消息內容格式是否正確",
         "title": "渲染錯誤"
       },
       "user_message_not_found": "無法找到原始用戶訊息",
@@ -919,7 +919,9 @@
           "syncError": "備份錯誤",
           "syncStatus": "備份狀態",
           "title": "WebDAV",
-          "user": "WebDAV 使用者名稱"
+          "user": "WebDAV 使用者名稱",
+          "maxBackups": "最大備份數量",
+          "maxBackups.unlimited": "無限制"
         },
         "yuque": {
           "check": {
@@ -1229,6 +1231,12 @@
         "api_key": "API 金鑰",
         "api_key.tip": "多個金鑰使用逗號分隔",
         "api_version": "API 版本",
+        "basic_auth": "HTTP 認證",
+        "basic_auth.tip": "適用於透過伺服器部署的實例（請參閱文檔）。目前僅支援 Basic 方案（RFC7617）。",
+        "basic_auth.user_name": "用戶",
+        "basic_auth.user_name.tip": "留空以停用",
+        "basic_auth.password": "密碼",
+        "basic_auth.password.tip": "",
         "charge": "儲值",
         "check": "檢查",
         "check_all_keys": "檢查所有金鑰",
@@ -1328,8 +1336,6 @@
       "tray.title": "系统匣",
       "websearch": {
         "check_success": "驗證成功",
-        "enhance_mode": "搜索增強模式",
-        "enhance_mode_tooltip": "使用預設模型提取關鍵詞後搜索",
         "get_api_key": "點選這裡取得金鑰",
         "search_with_time": "搜尋包含日期",
         "tavily": {
@@ -1364,7 +1370,7 @@
         "content_limit": "內容長度限制",
         "content_limit_tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷。"
       },
-      "general.auto_check_update.title": "啟用自動更新檢查",
+      "general.auto_check_update.title": "啟用自動更新",
       "quickPhrase": {
         "title": "快捷短語",
         "add": "新增短語",

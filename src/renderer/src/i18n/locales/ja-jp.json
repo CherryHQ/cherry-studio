@@ -328,7 +328,7 @@
       "no_api_key": "APIキーが設定されていません",
       "provider_disabled": "モデルプロバイダーが有効になっていません",
       "render": {
-        "description": "数式のレンダリングに失敗しました。数式の形式が正しいか確認してください",
+        "description": "メッセージの内容のレンダリングに失敗しました。メッセージの内容の形式が正しいか確認してください",
         "title": "レンダリングエラー"
       },
       "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
@@ -919,7 +919,9 @@
           "syncError": "バックアップエラー",
           "syncStatus": "バックアップ状態",
           "title": "WebDAV",
-          "user": "WebDAVユーザー"
+          "user": "WebDAVユーザー",
+          "maxBackups": "最大バックアップ数",
+          "maxBackups.unlimited": "無制限"
         },
         "yuque": {
           "check": {
@@ -1229,6 +1231,12 @@
         "api_key": "APIキー",
         "api_key.tip": "複数のキーはカンマで区切ります",
         "api_version": "APIバージョン",
+        "basic_auth": "HTTP 認証",
+        "basic_auth.tip": "サーバー展開によるインスタンスに適用されます（ドキュメントを参照）。現在はBasicスキーム（RFC7617）のみをサポートしています。",
+        "basic_auth.user_name": "ユーザー名",
+        "basic_auth.user_name.tip": "空欄で無効化",
+        "basic_auth.password": "パスワード",
+        "basic_auth.password.tip": "",
         "charge": "充電",
         "check": "チェック",
         "check_all_keys": "すべてのキーをチェック",
@@ -1332,8 +1340,6 @@
         "check": "チェック",
         "check_failed": "検証に失敗しました",
         "check_success": "検証に成功しました",
-        "enhance_mode": "検索強化モード",
-        "enhance_mode_tooltip": "デフォルトモデルを使用して問題から検索キーワードを抽出し、検索を実行します",
         "get_api_key": "APIキーを取得",
         "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
         "search_max_result": "検索結果の数",
@@ -1364,7 +1370,7 @@
         "content_limit": "内容の長さ制限",
         "content_limit_tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます。"
       },
-      "general.auto_check_update.title": "自動更新チェックを有効にする",
+      "general.auto_check_update.title": "自動更新",
       "quickPhrase": {
         "title": "クイックフレーズ",
         "add": "フレーズを追加",

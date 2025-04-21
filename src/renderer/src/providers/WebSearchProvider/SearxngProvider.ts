@@ -2,6 +2,7 @@ import { SearxngClient } from '@agentic/searxng'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
 import axios from 'axios'
+import ky from 'ky'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
@@ -9,6 +10,8 @@ export default class SearxngProvider extends BaseWebSearchProvider {
   private searxng: SearxngClient
   private engines: string[] = []
   private readonly apiHost: string
+  private readonly basicAuthUsername?: string
+  private readonly basicAuthPassword?: string
   private isInitialized = false
 
   constructor(provider: WebSearchProvider) {
@@ -16,9 +19,22 @@ export default class SearxngProvider extends BaseWebSearchProvider {
     if (!provider.apiHost) {
       throw new Error('API host is required for SearxNG provider')
     }
+
     this.apiHost = provider.apiHost
+    this.basicAuthUsername = provider.basicAuthUsername
+    this.basicAuthPassword = provider.basicAuthPassword ? provider.basicAuthPassword : ''
+
     try {
-      this.searxng = new SearxngClient({ apiBaseUrl: this.apiHost })
+      // `ky` do not support basic auth directly
+      const headers = this.basicAuthUsername
+        ? {
+            Authorization: `Basic ` + btoa(`${this.basicAuthUsername}:${this.basicAuthPassword}`)
+          }
+        : undefined
+      this.searxng = new SearxngClient({
+        apiBaseUrl: this.apiHost,
+        ky: ky.create({ headers })
+      })
     } catch (error) {
       throw new Error(
         `Failed to initialize SearxNG client: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -29,9 +45,16 @@ export default class SearxngProvider extends BaseWebSearchProvider {
   private async initEngines(): Promise<void> {
     try {
       console.log(`Initializing SearxNG with API host: ${this.apiHost}`)
+      const auth = this.basicAuthUsername
+        ? {
+            username: this.basicAuthUsername,
+            password: this.basicAuthPassword ? this.basicAuthPassword : ''
+          }
+        : undefined
       const response = await axios.get(`${this.apiHost}/config`, {
         timeout: 5000,
-        validateStatus: (status) => status === 200 // 仅接受 200 状态码
+        validateStatus: (status) => status === 200, // 仅接受 200 状态码
+        auth
       })
 
       if (!response.data) {

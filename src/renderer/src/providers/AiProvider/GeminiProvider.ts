@@ -10,9 +10,16 @@ import {
   Part,
   PartUnion,
   SafetySetting,
+  ThinkingConfig,
   ToolListUnion
 } from '@google/genai'
-import { isGemmaModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import {
+  isGemini25ReasoningModel,
+  isGemmaModel,
+  isGenerateImageModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -34,6 +41,8 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+
+type ReasoningEffort = 'low' | 'medium' | 'high'
 
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenAI
@@ -183,6 +192,41 @@ export default class GeminiProvider extends BaseProvider {
   }
 
   /**
+   * Get the reasoning effort for the assistant
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The reasoning effort
+   */
+  private getReasoningEffort(assistant: Assistant, model: Model) {
+    if (isGemini25ReasoningModel(model)) {
+      const effortRatios: Record<ReasoningEffort, number> = {
+        high: 1,
+        medium: 0.5,
+        low: 0.2
+      }
+      const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
+      const effortRatio = effortRatios[effort]
+      const maxBudgetToken = 24576 // https://ai.google.dev/gemini-api/docs/thinking
+      const budgetTokens = Math.max(1024, Math.trunc(maxBudgetToken * effortRatio))
+      if (!effortRatio) {
+        return {
+          thinkingConfig: {
+            thinkingBudget: 0
+          } as ThinkingConfig
+        }
+      }
+
+      return {
+        thinkingConfig: {
+          thinkingBudget: budgetTokens,
+          includeThoughts: true
+        } as ThinkingConfig
+      }
+    }
+    return {}
+  }
+
+  /**
    * Generate completions
    * @param messages - The messages
    * @param assistant - The assistant
@@ -241,6 +285,7 @@ export default class GeminiProvider extends BaseProvider {
       topP: assistant?.settings?.topP,
       maxOutputTokens: maxTokens,
       tools: tools,
+      ...this.getReasoningEffort(assistant, model),
       ...this.getCustomParameters(assistant)
     }
 
@@ -308,6 +353,7 @@ export default class GeminiProvider extends BaseProvider {
         text: response.text,
         usage: {
           prompt_tokens: response.usageMetadata?.promptTokenCount || 0,
+          thoughts_tokens: response.usageMetadata?.thoughtsTokenCount || 0,
           completion_tokens: response.usageMetadata?.candidatesTokenCount || 0,
           total_tokens: response.usageMetadata?.totalTokenCount || 0
         },
@@ -384,6 +430,7 @@ export default class GeminiProvider extends BaseProvider {
           usage: {
             prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
             completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
+            thoughts_tokens: chunk.usageMetadata?.thoughtsTokenCount || 0,
             total_tokens: chunk.usageMetadata?.totalTokenCount || 0
           },
           metrics: {

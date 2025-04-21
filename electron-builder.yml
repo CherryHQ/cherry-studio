@@ -3,9 +3,12 @@ productName: Cherry Studio
 electronLanguages:
   - zh-CN
   - zh-TW
-  - en-GB
   - en-US
-  - ru
+  - ja # macOS/linux/win
+  - ru # macOS/linux/win
+  - zh_CN # for macOS
+  - zh_TW # for macOS
+  - en # for macOS
 directories:
   buildResources: build
 files:

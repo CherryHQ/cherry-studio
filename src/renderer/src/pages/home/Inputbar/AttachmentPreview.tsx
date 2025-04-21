@@ -26,11 +26,20 @@ interface Props {
   setFiles: (files: FileType[]) => void
 }
 
+const MAX_FILENAME_DISPLAY_LENGTH = 20
+function truncateFileName(name: string, maxLength: number = MAX_FILENAME_DISPLAY_LENGTH) {
+  if (name.length <= maxLength) return name
+  return name.slice(0, maxLength - 3) + '...'
+}
+
 const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
   const [visible, setVisible] = useState<boolean>(false)
   const isImage = (ext: string) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)
   }
+
+  const fullName = FileManager.formatFileName(file)
+  const displayName = truncateFileName(fullName)
 
   return (
     <Tooltip
@@ -53,6 +62,7 @@ const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
               }}
             />
           )}
+          <span style={{ wordBreak: 'break-all' }}>{fullName}</span>
           {formatFileSize(file.size)}
         </Flex>
       }>
@@ -66,8 +76,9 @@ const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
           if (path) {
             window.api.file.openPath(path)
           }
-        }}>
-        {FileManager.formatFileName(file)}
+        }}
+        title={fullName}>
+        {displayName}
       </FileName>
     </Tooltip>
   )
