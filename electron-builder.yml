@@ -74,6 +74,8 @@ linux:
     - target: AppImage
   maintainer: electronjs.org
   category: Utility
+  desktop:
+    StartupWMClass: CherryStudio
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
@@ -84,6 +86,8 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    全新图标风格
-    新的智能体界面
-    WebDAV 增加文件管理功能
+    修正语言及本地化错误
+    Windows ARM 更新跳转到官网下载
+    改进系统代理处理和初始化逻辑
+    修复 MCP 服务请求头不生效问题
+    移除搜索增强模式

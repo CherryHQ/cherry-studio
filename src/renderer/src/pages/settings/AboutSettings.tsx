@@ -24,6 +24,7 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitl
 
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
+  const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
   const { autoCheckUpdate, setAutoCheckUpdate } = useSettings()
   const { theme } = useTheme()
@@ -102,6 +103,7 @@ const AboutSettings: FC = () => {
     runAsyncFunction(async () => {
       const appInfo = await window.api.getAppInfo()
       setVersion(appInfo.version)
+      setIsPortable(appInfo.isPortable)
     })
   }, [])
 
@@ -143,22 +145,28 @@ const AboutSettings: FC = () => {
               </Tag>
             </VersionWrapper>
           </Row>
-          <CheckUpdateButton
-            onClick={onCheckUpdate}
-            loading={update.checking}
-            disabled={update.downloading || update.checking}>
-            {update.downloading
-              ? t('settings.about.downloading')
-              : update.available
-                ? t('settings.about.checkUpdate.available')
-                : t('settings.about.checkUpdate')}
-          </CheckUpdateButton>
+          {!isPortable && (
+            <CheckUpdateButton
+              onClick={onCheckUpdate}
+              loading={update.checking}
+              disabled={update.downloading || update.checking}>
+              {update.downloading
+                ? t('settings.about.downloading')
+                : update.available
+                  ? t('settings.about.checkUpdate.available')
+                  : t('settings.about.checkUpdate')}
+            </CheckUpdateButton>
+          )}
         </AboutHeader>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
-          <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
-        </SettingRow>
+        {!isPortable && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
+              <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
+            </SettingRow>
+          </>
+        )}
       </SettingGroup>
       {hasNewVersion && update.info && (
         <SettingGroup theme={theme}>

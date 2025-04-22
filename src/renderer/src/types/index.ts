@@ -246,6 +246,7 @@ export type AppInfo = {
   filesPath: string
   logsPath: string
   arch: string
+  isPortable: boolean
 }
 
 export interface Shortcut {

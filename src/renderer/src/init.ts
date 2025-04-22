@@ -1,5 +1,3 @@
-import './utils/analytics'
-
 import KeyvStorage from '@kangfenmao/keyv-storage'
 
 import { startAutoSync } from './services/BackupService'
