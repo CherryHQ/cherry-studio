@@ -93,6 +93,7 @@
     "got-scraping": "^4.1.1",
     "jsdom": "^26.0.0",
     "markdown-it": "^14.1.0",
+    "@shikijs/markdown-it": "^3.2.2",
     "officeparser": "^4.1.1",
     "proxy-agent": "^6.5.0",
     "tar": "^7.4.3",
