@@ -59,6 +59,9 @@ exports[`markdown > markdown configuration constants > sanitizeSchema matches sn
       "fill",
       "stroke",
     ],
+    "sup": [
+      "dataCitation",
+    ],
     "svg": [
       "viewBox",
       "width",
@@ -119,6 +122,7 @@ exports[`markdown > markdown configuration constants > sanitizeSchema matches sn
     "tspan",
     "sub",
     "sup",
+    "a",
   ],
 }
 `;

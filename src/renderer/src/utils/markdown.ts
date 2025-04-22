@@ -41,7 +41,8 @@ export const MARKDOWN_ALLOWED_TAGS = [
   'desc',
   'tspan',
   'sub',
-  'sup'
+  'sup',
+  'a'
 ]
 
 // rehype-sanitize配置
@@ -58,7 +59,8 @@ export const sanitizeSchema = {
     polygon: ['points', 'fill', 'stroke'],
     text: ['x', 'y', 'fill', 'textAnchor', 'dominantBaseline'],
     g: ['transform', 'fill', 'stroke'],
-    a: ['href', 'target', 'rel']
+    a: ['href', 'target', 'rel'],
+    sup: ['dataCitation']
   }
 }
 
