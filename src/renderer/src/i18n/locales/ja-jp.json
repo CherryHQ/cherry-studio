@@ -698,7 +698,7 @@
     "prompts": {
       "explanation": "この概念を説明してください",
       "summarize": "このテキストを要約してください",
-      "title": "あなたは会話を得意とするアシスタントです。ユーザーの会話を10文字以内のタイトルに要約し、ユーザーの主言語と一致していることを確認してください。句読点や特殊記号は使用しないでください。"
+      "title": "Generate a concise, 3-5 word title with an emoji summarizing the user input.\n### Guidelines:\n- The title should clearly represent the main theme or subject of the conversation.\n- Use emojis that enhance understanding of the topic, but avoid quotation marks or special formatting.\n- Write the title in the chat's primary language; default to English if multilingual.\n- Prioritize accuracy over excessive creativity; keep it clear and simple.\n### Output:\nyour concise title here\n### Examples:\n- 📉 Stock Market Trends\n- 🍪 Perfect Chocolate Chip Recipe\n- Evolution of Music Streaming\n- Remote Work Productivity Tips\n- Artificial Intelligence in Healthcare\n- 🎮 Video Game Development Insights"
     },
     "provider": {
       "aihubmix": "AiHubMix",

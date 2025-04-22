@@ -698,7 +698,7 @@
     "prompts": {
       "explanation": "Explain this concept to me",
       "summarize": "Summarize this text",
-      "title": "You are an assistant who is good at conversation. You need to summarize the user's conversation into a title of 10 characters or less, ensuring it matches the user's primary language without using punctuation or other special symbols."
+      "title": "Generate a concise, 3-5 word title with an emoji summarizing the user input.\n### Guidelines:\n- The title should clearly represent the main theme or subject of the conversation.\n- Use emojis that enhance understanding of the topic, but avoid quotation marks or special formatting.\n- Write the title in the chat's primary language; default to English if multilingual.\n- Prioritize accuracy over excessive creativity; keep it clear and simple.\n### Output:\nyour concise title here\n### Examples:\n- 📉 Stock Market Trends\n- 🍪 Perfect Chocolate Chip Recipe\n- Evolution of Music Streaming\n- Remote Work Productivity Tips\n- Artificial Intelligence in Healthcare\n- 🎮 Video Game Development Insights"
     },
     "provider": {
       "aihubmix": "AiHubMix",
