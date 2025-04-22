@@ -538,7 +538,7 @@ const McpSettings: React.FC<Props> = ({ server }) => {
   }
 
   return (
-    <SettingContainer>
+    <SettingContainer style={{ width: '100%' }}>
       <SettingGroup style={{ marginBottom: 0 }}>
         <SettingTitle>
           <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>

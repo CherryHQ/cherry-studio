@@ -48,7 +48,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
     logsPath: log.transports.file.getFile().path,
-    arch: arch()
+    arch: arch(),
+    isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env
   }))
 
   ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
@@ -176,7 +177,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
     // 在 Windows 上，如果架构是 arm64，则不检查更新
-    if (isWin && arch().includes('arm')) {
+    if (isWin && (arch().includes('arm') || 'PORTABLE_EXECUTABLE_DIR' in process.env)) {
       return {
         currentVersion: app.getVersion(),
         updateInfo: null

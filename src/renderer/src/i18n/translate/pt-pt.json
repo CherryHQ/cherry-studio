@@ -1114,8 +1114,6 @@
         "check": "Verificar",
         "check_failed": "Verificação falhou",
         "check_success": "Verificação bem-sucedida",
-        "enhance_mode": "Modo de pesquisa avançada",
-        "enhance_mode_tooltip": "Use o modelo padrão para extrair palavras-chave e depois pesquise",
         "get_api_key": "Clique aqui para obter a chave",
         "no_provider_selected": "Selecione um provedor de pesquisa antes de verificar",
         "search_max_result": "Número de resultados da pesquisa",

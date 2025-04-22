@@ -12,6 +12,7 @@ import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
@@ -38,6 +39,7 @@ const MinappPopupContainer: React.FC = () => {
   const { closeMinapp, hideMinappPopup } = useMinappPopup()
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
+  const backgroundColor = useNavBackgroundColor()
 
   /** control the drawer open or close */
   const [isPopupShow, setIsPopupShow] = useState(true)
@@ -236,7 +238,7 @@ const MinappPopupContainer: React.FC = () => {
     }
 
     return (
-      <TitleContainer style={{ justifyContent: 'space-between' }}>
+      <TitleContainer style={{ backgroundColor: backgroundColor, justifyContent: 'space-between' }}>
         <Tooltip
           title={
             <TitleTextTooltip>
