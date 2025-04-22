@@ -75,7 +75,8 @@ linux:
   maintainer: electronjs.org
   category: Utility
   desktop:
-    StartupWMClass: CherryStudio
+    entry:
+      StartupWMClass: CherryStudio
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
