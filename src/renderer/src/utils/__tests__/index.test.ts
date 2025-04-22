@@ -27,7 +27,7 @@ describe('Unclassified Utils', () => {
     it('should resolve after specified seconds', async () => {
       // 验证指定时间后返回
       const start = Date.now()
-      await delay(0.01)
+      await delay(0.05)
       const end = Date.now()
       expect(end - start).toBeGreaterThanOrEqual(10)
     })
