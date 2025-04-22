@@ -1,7 +1,8 @@
-import { BulbOutlined, EnterOutlined, FileTextOutlined, MessageOutlined, TranslationOutlined } from '@ant-design/icons'
+import { EnterOutlined } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Col } from 'antd'
-import { Dispatch, forwardRef, SetStateAction, useImperativeHandle, useMemo, useState } from 'react'
+import { FileText, Languages, Lightbulb, MessageSquare } from 'lucide-react'
+import { Dispatch, SetStateAction, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -18,14 +19,19 @@ export interface FeatureMenusRef {
   resetSelectedIndex: () => void
 }
 
-const FeatureMenus = forwardRef<FeatureMenusRef, FeatureMenusProps>(({ text, setRoute, onSendMessage }, ref) => {
+const FeatureMenus = ({
+  ref,
+  text,
+  setRoute,
+  onSendMessage
+}: FeatureMenusProps & { ref?: React.RefObject<FeatureMenusRef | null> }) => {
   const { t } = useTranslation()
   const [selectedIndex, setSelectedIndex] = useState(0)
 
   const features = useMemo(
     () => [
       {
-        icon: <MessageOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        icon: <MessageSquare size={16} color="var(--color-text)" />,
         title: t('miniwindow.feature.chat'),
         active: true,
         onClick: () => {
@@ -36,12 +42,12 @@ const FeatureMenus = forwardRef<FeatureMenusRef, FeatureMenusProps>(({ text, set
         }
       },
       {
-        icon: <TranslationOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        icon: <Languages size={16} color="var(--color-text)" />,
         title: t('miniwindow.feature.translate'),
         onClick: () => text && setRoute('translate')
       },
       {
-        icon: <FileTextOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        icon: <FileText size={16} color="var(--color-text)" />,
         title: t('miniwindow.feature.summary'),
         onClick: () => {
           if (text) {
@@ -51,7 +57,7 @@ const FeatureMenus = forwardRef<FeatureMenusRef, FeatureMenusProps>(({ text, set
         }
       },
       {
-        icon: <BulbOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        icon: <Lightbulb size={16} color="var(--color-text)" />,
         title: t('miniwindow.feature.explanation'),
         onClick: () => {
           if (text) {
@@ -94,11 +100,12 @@ const FeatureMenus = forwardRef<FeatureMenusRef, FeatureMenusProps>(({ text, set
       </FeatureListWrapper>
     </FeatureList>
   )
-})
+}
 FeatureMenus.displayName = 'FeatureMenus'
 
 const FeatureList = styled(Scrollbar)`
-  flex: 1;
+  flex-shrink: 0;
+  height: auto;
   -webkit-app-region: none;
 `
 
@@ -110,6 +117,8 @@ const FeatureListWrapper = styled.div`
 `
 
 const FeatureItem = styled.div`
+  display: flex;
+  flex-direction: row;
   cursor: pointer;
   transition: background-color 0s;
   background: transparent;
@@ -133,6 +142,7 @@ const FeatureItem = styled.div`
 
 const FeatureIcon = styled.div`
   color: #fff;
+  display: flex;
 `
 
 const FeatureTitle = styled.h3`

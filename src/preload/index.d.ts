@@ -1,13 +1,17 @@
+import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { FileMetadataResponse, ListFilesResponse, UploadFileResponse } from '@google/generative-ai/server'
-import { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
-import { FileType } from '@renderer/types'
-import { WebDavConfig } from '@renderer/types'
-import { AppInfo, KnowledgeBaseParams, KnowledgeItem, LanguageVarious } from '@renderer/types'
+import type { File } from '@google/genai'
+import type { GetMCPPromptResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import { AppInfo, FileType, KnowledgeBaseParams, KnowledgeItem, LanguageVarious, WebDavConfig } from '@renderer/types'
 import type { LoaderReturn } from '@shared/config/types'
 import type { OpenDialogOptions } from 'electron'
 import type { UpdateInfo } from 'electron-updater'
-import { Readable } from 'stream'
+
+interface BackupFile {
+  fileName: string
+  modifiedTime: string
+  size: number
+}
 
 declare global {
   interface Window {
@@ -15,15 +19,24 @@ declare global {
     api: {
       getAppInfo: () => Promise<AppInfo>
       checkForUpdate: () => Promise<{ currentVersion: string; updateInfo: UpdateInfo | null }>
+      showUpdateDialog: () => Promise<void>
       openWebsite: (url: string) => void
       setProxy: (proxy: string | undefined) => void
       setLanguage: (theme: LanguageVarious) => void
+      setLaunchOnBoot: (isActive: boolean) => void
+      setLaunchToTray: (isActive: boolean) => void
       setTray: (isActive: boolean) => void
+      setTrayOnClose: (isActive: boolean) => void
       restartTray: () => void
       setTheme: (theme: 'light' | 'dark') => void
-      minApp: (options: { url: string; windowOptions?: Electron.BrowserWindowConstructorOptions }) => void
+      setCustomCss: (css: string) => void
+      setAutoUpdate: (isActive: boolean) => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
+      system: {
+        getDeviceType: () => Promise<'mac' | 'windows' | 'linux'>
+        getHostname: () => Promise<string>
+      }
       zip: {
         compress: (text: string) => Promise<Buffer>
         decompress: (text: Buffer) => Promise<string>
@@ -33,6 +46,10 @@ declare global {
         restore: (backupPath: string) => Promise<string>
         backupToWebdav: (data: string, webdavConfig: WebDavConfig) => Promise<boolean>
         restoreFromWebdav: (webdavConfig: WebDavConfig) => Promise<string>
+        listWebdavFiles: (webdavConfig: WebDavConfig) => Promise<BackupFile[]>
+        checkConnection: (webdavConfig: WebDavConfig) => Promise<boolean>
+        createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) => Promise<void>
+        deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) => Promise<boolean>
       }
       file: {
         select: (options?: OpenDialogOptions) => Promise<FileType[] | null>
@@ -68,8 +85,8 @@ declare global {
         update: (shortcuts: Shortcut[]) => Promise<void>
       }
       knowledgeBase: {
-        create: ({ id, model, apiKey, baseURL }: KnowledgeBaseParams) => Promise<void>
-        reset: ({ base }: { base: KnowledgeBaseParams }) => Promise<void>
+        create: (base: KnowledgeBaseParams) => Promise<void>
+        reset: (base: KnowledgeBaseParams) => Promise<void>
         delete: (id: string) => Promise<void>
         add: ({
           base,
@@ -90,17 +107,26 @@ declare global {
           base: KnowledgeBaseParams
         }) => Promise<void>
         search: ({ search, base }: { search: string; base: KnowledgeBaseParams }) => Promise<ExtractChunkData[]>
+        rerank: ({
+          search,
+          base,
+          results
+        }: {
+          search: string
+          base: KnowledgeBaseParams
+          results: ExtractChunkData[]
+        }) => Promise<ExtractChunkData[]>
       }
       window: {
         setMinimumSize: (width: number, height: number) => Promise<void>
         resetMinimumSize: () => Promise<void>
       }
       gemini: {
-        uploadFile: (file: FileType, apiKey: string) => Promise<UploadFileResponse>
-        retrieveFile: (file: FileType, apiKey: string) => Promise<FileMetadataResponse | undefined>
+        uploadFile: (file: FileType, apiKey: string) => Promise<File>
+        retrieveFile: (file: FileType, apiKey: string) => Promise<File | undefined>
         base64File: (file: FileType) => Promise<{ data: string; mimeType: string }>
-        listFiles: (apiKey: string) => Promise<ListFilesResponse>
-        deleteFile: (apiKey: string, fileId: string) => Promise<void>
+        listFiles: (apiKey: string) => Promise<File[]>
+        deleteFile: (fileId: string, apiKey: string) => Promise<void>
       }
       selectionMenu: {
         action: (action: string) => Promise<void>
@@ -114,6 +140,7 @@ declare global {
         hide: () => Promise<void>
         close: () => Promise<void>
         toggle: () => Promise<void>
+        setPin: (isPinned: boolean) => Promise<void>
       }
       aes: {
         encrypt: (text: string, secretKey: string, iv: string) => Promise<{ iv: string; encryptedData: string }>
@@ -121,6 +148,61 @@ declare global {
       }
       shell: {
         openExternal: (url: string, options?: OpenExternalOptions) => Promise<void>
+      }
+      mcp: {
+        removeServer: (server: MCPServer) => Promise<void>
+        restartServer: (server: MCPServer) => Promise<void>
+        stopServer: (server: MCPServer) => Promise<void>
+        listTools: (server: MCPServer) => Promise<MCPTool[]>
+        callTool: ({
+          server,
+          name,
+          args
+        }: {
+          server: MCPServer
+          name: string
+          args: any
+        }) => Promise<MCPCallToolResponse>
+        listPrompts: (server: MCPServer) => Promise<MCPPrompt[]>
+        getPrompt: ({
+          server,
+          name,
+          args
+        }: {
+          server: MCPServer
+          name: string
+          args?: Record<string, any>
+        }) => Promise<GetMCPPromptResponse>
+        listResources: (server: MCPServer) => Promise<MCPResource[]>
+        getResource: ({ server, uri }: { server: MCPServer; uri: string }) => Promise<GetResourceResponse>
+        getInstallInfo: () => Promise<{ dir: string; uvPath: string; bunPath: string }>
+      }
+      copilot: {
+        getAuthMessage: (
+          headers?: Record<string, string>
+        ) => Promise<{ device_code: string; user_code: string; verification_uri: string }>
+        getCopilotToken: (device_code: string, headers?: Record<string, string>) => Promise<{ access_token: string }>
+        saveCopilotToken: (access_token: string) => Promise<void>
+        getToken: (headers?: Record<string, string>) => Promise<{ token: string }>
+        logout: () => Promise<void>
+        getUser: (token: string) => Promise<{ login: string; avatar: string }>
+      }
+      isBinaryExist: (name: string) => Promise<boolean>
+      getBinaryPath: (name: string) => Promise<string>
+      installUVBinary: () => Promise<void>
+      installBunBinary: () => Promise<void>
+      protocol: {
+        onReceiveData: (callback: (data: { url: string; params: any }) => void) => () => void
+      }
+      nutstore: {
+        getSSOUrl: () => Promise<string>
+        decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
+        getDirectoryContents: (token: string, path: string) => Promise<any>
+      }
+      searchService: {
+        openSearchWindow: (uid: string) => Promise<string>
+        closeSearchWindow: (uid: string) => Promise<string>
+        openUrlInSearchWindow: (uid: string, url: string) => Promise<string>
       }
     }
   }

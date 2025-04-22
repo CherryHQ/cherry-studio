@@ -1,7 +1,7 @@
 import { ThemeMode } from '@renderer/types'
 import { Divider } from 'antd'
 import Link from 'antd/es/typography/Link'
-import styled from 'styled-components'
+import styled, { CSSProp } from 'styled-components'
 
 export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   display: flex;
@@ -10,6 +10,7 @@ export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   height: calc(100vh - var(--navbar-height));
   padding: 20px;
   padding-top: 15px;
+  padding-bottom: 75px;
   overflow-y: scroll;
   font-family: Ubuntu;
   background: ${(props) => (props.theme === 'dark' ? 'transparent' : 'var(--color-background-soft)')};
@@ -60,6 +61,9 @@ export const SettingRowTitle = styled.div`
   font-size: 14px;
   line-height: 18px;
   color: var(--color-text-1);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
 `
 
 export const SettingHelpTextRow = styled.div`
@@ -77,10 +81,10 @@ export const SettingHelpText = styled.div`
 
 export const SettingHelpLink = styled(Link)`
   font-size: 11px;
-  padding: 0 5px;
+  margin: 0 5px;
 `
 
-export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
+export const SettingGroup = styled.div<{ theme?: ThemeMode; css?: CSSProp }>`
   margin-bottom: 20px;
   border-radius: 8px;
   border: 0.5px solid var(--color-border);

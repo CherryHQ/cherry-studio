@@ -1,6 +1,7 @@
 import KeyvStorage from '@kangfenmao/keyv-storage'
 
 import { startAutoSync } from './services/BackupService'
+import { startNutstoreAutoSync } from './services/NutstoreService'
 import store from './store'
 
 function initSpinner() {
@@ -18,8 +19,12 @@ function initKeyv() {
 function initAutoSync() {
   setTimeout(() => {
     const { webdavAutoSync } = store.getState().settings
+    const { nutstoreAutoSync } = store.getState().nutstore
     if (webdavAutoSync) {
       startAutoSync()
+    }
+    if (nutstoreAutoSync) {
+      startNutstoreAutoSync()
     }
   }, 2000)
 }

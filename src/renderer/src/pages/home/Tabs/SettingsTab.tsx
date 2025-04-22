@@ -1,4 +1,4 @@
-import { CheckOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { CheckOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
@@ -8,19 +8,31 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
+import { isGrokReasoningModel, isSupportedReasoningEffortModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
+import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
 import {
+  SendMessageShortcut,
   setAutoTranslateWithSpace,
+  setCodeCacheable,
+  setCodeCacheMaxSize,
+  setCodeCacheThreshold,
+  setCodeCacheTTL,
   setCodeCollapsible,
   setCodeShowLineNumbers,
   setCodeStyle,
+  setCodeWrappable,
+  setEnableBackspaceDeleteModel,
+  setEnableQuickPanelTriggers,
   setFontSize,
   setMathEngine,
   setMessageFont,
+  setMessageNavigation,
   setMessageStyle,
   setMultiModelMessageStyle,
   setPasteLongTextAsFile,
@@ -30,10 +42,11 @@ import {
   setShowMessageDivider,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
-import { Assistant, AssistantSettings, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import { Button, Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
+import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -51,6 +64,7 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+  const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -67,11 +81,19 @@ const SettingsTab: FC<Props> = (props) => {
     renderInputMessageAsMarkdown,
     codeShowLineNumbers,
     codeCollapsible,
+    codeWrappable,
+    codeCacheable,
+    codeCacheMaxSize,
+    codeCacheTTL,
+    codeCacheThreshold,
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
     multiModelMessageStyle,
-    thoughtAutoCollapse
+    thoughtAutoCollapse,
+    messageNavigation,
+    enableQuickPanelTriggers,
+    enableBackspaceDeleteModel
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -96,9 +118,17 @@ const SettingsTab: FC<Props> = (props) => {
     }
   }
 
+  const onReasoningEffortChange = useCallback(
+    (value?: 'low' | 'medium' | 'high') => {
+      updateAssistantSettings({ reasoning_effort: value })
+    },
+    [updateAssistantSettings]
+  )
+
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
     setContextCount(DEFAULT_CONTEXTCOUNT)
+    setReasoningEffort(undefined)
     updateAssistant({
       ...assistant,
       settings: {
@@ -109,6 +139,7 @@ const SettingsTab: FC<Props> = (props) => {
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
         hideMessages: false,
+        reasoning_effort: undefined,
         customParameters: []
       }
     })
@@ -120,22 +151,52 @@ const SettingsTab: FC<Props> = (props) => {
     setEnableMaxTokens(assistant?.settings?.enableMaxTokens ?? false)
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
+    setReasoningEffort(assistant?.settings?.reasoning_effort)
   }, [assistant])
+
+  useEffect(() => {
+    // 当是Grok模型时，处理reasoning_effort的设置
+    // For Grok models, only 'low' and 'high' reasoning efforts are supported.
+    // This ensures compatibility with the model's capabilities and avoids unsupported configurations.
+    if (isGrokReasoningModel(assistant?.model || getDefaultModel())) {
+      const currentEffort = assistant?.settings?.reasoning_effort
+      if (!currentEffort || currentEffort === 'low') {
+        setReasoningEffort('low') // Default to 'low' if no effort is set or if it's already 'low'.
+        onReasoningEffortChange('low')
+      } else if (currentEffort === 'medium' || currentEffort === 'high') {
+        setReasoningEffort('high') // Force 'high' for 'medium' or 'high' to simplify the configuration.
+        onReasoningEffortChange('high')
+      }
+    }
+  }, [assistant?.model, assistant?.settings?.reasoning_effort, onReasoningEffortChange])
+
+  const formatSliderTooltip = (value?: number) => {
+    if (value === undefined) return ''
+    return value === 20 ? '∞' : value.toString()
+  }
 
   return (
     <Container className="settings-tab">
       <SettingGroup style={{ marginTop: 10 }}>
-        <SettingSubtitle style={{ marginTop: 0 }}>
-          {t('settings.messages.model.title')}{' '}
-          <Tooltip title={t('chat.settings.reset')}>
-            <ReloadOutlined onClick={onReset} style={{ cursor: 'pointer', fontSize: 12, padding: '0 3px' }} />
-          </Tooltip>
+        <SettingSubtitle style={{ marginTop: 0, display: 'flex', justifyContent: 'space-between' }}>
+          <HStack alignItems="center">
+            {t('assistants.settings.title')}{' '}
+            <Tooltip title={t('chat.settings.reset')}>
+              <RotateCcw size={20} onClick={onReset} style={{ cursor: 'pointer', padding: '0 3px' }} />
+            </Tooltip>
+          </HStack>
+          <Button
+            type="text"
+            size="small"
+            icon={<Settings2 size={16} />}
+            onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
+          />
         </SettingSubtitle>
         <SettingDivider />
         <Row align="middle">
           <Label>{t('chat.settings.temperature')}</Label>
           <Tooltip title={t('chat.settings.temperature.tip')}>
-            <QuestionIcon />
+            <CircleHelp size={14} color="var(--color-text-2)" />
           </Tooltip>
         </Row>
         <Row align="middle" gutter={10}>
@@ -153,18 +214,19 @@ const SettingsTab: FC<Props> = (props) => {
         <Row align="middle">
           <Label>{t('chat.settings.context_count')}</Label>
           <Tooltip title={t('chat.settings.context_count.tip')}>
-            <QuestionIcon />
+            <CircleHelp size={14} color="var(--color-text-2)" />
           </Tooltip>
         </Row>
         <Row align="middle" gutter={10}>
           <Col span={24}>
             <Slider
               min={0}
-              max={20}
+              max={10}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={typeof contextCount === 'number' ? contextCount : 0}
               step={1}
+              tooltip={{ formatter: formatSliderTooltip }}
             />
           </Col>
         </Row>
@@ -184,7 +246,7 @@ const SettingsTab: FC<Props> = (props) => {
           <HStack alignItems="center">
             <Label>{t('chat.settings.max_tokens')}</Label>
             <Tooltip title={t('chat.settings.max_tokens.tip')}>
-              <QuestionIcon />
+              <CircleHelp size={14} color="var(--color-text-2)" />
             </Tooltip>
           </HStack>
           <Switch
@@ -222,6 +284,46 @@ const SettingsTab: FC<Props> = (props) => {
               />
             </Col>
           </Row>
+        )}
+        {isSupportedReasoningEffortModel(assistant?.model || getDefaultModel()) && (
+          <>
+            <SettingDivider />
+            <Row align="middle">
+              <Label>{t('assistants.settings.reasoning_effort')}</Label>
+              <Tooltip title={t('assistants.settings.reasoning_effort.tip')}>
+                <CircleHelp size={14} color="var(--color-text-2)" />
+              </Tooltip>
+            </Row>
+            <Row align="middle" gutter={10}>
+              <Col span={24}>
+                <SegmentedContainer>
+                  <Segmented
+                    value={reasoningEffort || 'off'}
+                    onChange={(value) => {
+                      const typedValue = value === 'off' ? undefined : (value as 'low' | 'medium' | 'high')
+                      setReasoningEffort(typedValue)
+                      onReasoningEffortChange(typedValue)
+                    }}
+                    options={
+                      isGrokReasoningModel(assistant?.model || getDefaultModel())
+                        ? [
+                            { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
+                            { value: 'high', label: t('assistants.settings.reasoning_effort.high') }
+                          ]
+                        : [
+                            { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
+                            { value: 'medium', label: t('assistants.settings.reasoning_effort.medium') },
+                            { value: 'high', label: t('assistants.settings.reasoning_effort.high') },
+                            { value: 'off', label: t('assistants.settings.reasoning_effort.off') }
+                          ]
+                    }
+                    name="group"
+                    block
+                  />
+                </SegmentedContainer>
+              </Col>
+            </Row>
+          </>
         )}
       </SettingGroup>
       <SettingGroup>
@@ -264,10 +366,83 @@ const SettingsTab: FC<Props> = (props) => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
+          <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>
+            {t('chat.settings.code_cacheable')}{' '}
+            <Tooltip title={t('chat.settings.code_cacheable.tip')}>
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+            </Tooltip>
+          </SettingRowTitleSmall>
+          <Switch size="small" checked={codeCacheable} onChange={(checked) => dispatch(setCodeCacheable(checked))} />
+        </SettingRow>
+        {codeCacheable && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_cache_max_size')}
+                <Tooltip title={t('chat.settings.code_cache_max_size.tip')}>
+                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+                </Tooltip>
+              </SettingRowTitleSmall>
+              <InputNumber
+                size="small"
+                min={1000}
+                max={10000}
+                step={1000}
+                value={codeCacheMaxSize}
+                onChange={(value) => dispatch(setCodeCacheMaxSize(value ?? 1000))}
+                style={{ width: 80 }}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_cache_ttl')}
+                <Tooltip title={t('chat.settings.code_cache_ttl.tip')}>
+                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+                </Tooltip>
+              </SettingRowTitleSmall>
+              <InputNumber
+                size="small"
+                min={15}
+                max={720}
+                step={15}
+                value={codeCacheTTL}
+                onChange={(value) => dispatch(setCodeCacheTTL(value ?? 15))}
+                style={{ width: 80 }}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_cache_threshold')}
+                <Tooltip title={t('chat.settings.code_cache_threshold.tip')}>
+                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+                </Tooltip>
+              </SettingRowTitleSmall>
+              <InputNumber
+                size="small"
+                min={0}
+                max={50}
+                step={1}
+                value={codeCacheThreshold}
+                onChange={(value) => dispatch(setCodeCacheThreshold(value ?? 2))}
+                style={{ width: 80 }}
+              />
+            </SettingRow>
+          </>
+        )}
+        <SettingDivider />
+        <SettingRow>
           <SettingRowTitleSmall>
             {t('chat.settings.thought_auto_collapse')}
             <Tooltip title={t('chat.settings.thought_auto_collapse.tip')}>
-              <QuestionIcon style={{ marginLeft: 4 }} />
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </SettingRowTitleSmall>
           <Switch
@@ -279,35 +454,50 @@ const SettingsTab: FC<Props> = (props) => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('message.message.style')}</SettingRowTitleSmall>
-          <Select
+          <StyledSelect
             value={messageStyle}
-            onChange={(value) => dispatch(setMessageStyle(value))}
+            onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
             style={{ width: 135 }}
             size="small">
             <Select.Option value="plain">{t('message.message.style.plain')}</Select.Option>
             <Select.Option value="bubble">{t('message.message.style.bubble')}</Select.Option>
-          </Select>
+          </StyledSelect>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('message.message.multi_model_style')}</SettingRowTitleSmall>
-          <Select
+          <StyledSelect
             size="small"
             value={multiModelMessageStyle}
-            onChange={(value) => dispatch(setMultiModelMessageStyle(value))}
+            onChange={(value) =>
+              dispatch(setMultiModelMessageStyle(value as 'fold' | 'vertical' | 'horizontal' | 'grid'))
+            }
             style={{ width: 135 }}>
             <Select.Option value="fold">{t('message.message.multi_model_style.fold')}</Select.Option>
             <Select.Option value="vertical">{t('message.message.multi_model_style.vertical')}</Select.Option>
             <Select.Option value="horizontal">{t('message.message.multi_model_style.horizontal')}</Select.Option>
             <Select.Option value="grid">{t('message.message.multi_model_style.grid')}</Select.Option>
-          </Select>
+          </StyledSelect>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.navigation')}</SettingRowTitleSmall>
+          <StyledSelect
+            size="small"
+            value={messageNavigation}
+            onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
+            style={{ width: 135 }}>
+            <Select.Option value="none">{t('settings.messages.navigation.none')}</Select.Option>
+            <Select.Option value="buttons">{t('settings.messages.navigation.buttons')}</Select.Option>
+            <Select.Option value="anchor">{t('settings.messages.navigation.anchor')}</Select.Option>
+          </StyledSelect>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
-          <Select
+          <StyledSelect
             value={codeStyle}
-            onChange={(value) => dispatch(setCodeStyle(value))}
+            onChange={(value) => dispatch(setCodeStyle(value as CodeStyleVarious))}
             style={{ width: 135 }}
             size="small">
             {codeThemes.map((theme) => (
@@ -315,19 +505,19 @@ const SettingsTab: FC<Props> = (props) => {
                 {theme}
               </Select.Option>
             ))}
-          </Select>
+          </StyledSelect>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.math_engine')}</SettingRowTitleSmall>
-          <Select
+          <StyledSelect
             value={mathEngine}
-            onChange={(value) => dispatch(setMathEngine(value))}
+            onChange={(value) => dispatch(setMathEngine(value as 'MathJax' | 'KaTeX'))}
             style={{ width: 135 }}
             size="small">
             <Select.Option value="KaTeX">KaTeX</Select.Option>
             <Select.Option value="MathJax">MathJax</Select.Option>
-          </Select>
+          </StyledSelect>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -412,8 +602,26 @@ const SettingsTab: FC<Props> = (props) => {
           </>
         )}
         <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.input.enable_quick_triggers')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={enableQuickPanelTriggers}
+            onChange={(checked) => dispatch(setEnableQuickPanelTriggers(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.input.enable_delete_model')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={enableBackspaceDeleteModel}
+            onChange={(checked) => dispatch(setEnableBackspaceDeleteModel(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
           <SettingRowTitleSmall>{t('settings.input.target_language')}</SettingRowTitleSmall>
-          <Select
+          <StyledSelect
             defaultValue={'english' as TranslateLanguageVarious}
             size="small"
             value={targetLanguage}
@@ -425,14 +633,14 @@ const SettingsTab: FC<Props> = (props) => {
               { value: 'japanese', label: t('settings.input.target_language.japanese') },
               { value: 'russian', label: t('settings.input.target_language.russian') }
             ]}
-            onChange={(value) => setTargetLanguage(value)}
+            onChange={(value) => setTargetLanguage(value as TranslateLanguageVarious)}
             style={{ width: 135 }}
           />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
-          <Select
+          <StyledSelect
             size="small"
             value={sendMessageShortcut}
             menuItemSelectedIcon={<CheckOutlined />}
@@ -442,7 +650,7 @@ const SettingsTab: FC<Props> = (props) => {
               { value: 'Ctrl+Enter', label: 'Ctrl + Enter' },
               { value: 'Command+Enter', label: `${isMac ? '⌘' : isWindows ? 'Win' : 'Super'} + Enter` }
             ]}
-            onChange={(value) => setSendMessageShortcut(value)}
+            onChange={(value) => setSendMessageShortcut(value as SendMessageShortcut)}
             style={{ width: 135 }}
           />
         </SettingRow>
@@ -455,8 +663,8 @@ const Container = styled(Scrollbar)`
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: 0 10px;
-  padding-right: 5px;
+  padding: 0 8px;
+  padding-right: 0;
   padding-top: 2px;
   padding-bottom: 10px;
 `
@@ -465,12 +673,6 @@ const Label = styled.p`
   margin: 0;
   font-size: 12px;
   margin-right: 5px;
-`
-
-const QuestionIcon = styled(QuestionCircleOutlined)`
-  font-size: 12px;
-  cursor: pointer;
-  color: var(--color-text-3);
 `
 
 const SettingRowTitleSmall = styled(SettingRowTitle)`
@@ -483,6 +685,35 @@ export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   margin-top: 0;
   border-radius: 8px;
   margin-bottom: 10px;
+`
+
+// Define the styled component with hover state styling
+const SegmentedContainer = styled.div`
+  margin-top: 5px;
+  .ant-segmented-item {
+    font-size: 12px;
+  }
+  .ant-segmented-item-selected {
+    background-color: var(--color-primary) !important;
+    color: white !important;
+  }
+
+  .ant-segmented-item:hover:not(.ant-segmented-item-selected) {
+    background-color: var(--color-primary-bg) !important;
+    color: var(--color-primary) !important;
+  }
+
+  .ant-segmented-thumb {
+    background-color: var(--color-primary) !important;
+  }
+`
+
+const StyledSelect = styled(Select)`
+  .ant-select-selector {
+    border-radius: 15px !important;
+    padding: 4px 10px !important;
+    height: 26px !important;
+  }
 `
 
 export default SettingsTab

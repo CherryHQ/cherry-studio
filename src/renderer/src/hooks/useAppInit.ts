@@ -1,10 +1,12 @@
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
+import { defaultLanguage } from '@shared/config/constant'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
@@ -16,13 +18,13 @@ import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, manualUpdateCheck, proxyMode, customCss } = useSettings()
+  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
+  const { theme } = useTheme()
 
   useUpdateHandler()
-
   useFullScreenNotice()
 
   useEffect(() => {
@@ -33,13 +35,13 @@ export function useAppInit() {
     document.getElementById('spinner')?.remove()
     runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
-      if (isPackaged && !manualUpdateCheck) {
+      if (isPackaged && autoCheckUpdate) {
         await delay(2)
         const { updateInfo } = await window.api.checkForUpdate()
         dispatch(setUpdateState({ info: updateInfo }))
       }
     })
-  }, [dispatch, manualUpdateCheck])
+  }, [dispatch, autoCheckUpdate])
 
   useEffect(() => {
     if (proxyMode === 'system') {
@@ -52,13 +54,19 @@ export function useAppInit() {
   }, [proxyUrl, proxyMode])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || 'en-US')
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   useEffect(() => {
     const transparentWindow = windowStyle === 'transparent' && isMac && !minappShow
+
+    if (minappShow) {
+      window.root.style.background = theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)'
+      return
+    }
+
     window.root.style.background = transparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
-  }, [windowStyle, minappShow])
+  }, [windowStyle, minappShow, theme])
 
   useEffect(() => {
     if (isLocalAi) {

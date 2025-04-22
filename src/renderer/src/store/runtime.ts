@@ -1,30 +1,31 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
-import type { UpdateInfo } from 'electron-updater'
-
+import type { MinAppType } from '@renderer/types'
+import type { UpdateInfo } from 'builder-util-runtime'
 export interface UpdateState {
   info: UpdateInfo | null
   checking: boolean
   downloading: boolean
+  downloaded: boolean
   downloadProgress: number
   available: boolean
-}
-
-export interface WebDAVSyncState {
-  lastSyncTime: number | null
-  syncing: boolean
-  lastSyncError: string | null
 }
 
 export interface RuntimeState {
   avatar: string
   generating: boolean
+  /** whether the minapp popup is shown */
   minappShow: boolean
+  /** the minapps that are opened and should be keep alive */
+  openedKeepAliveMinapps: MinAppType[]
+  /** the minapp that is opened for one time */
+  openedOneOffMinapp: MinAppType | null
+  /** the current minapp id */
+  currentMinappId: string
   searching: boolean
   filesPath: string
   resourcesPath: string
   update: UpdateState
-  webdavSync: WebDAVSyncState
   export: ExportState
 }
 
@@ -36,6 +37,9 @@ const initialState: RuntimeState = {
   avatar: UserAvatar,
   generating: false,
   minappShow: false,
+  openedKeepAliveMinapps: [],
+  openedOneOffMinapp: null,
+  currentMinappId: '',
   searching: false,
   filesPath: '',
   resourcesPath: '',
@@ -43,13 +47,9 @@ const initialState: RuntimeState = {
     info: null,
     checking: false,
     downloading: false,
+    downloaded: false,
     downloadProgress: 0,
     available: false
-  },
-  webdavSync: {
-    lastSyncTime: null,
-    syncing: false,
-    lastSyncError: null
   },
   export: {
     isExporting: false
@@ -69,6 +69,15 @@ const runtimeSlice = createSlice({
     setMinappShow: (state, action: PayloadAction<boolean>) => {
       state.minappShow = action.payload
     },
+    setOpenedKeepAliveMinapps: (state, action: PayloadAction<MinAppType[]>) => {
+      state.openedKeepAliveMinapps = action.payload
+    },
+    setOpenedOneOffMinapp: (state, action: PayloadAction<MinAppType | null>) => {
+      state.openedOneOffMinapp = action.payload
+    },
+    setCurrentMinappId: (state, action: PayloadAction<string>) => {
+      state.currentMinappId = action.payload
+    },
     setSearching: (state, action: PayloadAction<boolean>) => {
       state.searching = action.payload
     },
@@ -81,9 +90,6 @@ const runtimeSlice = createSlice({
     setUpdateState: (state, action: PayloadAction<Partial<UpdateState>>) => {
       state.update = { ...state.update, ...action.payload }
     },
-    setWebDAVSyncState: (state, action: PayloadAction<Partial<WebDAVSyncState>>) => {
-      state.webdavSync = { ...state.webdavSync, ...action.payload }
-    },
     setExportState: (state, action: PayloadAction<Partial<ExportState>>) => {
       state.export = { ...state.export, ...action.payload }
     }
@@ -94,11 +100,13 @@ export const {
   setAvatar,
   setGenerating,
   setMinappShow,
+  setOpenedKeepAliveMinapps,
+  setOpenedOneOffMinapp,
+  setCurrentMinappId,
   setSearching,
   setFilesPath,
   setResourcesPath,
   setUpdateState,
-  setWebDAVSyncState,
   setExportState
 } = runtimeSlice.actions
 

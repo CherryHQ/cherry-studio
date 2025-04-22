@@ -1,12 +1,17 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { app } from 'electron'
-import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
+import { replaceDevtoolsFont } from '@main/utils/windowUtil'
+import { IpcChannel } from '@shared/IpcChannel'
+import { app, ipcMain } from 'electron'
+import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
+import Logger from 'electron-log'
 
 import { registerIpc } from './ipc'
+import { configManager } from './services/ConfigManager'
+import mcpService from './services/MCPService'
+import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } from './services/ProtocolClient'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
-import { updateUserDataPath } from './utils/upgrade'
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -18,10 +23,14 @@ if (!app.requestSingleInstanceLock()) {
   // Some APIs can only be used after this event occurs.
 
   app.whenReady().then(async () => {
-    await updateUserDataPath()
-
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
+
+    // Mac: Hide dock icon before window creation when launch to tray is set
+    const isLaunchToTray = configManager.getLaunchToTray()
+    if (isLaunchToTray) {
+      app.dock?.hide()
+    }
 
     const mainWindow = windowService.createMainWindow()
     new TrayService()
@@ -34,20 +43,51 @@ if (!app.requestSingleInstanceLock()) {
         windowService.showMainWindow()
       }
     })
+
     registerShortcuts(mainWindow)
 
     registerIpc(mainWindow, app)
 
+    replaceDevtoolsFont(mainWindow)
+
     if (process.env.NODE_ENV === 'development') {
-      installExtension(REDUX_DEVTOOLS)
+      installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
     }
+    ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
+      return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
+    })
+
+    ipcMain.handle(IpcChannel.System_GetHostname, () => {
+      return require('os').hostname()
+    })
+  })
+
+  registerProtocolClient(app)
+
+  // macOS specific: handle protocol when app is already running
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    handleProtocolUrl(url)
+  })
+
+  registerProtocolClient(app)
+
+  // macOS specific: handle protocol when app is already running
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    handleProtocolUrl(url)
   })
 
   // Listen for second instance
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     windowService.showMainWindow()
+
+    // Protocol handler for Windows/Linux
+    // The commandLine is an array of strings where the last item might be the URL
+    const url = argv.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+    if (url) handleProtocolUrl(url)
   })
 
   app.on('browser-window-created', (_, window) => {
@@ -56,6 +96,15 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => {
     app.isQuitting = true
+  })
+
+  app.on('will-quit', async () => {
+    // event.preventDefault()
+    try {
+      await mcpService.cleanup()
+    } catch (error) {
+      Logger.error('Error cleaning up MCP service:', error)
+    }
   })
 
   // In this file you can include the rest of your app"s specific main process

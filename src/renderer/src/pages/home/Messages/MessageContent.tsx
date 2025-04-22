@@ -1,73 +1,182 @@
-import { InfoCircleOutlined, SearchOutlined, SyncOutlined, TranslationOutlined } from '@ant-design/icons'
-import Favicon from '@renderer/components/Icons/FallbackFavicon'
-import { HStack } from '@renderer/components/Layout'
+import { SyncOutlined } from '@ant-design/icons'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Message, Model } from '@renderer/types'
 import { getBriefInfo } from '@renderer/utils'
-import { withMessageThought } from '@renderer/utils/formats'
-import { Divider, Flex } from 'antd'
+import { formatCitations, withMessageThought } from '@renderer/utils/formats'
+import { encodeHTML } from '@renderer/utils/markdown'
+import { Flex } from 'antd'
+import { clone } from 'lodash'
+import { Search } from 'lucide-react'
 import React, { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
-import BeatLoader from 'react-spinners/BeatLoader'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 
 import Markdown from '../Markdown/Markdown'
 import MessageAttachments from './MessageAttachments'
+import MessageCitations from './MessageCitations'
 import MessageError from './MessageError'
-import MessageSearchResults from './MessageSearchResults'
+import MessageImage from './MessageImage'
 import MessageThought from './MessageThought'
+import MessageTools from './MessageTools'
+import MessageTranslate from './MessageTranslate'
 
 interface Props {
-  message: Message
-  model?: Model
+  readonly message: Readonly<Message>
+  readonly model?: Readonly<Model>
 }
+
+const toolUseRegex = /<tool_use>([\s\S]*?)<\/tool_use>/g
 
 const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   const { t } = useTranslation()
-  const message = withMessageThought(_message)
+  const message = withMessageThought(clone(_message))
+
+  // Memoize message status checks
+  const messageStatus = useMemo(
+    () => ({
+      isSending: message.status === 'sending',
+      isSearching: message.status === 'searching',
+      isError: message.status === 'error',
+      isMention: message.type === '@'
+    }),
+    [message.status, message.type]
+  )
+
+  // Memoize mentions rendering data
+  const mentionsData = useMemo(() => {
+    if (!message.mentions?.length) return null
+    return message.mentions.map((model) => ({
+      key: getModelUniqId(model),
+      name: model.name
+    }))
+  }, [message.mentions])
+
+  // 预先缓存 URL 对象，避免重复创建
+  const urlCache = useMemo(() => new Map<string, URL>(), [])
+
+  // Format citations for display
+  const formattedCitations = useMemo(
+    () => formatCitations(message.metadata, model, urlCache),
+    [message.metadata, model, urlCache]
+  )
+
+  // 获取引用数据
+  const citationsData = useMemo(() => {
+    const searchResults =
+      message?.metadata?.webSearch?.results ||
+      message?.metadata?.webSearchInfo ||
+      message?.metadata?.groundingMetadata?.groundingChunks?.map((chunk) => chunk?.web) ||
+      message?.metadata?.annotations?.map((annotation) => annotation.url_citation) ||
+      []
+
+    // 使用对象而不是 Map 来提高性能
+    const data = {}
+
+    // 批量处理 webSearch 结果
+    searchResults.forEach((result) => {
+      const url = result.url || result.uri || result.link
+      if (url && !data[url]) {
+        data[url] = {
+          url,
+          title: result.title || result.hostname,
+          content: result.content
+        }
+      }
+    })
+
+    // 批量处理 knowledge 结果
+    message.metadata?.knowledge?.forEach((result) => {
+      const { sourceUrl } = result
+      if (sourceUrl && !data[sourceUrl]) {
+        data[sourceUrl] = {
+          url: sourceUrl,
+          title: result.id,
+          content: result.content
+        }
+      }
+    })
+
+    // 批量处理 citations
+    formattedCitations?.forEach((result) => {
+      const { url } = result
+      if (url && !data[url]) {
+        data[url] = {
+          url,
+          title: result.title || result.hostname,
+          content: result.content
+        }
+      }
+    })
+
+    return data
+  }, [
+    formattedCitations,
+    message.metadata?.annotations,
+    message.metadata?.groundingMetadata?.groundingChunks,
+    message.metadata?.knowledge,
+    message.metadata?.webSearch?.results,
+    message.metadata?.webSearchInfo
+  ])
 
   // Process content to make citation numbers clickable
   const processedContent = useMemo(() => {
-    if (!(message.metadata?.citations || message.metadata?.tavily)) {
+    const metadataFields = ['citations', 'webSearch', 'webSearchInfo', 'annotations', 'knowledge']
+    const hasMetadata = metadataFields.some((field) => message.metadata?.[field])
+
+    if (!hasMetadata) {
       return message.content
     }
 
     let content = message.content
 
-    const searchResultsCitations = message?.metadata?.tavily?.results?.map((result) => result.url) || []
+    // 预先计算citations数组，避免重复计算
+    const websearchResults = message?.metadata?.webSearch?.results?.map((result) => result.url) || []
+    const knowledgeResults = message?.metadata?.knowledge?.map((result) => result.sourceUrl) || []
+    const citations = message?.metadata?.citations || [...websearchResults, ...knowledgeResults]
 
-    const citations = message?.metadata?.citations || searchResultsCitations
+    // 优化正则表达式匹配
+    if (message.metadata?.webSearch || message.metadata?.knowledge) {
+      // 合并两个正则为一个，减少遍历次数
+      content = content.replace(/\[\[(\d+)\]\]|\[(\d+)\]/g, (match, num1, num2) => {
+        const num = num1 || num2
+        const index = parseInt(num) - 1
 
-    // Convert [n] format to superscript numbers and make them clickable
-    // Use <sup> tag for superscript and make it a link
-    content = content.replace(/\[(\d+)\]/g, (match, num) => {
-      const index = parseInt(num) - 1
-      if (index >= 0 && index < citations.length) {
+        if (index < 0 || index >= citations.length) {
+          return match
+        }
+
         const link = citations[index]
-        return link ? `[<sup>${num}</sup>](${link})` : `<sup>${num}</sup>`
-      }
-      return match
-    })
+        if (!link) {
+          return match
+        }
 
-    return content
-  }, [message.content, message.metadata])
+        const isWebLink = link.startsWith('http://') || link.startsWith('https://')
+        if (!isWebLink) {
+          return `<sup>${num}</sup>`
+        }
 
-  // Format citations for display
-  const formattedCitations = useMemo(() => {
-    if (!message.metadata?.citations?.length) return null
+        const citation = citationsData[link] || { url: link }
+        if (citation.content) {
+          citation.content = citation.content.substring(0, 200)
+        }
 
-    return message.metadata.citations.map((url, index) => {
-      try {
-        const hostname = new URL(url).hostname
-        return { number: index + 1, url, hostname }
-      } catch {
-        return { number: index + 1, url, hostname: url }
-      }
-    })
-  }, [message.metadata?.citations])
+        return `[<sup data-citation='${encodeHTML(JSON.stringify(citation))}'>${num}</sup>](${link})`
+      })
+    } else {
+      // 使用预编译的正则表达式
+      const citationRegex = /\[<sup>(\d+)<\/sup>\]\(([^)]+)\)/g
+      content = content.replace(citationRegex, (_, num, url) => {
+        const citation = citationsData[url] || { url }
+        const citationData = url ? encodeHTML(JSON.stringify(citation)) : null
+        return `[<sup data-citation='${citationData}'>${num}</sup>](${url})`
+      })
+    }
 
-  if (message.status === 'sending') {
+    return content.replace(toolUseRegex, '')
+  }, [message.content, message.metadata, citationsData])
+
+  if (messageStatus.isSending) {
     return (
       <MessageContentLoading>
         <SyncOutlined spin size={24} />
@@ -75,75 +184,40 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
     )
   }
 
-  if (message.status === 'searching') {
+  if (messageStatus.isSearching) {
     return (
       <SearchingContainer>
-        <SearchOutlined size={24} />
+        <Search size={24} />
         <SearchingText>{t('message.searching')}</SearchingText>
         <BarLoader color="#1677ff" />
       </SearchingContainer>
     )
   }
 
-  if (message.status === 'error') {
+  if (messageStatus.isError) {
     return <MessageError message={message} />
   }
 
-  if (message.type === '@' && model) {
+  if (messageStatus.isMention && model) {
     const content = `[@${model.name}](#)  ${getBriefInfo(message.content)}`
     return <Markdown message={{ ...message, content }} />
   }
 
   return (
     <Fragment>
-      <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
-        {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
-      </Flex>
+      {mentionsData && (
+        <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
+          {mentionsData.map(({ key, name }) => (
+            <MentionTag key={key}>{'@' + name}</MentionTag>
+          ))}
+        </Flex>
+      )}
       <MessageThought message={message} />
+      <MessageTools message={message} />
       <Markdown message={{ ...message, content: processedContent }} />
-      {message.translatedContent && (
-        <Fragment>
-          <Divider style={{ margin: 0, marginBottom: 10 }}>
-            <TranslationOutlined />
-          </Divider>
-          {message.translatedContent === t('translate.processing') ? (
-            <BeatLoader color="var(--color-text-2)" size="10" style={{ marginBottom: 15 }} />
-          ) : (
-            <Markdown message={{ ...message, content: message.translatedContent }} />
-          )}
-        </Fragment>
-      )}
-      <MessageSearchResults message={message} />
-      {formattedCitations && (
-        <CitationsContainer>
-          <CitationsTitle>
-            {t('message.citations')}
-            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-          </CitationsTitle>
-          {formattedCitations.map(({ number, url, hostname }) => (
-            <CitationLink key={number} href={url} target="_blank" rel="noopener noreferrer">
-              {number}. <span className="hostname">{hostname}</span>
-            </CitationLink>
-          ))}
-        </CitationsContainer>
-      )}
-      {message?.metadata?.tavily && message.status === 'success' && (
-        <CitationsContainer className="footnotes">
-          <CitationsTitle>
-            {t('message.citations')}
-            <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: '4px', opacity: 0.6 }} />
-          </CitationsTitle>
-          {message.metadata.tavily.results.map((result, index) => (
-            <HStack key={result.url} style={{ alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{index + 1}.</span>
-              <Favicon hostname={new URL(result.url).hostname} alt={result.title} />
-              <CitationLink href={result.url} target="_blank" rel="noopener noreferrer">
-                {result.title}
-              </CitationLink>
-            </HStack>
-          ))}
-        </CitationsContainer>
-      )}
+      <MessageImage message={message} />
+      <MessageTranslate message={message} />
+      <MessageCitations message={message} formattedCitations={formattedCitations} model={model} />
       <MessageAttachments message={message} />
     </Fragment>
   )
@@ -158,10 +232,14 @@ const MessageContentLoading = styled.div`
   margin-bottom: 5px;
 `
 
-const SearchingContainer = styled.div`
+const baseContainer = css`
   display: flex;
   flex-direction: row;
   align-items: center;
+`
+
+const SearchingContainer = styled.div`
+  ${baseContainer}
   background-color: var(--color-background-mute);
   padding: 10px;
   border-radius: 10px;
@@ -171,41 +249,6 @@ const SearchingContainer = styled.div`
 
 const MentionTag = styled.span`
   color: var(--color-link);
-`
-
-const CitationsContainer = styled.div`
-  background-color: rgb(242, 247, 253);
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin: 12px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
-  body[theme-mode='dark'] & {
-    background-color: rgba(255, 255, 255, 0.05);
-  }
-`
-
-const CitationsTitle = styled.div`
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--color-text-1);
-`
-
-const CitationLink = styled.a`
-  font-size: 14px;
-  line-height: 1.6;
-  text-decoration: none;
-  color: var(--color-text-1);
-
-  .hostname {
-    color: var(--color-link);
-  }
-
-  &:hover {
-    text-decoration: underline;
-  }
 `
 
 const SearchingText = styled.div`

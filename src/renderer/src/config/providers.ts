@@ -1,7 +1,8 @@
 import ZhinaoProviderLogo from '@renderer/assets/images/models/360.png'
 import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
-import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.jpg'
+import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
@@ -12,7 +13,7 @@ import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.p
 import GiteeAIProviderLogo from '@renderer/assets/images/providers/gitee-ai.png'
 import GithubProviderLogo from '@renderer/assets/images/providers/github.png'
 import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
-import GraphRagProviderLogo from '@renderer/assets/images/providers/graph-rag.png'
+import GPUStackProviderLogo from '@renderer/assets/images/providers/gpustack.svg'
 import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
@@ -31,99 +32,70 @@ import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
 import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity.png'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
+import QiniuProviderLogo from '@renderer/assets/images/providers/qiniu.webp'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
+import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
+import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+
+const PROVIDER_LOGO_MAP = {
+  openai: OpenAiProviderLogo,
+  silicon: SiliconFlowProviderLogo,
+  deepseek: DeepSeekProviderLogo,
+  'gitee-ai': GiteeAIProviderLogo,
+  yi: ZeroOneProviderLogo,
+  groq: GroqProviderLogo,
+  zhipu: ZhipuProviderLogo,
+  ollama: OllamaProviderLogo,
+  lmstudio: LMStudioProviderLogo,
+  moonshot: MoonshotProviderLogo,
+  openrouter: OpenRouterProviderLogo,
+  baichuan: BaichuanProviderLogo,
+  dashscope: BailianProviderLogo,
+  modelscope: ModelScopeProviderLogo,
+  xirang: XirangProviderLogo,
+  anthropic: AnthropicProviderLogo,
+  aihubmix: AiHubMixProviderLogo,
+  gemini: GoogleProviderLogo,
+  stepfun: StepProviderLogo,
+  doubao: BytedanceProviderLogo,
+  minimax: MinimaxProviderLogo,
+  github: GithubProviderLogo,
+  copilot: GithubProviderLogo,
+  ocoolai: OcoolAiProviderLogo,
+  together: TogetherProviderLogo,
+  fireworks: FireworksProviderLogo,
+  zhinao: ZhinaoProviderLogo,
+  nvidia: NvidiaProviderLogo,
+  'azure-openai': AzureProviderLogo,
+  hunyuan: HunyuanProviderLogo,
+  grok: GrokProviderLogo,
+  hyperbolic: HyperbolicProviderLogo,
+  mistral: MistralProviderLogo,
+  jina: JinaProviderLogo,
+  ppio: PPIOProviderLogo,
+  'baidu-cloud': BaiduCloudProviderLogo,
+  dmxapi: DmxapiProviderLogo,
+  perplexity: PerplexityProviderLogo,
+  infini: InfiniProviderLogo,
+  o3: O3ProviderLogo,
+  'tencent-cloud-ti': TencentCloudProviderLogo,
+  gpustack: GPUStackProviderLogo,
+  alayanew: AlayaNewProviderLogo,
+  voyageai: VoyageAIProviderLogo,
+  qiniu: QiniuProviderLogo
+} as const
+
 export function getProviderLogo(providerId: string) {
-  switch (providerId) {
-    case 'openai':
-      return OpenAiProviderLogo
-    case 'silicon':
-      return SiliconFlowProviderLogo
-    case 'deepseek':
-      return DeepSeekProviderLogo
-    case 'gitee-ai':
-      return GiteeAIProviderLogo
-    case 'yi':
-      return ZeroOneProviderLogo
-    case 'groq':
-      return GroqProviderLogo
-    case 'zhipu':
-      return ZhipuProviderLogo
-    case 'ollama':
-      return OllamaProviderLogo
-    case 'lmstudio':
-      return LMStudioProviderLogo
-    case 'moonshot':
-      return MoonshotProviderLogo
-    case 'openrouter':
-      return OpenRouterProviderLogo
-    case 'baichuan':
-      return BaichuanProviderLogo
-    case 'dashscope':
-      return BailianProviderLogo
-    case 'modelscope':
-      return ModelScopeProviderLogo
-    case 'xirang':
-      return XirangProviderLogo
-    case 'anthropic':
-      return AnthropicProviderLogo
-    case 'aihubmix':
-      return AiHubMixProviderLogo
-    case 'gemini':
-      return GoogleProviderLogo
-    case 'stepfun':
-      return StepProviderLogo
-    case 'doubao':
-      return BytedanceProviderLogo
-    case 'graphrag-kylin-mountain':
-      return GraphRagProviderLogo
-    case 'minimax':
-      return MinimaxProviderLogo
-    case 'github':
-      return GithubProviderLogo
-    case 'ocoolai':
-      return OcoolAiProviderLogo
-    case 'together':
-      return TogetherProviderLogo
-    case 'fireworks':
-      return FireworksProviderLogo
-    case 'zhinao':
-      return ZhinaoProviderLogo
-    case 'nvidia':
-      return NvidiaProviderLogo
-    case 'azure-openai':
-      return AzureProviderLogo
-    case 'hunyuan':
-      return HunyuanProviderLogo
-    case 'grok':
-      return GrokProviderLogo
-    case 'hyperbolic':
-      return HyperbolicProviderLogo
-    case 'mistral':
-      return MistralProviderLogo
-    case 'jina':
-      return JinaProviderLogo
-    case 'ppio':
-      return PPIOProviderLogo
-    case 'baidu-cloud':
-      return BaiduCloudProviderLogo
-    case 'dmxapi':
-      return DmxapiProviderLogo
-    case 'perplexity':
-      return PerplexityProviderLogo
-    case 'infini':
-      return InfiniProviderLogo
-    case 'o3':
-      return O3ProviderLogo
-    default:
-      return undefined
-  }
+  return PROVIDER_LOGO_MAP[providerId as keyof typeof PROVIDER_LOGO_MAP]
 }
+
+export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai']
 
 export const PROVIDER_CONFIG = {
   openai: {
@@ -153,10 +125,9 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.ppinfra.com/v3/openai'
     },
     websites: {
-      official:
-        'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link',
-      apiKey: 'https://ppinfra.com/settings/key-management',
-      docs: 'https://ppinfra.com/docs/model-api/reference/llm/llm.html',
+      official: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      apiKey: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      docs: 'https://docs.cherry-ai.com/pre-basic/providers/ppio?invited_by=JYT9GD&utm_source=github_cherry-studio',
       models:
         'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link'
     }
@@ -178,7 +149,7 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://www.siliconflow.cn/',
-      apiKey: 'https://cloud.siliconflow.cn/account/ak?referrer=clxty1xuy0014lvqwh5z50i88',
+      apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
       docs: 'https://docs.siliconflow.cn/',
       models: 'https://docs.siliconflow.cn/docs/model-names'
     }
@@ -218,7 +189,7 @@ export const PROVIDER_CONFIG = {
   },
   together: {
     api: {
-      url: 'https://api.tohgether.xyz'
+      url: 'https://api.together.xyz'
     },
     websites: {
       official: 'https://www.together.ai/',
@@ -269,6 +240,11 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://github.com/settings/tokens',
       docs: 'https://docs.github.com/en/github-models',
       models: 'https://github.com/marketplace/models'
+    }
+  },
+  copilot: {
+    api: {
+      url: 'https://api.githubcopilot.com/'
     }
   },
   yi: {
@@ -343,9 +319,9 @@ export const PROVIDER_CONFIG = {
     },
     websites: {
       official: 'https://www.aliyun.com/product/bailian',
-      apiKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
+      apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
       docs: 'https://help.aliyun.com/zh/model-studio/getting-started/',
-      models: 'https://bailian.console.aliyun.com/model-market#/model-market'
+      models: 'https://bailian.console.aliyun.com/?tab=model#/model-market'
     }
   },
   stepfun: {
@@ -381,9 +357,15 @@ export const PROVIDER_CONFIG = {
       models: 'https://platform.minimaxi.com/document/Models'
     }
   },
-  'graphrag-kylin-mountain': {
+  alayanew: {
     api: {
-      url: ''
+      url: 'https://deepseek.alayanew.com'
+    },
+    websites: {
+      official: 'https://www.alayanew.com/backend/register?id=cherrystudio',
+      apiKey: ' https://www.alayanew.com/backend/register?id=cherrystudio',
+      docs: 'https://docs.alayanew.com/docs/modelService/interview?utm_source=cherrystudio',
+      models: 'https://www.alayanew.com/product/deepseek?id=cherrystudio'
     }
   },
   openrouter: {
@@ -557,6 +539,49 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
       docs: 'https://cloud.baidu.com/doc/index.html',
       models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
+    }
+  },
+  'tencent-cloud-ti': {
+    api: {
+      url: 'https://api.lkeap.cloud.tencent.com'
+    },
+    websites: {
+      official: 'https://cloud.tencent.com/product/ti',
+      apiKey: 'https://console.cloud.tencent.com/lkeap/api',
+      docs: 'https://cloud.tencent.com/document/product/1772',
+      models: 'https://console.cloud.tencent.com/tione/v2/aimarket'
+    }
+  },
+  gpustack: {
+    api: {
+      url: ''
+    },
+    websites: {
+      official: 'https://gpustack.ai/',
+      docs: 'https://docs.gpustack.ai/latest/',
+      models: 'https://docs.gpustack.ai/latest/overview/#supported-models'
+    }
+  },
+  voyageai: {
+    api: {
+      url: 'https://api.voyageai.com'
+    },
+    websites: {
+      official: 'https://www.voyageai.com/',
+      apiKey: 'https://dashboard.voyageai.com/organization/api-keys',
+      docs: 'https://docs.voyageai.com/docs',
+      models: 'https://docs.voyageai.com/docs'
+    }
+  },
+  qiniu: {
+    api: {
+      url: 'https://api.qnaigc.com'
+    },
+    websites: {
+      official: 'https://qiniu.com',
+      apiKey: 'https://marketing.qiniu.com/activity/2025_newspring?cps_key=1h4vzfbkxobiq#deepseek-title',
+      docs: 'https://developer.qiniu.com/aitokenapi',
+      models: 'https://developer.qiniu.com/aitokenapi/12883/model-list'
     }
   }
 }

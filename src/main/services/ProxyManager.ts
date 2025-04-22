@@ -1,22 +1,24 @@
 import { ProxyConfig as _ProxyConfig, session } from 'electron'
-import { HttpsProxyAgent } from 'https-proxy-agent'
+import { socksDispatcher } from 'fetch-socks'
+import { getSystemProxy } from 'os-proxy-config'
+import { ProxyAgent as GeneralProxyAgent } from 'proxy-agent'
+import { ProxyAgent, setGlobalDispatcher } from 'undici'
 
 type ProxyMode = 'system' | 'custom' | 'none'
 
 export interface ProxyConfig {
   mode: ProxyMode
-  url?: string | null
+  url?: string
 }
 
 export class ProxyManager {
   private config: ProxyConfig
-  private proxyAgent: HttpsProxyAgent | null = null
-  private proxyUrl: string | null = null
+  private proxyAgent: GeneralProxyAgent | null = null
+  private systemProxyInterval: NodeJS.Timeout | null = null
 
   constructor() {
     this.config = {
-      mode: 'system',
-      url: ''
+      mode: 'none'
     }
   }
 
@@ -25,12 +27,30 @@ export class ProxyManager {
     await Promise.all(sessions.map((session) => session.setProxy(config)))
   }
 
+  private async monitorSystemProxy(): Promise<void> {
+    // Clear any existing interval first
+    this.clearSystemProxyMonitor()
+    // Set new interval
+    this.systemProxyInterval = setInterval(async () => {
+      await this.setSystemProxy()
+    }, 10000)
+  }
+
+  private clearSystemProxyMonitor(): void {
+    if (this.systemProxyInterval) {
+      clearInterval(this.systemProxyInterval)
+      this.systemProxyInterval = null
+    }
+  }
+
   async configureProxy(config: ProxyConfig): Promise<void> {
     try {
       this.config = config
+      this.clearSystemProxyMonitor()
       if (this.config.mode === 'system') {
         await this.setSystemProxy()
-      } else if (this.config.mode == 'custom') {
+        this.monitorSystemProxy()
+      } else if (this.config.mode === 'custom') {
         await this.setCustomProxy()
       } else {
         await this.clearProxy()
@@ -51,12 +71,14 @@ export class ProxyManager {
 
   private async setSystemProxy(): Promise<void> {
     try {
-      this.proxyUrl = await this.resolveSystemProxy()
-      if (this.proxyUrl) {
-        this.proxyAgent = new HttpsProxyAgent(this.proxyUrl)
-        this.setEnvironment(this.proxyUrl)
-        await this.setSessionsProxy({ mode: 'system' })
+      const currentProxy = await getSystemProxy()
+      if (!currentProxy || currentProxy.proxyUrl === this.config.url) {
+        return
       }
+      await this.setSessionsProxy({ mode: 'system' })
+      this.config.url = currentProxy.proxyUrl.toLowerCase()
+      this.setEnvironment(this.config.url)
+      this.proxyAgent = new GeneralProxyAgent()
     } catch (error) {
       console.error('Failed to set system proxy:', error)
       throw error
@@ -66,8 +88,8 @@ export class ProxyManager {
   private async setCustomProxy(): Promise<void> {
     try {
       if (this.config.url) {
-        this.proxyAgent = new HttpsProxyAgent(this.config.url)
         this.setEnvironment(this.config.url)
+        this.proxyAgent = new GeneralProxyAgent()
         await this.setSessionsProxy({ proxyRules: this.config.url })
       }
     } catch (error) {
@@ -76,39 +98,45 @@ export class ProxyManager {
     }
   }
 
-  private async clearProxy(): Promise<void> {
+  private clearEnvironment(): void {
     delete process.env.HTTP_PROXY
     delete process.env.HTTPS_PROXY
-    await this.setSessionsProxy({})
+    delete process.env.grpc_proxy
+    delete process.env.http_proxy
+    delete process.env.https_proxy
+  }
+
+  private async clearProxy(): Promise<void> {
+    this.clearEnvironment()
+    await this.setSessionsProxy({ mode: 'direct' })
     this.config = { mode: 'none' }
+    this.proxyAgent = null
   }
 
-  private async resolveSystemProxy(): Promise<string | null> {
-    try {
-      return await this.resolveElectronProxy()
-    } catch (error) {
-      console.error('Failed to resolve system proxy:', error)
-      return null
-    }
-  }
-
-  private async resolveElectronProxy(): Promise<string | null> {
-    try {
-      const proxyString = await session.defaultSession.resolveProxy('https://dummy.com')
-      const [protocol, address] = proxyString.split(';')[0].split(' ')
-      return protocol === 'PROXY' ? `http://${address}` : null
-    } catch (error) {
-      console.error('Failed to resolve electron proxy:', error)
-      return null
-    }
-  }
-
-  getProxyAgent(): HttpsProxyAgent | null {
+  getProxyAgent(): GeneralProxyAgent | null {
     return this.proxyAgent
   }
 
-  getProxyUrl(): string | null {
-    return this.proxyUrl
+  getProxyUrl(): string {
+    return this.config.url || ''
+  }
+
+  setGlobalProxy() {
+    const proxyUrl = this.config.url
+    if (proxyUrl) {
+      const [protocol, address] = proxyUrl.split('://')
+      const [host, port] = address.split(':')
+      if (!protocol.includes('socks')) {
+        setGlobalDispatcher(new ProxyAgent(proxyUrl))
+      } else {
+        const dispatcher = socksDispatcher({
+          port: parseInt(port),
+          type: protocol === 'socks5' ? 5 : 4,
+          host: host
+        })
+        global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
+      }
+    }
   }
 }
 

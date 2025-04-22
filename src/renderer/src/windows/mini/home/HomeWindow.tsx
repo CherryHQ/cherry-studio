@@ -4,6 +4,8 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { uuid } from '@renderer/utils'
+import { defaultLanguage } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
@@ -29,7 +31,7 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const { defaultModel: model } = useDefaultModel()
-  const { language } = useSettings()
+  const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
@@ -39,12 +41,14 @@ const HomeWindow: FC = () => {
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
   const readClipboard = useCallback(async () => {
+    if (!readClipboardAtStartup) return
+
     const text = await navigator.clipboard.readText().catch(() => null)
     if (text && text !== lastClipboardText) {
       setLastClipboardText(text)
       setClipboardText(text.trim())
     }
-  }, [lastClipboardText])
+  }, [readClipboardAtStartup, lastClipboardText])
 
   const focusInput = () => {
     if (inputBarRef.current) {
@@ -66,7 +70,7 @@ const HomeWindow: FC = () => {
   }, [readClipboard])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || 'en-US')
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   const onCloseWindow = () => window.api.miniWindow.hide()
@@ -83,18 +87,17 @@ const HomeWindow: FC = () => {
 
     switch (e.code) {
       case 'Enter':
+      case 'NumpadEnter':
         {
           e.preventDefault()
           if (content) {
             if (route === 'home') {
               featureMenusRef.current?.useFeature()
-              setText('')
             } else {
               // 目前文本框只在'chat'时可以继续输入，这里相当于 route === 'chat'
               setRoute('chat')
               onSendMessage().then()
               focusInput()
-              setTimeout(() => setText(''), 100)
             }
           }
         }
@@ -157,6 +160,7 @@ const HomeWindow: FC = () => {
         }
         EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
         setIsFirstMessage(false)
+        setText('') // ✅ 清除输入框内容
       }, 0)
     },
     [content, defaultAssistant.id, defaultAssistant.topics]
@@ -165,6 +169,7 @@ const HomeWindow: FC = () => {
   const clearClipboard = () => {
     setClipboardText('')
     setSelectedText('')
+    focusInput()
   }
 
   // If the input is focused, the `Esc` callback will not be triggered here.
@@ -178,16 +183,16 @@ const HomeWindow: FC = () => {
   })
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('show-mini-window', onWindowShow)
-    window.electron.ipcRenderer.on('selection-action', (_, { action, selectedText }) => {
+    window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
+    window.electron.ipcRenderer.on(IpcChannel.SelectionAction, (_, { action, selectedText }) => {
       selectedText && setSelectedText(selectedText)
       action && setRoute(action)
       action === 'chat' && onSendMessage()
     })
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners('show-mini-window')
-      window.electron.ipcRenderer.removeAllListeners('selection-action')
+      window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
+      window.electron.ipcRenderer.removeAllListeners(IpcChannel.SelectionAction)
     }
   }, [onWindowShow, onSendMessage, setRoute])
 
@@ -198,9 +203,24 @@ const HomeWindow: FC = () => {
     }
   }, [route])
 
+  const backgroundColor = () => {
+    // ONLY MAC: when transparent style + light theme: use vibrancy effect
+    // because the dark style under mac's vibrancy effect has not been implemented
+    if (
+      isMac &&
+      windowStyle === 'transparent' &&
+      theme === 'light' &&
+      !window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
+      return 'transparent'
+    }
+
+    return 'var(--color-background)'
+  }
+
   if (['chat', 'summary', 'explanation'].includes(route)) {
     return (
-      <Container>
+      <Container style={{ backgroundColor: backgroundColor() }}>
         {route === 'chat' && (
           <>
             <InputBar
@@ -229,7 +249,7 @@ const HomeWindow: FC = () => {
 
   if (route === 'translate') {
     return (
-      <Container>
+      <Container style={{ backgroundColor: backgroundColor() }}>
         <TranslateWindow text={referenceText} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
@@ -238,7 +258,7 @@ const HomeWindow: FC = () => {
   }
 
   return (
-    <Container>
+    <Container style={{ backgroundColor: backgroundColor() }}>
       <InputBar
         text={text}
         model={model}
@@ -260,6 +280,8 @@ const HomeWindow: FC = () => {
       <Divider style={{ margin: '10px 0' }} />
       <Footer
         route={route}
+        canUseBackspace={text.length > 0 || clipboardText.length == 0}
+        clearClipboard={clearClipboard}
         onExit={() => {
           setRoute('home')
           setText('')
@@ -274,14 +296,16 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   height: 100%;
+  width: 100%;
   flex-direction: column;
   -webkit-app-region: drag;
   padding: 8px 10px;
-  background-color: ${isMac ? 'transparent' : 'var(--color-background)'};
 `
 
 const Main = styled.main`
   display: flex;
+  flex-direction: column;
+
   flex: 1;
   overflow: hidden;
 `
