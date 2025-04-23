@@ -1,13 +1,14 @@
-import React from 'react'
+import React, { CSSProperties } from 'react'
 import styled from 'styled-components'
 
 interface DividerWithTextProps {
   text: string
+  style?: CSSProperties
 }
 
-const DividerWithText: React.FC<DividerWithTextProps> = ({ text }) => {
+const DividerWithText: React.FC<DividerWithTextProps> = ({ text, style }) => {
   return (
-    <DividerContainer>
+    <DividerContainer style={style}>
       <DividerText>{text}</DividerText>
       <DividerLine />
     </DividerContainer>

@@ -33,7 +33,7 @@
     },
     "assistants": {
       "title": "Assistants",
-      "abbr": "Assistant",
+      "abbr": "Assistants",
       "settings.title": "Assistant Settings",
       "clear.content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
       "clear.title": "Clear topics",
@@ -43,6 +43,7 @@
       "edit.title": "Edit Assistant",
       "save.success": "Saved successfully",
       "save.title": "Save to agent",
+      "icon.type": "Assistant Icon",
       "search": "Search assistants...",
       "settings.default_model": "Default Model",
       "settings.knowledge_base": "Knowledge Base Settings",
@@ -59,7 +60,7 @@
       "settings.reasoning_effort.low": "low",
       "settings.reasoning_effort.medium": "medium",
       "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supports OpenAI o-series and Anthropic reasoning models",
+      "settings.reasoning_effort.tip": "Only supported by OpenAI o-series, Anthropic, and Grok reasoning models",
       "settings.more": "Assistant Settings"
     },
     "auth": {
@@ -277,6 +278,7 @@
       "duplicate": "Duplicate",
       "edit": "Edit",
       "expand": "Expand",
+      "collapse": "Collapse",
       "footnote": "Reference content",
       "footnotes": "References",
       "fullscreen": "Entered fullscreen mode. Press F11 to exit",
@@ -298,7 +300,12 @@
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
-      "reasoning_content": "Deep reasoning"
+      "reasoning_content": "Deep reasoning",
+      "sort": {
+        "pinyin": "Sort by Pinyin",
+        "pinyin.asc": "Sort by Pinyin (A-Z)",
+        "pinyin.desc": "Sort by Pinyin (Z-A)"
+      }
     },
     "docs": {
       "title": "Docs"
@@ -321,7 +328,7 @@
       "no_api_key": "API key is not configured",
       "provider_disabled": "Model provider is not enabled",
       "render": {
-        "description": "Failed to render formula. Please check if the formula format is correct",
+        "description": "Failed to render message content. Please check if the message content format is correct",
         "title": "Render Error"
       },
       "user_message_not_found": "Cannot find original user message to resend",
@@ -541,7 +548,7 @@
       "restore.failed": "Restore failed",
       "restore.success": "Restored successfully",
       "save.success.title": "Saved successfully",
-      "searching": "Searching the internet...",
+      "searching": "Searching...",
       "success.joplin.export": "Successfully exported to Joplin",
       "success.markdown.export.preconf": "Successfully exported the Markdown file to the preconfigured path",
       "success.markdown.export.specified": "Successfully exported the Markdown file",
@@ -550,7 +557,8 @@
       "switch.disabled": "Please wait for the current reply to complete",
       "tools": {
         "completed": "Completed",
-        "invoking": "Invoking"
+        "invoking": "Invoking",
+        "error": "Error occurred"
       },
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
@@ -782,7 +790,10 @@
       "advanced.title": "Advanced Settings",
       "assistant": "Default Assistant",
       "assistant.model_params": "Model Parameters",
-      "assistant.show.icon": "Show model icon",
+      "assistant.icon.type": "Model Icon Type",
+      "assistant.icon.type.model": "Model Icon",
+      "assistant.icon.type.emoji": "Emoji Icon",
+      "assistant.icon.type.none": "Hide",
       "assistant.title": "Default Assistant",
       "data": {
         "app_data": "App Data",
@@ -870,6 +881,25 @@
           "backup.button": "Backup to WebDAV",
           "backup.modal.filename.placeholder": "Please enter backup filename",
           "backup.modal.title": "Backup to WebDAV",
+          "backup.manager.title": "Backup Data Management",
+          "backup.manager.refresh": "Refresh",
+          "backup.manager.delete.selected": "Delete Selected",
+          "backup.manager.delete.text": "Delete",
+          "backup.manager.restore.text": "Restore",
+          "backup.manager.restore.success": "Restore successful, application will refresh shortly",
+          "backup.manager.restore.error": "Restore failed",
+          "backup.manager.delete.confirm.title": "Confirm Delete",
+          "backup.manager.delete.confirm.single": "Are you sure you want to delete backup file \"{{fileName}}\"? This action cannot be undone.",
+          "backup.manager.delete.confirm.multiple": "Are you sure you want to delete {{count}} selected backup files? This action cannot be undone.",
+          "backup.manager.delete.success.single": "Deleted successfully",
+          "backup.manager.delete.success.multiple": "Successfully deleted {{count}} backup files",
+          "backup.manager.delete.error": "Delete failed",
+          "backup.manager.fetch.error": "Failed to get backup files",
+          "backup.manager.select.files.delete": "Please select backup files to delete",
+          "backup.manager.columns.fileName": "Filename",
+          "backup.manager.columns.modifiedTime": "Modified Time",
+          "backup.manager.columns.size": "Size",
+          "backup.manager.columns.actions": "Actions",
           "host": "WebDAV Host",
           "host.placeholder": "http://localhost:8080",
           "hour_interval_one": "{{count}} hour",
@@ -891,7 +921,9 @@
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",
           "title": "WebDAV",
-          "user": "WebDAV User"
+          "user": "WebDAV User",
+          "maxBackups": "Maximum Backups",
+          "maxBackups.unlimited": "Unlimited"
         },
         "yuque": {
           "check": {
@@ -1004,7 +1036,7 @@
       "general.display.title": "Display Settings",
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
-      "general.auto_check_update.title": "Auto update checking",
+      "general.auto_check_update.title": "Auto Update",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
@@ -1032,8 +1064,9 @@
         "argsTooltip": "Each argument on a new line",
         "baseUrlTooltip": "Remote server base URL",
         "command": "Command",
-        "sse": "Server-Sent Events(sse)",
-        "stdio": "Standard Input/Output(stdio)",
+        "sse": "Server-Sent Events (sse)",
+        "streamableHttp": "Streamable HTTP (streamableHttp)",
+        "stdio": "Standard Input/Output (stdio)",
         "inMemory": "Memory",
         "config_description": "Configure Model Context Protocol servers",
         "deleteError": "Failed to delete server",
@@ -1046,6 +1079,8 @@
         "editServer": "Edit Server",
         "env": "Environment Variables",
         "envTooltip": "Format: KEY=value, one per line",
+        "headers": "Headers",
+        "headersTooltip": "Custom headers for HTTP requests",
         "findMore": "Find More MCP",
         "searchNpx": "Search MCP",
         "install": "Install",
@@ -1061,7 +1096,6 @@
         "newServer": "MCP Server",
         "npx_list": {
           "actions": "Actions",
-          "desc": "Search and add npm packages as MCP servers",
           "description": "Description",
           "no_packages": "No packages found",
           "npm": "NPM",
@@ -1070,7 +1104,6 @@
           "scope_required": "Please enter npm scope",
           "search": "Search",
           "search_error": "Search error",
-          "title": "NPX Package List",
           "usage": "Usage",
           "version": "Version"
         },
@@ -1087,10 +1120,35 @@
         "url": "URL",
         "editMcpJson": "Edit MCP Configuration",
         "installHelp": "Get Installation Help",
+        "tabs": {
+          "general": "General",
+          "tools": "Tools",
+          "prompts": "Prompts",
+          "resources": "Resources"
+        },
         "tools": {
           "inputSchema": "Input Schema",
           "availableTools": "Available Tools",
-          "noToolsAvailable": "No tools available"
+          "noToolsAvailable": "No tools available",
+          "loadError": "Get tools Error"
+        },
+        "prompts": {
+          "availablePrompts": "Available Prompts",
+          "noPromptsAvailable": "No prompts available",
+          "arguments": "Arguments",
+          "requiredField": "Required Field",
+          "genericError": "Get prompt Error",
+          "loadError": "Get prompts Error"
+        },
+        "resources": {
+          "noResourcesAvailable": "No resources available",
+          "availableResources": "Available Resources",
+          "uri": "URI",
+          "mimeType": "MIME Type",
+          "size": "Size",
+          "blob": "Blob",
+          "blobInvisible": "Blob Invisible",
+          "text": "Text"
         },
         "deleteServer": "Delete Server",
         "deleteServerConfirm": "Are you sure you want to delete this server?",
@@ -1111,6 +1169,8 @@
       "messages.input.send_shortcuts": "Send shortcuts",
       "messages.input.show_estimated_tokens": "Show estimated tokens",
       "messages.input.title": "Input Settings",
+      "messages.input.enable_quick_triggers": "Enable '/' and '@' triggers",
+      "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
@@ -1177,6 +1237,12 @@
         "api_key": "API Key",
         "api_key.tip": "Multiple keys separated by commas",
         "api_version": "API Version",
+        "basic_auth": "HTTP authentication",
+        "basic_auth.tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
+        "basic_auth.user_name": "Username",
+        "basic_auth.user_name.tip": "Left empty to disable",
+        "basic_auth.password": "Password",
+        "basic_auth.password.tip": "",
         "charge": "Charge",
         "check": "Check",
         "check_all_keys": "Check All Keys",
@@ -1281,8 +1347,6 @@
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
-        "enhance_mode": "Search enhance mode",
-        "enhance_mode_tooltip": "Use the default model to extract search keywords from the problem and search",
         "get_api_key": "Get API Key",
         "no_provider_selected": "Please select a search service provider before checking.",
         "search_max_result": "Number of search results",
@@ -1296,7 +1360,21 @@
           "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
           "title": "Tavily"
         },
-        "title": "Web Search"
+        "title": "Web Search",
+        "subscribe": "Blacklist Subscription",
+        "subscribe_update": "Update",
+        "subscribe_add": "Add Subscription",
+        "subscribe_url": "Subscription Url",
+        "subscribe_name": "Alternative name",
+        "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
+        "subscribe_add_success": "Subscription feed added successfully!",
+        "subscribe_delete": "Delete",
+        "overwrite": "Override search service",
+        "overwrite_tooltip": "Force use search service instead of LLM",
+        "apikey": "API key",
+        "free": "Free",
+        "content_limit": "Content length limit",
+        "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated."
       },
       "quickPhrase": {
         "title": "Quick Phrases",

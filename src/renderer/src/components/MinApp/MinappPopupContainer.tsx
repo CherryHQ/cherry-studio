@@ -13,6 +13,7 @@ import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
@@ -42,6 +43,7 @@ const MinappPopupContainer: React.FC = () => {
   const { closeMinapp, hideMinappPopup } = useMinappPopup()
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
+  const backgroundColor = useNavBackgroundColor()
   const dispatch = useAppDispatch()
 
   /** control the drawer open or close */
@@ -257,7 +259,7 @@ const MinappPopupContainer: React.FC = () => {
     }
 
     return (
-      <TitleContainer>
+      <TitleContainer style={{ backgroundColor: backgroundColor }}>
         <Tooltip
           title={
             <TitleTextTooltip>
@@ -365,7 +367,7 @@ const MinappPopupContainer: React.FC = () => {
       height={'100%'}
       maskClosable={false}
       closeIcon={null}
-      style={{ marginLeft: 'var(--sidebar-width)' }}>
+      style={{ marginLeft: 'var(--sidebar-width)', backgroundColor: 'var(--color-background)' }}>
       {!isReady && (
         <EmptyView>
           <Avatar

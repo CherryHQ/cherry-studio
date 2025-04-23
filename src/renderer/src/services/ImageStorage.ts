@@ -34,4 +34,17 @@ export default class ImageStorage {
     const id = IMAGE_PREFIX + key
     return (await db.settings.get(id))?.value
   }
+
+  static async remove(key: string): Promise<void> {
+    const id = IMAGE_PREFIX + key
+    try {
+      const record = await db.settings.get(id)
+      if (record) {
+        await db.settings.delete(id)
+      }
+    } catch (error) {
+      console.error('Error removing the image', error)
+      throw error
+    }
+  }
 }

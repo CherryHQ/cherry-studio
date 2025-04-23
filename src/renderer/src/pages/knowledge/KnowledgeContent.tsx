@@ -1,12 +1,5 @@
-import {
-  CopyOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-  RedoOutlined,
-  SearchOutlined,
-  SettingOutlined
-} from '@ant-design/icons'
+import { CopyOutlined, DeleteOutlined, EditOutlined, RedoOutlined } from '@ant-design/icons'
+import CustomTag from '@renderer/components/CustomTag'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -20,13 +13,15 @@ import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
+import { ChevronsDown, ChevronsUp, Plus, Search, Settings2 } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
-import { FC } from 'react'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import CustomCollapse from '../../components/CustomCollapse'
 import FileItem from '../files/FileItem'
+import { NavbarIcon } from '../home/Navbar'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'
@@ -41,6 +36,7 @@ const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, .
 
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
+  const [expandAll, setExpandAll] = useState(false)
 
   const {
     base,
@@ -63,7 +59,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   } = useKnowledge(selectedBase.id || '')
 
   const providerName = getProviderName(base?.model.provider || '')
-  const rerankModelProviderName = getProviderName(base?.rerankModel?.provider || '')
   const disabled = !base?.version || !providerName
 
   if (!base) {
@@ -229,356 +224,371 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   }
 
   return (
-    <MainContent>
-      {!base?.version && (
-        <Alert message={t('knowledge.not_support')} type="error" style={{ marginBottom: 20 }} showIcon />
-      )}
-      {!providerName && (
-        <Alert message={t('knowledge.no_provider')} type="error" style={{ marginBottom: 20 }} showIcon />
-      )}
-
-      <CustomCollapse
-        label={<CollapseLabel label={t('files.title')} count={fileItems.length} />}
-        extra={
+    <MainContainer>
+      <HeaderContainer>
+        <ModelInfo>
           <Button
             type="text"
-            icon={<PlusOutlined />}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleAddFile()
-            }}
-            disabled={disabled}>
-            {t('knowledge.add_file')}
-          </Button>
-        }>
-        <Dragger
-          showUploadList={false}
-          customRequest={({ file }) => handleDrop([file as File])}
-          multiple={true}
-          accept={fileTypes.join(',')}
-          style={{ marginTop: 10, background: 'transparent' }}>
-          <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
-          <p className="ant-upload-hint">
-            {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
-          </p>
-        </Dragger>
-
-        <FlexColumn>
-          {fileItems.length === 0 ? (
-            <EmptyView />
-          ) : (
-            <VirtualList
-              data={fileItems.reverse()}
-              height={fileItems.length > 5 ? 400 : fileItems.length * 80}
-              itemHeight={80}
-              itemKey="id"
-              styles={{
-                verticalScrollBar: {
-                  width: 6
-                },
-                verticalScrollBarThumb: {
-                  background: 'var(--color-scrollbar-thumb)'
-                }
-              }}>
-              {(item) => {
-                const file = item.content as FileType
-                return (
-                  <div style={{ height: '80px', paddingTop: '12px' }}>
-                    <FileItem
-                      key={item.id}
-                      fileInfo={{
-                        name: (
-                          <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
-                            <Ellipsis>
-                              <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
-                            </Ellipsis>
-                          </ClickableSpan>
-                        ),
-                        ext: file.ext,
-                        extra: `${dayjs(file.created_at).format('MM-DD HH:mm')} · ${formatFileSize(file.size)}`,
-                        actions: (
-                          <FlexAlignCenter>
-                            {item.uniqueId && (
-                              <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
-                            )}
-                            <StatusIconWrapper>
-                              <StatusIcon
-                                sourceId={item.id}
-                                base={base}
-                                getProcessingStatus={getProcessingStatus}
-                                type="file"
-                              />
-                            </StatusIconWrapper>
-                            <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                          </FlexAlignCenter>
-                        )
-                      }}
-                    />
-                  </div>
-                )
-              }}
-            </VirtualList>
-          )}
-        </FlexColumn>
-      </CustomCollapse>
-
-      <CustomCollapse
-        label={<CollapseLabel label={t('knowledge.directories')} count={directoryItems.length} />}
-        extra={
-          <Button
-            type="text"
-            icon={<PlusOutlined />}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleAddDirectory()
-            }}
-            disabled={disabled}>
-            {t('knowledge.add_directory')}
-          </Button>
-        }>
-        <FlexColumn>
-          {directoryItems.length === 0 && <EmptyView />}
-          {directoryItems.reverse().map((item) => (
-            <FileItem
-              key={item.id}
-              fileInfo={{
-                name: (
-                  <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
-                    <Ellipsis>
-                      <Tooltip title={item.content as string}>{item.content as string}</Tooltip>
-                    </Ellipsis>
-                  </ClickableSpan>
-                ),
-                ext: '.folder',
-                extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
-                actions: (
-                  <FlexAlignCenter>
-                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                    <StatusIconWrapper>
-                      <StatusIcon
-                        sourceId={item.id}
-                        base={base}
-                        getProcessingStatus={getProcessingStatus}
-                        getProcessingPercent={getProgressingPercentForItem}
-                        type="directory"
-                      />
-                    </StatusIconWrapper>
-                    <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                  </FlexAlignCenter>
-                )
-              }}
+            icon={<Settings2 size={18} color="var(--color-icon)" />}
+            onClick={() => KnowledgeSettingsPopup.show({ base })}
+            size="small"
+          />
+          <div className="model-row">
+            <div className="label-column">
+              <label>{t('models.embedding_model')}</label>
+            </div>
+            <Tooltip title={providerName} placement="bottom">
+              <div className="tag-column">
+                <Tag color="green" style={{ borderRadius: 20, margin: 0 }}>
+                  {base.model.name}
+                </Tag>
+              </div>
+            </Tooltip>
+            <Tag color="cyan" style={{ borderRadius: 20, margin: 0 }}>
+              {t('models.dimensions', { dimensions: base.dimensions || 0 })}
+            </Tag>
+          </div>
+        </ModelInfo>
+        <HStack gap={8} alignItems="center">
+          {/* 使用selected base导致修改设置后没有响应式更新 */}
+          <NarrowIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
+            <Search size={18} />
+          </NarrowIcon>
+          <Tooltip title={expandAll ? t('common.collapse') : t('common.expand')}>
+            <Button
+              size="small"
+              shape="circle"
+              onClick={() => setExpandAll(!expandAll)}
+              icon={expandAll ? <ChevronsUp size={14} /> : <ChevronsDown size={14} />}
+              disabled={disabled}
             />
-          ))}
-        </FlexColumn>
-      </CustomCollapse>
+          </Tooltip>
+        </HStack>
+      </HeaderContainer>
+      <MainContent>
+        {!base?.version && (
+          <Alert message={t('knowledge.not_support')} type="error" style={{ marginBottom: 20 }} showIcon />
+        )}
+        {!providerName && (
+          <Alert message={t('knowledge.no_provider')} type="error" style={{ marginBottom: 20 }} showIcon />
+        )}
+        <CustomCollapse
+          label={<CollapseLabel label={t('files.title')} count={fileItems.length} />}
+          defaultActiveKey={['1']}
+          activeKey={expandAll ? ['1'] : undefined}
+          extra={
+            <Button
+              type="text"
+              icon={<Plus size={16} />}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleAddFile()
+              }}
+              disabled={disabled}>
+              {t('knowledge.add_file')}
+            </Button>
+          }>
+          <Dragger
+            showUploadList={false}
+            customRequest={({ file }) => handleDrop([file as File])}
+            multiple={true}
+            accept={fileTypes.join(',')}
+            style={{ marginTop: 10, background: 'transparent' }}>
+            <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
+            <p className="ant-upload-hint">
+              {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
+            </p>
+          </Dragger>
 
-      <CustomCollapse
-        label={<CollapseLabel label={t('knowledge.urls')} count={urlItems.length} />}
-        extra={
-          <Button
-            type="text"
-            icon={<PlusOutlined />}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleAddUrl()
-            }}
-            disabled={disabled}>
-            {t('knowledge.add_url')}
-          </Button>
-        }>
-        <FlexColumn>
-          {urlItems.length === 0 && <EmptyView />}
-          {urlItems.reverse().map((item) => (
-            <FileItem
-              key={item.id}
-              fileInfo={{
-                name: (
-                  <Dropdown
-                    menu={{
-                      items: [
-                        {
-                          key: 'edit',
-                          icon: <EditOutlined />,
-                          label: t('knowledge.edit_remark'),
-                          onClick: () => handleEditRemark(item)
-                        },
-                        {
-                          key: 'copy',
-                          icon: <CopyOutlined />,
-                          label: t('common.copy'),
-                          onClick: () => {
-                            navigator.clipboard.writeText(item.content as string)
-                            message.success(t('message.copied'))
+          <FlexColumn>
+            {fileItems.length === 0 ? (
+              <EmptyView />
+            ) : (
+              <VirtualList
+                data={fileItems.reverse()}
+                height={fileItems.length > 5 ? 400 : fileItems.length * 75}
+                itemHeight={75}
+                itemKey="id"
+                styles={{
+                  verticalScrollBar: {
+                    width: 6
+                  },
+                  verticalScrollBarThumb: {
+                    background: 'var(--color-scrollbar-thumb)'
+                  }
+                }}>
+                {(item) => {
+                  const file = item.content as FileType
+                  return (
+                    <div style={{ height: '75px', paddingTop: '12px' }}>
+                      <FileItem
+                        key={item.id}
+                        fileInfo={{
+                          name: (
+                            <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
+                              <Ellipsis>
+                                <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
+                              </Ellipsis>
+                            </ClickableSpan>
+                          ),
+                          ext: file.ext,
+                          extra: `${dayjs(file.created_at).format('MM-DD HH:mm')} · ${formatFileSize(file.size)}`,
+                          actions: (
+                            <FlexAlignCenter>
+                              {item.uniqueId && (
+                                <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                              )}
+                              <StatusIconWrapper>
+                                <StatusIcon
+                                  sourceId={item.id}
+                                  base={base}
+                                  getProcessingStatus={getProcessingStatus}
+                                  type="file"
+                                />
+                              </StatusIconWrapper>
+                              <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                            </FlexAlignCenter>
+                          )
+                        }}
+                      />
+                    </div>
+                  )
+                }}
+              </VirtualList>
+            )}
+          </FlexColumn>
+        </CustomCollapse>
+
+        <CustomCollapse
+          label={<CollapseLabel label={t('knowledge.directories')} count={directoryItems.length} />}
+          defaultActiveKey={[]}
+          activeKey={expandAll ? ['1'] : undefined}
+          extra={
+            <Button
+              type="text"
+              icon={<Plus size={16} />}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleAddDirectory()
+              }}
+              disabled={disabled}>
+              {t('knowledge.add_directory')}
+            </Button>
+          }>
+          <FlexColumn>
+            {directoryItems.length === 0 && <EmptyView />}
+            {directoryItems.reverse().map((item) => (
+              <FileItem
+                key={item.id}
+                fileInfo={{
+                  name: (
+                    <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
+                      <Ellipsis>
+                        <Tooltip title={item.content as string}>{item.content as string}</Tooltip>
+                      </Ellipsis>
+                    </ClickableSpan>
+                  ),
+                  ext: '.folder',
+                  extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
+                  actions: (
+                    <FlexAlignCenter>
+                      {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                      <StatusIconWrapper>
+                        <StatusIcon
+                          sourceId={item.id}
+                          base={base}
+                          getProcessingStatus={getProcessingStatus}
+                          getProcessingPercent={getProgressingPercentForItem}
+                          type="directory"
+                        />
+                      </StatusIconWrapper>
+                      <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                    </FlexAlignCenter>
+                  )
+                }}
+              />
+            ))}
+          </FlexColumn>
+        </CustomCollapse>
+
+        <CustomCollapse
+          label={<CollapseLabel label={t('knowledge.urls')} count={urlItems.length} />}
+          defaultActiveKey={[]}
+          activeKey={expandAll ? ['1'] : undefined}
+          extra={
+            <Button
+              type="text"
+              icon={<Plus size={16} />}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleAddUrl()
+              }}
+              disabled={disabled}>
+              {t('knowledge.add_url')}
+            </Button>
+          }>
+          <FlexColumn>
+            {urlItems.length === 0 && <EmptyView />}
+            {urlItems.reverse().map((item) => (
+              <FileItem
+                key={item.id}
+                fileInfo={{
+                  name: (
+                    <Dropdown
+                      menu={{
+                        items: [
+                          {
+                            key: 'edit',
+                            icon: <EditOutlined />,
+                            label: t('knowledge.edit_remark'),
+                            onClick: () => handleEditRemark(item)
+                          },
+                          {
+                            key: 'copy',
+                            icon: <CopyOutlined />,
+                            label: t('common.copy'),
+                            onClick: () => {
+                              navigator.clipboard.writeText(item.content as string)
+                              message.success(t('message.copied'))
+                            }
                           }
-                        }
-                      ]
-                    }}
-                    trigger={['contextMenu']}>
+                        ]
+                      }}
+                      trigger={['contextMenu']}>
+                      <ClickableSpan>
+                        <Tooltip title={item.content as string}>
+                          <Ellipsis>
+                            <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                              {item.remark || (item.content as string)}
+                            </a>
+                          </Ellipsis>
+                        </Tooltip>
+                      </ClickableSpan>
+                    </Dropdown>
+                  ),
+                  ext: '.url',
+                  extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
+                  actions: (
+                    <FlexAlignCenter>
+                      {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                      <StatusIconWrapper>
+                        <StatusIcon
+                          sourceId={item.id}
+                          base={base}
+                          getProcessingStatus={getProcessingStatus}
+                          type="url"
+                        />
+                      </StatusIconWrapper>
+                      <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                    </FlexAlignCenter>
+                  )
+                }}
+              />
+            ))}
+          </FlexColumn>
+        </CustomCollapse>
+
+        <CustomCollapse
+          label={<CollapseLabel label={t('knowledge.sitemaps')} count={sitemapItems.length} />}
+          defaultActiveKey={[]}
+          activeKey={expandAll ? ['1'] : undefined}
+          extra={
+            <Button
+              type="text"
+              icon={<Plus size={16} />}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleAddSitemap()
+              }}
+              disabled={disabled}>
+              {t('knowledge.add_sitemap')}
+            </Button>
+          }>
+          <FlexColumn>
+            {sitemapItems.length === 0 && <EmptyView />}
+            {sitemapItems.reverse().map((item) => (
+              <FileItem
+                key={item.id}
+                fileInfo={{
+                  name: (
                     <ClickableSpan>
                       <Tooltip title={item.content as string}>
                         <Ellipsis>
                           <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                            {item.remark || (item.content as string)}
+                            {item.content as string}
                           </a>
                         </Ellipsis>
                       </Tooltip>
                     </ClickableSpan>
-                  </Dropdown>
-                ),
-                ext: '.url',
-                extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
-                actions: (
-                  <FlexAlignCenter>
-                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                    <StatusIconWrapper>
-                      <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
-                    </StatusIconWrapper>
-                    <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                  </FlexAlignCenter>
-                )
+                  ),
+                  ext: '.sitemap',
+                  extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
+                  actions: (
+                    <FlexAlignCenter>
+                      {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                      <StatusIconWrapper>
+                        <StatusIcon
+                          sourceId={item.id}
+                          base={base}
+                          getProcessingStatus={getProcessingStatus}
+                          type="sitemap"
+                        />
+                      </StatusIconWrapper>
+                      <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                    </FlexAlignCenter>
+                  )
+                }}
+              />
+            ))}
+          </FlexColumn>
+        </CustomCollapse>
+
+        <CustomCollapse
+          label={<CollapseLabel label={t('knowledge.notes')} count={noteItems.length} />}
+          defaultActiveKey={[]}
+          activeKey={expandAll ? ['1'] : undefined}
+          extra={
+            <Button
+              type="text"
+              icon={<Plus size={16} />}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleAddNote()
               }}
-            />
-          ))}
-        </FlexColumn>
-      </CustomCollapse>
-
-      <CustomCollapse
-        label={<CollapseLabel label={t('knowledge.sitemaps')} count={sitemapItems.length} />}
-        extra={
-          <Button
-            type="text"
-            icon={<PlusOutlined />}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleAddSitemap()
-            }}
-            disabled={disabled}>
-            {t('knowledge.add_sitemap')}
-          </Button>
-        }>
-        <FlexColumn>
-          {sitemapItems.length === 0 && <EmptyView />}
-          {sitemapItems.reverse().map((item) => (
-            <FileItem
-              key={item.id}
-              fileInfo={{
-                name: (
-                  <ClickableSpan>
-                    <Tooltip title={item.content as string}>
-                      <Ellipsis>
-                        <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                          {item.content as string}
-                        </a>
-                      </Ellipsis>
-                    </Tooltip>
-                  </ClickableSpan>
-                ),
-                ext: '.sitemap',
-                extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
-                actions: (
-                  <FlexAlignCenter>
-                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
-                    <StatusIconWrapper>
-                      <StatusIcon
-                        sourceId={item.id}
-                        base={base}
-                        getProcessingStatus={getProcessingStatus}
-                        type="sitemap"
-                      />
-                    </StatusIconWrapper>
-                    <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
-                  </FlexAlignCenter>
-                )
-              }}
-            />
-          ))}
-        </FlexColumn>
-      </CustomCollapse>
-
-      <CustomCollapse
-        label={<CollapseLabel label={t('knowledge.notes')} count={noteItems.length} />}
-        extra={
-          <Button
-            type="text"
-            icon={<PlusOutlined />}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleAddNote()
-            }}
-            disabled={disabled}>
-            {t('knowledge.add_note')}
-          </Button>
-        }>
-        <FlexColumn>
-          {noteItems.length === 0 && <EmptyView />}
-          {noteItems.reverse().map((note) => (
-            <FileItem
-              key={note.id}
-              fileInfo={{
-                name: <span onClick={() => handleEditNote(note)}>{(note.content as string).slice(0, 50)}...</span>,
-                ext: '.txt',
-                extra: `${dayjs(note.created_at).format('MM-DD HH:mm')}`,
-                actions: (
-                  <FlexAlignCenter>
-                    <Button type="text" onClick={() => handleEditNote(note)} icon={<EditOutlined />} />
-                    <StatusIconWrapper>
-                      <StatusIcon
-                        sourceId={note.id}
-                        base={base}
-                        getProcessingStatus={getProcessingStatus}
-                        type="note"
-                      />
-                    </StatusIconWrapper>
-                    <Button type="text" danger onClick={() => removeItem(note)} icon={<DeleteOutlined />} />
-                  </FlexAlignCenter>
-                )
-              }}
-            />
-          ))}
-        </FlexColumn>
-      </CustomCollapse>
-      <ModelInfo>
-        <div className="model-header">
-          <label>{t('knowledge.model_info')}</label>
-          <Button icon={<SettingOutlined />} onClick={() => KnowledgeSettingsPopup.show({ base })} size="small" />
-        </div>
-
-        <div className="model-row">
-          <div className="label-column">
-            <label>{t('models.embedding_model')}</label>
-          </div>
-          <div className="tag-column">
-            {providerName && <Tag color="purple">{providerName}</Tag>}
-            <Tag color="blue">{base.model.name}</Tag>
-            <Tag color="cyan">{t('models.dimensions', { dimensions: base.dimensions || 0 })}</Tag>
-          </div>
-        </div>
-
-        {base.rerankModel && (
-          <div className="model-row">
-            <div className="label-column">
-              <label>{t('models.rerank_model')}</label>
-            </div>
-            <div className="tag-column">
-              {rerankModelProviderName && <Tag color="purple">{rerankModelProviderName}</Tag>}
-              <Tag color="blue">{base.rerankModel?.name}</Tag>
-            </div>
-          </div>
-        )}
-      </ModelInfo>
-
-      <IndexSection>
-        <Button
-          type="primary"
-          onClick={() => KnowledgeSearchPopup.show({ base })}
-          icon={<SearchOutlined />}
-          disabled={disabled}>
-          {t('knowledge.search')}
-        </Button>
-      </IndexSection>
-
-      <BottomSpacer />
-    </MainContent>
+              disabled={disabled}>
+              {t('knowledge.add_note')}
+            </Button>
+          }>
+          <FlexColumn>
+            {noteItems.length === 0 && <EmptyView />}
+            {noteItems.reverse().map((note) => (
+              <FileItem
+                key={note.id}
+                fileInfo={{
+                  name: <span onClick={() => handleEditNote(note)}>{(note.content as string).slice(0, 50)}...</span>,
+                  ext: '.txt',
+                  extra: `${dayjs(note.created_at).format('MM-DD HH:mm')}`,
+                  actions: (
+                    <FlexAlignCenter>
+                      <Button type="text" onClick={() => handleEditNote(note)} icon={<EditOutlined />} />
+                      <StatusIconWrapper>
+                        <StatusIcon
+                          sourceId={note.id}
+                          base={base}
+                          getProcessingStatus={getProcessingStatus}
+                          type="note"
+                        />
+                      </StatusIconWrapper>
+                      <Button type="text" danger onClick={() => removeItem(note)} icon={<DeleteOutlined />} />
+                    </FlexAlignCenter>
+                  )
+                }}
+              />
+            ))}
+          </FlexColumn>
+        </CustomCollapse>
+      </MainContent>
+    </MainContainer>
   )
 }
 
@@ -587,42 +597,52 @@ const EmptyView = () => <Empty style={{ margin: 0 }} styles={{ image: { display:
 const CollapseLabel = ({ label, count }: { label: string; count: number }) => {
   return (
     <HStack alignItems="center" gap={10}>
-      <label>{label}</label>
-      <Tag style={{ borderRadius: 100, padding: '0 10px' }} color={count ? 'green' : 'default'}>
+      <label style={{ fontWeight: 600 }}>{label}</label>
+      <CustomTag size={12} color={count ? '#008001' : '#cccccc'}>
         {count}
-      </Tag>
+      </CustomTag>
     </HStack>
   )
 }
 
-const MainContent = styled(Scrollbar)`
+const MainContainer = styled.div`
   display: flex;
   width: 100%;
   flex-direction: column;
-  padding-bottom: 50px;
-  padding: 15px;
   position: relative;
-  gap: 16px;
 `
 
-const IndexSection = styled.div`
-  margin-top: 20px;
+const MainContent = styled(Scrollbar)`
+  padding: 15px 20px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  flex: 1;
+  gap: 20px;
+  padding-bottom: 50px;
+  padding-right: 12px;
+`
+
+const HeaderContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px;
+  border-bottom: 0.5px solid var(--color-border);
 `
 
 const ModelInfo = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 5px;
   color: var(--color-text-3);
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  height: 50px;
 
   .model-header {
     display: flex;
     gap: 8px;
     align-items: center;
-    margin-bottom: 4px;
   }
 
   .model-row {
@@ -666,10 +686,6 @@ const ClickableSpan = styled.span`
   width: 0;
 `
 
-const BottomSpacer = styled.div`
-  min-height: 20px;
-`
-
 const StatusIconWrapper = styled.div`
   width: 36px;
   height: 36px;
@@ -682,6 +698,12 @@ const StatusIconWrapper = styled.div`
 const RefreshIcon = styled(RedoOutlined)`
   font-size: 15px !important;
   color: var(--color-text-2);
+`
+
+const NarrowIcon = styled(NavbarIcon)`
+  @media (max-width: 1000px) {
+    display: none;
+  }
 `
 
 export default KnowledgeContent

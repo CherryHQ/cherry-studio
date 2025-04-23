@@ -38,13 +38,6 @@ const WebviewContainer = memo(
     useEffect(() => {
       if (!webviewRef.current) return
 
-      const handleNewWindow = (event: any) => {
-        event.preventDefault()
-        if (webviewRef.current?.loadURL) {
-          webviewRef.current.loadURL(event.url)
-        }
-      }
-
       const handleLoaded = () => {
         onLoadedCallback(appid)
       }
@@ -53,7 +46,6 @@ const WebviewContainer = memo(
         onNavigateCallback(appid, event.url)
       }
 
-      webviewRef.current.addEventListener('new-window', handleNewWindow)
       webviewRef.current.addEventListener('did-finish-load', handleLoaded)
       webviewRef.current.addEventListener('did-navigate-in-page', handleNavigate)
 
@@ -61,13 +53,15 @@ const WebviewContainer = memo(
       webviewRef.current.src = url
 
       return () => {
-        webviewRef.current?.removeEventListener('new-window', handleNewWindow)
         webviewRef.current?.removeEventListener('did-finish-load', handleLoaded)
         webviewRef.current?.removeEventListener('did-navigate-in-page', handleNavigate)
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [appid, url])
+
+    //remove the tag of CherryStudio and Electron
+    const userAgent = navigator.userAgent.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 
     return (
       <webview
@@ -76,7 +70,7 @@ const WebviewContainer = memo(
         style={WebviewStyle}
         allowpopups={'true' as any}
         partition="persist:webview"
-        nodeintegration={'true' as any}
+        useragent={userAgent}
       />
     )
   }
@@ -85,7 +79,7 @@ const WebviewContainer = memo(
 const WebviewStyle: React.CSSProperties = {
   width: 'calc(100vw - var(--sidebar-width))',
   height: 'calc(100vh - var(--navbar-height))',
-  backgroundColor: 'white',
+  backgroundColor: 'var(--color-background)',
   display: 'inline-flex'
 }
 

@@ -1,6 +1,7 @@
-import { BulbOutlined, EnterOutlined, FileTextOutlined, MessageOutlined, TranslationOutlined } from '@ant-design/icons'
+import { EnterOutlined } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Col } from 'antd'
+import { FileText, Languages, Lightbulb, MessageSquare } from 'lucide-react'
 import { Dispatch, SetStateAction, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -30,7 +31,7 @@ const FeatureMenus = ({
   const features = useMemo(
     () => [
       {
-        icon: <MessageOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        icon: <MessageSquare size={16} color="var(--color-text)" />,
         title: t('miniwindow.feature.chat'),
         active: true,
         onClick: () => {
@@ -41,12 +42,12 @@ const FeatureMenus = ({
         }
       },
       {
-        icon: <TranslationOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        icon: <Languages size={16} color="var(--color-text)" />,
         title: t('miniwindow.feature.translate'),
         onClick: () => text && setRoute('translate')
       },
       {
-        icon: <FileTextOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        icon: <FileText size={16} color="var(--color-text)" />,
         title: t('miniwindow.feature.summary'),
         onClick: () => {
           if (text) {
@@ -56,7 +57,7 @@ const FeatureMenus = ({
         }
       },
       {
-        icon: <BulbOutlined style={{ fontSize: '16px', color: 'var(--color-text)' }} />,
+        icon: <Lightbulb size={16} color="var(--color-text)" />,
         title: t('miniwindow.feature.explanation'),
         onClick: () => {
           if (text) {
@@ -116,6 +117,8 @@ const FeatureListWrapper = styled.div`
 `
 
 const FeatureItem = styled.div`
+  display: flex;
+  flex-direction: row;
   cursor: pointer;
   transition: background-color 0s;
   background: transparent;
@@ -139,6 +142,7 @@ const FeatureItem = styled.div`
 
 const FeatureIcon = styled.div`
   color: #fff;
+  display: flex;
 `
 
 const FeatureTitle = styled.h3`

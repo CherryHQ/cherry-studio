@@ -1,4 +1,5 @@
-import { CheckOutlined, ExportOutlined, HeartOutlined, LoadingOutlined, SettingOutlined } from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -16,6 +17,7 @@ import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
+import { Settings, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -204,8 +206,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
     if (apiKey.includes(',')) {
       const keys = apiKey
-        .split(',')
+        .split(/(?<!\\),/)
         .map((k) => k.trim())
+        .map(k => k.replace(/\\,/g, ','))
         .filter((k) => k)
 
       const result = await ApiCheckPopup.show({
@@ -273,19 +276,20 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }, [apiKey, provider, updateProvider])
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
         <Flex align="center" gap={8}>
           <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
           {officialWebsite! && (
-            <Link target="_blank" href={providerConfig.websites.official}>
-              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
+            <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
+              <SquareArrowOutUpRight size={14} color="var(--color-text)" />
             </Link>
           )}
           {!provider.isSystem && (
-            <SettingOutlined
+            <Settings
               type="text"
-              style={{ width: 30 }}
+              size={16}
+              style={{ cursor: 'pointer' }}
               onClick={() => ProviderSettingsPopup.show({ provider })}
             />
           )}
@@ -382,16 +386,16 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Space>
-            <span>{t('common.models')}</span>
+          <HStack alignItems="center" gap={5}>
+            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
-          </Space>
+          </HStack>
           {!isEmpty(models) && (
             <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
               <Button
                 type="text"
                 size="small"
-                icon={<HeartOutlined />}
+                icon={<StreamlineGoodHealthAndWellBeing />}
                 onClick={onHealthCheck}
                 loading={isHealthChecking}
               />

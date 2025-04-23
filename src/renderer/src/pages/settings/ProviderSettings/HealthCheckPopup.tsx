@@ -160,7 +160,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
               />
             </Space>
           </Space>
-          <Button key="start" type="primary" onClick={onStart}>
+          <Button key="start" type="primary" onClick={onStart} size="small">
             {t('settings.models.check.start')}
           </Button>
         </Space>

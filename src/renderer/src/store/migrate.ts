@@ -13,7 +13,8 @@ import { createMigrate } from 'redux-persist'
 import { RootState } from '.'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
-import { DEFAULT_SIDEBAR_ICONS } from './settings'
+import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
+import { defaultWebSearchProviders } from './websearch'
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
@@ -31,12 +32,34 @@ function removeMiniAppFromState(state: RootState, id: string) {
   }
 }
 
+function addMiniApp(state: RootState, id: string) {
+  if (state.minapps) {
+    const app = DEFAULT_MIN_APPS.find((app) => app.id === id)
+    if (app) {
+      if (!state.minapps.enabled.find((app) => app.id === id)) {
+        state.minapps.enabled.push(app)
+      }
+    }
+  }
+}
+
 // add provider to state
 function addProvider(state: RootState, id: string) {
   if (!state.llm.providers.find((p) => p.id === id)) {
     const _provider = INITIAL_PROVIDERS.find((p) => p.id === id)
     if (_provider) {
       state.llm.providers.push(_provider)
+    }
+  }
+}
+
+function addWebSearchProvider(state: RootState, id: string) {
+  if (state.websearch && state.websearch.providers) {
+    if (!state.websearch.providers.find((p) => p.id === id)) {
+      const provider = defaultWebSearchProviders.find((p) => p.id === id)
+      if (provider) {
+        state.websearch.providers.push(provider)
+      }
     }
   }
 }
@@ -737,12 +760,7 @@ const migrateConfig = {
   },
   '59': (state: RootState) => {
     try {
-      if (state.minapps) {
-        const flowith = DEFAULT_MIN_APPS.find((app) => app.id === 'flowith')
-        if (flowith) {
-          state.minapps.enabled.push(flowith)
-        }
-      }
+      addMiniApp(state, 'flowith')
       return state
     } catch (error) {
       return state
@@ -783,12 +801,7 @@ const migrateConfig = {
   },
   '63': (state: RootState) => {
     try {
-      if (state.minapps) {
-        const mintop = DEFAULT_MIN_APPS.find((app) => app.id === '3mintop')
-        if (mintop) {
-          state.minapps.enabled.push(mintop)
-        }
-      }
+      addMiniApp(state, '3mintop')
       return state
     } catch (error) {
       return state
@@ -815,15 +828,8 @@ const migrateConfig = {
     try {
       addProvider(state, 'gitee-ai')
       addProvider(state, 'ppio')
-
+      addMiniApp(state, 'aistudio')
       state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'graphrag-kylin-mountain')
-
-      if (state.minapps) {
-        const aistudio = DEFAULT_MIN_APPS.find((app) => app.id === 'aistudio')
-        if (aistudio) {
-          state.minapps.enabled.push(aistudio)
-        }
-      }
 
       return state
     } catch (error) {
@@ -832,13 +838,7 @@ const migrateConfig = {
   },
   '67': (state: RootState) => {
     try {
-      if (state.minapps) {
-        const xiaoyi = DEFAULT_MIN_APPS.find((app) => app.id === 'xiaoyi')
-        if (xiaoyi) {
-          state.minapps.enabled.push(xiaoyi)
-        }
-      }
-
+      addMiniApp(state, 'xiaoyi')
       addProvider(state, 'modelscope')
       addProvider(state, 'lmstudio')
       addProvider(state, 'perplexity')
@@ -856,16 +856,9 @@ const migrateConfig = {
   },
   '68': (state: RootState) => {
     try {
-      if (state.minapps) {
-        const notebooklm = DEFAULT_MIN_APPS.find((app) => app.id === 'notebooklm')
-        if (notebooklm) {
-          state.minapps.enabled.push(notebooklm)
-        }
-      }
-
+      addMiniApp(state, 'notebooklm')
       addProvider(state, 'modelscope')
       addProvider(state, 'lmstudio')
-
       return state
     } catch (error) {
       return state
@@ -873,12 +866,7 @@ const migrateConfig = {
   },
   '69': (state: RootState) => {
     try {
-      if (state.minapps) {
-        const coze = DEFAULT_MIN_APPS.find((app) => app.id === 'coze')
-        if (coze) {
-          state.minapps.enabled.push(coze)
-        }
-      }
+      addMiniApp(state, 'coze')
       state.settings.gridColumns = 2
       state.settings.gridPopoverTrigger = 'hover'
       return state
@@ -923,12 +911,7 @@ const migrateConfig = {
   },
   '72': (state: RootState) => {
     try {
-      if (state.minapps) {
-        const monica = DEFAULT_MIN_APPS.find((app) => app.id === 'monica')
-        if (monica) {
-          state.minapps.enabled.push(monica)
-        }
-      }
+      addMiniApp(state, 'monica')
 
       // remove duplicate lmstudio providers
       const emptyLmStudioProviderIndex = state.llm.providers.findLastIndex(
@@ -954,7 +937,7 @@ const migrateConfig = {
 
       addProvider(state, 'lmstudio')
       addProvider(state, 'o3')
-      moveProvider(state.llm.providers, 'o3', 2)
+      state.llm.providers = moveProvider(state.llm.providers, 'o3', 2)
 
       state.assistants.assistants.forEach((assistant) => {
         const leadingEmoji = getLeadingEmoji(assistant.name)
@@ -996,14 +979,9 @@ const migrateConfig = {
   },
   '75': (state: RootState) => {
     try {
-      if (state.minapps) {
-        const you = DEFAULT_MIN_APPS.find((app) => app.id === 'you')
-        const cici = DEFAULT_MIN_APPS.find((app) => app.id === 'cici')
-        const zhihu = DEFAULT_MIN_APPS.find((app) => app.id === 'zhihu')
-        you && state.minapps.enabled.push(you)
-        cici && state.minapps.enabled.push(cici)
-        zhihu && state.minapps.enabled.push(zhihu)
-      }
+      addMiniApp(state, 'you')
+      addMiniApp(state, 'cici')
+      addMiniApp(state, 'zhihu')
       return state
     } catch (error) {
       return state
@@ -1019,21 +997,9 @@ const migrateConfig = {
   },
   '77': (state: RootState) => {
     try {
+      addWebSearchProvider(state, 'searxng')
+      addWebSearchProvider(state, 'exa')
       if (state.websearch) {
-        if (!state.websearch.providers.find((p) => p.id === 'searxng')) {
-          state.websearch.providers.push(
-            {
-              id: 'searxng',
-              name: 'Searxng',
-              apiHost: ''
-            },
-            {
-              id: 'exa',
-              name: 'Exa',
-              apiKey: ''
-            }
-          )
-        }
         state.websearch.providers.forEach((p) => {
           // @ts-ignore eslint-disable-next-line
           delete p.enabled
@@ -1194,6 +1160,82 @@ const migrateConfig = {
       state.settings.codeCacheTTL = 15
       state.settings.codeCacheThreshold = 2
       addProvider(state, 'qiniu')
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '92': (state: RootState) => {
+    try {
+      addMiniApp(state, 'dangbei')
+      state.llm.providers = moveProvider(state.llm.providers, 'qiniu', 12)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '93': (state: RootState) => {
+    try {
+      if (!state?.settings?.exportMenuOptions) {
+        state.settings.exportMenuOptions = settingsInitialState.exportMenuOptions
+        return state
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '94': (state: RootState) => {
+    try {
+      state.settings.enableQuickPanelTriggers = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '95': (state: RootState) => {
+    try {
+      addWebSearchProvider(state, 'local-google')
+      addWebSearchProvider(state, 'local-bing')
+      addWebSearchProvider(state, 'local-baidu')
+
+      if (state.websearch) {
+        if (isEmpty(state.websearch.subscribeSources)) {
+          state.websearch.subscribeSources = []
+        }
+      }
+
+      const qiniuProvider = state.llm.providers.find((provider) => provider.id === 'qiniu')
+      if (qiniuProvider && isEmpty(qiniuProvider.models)) {
+        qiniuProvider.models = SYSTEM_MODELS.qiniu
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '96': (state: RootState) => {
+    try {
+      // @ts-ignore eslint-disable-next-line
+      state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.showAssistantIcon
+      state.settings.enableBackspaceDeleteModel = true
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '97': (state: RootState) => {
+    try {
+      addMiniApp(state, 'zai')
+      state.settings.webdavMaxBackups = 0
+      if (state.websearch && state.websearch.providers) {
+        state.websearch.providers.forEach((provider) => {
+          provider.basicAuthUsername = ''
+          provider.basicAuthPassword = ''
+        })
+      }
       return state
     } catch (error) {
       return state

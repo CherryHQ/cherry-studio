@@ -1,17 +1,18 @@
-import { CheckOutlined, ExportOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
+import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { formatApiKeys } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Flex, Input } from 'antd'
+import { Avatar, Button, Divider, Flex, Form, Input, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
+import { Info } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
+import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 import ApiCheckPopup from '../ProviderSettings/ApiCheckPopup'
 
 interface Props {
@@ -24,6 +25,8 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiKey, setApiKey] = useState(provider.apiKey || '')
   const [apiHost, setApiHost] = useState(provider.apiHost || '')
   const [apiChecking, setApiChecking] = useState(false)
+  const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
+  const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
   const [apiValid, setApiValid] = useState(false)
 
   const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
@@ -48,12 +51,32 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
   }
 
+  const onUpdateBasicAuthUsername = () => {
+    const currentValue = basicAuthUsername || ''
+    const savedValue = provider.basicAuthUsername || ''
+    if (currentValue !== savedValue) {
+      updateProvider({ ...provider, basicAuthUsername: basicAuthUsername })
+    } else {
+      setBasicAuthUsername(provider.basicAuthUsername || '')
+    }
+  }
+
+  const onUpdateBasicAuthPassword = () => {
+    const currentValue = basicAuthPassword || ''
+    const savedValue = provider.basicAuthPassword || ''
+    if (currentValue !== savedValue) {
+      updateProvider({ ...provider, basicAuthPassword: basicAuthPassword })
+    } else {
+      setBasicAuthPassword(provider.basicAuthPassword || '')
+    }
+  }
+
   async function checkSearch() {
     if (!provider) {
       window.message.error({
         content: t('settings.websearch.no_provider_selected'),
         duration: 3,
-        icon: <InfoCircleOutlined />,
+        icon: <Info size={18} />,
         key: 'no-provider-selected'
       })
       return
@@ -110,14 +133,15 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
   useEffect(() => {
     setApiKey(provider.apiKey ?? '')
     setApiHost(provider.apiHost ?? '')
-  }, [provider.apiKey, provider.apiHost])
+    setBasicAuthUsername(provider.basicAuthUsername ?? '')
+    setBasicAuthPassword(provider.basicAuthPassword ?? '')
+  }, [provider.apiKey, provider.apiHost, provider.basicAuthUsername, provider.basicAuthPassword])
 
   return (
     <>
       <SettingTitle>
         <Flex align="center" gap={8}>
           <ProviderLogo shape="square" src={getWebSearchProviderLogo(provider.id)} size={16} />
-
           <ProviderName> {provider.name}</ProviderName>
           {officialWebsite && webSearchProviderConfig?.websites && (
             <Link target="_blank" href={webSearchProviderConfig.websites.official}>
@@ -156,7 +180,6 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           </SettingHelpTextRow>
         </>
       )}
-
       {hasObjectKey(provider, 'apiHost') && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
@@ -176,6 +199,50 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
               disabled={apiChecking}>
               {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
             </Button>
+          </Flex>
+          <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
+          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
+            {t('settings.provider.basic_auth')}
+            <Tooltip title={t('settings.provider.basic_auth.tip')} placement="right">
+              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
+            </Tooltip>
+          </SettingSubtitle>
+          <Flex>
+            <Form
+              layout="inline"
+              initialValues={{
+                username: basicAuthUsername,
+                password: basicAuthPassword
+              }}
+              onValuesChange={(changedValues) => {
+                // Update local state when form values change
+                if ('username' in changedValues) {
+                  setBasicAuthUsername(changedValues.username || '')
+                }
+                if ('password' in changedValues) {
+                  setBasicAuthPassword(changedValues.password || '')
+                }
+              }}>
+              <Form.Item label={t('settings.provider.basic_auth.user_name')} name="username">
+                <Input
+                  placeholder={t('settings.provider.basic_auth.user_name.tip')}
+                  onBlur={onUpdateBasicAuthUsername}
+                />
+              </Form.Item>
+              <Form.Item
+                label={t('settings.provider.basic_auth.password')}
+                name="password"
+                rules={[{ required: !!basicAuthUsername, validateTrigger: ['onBlur', 'onChange'] }]}
+                help=""
+                hidden={!basicAuthUsername}>
+                <Input.Password
+                  placeholder={t('settings.provider.basic_auth.password.tip')}
+                  onBlur={onUpdateBasicAuthPassword}
+                  disabled={!basicAuthUsername}
+                  visibilityToggle={true}
+                />
+              </Form.Item>
+            </Form>
           </Flex>
         </>
       )}

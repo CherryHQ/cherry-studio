@@ -3,9 +3,12 @@ import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, ipcMain } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
+import Logger from 'electron-log'
 
+import { initSentry } from './integration/sentry'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
+import mcpService from './services/MCPService'
 import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } from './services/ProtocolClient'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
@@ -56,6 +59,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
       return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
     })
+
+    ipcMain.handle(IpcChannel.System_GetHostname, () => {
+      return require('os').hostname()
+    })
   })
 
   registerProtocolClient(app)
@@ -84,6 +91,17 @@ if (!app.requestSingleInstanceLock()) {
     app.isQuitting = true
   })
 
+  app.on('will-quit', async () => {
+    // event.preventDefault()
+    try {
+      await mcpService.cleanup()
+    } catch (error) {
+      Logger.error('Error cleaning up MCP service:', error)
+    }
+  })
+
   // In this file you can include the rest of your app"s specific main process
   // code. You can also put them in separate files and require them here.
 }
+
+initSentry()

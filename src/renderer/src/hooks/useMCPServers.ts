@@ -2,6 +2,7 @@ import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { useMemo } from 'react'
 
 const ipcRenderer = window.electron.ipcRenderer
 
@@ -12,7 +13,7 @@ ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
 
 export const useMCPServers = () => {
   const mcpServers = useAppSelector((state) => state.mcp.servers)
-  const activedMcpServers = mcpServers.filter((server) => server.isActive)
+  const activedMcpServers = useMemo(() => mcpServers.filter((server) => server.isActive), [mcpServers])
   const dispatch = useAppDispatch()
 
   return {
@@ -24,5 +25,12 @@ export const useMCPServers = () => {
     setMCPServerActive: (server: MCPServer, isActive: boolean) => dispatch(updateMCPServer({ ...server, isActive })),
     getActiveMCPServers: () => mcpServers.filter((server) => server.isActive),
     updateMcpServers: (servers: MCPServer[]) => dispatch(setMCPServers(servers))
+  }
+}
+
+export const useMCPServer = (id: string) => {
+  const { mcpServers } = useMCPServers()
+  return {
+    server: mcpServers.find((server) => server.id === id)
   }
 }

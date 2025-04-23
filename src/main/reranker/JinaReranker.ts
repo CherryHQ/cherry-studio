@@ -1,6 +1,6 @@
 import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import AxiosProxy from '@main/services/AxiosProxy'
 import { KnowledgeBaseParams } from '@types'
-import axios from 'axios'
 
 import BaseReranker from './BaseReranker'
 
@@ -10,16 +10,7 @@ export default class JinaReranker extends BaseReranker {
   }
 
   public rerank = async (query: string, searchResults: ExtractChunkData[]): Promise<ExtractChunkData[]> => {
-    let baseURL = this.base?.rerankBaseURL?.endsWith('/')
-      ? this.base.rerankBaseURL.slice(0, -1)
-      : this.base.rerankBaseURL
-
-    // 必须携带/v1，否则会404
-    if (baseURL && !baseURL.endsWith('/v1')) {
-      baseURL = `${baseURL}/v1`
-    }
-
-    const url = `${baseURL}/rerank`
+    const url = this.getRerankUrl()
 
     const requestBody = {
       model: this.base.rerankModel,
@@ -29,26 +20,12 @@ export default class JinaReranker extends BaseReranker {
     }
 
     try {
-      const { data } = await axios.post(url, requestBody, { headers: this.defaultHeaders() })
+      const { data } = await AxiosProxy.axios.post(url, requestBody, { headers: this.defaultHeaders() })
 
       const rerankResults = data.results
-      console.log(rerankResults)
-      const resultMap = new Map(rerankResults.map((result: any) => [result.index, result.relevance_score || 0]))
-      return searchResults
-        .map((doc: ExtractChunkData, index: number) => {
-          const score = resultMap.get(index)
-          if (score === undefined) return undefined
-
-          return {
-            ...doc,
-            score
-          }
-        })
-        .filter((doc): doc is ExtractChunkData => doc !== undefined)
-        .sort((a, b) => b.score - a.score)
+      return this.getRerankResult(searchResults, rerankResults)
     } catch (error: any) {
       const errorDetails = this.formatErrorMessage(url, error, requestBody)
-
       console.error('Jina Reranker API Error:', errorDetails)
       throw new Error(`重排序请求失败: ${error.message}\n请求详情: ${errorDetails}`)
     }

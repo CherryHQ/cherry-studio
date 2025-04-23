@@ -814,7 +814,9 @@
           "syncError": "Error de copia de seguridad",
           "syncStatus": "Estado de copia de seguridad",
           "title": "WebDAV",
-          "user": "Nombre de usuario WebDAV"
+          "user": "Nombre de usuario WebDAV",
+          "maxBackups": "Número máximo de copias de seguridad",
+          "maxBackups.unlimited": "Sin límite"
         },
         "yuque": {
           "check": {
@@ -912,7 +914,6 @@
         "noServers": "No se han configurado servidores",
         "npx_list": {
           "actions": "Acciones",
-          "desc": "Buscar y agregar paquetes npm como servicios MCP",
           "description": "Descripción",
           "no_packages": "No se encontraron paquetes",
           "npm": "NPM",
@@ -921,7 +922,6 @@
           "scope_required": "Por favor ingrese el ámbito npm",
           "search": "Buscar",
           "search_error": "Error de búsqueda",
-          "title": "Lista de paquetes NPX",
           "usage": "Uso",
           "version": "Versión"
         },
@@ -1114,8 +1114,6 @@
         "check": "Comprobar",
         "check_failed": "Verificación fallida",
         "check_success": "Verificación exitosa",
-        "enhance_mode": "Modo de búsqueda mejorada",
-        "enhance_mode_tooltip": "Utilice el modelo predeterminado para extraer palabras clave y luego busque",
         "get_api_key": "Haz clic aquí para obtener la clave",
         "no_provider_selected": "Por favor, seleccione un proveedor de búsqueda antes de comprobar",
         "search_max_result": "Número de resultados de búsqueda",
