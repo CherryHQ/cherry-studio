@@ -102,6 +102,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // auto update
   ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
+    appUpdater.setAutoUpdate(isActive)
     configManager.setAutoUpdate(isActive)
   })
 
