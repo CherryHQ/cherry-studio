@@ -135,7 +135,7 @@ const websearchSlice = createSlice({
         state.providers.push(action.payload)
       }
     },
-    setContentLimit: (state, action: PayloadAction<number>) => {
+    setContentLimit: (state, action: PayloadAction<number | undefined>) => {
       state.contentLimit = action.payload
     }
   }
