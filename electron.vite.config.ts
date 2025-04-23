@@ -1,5 +1,5 @@
 import { sentryVitePlugin } from '@sentry/vite-plugin'
-import viteReact from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -7,7 +7,7 @@ import { visualizer } from 'rollup-plugin-visualizer'
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
 }
-// const viteReact = await import('@vitejs/plugin-react')
+
 export default defineConfig({
   main: {
     plugins: [
@@ -52,20 +52,18 @@ export default defineConfig({
   },
   renderer: {
     plugins: [
-      viteReact({
-        babel: {
-          plugins: [
-            [
-              'styled-components',
-              {
-                displayName: true, // 开发环境下启用组件名称
-                fileName: false, // 不在类名中包含文件名
-                pure: true, // 优化性能
-                ssr: false // 不需要服务端渲染
-              }
-            ]
+      react({
+        plugins: [
+          [
+            '@swc/plugin-styled-components',
+            {
+              displayName: true, // 开发环境下启用组件名称
+              fileName: false, // 不在类名中包含文件名
+              pure: true, // 优化性能
+              ssr: false // 不需要服务端渲染
+            }
           ]
-        }
+        ]
       }),
       sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
