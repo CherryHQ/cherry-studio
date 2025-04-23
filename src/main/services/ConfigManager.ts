@@ -15,7 +15,8 @@ enum ConfigKeys {
   Shortcuts = 'shortcuts',
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
-  AutoUpdate = 'autoUpdate'
+  AutoUpdate = 'autoUpdate',
+  EnableDataCollection = 'enableDataCollection'
 }
 
 export class ConfigManager {
@@ -143,6 +144,14 @@ export class ConfigManager {
 
   setAutoUpdate(value: boolean) {
     this.set(ConfigKeys.AutoUpdate, value)
+  }
+
+  getEnableDataCollection(): boolean {
+    return this.get<boolean>(ConfigKeys.EnableDataCollection, true)
+  }
+
+  setEnableDataCollection(value: boolean) {
+    this.set(ConfigKeys.EnableDataCollection, value)
   }
 
   set(key: string, value: unknown) {

@@ -1,3 +1,4 @@
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import viteReact from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
@@ -65,6 +66,11 @@ export default defineConfig({
             ]
           ]
         }
+      }),
+      sentryVitePlugin({
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        org: 'cherry-ai-d6',
+        project: 'cherry-studio'
       }),
       ...visualizerPlugin('renderer')
     ],

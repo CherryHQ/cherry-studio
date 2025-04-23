@@ -33,6 +33,9 @@ declare global {
       setAutoUpdate: (isActive: boolean) => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
+      sentry: {
+        init: () => Promise<void>
+      }
       system: {
         getDeviceType: () => Promise<'mac' | 'windows' | 'linux'>
         getHostname: () => Promise<string>

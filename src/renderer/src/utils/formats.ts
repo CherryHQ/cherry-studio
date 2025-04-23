@@ -1,6 +1,6 @@
-import { isReasoningModel } from '@renderer/config/models'
+import { isOpenAIWebSearch, isReasoningModel } from '@renderer/config/models'
 import { getAssistantById } from '@renderer/services/AssistantService'
-import { Message } from '@renderer/types'
+import { Citation, Message, Model } from '@renderer/types'
 
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
@@ -240,4 +240,78 @@ export function addImageFileToContents(messages: Message[]) {
   }
 
   return messages.map((message) => (message.id === lastAssistantMessage.id ? updatedAssistantMessage : message))
+}
+
+/**
+ * 格式化 citations
+ * @param metadata 消息的 metadata
+ * @param model 模型
+ * @param urlCache url 缓存
+ * @returns citations
+ */
+export const formatCitations = (
+  metadata: Message['metadata'],
+  model: Model | undefined,
+  urlCache: Map<string, URL>
+): Citation[] | null => {
+  if (!metadata?.citations?.length && !metadata?.annotations?.length) {
+    return null
+  }
+
+  interface UrlInfo {
+    hostname: string
+    url: string
+  }
+
+  // 提取 URL 处理函数到组件外
+  const getUrlInfo = (url: string, urlCache: Map<string, URL>): UrlInfo => {
+    try {
+      let urlObj = urlCache.get(url)
+      if (!urlObj) {
+        urlObj = new URL(url)
+        urlCache.set(url, urlObj)
+      }
+      return { hostname: urlObj.hostname, url }
+    } catch {
+      return { hostname: url, url }
+    }
+  }
+
+  // 使用 Set 提前去重，减少后续处理
+  const uniqueUrls = new Set<string>()
+  let citations: Citation[] = []
+
+  if (model && isOpenAIWebSearch(model)) {
+    citations =
+      metadata.annotations
+        ?.filter((annotation) => {
+          const url = annotation.url_citation?.url
+          if (!url || uniqueUrls.has(url)) return false
+          uniqueUrls.add(url)
+          return true
+        })
+        .map((annotation, index) => ({
+          number: index + 1,
+          url: annotation.url_citation.url,
+          hostname: annotation.url_citation.title,
+          title: annotation.url_citation.title
+        })) || []
+  } else {
+    citations = (metadata?.citations || [])
+      .filter((url) => {
+        if (!url || uniqueUrls.has(url)) return false
+        uniqueUrls.add(url)
+        return true
+      })
+      .map((url, index) => {
+        const { hostname } = getUrlInfo(url, urlCache)
+        return {
+          number: index + 1,
+          url,
+          hostname
+        }
+      })
+  }
+
+  return citations
 }
