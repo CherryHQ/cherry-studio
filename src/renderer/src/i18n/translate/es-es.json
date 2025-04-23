@@ -194,6 +194,7 @@
       "topics.export.yuque": "Exportar a Yuque",
       "topics.list": "Lista de temas",
       "topics.move_to": "Mover a",
+      "topics.batch_move": "Movimiento por lotes",
       "topics.new": "Iniciar nueva conversación",
       "topics.pinned": "Fijar tema",
       "topics.prompt": "Palabras clave del tema",

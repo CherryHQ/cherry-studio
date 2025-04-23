@@ -234,6 +234,8 @@
       "topics.export.yuque": "Export to Yuque",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
+      "topics.batch_move": "Batch Move",
+      "topics.select_target_assistant": "Select Target Assistant",
       "topics.new": "New Topic",
       "topics.pinned": "Pinned Topics",
       "topics.prompt": "Topic Prompts",

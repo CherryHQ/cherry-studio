@@ -234,6 +234,8 @@
       "topics.export.yuque": "Экспорт в Yuque",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
+      "topics.batch_move": "Пакетное перемещение",
+      "topics.select_target_assistant": "Целевой помощник",
       "topics.new": "Новый топик",
       "topics.pinned": "Закрепленные темы",
       "topics.prompt": "Тематические подсказки",

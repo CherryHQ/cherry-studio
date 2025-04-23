@@ -234,6 +234,8 @@
       "topics.export.yuque": "語雀にエクスポート",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
+      "topics.batch_move": "バッチ移動",
+      "topics.select_target_assistant": "ターゲットアシスタント",
       "topics.new": "新しいトピック",
       "topics.pinned": "トピックを固定",
       "topics.prompt": "トピック提示語",

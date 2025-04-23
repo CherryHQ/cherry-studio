@@ -19,6 +19,7 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { RootState } from '@renderer/store'
@@ -35,7 +36,7 @@ import {
   topicToMarkdown
 } from '@renderer/utils/export'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
-import { Dropdown, MenuProps, Tooltip } from 'antd'
+import { Button, Dropdown, MenuProps, Select, Tooltip } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
@@ -50,11 +51,23 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
 }
 
+interface TopicSelectionState {
+  isMultiSelectMode: boolean
+  selectedTopics: Set<string>
+  targetAssistant: Assistant | null
+}
+
 const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic }) => {
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
   const { showTopicTime, topicPosition } = useSettings()
+
+  const [selection, setSelection] = useState<TopicSelectionState>({
+    isMultiSelectMode: false,
+    selectedTopics: new Set<string>(),
+    targetAssistant: null
+  })
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -137,23 +150,55 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   )
 
   const onMoveTopic = useCallback(
-    async (topic: Topic, toAssistant: Assistant) => {
+    async (topicOrTopics: Topic | Topic[], toAssistant: Assistant) => {
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? 0 : index + 1])
-      moveTopic(topic, toAssistant)
+      const topics = Array.isArray(topicOrTopics) ? topicOrTopics : [topicOrTopics]
+
+      if (topics.length === 1) {
+        const index = findIndex(assistant.topics, (t) => t.id === topics[0].id)
+        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? 0 : index + 1])
+      }
+
+      for (const topic of topics) {
+        moveTopic(topic, toAssistant)
+      }
+
+      // 檢查是否移動了所有話題
+      if (assistant.topics.length === topics.length) {
+        const newTopic = getDefaultTopic(assistant.id)
+        updateTopics([newTopic])
+        setActiveTopic(newTopic)
+      }
+
+      setSelection((prev) => ({
+        ...prev,
+        isMultiSelectMode: false,
+        selectedTopics: new Set(),
+        targetAssistant: null
+      }))
     },
-    [assistant.topics, moveTopic, setActiveTopic]
+    [assistant.id, assistant.topics, moveTopic, setActiveTopic, updateTopics]
   )
 
   const onSwitchTopic = useCallback(
     async (topic: Topic) => {
-      // await modelGenerating()
-      startTransition(() => {
-        setActiveTopic(topic)
-      })
+      if (selection.isMultiSelectMode) {
+        setSelection((prev) => {
+          const newSelectedTopics = new Set(prev.selectedTopics)
+          if (newSelectedTopics.has(topic.id)) {
+            newSelectedTopics.delete(topic.id)
+          } else {
+            newSelectedTopics.add(topic.id)
+          }
+          return { ...prev, selectedTopics: newSelectedTopics }
+        })
+      } else {
+        startTransition(() => {
+          setActiveTopic(topic)
+        })
+      }
     },
-    [setActiveTopic]
+    [setActiveTopic, selection.isMultiSelectMode]
   )
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
@@ -203,7 +248,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             const prompt = await PromptPopup.show({
               title: t('chat.topics.prompt.edit.title'),
               message: '',
-              defaultValue: topic?.prompt || '',
+              defaultValue: topic?.prompt ?? '',
               inputProps: {
                 rows: 8,
                 allowClear: true
@@ -339,6 +384,19 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: () => onMoveTopic(topic, a)
             }))
         })
+        menus.push({
+          label: t('chat.topics.batch_move'),
+          key: 'multi-select',
+          icon: <FolderOutlined />,
+          onClick() {
+            setSelection((prev) => ({
+              ...prev,
+              isMultiSelectMode: true,
+              selectedTopics: new Set([topic.id]),
+              targetAssistant: null
+            }))
+          }
+        })
       }
 
       if (assistant.topics.length > 1 && !topic.pinned) {
@@ -379,6 +437,47 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   return (
     <Container right={topicPosition === 'right'} className="topics-tab">
+      {selection.isMultiSelectMode && (
+        <MultiSelectBar>
+          <Select
+            style={{ flexGrow: 1, minWidth: 150 }}
+            placeholder={t('chat.topics.select_target_assistant')}
+            value={selection.targetAssistant?.id}
+            onChange={(value) => {
+              const targetAssistant = assistants.find((a) => a.id === value) || null
+              setSelection((prev) => ({ ...prev, targetAssistant }))
+            }}>
+            {assistants
+              .filter((a) => a.id !== assistant.id)
+              .map((a) => (
+                <Select.Option key={a.id} value={a.id}>
+                  {a.name}
+                </Select.Option>
+              ))}
+          </Select>
+          <Button
+            type="primary"
+            disabled={!selection.targetAssistant || selection.selectedTopics.size === 0}
+            onClick={async () => {
+              if (selection.targetAssistant) {
+                const selectedTopics = assistant.topics.filter((t) => selection.selectedTopics.has(t.id))
+                await onMoveTopic(selectedTopics, selection.targetAssistant)
+              }
+            }}>
+            {t('chat.topics.move_to')}
+          </Button>
+          <Button
+            onClick={() => {
+              setSelection({
+                isMultiSelectMode: false,
+                selectedTopics: new Set(),
+                targetAssistant: null
+              })
+            }}>
+            {t('common.cancel')}
+          </Button>
+        </MultiSelectBar>
+      )}
       <DragableList list={assistant.topics} onUpdate={updateTopics}>
         {(topic) => {
           const isActive = topic.id === activeTopic?.id
@@ -388,7 +487,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           return (
             <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
               <TopicListItem
-                className={isActive ? 'active' : ''}
+                className={`${isActive ? 'active' : ''} ${selection.selectedTopics.has(topic.id) ? 'selected' : ''}`}
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
@@ -450,6 +549,25 @@ const Container = styled(Scrollbar)`
   padding: 10px;
 `
 
+const MultiSelectBar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--color-background-soft);
+  border-radius: var(--border-radius-base);
+  margin-bottom: 10px;
+
+  .ant-select {
+    /* Removed flex-grow and min-width from here, applied directly via style prop for clarity */
+  }
+
+  .ant-btn {
+    flex-shrink: 0; // Prevent buttons from shrinking excessively
+  }
+`
+
 const TopicListItem = styled.div`
   padding: 7px 12px;
   border-radius: var(--list-item-border-radius);
@@ -484,6 +602,10 @@ const TopicListItem = styled.div`
         color: var(--color-text-2);
       }
     }
+  }
+  &.selected {
+    background-color: var(--color-primary-bg);
+    border: 0.5px solid var(--color-primary);
   }
 `
 

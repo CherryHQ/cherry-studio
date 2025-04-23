@@ -234,6 +234,8 @@
       "topics.export.yuque": "匯出到語雀",
       "topics.list": "話題列表",
       "topics.move_to": "移動到",
+      "topics.batch_move": "批次移動",
+      "topics.select_target_assistant": "目標助手",
       "topics.new": "開始新對話",
       "topics.pinned": "固定話題",
       "topics.prompt": "話題提示詞",
