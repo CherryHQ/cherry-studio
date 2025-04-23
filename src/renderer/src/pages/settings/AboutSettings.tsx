@@ -160,7 +160,7 @@ const AboutSettings: FC = () => {
           <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
         </SettingRow>
       </SettingGroup>
-      {hasNewVersion && update.info && autoCheckUpdate && (
+      {autoCheckUpdate && hasNewVersion && update.info && (
         <SettingGroup theme={theme}>
           <SettingRow>
             <SettingRowTitle>
