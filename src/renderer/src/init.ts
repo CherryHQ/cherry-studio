@@ -28,7 +28,7 @@ function initAutoSync() {
     if (nutstoreAutoSync) {
       startNutstoreAutoSync()
     }
-  }, 2000)
+  }, 8000)
 }
 
 export function initSentry() {
