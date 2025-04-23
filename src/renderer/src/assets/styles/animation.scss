@@ -18,7 +18,7 @@
 }
 
 // Modal动画
-@keyframes aniamtion-move-down-in {
+@keyframes animation-move-down-in {
   0% {
     transform: translate3d(0, 100%, 0);
     transform-origin: 0 0;
@@ -30,7 +30,7 @@
     opacity: 1;
   }
 }
-@keyframes aniamtion-move-down-out {
+@keyframes animation-move-down-out {
   0% {
     transform: translate3d(0, 0, 0);
     transform-origin: 0 0;
@@ -42,14 +42,14 @@
     opacity: 0;
   }
 }
-.aniamtion-move-down-enter,
-.aniamtion-move-down-appear {
-  animation-name: aniamtion-move-down-in;
+.animation-move-down-enter,
+.animation-move-down-appear {
+  animation-name: animation-move-down-in;
   animation-fill-mode: both;
   animation-duration: 0.25s;
 }
-.aniamtion-move-down-leave {
-  animation-name: aniamtion-move-down-out;
+.animation-move-down-leave {
+  animation-name: animation-move-down-out;
   animation-fill-mode: both;
   animation-duration: 0.25s;
 }

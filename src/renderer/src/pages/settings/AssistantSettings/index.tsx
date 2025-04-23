@@ -85,7 +85,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       afterClose={afterClose}
       footer={null}
       title={assistant.name}
-      transitionName="aniamtion-move-down"
+      transitionName="animation-move-down"
       styles={{
         content: {
           padding: 0,
