@@ -6,6 +6,7 @@ import {
   FolderOutlined,
   PushpinOutlined,
   QuestionCircleOutlined,
+  SwitcherOutlined,
   UploadOutlined
 } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
@@ -59,7 +60,7 @@ interface TopicSelectionState {
 
 const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic }) => {
   const { assistants } = useAssistants()
-  const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
+  const { assistant, removeTopic, moveTopic, updateTopic, updateTopics, removeAllTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
   const { showTopicTime, topicPosition } = useSettings()
 
@@ -385,9 +386,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             }))
         })
         menus.push({
-          label: t('chat.topics.batch_move'),
+          label: t('chat.topics.batch_select'),
           key: 'multi-select',
-          icon: <FolderOutlined />,
+          icon: <SwitcherOutlined />,
           onClick() {
             setSelection((prev) => ({
               ...prev,
@@ -465,6 +466,33 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               }
             }}>
             {t('chat.topics.move_to')}
+          </Button>
+          <Button
+            type="primary"
+            danger
+            disabled={selection.selectedTopics.size === 0}
+            onClick={() => {
+              window.modal.confirm({
+                title: t('chat.topics.delete.title'),
+                content: t('chat.topics.delete.content'),
+                centered: true,
+                okButtonProps: { danger: true },
+                onOk: async () => {
+                  const selectedTopics = assistant.topics.filter((t) => selection.selectedTopics.has(t.id))
+                  if (assistant.topics.length === selectedTopics.length) {
+                    removeAllTopics()
+                  } else {
+                    await Promise.all(selectedTopics.map((topic) => onDeleteTopic(topic)))
+                  }
+                  setSelection({
+                    isMultiSelectMode: false,
+                    selectedTopics: new Set(),
+                    targetAssistant: null
+                  })
+                }
+              })
+            }}>
+            {t('common.delete')}
           </Button>
           <Button
             onClick={() => {
@@ -565,6 +593,12 @@ const MultiSelectBar = styled.div`
 
   .ant-btn {
     flex-shrink: 0; // Prevent buttons from shrinking excessively
+  }
+
+  .ant-btn-danger {
+    background-color: var(--color-error-bg);
+    border-color: var(--color-error-border);
+    color: var(--color-error);
   }
 `
 

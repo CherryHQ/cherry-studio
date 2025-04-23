@@ -192,6 +192,8 @@
       "topics.copy.md": "Copy as markdown",
       "topics.copy.title": "Copy",
       "topics.delete.shortcut": "Hold {{key}} to delete directly",
+      "topics.delete.title": "Clear topic",
+      "topics.delete.content": "Are you sure you want to clear the selected topic? This will delete all messages in the topic",
       "topics.edit.placeholder": "Enter new name",
       "topics.edit.title": "Edit Name",
       "topics.export.image": "Export as image",
@@ -234,7 +236,7 @@
       "topics.export.yuque": "Export to Yuque",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
-      "topics.batch_move": "Batch Move",
+      "topics.batch_select": "Batch Select",
       "topics.select_target_assistant": "Select Target Assistant",
       "topics.new": "New Topic",
       "topics.pinned": "Pinned Topics",
@@ -1431,6 +1433,12 @@
       "quit": "Quit",
       "show_mini_window": "Quick Assistant",
       "show_window": "Show Window"
+    },
+    "topics": {
+      "delete": {
+        "title": "Delete topic",
+        "content": "Are you sure you want to delete this topic?"
+      }
     },
     "words": {
       "knowledgeGraph": "Knowledge Graph",
