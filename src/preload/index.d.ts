@@ -176,6 +176,9 @@ declare global {
         decryptToken: (token: string) => Promise<{ username: string; access_token: string }>
         getDirectoryContents: (token: string, path: string) => Promise<any>
       }
+      webview: {
+        setOpenLinkExternal: (webviewId: number, isExternal: boolean) => Promise<void>
+      }
     }
   }
 }

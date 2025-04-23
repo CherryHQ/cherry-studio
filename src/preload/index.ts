@@ -170,6 +170,10 @@ const api = {
     decryptToken: (token: string) => ipcRenderer.invoke(IpcChannel.Nutstore_DecryptToken, token),
     getDirectoryContents: (token: string, path: string) =>
       ipcRenderer.invoke(IpcChannel.Nutstore_GetDirectoryContents, token, path)
+  },
+  webview: {
+    setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal)
   }
 }
 

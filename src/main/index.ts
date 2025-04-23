@@ -1,7 +1,7 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, ipcMain, shell } from 'electron'
+import { app, ipcMain } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
@@ -78,36 +78,6 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
-  })
-
-  app.on('web-contents-created', (_, wc) => {
-    /** handle the url link of using window.open and target='_blank' to open
-     * we will open the link in the external browser instead of electron default window
-     * This will affect all the webContents including mainWindow and all the <webview> created contents
-     * see https://www.electronjs.org/docs/latest/api/window-open */
-    wc.setWindowOpenHandler(({ url }) => {
-      const shouldOpenExternal = (url: string) => {
-        try {
-          const { hostname } = new URL(url)
-          //for google login popup
-          return !(hostname.endsWith('.google.com') || hostname.endsWith('.googleapis.com'))
-        } catch (e) {
-          return true
-        }
-      }
-
-      if (shouldOpenExternal(url)) {
-        shell.openExternal(url)
-        return { action: 'deny' }
-      } else {
-        return {
-          action: 'allow',
-          overrideBrowserWindowOptions: {
-            autoHideMenuBar: true
-          }
-        }
-      }
-    })
   })
 
   app.on('before-quit', () => {

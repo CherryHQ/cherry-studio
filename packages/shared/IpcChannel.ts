@@ -18,6 +18,8 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
+
   // Open
   Open_Path = 'open:path',
   Open_Website = 'open:website',

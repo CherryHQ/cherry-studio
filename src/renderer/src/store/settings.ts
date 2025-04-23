@@ -106,8 +106,10 @@ export interface SettingsState {
   siyuanToken: string | null
   siyuanBoxId: string | null
   siyuanRootPath: string | null
+  // MinApps
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
+  minappsOpenLinkExternal: boolean
   // 隐私设置
   enableDataCollection: boolean
   exportMenuOptions: {
@@ -205,8 +207,10 @@ const initialState: SettingsState = {
   siyuanToken: null,
   siyuanBoxId: null,
   siyuanRootPath: null,
+  // MinApps
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
+  minappsOpenLinkExternal: false,
   enableDataCollection: false,
   exportMenuOptions: {
     image: true,
@@ -471,6 +475,9 @@ const settingsSlice = createSlice({
     setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
       state.showOpenedMinappsInSidebar = action.payload
     },
+    setMinappsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
+      state.minappsOpenLinkExternal = action.payload
+    },
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
@@ -561,6 +568,7 @@ export const {
   setSiyuanRootPath,
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,
+  setMinappsOpenLinkExternal,
   setEnableDataCollection,
   setExportMenuOptions
 } = settingsSlice.actions

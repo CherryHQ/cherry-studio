@@ -23,6 +23,7 @@ import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
+import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
@@ -302,5 +303,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Nutstore_DecryptToken, (_, token: string) => NutstoreService.decryptToken(token))
   ipcMain.handle(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
+  )
+
+  // webview
+  ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
+    setOpenLinkExternal(webviewId, isExternal)
   )
 }

@@ -571,7 +571,9 @@
         "minimize": "最小化小工具",
         "devtools": "開發者工具",
         "openExternal": "在瀏覽器中開啟",
-        "rightclick_copyurl": "右鍵複製URL"
+        "rightclick_copyurl": "右鍵複製URL",
+        "open_link_external_on": "当前：在瀏覽器中開啟連結",
+        "open_link_external_off": "当前：使用預設視窗開啟連結"
       },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
@@ -982,6 +984,9 @@
         "disabled": "隱藏的小程式",
         "empty": "把要隱藏的小程式從左側拖拽到這裡",
         "visible": "顯示的小程式",
+        "open_link_external": {
+          "title": "在瀏覽器中打開新視窗連結"
+        },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",
         "cache_description": "設置同時保持活躍狀態的小程式最大數量",
