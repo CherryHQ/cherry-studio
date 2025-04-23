@@ -408,7 +408,7 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     url: `https://chat.z.ai/`,
     bodered: true,
     style: {
-      padding: 10
+      padding: 5
     }
   }
 ]
