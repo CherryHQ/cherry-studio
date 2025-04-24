@@ -301,6 +301,7 @@ export class WindowService {
         app.dock?.hide()
       }
     })
+
     mainWindow.on('closed', () => {
       this.mainWindow = null
     })
