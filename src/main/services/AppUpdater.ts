@@ -1,3 +1,6 @@
+import { arch } from 'node:os'
+
+import { isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
@@ -58,6 +61,36 @@ export default class AppUpdater {
   public setAutoUpdate(isActive: boolean) {
     autoUpdater.autoDownload = isActive
     autoUpdater.autoInstallOnAppQuit = isActive
+  }
+
+  public async checkForUpdates() {
+    // 在 Windows 上，如果架构是 arm64，则不检查更新
+    if (isWin && (arch().includes('arm') || 'PORTABLE_EXECUTABLE_DIR' in process.env)) {
+      return {
+        currentVersion: app.getVersion(),
+        updateInfo: null
+      }
+    }
+
+    try {
+      const update = await this.autoUpdater.checkForUpdates()
+      if (update?.updateInfo && !this.autoUpdater.autoDownload) {
+        // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
+        // do not use await, because it will block the return of this function
+        this.autoUpdater.downloadUpdate()
+      }
+
+      return {
+        currentVersion: this.autoUpdater.currentVersion,
+        updateInfo: update?.updateInfo
+      }
+    } catch (error) {
+      logger.error('Failed to check for update:', error)
+      return {
+        currentVersion: app.getVersion(),
+        updateInfo: null
+      }
+    }
   }
 
   public async showUpdateDialog(mainWindow: BrowserWindow) {

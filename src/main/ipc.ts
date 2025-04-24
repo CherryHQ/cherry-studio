@@ -178,20 +178,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
-    // 在 Windows 上，如果架构是 arm64，则不检查更新
-    if (isWin && (arch().includes('arm') || 'PORTABLE_EXECUTABLE_DIR' in process.env)) {
-      return {
-        currentVersion: app.getVersion(),
-        updateInfo: null
-      }
-    }
-
-    const update = await appUpdater.autoUpdater.checkForUpdates()
-
-    return {
-      currentVersion: appUpdater.autoUpdater.currentVersion,
-      updateInfo: update?.updateInfo
-    }
+    await appUpdater.checkForUpdates()
   })
 
   // zip
