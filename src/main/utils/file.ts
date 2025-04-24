@@ -87,7 +87,6 @@ export function getAppConfigDir(name: string) {
 export function setAppDataDir() {
   const dir = path.join(path.dirname(app.getPath('exe')), 'data')
   if (fs.existsSync(dir)) {
-    fs.mkdirSync(dir)
     app.setPath('appData', dir)
   }
 }
