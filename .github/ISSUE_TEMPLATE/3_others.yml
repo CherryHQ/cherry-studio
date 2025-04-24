@@ -1,5 +1,5 @@
 name: 🤔 Other Questions (English)
-description: Submit questions that don't fit into bug reports or feature requests
+description: Submit questions that don't fit into bug reports or requests
 title: '[Other]: '
 body:
   - type: markdown
@@ -21,7 +21,7 @@ body:
           required: true
         - label: I have written a short and clear title that helps developers quickly understand the nature of my question, rather than vague titles like "A question" or "Help needed".
           required: true
-        - label: My question doesn't fall under bug reports or feature requests categories.
+        - label: My question doesn't fall under bug reports or requests categories.
           required: true
 
   - type: dropdown

@@ -145,7 +145,7 @@ labels:
   # Kind labels
   - name: kind/bug
     content: kind/bug
-    regexes: "错误|[Bb]ug|[Aa]nomaly|[Ii]ssue|[Ee]rror|[Ff]ailure|[Cc]rash|[Ss]top|[Hh]ang"
+    regexes: "错误|[Bb]ug|[Aa]nomaly|[Ee]rror|[Ff]ailure|[Cc]rash|[Ss]top|[Hh]ang"
     skip-if:
       - skip all
       - skip kind/bug
@@ -217,7 +217,7 @@ labels:
   # SIG labels
   - name: sig/Assistant
     content: sig/Assistant
-    regexes: "快捷助手|[Aa]ssistant|[Aa]i|[Aa][Ss][Ss][Ii][Ss][Tt][Aa][Nn][Tt]|[Aa]ssist|[Aa]ssisting|[Aa]ssistants?|[Aa]ssistive|[Aa]ssistive [Tt]echnology|[Aa]ssistive [Tt]echnologies"
+    regexes: "快捷助手|[Aa]ssistant"
     skip-if:
       - skip all
       - skip sig/Assistant

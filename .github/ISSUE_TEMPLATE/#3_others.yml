@@ -21,7 +21,7 @@ body:
           required: true
         - label: 我填写了简短且清晰明确的标题，以便开发者在翻阅 Issue 列表时能快速确定大致问题。而不是"一个问题"、"求助"等。
           required: true
-        - label: 我的问题不属于错误报告或功能建议类别。
+        - label: 我的问题不属于错误报告或功能需求类别。
           required: true
 
   - type: dropdown
