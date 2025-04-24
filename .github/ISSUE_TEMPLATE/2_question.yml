@@ -1,7 +1,7 @@
 name: ❓ Discussion & Questions
 description: Seeking help, discussing issues, asking questions, etc...
 title: '[Discussion]: '
-labels: ['question']
+labels: ['kind/question']
 body:
   - type: markdown
     attributes:
