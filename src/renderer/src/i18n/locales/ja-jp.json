@@ -1120,6 +1120,7 @@
         "installHelp": "インストールヘルプを取得",
         "tabs": {
           "general": "一般",
+          "description": "説明",
           "tools": "ツール",
           "prompts": "プロンプト",
           "resources": "リソース"

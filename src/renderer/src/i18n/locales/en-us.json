@@ -1121,6 +1121,7 @@
         "installHelp": "Get Installation Help",
         "tabs": {
           "general": "General",
+          "description": "Description",
           "tools": "Tools",
           "prompts": "Prompts",
           "resources": "Resources"

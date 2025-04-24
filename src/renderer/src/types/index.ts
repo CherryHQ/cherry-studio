@@ -403,6 +403,7 @@ export interface MCPServer {
   disabledTools?: string[] // List of tool names that are disabled for this server
   configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
+  searchKey?: string
 }
 
 export interface MCPToolInputSchema {

@@ -1120,6 +1120,7 @@
         "installHelp": "Получить помощь по установке",
         "tabs": {
           "general": "Общие",
+          "description": "Описание",
           "tools": "Инструменты",
           "prompts": "Подсказки",
           "resources": "Ресурсы"
