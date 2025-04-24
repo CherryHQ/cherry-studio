@@ -1,9 +1,10 @@
 import { IpcChannel } from '@shared/IpcChannel'
 import { WebDavConfig } from '@types'
-import AdmZip from 'adm-zip'
+import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
 import Logger from 'electron-log'
+import extract from 'extract-zip'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
@@ -91,6 +92,7 @@ class BackupManager {
 
       // 使用流的方式写入 data.json
       const tempDataPath = path.join(this.tempDir, 'data.json')
+
       await new Promise<void>((resolve, reject) => {
         const writeStream = fs.createWriteStream(tempDataPath)
         writeStream.write(data)
@@ -99,6 +101,7 @@ class BackupManager {
         writeStream.on('finish', () => resolve())
         writeStream.on('error', (error) => reject(error))
       })
+
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
       // 复制 Data 目录到临时目录
@@ -112,18 +115,92 @@ class BackupManager {
       // 使用流式复制
       await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
         copiedSize += size
-        const progress = Math.min(80, 20 + Math.floor((copiedSize / totalSize) * 60))
+        const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
         onProgress({ stage: 'copying_files', progress, total: 100 })
       })
 
       await this.setWritableRecursive(tempDataDir)
-      onProgress({ stage: 'compressing', progress: 80, total: 100 })
+      onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
 
-      // 使用 adm-zip 创建压缩文件
-      const zip = new AdmZip()
-      zip.addLocalFolder(this.tempDir)
+      // 创建输出文件流
       const backupedFilePath = path.join(destinationPath, fileName)
-      zip.writeZip(backupedFilePath)
+      const output = fs.createWriteStream(backupedFilePath)
+
+      // 创建 archiver 实例，启用 ZIP64 支持
+      const archive = archiver('zip', {
+        zlib: { level: 1 }, // 使用最低压缩级别以提高速度
+        zip64: true // 启用 ZIP64 支持以处理大文件
+      })
+
+      let lastProgress = 50
+      let totalEntries = 0
+      let processedEntries = 0
+      let totalBytes = 0
+      let processedBytes = 0
+
+      // 首先计算总文件数和总大小
+      const calculateTotals = async (dirPath: string) => {
+        const items = await fs.readdir(dirPath, { withFileTypes: true })
+        for (const item of items) {
+          const fullPath = path.join(dirPath, item.name)
+          if (item.isDirectory()) {
+            await calculateTotals(fullPath)
+          } else {
+            totalEntries++
+            const stats = await fs.stat(fullPath)
+            totalBytes += stats.size
+          }
+        }
+      }
+
+      await calculateTotals(this.tempDir)
+
+      // 监听文件添加事件
+      archive.on('entry', () => {
+        processedEntries++
+        if (totalEntries > 0) {
+          const progressPercent = Math.min(55, 50 + Math.floor((processedEntries / totalEntries) * 5))
+          if (progressPercent > lastProgress) {
+            lastProgress = progressPercent
+            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
+          }
+        }
+      })
+
+      // 监听数据写入事件
+      archive.on('data', (chunk) => {
+        processedBytes += chunk.length
+        if (totalBytes > 0) {
+          const progressPercent = Math.min(99, 55 + Math.floor((processedBytes / totalBytes) * 44))
+          if (progressPercent > lastProgress) {
+            lastProgress = progressPercent
+            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
+          }
+        }
+      })
+
+      // 使用 Promise 等待压缩完成
+      await new Promise<void>((resolve, reject) => {
+        output.on('close', () => {
+          onProgress({ stage: 'compressing', progress: 100, total: 100 })
+          resolve()
+        })
+        archive.on('error', reject)
+        archive.on('warning', (err: any) => {
+          if (err.code !== 'ENOENT') {
+            Logger.warn('[BackupManager] Archive warning:', err)
+          }
+        })
+
+        // 将输出流连接到压缩器
+        archive.pipe(output)
+
+        // 添加整个临时目录到压缩文件
+        archive.directory(this.tempDir, false)
+
+        // 完成压缩
+        archive.finalize()
+      })
 
       // 清理临时目录
       await fs.remove(this.tempDir)
@@ -133,6 +210,8 @@ class BackupManager {
       return backupedFilePath
     } catch (error) {
       Logger.error('[BackupManager] Backup failed:', error)
+      // 确保清理临时目录
+      await fs.remove(this.tempDir).catch(() => {})
       throw error
     }
   }
@@ -151,16 +230,22 @@ class BackupManager {
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       Logger.log('[backup] step 1: unzip backup file', this.tempDir)
-      // 使用 adm-zip 解压
-      const zip = new AdmZip(backupPath)
-      zip.extractAllTo(this.tempDir, true) // true 表示覆盖已存在的文件
-      onProgress({ stage: 'extracting', progress: 20, total: 100 })
+
+      // 使用 extract-zip 解压
+      await extract(backupPath, {
+        dir: this.tempDir,
+        onEntry: () => {
+          // 这里可以处理进度，但 extract-zip 不提供总条目数信息
+          onProgress({ stage: 'extracting', progress: 15, total: 100 })
+        }
+      })
+      onProgress({ stage: 'extracting', progress: 25, total: 100 })
 
       Logger.log('[backup] step 2: read data.json')
       // 读取 data.json
       const dataPath = path.join(this.tempDir, 'data.json')
       const data = await fs.readFile(dataPath, 'utf-8')
-      onProgress({ stage: 'reading_data', progress: 40, total: 100 })
+      onProgress({ stage: 'reading_data', progress: 35, total: 100 })
 
       Logger.log('[backup] step 3: restore Data directory')
       // 恢复 Data 目录
@@ -177,7 +262,7 @@ class BackupManager {
       // 使用流式复制
       await this.copyDirWithProgress(sourcePath, destPath, (size) => {
         copiedSize += size
-        const progress = Math.min(90, 40 + Math.floor((copiedSize / totalSize) * 50))
+        const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
         onProgress({ stage: 'copying_files', progress, total: 100 })
       })
 

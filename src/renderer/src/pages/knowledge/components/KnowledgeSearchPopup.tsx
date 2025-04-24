@@ -104,7 +104,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       width={800}
       footer={null}
       centered
-      transitionName="ant-move-down">
+      transitionName="animation-move-down">
       <SearchContainer>
         <Search
           placeholder={t('knowledge.search_placeholder')}

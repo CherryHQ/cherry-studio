@@ -328,7 +328,7 @@
       "no_api_key": "API 密钥未配置",
       "provider_disabled": "模型提供商未启用",
       "render": {
-        "description": "渲染公式失败，请检查公式格式是否正确",
+        "description": "消息内容渲染失败，请检查消息内容格式是否正确",
         "title": "渲染错误"
       },
       "user_message_not_found": "无法找到原始用户消息",
@@ -399,6 +399,10 @@
       "clear_selection": "清除选择",
       "delete": "删除",
       "delete_confirm": "确定要删除此知识库吗?",
+      "dimensions": "嵌入维度",
+      "dimensions_size_tooltip": "嵌入维度大小，数值越大，嵌入维度越大，但消耗的 Token 也越多",
+      "dimensions_size_placeholder": " 默认值（不建议修改）",
+      "dimensions_size_too_large": "嵌入维度不能超过模型上下文限制（{{max_context}}）",
       "directories": "目录",
       "directory_placeholder": "请输入目录路径",
       "document_count": "请求文档片段数量",
@@ -548,7 +552,7 @@
       "restore.failed": "恢复失败",
       "restore.success": "恢复成功",
       "save.success.title": "保存成功",
-      "searching": "正在联网搜索...",
+      "searching": "正在搜索...",
       "success.joplin.export": "成功导出到 Joplin",
       "success.markdown.export.preconf": "成功导出 Markdown 文件到预先设定的路径",
       "success.markdown.export.specified": "成功导出 Markdown 文件",
@@ -921,7 +925,9 @@
           "syncError": "备份错误",
           "syncStatus": "备份状态",
           "title": "WebDAV",
-          "user": "WebDAV 用户名"
+          "user": "WebDAV 用户名",
+          "maxBackups": "最大备份数",
+          "maxBackups.unlimited": "无限制"
         },
         "yuque": {
           "check": {
@@ -1029,7 +1035,7 @@
       "general.display.title": "显示设置",
       "general.emoji_picker": "表情选择器",
       "general.image_upload": "图片上传",
-      "general.auto_check_update.title": "自动检测更新",
+      "general.auto_check_update.title": "自动更新",
       "general.reset.button": "重置",
       "general.reset.title": "重置数据",
       "general.restore.button": "恢复",
@@ -1166,6 +1172,7 @@
       "messages.input.enable_delete_model": "启用删除键删除输入的模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染输入消息",
       "messages.math_engine": "数学公式引擎",
+      "messages.math_engine.none": "无",
       "messages.metrics": "首字时延 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
       "messages.model.title": "模型设置",
       "messages.navigation": "对话导航按钮",
@@ -1230,6 +1237,12 @@
         "api_key": "API 密钥",
         "api_key.tip": "多个密钥使用逗号分隔",
         "api_version": "API 版本",
+        "basic_auth": "HTTP 认证",
+        "basic_auth.tip": "适用于通过服务器部署的实例（参见文档）。目前仅支持 Basic 方案（RFC7617）。",
+        "basic_auth.user_name": "用户名",
+        "basic_auth.user_name.tip": "留空以禁用",
+        "basic_auth.password": "密码",
+        "basic_auth.password.tip": "",
         "charge": "充值",
         "check": "检查",
         "check_all_keys": "检查所有密钥",
@@ -1334,8 +1347,6 @@
         "check": "检查",
         "check_failed": "验证失败",
         "check_success": "验证成功",
-        "enhance_mode": "搜索增强模式",
-        "enhance_mode_tooltip": "使用默认模型提取关键词后搜索",
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
         "get_api_key": "点击这里获取密钥",
@@ -1361,7 +1372,9 @@
         },
         "title": "网络搜索",
         "apikey": "API 密钥",
-        "free": "免费"
+        "free": "免费",
+        "content_limit": "内容长度限制",
+        "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断"
       },
       "quickPhrase": {
         "title": "快捷短语",

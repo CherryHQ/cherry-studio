@@ -328,7 +328,7 @@
       "no_api_key": "APIキーが設定されていません",
       "provider_disabled": "モデルプロバイダーが有効になっていません",
       "render": {
-        "description": "数式のレンダリングに失敗しました。数式の形式が正しいか確認してください",
+        "description": "メッセージの内容のレンダリングに失敗しました。メッセージの内容の形式が正しいか確認してください",
         "title": "レンダリングエラー"
       },
       "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
@@ -445,7 +445,11 @@
       "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "dimensions": "埋め込み次元",
+      "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど埋め込み次元も大きくなりますが、消費するトークンも増えます。",
+      "dimensions_size_placeholder": "デフォルト値（変更はお勧めしません）",
+      "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -547,7 +551,7 @@
       "restore.failed": "復元に失敗しました",
       "restore.success": "復元に成功しました",
       "save.success.title": "保存に成功しました",
-      "searching": "インターネットで検索中...",
+      "searching": "検索中...",
       "success.joplin.export": "Joplin へのエクスポートに成功しました",
       "success.markdown.export.preconf": "Markdown ファイルを事前設定されたパスに正常にエクスポートしました",
       "success.markdown.export.specified": "Markdown ファイルを正常にエクスポートしました",
@@ -919,7 +923,9 @@
           "syncError": "バックアップエラー",
           "syncStatus": "バックアップ状態",
           "title": "WebDAV",
-          "user": "WebDAVユーザー"
+          "user": "WebDAVユーザー",
+          "maxBackups": "最大バックアップ数",
+          "maxBackups.unlimited": "無制限"
         },
         "yuque": {
           "check": {
@@ -1165,6 +1171,7 @@
       "messages.input.enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
       "messages.markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "messages.math_engine": "数式エンジン",
+      "messages.math_engine.none": "なし",
       "messages.metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
       "messages.model.title": "モデル設定",
       "messages.navigation": "メッセージナビゲーション",
@@ -1229,6 +1236,12 @@
         "api_key": "APIキー",
         "api_key.tip": "複数のキーはカンマで区切ります",
         "api_version": "APIバージョン",
+        "basic_auth": "HTTP 認証",
+        "basic_auth.tip": "サーバー展開によるインスタンスに適用されます（ドキュメントを参照）。現在はBasicスキーム（RFC7617）のみをサポートしています。",
+        "basic_auth.user_name": "ユーザー名",
+        "basic_auth.user_name.tip": "空欄で無効化",
+        "basic_auth.password": "パスワード",
+        "basic_auth.password.tip": "",
         "charge": "充電",
         "check": "チェック",
         "check_all_keys": "すべてのキーをチェック",
@@ -1332,8 +1345,6 @@
         "check": "チェック",
         "check_failed": "検証に失敗しました",
         "check_success": "検証に成功しました",
-        "enhance_mode": "検索強化モード",
-        "enhance_mode_tooltip": "デフォルトモデルを使用して問題から検索キーワードを抽出し、検索を実行します",
         "get_api_key": "APIキーを取得",
         "no_provider_selected": "検索サービスプロバイダーを選択してから再確認してください。",
         "search_max_result": "検索結果の数",
@@ -1360,9 +1371,11 @@
         "overwrite": "サービス検索を上書き",
         "overwrite_tooltip": "大規模言語モデルではなく、サービス検索を使用する",
         "apikey": "API キー",
-        "free": "無料"
+        "free": "無料",
+        "content_limit": "内容の長さ制限",
+        "content_limit_tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます。"
       },
-      "general.auto_check_update.title": "自動更新チェックを有効にする",
+      "general.auto_check_update.title": "自動更新",
       "quickPhrase": {
         "title": "クイックフレーズ",
         "add": "フレーズを追加",

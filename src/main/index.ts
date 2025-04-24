@@ -5,6 +5,7 @@ import { app, ipcMain } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
+import { initSentry } from './integration/sentry'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -58,6 +59,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
       return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
     })
+
+    ipcMain.handle(IpcChannel.System_GetHostname, () => {
+      return require('os').hostname()
+    })
   })
 
   registerProtocolClient(app)
@@ -106,3 +111,5 @@ if (!app.requestSingleInstanceLock()) {
   // In this file you can include the rest of your app"s specific main process
   // code. You can also put them in separate files and require them here.
 }
+
+initSentry()

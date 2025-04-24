@@ -60,6 +60,9 @@ const WebviewContainer = memo(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [appid, url])
 
+    //remove the tag of CherryStudio and Electron
+    const userAgent = navigator.userAgent.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
+
     return (
       <webview
         key={appid}
@@ -67,6 +70,7 @@ const WebviewContainer = memo(
         style={WebviewStyle}
         allowpopups={'true' as any}
         partition="persist:webview"
+        useragent={userAgent}
       />
     )
   }
@@ -75,7 +79,7 @@ const WebviewContainer = memo(
 const WebviewStyle: React.CSSProperties = {
   width: 'calc(100vw - var(--sidebar-width))',
   height: 'calc(100vh - var(--navbar-height))',
-  backgroundColor: 'white',
+  backgroundColor: 'var(--color-background)',
   display: 'inline-flex'
 }
 

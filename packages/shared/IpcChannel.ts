@@ -12,6 +12,8 @@ export enum IpcChannel {
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_RestartTray = 'app:restart-tray',
   App_SetTheme = 'app:set-theme',
+  App_SetCustomCss = 'app:set-custom-css',
+  App_SetAutoUpdate = 'app:set-auto-update',
 
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
@@ -128,6 +130,7 @@ export enum IpcChannel {
 
   // system
   System_GetDeviceType = 'system:getDeviceType',
+  System_GetHostname = 'system:getHostname',
 
   // events
   SelectionAction = 'selection-action',
@@ -156,5 +159,8 @@ export enum IpcChannel {
   // Search Window
   SearchWindow_Open = 'search-window:open',
   SearchWindow_Close = 'search-window:close',
-  SearchWindow_OpenUrl = 'search-window:open-url'
+  SearchWindow_OpenUrl = 'search-window:open-url',
+
+  // sentry
+  Sentry_Init = 'sentry:init'
 }

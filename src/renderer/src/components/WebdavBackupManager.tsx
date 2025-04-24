@@ -98,12 +98,13 @@ export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMet
       return
     }
 
-    Modal.confirm({
+    window.modal.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <ExclamationCircleOutlined />,
       content: t('settings.data.webdav.backup.manager.delete.confirm.multiple', { count: selectedRowKeys.length }),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
+      centered: true,
       onOk: async () => {
         setDeleting(true)
         try {
@@ -136,12 +137,13 @@ export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMet
       return
     }
 
-    Modal.confirm({
+    window.modal.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <ExclamationCircleOutlined />,
       content: t('settings.data.webdav.backup.manager.delete.confirm.single', { fileName }),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
+      centered: true,
       onOk: async () => {
         setDeleting(true)
         try {
@@ -168,12 +170,13 @@ export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMet
       return
     }
 
-    Modal.confirm({
+    window.modal.confirm({
       title: t('settings.data.webdav.restore.confirm.title'),
       icon: <ExclamationCircleOutlined />,
       content: t('settings.data.webdav.restore.confirm.content'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
+      centered: true,
       onOk: async () => {
         setRestoring(true)
         try {

@@ -5,6 +5,7 @@ import logger from 'electron-log'
 import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
 
 import icon from '../../../build/icon.png?asset'
+import { configManager } from './ConfigManager'
 
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
@@ -15,7 +16,8 @@ export default class AppUpdater {
 
     autoUpdater.logger = logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
-    autoUpdater.autoDownload = true
+    autoUpdater.autoDownload = configManager.getAutoUpdate()
+    autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
 
     // 检测下载错误
     autoUpdater.on('error', (error) => {
@@ -51,6 +53,11 @@ export default class AppUpdater {
     })
 
     this.autoUpdater = autoUpdater
+  }
+
+  public setAutoUpdate(isActive: boolean) {
+    autoUpdater.autoDownload = isActive
+    autoUpdater.autoInstallOnAppQuit = isActive
   }
 
   public async showUpdateDialog(mainWindow: BrowserWindow) {

@@ -1,6 +1,8 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { EventEmitter } from '@renderer/services/EventService'
 import { ThemeMode } from '@renderer/types'
-import React, { useEffect, useRef } from 'react'
+import { debounce, isEmpty } from 'lodash'
+import React, { useCallback, useEffect, useRef } from 'react'
 
 import MermaidPopup from './MermaidPopup'
 
@@ -12,19 +14,43 @@ const Mermaid: React.FC<Props> = ({ chart }) => {
   const { theme } = useTheme()
   const mermaidRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (mermaidRef.current && window.mermaid) {
+  const renderMermaidBase = useCallback(async () => {
+    if (!mermaidRef.current || !window.mermaid || isEmpty(chart)) return
+
+    try {
       mermaidRef.current.innerHTML = chart
       mermaidRef.current.removeAttribute('data-processed')
-      if (window.mermaid.initialize) {
-        window.mermaid.initialize({
-          startOnLoad: true,
-          theme: theme === ThemeMode.dark ? 'dark' : 'default'
-        })
-      }
-      window.mermaid.contentLoaded()
+
+      await window.mermaid.initialize({
+        startOnLoad: true,
+        theme: theme === ThemeMode.dark ? 'dark' : 'default'
+      })
+
+      await window.mermaid.run({ nodes: [mermaidRef.current] })
+    } catch (error) {
+      console.error('Failed to render mermaid chart:', error)
     }
   }, [chart, theme])
+
+  const renderMermaid = useCallback(debounce(renderMermaidBase, 1000), [renderMermaidBase])
+
+  useEffect(() => {
+    renderMermaid()
+    // Make sure to cancel any pending debounced calls when unmounting
+    return () => renderMermaid.cancel()
+  }, [renderMermaid])
+
+  useEffect(() => {
+    setTimeout(renderMermaidBase, 0)
+  }, [])
+
+  useEffect(() => {
+    const removeListener = EventEmitter.on('mermaid-loaded', renderMermaid)
+    return () => {
+      removeListener()
+      renderMermaid.cancel()
+    }
+  }, [renderMermaid])
 
   const onPreview = () => {
     MermaidPopup.show({ chart })

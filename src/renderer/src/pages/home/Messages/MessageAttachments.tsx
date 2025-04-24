@@ -66,15 +66,26 @@ const MessageAttachments: FC<Props> = ({ message }) => {
     )
   }
 
+  const StyledUpload = styled(Upload)`
+    .ant-upload-list-item-name {
+      max-width: 220px;
+      display: inline-block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: bottom;
+    }
+  `
+
   return (
     <Container style={{ marginTop: 2, marginBottom: 8 }} className="message-attachments">
-      <Upload
+      <StyledUpload
         listType="text"
         disabled
         fileList={message.files?.map((file) => ({
           uid: file.id,
           url: 'file://' + FileManager.getSafePath(file),
-          status: 'done',
+          status: 'done' as const,
           name: FileManager.formatFileName(file)
         }))}
       />

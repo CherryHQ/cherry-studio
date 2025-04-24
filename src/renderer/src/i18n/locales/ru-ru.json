@@ -328,7 +328,7 @@
       "no_api_key": "Ключ API не настроен",
       "provider_disabled": "Провайдер моделей не включен",
       "render": {
-        "description": "Не удалось рендерить формулу. Пожалуйста, проверьте, правильно ли формат формулы",
+        "description": "Не удалось рендерить содержимое сообщения. Пожалуйста, проверьте, правильно ли формат содержимого сообщения",
         "title": "Ошибка рендеринга"
       },
       "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
@@ -445,7 +445,11 @@
       "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает.",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "dimensions": "векторное пространство",
+      "dimensions_size_tooltip": "Размерность вложения, чем больше значение, тем больше размерность вложения, но и потребляемых токенов также становится больше.",
+      "dimensions_size_placeholder": "Значение по умолчанию (не рекомендуется изменять)",
+      "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})"
     },
     "languages": {
       "arabic": "Арабский",
@@ -548,7 +552,7 @@
       "restore.failed": "Восстановление не удалось",
       "restore.success": "Успешно восстановлено",
       "save.success.title": "Успешно сохранено",
-      "searching": "Поиск в Интернете...",
+      "searching": "Идет поиск...",
       "success.joplin.export": "Успешный экспорт в Joplin",
       "success.markdown.export.preconf": "Файл Markdown успешно экспортирован в предуказанный путь",
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
@@ -919,7 +923,9 @@
           "syncError": "Ошибка резервного копирования",
           "syncStatus": "Статус резервного копирования",
           "title": "WebDAV",
-          "user": "Пользователь WebDAV"
+          "user": "Пользователь WebDAV",
+          "maxBackups": "Максимальное количество резервных копий",
+          "maxBackups.unlimited": "Без ограничений"
         },
         "yuque": {
           "check": {
@@ -1165,6 +1171,7 @@
       "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
+      "messages.math_engine.none": "Нет",
       "messages.metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
       "messages.model.title": "Настройки модели",
       "messages.navigation": "Навигация сообщений",
@@ -1229,6 +1236,12 @@
         "api_key": "Ключ API",
         "api_key.tip": "Несколько ключей, разделенных запятыми",
         "api_version": "Версия API",
+        "basic_auth": "HTTP аутентификация",
+        "basic_auth.tip": "Применимо к экземплярам, развернутым через сервер (см. документацию). В настоящее время поддерживается только схема Basic (RFC7617).",
+        "basic_auth.user_name": "Имя пользователя",
+        "basic_auth.user_name.tip": "Оставить пустым для отключения",
+        "basic_auth.password": "Пароль",
+        "basic_auth.password.tip": "",
         "charge": "Пополнить",
         "check": "Проверить",
         "check_all_keys": "Проверить все ключи",
@@ -1332,8 +1345,6 @@
         "check": "проверка",
         "check_failed": "Проверка не прошла",
         "check_success": "Проверка успешна",
-        "enhance_mode": "Режим улучшения поиска",
-        "enhance_mode_tooltip": "Используйте модель по умолчанию для извлечения ключевых слов из проблемы и поиска",
         "get_api_key": "Получить ключ API",
         "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
         "search_max_result": "Количество результатов поиска",
@@ -1360,10 +1371,12 @@
         "overwrite": "Переопределить провайдера поиска",
         "overwrite_tooltip": "Использовать провайдера поиска вместо LLM",
         "apikey": "API ключ",
-        "free": "Бесплатно"
-            },
-            "general.auto_check_update.title": "Включить автообновление",
-            "quickPhrase": {
+        "free": "Бесплатно",
+        "content_limit": "Ограничение длины текста",
+        "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
+      },
+      "general.auto_check_update.title": "Включить автообновление",
+      "quickPhrase": {
         "title": "Быстрые фразы",
         "add": "Добавить фразу",
         "edit": "Редактировать фразу",

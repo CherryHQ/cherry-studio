@@ -328,7 +328,7 @@
       "no_api_key": "API key is not configured",
       "provider_disabled": "Model provider is not enabled",
       "render": {
-        "description": "Failed to render formula. Please check if the formula format is correct",
+        "description": "Failed to render message content. Please check if the message content format is correct",
         "title": "Render Error"
       },
       "user_message_not_found": "Cannot find original user message to resend",
@@ -445,7 +445,11 @@
       "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "dimensions": "Embedding dimension",
+      "dimensions_size_tooltip": "The size of the embedding dimension; the larger the value, the larger the embedding dimension, but it also consumes more tokens.",
+      "dimensions_size_placeholder": "Default value (modification not recommended)",
+      "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}})."
     },
     "languages": {
       "arabic": "Arabic",
@@ -548,7 +552,7 @@
       "restore.failed": "Restore failed",
       "restore.success": "Restored successfully",
       "save.success.title": "Saved successfully",
-      "searching": "Searching the internet...",
+      "searching": "Searching...",
       "success.joplin.export": "Successfully exported to Joplin",
       "success.markdown.export.preconf": "Successfully exported the Markdown file to the preconfigured path",
       "success.markdown.export.specified": "Successfully exported the Markdown file",
@@ -919,7 +923,9 @@
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",
           "title": "WebDAV",
-          "user": "WebDAV User"
+          "user": "WebDAV User",
+          "maxBackups": "Maximum Backups",
+          "maxBackups.unlimited": "Unlimited"
         },
         "yuque": {
           "check": {
@@ -1029,7 +1035,7 @@
       "general.display.title": "Display Settings",
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
-      "general.auto_check_update.title": "Auto update checking",
+      "general.auto_check_update.title": "Auto Update",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
@@ -1166,6 +1172,7 @@
       "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
+      "messages.math_engine.none": "None",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.model.title": "Model Settings",
       "messages.navigation": "Message Navigation",
@@ -1230,6 +1237,12 @@
         "api_key": "API Key",
         "api_key.tip": "Multiple keys separated by commas",
         "api_version": "API Version",
+        "basic_auth": "HTTP authentication",
+        "basic_auth.tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
+        "basic_auth.user_name": "Username",
+        "basic_auth.user_name.tip": "Left empty to disable",
+        "basic_auth.password": "Password",
+        "basic_auth.password.tip": "",
         "charge": "Charge",
         "check": "Check",
         "check_all_keys": "Check All Keys",
@@ -1334,8 +1347,6 @@
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
-        "enhance_mode": "Search enhance mode",
-        "enhance_mode_tooltip": "Use the default model to extract search keywords from the problem and search",
         "get_api_key": "Get API Key",
         "no_provider_selected": "Please select a search service provider before checking.",
         "search_max_result": "Number of search results",
@@ -1361,7 +1372,9 @@
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",
         "apikey": "API key",
-        "free": "Free"
+        "free": "Free",
+        "content_limit": "Content length limit",
+        "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated."
       },
       "quickPhrase": {
         "title": "Quick Phrases",

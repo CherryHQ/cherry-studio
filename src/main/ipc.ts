@@ -9,6 +9,7 @@ import { BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
+import { initSentry } from './integration/sentry'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
@@ -48,7 +49,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
     logsPath: log.transports.file.getFile().path,
-    arch: arch()
+    arch: arch(),
+    isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env
   }))
 
   ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
@@ -100,6 +102,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setTrayOnClose(isActive)
   })
 
+  // auto update
+  ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
+    appUpdater.setAutoUpdate(isActive)
+    configManager.setAutoUpdate(isActive)
+  })
+
   ipcMain.handle(IpcChannel.App_RestartTray, () => TrayService.getInstance().restartTray())
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any) => {
@@ -130,6 +138,22 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       mainWindow.setTitleBarOverlay(theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight)
   })
 
+  // custom css
+  ipcMain.handle(IpcChannel.App_SetCustomCss, (event, css: string) => {
+    if (css === configManager.getCustomCss()) return
+    configManager.setCustomCss(css)
+
+    // Broadcast to all windows including the mini window
+    const senderWindowId = event.sender.id
+    const windows = BrowserWindow.getAllWindows()
+    // 向其他窗口广播主题变化
+    windows.forEach((win) => {
+      if (win.webContents.id !== senderWindowId) {
+        win.webContents.send('custom-css:update', css)
+      }
+    })
+  })
+
   // clear cache
   ipcMain.handle(IpcChannel.App_ClearCache, async () => {
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
@@ -154,6 +178,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
+    // 在 Windows 上，如果架构是 arm64，则不检查更新
+    if (isWin && (arch().includes('arm') || 'PORTABLE_EXECUTABLE_DIR' in process.env)) {
+      return {
+        currentVersion: app.getVersion(),
+        updateInfo: null
+      }
+    }
+
     const update = await appUpdater.autoUpdater.checkForUpdates()
 
     return {
@@ -311,4 +343,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
     return await searchService.openUrlInSearchWindow(uid, url)
   })
+
+  // sentry
+  ipcMain.handle(IpcChannel.Sentry_Init, () => initSentry())
 }

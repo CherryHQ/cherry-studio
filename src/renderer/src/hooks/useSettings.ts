@@ -3,6 +3,7 @@ import {
   AssistantIconType,
   SendMessageShortcut,
   setAssistantIconType,
+  setAutoCheckUpdate as _setAutoCheckUpdate,
   setLaunchOnBoot,
   setLaunchToTray,
   setSendMessageShortcut as _setSendMessageShortcut,
@@ -48,6 +49,11 @@ export function useSettings() {
         dispatch(setTrayOnClose(isTrayOnClose))
         window.api.setTrayOnClose(isTrayOnClose)
       }
+    },
+
+    setAutoCheckUpdate(isAutoUpdate: boolean) {
+      dispatch(_setAutoCheckUpdate(isAutoUpdate))
+      window.api.setAutoUpdate(isAutoUpdate)
     },
 
     setTheme(theme: ThemeMode) {

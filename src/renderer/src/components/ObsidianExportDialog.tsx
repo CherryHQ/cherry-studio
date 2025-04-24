@@ -131,6 +131,8 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
     folder: ''
   })
 
+  // 是否手动编辑过标题
+  const [hasTitleBeenManuallyEdited, setHasTitleBeenManuallyEdited] = useState(false)
   const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
   const [files, setFiles] = useState<FileInfo[]>([])
   const [fileTreeData, setFileTreeData] = useState<any[]>([])
@@ -255,6 +257,12 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
     setState((prevState) => ({ ...prevState, [key]: value }))
   }
 
+  // 处理title输入变化
+  const handleTitleInputChange = (newTitle: string) => {
+    handleChange('title', newTitle)
+    setHasTitleBeenManuallyEdited(true)
+  }
+
   const handleVaultChange = (value: string) => {
     setSelectedVault(value)
     // 文件夹会通过useEffect自动获取
@@ -278,11 +286,17 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
           const fileName = selectedFile.name
           const titleWithoutExt = fileName.endsWith('.md') ? fileName.substring(0, fileName.length - 3) : fileName
           handleChange('title', titleWithoutExt)
+          // 重置手动编辑标记，因为这是非用户设置的title
+          setHasTitleBeenManuallyEdited(false)
           handleChange('processingMethod', '1')
         } else {
           // 如果是文件夹，自动设置标题为话题名并设置处理方式为3(新建)
           handleChange('processingMethod', '3')
-          handleChange('title', title)
+          // 仅当用户未手动编辑过 title 时，才将其重置为 props.title
+          if (!hasTitleBeenManuallyEdited) {
+            // title 是 props.title
+            handleChange('title', title)
+          }
         }
       }
     }
@@ -309,7 +323,7 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
         <Form.Item label={i18n.t('chat.topics.export.obsidian_title')}>
           <Input
             value={state.title}
-            onChange={(e) => handleChange('title', e.target.value)}
+            onChange={(e) => handleTitleInputChange(e.target.value)}
             placeholder={i18n.t('chat.topics.export.obsidian_title_placeholder')}
           />
         </Form.Item>

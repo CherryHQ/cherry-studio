@@ -46,3 +46,11 @@ local
 .aider*
 .cursorrules
 .cursor/rules
+
+# test
+coverage
+.vitest-cache
+vitest.config.*.timestamp-*
+
+# Sentry Config File
+.env.sentry-build-plugin
