@@ -60,10 +60,12 @@ const BasicSettings: FC = () => {
           <Input
             style={{ width: '100px' }}
             placeholder="2000"
-            value={contentLimit}
+            value={contentLimit === undefined ? '' : contentLimit}
             onChange={(e) => {
               const value = e.target.value
-              if (!isNaN(Number(value)) && Number(value) > 0) {
+              if (value === '') {
+                dispatch(setContentLimit(undefined))
+              } else if (!isNaN(Number(value)) && Number(value) > 0) {
                 dispatch(setContentLimit(Number(value)))
               }
             }}

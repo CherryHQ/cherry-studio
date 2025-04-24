@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { CodeStyleVarious, LanguageVarious, MathEngine, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebDAVSyncState } from './backup'
@@ -58,7 +58,7 @@ export interface SettingsState {
   codeCacheMaxSize: number
   codeCacheTTL: number
   codeCacheThreshold: number
-  mathEngine: 'MathJax' | 'KaTeX'
+  mathEngine: MathEngine
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
   foldDisplayMode: 'expanded' | 'compact'
@@ -360,7 +360,7 @@ const settingsSlice = createSlice({
     setCodeCacheThreshold: (state, action: PayloadAction<number>) => {
       state.codeCacheThreshold = action.payload
     },
-    setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
+    setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
     },
     setFoldDisplayMode: (state, action: PayloadAction<'expanded' | 'compact'>) => {

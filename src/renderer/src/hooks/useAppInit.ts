@@ -3,7 +3,6 @@ import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { initSentry } from '@renderer/init'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
@@ -106,6 +105,6 @@ export function useAppInit() {
   }, [customCss])
 
   useEffect(() => {
-    enableDataCollection && initSentry()
+    // TODO: init data collection
   }, [enableDataCollection])
 }

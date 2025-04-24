@@ -5,7 +5,7 @@ import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
@@ -47,6 +47,8 @@ interface Props {
 
 const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { provider } = useProvider(_provider.id)
+  const allProviders = useAllProviders()
+  const { updateProviders } = useProviders()
   const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
@@ -75,6 +77,21 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       setApiKey(formatApiKeys(value))
     }, 100),
     []
+  )
+
+  const moveProviderToTop = useCallback(
+    (providerId: string) => {
+      const reorderedProviders = [...allProviders]
+      const index = reorderedProviders.findIndex((p) => p.id === providerId)
+
+      if (index !== -1) {
+        const updatedProvider = { ...reorderedProviders[index], enabled: true }
+        reorderedProviders.splice(index, 1)
+        reorderedProviders.unshift(updatedProvider)
+        updateProviders(reorderedProviders)
+      }
+    },
+    [allProviders, updateProviders]
   )
 
   const onUpdateApiKey = () => {
@@ -208,7 +225,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       const keys = apiKey
         .split(/(?<!\\),/)
         .map((k) => k.trim())
-        .map(k => k.replace(/\\,/g, ','))
+        .map((k) => k.replace(/\\,/g, ','))
         .filter((k) => k)
 
       const result = await ApiCheckPopup.show({
@@ -297,7 +314,12 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         <Switch
           value={provider.enabled}
           key={provider.id}
-          onChange={(enabled) => updateProvider({ ...provider, apiKey, apiHost, enabled })}
+          onChange={(enabled) => {
+            updateProvider({ ...provider, apiKey, apiHost, enabled })
+            if (enabled) {
+              moveProviderToTop(provider.id)
+            }
+          }}
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />

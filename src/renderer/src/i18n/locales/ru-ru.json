@@ -445,7 +445,11 @@
       "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает.",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "dimensions": "векторное пространство",
+      "dimensions_size_tooltip": "Размерность вложения, чем больше значение, тем больше размерность вложения, но и потребляемых токенов также становится больше.",
+      "dimensions_size_placeholder": "Значение по умолчанию (не рекомендуется изменять)",
+      "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})"
     },
     "languages": {
       "arabic": "Арабский",
@@ -1168,6 +1172,7 @@
       "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
+      "messages.math_engine.none": "Нет",
       "messages.metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
       "messages.model.title": "Настройки модели",
       "messages.navigation": "Навигация сообщений",

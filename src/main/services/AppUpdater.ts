@@ -55,6 +55,11 @@ export default class AppUpdater {
     this.autoUpdater = autoUpdater
   }
 
+  public setAutoUpdate(isActive: boolean) {
+    autoUpdater.autoDownload = isActive
+    autoUpdater.autoInstallOnAppQuit = isActive
+  }
+
   public async showUpdateDialog(mainWindow: BrowserWindow) {
     if (!this.releaseInfo) {
       return
