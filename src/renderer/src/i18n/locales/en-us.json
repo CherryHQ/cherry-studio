@@ -243,6 +243,7 @@
       "topics.unpinned": "Unpinned Topics",
       "translate": "Translate",
       "topics.export.siyuan": "Export to Siyuan Note",
+      "topics.export.mrdoc": "Export to MrDoc",
       "topics.export.wait_for_title_naming": "Generating title...",
       "topics.export.title_naming_success": "Title generated successfully",
       "topics.export.title_naming_failed": "Failed to generate title, using default title",
@@ -574,7 +575,11 @@
       "error.siyuan.no_config": "Siyuan Note API address or token is not configured",
       "success.siyuan.export": "Successfully exported to Siyuan Note",
       "warn.yuque.exporting": "Exporting to Yuque, please do not request export repeatedly!",
-      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
+      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!",
+      "error.mrdoc.export": "Failed to export to MrDoc, please check connection status and configuration according to documentation",
+      "error.mrdoc.no_config": "MrDoc address or token is not configured",
+      "success.mrdoc.export": "Successfully exported to MrDoc",
+      "warn.mrdoc.exporting": "Exporting to MrDoc, please do not request export repeatedly!"
     },
     "minapp": {
       "popup": {
@@ -828,6 +833,7 @@
           "yuque": "Export to Yuque",
           "obsidian": "Export to Obsidian",
           "siyuan": "Export to SiYuan Note",
+          "mrdoc": "Export to MrDoc",
           "joplin": "Export to Joplin",
           "docx": "Export as Word"
         },
@@ -969,6 +975,24 @@
             "success": "Connection successful",
             "fail": "Connection failed, please check API address and token",
             "error": "Connection error, please check network connection"
+          }
+        },
+        "mrdoc": {
+          "title": "MrDoc Configuration",
+          "api_url": "API URL",
+          "api_url_placeholder": "e.g., http://doc.mrdoc.pro",
+          "token": "User Token",
+          "token.help": "Obtain from User Center -> Personal Management -> Token Management",
+          "token_placeholder": "Please enter your MrDoc user token",
+          "box_id": "Project ID",
+          "box_id_placeholder": "Please enter the project ID",
+          "check": {
+            "title": "Connection Check",
+            "button": "Check",
+            "empty_config": "Please fill in the API URL and token",
+            "success": "Connection successful",
+            "fail": "Connection failed, please check the API URL and token",
+            "error": "Connection error, please check your network connection"
           }
         },
         "nutstore": {

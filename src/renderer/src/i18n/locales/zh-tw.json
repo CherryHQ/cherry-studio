@@ -243,6 +243,7 @@
       "topics.unpinned": "取消固定",
       "translate": "翻譯",
       "topics.export.siyuan": "匯出到思源筆記",
+      "topics.export.mrdoc": "匯出到觅思文檔",
       "topics.export.wait_for_title_naming": "正在生成標題...",
       "topics.export.title_naming_success": "標題生成成功",
       "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
@@ -574,7 +575,11 @@
       "error.siyuan.no_config": "未配置思源筆記API地址或令牌",
       "success.siyuan.export": "導出到思源筆記成功",
       "warn.yuque.exporting": "正在導出語雀，請勿重複請求導出！",
-      "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！"
+      "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！",
+      "error.mrdoc.export": "導出至覓思文檔失敗，請檢查連接狀態並對照文檔檢查配置",
+      "error.mrdoc.no_config": "未配置覓思文檔API地址或令牌",
+      "success.mrdoc.export": "成功導出至覓思文檔",
+      "warn.mrdoc.exporting": "正在導出至覓思文檔，請勿重複提交導出請求!"
     },
     "minapp": {
       "popup": {
@@ -828,6 +833,7 @@
           "yuque": "匯出到語雀",
           "obsidian": "匯出到Obsidian",
           "siyuan": "匯出到思源筆記",
+          "mrdoc": "匯出到覓思文檔",
           "joplin": "匯出到Joplin",
           "docx": "匯出為Word"
         },
@@ -962,6 +968,24 @@
           "box_id_placeholder": "請輸入筆記本ID",
           "root_path": "文檔根路徑",
           "root_path_placeholder": "例如：/CherryStudio",
+          "check": {
+            "title": "連接檢查",
+            "button": "檢查",
+            "empty_config": "請填寫API地址和令牌",
+            "success": "連接成功",
+            "fail": "連接失敗，請檢查API地址和令牌",
+            "error": "連接異常，請檢查網絡連接"
+          }
+        },
+        "mrdoc": {
+          "title": "覓思文檔配置",
+          "api_url": "API地址",
+          "api_url_placeholder": "例如：http://doc.mrdoc.pro",
+          "token": "用戶Token",
+          "token.help": "在個人中心->個人管理->Token管理中獲取",
+          "token_placeholder": "請輸入覓思文檔的用戶Token",
+          "box_id": "文集ID",
+          "box_id_placeholder": "請輸入專案ID",
           "check": {
             "title": "連接檢查",
             "button": "檢查",

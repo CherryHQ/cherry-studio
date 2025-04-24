@@ -29,6 +29,7 @@ import { copyTopicAsMarkdown } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
+  exportMarkdownToMrdoc,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
   exportTopicToNotion,
@@ -320,6 +321,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               onClick: async () => {
                 const markdown = await topicToMarkdown(topic)
                 exportMarkdownToSiyuan(topic.name, markdown)
+              }
+            },
+            exportMenuOptions.mrdoc !== false && {
+              label: t('chat.topics.export.mrdoc'),
+              key: 'mrdoc',
+              onClick: async () => {
+                const markdown = await topicToMarkdown(topic)
+                exportMarkdownToMrdoc(topic.name, markdown)
               }
             }
           ].filter(Boolean) as ItemType<MenuItemType>[]
