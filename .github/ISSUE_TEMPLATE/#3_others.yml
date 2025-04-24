@@ -1,5 +1,5 @@
 name: 🤔 其他问题 (中文)
-description: 提交不属于错误报告或功能建议的问题
+description: 提交不属于错误报告或功能需求的问题
 title: '[其他]: '
 body:
   - type: markdown
