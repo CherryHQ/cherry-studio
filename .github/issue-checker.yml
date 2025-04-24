@@ -14,24 +14,6 @@ labels:
     content:
     regexes: "[Rr]emove (?:[Aa]ll |)[Ll]abels?"
 
-  - name: skip needs-more-info
-    content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)needs-more-info(?:`|)"
-  - name: remove needs-more-info
-    content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)needs-more-info(?:`|)"
-  - name: pr-needs-more-info
-    content: needs-more-info
-    regexes: '^(?!(?:build|chore|ci|docs?|feat!?|fix|perf|refactor|rft|style|test|i18n|typo|debug)[\:\.\(\,]|[Rr]evert|[Rr]elease)'
-    mode:
-      pull_request_target:
-    skip-if:
-      - skip all
-      - skip needs-more-info
-    remove-if:
-      - remove all
-      - remove needs-more-info
-
   - name: skip kind/bug
     content:
     regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/bug(?:`|)"
@@ -143,29 +125,6 @@ labels:
       add: [pull_request_target, issues]
     author_association:
       - COLLABORATOR
-
-  - name: needs-more-info
-    content: needs-more-info
-    mode:
-      issues:
-      issue_comment: remove
-    skip-if:
-      - pr-needs-more-info
-      - skip all
-      - skip needs-more-info
-    remove-if:
-      - remove all
-      - remove needs-more-info
-      - remove area/Connectivity
-      - remove area/UI/UX
-      - remove kind/bug
-      - remove kind/enhancement
-      - remove kind/question
-      - remove kind/documentation
-      - remove sig/Assistant
-      - remove sig/Data
-      - remove sig/MCP
-      - remove sig/RAG
 
   # Area labels
   - name: area/Connectivity
