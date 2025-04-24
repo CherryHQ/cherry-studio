@@ -908,7 +908,7 @@ export default class OpenAIProvider extends BaseProvider {
       {
         model: model.id,
         prompt: lastUserMessage?.content || '',
-        response_format: 'b64_json'
+        response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
       },
       {
         signal
