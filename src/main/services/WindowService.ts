@@ -86,7 +86,7 @@ export class WindowService {
 
   private setupMainWindow(mainWindow: BrowserWindow, mainWindowState: any) {
     mainWindowState.manage(mainWindow)
-    
+
     this.setupMaximize(mainWindow, mainWindowState.isMaximized)
     this.setupContextMenu(mainWindow)
     this.setupWindowEvents(mainWindow)
@@ -268,6 +268,39 @@ export class WindowService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
+      // 如果已经触发退出，直接退出
+      if (app.isQuitting) {
+        return app.quit()
+      }
+
+      // 托盘及关闭行为设置
+      const isShowTray = configManager.getTray()
+      const isTrayOnClose = configManager.getTrayOnClose()
+
+      // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
+      if (!isShowTray || (isShowTray && !isTrayOnClose)) {
+        // 如果是Windows或Linux，直接退出
+        // mac按照系统默认行为，不退出
+        if (isWin || isLinux) {
+          return app.quit()
+        }
+      }
+
+      /**
+       * 上述逻辑以下:
+       * win/linux: 是“开启托盘+设置关闭时最小化到托盘”的情况
+       * mac: 任何情况都会到这里，因此需要单独处理mac
+       */
+
+      event.preventDefault()
+
+      mainWindow.hide()
+
+      //for mac users, should hide dock icon if close to tray
+      if (isMac && isTrayOnClose) {
+        app.dock?.hide()
+      }
+    })
     mainWindow.on('closed', () => {
       this.mainWindow = null
     })
