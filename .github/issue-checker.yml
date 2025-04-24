@@ -32,6 +32,27 @@ labels:
       - remove all
       - remove needs-more-info
 
+  - name: skip kind/bug
+    content:
+    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/bug(?:`|)"
+  - name: remove kind/bug
+    content:
+    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/bug(?:`|)"
+
+  - name: skip kind/enhancement
+    content:
+    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/enhancement(?:`|)"
+  - name: remove kind/enhancement
+    content:
+    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/enhancement(?:`|)"
+
+  - name: skip kind/question
+    content:
+    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/question(?:`|)"
+  - name: remove kind/question
+    content:
+    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/question(?:`|)"
+
   - name: skip area/Connectivity
     content:
     regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)area/Connectivity(?:`|)"
@@ -137,6 +158,9 @@ labels:
       - remove needs-more-info
       - remove area/Connectivity
       - remove area/UI/UX
+      - remove kind/bug
+      - remove kind/enhancement
+      - remove kind/question
       - remove kind/documentation
       - remove sig/Assistant
       - remove sig/Data
@@ -156,7 +180,7 @@ labels:
 
   - name: area/UI/UX
     content: area/UI/UX
-    regexes: "界面|[Uu][Ii]|重叠|按钮|图标|组件|渲染"
+    regexes: "界面|[Uu][Ii]|重叠|按钮|图标|组件|渲染|菜单|栏目|头像|主题|样式|[Cc][Ss][Ss]"
     skip-if:
       - skip all
       - skip area/UI/UX
