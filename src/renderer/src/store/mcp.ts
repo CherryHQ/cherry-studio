@@ -97,6 +97,13 @@ export const builtinMCPServers: MCPServer[] = [
     type: 'inMemory',
     description: '实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器',
     isActive: false
+  },
+  {
+    id: nanoid(),
+    name: '@cherry/dify-knowledge',
+    type: 'inMemory',
+    description: 'Dify 的 MCP 服务器实现，提供了一个简单的 API 来与 Dify 进行交互',
+    isActive: false
   }
 ]
 
