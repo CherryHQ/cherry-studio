@@ -51,6 +51,3 @@ local
 coverage
 .vitest-cache
 vitest.config.*.timestamp-*
-
-# Sentry Config File
-.env.sentry-build-plugin

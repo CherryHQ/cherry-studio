@@ -10,6 +10,10 @@ import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import {
+  StreamableHTTPClientTransport,
+  type StreamableHTTPClientTransportOptions
+} from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
 import {
@@ -29,7 +33,6 @@ import { memoize } from 'lodash'
 import { CacheService } from './CacheService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
-import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -159,7 +162,7 @@ class McpService {
         } else if (server.type === 'sse') {
           const options: SSEClientTransportOptions = {
             eventSourceInit: {
-              fetch: (url, init) => fetch(url, { ...init, headers: server.headers || {} }),
+              fetch: (url, init) => fetch(url, { ...init, headers: server.headers || {} })
             },
             requestInit: {
               headers: server.headers || {}

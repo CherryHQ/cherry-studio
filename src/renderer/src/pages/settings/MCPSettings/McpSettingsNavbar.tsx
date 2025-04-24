@@ -1,13 +1,11 @@
-import { EditOutlined, ExportOutlined } from '@ant-design/icons'
 import { NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import { isWindows } from '@renderer/config/constant'
 import { Button } from 'antd'
-import { Search } from 'lucide-react'
+import { Search, SquareArrowOutUpRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
-import EditMcpJsonPopup from './EditMcpJsonPopup'
 import InstallNpxUv from './InstallNpxUv'
 
 export const McpSettingsNavbar = () => {
@@ -30,17 +28,8 @@ export const McpSettingsNavbar = () => {
         <Button
           size="small"
           type="text"
-          onClick={() => EditMcpJsonPopup.show()}
-          icon={<EditOutlined />}
-          className="nodrag"
-          style={{ fontSize: 13, height: 28, borderRadius: 20 }}>
-          {t('settings.mcp.editMcpJson')}
-        </Button>
-        <Button
-          size="small"
-          type="text"
           onClick={onClick}
-          icon={<ExportOutlined />}
+          icon={<SquareArrowOutUpRight size={14} />}
           className="nodrag"
           style={{ fontSize: 13, height: 28, borderRadius: 20 }}>
           {t('settings.mcp.findMore')}

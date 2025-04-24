@@ -1,26 +1,22 @@
-import { CodeOutlined, PlusOutlined } from '@ant-design/icons'
+import { EditOutlined } from '@ant-design/icons'
 import { nanoid } from '@reduxjs/toolkit'
 import DragableList from '@renderer/components/DragableList'
-import IndicatorLight from '@renderer/components/IndicatorLight'
-import { HStack, VStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
+import { Button, Empty, Tag } from 'antd'
+import { MonitorCheck, Plus, Settings2 } from 'lucide-react'
 import { FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingTitle } from '..'
-import McpSettings from './McpSettings'
-
-interface Props {
-  selectedMcpServer: MCPServer | null
-  setSelectedMcpServer: (server: MCPServer | null) => void
-}
-
-const McpServersList: FC<Props> = ({ selectedMcpServer, setSelectedMcpServer }) => {
+import EditMcpJsonPopup from './EditMcpJsonPopup'
+const McpServersList: FC = () => {
   const { mcpServers, addMCPServer, updateMcpServers } = useMCPServers()
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
   const onAddMcpServer = useCallback(async () => {
     const newServer = {
@@ -33,78 +29,81 @@ const McpServersList: FC<Props> = ({ selectedMcpServer, setSelectedMcpServer }) 
       env: {},
       isActive: false
     }
-    addMCPServer(newServer)
+    await addMCPServer(newServer)
+    navigate(`/settings/mcp/settings`, { state: { server: newServer } })
     window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
-    setSelectedMcpServer(newServer)
-  }, [addMCPServer, setSelectedMcpServer, t])
+  }, [addMCPServer, navigate, t])
 
   return (
     <Container>
-      <ServersList>
-        <ListHeader>
-          <SettingTitle>{t('settings.mcp.newServer')}</SettingTitle>
-        </ListHeader>
-        <AddServerCard onClick={onAddMcpServer}>
-          <PlusOutlined style={{ fontSize: 24 }} />
-          <AddServerText>{t('settings.mcp.addServer')}</AddServerText>
-        </AddServerCard>
-        <DragableList list={mcpServers} onUpdate={updateMcpServers}>
-          {(server) => (
-            <ServerCard
-              key={server.id}
-              onClick={() => setSelectedMcpServer(server)}
-              className={selectedMcpServer?.id === server.id ? 'active' : ''}>
-              <ServerHeader>
+      <ListHeader>
+        <SettingTitle style={{ gap: 3 }}>
+          <span>{t('settings.mcp.newServer')}</span>
+          <Button icon={<EditOutlined />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
+        </SettingTitle>
+        <Button icon={<Plus size={16} />} type="default" onClick={onAddMcpServer} shape="round">
+          {t('settings.mcp.addServer')}
+        </Button>
+      </ListHeader>
+      <DragableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
+        {(server: MCPServer) => (
+          <ServerCard key={server.id} onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}>
+            <ServerHeader>
+              <ServerName>
+                <ServerNameText>{server.name}</ServerNameText>
                 <ServerIcon>
-                  <CodeOutlined />
+                  <MonitorCheck size={16} color={server.isActive ? 'var(--color-primary)' : 'var(--color-text-3)'} />
                 </ServerIcon>
-                <ServerName>{server.name}</ServerName>
-                <StatusIndicator>
-                  <IndicatorLight
-                    size={6}
-                    color={server.isActive ? 'green' : 'var(--color-text-3)'}
-                    animation={server.isActive}
-                    shadow={false}
-                  />
-                </StatusIndicator>
-              </ServerHeader>
-              <ServerDescription>{server.description}</ServerDescription>
-            </ServerCard>
-          )}
-        </DragableList>
-      </ServersList>
-      <ServerSettings>{selectedMcpServer && <McpSettings server={selectedMcpServer} />}</ServerSettings>
+              </ServerName>
+              <StatusIndicator>
+                <Button
+                  icon={<Settings2 size={16} />}
+                  type="text"
+                  onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}
+                />
+              </StatusIndicator>
+            </ServerHeader>
+            <ServerDescription>{server.description}</ServerDescription>
+            <ServerFooter>
+              <Tag color="default" style={{ borderRadius: 20, margin: 0 }}>
+                {t(`settings.mcp.types.${server.type || 'stdio'}`)}
+              </Tag>
+            </ServerFooter>
+          </ServerCard>
+        )}
+      </DragableList>
+      {mcpServers.length === 0 && (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={t('settings.mcp.noServers')}
+          style={{ marginTop: 20 }}
+        />
+      )}
     </Container>
   )
 }
 
-const Container = styled(HStack)`
+const Container = styled(Scrollbar)`
+  display: flex;
   flex: 1;
-  width: 350px;
+  flex-direction: column;
+  width: 100%;
   height: calc(100vh - var(--navbar-height));
   overflow: hidden;
-`
-
-const ServersList = styled(Scrollbar)`
-  gap: 16px;
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
-  width: 350px;
-  padding: 15px;
-  border-right: 0.5px solid var(--color-border);
-`
-
-const ServerSettings = styled(VStack)`
-  flex: 1;
-  height: calc(100vh - var(--navbar-height));
+  padding: 20px;
+  padding-top: 15px;
+  gap: 15px;
+  overflow-y: auto;
 `
 
 const ListHeader = styled.div`
   width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 
   h2 {
-    font-size: 20px;
+    font-size: 22px;
     margin: 0;
   }
 `
@@ -112,19 +111,17 @@ const ListHeader = styled.div`
 const ServerCard = styled.div`
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--list-item-border-radius);
   padding: 10px 16px;
-  cursor: pointer;
   transition: all 0.2s ease;
-  height: 120px;
   background-color: var(--color-background);
+  margin-bottom: 5px;
+  height: 125px;
+  cursor: pointer;
 
-  &:hover,
-  &.active {
+  &:hover {
     border-color: var(--color-primary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
   }
 `
 
@@ -136,16 +133,24 @@ const ServerHeader = styled.div`
 
 const ServerIcon = styled.div`
   font-size: 18px;
-  color: var(--color-primary);
   margin-right: 8px;
+  display: flex;
 `
 
 const ServerName = styled.div`
-  font-weight: 500;
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`
+
+const ServerNameText = styled.span`
+  font-size: 15px;
+  font-weight: 500;
+  font-family: Ubuntu;
 `
 
 const StatusIndicator = styled.div`
@@ -161,21 +166,14 @@ const ServerDescription = styled.div`
   -webkit-box-orient: vertical;
   width: 100%;
   word-break: break-word;
+  height: 50px;
 `
 
-const AddServerCard = styled(ServerCard)`
+const ServerFooter = styled.div`
   display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
-  border-style: dashed;
-  background-color: transparent;
-  color: var(--color-text-2);
-`
-
-const AddServerText = styled.div`
-  margin-top: 12px;
-  font-weight: 500;
+  justify-content: space-between;
+  margin-top: 10px;
 `
 
 export default McpServersList

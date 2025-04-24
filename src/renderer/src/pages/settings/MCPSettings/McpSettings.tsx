@@ -1,21 +1,18 @@
 import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { Button, Flex, Form, Input, Radio, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
 import MCPPromptsSection from './McpPrompt'
 import MCPResourcesSection from './McpResource'
 import MCPToolsSection from './McpTool'
-
-interface Props {
-  server: MCPServer
-}
 
 interface MCPFormValues {
   name: string
@@ -61,8 +58,9 @@ const parseKeyValueString = (str: string): Record<string, string> => {
   return result
 }
 
-const McpSettings: React.FC<Props> = ({ server }) => {
+const McpSettings: React.FC = () => {
   const { t } = useTranslation()
+  const { server } = useLocation().state as { server: MCPServer }
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
@@ -76,6 +74,8 @@ const McpSettings: React.FC<Props> = ({ server }) => {
   const [resources, setResources] = useState<MCPResource[]>([])
   const [isShowRegistry, setIsShowRegistry] = useState(false)
   const [registry, setRegistry] = useState<Registry[]>()
+
+  const { theme } = useTheme()
 
   const navigate = useNavigate()
 
@@ -538,8 +538,8 @@ const McpSettings: React.FC<Props> = ({ server }) => {
   }
 
   return (
-    <SettingContainer style={{ width: '100%' }}>
-      <SettingGroup style={{ marginBottom: 0 }}>
+    <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
+      <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
         <SettingTitle>
           <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
             <ServerName className="text-nowrap">{server?.name}</ServerName>
@@ -557,18 +557,18 @@ const McpSettings: React.FC<Props> = ({ server }) => {
               icon={<SaveOutlined />}
               onClick={onSave}
               loading={loading}
+              shape="round"
               disabled={!isFormChanged || activeTab !== 'settings'}>
               {t('common.save')}
             </Button>
           </Flex>
         </SettingTitle>
         <SettingDivider />
-
         <Tabs
           defaultActiveKey="settings"
           items={tabs}
           onChange={(key) => setActiveTab(key as TabKey)}
-          style={{ marginTop: 8 }}
+          style={{ marginTop: 8, backgroundColor: 'transparent' }}
         />
       </SettingGroup>
     </SettingContainer>
