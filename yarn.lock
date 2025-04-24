@@ -1489,23 +1489,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google/genai@npm:0.8.0":
-  version: 0.8.0
-  resolution: "@google/genai@npm:0.8.0"
+"@google/genai@npm:^0.10.0":
+  version: 0.10.0
+  resolution: "@google/genai@npm:0.10.0"
   dependencies:
     google-auth-library: "npm:^9.14.2"
     ws: "npm:^8.18.0"
-  checksum: 10c0/8a26a7dd1ab26aeeef5b5610612965ab271142460912c31b12f201cf6e00f5a4965910b195033992bdee1a7ee2b88c55f55d3a2727e09e4cd8d30ecbd0d655d0
-  languageName: node
-  linkType: hard
-
-"@google/genai@patch:@google/genai@npm%3A0.8.0#~/.yarn/patches/@google-genai-npm-0.8.0-450d0d9a7d.patch":
-  version: 0.8.0
-  resolution: "@google/genai@patch:@google/genai@npm%3A0.8.0#~/.yarn/patches/@google-genai-npm-0.8.0-450d0d9a7d.patch::version=0.8.0&hash=e4f82c"
-  dependencies:
-    google-auth-library: "npm:^9.14.2"
-    ws: "npm:^8.18.0"
-  checksum: 10c0/b2082599cbdb9ffe18020461a2290ac60b0912f21106254bb618a1a1faa6e400caf16f92479fdb877928fd9670617ec0131f5787b4e3db2e5918daf2c7b87def
+    zod: "npm:^3.22.4"
+    zod-to-json-schema: "npm:^3.22.4"
+  checksum: 10c0/89a80eebdd053f2643fb977b939c3de1ece6889549f7d030b81a21dae0e0e0750233e453dafe665f8d337c642b4ba7a2f19b06bc270f3e2de8aeb803af1851d1
   languageName: node
   linkType: hard
 
@@ -4315,7 +4307,7 @@ __metadata:
     "@emotion/is-prop-valid": "npm:^1.3.1"
     "@eslint-react/eslint-plugin": "npm:^1.36.1"
     "@eslint/js": "npm:^9.22.0"
-    "@google/genai": "patch:@google/genai@npm%3A0.8.0#~/.yarn/patches/@google-genai-npm-0.8.0-450d0d9a7d.patch"
+    "@google/genai": "npm:^0.10.0"
     "@hello-pangea/dnd": "npm:^16.6.0"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.36"
@@ -18032,7 +18024,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod-to-json-schema@npm:^3.22.3, zod-to-json-schema@npm:^3.22.5, zod-to-json-schema@npm:^3.24.1":
+"zod-to-json-schema@npm:^3.22.3, zod-to-json-schema@npm:^3.22.4, zod-to-json-schema@npm:^3.22.5, zod-to-json-schema@npm:^3.24.1":
   version: 3.24.5
   resolution: "zod-to-json-schema@npm:3.24.5"
   peerDependencies:
