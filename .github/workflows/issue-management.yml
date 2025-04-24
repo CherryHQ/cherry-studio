@@ -7,7 +7,7 @@ on:
 
 env:
   daysBeforeStale: 30 # Number of days of inactivity before marking as stale
-  daysBeforeClose: 30 # Number of days to wait after marking as stale before closing
+  daysBeforeClose: 10 # Number of days to wait after marking as stale before closing
 
 jobs:
   stale:
@@ -30,7 +30,7 @@ jobs:
           stale-issue-message: |
             This issue has been inactive for a prolonged period and will be closed automatically in ${{ env.daysBeforeClose }} days.
             该问题已长时间处于闲置状态，${{ env.daysBeforeClose }} 天后将自动关闭。
-          exempt-issue-labels: "pending, Dev Team, enhancement"
+          exempt-issue-labels: "pending, Dev Team, kind/enhancement"
           days-before-pr-stale: -1 # Completely disable stalling for PRs
           days-before-pr-close: -1 # Completely disable closing for PRs
 
