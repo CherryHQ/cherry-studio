@@ -228,7 +228,7 @@ export async function fetchChatCompletion({
         if (generateImage && generateImage.images.length > 0) {
           const existingImages = message.metadata?.generateImage?.images || []
           generateImage.images = [...existingImages, ...generateImage.images]
-          console.log('generateImage', generateImage)
+          // console.log('generateImage', generateImage)
           message.metadata = {
             ...message.metadata,
             generateImage: generateImage
