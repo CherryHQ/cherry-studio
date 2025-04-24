@@ -1,4 +1,16 @@
-import { shell, webContents } from 'electron'
+import { session, shell, webContents } from 'electron'
+
+/**
+ * init the useragent of the webview session
+ * remove the CherryStudio and Electron from the useragent
+ */
+export function initSessionUserAgent() {
+  const wvSession = session.fromPartition('persist:webview')
+  const originUA = wvSession.getUserAgent()
+  const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
+
+  wvSession.setUserAgent(newUA)
+}
 
 /**
  * WebviewService handles the behavior of links opened from webview elements
