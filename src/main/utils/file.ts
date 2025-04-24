@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { isPortable } from '@main/constant'
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
 import { FileType, FileTypes } from '@types'
 import { app } from 'electron'
@@ -82,4 +83,13 @@ export function getConfigDir() {
 
 export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
+}
+
+export function setAppDataDir() {
+  if (isPortable) {
+    const dir = path.join(path.dirname(app.getPath('exe')), 'data')
+    if (fs.existsSync(dir)) {
+      app.setPath('appData', dir)
+    }
+  }
 }

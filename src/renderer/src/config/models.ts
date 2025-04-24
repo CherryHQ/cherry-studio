@@ -2145,7 +2145,13 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
   'stabilityai/stable-diffusion-xl-base-1.0'
 ]
 
-export const GENERATE_IMAGE_MODELS = ['gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-exp']
+export const GENERATE_IMAGE_MODELS = [
+  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash-exp',
+  'grok-2-image-1212',
+  'gpt-4o-image',
+  'gpt-image-1'
+]
 
 export const GEMINI_SEARCH_MODELS = [
   'gemini-2.0-flash',

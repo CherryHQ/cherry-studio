@@ -399,6 +399,10 @@
       "clear_selection": "清除选择",
       "delete": "删除",
       "delete_confirm": "确定要删除此知识库吗?",
+      "dimensions": "嵌入维度",
+      "dimensions_size_tooltip": "嵌入维度大小，数值越大，嵌入维度越大，但消耗的 Token 也越多",
+      "dimensions_size_placeholder": " 默认值（不建议修改）",
+      "dimensions_size_too_large": "嵌入维度不能超过模型上下文限制（{{max_context}}）",
       "directories": "目录",
       "directory_placeholder": "请输入目录路径",
       "document_count": "请求文档片段数量",
@@ -1122,6 +1126,7 @@
         "installHelp": "获取安装帮助",
         "tabs": {
           "general": "通用",
+          "description": "描述",
           "tools": "工具",
           "prompts": "提示",
           "resources": "资源"
@@ -1157,7 +1162,13 @@
         "registryDefault": "默认",
         "not_support": "模型不支持",
         "user": "用户",
-        "system": "系统"
+        "system": "系统",
+        "types": {
+          "inMemory": "内置",
+          "sse": "SSE",
+          "streamableHttp": "流式",
+          "stdio": "STDIO"
+        }
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
@@ -1173,6 +1184,7 @@
       "messages.input.enable_delete_model": "启用删除键删除输入的模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染输入消息",
       "messages.math_engine": "数学公式引擎",
+      "messages.math_engine.none": "无",
       "messages.metrics": "首字时延 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
       "messages.model.title": "模型设置",
       "messages.navigation": "对话导航按钮",

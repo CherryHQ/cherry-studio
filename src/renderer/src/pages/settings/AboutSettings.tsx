@@ -168,7 +168,7 @@ const AboutSettings: FC = () => {
           </>
         )}
       </SettingGroup>
-      {hasNewVersion && update.info && (
+      {autoCheckUpdate && hasNewVersion && update.info && (
         <SettingGroup theme={theme}>
           <SettingRow>
             <SettingRowTitle>

@@ -445,7 +445,11 @@
       "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "dimensions": "Embedding dimension",
+      "dimensions_size_tooltip": "The size of the embedding dimension; the larger the value, the larger the embedding dimension, but it also consumes more tokens.",
+      "dimensions_size_placeholder": "Default value (modification not recommended)",
+      "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}})."
     },
     "languages": {
       "arabic": "Arabic",
@@ -1122,6 +1126,7 @@
         "installHelp": "Get Installation Help",
         "tabs": {
           "general": "General",
+          "description": "Description",
           "tools": "Tools",
           "prompts": "Prompts",
           "resources": "Resources"
@@ -1157,7 +1162,13 @@
         "registryDefault": "Default",
         "not_support": "Model not supported",
         "user": "User",
-        "system": "System"
+        "system": "System",
+        "types": {
+          "inMemory": "In Memory",
+          "sse": "SSE",
+          "streamableHttp": "Streamable HTTP",
+          "stdio": "STDIO"
+        }
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
@@ -1173,6 +1184,7 @@
       "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
+      "messages.math_engine.none": "None",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.model.title": "Model Settings",
       "messages.navigation": "Message Navigation",

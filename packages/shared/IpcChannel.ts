@@ -161,8 +161,5 @@ export enum IpcChannel {
   // Search Window
   SearchWindow_Open = 'search-window:open',
   SearchWindow_Close = 'search-window:close',
-  SearchWindow_OpenUrl = 'search-window:open-url',
-
-  // sentry
-  Sentry_Init = 'sentry:init'
+  SearchWindow_OpenUrl = 'search-window:open-url'
 }

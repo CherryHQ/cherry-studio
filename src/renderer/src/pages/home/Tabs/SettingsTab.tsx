@@ -42,7 +42,14 @@ import {
   setShowMessageDivider,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
-import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import {
+  Assistant,
+  AssistantSettings,
+  CodeStyleVarious,
+  MathEngine,
+  ThemeMode,
+  TranslateLanguageVarious
+} from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
@@ -512,11 +519,12 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingRowTitleSmall>{t('settings.messages.math_engine')}</SettingRowTitleSmall>
           <StyledSelect
             value={mathEngine}
-            onChange={(value) => dispatch(setMathEngine(value as 'MathJax' | 'KaTeX'))}
+            onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
             style={{ width: 135 }}
             size="small">
             <Select.Option value="KaTeX">KaTeX</Select.Option>
             <Select.Option value="MathJax">MathJax</Select.Option>
+            <Select.Option value="none">{t('settings.messages.math_engine.none')}</Select.Option>
           </StyledSelect>
         </SettingRow>
         <SettingDivider />

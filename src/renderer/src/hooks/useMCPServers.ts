@@ -29,8 +29,13 @@ export const useMCPServers = () => {
 }
 
 export const useMCPServer = (id: string) => {
-  const { mcpServers } = useMCPServers()
+  const server = useAppSelector((state) => (state.mcp.servers || []).find((server) => server.id === id))
+  const dispatch = useAppDispatch()
+
   return {
-    server: mcpServers.find((server) => server.id === id)
+    server,
+    updateMCPServer: (server: MCPServer) => dispatch(updateMCPServer(server)),
+    setMCPServerActive: (server: MCPServer, isActive: boolean) => dispatch(updateMCPServer({ ...server, isActive })),
+    deleteMCPServer: (id: string) => dispatch(deleteMCPServer(id))
   }
 }

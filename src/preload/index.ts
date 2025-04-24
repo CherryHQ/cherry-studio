@@ -23,9 +23,6 @@ const api = {
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
-  sentry: {
-    init: () => ipcRenderer.invoke(IpcChannel.Sentry_Init)
-  },
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
