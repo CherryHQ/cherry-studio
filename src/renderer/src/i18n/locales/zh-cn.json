@@ -1044,6 +1044,7 @@
       "general.user_name.placeholder": "请输入用户名",
       "general.view_webdav_settings": "查看 WebDAV 设置",
       "input.auto_translate_with_space": "快速敲击3次空格翻译",
+      "input.show_translate_confirm": "显示翻译确认对话框",
       "input.target_language": "目标语言",
       "input.target_language.chinese": "简体中文",
       "input.target_language.chinese-traditional": "繁体中文",

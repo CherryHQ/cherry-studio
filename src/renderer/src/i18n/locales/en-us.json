@@ -1044,6 +1044,7 @@
       "general.user_name.placeholder": "Enter your name",
       "general.view_webdav_settings": "View WebDAV settings",
       "input.auto_translate_with_space": "Quickly translate with 3 spaces",
+      "input.show_translate_confirm": "Show translation confirmation dialog",
       "input.target_language": "Target language",
       "input.target_language.chinese": "Simplified Chinese",
       "input.target_language.chinese-traditional": "Traditional Chinese",

@@ -1043,6 +1043,7 @@
       "general.user_name.placeholder": "輸入您的名稱",
       "general.view_webdav_settings": "檢視 WebDAV 設定",
       "input.auto_translate_with_space": "快速敲擊 3 次空格翻譯",
+      "input.show_translate_confirm": "顯示翻譯確認對話框",
       "input.target_language": "目標語言",
       "input.target_language.chinese": "簡體中文",
       "input.target_language.chinese-traditional": "繁體中文",
