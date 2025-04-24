@@ -46,33 +46,12 @@ labels:
     content:
     regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)area/UI/UX(?:`|)"
 
-  - name: skip kind/bug
-    content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/bug(?:`|)"
-  - name: remove kind/bug
-    content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/bug(?:`|)"
-
   - name: skip kind/documentation
     content:
     regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/documentation(?:`|)"
   - name: remove kind/documentation
     content:
     regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/documentation(?:`|)"
-
-  - name: skip kind/enhancement
-    content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/enhancement(?:`|)"
-  - name: remove kind/enhancement
-    content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/enhancement(?:`|)"
-
-  - name: skip kind/question
-    content:
-    regexes: "[Ss]kip (?:[Ll]abels? |)(?:`|)kind/question(?:`|)"
-  - name: remove kind/question
-    content:
-    regexes: "[Rr]emove (?:[Ll]abels? |)(?:`|)kind/question(?:`|)"
 
   - name: skip client:linux
     content:
@@ -154,6 +133,15 @@ labels:
       - skip all
       - skip needs-more-info
     remove-if:
+      - remove all
+      - remove needs-more-info
+      - remove area/Connectivity
+      - remove area/UI/UX
+      - remove kind/documentation
+      - remove sig/Assistant
+      - remove sig/Data
+      - remove sig/MCP
+      - remove sig/RAG
 
   # Area labels
   - name: area/Connectivity
@@ -177,16 +165,6 @@ labels:
       - remove area/UI/UX
 
   # Kind labels
-  - name: kind/bug
-    content: kind/bug
-    regexes: "错误|卡顿|无法|[Bb]ug|[Aa]nomaly|[Ee]rror|[Ff]ailure|[Cc]rash|[Ss]top|[Hh]ang"
-    skip-if:
-      - skip all
-      - skip kind/bug
-    remove-if:
-      - remove all
-      - remove kind/bug
-
   - name: kind/documentation
     content: kind/documentation
     regexes: "文档|教程|[Dd]oc(s|umentation)|[Rr]eadme"
@@ -196,26 +174,6 @@ labels:
     remove-if:
       - remove all
       - remove kind/documentation
-
-  - name: kind/enhancement
-    content: kind/enhancement
-    regexes: "建议|改进"
-    skip-if:
-      - skip all
-      - skip kind/enhancement
-    remove-if:
-      - remove all
-      - remove kind/enhancement
-
-  - name: kind/question
-    content: kind/question
-    regexes: "为什么|请问"
-    skip-if:
-      - skip all
-      - skip kind/question
-    remove-if:
-      - remove all
-      - remove kind/question
 
   # Client labels
   - name: client:linux
