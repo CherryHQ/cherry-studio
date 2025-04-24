@@ -64,11 +64,14 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
   // 获取引用数据
   // https://github.com/CherryHQ/cherry-studio/issues/5234#issuecomment-2824704499
   const citationsData = useMemo(() => {
+    const citationUrls =
+      Array.isArray(message.metadata?.citations) &&
+      (message?.metadata?.annotations?.map((annotation) => annotation.url_citation) ?? [])
     const searchResults =
       message?.metadata?.webSearch?.results ||
       message?.metadata?.webSearchInfo ||
       message?.metadata?.groundingMetadata?.groundingChunks?.map((chunk) => chunk?.web) ||
-      (message?.metadata?.annotations?.map((annotation) => annotation.url_citation) ?? []) ||
+      citationUrls ||
       []
 
     // 使用对象而不是 Map 来提高性能
