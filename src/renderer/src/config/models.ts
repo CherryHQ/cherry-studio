@@ -2148,7 +2148,8 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 export const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-exp',
-  'grok-2-image-1212'
+  'grok-2-image-1212',
+  'gpt-4o-image'
 ]
 
 export const GEMINI_SEARCH_MODELS = [

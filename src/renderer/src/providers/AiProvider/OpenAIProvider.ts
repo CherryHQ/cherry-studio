@@ -902,10 +902,20 @@ export default class OpenAIProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
+    const { abortController, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
+    const { signal } = abortController
+    const response = await this.sdk.images.generate(
+      {
+        model: model.id,
+        prompt: lastUserMessage?.content || ''
+      },
+      {
+        signal
+      }
+    )
 
-    const response = await this.sdk.images.generate({
-      model: model.id,
-      prompt: lastUserMessage?.content || ''
+    await signalPromise?.promise?.catch((error) => {
+      throw error
     })
 
     return onChunk({
