@@ -72,6 +72,7 @@
     "@langchain/community": "^0.3.36",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
+    "@shikijs/markdown-it": "^3.2.2",
     "@strongtz/win32-arm64-msvc": "^0.4.7",
     "@tryfabric/martian": "^1.2.4",
     "@types/react-infinite-scroll-component": "^5.0.0",
