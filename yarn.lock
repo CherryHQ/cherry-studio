@@ -5193,7 +5193,7 @@ __metadata:
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch"
-    os-proxy-config: "patch:os-proxy-config@npm%3A1.1.1#~/.yarn/patches/os-proxy-config-npm-1.1.1-af9c7574cc.patch"
+    os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
     proxy-agent: "npm:^6.5.0"
@@ -13902,23 +13902,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"os-proxy-config@npm:1.1.1":
-  version: 1.1.1
-  resolution: "os-proxy-config@npm:1.1.1"
+"os-proxy-config@npm:^1.1.2":
+  version: 1.1.2
+  resolution: "os-proxy-config@npm:1.1.2"
   dependencies:
     mac-system-proxy: "npm:^1.0.0"
     windows-system-proxy: "npm:^1.0.0"
-  checksum: 10c0/87f493e73e3daa91c908d7a9d7271e768ca3f3267adc77a2423bc71af536ec3ee78d16b8e34e647bae1225893c0e0ccf30be8d0b3e7a6d2bf58876c5a701813d
-  languageName: node
-  linkType: hard
-
-"os-proxy-config@patch:os-proxy-config@npm%3A1.1.1#~/.yarn/patches/os-proxy-config-npm-1.1.1-af9c7574cc.patch":
-  version: 1.1.1
-  resolution: "os-proxy-config@patch:os-proxy-config@npm%3A1.1.1#~/.yarn/patches/os-proxy-config-npm-1.1.1-af9c7574cc.patch::version=1.1.1&hash=6d7077"
-  dependencies:
-    mac-system-proxy: "npm:^1.0.0"
-    windows-system-proxy: "npm:^1.0.0"
-  checksum: 10c0/22022450101e5a4ddc948bec5508b14829f88f377ec11a660779d747d61dc10a45c6733c823bd38235207de278ebedb6d3b8d3236a90714f1c726424a1c7a3ad
+  checksum: 10c0/a7585885b9bb6251969dc6c025eb863fb8859ebf876344610f5fde57a9392f2c1adb44b130b84469ee7c2649635296187dde15edc3d7e269a3f2a6ff38041f94
   languageName: node
   linkType: hard
 

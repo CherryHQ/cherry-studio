@@ -98,7 +98,7 @@
     "markdown-it": "^14.1.0",
     "node-stream-zip": "^1.15.0",
     "officeparser": "^4.1.1",
-    "os-proxy-config": "patch:os-proxy-config@npm%3A1.1.1#~/.yarn/patches/os-proxy-config-npm-1.1.1-af9c7574cc.patch",
+    "os-proxy-config": "^1.1.2",
     "proxy-agent": "^6.5.0",
     "tar": "^7.4.3",
     "turndown": "^7.2.0",
