@@ -243,7 +243,6 @@ export default class GeminiProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
 
     const userMessages = filterUserRoleStartMessages(
       filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
@@ -268,7 +267,7 @@ export default class GeminiProvider extends BaseProvider {
     const tools: ToolListUnion = []
     const toolResponses: MCPToolResponse[] = []
 
-    if (isEnabledWebSearch && isWebSearchModel(model)) {
+    if (assistant.enableWebSearch && isWebSearchModel(model)) {
       tools.push({
         // @ts-ignore googleSearch is not a valid tool for Gemini
         googleSearch: {}
