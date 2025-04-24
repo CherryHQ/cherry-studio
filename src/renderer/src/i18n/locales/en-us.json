@@ -1350,7 +1350,7 @@
       "websearch": {
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
-        "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
