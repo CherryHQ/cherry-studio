@@ -68,7 +68,9 @@ const MessageContent: React.FC<Props> = ({ message: _message, model }) => {
       message?.metadata?.webSearch?.results ||
       message?.metadata?.webSearchInfo ||
       message?.metadata?.groundingMetadata?.groundingChunks?.map((chunk) => chunk?.web) ||
-      (message?.metadata?.annotations?.map((annotation) => annotation.url_citation) ?? []) ||
+      (Array.isArray(message?.metadata?.annotations)
+        ? message.metadata.annotations.map((annotation) => annotation.url_citation)
+        : []) ||
       []
 
     // 使用对象而不是 Map 来提高性能
