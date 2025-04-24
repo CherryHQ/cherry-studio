@@ -136,7 +136,7 @@
       "input.translate": "{{target_language}}に翻訳",
       "input.upload": "画像またはドキュメントをアップロード",
       "input.upload.document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
-      "input.web_search": "ウェブ検索を有効にする",
+      "input.web_search": "ウェブ検索",
       "input.web_search.button.ok": "設定に移動",
       "input.web_search.enable": "ウェブ検索を有効にする",
       "input.web_search.enable_content": "ウェブ検索の接続性を先に設定で確認する必要があります",
@@ -247,7 +247,10 @@
       "topics.export.title_naming_success": "タイトルの生成に成功しました",
       "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",
       "input.translating": "翻訳中...",
-      "input.upload.upload_from_local": "ローカルファイルをアップロード..."
+      "input.upload.upload_from_local": "ローカルファイルをアップロード...",
+      "input.web_search.builtin": "モデル内蔵",
+      "input.web_search.builtin.enabled_content": "モデル内蔵のウェブ検索機能を使用",
+      "input.web_search.builtin.disabled_content": "現在のモデルはウェブ検索をサポートしていません"
     },
     "code_block": {
       "collapse": "折りたたむ",

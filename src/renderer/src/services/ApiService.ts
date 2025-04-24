@@ -58,7 +58,8 @@ export async function fetchChatCompletion({
   onResponse: (message: Message) => void
 }) {
   const provider = getAssistantProvider(assistant)
-  const webSearchProvider = WebSearchService.getWebSearchProvider()
+  const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
+  const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
   const AI = new AiProvider(provider)
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
@@ -72,7 +73,7 @@ export async function fetchChatCompletion({
   const extract = async () => {
     const tools: string[] = []
 
-    if (assistant.enableWebSearch) tools.push('websearch')
+    if (isEnabledWebSearch) tools.push('websearch')
     if (hasKnowledgeBase) tools.push('knowledge')
 
     const summaryAssistant = {
@@ -99,7 +100,7 @@ export async function fetchChatCompletion({
     }
   }
   let extractResults: ExtractResults
-  if (assistant.enableWebSearch || hasKnowledgeBase) {
+  if (isEnabledWebSearch || hasKnowledgeBase) {
     extractResults = await extract()
   }
 
@@ -107,8 +108,8 @@ export async function fetchChatCompletion({
     // 检查是否需要进行网络搜索
     const shouldSearch =
       extractResults?.websearch &&
-      WebSearchService.isWebSearchEnabled() &&
-      assistant.enableWebSearch &&
+      WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId) &&
+      isEnabledWebSearch &&
       assistant.model &&
       extractResults.websearch.question[0] !== 'not_needed'
 
@@ -120,6 +121,9 @@ export async function fetchChatCompletion({
     if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model!)) return
 
     try {
+      if (!webSearchProvider) {
+        throw new Error('No web search provider found')
+      }
       const webSearchResponse: WebSearchResponse = await WebSearchService.processWebsearch(
         webSearchProvider,
         extractResults
@@ -200,9 +204,9 @@ export async function fetchChatCompletion({
         if (assistant.model) {
           if (isOpenAIWebSearch(assistant.model)) {
             text = convertLinks(text || '', isFirstChunk)
-          } else if (assistant.model.provider === 'openrouter' && assistant.enableWebSearch) {
+          } else if (assistant.model.provider === 'openrouter' && isEnabledWebSearch) {
             text = convertLinksToOpenRouter(text || '', isFirstChunk)
-          } else if (assistant.enableWebSearch) {
+          } else if (isEnabledWebSearch) {
             if (isZhipuModel(assistant.model)) {
               text = convertLinksToZhipu(text || '', isFirstChunk)
             } else if (isHunyuanSearchModel(assistant.model)) {
@@ -265,7 +269,7 @@ export async function fetchChatCompletion({
         }
 
         // Handle citations from Openrouter
-        if (assistant.model?.provider === 'openrouter' && assistant.enableWebSearch) {
+        if (assistant.model?.provider === 'openrouter' && isEnabledWebSearch) {
           const extractedUrls = extractUrlsFromMarkdown(message.content)
           if (extractedUrls.length > 0) {
             message.metadata = {
@@ -274,7 +278,7 @@ export async function fetchChatCompletion({
             }
           }
         }
-        if (assistant.enableWebSearch) {
+        if (isEnabledWebSearch) {
           message.content = cleanLinkCommas(message.content)
           if (webSearch && isZhipuModel(assistant.model)) {
             message.content = completeLinks(message.content, webSearch)

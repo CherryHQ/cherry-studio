@@ -1,6 +1,6 @@
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
-import { setDefaultProvider, WebSearchState } from '@renderer/store/websearch'
+import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { ExtractResults } from '@renderer/utils/extract'
@@ -25,9 +25,9 @@ class WebSearchService {
    * @public
    * @returns 如果默认搜索提供商已启用则返回true，否则返回false
    */
-  public isWebSearchEnabled(): boolean {
-    const { defaultProvider, providers } = this.getWebSearchState()
-    const provider = providers.find((provider) => provider.id === defaultProvider)
+  public isWebSearchEnabled(providerId?: WebSearchProvider['id']): boolean {
+    const { providers } = this.getWebSearchState()
+    const provider = providers.find((provider) => provider.id === providerId)
 
     if (!provider) {
       return false
@@ -49,6 +49,8 @@ class WebSearchService {
   }
 
   /**
+   * @deprecated 支持在快捷菜单中自选搜索供应商，所以这个不再适用
+   *
    * 检查是否启用覆盖搜索
    * @public
    * @returns 如果启用覆盖搜索则返回true，否则返回false
@@ -62,21 +64,10 @@ class WebSearchService {
    * 获取当前默认的网络搜索提供商
    * @public
    * @returns 网络搜索提供商
-   * @throws 如果找不到默认提供商则抛出错误
    */
-  public getWebSearchProvider(): WebSearchProvider {
-    const { defaultProvider, providers } = this.getWebSearchState()
-    let provider = providers.find((provider) => provider.id === defaultProvider)
-
-    if (!provider) {
-      provider = providers[0]
-      if (provider) {
-        // 可选：自动更新默认提供商
-        store.dispatch(setDefaultProvider(provider.id))
-      } else {
-        throw new Error(`No web search providers available`)
-      }
-    }
+  public getWebSearchProvider(providerId?: string): WebSearchProvider | undefined {
+    const { providers } = this.getWebSearchState()
+    const provider = providers.find((provider) => provider.id === providerId)
 
     return provider
   }

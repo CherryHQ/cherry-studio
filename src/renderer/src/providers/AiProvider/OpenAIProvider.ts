@@ -310,6 +310,7 @@ export default class OpenAIProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
     messages = addImageFileToContents(messages)
     let systemMessage = { role: 'system', content: assistant.prompt || '' }
     if (isOpenAIoSeries(model)) {
@@ -482,10 +483,10 @@ export default class OpenAIProvider extends BaseProvider {
         const finishReason = chunk.choices[0]?.finish_reason
 
         let webSearch: any[] | undefined = undefined
-        if (assistant.enableWebSearch && isZhipuModel(model) && finishReason === 'stop') {
+        if (isEnabledWebSearch && isZhipuModel(model) && finishReason === 'stop') {
           webSearch = chunk?.web_search
         }
-        if (firstChunk && assistant.enableWebSearch && isHunyuanSearchModel(model)) {
+        if (firstChunk && isEnabledWebSearch && isHunyuanSearchModel(model)) {
           webSearch = chunk?.search_info?.search_results
           firstChunk = true
         }

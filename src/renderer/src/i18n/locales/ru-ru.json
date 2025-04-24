@@ -136,7 +136,7 @@
       "input.translate": "Перевести на {{target_language}}",
       "input.upload": "Загрузить изображение или документ",
       "input.upload.document": "Загрузить документ (модель не поддерживает изображения)",
-      "input.web_search": "Включить веб-поиск",
+      "input.web_search": "Веб-поиск",
       "input.web_search.button.ok": "Перейти в Настройки",
       "input.web_search.enable": "Включить веб-поиск",
       "input.web_search.enable_content": "Необходимо предварительно проверить подключение к веб-поиску в настройках",
@@ -247,7 +247,10 @@
       "topics.export.title_naming_success": "Заголовок успешно создан",
       "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",
       "input.translating": "Перевод...",
-      "input.upload.upload_from_local": "Загрузить локальный файл..."
+      "input.upload.upload_from_local": "Загрузить локальный файл...",
+      "input.web_search.builtin": "Модель встроена",
+      "input.web_search.builtin.enabled_content": "Используйте встроенную функцию веб-поиска модели",
+      "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск"
     },
     "code_block": {
       "collapse": "Свернуть",
