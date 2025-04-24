@@ -15,7 +15,7 @@ interface Props {
 }
 
 const SelectModelButton: FC<Props> = ({ assistant }) => {
-  const { model, setModel, updateAssistant } = useAssistant(assistant.id)
+  const { model, updateAssistant } = useAssistant(assistant.id)
   const { t } = useTranslation()
 
   if (isLocalAi) {
@@ -28,7 +28,6 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
     if (selectedModel) {
       // 避免更新数据造成关闭弹框的卡顿
       setTimeout(() => {
-        setModel(selectedModel)
         const enabledWebSearch = isWebSearchModel(selectedModel)
         updateAssistant({
           ...assistant,
