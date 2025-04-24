@@ -41,7 +41,8 @@ export class WindowService {
     const mainWindowState = windowStateKeeper({
       defaultWidth: 1080,
       defaultHeight: 670,
-      fullScreen: false
+      fullScreen: false,
+      maximize: false
     })
 
     const theme = configManager.getTheme()
@@ -86,11 +87,23 @@ export class WindowService {
   private setupMainWindow(mainWindow: BrowserWindow, mainWindowState: any) {
     mainWindowState.manage(mainWindow)
 
+    this.setupMaximize(mainWindow, mainWindowState.isMaximized)
     this.setupContextMenu(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
     this.loadMainWindowContent(mainWindow)
+  }
+
+  private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {
+    if (isMaximized) {
+      // 如果是从托盘启动，则需要延迟最大化，否则显示的就不是重启前的最大化窗口了
+      configManager.getLaunchToTray()
+        ? mainWindow.once('show', () => {
+            mainWindow.maximize()
+          })
+        : mainWindow.maximize()
+    }
   }
 
   private setupContextMenu(mainWindow: BrowserWindow) {

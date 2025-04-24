@@ -1120,6 +1120,7 @@
         "installHelp": "獲取安裝幫助",
         "tabs": {
           "general": "通用",
+          "description": "描述",
           "tools": "工具",
           "prompts": "提示",
           "resources": "資源"

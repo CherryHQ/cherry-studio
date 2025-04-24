@@ -718,4 +718,8 @@ export default class GeminiProvider extends BaseProvider {
     })
     return data.embeddings?.[0]?.values?.length || 0
   }
+
+  public generateImageByChat(): Promise<void> {
+    throw new Error('Method not implemented.')
+  }
 }

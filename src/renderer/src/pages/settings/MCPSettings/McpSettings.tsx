@@ -1,6 +1,7 @@
 import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { Button, Flex, Form, Input, Radio, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -516,6 +517,13 @@ const McpSettings: React.FC = () => {
       )
     }
   ]
+  if (server.searchKey) {
+    tabs.push({
+      key: 'description',
+      label: t('settings.mcp.tabs.description'),
+      children: <MCPDescription searchKey={server.searchKey} />
+    })
+  }
 
   if (server.isActive) {
     tabs.push(
