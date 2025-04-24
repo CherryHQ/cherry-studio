@@ -149,10 +149,10 @@ export default abstract class BaseProvider {
     const knowledgeReferences: KnowledgeReference[] = window.keyv.get(`knowledge-search-${message.id}`)
 
     if (!isEmpty(knowledgeReferences)) {
-      console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
+      // console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }
-    console.log(`No knowledge base references found in cache for ID: ${message.id}`)
+    // console.log(`No knowledge base references found in cache for ID: ${message.id}`)
     return []
   }
 
