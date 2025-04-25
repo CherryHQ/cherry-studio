@@ -2162,7 +2162,7 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.5-flash-preview-04-17'
 ]
 
-export const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reason', 'sonar-reason-pro']
+export const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reasoning', 'sonar-reasoning-pro']
 
 export function isTextToImageModel(model: Model): boolean {
   return TEXT_TO_IMAGE_REGEX.test(model.id)
