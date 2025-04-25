@@ -1,3 +1,4 @@
+import { nanoid } from '@reduxjs/toolkit'
 import { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
@@ -52,11 +53,11 @@ export const syncModelScopeServers = async (
     })
 
     // Handle authentication errors
-    if (response.status === 401) {
+    if (response.status === 401 || response.status === 403) {
       clearModelScopeToken()
       return {
         success: false,
-        message: t('settings.mcp.unauthorized'),
+        message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
         addedServers: []
       }
     }
@@ -65,7 +66,7 @@ export const syncModelScopeServers = async (
     if (response.status === 500 || !response.ok) {
       return {
         success: false,
-        message: t('settings.mcp.serverError'),
+        message: t('settings.mcp.sync.error'),
         addedServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -78,7 +79,7 @@ export const syncModelScopeServers = async (
     if (servers.length === 0) {
       return {
         success: true,
-        message: t('settings.mcp.noServersFound'),
+        message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
         addedServers: []
       }
     }
@@ -95,7 +96,7 @@ export const syncModelScopeServers = async (
 
         const mcpServer: MCPServer = {
           id: `@modelscope/${server.id}`,
-          name: server.chinese_name || server.name || t('settings.mcp.modelScopeServer'),
+          name: server.chinese_name || server.name || `ModelScope Server ${nanoid()}`,
           description: server.description || '',
           type: 'sse',
           baseUrl: server.operational_urls[0].url,

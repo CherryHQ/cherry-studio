@@ -1178,7 +1178,9 @@
           "tokenPlaceholder": "Enter API token here",
           "button": "Sync",
           "error": "Sync MCP Servers error",
-          "success": "Sync MCP Servers successful"
+          "success": "Sync MCP Servers successful",
+          "unauthorized": "Sync Unauthorized",
+          "noServersAvailable": "No MCP servers available"
         }
       },
       "messages.divider": "Show divider between messages",

@@ -1177,7 +1177,9 @@
           "tokenPlaceholder": "ここに API トークンを入力してください",
           "button": "同期する",
           "error": "MCPサーバーの同期エラー",
-          "success": "MCPサーバーの同期成功"
+          "success": "MCPサーバーの同期成功",
+          "unauthorized": "同期が許可されていません",
+          "noServersAvailable": "利用可能な MCP サーバーがありません"
         }
       },
       "messages.divider": "メッセージ間に区切り線を表示",

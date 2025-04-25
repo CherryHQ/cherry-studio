@@ -1177,7 +1177,9 @@
           "tokenPlaceholder": "在此輸入 API 令牌",
           "button": "同步",
           "error": "同步MCP伺服器出錯",
-          "success": "同步MCP伺服器成功"
+          "success": "同步MCP伺服器成功",
+          "unauthorized": "同步未授權",
+          "noServersAvailable": "無可用的 MCP 伺服器"
         }
       },
       "messages.divider": "訊息間顯示分隔線",
