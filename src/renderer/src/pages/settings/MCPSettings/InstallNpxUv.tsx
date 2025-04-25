@@ -99,6 +99,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       <Alert
         type={isUvInstalled ? 'success' : 'warning'}
         banner
+        style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
           <VStack>
             <SettingRow style={{ width: '100%' }}>
@@ -129,6 +130,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       <Alert
         type={isBunInstalled ? 'success' : 'warning'}
         banner
+        style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
           <VStack>
             <SettingRow style={{ width: '100%' }}>
@@ -170,6 +172,7 @@ const Container = styled.div`
   flex-direction: column;
   margin-bottom: 20px;
   gap: 12px;
+  padding-top: 50px;
 `
 
 export default InstallNpxUv

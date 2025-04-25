@@ -39,6 +39,7 @@ export default abstract class BaseProvider {
   abstract check(model: Model): Promise<{ valid: boolean; error: Error | null }>
   abstract models(): Promise<OpenAI.Models.Model[]>
   abstract generateImage(params: GenerateImageParams): Promise<string[]>
+  abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
   abstract getEmbeddingDimensions(model: Model): Promise<number>
 
   public getBaseURL(): string {
@@ -148,10 +149,10 @@ export default abstract class BaseProvider {
     const knowledgeReferences: KnowledgeReference[] = window.keyv.get(`knowledge-search-${message.id}`)
 
     if (!isEmpty(knowledgeReferences)) {
-      console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
+      // console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }
-    console.log(`No knowledge base references found in cache for ID: ${message.id}`)
+    // console.log(`No knowledge base references found in cache for ID: ${message.id}`)
     return []
   }
 

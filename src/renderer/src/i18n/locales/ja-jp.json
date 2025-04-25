@@ -561,7 +561,9 @@
       "tools": {
         "completed": "完了",
         "invoking": "呼び出し中",
-        "error": "エラーが発生しました"
+        "error": "エラーが発生しました",
+        "raw": "生データ",
+        "preview": "プレビュー"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
@@ -583,7 +585,9 @@
         "minimize": "ミニアプリを最小化",
         "devtools": "開発者ツール",
         "openExternal": "ブラウザで開く",
-        "rightclick_copyurl": "右クリックでURLをコピー"
+        "rightclick_copyurl": "右クリックでURLをコピー",
+        "open_link_external_on": "現在：ブラウザで開く",
+        "open_link_external_off": "現在：デフォルトのウィンドウで開く"
       },
       "sidebar.add.title": "サイドバーに追加",
       "sidebar.remove.title": "サイドバーから削除",
@@ -1018,6 +1022,9 @@
         "disabled": "非表示のミニアプリ",
         "empty": "非表示にするミニアプリを左側からここにドラッグしてください",
         "visible": "表示するミニアプリ",
+        "open_link_external": {
+          "title": "新視窗のリンクをブラウザで開く"
+        },
         "cache_settings": "キャッシュ設定",
         "cache_title": "ミニアプリのキャッシュ数",
         "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
@@ -1120,6 +1127,7 @@
         "installHelp": "インストールヘルプを取得",
         "tabs": {
           "general": "一般",
+          "description": "説明",
           "tools": "ツール",
           "prompts": "プロンプト",
           "resources": "リソース"
@@ -1155,7 +1163,13 @@
         "registryDefault": "デフォルト",
         "not_support": "モデルはサポートされていません",
         "user": "ユーザー",
-        "system": "システム"
+        "system": "システム",
+        "types": {
+          "inMemory": "組み込み",
+          "sse": "SSE",
+          "streamableHttp": "ストリーミング",
+          "stdio": "STDIO"
+        }
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",

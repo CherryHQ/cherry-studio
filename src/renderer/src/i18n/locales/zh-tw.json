@@ -562,7 +562,9 @@
       "tools": {
         "completed": "已完成",
         "invoking": "調用中",
-        "error": "發生錯誤"
+        "error": "發生錯誤",
+        "raw": "原始碼",
+        "preview": "預覽"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
@@ -583,7 +585,9 @@
         "minimize": "最小化小工具",
         "devtools": "開發者工具",
         "openExternal": "在瀏覽器中開啟",
-        "rightclick_copyurl": "右鍵複製URL"
+        "rightclick_copyurl": "右鍵複製URL",
+        "open_link_external_on": "当前：在瀏覽器中開啟連結",
+        "open_link_external_off": "当前：使用預設視窗開啟連結"
       },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
@@ -1018,6 +1022,9 @@
         "disabled": "隱藏的小程式",
         "empty": "把要隱藏的小程式從左側拖拽到這裡",
         "visible": "顯示的小程式",
+        "open_link_external": {
+          "title": "在瀏覽器中打開新視窗連結"
+        },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",
         "cache_description": "設置同時保持活躍狀態的小程式最大數量",
@@ -1120,6 +1127,7 @@
         "installHelp": "獲取安裝幫助",
         "tabs": {
           "general": "通用",
+          "description": "描述",
           "tools": "工具",
           "prompts": "提示",
           "resources": "資源"
@@ -1155,7 +1163,13 @@
         "registryDefault": "預設",
         "not_support": "不支援此模型",
         "user": "用戶",
-        "system": "系統"
+        "system": "系統",
+        "types": {
+          "inMemory": "內置",
+          "sse": "SSE",
+          "streamableHttp": "流式",
+          "stdio": "STDIO"
+        }
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",

@@ -33,9 +33,6 @@ declare global {
       setAutoUpdate: (isActive: boolean) => void
       reload: () => void
       clearCache: () => Promise<{ success: boolean; error?: string }>
-      sentry: {
-        init: () => Promise<void>
-      }
       system: {
         getDeviceType: () => Promise<'mac' | 'windows' | 'linux'>
         getHostname: () => Promise<string>
@@ -206,6 +203,9 @@ declare global {
         openSearchWindow: (uid: string) => Promise<string>
         closeSearchWindow: (uid: string) => Promise<string>
         openUrlInSearchWindow: (uid: string, url: string) => Promise<string>
+      }
+      webview: {
+        setOpenLinkExternal: (webviewId: number, isExternal: boolean) => Promise<void>
       }
     }
   }

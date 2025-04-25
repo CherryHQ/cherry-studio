@@ -562,7 +562,9 @@
       "tools": {
         "completed": "已完成",
         "invoking": "调用中",
-        "error": "发生错误"
+        "error": "发生错误",
+        "raw": "原始",
+        "preview": "预览"
       },
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -583,7 +585,9 @@
         "minimize": "最小化小程序",
         "devtools": "开发者工具",
         "openExternal": "在浏览器中打开",
-        "rightclick_copyurl": "右键复制URL"
+        "rightclick_copyurl": "右键复制URL",
+        "open_link_external_on": "当前：在浏览器中打开链接",
+        "open_link_external_off": "当前：使用默认窗口打开链接"
       },
       "sidebar.add.title": "添加到侧边栏",
       "sidebar.remove.title": "从侧边栏移除",
@@ -1018,6 +1022,9 @@
         "disabled": "隐藏的小程序",
         "empty": "把要隐藏的小程序从左侧拖拽到这里",
         "visible": "显示的小程序",
+        "open_link_external": {
+          "title": "在浏览器中打开新窗口链接"
+        },
         "cache_settings": "缓存设置",
         "cache_title": "小程序缓存数量",
         "cache_description": "设置同时保持活跃状态的小程序最大数量",
@@ -1121,6 +1128,7 @@
         "installHelp": "获取安装帮助",
         "tabs": {
           "general": "通用",
+          "description": "描述",
           "tools": "工具",
           "prompts": "提示",
           "resources": "资源"
@@ -1156,7 +1164,13 @@
         "registryDefault": "默认",
         "not_support": "模型不支持",
         "user": "用户",
-        "system": "系统"
+        "system": "系统",
+        "types": {
+          "inMemory": "内置",
+          "sse": "SSE",
+          "streamableHttp": "流式",
+          "stdio": "STDIO"
+        }
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
