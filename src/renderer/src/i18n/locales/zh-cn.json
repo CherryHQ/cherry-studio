@@ -1165,6 +1165,19 @@
           "sse": "SSE",
           "streamableHttp": "流式",
           "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "同步服务器",
+          "selectProvider": "选择提供商：",
+          "discoverModels": "发现模型",
+          "discoverModelsDescription": "访问平台以发现可用服务器",
+          "getToken": "获取 API 令牌",
+          "getTokenDescription": "从您的帐户中获取个人 API 令牌",
+          "setToken": "输入您的令牌",
+          "tokenRequired": "需要 API 令牌",
+          "tokenPlaceholder": "在此输入 API 令牌",
+          "button": "同步",
+          "error": "同步服务器时出错"
         }
       },
       "messages.divider": "消息分割线",

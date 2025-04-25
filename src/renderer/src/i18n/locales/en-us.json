@@ -1165,6 +1165,19 @@
           "sse": "SSE",
           "streamableHttp": "Streamable HTTP",
           "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "Sync Servers",
+          "selectProvider": "Select Provider:",
+          "discoverModels": "Discover Models",
+          "discoverModelsDescription": "Visit the platform to discover available servers",
+          "getToken": "Get API Token",
+          "getTokenDescription": "Retrieve your personal API token from your account",
+          "setToken": "Enter Your Token",
+          "tokenRequired": "API Token is required",
+          "tokenPlaceholder": "Enter API token here",
+          "button": "Sync",
+          "error": "Error syncing servers"
         }
       },
       "messages.divider": "Show divider between messages",

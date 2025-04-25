@@ -1164,6 +1164,19 @@
           "sse": "SSE",
           "streamableHttp": "ストリーミング",
           "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "サーバーの同期",
+          "selectProvider": "プロバイダーを選択：",
+          "discoverModels": "モデルを発見する",
+          "discoverModelsDescription": "利用可能なサーバーを発見するには、プラットフォームを訪問してください",
+          "getToken": "API トークンを取得する",
+          "getTokenDescription": "アカウントから個人用 API トークンを取得します",
+          "setToken": "トークンを入力してください",
+          "tokenRequired": "API トークンは必須です",
+          "tokenPlaceholder": "ここに API トークンを入力してください",
+          "button": "同期する",
+          "error": "サーバーの同期中にエラーが発生しました"
         }
       },
       "messages.divider": "メッセージ間に区切り線を表示",

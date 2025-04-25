@@ -5,7 +5,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { Button, Empty, Tag } from 'antd'
-import { MonitorCheck, Plus, Settings2 } from 'lucide-react'
+import { MonitorCheck, Plus, RefreshCw, Settings2 } from 'lucide-react'
 import { FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -13,6 +13,8 @@ import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
+import SyncServersPopup from './SyncServersPopup'
+
 const McpServersList: FC = () => {
   const { mcpServers, addMCPServer, updateMcpServers } = useMCPServers()
   const { t } = useTranslation()
@@ -34,6 +36,10 @@ const McpServersList: FC = () => {
     window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
   }, [addMCPServer, navigate, t])
 
+  const onSyncServers = useCallback(() => {
+    SyncServersPopup.show(mcpServers)
+  }, [mcpServers])
+
   return (
     <Container>
       <ListHeader>
@@ -41,9 +47,14 @@ const McpServersList: FC = () => {
           <span>{t('settings.mcp.newServer')}</span>
           <Button icon={<EditOutlined />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
         </SettingTitle>
-        <Button icon={<Plus size={16} />} type="default" onClick={onAddMcpServer} shape="round">
-          {t('settings.mcp.addServer')}
-        </Button>
+        <ButtonGroup>
+          <Button icon={<Plus size={16} />} type="default" onClick={onAddMcpServer} shape="round">
+            {t('settings.mcp.addServer')}
+          </Button>
+          <Button icon={<RefreshCw size={16} />} type="default" onClick={onSyncServers} shape="round">
+            {t('settings.mcp.sync.title', 'Sync Servers')}
+          </Button>
+        </ButtonGroup>
       </ListHeader>
       <DragableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
         {(server: MCPServer) => (
@@ -174,6 +185,11 @@ const ServerFooter = styled.div`
   align-items: center;
   justify-content: space-between;
   margin-top: 10px;
+`
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 8px;
 `
 
 export default McpServersList
