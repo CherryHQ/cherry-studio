@@ -16,6 +16,7 @@ import {
   exportMarkdownToJoplin,
   exportMarkdownToNotion,
   exportMarkdownToSiyuan,
+  exportMarkdownToMrdoc,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
   messageToMarkdown
@@ -328,6 +329,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
               exportMarkdownToSiyuan(title, markdown)
+            }
+          },
+          exportMenuOptions.mrdoc && {
+            label: t('chat.topics.export.mrdoc'),
+            key: 'mrdoc',
+            onClick: async () => {
+              const title = await getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMarkdownToMrdoc(title, markdown)
             }
           }
         ].filter(Boolean)

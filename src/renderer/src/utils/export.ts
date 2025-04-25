@@ -635,3 +635,93 @@ async function createSiyuanDoc(
 
   return data.data
 }
+
+/**
+ * 导出Markdown到思源笔记
+ * @param title 笔记标题
+ * @param content 笔记内容
+ */
+export const exportMarkdownToMrdoc = async (title: string, content: string) => {
+  const { isExporting } = store.getState().runtime.export
+  const { mrdocApiUrl, mrdocToken, mrdocBoxId } = store.getState().settings
+
+  if (isExporting) {
+    window.message.warning({ content: i18n.t('message.warn.mrdoc.exporting'), key: 'mrdoc-exporting' })
+    return
+  }
+
+  if (!mrdocApiUrl || !mrdocToken || !mrdocBoxId) {
+    window.message.error({ content: i18n.t('message.error.mrdoc.no_config'), key: 'mrdoc-no-config-error' })
+    return
+  }
+
+  setExportState({ isExporting: true })
+
+  try {
+    // test connection
+    const testResponse = await fetch(`${mrdocApiUrl}/api/check_token/?token=${mrdocToken}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!testResponse.ok) {
+      throw new Error('API请求失败')
+    }
+
+    const testData = await testResponse.json()
+    if (!testData.status) {
+      throw new Error(`${testData.msg || i18n.t('message.error.unknown')}`)
+    }
+
+    // 文档标题
+    const docTitle = `${title.replace(/[#|\\^\\[\]]/g, '')}`
+
+    // 创建文档
+    await createMrdocDoc(mrdocApiUrl, mrdocToken, mrdocBoxId, docTitle, content)
+
+    window.message.success({
+      content: i18n.t('message.success.mrdoc.export'),
+      key: 'mrdoc-success'
+    })
+  } catch (error) {
+    console.error('导出到觅思文档失败:', error)
+    window.message.error({
+      content: i18n.t('message.error.mrdoc.export') + (error instanceof Error ? `: ${error.message}` : ''),
+      key: 'mrdoc-error'
+    })
+  } finally {
+    setExportState({ isExporting: false })
+  }
+}
+
+/**
+ * 创建思源笔记文档
+ */
+async function createMrdocDoc(
+  apiUrl: string,
+  token: string,
+  boxId: string,
+  title: string,
+  markdown: string
+): Promise<string> {
+  const response = await fetch(`${apiUrl}/api/create_doc/?token=${token}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      pid: boxId,
+      title: title,
+      doc: markdown
+    })
+  })
+
+  const data = await response.json()
+  if (!data.status) {
+    throw new Error(`${data.msg || i18n.t('message.error.unknown')}`)
+  }
+
+  return data.data
+}

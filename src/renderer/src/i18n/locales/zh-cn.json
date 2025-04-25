@@ -245,6 +245,7 @@
       "topics.unpinned": "取消固定",
       "translate": "翻译",
       "topics.export.siyuan": "导出到思源笔记",
+      "topics.export.mrdoc": "导出到觅思文档",
       "topics.export.wait_for_title_naming": "正在生成标题...",
       "topics.export.title_naming_success": "标题生成成功",
       "topics.export.title_naming_failed": "标题生成失败，使用默认标题"
@@ -576,7 +577,11 @@
       "error.siyuan.no_config": "未配置思源笔记API地址或令牌",
       "success.siyuan.export": "导出到思源笔记成功",
       "warn.yuque.exporting": "正在导出语雀, 请勿重复请求导出!",
-      "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!"
+      "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!",
+      "error.mrdoc.export": "导出觅思文档失败，请检查连接状态并对照文档检查配置",
+      "error.mrdoc.no_config": "未配置觅思文档API地址或令牌",
+      "success.mrdoc.export": "导出到觅思文档成功",
+      "warn.mrdoc.exporting": "正在导出到觅思文档，请勿重复请求导出!"
     },
     "minapp": {
       "popup": {
@@ -830,6 +835,7 @@
           "yuque": "导出到语雀",
           "obsidian": "导出到Obsidian",
           "siyuan": "导出到思源笔记",
+          "mrdoc": "导出到觅思文档",
           "joplin": "导出到Joplin",
           "docx": "导出为Word"
         },
@@ -966,6 +972,24 @@
           "box_id_placeholder": "请输入笔记本ID",
           "root_path": "文档根路径",
           "root_path_placeholder": "例如：/CherryStudio",
+          "check": {
+            "title": "连接检查",
+            "button": "检查",
+            "empty_config": "请填写API地址和令牌",
+            "success": "连接成功",
+            "fail": "连接失败，请检查API地址和令牌",
+            "error": "连接异常，请检查网络连接"
+          }
+        },
+        "mrdoc": {
+          "title": "觅思文档配置",
+          "api_url": "API地址",
+          "api_url_placeholder": "例如：http://doc.mrdoc.pro",
+          "token": "用户Token",
+          "token.help": "在个人中心->个人管理->Token管理中获取",
+          "token_placeholder": "请输入觅思文档的用户Token",
+          "box_id": "文集ID",
+          "box_id_placeholder": "请输入文集ID",
           "check": {
             "title": "连接检查",
             "button": "检查",

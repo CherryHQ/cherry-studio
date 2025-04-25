@@ -243,6 +243,7 @@
       "topics.unpinned": "固定解除",
       "translate": "翻訳",
       "topics.export.siyuan": "思源笔记にエクスポート",
+      "topics.export.mrdoc": "觅思文档にエクスポート",
       "topics.export.wait_for_title_naming": "タイトルを生成中...",
       "topics.export.title_naming_success": "タイトルの生成に成功しました",
       "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",
@@ -576,7 +577,11 @@
       "success.siyuan.export": "思源ノートへのエクスポートに成功しました",
       "warn.yuque.exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!",
       "warn.siyuan.exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!",
-      "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません"
+      "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません",
+      "error.mrdoc.export": "MrDocへのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
+      "error.mrdoc.no_config": "MrDoc API URLまたはトークンが設定されていません",
+      "success.mrdoc.export": "MrDocへのエクスポートが成功しました",
+      "warn.mrdoc.exporting": "MrDocへのエクスポート処理中です。重複してエクスポートリクエストを送信しないでください!"
     },
     "minapp": {
       "popup": {
@@ -830,6 +835,7 @@
           "yuque": "語雀にエクスポート",
           "obsidian": "Obsidianにエクスポート",
           "siyuan": "思源ノートにエクスポート",
+          "mrdoc": "MrDocにエクスポート",
           "joplin": "Joplinにエクスポート",
           "docx": "Wordとしてエクスポート"
         },
@@ -971,6 +977,24 @@
             "success": "接続成功",
             "fail": "接続失敗、APIアドレスとトークンを確認してください",
             "error": "接続エラー、ネットワーク接続を確認してください"
+          }
+        },
+        "mrdoc": {
+          "title": "MrDoc設定",
+          "api_url": "API URL",
+          "api_url_placeholder": "例：http://doc.mrdoc.pro",
+          "token": "ユーザートークン",
+          "token.help": "ユーザーセンター -> 個人管理 -> トークン管理で取得",
+          "token_placeholder": "MrDocのユーザートークンを入力してください",
+          "box_id": "プロジェクトID",
+          "box_id_placeholder": "プロジェクトIDを入力してください",
+          "check": {
+            "title": "接続チェック",
+            "button": "チェック",
+            "empty_config": "API URLとトークンを入力してください",
+            "success": "接続成功",
+            "fail": "接続失敗、API URLとトークンを確認してください",
+            "error": "接続異常、ネットワーク接続を確認してください"
           }
         },
         "nutstore": {

@@ -243,6 +243,7 @@
       "topics.unpinned": "Открепленные темы",
       "translate": "Перевести",
       "topics.export.siyuan": "Экспорт в Siyuan Note",
+      "topics.export.mrdoc": "Экспорт в MrDoc",
       "topics.export.wait_for_title_naming": "Создание заголовка...",
       "topics.export.title_naming_success": "Заголовок успешно создан",
       "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",
@@ -576,7 +577,11 @@
       "error.siyuan.no_config": "Не настроен API адрес или токен Siyuan",
       "success.siyuan.export": "Успешный экспорт в Siyuan",
       "warn.yuque.exporting": "Экспортируется в Yuque, пожалуйста, не отправляйте повторные запросы!",
-      "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!"
+      "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!",
+      "error.mrdoc.export": "Не удалось экспортировать в MrDoc. Проверьте состояние соединения и настройки в соответствии с документацией",
+      "error.mrdoc.no_config": "Не настроен URL API MrDoc или токен",
+      "success.mrdoc.export": "Успешно экспортировано в MrDoc",
+      "warn.mrdoc.exporting": "Идет экспорт в MrDoc. Пожалуйста, не отправляйте повторные запросы на экспорт!"
     },
     "minapp": {
       "popup": {
@@ -830,6 +835,7 @@
           "yuque": "Экспорт в Yuque",
           "obsidian": "Экспорт в Obsidian",
           "siyuan": "Экспорт в SiYuan Note",
+          "mrdoc": "Экспорт в MrDoc",
           "joplin": "Экспорт в Joplin",
           "docx": "Экспорт в Word"
         },
@@ -971,6 +977,24 @@
             "success": "Соединение успешно",
             "fail": "Не удалось подключиться, проверьте API адрес и токен",
             "error": "Ошибка соединения, проверьте сетевое подключение"
+          }
+        },
+        "mrdoc": {
+          "title": "Конфигурация MrDoc",
+          "api_url": "API URL",
+          "api_url_placeholder": "например, http://doc.mrdoc.pro",
+          "token": "Пользовательский токен",
+          "token.help": "Получить в Центре пользователя -> Управление профилем -> Управление токенами",
+          "token_placeholder": "Введите ваш пользовательский токен MrDoc",
+          "box_id": "ID проекта",
+          "box_id_placeholder": "Введите ID проекта",
+          "check": {
+            "title": "Проверка соединения",
+            "button": "Проверить",
+            "empty_config": "Пожалуйста, заполните URL API и токен",
+            "success": "Соединение успешно",
+            "fail": "Соединение не удалось, проверьте URL API и токен",
+            "error": "Ошибка соединения, проверьте подключение к сети"
           }
         },
         "nutstore": {

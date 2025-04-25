@@ -111,6 +111,10 @@ export interface SettingsState {
   siyuanRootPath: string | null
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
+  // 觅思文档配置
+  mrdocApiUrl: string | null
+  mrdocToken: string | null
+  mrdocBoxId: string | null
   // 隐私设置
   enableDataCollection: boolean
   enableQuickPanelTriggers: boolean
@@ -124,6 +128,7 @@ export interface SettingsState {
     joplin: boolean
     obsidian: boolean
     siyuan: boolean
+    mrdoc: boolean
     docx: boolean
   }
 }
@@ -211,6 +216,9 @@ export const initialState: SettingsState = {
   siyuanToken: null,
   siyuanBoxId: null,
   siyuanRootPath: null,
+  mrdocApiUrl: null,
+  mrdocToken: null,
+  mrdocBoxId: null,
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
   enableDataCollection: false,
@@ -225,6 +233,7 @@ export const initialState: SettingsState = {
     joplin: true,
     obsidian: true,
     siyuan: true,
+    mrdoc: true,
     docx: true
   }
 }
@@ -470,6 +479,15 @@ const settingsSlice = createSlice({
     setSiyuanRootPath: (state, action: PayloadAction<string>) => {
       state.siyuanRootPath = action.payload
     },
+    setMrdocApiUrl: (state, action: PayloadAction<string>) => {
+      state.mrdocApiUrl = action.payload
+    },
+    setMrdocToken: (state, action: PayloadAction<string>) => {
+      state.mrdocToken = action.payload
+    },
+    setMrdocBoxId: (state, action: PayloadAction<string>) => {
+      state.mrdocBoxId = action.payload
+    },
     setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
       state.messageNavigation = action.payload
     },
@@ -577,6 +595,9 @@ export const {
   setSiyuanToken,
   setSiyuanBoxId,
   setSiyuanRootPath,
+  setMrdocApiUrl,
+  setMrdocToken,
+  setMrdocBoxId,
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,
   setEnableDataCollection,

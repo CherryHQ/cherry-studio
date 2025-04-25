@@ -32,6 +32,7 @@ import ObsidianSettings from './ObsidianSettings'
 import SiyuanSettings from './SiyuanSettings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
+import MrdocSettings from './MrdocSettings'
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -60,6 +61,14 @@ const DataSettings: FC = () => {
       <path
         d="M699.52 136.64V136z m-376.96 249.6V136.96s-0.32 50.56 0 249.28zM512 573.76v-127.04zM667.84 672l-6.72 7.36 7.04-7.04c6.72-6.08 7.68-7.36 6.72-7.36zM184 272.96v1.92l2.56-1.92c2.56-1.92 0-2.24 0-2.24a5.44 5.44 0 0 0-2.56 2.24zM141.76 314.88a2.24 2.24 0 0 0 1.92 0v-1.6z m483.2 399.04a71.36 71.36 0 0 0-8.96 10.24 69.76 69.76 0 0 0 10.56-9.6 56 56 0 0 0 8.96-10.24 73.28 73.28 0 0 0-10.56 9.6z m-448 75.52l-3.2 3.2 3.52-2.88 3.52-3.52s-2.56 0-5.44 3.2z m-97.92 96v1.92l2.88-1.92s1.92-2.24 0-2.24a6.72 6.72 0 0 0-4.48 2.88z"
         p-id="2965"></path>
+    </svg>
+  )
+
+  const MrdocIcon = () => (
+    <svg viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="25286" width="16" height="16">
+      <path
+        d="M642.4576 261.5296l-112.64 235.9296 97.0752 1.024 14.1312-28.0576v292.0448h97.8944V261.5296h-96.4608zM479.232 660.48l-96.256-190.0544v292.0448h-97.8944V261.5296h96.4608l110.1824 227.9424 82.3296 171.2128-94.8224-0.2048z"
+        p-id="25287"></path>
     </svg>
   )
 
@@ -101,6 +110,11 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: 'settings.data.siyuan.title',
       icon: <SiyuanIcon />
+    },
+    {
+      key: 'mrdoc',
+      title: 'settings.data.mrdoc.title',
+      icon: <MrdocIcon />
     }
   ]
 
@@ -247,6 +261,7 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
+        {menu === 'mrdoc' && <MrdocSettings />}
       </SettingContainer>
     </Container>
   )
