@@ -2155,8 +2155,14 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.0-pro-exp-02-05',
   'gemini-2.0-pro-exp',
   'gemini-2.5-pro-exp',
-  'gemini-2.5-pro-exp-03-25'
+  'gemini-2.5-pro-exp-03-25',
+  'gemini-2.5-pro-preview',
+  'gemini-2.5-pro-preview-03-25',
+  'gemini-2.5-flash-preview',
+  'gemini-2.5-flash-preview-04-17'
 ]
+
+export const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reason', 'sonar-reason-pro']
 
 export function isTextToImageModel(model: Model): boolean {
   return TEXT_TO_IMAGE_REGEX.test(model.id)
@@ -2311,6 +2317,10 @@ export function isWebSearchModel(model: Model): boolean {
 
   if (isEmbedding) {
     return false
+  }
+
+  if (provider.id === 'perplexity') {
+    return PERPLEXITY_SEARCH_MODELS.includes(model?.id)
   }
 
   if (provider.id === 'aihubmix') {
