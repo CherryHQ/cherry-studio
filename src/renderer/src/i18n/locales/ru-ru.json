@@ -1168,15 +1168,16 @@
         "sync": {
           "title": "Синхронизация серверов",
           "selectProvider": "Выберите провайдера:",
-          "discoverModels": "Обнаружить модели",
-          "discoverModelsDescription": "Посетите платформу, чтобы найти доступные серверы",
+          "discoverMcpServers": "Обнаружить серверы MCP",
+          "discoverMcpServersDescription": "Посетите платформу, чтобы обнаружить доступные серверы MCP",
           "getToken": "Получить API токен",
           "getTokenDescription": "Получите персональный API токен из вашей учетной записи",
           "setToken": "Введите ваш токен",
           "tokenRequired": "Требуется API токен",
           "tokenPlaceholder": "Введите API токен здесь",
           "button": "Синхронизировать",
-          "error": "Ошибка синхронизации серверов"
+          "error": "Ошибка синхронизации серверов MCP",
+          "success": "Синхронизация серверов MCP успешна"
         }
       },
       "messages.divider": "Показывать разделитель между сообщениями",

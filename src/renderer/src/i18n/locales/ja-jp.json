@@ -1168,15 +1168,16 @@
         "sync": {
           "title": "サーバーの同期",
           "selectProvider": "プロバイダーを選択：",
-          "discoverModels": "モデルを発見する",
-          "discoverModelsDescription": "利用可能なサーバーを発見するには、プラットフォームを訪問してください",
+          "discoverMcpServers": "MCPサーバーを発見",
+          "discoverMcpServersDescription": "プラットフォームを訪れて利用可能なMCPサーバーを発見",
           "getToken": "API トークンを取得する",
           "getTokenDescription": "アカウントから個人用 API トークンを取得します",
           "setToken": "トークンを入力してください",
           "tokenRequired": "API トークンは必須です",
           "tokenPlaceholder": "ここに API トークンを入力してください",
           "button": "同期する",
-          "error": "サーバーの同期中にエラーが発生しました"
+          "error": "MCPサーバーの同期エラー",
+          "success": "MCPサーバーの同期成功"
         }
       },
       "messages.divider": "メッセージ間に区切り線を表示",

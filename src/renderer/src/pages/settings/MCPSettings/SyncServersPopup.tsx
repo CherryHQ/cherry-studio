@@ -1,7 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
-import { Button, Form, Input, Modal, Radio } from 'antd'
+import { Button, Form, Input, Modal, Select } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -34,7 +34,6 @@ const providers: ProviderConfig[] = [
     saveToken: saveModelScopeToken,
     syncServers: syncModelScopeServers
   }
-  // Add new providers here following the same structure
 ]
 
 interface Props {
@@ -68,10 +67,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
 
     setTokens(initialTokens)
   }, [form])
-
-  const handleProviderChange = (e: any) => {
-    setSelectedProviderKey(e.target.value)
-  }
 
   const handleSync = useCallback(async () => {
     try {
@@ -144,32 +139,36 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
       centered>
       <ContentContainer>
         {/* Only show provider selector if there are multiple providers */}
-        {providers.length > 1 && (
-          <ProviderSelector>
-            <SelectorLabel>{t('settings.mcp.sync.selectProvider', 'Select Provider:')}</SelectorLabel>
-            <Radio.Group value={selectedProviderKey} onChange={handleProviderChange} buttonStyle="solid">
-              {providers.map((provider) => (
-                <Radio.Button key={provider.key} value={provider.key}>
-                  {provider.name}
-                </Radio.Button>
-              ))}
-            </Radio.Group>
-          </ProviderSelector>
-        )}
 
-        <ProviderContent className={providers.length <= 1 ? 'no-border' : ''}>
+        <ProviderSelector>
+          <SelectorLabel>{t('settings.mcp.sync.selectProvider', 'Select Provider:')}</SelectorLabel>
+          <Select
+            value={selectedProviderKey}
+            onChange={setSelectedProviderKey}
+            style={{ width: 200 }}
+            options={providers.map((provider) => ({
+              value: provider.key,
+              label: provider.name
+            }))}
+          />
+        </ProviderSelector>
+
+        <ProviderContent>
           <Form form={form} layout="vertical" style={{ width: '100%' }}>
             <StepSection>
               <StepNumber>1</StepNumber>
               <StepContent>
-                <StepTitle>{t('settings.mcp.sync.discoverModels', 'Discover Models')}</StepTitle>
+                <StepTitle>{t('settings.mcp.sync.discoverMcpServers', 'Discover MCP Servers')}</StepTitle>
                 <StepDescription>
-                  {t('settings.mcp.sync.discoverModelsDescription', 'Visit the platform to discover available servers')}
+                  {t(
+                    'settings.mcp.sync.discoverMcpServersDescription',
+                    'Visit the platform to discover available MCP servers'
+                  )}
                 </StepDescription>
                 <LinkContainer>
                   <ExternalLink href={selectedProvider.discoverUrl} target="_blank">
                     <LinkIcon>🌐</LinkIcon>
-                    <span>{t('settings.mcp.sync.discoverModels', 'Discover Models')}</span>
+                    <span>{t('settings.mcp.sync.discoverMcpServers', 'Discover MCP Servers')}</span>
                   </ExternalLink>
                 </LinkContainer>
               </StepContent>
@@ -233,7 +232,7 @@ const ProviderSelector = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 5px;
+  margin-bottom: 15px;
 `
 
 const SelectorLabel = styled.div`

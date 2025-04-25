@@ -113,14 +113,14 @@ export const syncModelScopeServers = async (
 
     return {
       success: true,
-      message: t('settings.mcp.syncSuccess', { count: addedServers.length }),
+      message: t('settings.mcp.sync.success', { count: addedServers.length }),
       addedServers
     }
   } catch (error) {
     console.error('ModelScope sync error:', error)
     return {
       success: false,
-      message: t('settings.mcp.syncError'),
+      message: t('settings.mcp.sync.error'),
       addedServers: [],
       errorDetails: String(error)
     }

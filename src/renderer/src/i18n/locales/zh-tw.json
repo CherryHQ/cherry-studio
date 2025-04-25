@@ -1168,15 +1168,16 @@
         "sync": {
           "title": "同步伺服器",
           "selectProvider": "選擇提供者：",
-          "discoverModels": "發現模型",
-          "discoverModelsDescription": "訪問平台以發現可用伺服器",
+          "discoverMcpServers": "發現MCP伺服器",
+          "discoverMcpServersDescription": "訪問平台以發現可用的MCP伺服器",
           "getToken": "獲取 API 令牌",
           "getTokenDescription": "從您的帳戶獲取個人 API 令牌",
           "setToken": "輸入您的令牌",
           "tokenRequired": "需要 API 令牌",
           "tokenPlaceholder": "在此輸入 API 令牌",
           "button": "同步",
-          "error": "同步伺服器時出錯"
+          "error": "同步MCP伺服器出錯",
+          "success": "同步MCP伺服器成功"
         }
       },
       "messages.divider": "訊息間顯示分隔線",
