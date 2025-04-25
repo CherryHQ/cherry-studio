@@ -39,7 +39,7 @@ import { Dropdown, MenuProps, Tooltip } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, startTransition, useCallback, useMemo, useRef, useState } from 'react'
+import { FC, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -60,10 +60,38 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 30
+  const [displayedTopics, setDisplayedTopics] = useState<Topic[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const pendingTopics = useMemo(() => {
     return new Set<string>()
   }, [])
+
+  // 初始化显示的话题
+  useEffect(() => {
+    const initialTopics = assistant.topics.slice(0, pageSize)
+    setDisplayedTopics(initialTopics)
+  }, [assistant.topics])
+
+  // 处理滚动加载
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLDivElement
+      const { scrollTop, scrollHeight, clientHeight } = target
+      if (scrollHeight - scrollTop - clientHeight < 100) {
+        const nextPage = page + 1
+        const nextTopics = assistant.topics.slice(0, nextPage * pageSize)
+        if (nextTopics.length > displayedTopics.length) {
+          setDisplayedTopics(nextTopics)
+          setPage(nextPage)
+        }
+      }
+    },
+    [assistant.topics, displayedTopics.length, page]
+  )
+
   const isPending = useCallback(
     (topicId: string) => {
       const hasPending = hasTopicPendingRequests(topicId)
@@ -379,67 +407,68 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   return (
     <Container right={topicPosition === 'right'} className="topics-tab">
-      <DragableList list={assistant.topics} onUpdate={updateTopics}>
-        {(topic) => {
-          const isActive = topic.id === activeTopic?.id
-          const topicName = topic.name.replace('`', '')
-          const topicPrompt = topic.prompt
-          const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
-          return (
-            <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
-              <TopicListItem
-                className={isActive ? 'active' : ''}
-                onClick={() => onSwitchTopic(topic)}
-                style={{ borderRadius }}>
-                {isPending(topic.id) && !isActive && <PendingIndicator />}
-                <TopicName className="name" title={topicName}>
-                  {topicName}
-                </TopicName>
-                {topicPrompt && (
-                  <TopicPromptText className="prompt" title={fullTopicPrompt}>
-                    {fullTopicPrompt}
-                  </TopicPromptText>
-                )}
-                {showTopicTime && (
-                  <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
-                )}
-                <MenuButton className="pin">{topic.pinned && <PushpinOutlined />}</MenuButton>
-                {isActive && !topic.pinned && (
-                  <Tooltip
-                    placement="bottom"
-                    mouseEnterDelay={0.7}
-                    title={
-                      <div>
-                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+      <div ref={containerRef} onScroll={handleScroll} style={{ height: '100%', overflow: 'auto' }}>
+        <DragableList list={displayedTopics} onUpdate={updateTopics}>
+          {(topic) => {
+            const isActive = topic.id === activeTopic?.id
+            const topicName = topic.name.replace('`', '')
+            const topicPrompt = topic.prompt
+            const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
+            return (
+              <Dropdown menu={{ items: getTopicMenuItems(topic) }} trigger={['contextMenu']} key={topic.id}>
+                <TopicListItem
+                  className={isActive ? 'active' : ''}
+                  onClick={() => onSwitchTopic(topic)}
+                  style={{ borderRadius }}>
+                  {isPending(topic.id) && !isActive && <PendingIndicator />}
+                  <TopicName className="name" title={topicName}>
+                    {topicName}
+                  </TopicName>
+                  {topicPrompt && (
+                    <TopicPromptText className="prompt" title={fullTopicPrompt}>
+                      {fullTopicPrompt}
+                    </TopicPromptText>
+                  )}
+                  {showTopicTime && (
+                    <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
+                  )}
+                  <MenuButton className="pin">{topic.pinned && <PushpinOutlined />}</MenuButton>
+                  {isActive && !topic.pinned && (
+                    <Tooltip
+                      placement="bottom"
+                      mouseEnterDelay={0.7}
+                      title={
+                        <div>
+                          <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                            {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                          </div>
                         </div>
-                      </div>
-                    }>
-                    <MenuButton
-                      className="menu"
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          handleConfirmDelete(topic, e)
-                        } else if (deletingTopicId === topic.id) {
-                          handleConfirmDelete(topic, e)
-                        } else {
-                          handleDeleteClick(topic.id, e)
-                        }
-                      }}>
-                      {deletingTopicId === topic.id ? (
-                        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
-                      ) : (
-                        <CloseOutlined />
-                      )}
-                    </MenuButton>
-                  </Tooltip>
-                )}
-              </TopicListItem>
-            </Dropdown>
-          )
-        }}
-      </DragableList>
-      <div style={{ minHeight: '10px' }}></div>
+                      }>
+                      <MenuButton
+                        className="menu"
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey) {
+                            handleConfirmDelete(topic, e)
+                          } else if (deletingTopicId === topic.id) {
+                            handleConfirmDelete(topic, e)
+                          } else {
+                            handleDeleteClick(topic.id, e)
+                          }
+                        }}>
+                        {deletingTopicId === topic.id ? (
+                          <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+                        ) : (
+                          <CloseOutlined />
+                        )}
+                      </MenuButton>
+                    </Tooltip>
+                  )}
+                </TopicListItem>
+              </Dropdown>
+            )
+          }}
+        </DragableList>
+      </div>
     </Container>
   )
 }
