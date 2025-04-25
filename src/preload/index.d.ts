@@ -204,6 +204,9 @@ declare global {
         closeSearchWindow: (uid: string) => Promise<string>
         openUrlInSearchWindow: (uid: string, url: string) => Promise<string>
       }
+      webview: {
+        setOpenLinkExternal: (webviewId: number, isExternal: boolean) => Promise<void>
+      }
     }
   }
 }

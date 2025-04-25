@@ -3,6 +3,7 @@ import {
   CodeOutlined,
   CopyOutlined,
   ExportOutlined,
+  LinkOutlined,
   MinusOutlined,
   PushpinOutlined,
   ReloadOutlined
@@ -14,6 +15,9 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { useAppDispatch } from '@renderer/store'
+import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { Avatar, Drawer, Tooltip } from 'antd'
@@ -40,6 +44,7 @@ const MinappPopupContainer: React.FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
   const backgroundColor = useNavBackgroundColor()
+  const dispatch = useAppDispatch()
 
   /** control the drawer open or close */
   const [isPopupShow, setIsPopupShow] = useState(true)
@@ -57,6 +62,8 @@ const MinappPopupContainer: React.FC = () => {
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
   /** indicate whether the webview has loaded  */
   const webviewLoadedRefs = useRef<Map<string, boolean>>(new Map())
+  /** whether the minapps open link external is enabled */
+  const { minappsOpenLinkExternal } = useSettings()
 
   const isInDevelopment = process.env.NODE_ENV === 'development'
 
@@ -107,9 +114,14 @@ const MinappPopupContainer: React.FC = () => {
     webviewLoadedRefs.current.forEach((_, appid) => {
       if (!webviewRefs.current.has(appid)) {
         webviewLoadedRefs.current.delete(appid)
+      } else if (appid === currentMinappId) {
+        const webviewId = webviewRefs.current.get(appid)?.getWebContentsId()
+        if (webviewId) {
+          window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+        }
       }
     })
-  }, [currentMinappId])
+  }, [currentMinappId, minappsOpenLinkExternal])
 
   /** only the keepalive minapp can be minimized */
   const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.id == currentMinappId)
@@ -175,6 +187,10 @@ const MinappPopupContainer: React.FC = () => {
   /** the callback function to set the webviews loaded indicator */
   const handleWebviewLoaded = (appid: string) => {
     webviewLoadedRefs.current.set(appid, true)
+    const webviewId = webviewRefs.current.get(appid)?.getWebContentsId()
+    if (webviewId) {
+      window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+    }
     if (appid == currentMinappId) {
       setTimeout(() => setIsReady(true), 200)
     }
@@ -220,6 +236,11 @@ const MinappPopupContainer: React.FC = () => {
     updatePinnedMinapps(newPinned)
   }
 
+  /** set the open external status */
+  const handleToggleOpenExternal = () => {
+    dispatch(setMinappsOpenLinkExternal(!minappsOpenLinkExternal))
+  }
+
   /** Title bar of the popup */
   const Title = ({ appInfo, url }: { appInfo: AppInfo | null; url: string | null }) => {
     if (!appInfo) return null
@@ -238,7 +259,7 @@ const MinappPopupContainer: React.FC = () => {
     }
 
     return (
-      <TitleContainer style={{ backgroundColor: backgroundColor, justifyContent: 'space-between' }}>
+      <TitleContainer style={{ backgroundColor: backgroundColor }}>
         <Tooltip
           title={
             <TitleTextTooltip>
@@ -256,6 +277,14 @@ const MinappPopupContainer: React.FC = () => {
           }}>
           <TitleText onContextMenu={(e) => handleCopyUrl(e, url ?? appInfo.url)}>{appInfo.name}</TitleText>
         </Tooltip>
+        {appInfo.canOpenExternalLink && (
+          <Tooltip title={t('minapp.popup.openExternal')} mouseEnterDelay={0.8} placement="bottom">
+            <Button onClick={() => handleOpenLink(url ?? appInfo.url)}>
+              <ExportOutlined />
+            </Button>
+          </Tooltip>
+        )}
+        <Spacer />
         <ButtonsGroup className={isWindows ? 'windows' : ''}>
           <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
             <Button onClick={() => handleReload(appInfo.id)}>
@@ -272,13 +301,18 @@ const MinappPopupContainer: React.FC = () => {
               </Button>
             </Tooltip>
           )}
-          {appInfo.canOpenExternalLink && (
-            <Tooltip title={t('minapp.popup.openExternal')} mouseEnterDelay={0.8} placement="bottom">
-              <Button onClick={() => handleOpenLink(url ?? appInfo.url)}>
-                <ExportOutlined />
-              </Button>
-            </Tooltip>
-          )}
+          <Tooltip
+            title={
+              minappsOpenLinkExternal
+                ? t('minapp.popup.open_link_external_on')
+                : t('minapp.popup.open_link_external_off')
+            }
+            mouseEnterDelay={0.8}
+            placement="bottom">
+            <Button onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
+              <LinkOutlined />
+            </Button>
+          </Tooltip>
           {isInDevelopment && (
             <Tooltip title={t('minapp.popup.devtools')} mouseEnterDelay={0.8} placement="bottom">
               <Button onClick={() => handleOpenDevTools(appInfo.id)}>
@@ -367,8 +401,8 @@ const TitleText = styled.div`
   font-weight: bold;
   font-size: 14px;
   color: var(--color-text-1);
-  margin-right: 10px;
   -webkit-app-region: no-drag;
+  margin-right: 5px;
 `
 
 const TitleTextTooltip = styled.span`
@@ -407,11 +441,16 @@ const Button = styled.div`
   color: var(--color-text-2);
   transition: all 0.2s ease;
   font-size: 14px;
+  -webkit-app-region: no-drag;
   &:hover {
     color: var(--color-text-1);
     background-color: var(--color-background-mute);
   }
   &.pinned {
+    color: var(--color-primary);
+    background-color: var(--color-primary-bg);
+  }
+  &.open-external {
     color: var(--color-primary);
     background-color: var(--color-primary-bg);
   }
@@ -426,6 +465,10 @@ const EmptyView = styled.div`
   width: 100%;
   height: 100%;
   background-color: var(--color-background);
+`
+
+const Spacer = styled.div`
+  flex: 1;
 `
 
 export default MinappPopupContainer

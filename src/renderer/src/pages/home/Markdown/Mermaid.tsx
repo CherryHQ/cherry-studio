@@ -32,6 +32,7 @@ const Mermaid: React.FC<Props> = ({ chart }) => {
     }
   }, [chart, theme])
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const renderMermaid = useCallback(debounce(renderMermaidBase, 1000), [renderMermaidBase])
 
   useEffect(() => {

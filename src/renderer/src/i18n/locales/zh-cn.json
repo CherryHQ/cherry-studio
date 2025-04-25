@@ -562,7 +562,9 @@
       "tools": {
         "completed": "已完成",
         "invoking": "调用中",
-        "error": "发生错误"
+        "error": "发生错误",
+        "raw": "原始",
+        "preview": "预览"
       },
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",
@@ -583,7 +585,9 @@
         "minimize": "最小化小程序",
         "devtools": "开发者工具",
         "openExternal": "在浏览器中打开",
-        "rightclick_copyurl": "右键复制URL"
+        "rightclick_copyurl": "右键复制URL",
+        "open_link_external_on": "当前：在浏览器中打开链接",
+        "open_link_external_off": "当前：使用默认窗口打开链接"
       },
       "sidebar.add.title": "添加到侧边栏",
       "sidebar.remove.title": "从侧边栏移除",
@@ -833,7 +837,7 @@
         },
         "joplin": {
           "check": {
-            "button": "检查",
+            "button": "检测",
             "empty_token": "请先输入 Joplin 授权令牌",
             "empty_url": "请先输入 Joplin 剪裁服务监听 URL",
             "fail": "Joplin 连接验证失败",
@@ -862,7 +866,7 @@
         "notion.auto_split": "导出对话时自动分页",
         "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
         "notion.check": {
-          "button": "检查",
+          "button": "检测",
           "empty_api_key": "未配置 API key",
           "empty_database_id": "未配置 Database ID",
           "error": "连接异常，请检查网络及 API key 和 Database ID 是否正确",
@@ -931,7 +935,7 @@
         },
         "yuque": {
           "check": {
-            "button": "检查",
+            "button": "检测",
             "empty_repo_url": "请先输入知识库URL",
             "empty_token": "请先输入语雀Token",
             "fail": "语雀连接验证失败",
@@ -965,8 +969,8 @@
           "root_path": "文档根路径",
           "root_path_placeholder": "例如：/CherryStudio",
           "check": {
-            "title": "连接检查",
-            "button": "检查",
+            "title": "连接检测",
+            "button": "检测",
             "empty_config": "请填写API地址和令牌",
             "success": "连接成功",
             "fail": "连接失败，请检查API地址和令牌",
@@ -1018,6 +1022,9 @@
         "disabled": "隐藏的小程序",
         "empty": "把要隐藏的小程序从左侧拖拽到这里",
         "visible": "显示的小程序",
+        "open_link_external": {
+          "title": "在浏览器中打开新窗口链接"
+        },
         "cache_settings": "缓存设置",
         "cache_title": "小程序缓存数量",
         "cache_description": "设置同时保持活跃状态的小程序最大数量",
@@ -1121,6 +1128,7 @@
         "installHelp": "获取安装帮助",
         "tabs": {
           "general": "通用",
+          "description": "描述",
           "tools": "工具",
           "prompts": "提示",
           "resources": "资源"
@@ -1198,20 +1206,20 @@
       "models.add.model_name": "模型名称",
       "models.add.model_name.placeholder": "例如 GPT-3.5",
       "models.check.all": "所有",
-      "models.check.all_models_passed": "所有模型检查通过",
-      "models.check.button_caption": "健康检查",
+      "models.check.all_models_passed": "所有模型检测通过",
+      "models.check.button_caption": "健康检测",
       "models.check.disabled": "关闭",
-      "models.check.enable_concurrent": "并发检查",
+      "models.check.enable_concurrent": "并发检测",
       "models.check.enabled": "开启",
       "models.check.failed": "失败",
       "models.check.keys_status_count": "通过：{{count_passed}}个密钥，失败：{{count_failed}}个密钥",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} 个模型完成健康检查（其中 {{count_partial}} 个模型用某些密钥无法访问），{{count_failed}} 个模型完全无法访问。",
+      "models.check.model_status_summary": "{{provider}}: {{count_passed}} 个模型完成健康检测（其中 {{count_partial}} 个模型用某些密钥无法访问），{{count_failed}} 个模型完全无法访问。",
       "models.check.no_api_keys": "未找到API密钥，请先添加API密钥。",
       "models.check.passed": "通过",
       "models.check.select_api_key": "选择要使用的API密钥：",
       "models.check.single": "单个",
       "models.check.start": "开始",
-      "models.check.title": "模型健康检查",
+      "models.check.title": "模型健康检测",
       "models.check.use_all_keys": "使用密钥",
       "models.default_assistant_model": "默认助手模型",
       "models.default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
@@ -1249,10 +1257,16 @@
         "basic_auth.user_name.tip": "留空以禁用",
         "basic_auth.password": "密码",
         "basic_auth.password.tip": "",
-        "charge": "充值",
-        "check": "检查",
-        "check_all_keys": "检查所有密钥",
-        "check_multiple_keys": "检查多个 API 密钥",
+        "charge": "余额充值",
+        "bills": "费用账单",
+        "check": "检测",
+        "check_all_keys": "检测所有密钥",
+        "check_multiple_keys": "检测多个 API 密钥",
+        "oauth": {
+          "button": "使用{{provider}}账号登录",
+          "description": "本服务由<website>{{provider}}</website>提供",
+          "official_website": "官方网站"
+        },
         "copilot": {
           "auth_failed": "Github Copilot 认证失败",
           "auth_success": "Github Copilot 认证成功",
@@ -1283,8 +1297,8 @@
         "docs_more_details": "获取更多详情",
         "get_api_key": "点击这里获取密钥",
         "is_not_support_array_content": "开启兼容模式",
-        "no_models_for_check": "没有可以被检查的模型（例如对话模型）",
-        "not_checked": "未检查",
+        "no_models_for_check": "没有可以被检测的模型（例如对话模型）",
+        "not_checked": "未检测",
         "remove_duplicate_keys": "移除重复密钥",
         "remove_invalid_keys": "删除无效密钥",
         "search": "搜索模型平台...",
@@ -1350,13 +1364,13 @@
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
-        "check": "检查",
+        "check": "检测",
         "check_failed": "验证失败",
         "check_success": "验证成功",
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
         "get_api_key": "点击这里获取密钥",
-        "no_provider_selected": "请选择搜索服务商后再检查",
+        "no_provider_selected": "请选择搜索服务商后再检测",
         "search_max_result": "搜索结果个数",
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",

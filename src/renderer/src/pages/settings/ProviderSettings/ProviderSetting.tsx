@@ -1,7 +1,6 @@
 import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
-import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -10,10 +9,9 @@ import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
-import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
+import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
-import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
@@ -37,7 +35,7 @@ import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
 import ModelListSearchBar from './ModelListSearchBar'
-import OllamSettings from './OllamaSettings'
+import ProviderOAuth from './ProviderOAuth'
 import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
@@ -323,6 +321,16 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
+      {isProviderSupportAuth(provider) && (
+        <ProviderOAuth
+          provider={provider}
+          setApiKey={(v) => {
+            setApiKey(v)
+            setInputValue(v)
+            updateProvider({ ...provider, apiKey: v })
+          }}
+        />
+      )}
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
@@ -339,10 +347,9 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             onUpdateApiKey()
           }}
           spellCheck={false}
-          autoFocus={provider.enabled && apiKey === ''}
+          autoFocus={provider.enabled && apiKey === '' && !isProviderSupportAuth(provider)}
           disabled={provider.id === 'copilot'}
         />
-        {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
         <Button
           type={apiValid ? 'primary' : 'default'}
           ghost={apiValid}
@@ -357,11 +364,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>
-            {isProviderSupportCharge(provider) && (
-              <SettingHelpLink onClick={() => providerCharge(provider.id)}>
-                {t('settings.provider.charge')}
-              </SettingHelpLink>
-            )}
           </HStack>
           <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
         </SettingHelpTextRow>
@@ -402,7 +404,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           </Space.Compact>
         </>
       )}
-      {provider.id === 'ollama' && <OllamSettings />}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}

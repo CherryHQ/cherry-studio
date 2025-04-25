@@ -307,6 +307,10 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The completions
    */
   async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
+    if (assistant.enableGenerateImage) {
+      await this.generateImageByChat({ messages, assistant, onChunk } as CompletionsParams)
+      return
+    }
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
@@ -892,5 +896,31 @@ export default class OpenAIProvider extends BaseProvider {
     // copilot每次请求前需要重新获取token，因为token中附带时间戳
     const { token } = await window.api.copilot.getToken(defaultHeaders)
     this.sdk.apiKey = token
+  }
+
+  public async generateImageByChat({ messages, assistant, onChunk }: CompletionsParams): Promise<void> {
+    const defaultModel = getDefaultModel()
+    const model = assistant.model || defaultModel
+    const lastUserMessage = messages.findLast((m) => m.role === 'user')
+    const { abortController } = this.createAbortController(lastUserMessage?.id, true)
+    const { signal } = abortController
+    const response = await this.sdk.images.generate(
+      {
+        model: model.id,
+        prompt: lastUserMessage?.content || '',
+        response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
+      },
+      {
+        signal
+      }
+    )
+
+    return onChunk({
+      text: '',
+      generateImage: {
+        type: 'base64',
+        images: response.data.map((item) => `data:image/png;base64,${item.b64_json}`)
+      }
+    })
   }
 }

@@ -1,5 +1,3 @@
-import { arch } from 'node:os'
-
 import { isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { UpdateInfo } from 'builder-util-runtime'
@@ -64,8 +62,7 @@ export default class AppUpdater {
   }
 
   public async checkForUpdates() {
-    // 在 Windows 上，如果架构是 arm64，则不检查更新
-    if (isWin && (arch().includes('arm') || 'PORTABLE_EXECUTABLE_DIR' in process.env)) {
+    if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
       return {
         currentVersion: app.getVersion(),
         updateInfo: null

@@ -503,7 +503,9 @@
       "switch.disabled": "Veuillez attendre la fin de la réponse actuelle avant de procéder",
       "tools": {
         "completed": "Terminé",
-        "invoking": "En cours d'exécution"
+        "invoking": "En cours d'exécution",
+        "raw": "Brut",
+        "preview": "Aperçu"
       },
       "topic.added": "Thème ajouté avec succès",
       "upgrade.success.button": "Redémarrer",

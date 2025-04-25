@@ -3268,6 +3268,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@shikijs/markdown-it@npm:^3.2.2":
+  version: 3.2.2
+  resolution: "@shikijs/markdown-it@npm:3.2.2"
+  dependencies:
+    markdown-it: "npm:^14.1.0"
+    shiki: "npm:3.2.2"
+  peerDependencies:
+    markdown-it-async: ^2.2.0
+  peerDependenciesMeta:
+    markdown-it-async:
+      optional: true
+  checksum: 10c0/37c98e45a0905ea58f605c7cd341c83f3289b6a37093862535c59f7cc178fe9bfb13413fea68d4d923341e51b2e5718fc5172147d15e07457a76aceed2ac1f95
+  languageName: node
+  linkType: hard
+
 "@shikijs/themes@npm:3.2.2":
   version: 3.2.2
   resolution: "@shikijs/themes@npm:3.2.2"
@@ -4315,6 +4330,7 @@ __metadata:
     "@mozilla/readability": "npm:^0.6.0"
     "@notionhq/client": "npm:^2.2.15"
     "@reduxjs/toolkit": "npm:^2.2.5"
+    "@shikijs/markdown-it": "npm:^3.2.2"
     "@strongtz/win32-arm64-msvc": "npm:^0.4.7"
     "@swc/plugin-styled-components": "npm:^7.1.3"
     "@tavily/core": "patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch"
@@ -4358,7 +4374,7 @@ __metadata:
     electron-icon-builder: "npm:^2.0.1"
     electron-log: "npm:^5.1.5"
     electron-store: "npm:^8.2.0"
-    electron-updater: "npm:^6.3.9"
+    electron-updater: "patch:electron-updater@npm%3A6.6.3#~/.yarn/patches/electron-updater-npm-6.6.3-9269dbaf84.patch"
     electron-vite: "npm:^2.3.0"
     electron-window-state: "npm:^5.0.3"
     emittery: "npm:^1.0.3"
@@ -4412,7 +4428,7 @@ __metadata:
     remark-math: "npm:^6.0.0"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.77.2"
-    shiki: "npm:^3.2.1"
+    shiki: "npm:^3.2.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
     tar: "npm:^7.4.3"
@@ -7027,7 +7043,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-updater@npm:^6.3.9":
+"electron-updater@npm:6.6.3":
   version: 6.6.3
   resolution: "electron-updater@npm:6.6.3"
   dependencies:
@@ -7040,6 +7056,22 @@ __metadata:
     semver: "npm:^7.6.3"
     tiny-typed-emitter: "npm:^2.1.0"
   checksum: 10c0/fb924eb0fb8d692b703f49196400422faf4c25416abe22c9b3aad0a48890929fa3dde4c8671a74cd71b4a4ef93937f3d9f78ea3c2891a5c6d7938355bc699863
+  languageName: node
+  linkType: hard
+
+"electron-updater@patch:electron-updater@npm%3A6.6.3#~/.yarn/patches/electron-updater-npm-6.6.3-9269dbaf84.patch":
+  version: 6.6.3
+  resolution: "electron-updater@patch:electron-updater@npm%3A6.6.3#~/.yarn/patches/electron-updater-npm-6.6.3-9269dbaf84.patch::version=6.6.3&hash=4a31aa"
+  dependencies:
+    builder-util-runtime: "npm:9.3.2"
+    fs-extra: "npm:^10.1.0"
+    js-yaml: "npm:^4.1.0"
+    lazy-val: "npm:^1.0.5"
+    lodash.escaperegexp: "npm:^4.1.2"
+    lodash.isequal: "npm:^4.5.0"
+    semver: "npm:^7.6.3"
+    tiny-typed-emitter: "npm:^2.1.0"
+  checksum: 10c0/6c9540bfaca6a9f4f73ce665f104d5954feb237950c59a73497b8e49b61820735276008c483eb5a7216b0b4c2fc4ca1a5474064645e5b52daa76b43661b3ced1
   languageName: node
   linkType: hard
 
@@ -15553,7 +15585,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"shiki@npm:^3.2.1":
+"shiki@npm:3.2.2":
   version: 3.2.2
   resolution: "shiki@npm:3.2.2"
   dependencies:

@@ -87,11 +87,9 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    修正语言及本地化错误
-    Windows ARM 更新跳转到官网下载
-    改进系统代理处理和初始化逻辑
-    修复 MCP 服务请求头不生效问题
-    移除搜索增强模式
-    优化消息渲染速度
-    修复备份大文件失败问题
-    修复网络搜索导致卡顿问题
+    新增对 grok-2-image 和 gpt-4o-image 图像支持
+    支持 Windows 便携版使用 data 目录存储数据
+    MCP 界面改版，新增描述信息显示
+    Mermaid 渲染逻辑优化
+    支持关闭公示渲染
+    修复 OpenAI 类型渲染错误

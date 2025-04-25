@@ -26,7 +26,7 @@ export interface WebSearchState {
 }
 
 const initialState: WebSearchState = {
-  defaultProvider: '',
+  defaultProvider: 'local-bing',
   providers: [
     {
       id: 'tavily',

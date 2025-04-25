@@ -183,7 +183,7 @@ const FilesPage: FC = () => {
           {dataSource && dataSource?.length > 0 ? (
             <FileList id={fileType} list={dataSource} files={sortedFiles} />
           ) : (
-            <Empty />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
           )}
         </MainContent>
       </ContentContainer>

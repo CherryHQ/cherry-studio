@@ -562,7 +562,9 @@
       "tools": {
         "completed": "已完成",
         "invoking": "調用中",
-        "error": "發生錯誤"
+        "error": "發生錯誤",
+        "raw": "原始碼",
+        "preview": "預覽"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
@@ -583,7 +585,9 @@
         "minimize": "最小化小工具",
         "devtools": "開發者工具",
         "openExternal": "在瀏覽器中開啟",
-        "rightclick_copyurl": "右鍵複製URL"
+        "rightclick_copyurl": "右鍵複製URL",
+        "open_link_external_on": "当前：在瀏覽器中開啟連結",
+        "open_link_external_off": "当前：使用預設視窗開啟連結"
       },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
@@ -1018,6 +1022,9 @@
         "disabled": "隱藏的小程式",
         "empty": "把要隱藏的小程式從左側拖拽到這裡",
         "visible": "顯示的小程式",
+        "open_link_external": {
+          "title": "在瀏覽器中打開新視窗連結"
+        },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",
         "cache_description": "設置同時保持活躍狀態的小程式最大數量",
@@ -1120,6 +1127,7 @@
         "installHelp": "獲取安裝幫助",
         "tabs": {
           "general": "通用",
+          "description": "描述",
           "tools": "工具",
           "prompts": "提示",
           "resources": "資源"
@@ -1248,10 +1256,16 @@
         "basic_auth.user_name.tip": "留空以停用",
         "basic_auth.password": "密碼",
         "basic_auth.password.tip": "",
-        "charge": "儲值",
+        "charge": "餘額充值",
+        "bills": "費用帳單",
         "check": "檢查",
         "check_all_keys": "檢查所有金鑰",
         "check_multiple_keys": "檢查多個 API 金鑰",
+        "oauth": {
+          "button": "使用{{provider}}帳號登入",
+          "description": "本服務由<website>{{provider}}</website>提供",
+          "official_website": "官方網站"
+        },
         "copilot": {
           "auth_failed": "Github Copilot認證失敗",
           "auth_success": "Github Copilot 認證成功",
