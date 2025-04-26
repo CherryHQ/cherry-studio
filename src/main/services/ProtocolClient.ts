@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { app } from 'electron'
 import Logger from 'electron-log'
 
+import { handleMcpProtocolUrl } from './urlschema/mcp-install'
 import { windowService } from './WindowService'
 
 export const CHERRY_STUDIO_PROTOCOL = 'cherrystudio'
@@ -29,6 +30,12 @@ export function handleProtocolUrl(url: string) {
   // Parse the URL and extract parameters
   const urlObj = new URL(url)
   const params = new URLSearchParams(urlObj.search)
+
+  switch (urlObj.hostname.toLowerCase()) {
+    case 'mcp':
+      handleMcpProtocolUrl(urlObj)
+      return
+  }
 
   // You can send the data to your renderer process
   const mainWindow = windowService.getMainWindow()

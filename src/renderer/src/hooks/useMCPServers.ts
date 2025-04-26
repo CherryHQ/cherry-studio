@@ -10,6 +10,9 @@ const ipcRenderer = window.electron.ipcRenderer
 ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
   store.dispatch(setMCPServers(servers))
 })
+ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
+  store.dispatch(addMCPServer(server))
+})
 
 export const useMCPServers = () => {
   const mcpServers = useAppSelector((state) => state.mcp.servers)

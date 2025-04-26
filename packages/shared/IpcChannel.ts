@@ -38,6 +38,7 @@ export enum IpcChannel {
   MiniWindow_SetPin = 'miniwindow:set-pin',
 
   // Mcp
+  Mcp_AddServer = 'mcp:add-server',
   Mcp_RemoveServer = 'mcp:remove-server',
   Mcp_RestartServer = 'mcp:restart-server',
   Mcp_StopServer = 'mcp:stop-server',
