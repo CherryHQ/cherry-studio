@@ -2202,9 +2202,10 @@ export function isVisionModel(model: Model): boolean {
   if (!model) {
     return false
   }
-  if (model.provider === 'copilot') {
-    return false
-  }
+  // 新添字段 copilot-vision-request 后可使用 vision 
+  // if (model.provider === 'copilot') {
+  //   return false
+  // }
 
   if (model.provider === 'doubao') {
     return VISION_REGEX.test(model.name) || model.type?.includes('vision') || false

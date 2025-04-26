@@ -70,7 +70,8 @@ export default class OpenAIProvider extends BaseProvider {
       baseURL: this.getBaseURL(),
       defaultHeaders: {
         ...this.defaultHeaders(),
-        ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {})
+        ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {}),
+        ...(this.provider.id === 'copilot' ? { 'copilot-vision-request': 'true' } : {})
       }
     })
   }
