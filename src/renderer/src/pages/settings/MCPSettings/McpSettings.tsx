@@ -61,7 +61,11 @@ const parseKeyValueString = (str: string): Record<string, string> => {
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const { server } = useLocation().state as { server: MCPServer }
+  const {
+    server: { id: serverId }
+  } = useLocation().state as { server: MCPServer }
+  const { mcpServers } = useMCPServers()
+  const server = mcpServers.find((it) => it.id === serverId) as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
@@ -214,7 +218,8 @@ const McpSettings: React.FC = () => {
         type: values.serverType || server.type,
         description: values.description,
         isActive: values.isActive,
-        registryUrl: values.registryUrl
+        registryUrl: values.registryUrl,
+        searchKey: server.searchKey
       }
 
       // set stdio or sse server
