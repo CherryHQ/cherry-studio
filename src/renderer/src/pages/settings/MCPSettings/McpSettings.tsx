@@ -26,6 +26,7 @@ interface MCPFormValues {
   env?: string
   isActive: boolean
   headers?: string
+  timeout?: number
 }
 
 interface Registry {
@@ -113,6 +114,7 @@ const McpSettings: React.FC = () => {
       command: server.command || '',
       registryUrl: server.registryUrl || '',
       isActive: server.isActive,
+      timeout: server.timeout,
       args: server.args ? server.args.join('\n') : '',
       env: server.env
         ? Object.entries(server.env)
@@ -214,7 +216,8 @@ const McpSettings: React.FC = () => {
         type: values.serverType || server.type,
         description: values.description,
         isActive: values.isActive,
-        registryUrl: values.registryUrl
+        registryUrl: values.registryUrl,
+        timeout: values.timeout ? values.timeout : undefined
       }
 
       // set stdio or sse server
@@ -513,6 +516,15 @@ const McpSettings: React.FC = () => {
               </Form.Item>
             </>
           )}
+          <Form.Item
+            name="timeout"
+            label={t('settings.mcp.timeout', 'Timeout')}
+            tooltip={t(
+              'settings.mcp.timeoutTooltip',
+              'Timeout in seconds for requests to this server, default is 60 seconds'
+            )}>
+            <Input type="number" min={1000} placeholder="60" />
+          </Form.Item>
         </Form>
       )
     }
