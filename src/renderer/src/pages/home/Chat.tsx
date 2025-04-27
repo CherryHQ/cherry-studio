@@ -154,8 +154,8 @@ const UserOutlinedItem = styled(User)`
   border-radius: 4px;
   cursor: pointer;
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   &.active {
     color: var(--color-primary);
   }

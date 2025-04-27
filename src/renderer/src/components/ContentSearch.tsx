@@ -1,6 +1,6 @@
 import { debounce } from 'lodash'
-import { ChevronDown, ChevronUp, X } from 'lucide-react'
-import React, { useCallback, useImperativeHandle, useState } from 'react'
+import { CaseSensitive, ChevronDown, ChevronUp, WholeWord, X } from 'lucide-react'
+import React, { useCallback, useEffect, useImperativeHandle, useState } from 'react'
 import styled from 'styled-components'
 
 const HIGHLIGHT_CLASS = 'highlight'
@@ -41,6 +41,16 @@ export interface ContentSearchRef {
   focus(): void
 }
 
+interface MatchInfo {
+  index: number
+  length: number
+  text: string
+}
+
+const escapeRegExp = (string: string): string => {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // $& means the whole matched string
+}
+
 const findWindowVerticalCenterElementIndex = (elementList: HTMLElement[]): number | null => {
   if (!elementList || elementList.length === 0) {
     return null
@@ -67,20 +77,40 @@ const findWindowVerticalCenterElementIndex = (elementList: HTMLElement[]): numbe
   return closestElementIndex
 }
 
-const highlightText = (textNode: Node, searchText: string, highlightClass: string) => {
+const highlightText = (
+  textNode: Node,
+  searchText: string,
+  highlightClass: string,
+  isCaseSensitive: boolean,
+  isWholeWord: boolean
+): HTMLSpanElement[] | null => {
   const textNodeParentNode: HTMLElement | null = textNode.parentNode as HTMLElement
   if (textNodeParentNode) {
     if (textNodeParentNode.classList.contains(highlightClass)) {
       return null
     }
   }
-  const highlightText = searchText.toLowerCase()
-  if (textNode.nodeType !== Node.TEXT_NODE) {
+  if (textNode.nodeType !== Node.TEXT_NODE || !textNode.textContent) {
     return null
   }
-  const textContent = textNode.textContent!.toLowerCase()
-  let index = textContent.indexOf(highlightText)
-  if (index === -1) {
+
+  const textContent = textNode.textContent
+  const escapedSearchText = escapeRegExp(searchText)
+  const regexFlags = isCaseSensitive ? 'g' : 'gi'
+  const regexPattern = isWholeWord ? `\\b${escapedSearchText}\\b` : escapedSearchText
+  const regex = new RegExp(regexPattern, regexFlags)
+
+  let match
+  const matches: MatchInfo[] = []
+  while ((match = regex.exec(textContent)) !== null) {
+    if (typeof match.index === 'number' && typeof match[0] === 'string') {
+      matches.push({ index: match.index, length: match[0].length, text: match[0] })
+    } else {
+      console.error('Unexpected match format:', match)
+    }
+  }
+
+  if (matches.length === 0) {
     return null
   }
 
@@ -91,25 +121,22 @@ const highlightText = (textNode: Node, searchText: string, highlightClass: strin
 
   const fragment = document.createDocumentFragment()
   let currentIndex = 0
-  let lastIndex = 0
   const highlightTextSet = new Set<HTMLSpanElement>()
-  while (index !== -1) {
-    if (index > lastIndex) {
-      fragment.appendChild(document.createTextNode(textContent.substring(lastIndex, index)))
-    }
 
+  matches.forEach(({ index, length, text }) => {
+    if (index > currentIndex) {
+      fragment.appendChild(document.createTextNode(textContent.substring(currentIndex, index)))
+    }
     const highlightSpan = document.createElement('span')
     highlightSpan.className = highlightClass
-    highlightSpan.textContent = highlightText
+    highlightSpan.textContent = text // Use the matched text to preserve case if not case-sensitive
     fragment.appendChild(highlightSpan)
     highlightTextSet.add(highlightSpan)
-    currentIndex = index + highlightText.length
-    lastIndex = currentIndex
-    index = textContent.indexOf(highlightText, currentIndex)
-  }
+    currentIndex = index + length
+  })
 
-  if (lastIndex < textContent.length) {
-    fragment.appendChild(document.createTextNode(textContent.substring(lastIndex)))
+  if (currentIndex < textContent.length) {
+    fragment.appendChild(document.createTextNode(textContent.substring(currentIndex)))
   }
 
   parentNode.replaceChild(fragment, textNode)
@@ -171,6 +198,8 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
   const [totalCount, setTotalCount] = useState(0)
   const [enableContentSearch, setEnableContentSearch] = useState(false)
   const [searchCompleted, setSearchCompleted] = useState(SearchCompletedState.NotSearched)
+  const [isCaseSensitive, setIsCaseSensitive] = useState(false)
+  const [isWholeWord, setIsWholeWord] = useState(false)
   const highlightTextSet = useState(new Set<Node>())[0]
 
   const locateByIndex = (index: number) => {
@@ -201,20 +230,23 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
 
   const restoreHighlight = () => {
     const highlightTextParentNodeSet = new Set<HTMLElement>()
-    for (const highlightTextNode of highlightTextSet) {
+    // Make a copy because the set might be modified during iteration indirectly
+    const nodesToRestore = [...highlightTextSet]
+    for (const highlightTextNode of nodesToRestore) {
       if (highlightTextNode.textContent) {
         const textNode = document.createTextNode(highlightTextNode.textContent)
         const node = highlightTextNode as HTMLElement
         if (node.parentNode) {
           highlightTextParentNodeSet.add(node.parentNode as HTMLElement)
+          node.replaceWith(textNode) // This removes the node from the DOM
         }
-        node.replaceWith(textNode)
       }
     }
+    highlightTextSet.clear() // Clear the original set after processing
     for (const parentNode of highlightTextParentNodeSet) {
       mergeAdjacentTextNodes(parentNode)
     }
-    highlightTextSet.clear()
+    // highlightTextSet.clear() // Already cleared
   }
 
   const search = (searchTargetIndex?: SearchTargetIndex): number | null => {
@@ -232,7 +264,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
 
       const highlightTextSetTemp = new Set<HTMLSpanElement>()
       for (const node of textNodeSet) {
-        const list = highlightText(node, searchText, HIGHLIGHT_CLASS)
+        const list = highlightText(node, searchText, HIGHLIGHT_CLASS, isCaseSensitive, isWholeWord)
         if (list) {
           list.forEach((node) => highlightTextSetTemp.add(node))
         }
@@ -302,8 +334,12 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
   }, 300)
   const searchHandler = useCallback(_searchHandlerDebounce, [_searchHandlerDebounce])
   const userInputHandler = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.value.length === 0) {
-      implementation.resetSearchState()
+    // When input is empty, clear highlights and reset state
+    if (event.target.value.trim().length === 0) {
+      restoreHighlight()
+      setTotalCount(0)
+      setSearchResultIndex(0)
+      setSearchCompleted(SearchCompletedState.NotSearched)
     } else {
       searchHandler()
     }
@@ -368,6 +404,8 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
     resetSearchState() {
       if (enableContentSearch) {
         setSearchCompleted(SearchCompletedState.NotSearched)
+        // Maybe also reset index? Depends on desired behavior
+        // setSearchResultIndex(0);
       }
     },
     search() {
@@ -375,6 +413,12 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
         const targetIndex = search()
         if (targetIndex !== null) {
           locateByIndex(targetIndex)
+        } else {
+          // If search returns null (e.g., empty input), clear state
+          restoreHighlight()
+          setTotalCount(0)
+          setSearchResultIndex(0)
+          setSearchCompleted(SearchCompletedState.NotSearched)
         }
       }
     },
@@ -415,6 +459,14 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
     }
   }))
 
+  // Re-run search when options change and search is active
+  useEffect(() => {
+    if (enableContentSearch && searchInputRef.current?.value.trim()) {
+      implementation.search()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCaseSensitive, isWholeWord, enableContentSearch]) // Add enableContentSearch dependency
+
   const prevButtonOnClick = () => {
     implementation.searchPrev()
     searchInputFocus()
@@ -429,13 +481,23 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
     implementation.disable()
   }
 
+  const caseSensitiveButtonOnClick = () => {
+    setIsCaseSensitive(!isCaseSensitive)
+    searchInputFocus()
+  }
+
+  const wholeWordButtonOnClick = () => {
+    setIsWholeWord(!isWholeWord)
+    searchInputFocus()
+  }
+
   return (
     <Container ref={containerRef} style={enableContentSearch ? {} : { display: 'none' }}>
-      <Input
-        ref={searchInputRef}
-        onInput={userInputHandler}
-        onKeyDown={keyDownHandler}
-        style={searchCompleted ? { paddingRight: 'initial' } : { paddingRight: '4em' }}></Input>
+      <InputWrapper>
+        <Input ref={searchInputRef} onInput={userInputHandler} onKeyDown={keyDownHandler} />
+        <CaseSensitiveButton onClick={caseSensitiveButtonOnClick} $active={isCaseSensitive} />
+        <WholeWordButton onClick={wholeWordButtonOnClick} $active={isWholeWord} />
+      </InputWrapper>
       <Separator></Separator>
       <SearchResults style={searchCompleted ? {} : { minWidth: 'auto' }}>
         {searchCompleted !== SearchCompletedState.NotSearched && (
@@ -462,13 +524,14 @@ const Container = styled.div`
   align-items: center;
   right: 16px;
   top: 16px;
-  width: min(300px, 25vw);
-  background-color: var(--color-background);
+  width: min(400px, 30vw);
+  height: 40px;
+  background-color: var(--color-background-mute);
   border: var(--color-border) 1px solid;
-  padding: 6px;
+  padding: 4px;
   border-radius: 8px;
   user-select: none;
-  gap: 8px;
+  gap: 4px;
   z-index: 999;
 
   box-shadow:
@@ -477,15 +540,22 @@ const Container = styled.div`
     4px 4px 16px 4px rgba(0, 0, 0, 0.02);
 `
 
+const InputWrapper = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto; /* Take up input's previous space */
+`
+
 const Input = styled.input`
   border: none;
   color: var(--color-text);
   background-color: transparent;
   outline: none;
   width: 100%;
-  padding-left: 10px;
-  flex: 1 1 auto;
-  font-size: 14px;
+  padding: 0 5px; /* Adjust padding, wrapper will handle spacing */
+  flex: 1; /* Allow input to grow */
+  font-size: 16px;
   font-family: Ubuntu;
 `
 
@@ -493,18 +563,18 @@ const Separator = styled.div`
   width: 1px;
   height: 1.5em;
   background-color: var(--color-border);
-  margin-left: 4px;
-  margin-right: 0;
+  margin-left: 2px;
+  margin-right: 2px;
   flex: 0 0 auto;
 `
 
 const SearchResults = styled.div`
   display: flex;
   justify-content: center;
-  min-width: 4em;
+  min-width: 2em;
+  margin: 0 2px;
   flex: 0 0 auto;
   color: var(--color-text-secondary);
-  font-weight: 400;
   font-size: 14px;
   font-family: Ubuntu;
 `
@@ -526,15 +596,15 @@ const ChildWrapper = styled.div`
   display: flex;
   align-items: center;
   flex: 0 0 auto;
+  gap: 2px;
 `
 
 const PrevButton = styled(ChevronUp)`
   border-radius: 4px;
   cursor: pointer;
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  color: var(--color-text-secondary);
+  width: 20px;
+  height: 20px;
 
   &:hover {
     background-color: var(--color-hover);
@@ -546,9 +616,8 @@ const NextButton = styled(ChevronDown)`
   border-radius: 4px;
   cursor: pointer;
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  color: var(--color-text-secondary);
+  width: 20px;
+  height: 20px;
 
   &:hover {
     background-color: var(--color-hover);
@@ -562,10 +631,38 @@ const CloseButton = styled(X)`
   flex: 0 0 auto;
   width: 16px;
   height: 16px;
-  color: var(--color-text-secondary);
 
   &:hover {
     background-color: var(--color-hover);
-    color: var(--color-text);
+    color: var(--color-icon);
+  }
+`
+
+const CaseSensitiveButton = styled(CaseSensitive)<{ $active: boolean }>`
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0 1px;
+  margin-inline-end: 1px;
+  color: ${(props) => (props.$active ? 'var(--color-primary)' : 'var(--color-icon)')};
+
+  &:hover {
+    background-color: var(--color-hover);
+  }
+`
+const WholeWordButton = styled(WholeWord)<{ $active: boolean }>`
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0 1px;
+  margin-inline-end: 1px;
+  color: ${(props) => (props.$active ? 'var(--color-primary)' : 'var(--color-icon)')};
+
+  &:hover {
+    background-color: var(--color-hover);
   }
 `
