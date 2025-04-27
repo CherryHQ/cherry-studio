@@ -523,7 +523,7 @@ const McpSettings: React.FC = () => {
               'settings.mcp.timeoutTooltip',
               'Timeout in seconds for requests to this server, default is 60 seconds'
             )}>
-            <Input type="number" min={1000} placeholder="60" />
+            <Input type="number" min={1000} placeholder="60" addonAfter="s" />
           </Form.Item>
         </Form>
       )
