@@ -55,7 +55,6 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
-import GenerateImageButton from './GenerateImageButton'
 import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MCPToolsButton, { MCPToolsButtonRef } from './MCPToolsButton'
@@ -796,16 +795,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
   }
 
-  const onEnableGenerateImage = () => {
-    updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
-  }
-
   useEffect(() => {
     if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
     }
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
+    }
+    if (isGenerateImageModel(model) && !assistant.enableGenerateImage) {
+      updateAssistant({ ...assistant, enableGenerateImage: true })
     }
   }, [assistant, model, updateAssistant])
 
@@ -952,12 +950,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 ToolbarButton={ToolbarButton}
                 setInputValue={setText}
                 resizeTextArea={resizeTextArea}
-              />
-              <GenerateImageButton
-                model={model}
-                assistant={assistant}
-                onEnableGenerateImage={onEnableGenerateImage}
-                ToolbarButton={ToolbarButton}
               />
               <MentionModelsButton
                 ref={mentionModelsButtonRef}

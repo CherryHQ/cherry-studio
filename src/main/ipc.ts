@@ -5,7 +5,7 @@ import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, ipcMain, session, shell } from 'electron'
+import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
@@ -119,23 +119,26 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // theme
-  ipcMain.handle(IpcChannel.App_SetTheme, (event, theme: ThemeMode) => {
-    if (theme === configManager.getTheme()) return
+  ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+    const notifyThemeChange = () => {
+      const windows = BrowserWindow.getAllWindows()
+      windows.forEach((win) =>
+        win.webContents.send(IpcChannel.ThemeChange, nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light)
+      )
+    }
 
-    configManager.setTheme(theme)
-
-    // should sync theme change to all windows
-    const senderWindowId = event.sender.id
-    const windows = BrowserWindow.getAllWindows()
-    // 向其他窗口广播主题变化
-    windows.forEach((win) => {
-      if (win.webContents.id !== senderWindowId) {
-        win.webContents.send(IpcChannel.ThemeChange, theme)
-      }
-    })
+    if (theme === ThemeMode.auto) {
+      nativeTheme.themeSource = 'system'
+      nativeTheme.on('updated', notifyThemeChange)
+    } else {
+      nativeTheme.themeSource = theme
+      nativeTheme.removeAllListeners('updated')
+    }
 
     mainWindow?.setTitleBarOverlay &&
-      mainWindow.setTitleBarOverlay(theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight)
+      mainWindow.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
+    configManager.setTheme(theme)
+    notifyThemeChange()
   })
 
   // custom css
