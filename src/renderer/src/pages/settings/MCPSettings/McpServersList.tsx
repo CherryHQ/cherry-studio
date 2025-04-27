@@ -61,6 +61,7 @@ const McpServersList: FC = () => {
           <ServerCard key={server.id} onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}>
             <ServerHeader>
               <ServerName>
+                {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
                 <ServerNameText>{server.name}</ServerNameText>
                 {server.providerUrl && (
                   <Button
@@ -154,6 +155,14 @@ const ServerCard = styled.div`
   &:hover {
     border-color: var(--color-primary);
   }
+`
+
+const ServerLogo = styled.img`
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  object-fit: cover;
+  margin-right: 8px;
 `
 
 const ServerHeader = styled.div`
