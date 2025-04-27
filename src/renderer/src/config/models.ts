@@ -2149,6 +2149,8 @@ export const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-exp',
   'grok-2-image-1212',
+  'grok-2-image',
+  'grok-2-image-latest',
   'gpt-4o-image',
   'gpt-image-1'
 ]
