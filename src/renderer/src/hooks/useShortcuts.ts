@@ -42,7 +42,6 @@ export const useShortcut = (
   useHotkeys(
     shortcutConfig?.enabled ? formatShortcut(shortcutConfig.shortcut) : 'none',
     (e) => {
-      console.log('shortcut is invoked', shortcutConfig?.shortcut)
       if (options.preventDefault) {
         e.preventDefault()
       }
