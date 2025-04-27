@@ -1361,6 +1361,7 @@
         "reset_defaults_confirm": "确定要重置所有快捷键吗？",
         "reset_to_default": "重置为默认",
         "search_message": "搜索消息",
+        "search_message_in_chat": "在当前对话中搜索消息",
         "show_app": "显示/隐藏应用",
         "show_settings": "打开设置",
         "title": "快捷方式",

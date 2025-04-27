@@ -1,5 +1,5 @@
-import { CloseOutlined, DownOutlined, UpOutlined } from '@ant-design/icons'
 import { debounce } from 'lodash'
+import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import React, { useCallback, useImperativeHandle, useState } from 'react'
 import styled from 'styled-components'
 
@@ -156,6 +156,7 @@ const mergeAdjacentTextNodes = (node: HTMLElement) => {
   node.replaceChildren(...newChildren)
 }
 
+// eslint-disable-next-line @eslint-react/no-forward-ref
 export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ children, searchTarget, filter }, ref) => {
   const target: HTMLElement | null = (() => {
     if (searchTarget instanceof HTMLElement) {
@@ -429,7 +430,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
   }
 
   return (
-    <Container ref={containerRef} style={enableContentSearch ? { display: 'flex' } : {}}>
+    <Container ref={containerRef} style={enableContentSearch ? {} : { display: 'none' }}>
       <Input
         ref={searchInputRef}
         onInput={userInputHandler}
@@ -445,26 +446,29 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
           </>
         )}
       </SearchResults>
-      {children}
+      <ChildWrapper>{children}</ChildWrapper>
       <PrevButton onClick={prevButtonOnClick}></PrevButton>
       <NextButton onClick={nextButtonOnClick}></NextButton>
       <CloseButton onClick={closeButtonOnClick}></CloseButton>
     </Container>
   )
 })
+
 ContentSearch.displayName = 'ContentSearch'
 
 const Container = styled.div`
   position: absolute;
+  display: flex;
+  align-items: center;
   right: 16px;
   top: 16px;
-  display: none;
-  width: min(380px, 35vw);
+  width: min(300px, 25vw);
   background-color: var(--color-background);
   border: var(--color-border) 1px solid;
   padding: 6px;
   border-radius: 8px;
   user-select: none;
+  gap: 8px;
 
   box-shadow:
     1px 1px 4px 1px rgba(0, 0, 0, 0.04),
@@ -480,21 +484,28 @@ const Input = styled.input`
   width: 100%;
   padding-left: 10px;
   flex: 1 1 auto;
+  font-size: 14px;
+  font-family: Ubuntu;
 `
 
 const Separator = styled.div`
   width: 1px;
+  height: 1.5em;
   background-color: var(--color-border);
-  margin-left: 12px;
-  margin-right: 4px;
-  flex: 1 0 auto;
+  margin-left: 4px;
+  margin-right: 0;
+  flex: 0 0 auto;
 `
 
 const SearchResults = styled.div`
   display: flex;
   justify-content: center;
   min-width: 4em;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-weight: 400;
+  font-size: 14px;
+  font-family: Ubuntu;
 `
 
 const SearchResultCount = styled.span`
@@ -510,41 +521,50 @@ const SearchResultTotalCount = styled.span`
   color: var(--color-text);
 `
 
-const PrevButton = styled(UpOutlined)`
-  border: none;
-  outline: none;
-  padding: 6px;
-  border-radius: 8px;
+const ChildWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+`
+
+const PrevButton = styled(ChevronUp)`
+  border-radius: 4px;
   cursor: pointer;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-secondary);
 
   &:hover {
     background-color: var(--color-hover);
+    color: var(--color-text);
   }
 `
 
-const NextButton = styled(DownOutlined)`
-  border: none;
-  outline: none;
-  padding: 6px;
-  border-radius: 8px;
+const NextButton = styled(ChevronDown)`
+  border-radius: 4px;
   cursor: pointer;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-secondary);
 
   &:hover {
     background-color: var(--color-hover);
+    color: var(--color-text);
   }
 `
 
-const CloseButton = styled(CloseOutlined)`
-  border: none;
-  outline: none;
-  padding: 6px;
-  border-radius: 8px;
+const CloseButton = styled(X)`
+  border-radius: 4px;
   cursor: pointer;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-secondary);
 
   &:hover {
     background-color: var(--color-hover);
+    color: var(--color-text);
   }
 `

@@ -1,13 +1,14 @@
+import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { User } from 'lucide-react'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
-import { ContentSearch, ContentSearchRef } from '@renderer/utils/ContentSearch'
 import { Flex, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { debounce } from 'lodash'
+import { User } from 'lucide-react'
 import React, { FC, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
@@ -35,8 +36,12 @@ const Chat: FC<Props> = (props) => {
     contentSearchRef.current?.disable()
   })
 
-  useHotkeys('f3', () => {
-    contentSearchRef.current?.enable()
+  useShortcut('search_message_in_chat', () => {
+    try {
+      contentSearchRef.current?.enable()
+    } catch (error) {
+      console.error('Error enabling content search:', error)
+    }
   })
 
   const contentSearchFilter = (node: Node): boolean => {
@@ -108,7 +113,10 @@ const Chat: FC<Props> = (props) => {
         <QuickPanelProvider>
           <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
         </QuickPanelProvider>
-        <ContentSearch ref={contentSearchRef} searchTarget={mainRef} filter={contentSearchFilter}>
+        <ContentSearch
+          ref={contentSearchRef}
+          searchTarget={mainRef as React.RefObject<HTMLElement>}
+          filter={contentSearchFilter}>
           <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
             <UserOutlinedItem className={filterIncludeUser ? 'active' : ''} onClick={userOutlinedItemClickHandler} />
           </Tooltip>
@@ -143,10 +151,11 @@ const Main = styled(Flex)`
 `
 
 const UserOutlinedItem = styled(User)`
-  margin-right: 4px;
-  padding: 0 6px;
-  border-radius: 6px;
-
+  border-radius: 4px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
   &.active {
     color: var(--color-primary);
   }
