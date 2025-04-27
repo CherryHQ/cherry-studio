@@ -27,6 +27,8 @@ interface ModelScopeServer {
   chinese_name?: string
   description?: string
   operational_urls?: { url: string }[]
+  tags?: string[]
+  logo_url?: string
 }
 
 interface ModelScopeSyncResult {
@@ -103,7 +105,11 @@ export const syncModelScopeServers = async (
           command: '',
           args: [],
           env: {},
-          isActive: true
+          isActive: true,
+          provider: 'ModelScope',
+          providerUrl: `https://www.modelscope.cn/mcp/servers/@${server.id}`,
+          logoUrl: server.logo_url || '',
+          tags: server.tags || []
         }
 
         addedServers.push(mcpServer)

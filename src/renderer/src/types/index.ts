@@ -404,6 +404,10 @@ export interface MCPServer {
   configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
   searchKey?: string
+  provider?: string
+  providerUrl?: string
+  logoUrl?: string
+  tags?: string[]
 }
 
 export interface MCPToolInputSchema {
