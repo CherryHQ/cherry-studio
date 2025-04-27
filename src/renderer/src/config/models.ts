@@ -2168,6 +2168,8 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.5-flash-preview-04-17'
 ]
 
+export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
+
 export const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reasoning', 'sonar-reasoning-pro']
 
 export function isTextToImageModel(model: Model): boolean {
@@ -2202,7 +2204,7 @@ export function isVisionModel(model: Model): boolean {
   if (!model) {
     return false
   }
-  // 新添字段 copilot-vision-request 后可使用 vision 
+  // 新添字段 copilot-vision-request 后可使用 vision
   // if (model.provider === 'copilot') {
   //   return false
   // }
