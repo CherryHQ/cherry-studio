@@ -9,7 +9,7 @@ import { CreateDirectoryOptions } from 'webdav'
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
-  setProxy: (proxy: string) => ipcRenderer.invoke(IpcChannel.App_Proxy, proxy),
+  setProxy: (proxy: string | undefined) => ipcRenderer.invoke(IpcChannel.App_Proxy, proxy),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
@@ -50,16 +50,16 @@ const api = {
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),
-    upload: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Upload, filePath),
+    upload: (file: FileType) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     read: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId),
     clear: () => ipcRenderer.invoke(IpcChannel.File_Clear),
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     create: (fileName: string) => ipcRenderer.invoke(IpcChannel.File_Create, fileName),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
-    open: (options?: { decompress: boolean }) => ipcRenderer.invoke(IpcChannel.File_Open, options),
+    open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
-    save: (path: string, content: string, options?: { compress: boolean }) =>
+    save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
     selectFolder: () => ipcRenderer.invoke(IpcChannel.File_SelectFolder),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
@@ -108,7 +108,7 @@ const api = {
     base64File: (file: FileType) => ipcRenderer.invoke(IpcChannel.Gemini_Base64File, file),
     retrieveFile: (file: FileType, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_RetrieveFile, file, apiKey),
     listFiles: (apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_ListFiles, apiKey),
-    deleteFile: (apiKey: string, fileId: string) => ipcRenderer.invoke(IpcChannel.Gemini_DeleteFile, apiKey, fileId)
+    deleteFile: (fileId: string, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_DeleteFile, fileId, apiKey)
   },
   selectionMenu: {
     action: (action: string) => ipcRenderer.invoke(IpcChannel.SelectionMenu_Action, action)
@@ -135,7 +135,7 @@ const api = {
     restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
     stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
     listTools: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListTools, server),
-    callTool: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
+    callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_CallTool, { server, name, args }),
     listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
     getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
@@ -146,7 +146,7 @@ const api = {
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo)
   },
   shell: {
-    openExternal: shell.openExternal
+    openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)
   },
   copilot: {
     getAuthMessage: (headers?: Record<string, string>) =>

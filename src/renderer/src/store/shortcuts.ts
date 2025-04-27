@@ -88,7 +88,8 @@ const getSerializableShortcuts = (shortcuts: Shortcut[]) => {
     key: shortcut.key,
     shortcut: [...shortcut.shortcut],
     enabled: shortcut.enabled,
-    system: shortcut.system
+    system: shortcut.system,
+    editable: shortcut.editable
   }))
 }
 
