@@ -3,7 +3,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
-import { Button, Flex, Form, Input, Radio, Switch, Tabs } from 'antd'
+import { Button, Collapse, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +27,11 @@ interface MCPFormValues {
   isActive: boolean
   headers?: string
   timeout?: number
+
+  provider?: string
+  providerUrl?: string
+  logoUrl?: string
+  tags?: string[]
 }
 
 interface Registry {
@@ -115,6 +120,10 @@ const McpSettings: React.FC = () => {
       registryUrl: server.registryUrl || '',
       isActive: server.isActive,
       timeout: server.timeout,
+      provider: server.provider || '',
+      providerUrl: server.providerUrl || '',
+      logoUrl: server.logoUrl || '',
+      tags: server.tags || [],
       args: server.args ? server.args.join('\n') : '',
       env: server.env
         ? Object.entries(server.env)
@@ -217,7 +226,11 @@ const McpSettings: React.FC = () => {
         description: values.description,
         isActive: values.isActive,
         registryUrl: values.registryUrl,
-        timeout: values.timeout ? values.timeout : undefined
+        timeout: values.timeout ? values.timeout : undefined,
+        provider: values.provider || undefined,
+        providerUrl: values.providerUrl || undefined,
+        logoUrl: values.logoUrl || undefined,
+        tags: values.tags || undefined
       }
 
       // set stdio or sse server
@@ -525,6 +538,42 @@ const McpSettings: React.FC = () => {
             )}>
             <Input type="number" min={1000} placeholder="60" addonAfter="s" />
           </Form.Item>
+
+          <Collapse
+            ghost
+            style={{ marginBottom: 16 }}
+            defaultActiveKey={[]}
+            items={[
+              {
+                key: 'advanced',
+                label: t('settings.mcp.advancedSettings', 'Advanced Settings'),
+                children: (
+                  <>
+                    <Form.Item name="provider" label={t('settings.mcp.provider', 'Provider')}>
+                      <Input placeholder={t('settings.mcp.providerPlaceholder', 'Provider name')} />
+                    </Form.Item>
+
+                    <Form.Item name="providerUrl" label={t('settings.mcp.providerUrl', 'Provider URL')}>
+                      <Input placeholder={t('settings.mcp.providerUrlPlaceholder', 'https://provider-website.com')} />
+                    </Form.Item>
+
+                    <Form.Item name="logoUrl" label={t('settings.mcp.logoUrl', 'Logo URL')}>
+                      <Input placeholder={t('settings.mcp.logoUrlPlaceholder', 'https://example.com/logo.png')} />
+                    </Form.Item>
+
+                    <Form.Item name="tags" label={t('settings.mcp.tags', 'Tags')}>
+                      <Select
+                        mode="tags"
+                        style={{ width: '100%' }}
+                        placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
+                        tokenSeparators={[',']}
+                      />
+                    </Form.Item>
+                  </>
+                )
+              }
+            ]}
+          />
         </Form>
       )
     }
