@@ -1,9 +1,9 @@
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
-import { startMinAppById } from '@renderer/config/minapps'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
@@ -32,6 +32,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
   const { userName, sidebarIcons } = useSettings()
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
+  const { openMinappById } = useMinappPopup()
 
   const avatarSource = useMemo(() => getAvatarSource(isLocalAi, getMessageModelId(message)), [message])
 
@@ -54,7 +55,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
 
   const showMiniApp = useCallback(() => {
-    showMinappIcon && model?.provider && startMinAppById(model.provider)
+    showMinappIcon && model?.provider && openMinappById(model.provider)
+    // because don't need openMinappById to be a dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.provider, showMinappIcon])
 
   const avatarStyle: CSSProperties | undefined = isBubbleStyle
@@ -72,7 +75,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
             src={avatarSource}
             size={35}
             style={{
-              borderRadius: '20%',
+              borderRadius: '25%',
               cursor: showMinappIcon ? 'pointer' : 'default',
               border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
@@ -88,7 +91,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
               <Avatar
                 src={avatar}
                 size={35}
-                style={{ borderRadius: '20%', cursor: 'pointer' }}
+                style={{ borderRadius: '25%', cursor: 'pointer' }}
                 onClick={() => UserPopup.show()}
               />
             )}
@@ -148,8 +151,9 @@ const UserName = styled.div<{ isBubbleStyle?: boolean; theme?: string }>`
 `
 
 const MessageTime = styled.div`
-  font-size: 12px;
+  font-size: 10px;
   color: var(--color-text-3);
+  font-family: 'Ubuntu';
 `
 
 export default MessageHeader

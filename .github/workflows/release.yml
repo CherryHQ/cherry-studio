@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag (e.g. v1.0.0)'
         required: true
-        default: 'v0.9.18'
+        default: 'v1.0.0'
   push:
     tags:
       - v*.*.*
@@ -38,19 +38,24 @@ jobs:
           fi
 
       - name: Install Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install python-setuptools
+
       - name: Install corepack
-        run: corepack enable && corepack prepare yarn@4.3.1 --activate
+        run: corepack enable && corepack prepare yarn@4.6.0 --activate
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
         run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
 
       - name: Cache yarn dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ steps.yarn-cache-dir-path.outputs.dir }}
@@ -71,10 +76,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build Mac
         if: matrix.os == 'macos-latest'
         run: |
+          sudo -H pip install setuptools
           yarn build:npm mac
           yarn build:mac
         env:
@@ -85,16 +92,17 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
-        run: yarn build:win
+        run: |
+          yarn build:npm windows
+          yarn build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
-
-      - name: Replace spaces in filenames
-        run: node scripts/replace-spaces.js
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Release
         uses: ncipollo/release-action@v1

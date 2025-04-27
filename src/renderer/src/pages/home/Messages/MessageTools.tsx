@@ -1,7 +1,7 @@
-import { CheckOutlined, ExpandOutlined, LoadingOutlined } from '@ant-design/icons'
+import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { MCPToolResponse, Message } from '@renderer/types'
-import { Collapse, message as antdMessage, Modal, Tooltip } from 'antd'
+import { Message } from '@renderer/types'
+import { Collapse, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,29 +42,33 @@ const MessageTools: FC<Props> = ({ message }) => {
 
   // Format tool responses for collapse items
   const getCollapseItems = () => {
-    const items: { key: string; label: JSX.Element; children: React.ReactNode }[] = []
-
+    const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
     // Add tool responses
-    toolResponses.forEach((toolResponse: MCPToolResponse) => {
-      const { tool, status } = toolResponse
-      const toolId = tool.id
+    for (const toolResponse of toolResponses) {
+      const { id, tool, status, response } = toolResponse
       const isInvoking = status === 'invoking'
       const isDone = status === 'done'
-      const response = {
+      const hasError = isDone && response?.isError === true
+      const result = {
         params: tool.inputSchema,
         response: toolResponse.response
       }
 
       items.push({
-        key: toolId,
+        key: id,
         label: (
           <MessageTitleLabel>
             <TitleContent>
               <ToolName>{tool.name}</ToolName>
-              <StatusIndicator $isInvoking={isInvoking}>
-                {isInvoking ? t('tools.invoking') : t('tools.completed')}
+              <StatusIndicator $isInvoking={isInvoking} $hasError={hasError}>
+                {isInvoking
+                  ? t('message.tools.invoking')
+                  : hasError
+                    ? t('message.tools.error')
+                    : t('message.tools.completed')}
                 {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
-                {isDone && <CheckOutlined style={{ marginLeft: 6 }} />}
+                {isDone && !hasError && <CheckOutlined style={{ marginLeft: 6 }} />}
+                {hasError && <WarningOutlined style={{ marginLeft: 6 }} />}
               </StatusIndicator>
             </TitleContent>
             <ActionButtonsContainer>
@@ -89,11 +93,11 @@ const MessageTools: FC<Props> = ({ message }) => {
                       className="message-action-button"
                       onClick={(e) => {
                         e.stopPropagation()
-                        copyContent(JSON.stringify(response, null, 2), toolId)
+                        copyContent(JSON.stringify(result, null, 2), id)
                       }}
                       aria-label={t('common.copy')}>
-                      {!copiedMap[toolId] && <i className="iconfont icon-copy"></i>}
-                      {copiedMap[toolId] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+                      {!copiedMap[id] && <i className="iconfont icon-copy"></i>}
+                      {copiedMap[id] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
                     </ActionButton>
                   </Tooltip>
                 </>
@@ -101,15 +105,33 @@ const MessageTools: FC<Props> = ({ message }) => {
             </ActionButtonsContainer>
           </MessageTitleLabel>
         ),
-        children: isDone && response && (
-          <ToolResponseContainer style={{ fontFamily, fontSize }}>
-            <pre>{JSON.stringify(response, null, 2)}</pre>
+        children: isDone && result && (
+          <ToolResponseContainer style={{ fontFamily, fontSize: '12px' }}>
+            <CodeBlock>{JSON.stringify(result, null, 2)}</CodeBlock>
           </ToolResponseContainer>
         )
       })
-    })
+    }
 
     return items
+  }
+
+  const renderPreview = (content: string) => {
+    if (!content) return null
+
+    try {
+      const parsedResult = JSON.parse(content)
+      switch (parsedResult.content[0]?.type) {
+        case 'text':
+          return <PreviewBlock>{parsedResult.content[0].text}</PreviewBlock>
+        // TODO: support other types
+        default:
+          return <PreviewBlock>{content}</PreviewBlock>
+      }
+    } catch (e) {
+      console.error('failed to render the preview of mcp results:', e)
+      return <PreviewBlock>{content}</PreviewBlock>
+    }
   }
 
   return (
@@ -131,21 +153,46 @@ const MessageTools: FC<Props> = ({ message }) => {
         onCancel={() => setExpandedResponse(null)}
         footer={null}
         width="80%"
-        bodyStyle={{ maxHeight: '80vh', overflow: 'auto' }}>
+        centered
+        styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
         {expandedResponse && (
           <ExpandedResponseContainer style={{ fontFamily, fontSize }}>
-            <ActionButton
-              className="copy-expanded-button"
-              onClick={() => {
-                if (expandedResponse) {
-                  navigator.clipboard.writeText(expandedResponse.content)
-                  antdMessage.success({ content: t('message.copied'), key: 'copy-expanded' })
+            {/* mode swtich tabs */}
+            <Tabs
+              tabBarExtraContent={
+                <ActionButton
+                  className="copy-expanded-button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      typeof expandedResponse.content === 'string'
+                        ? expandedResponse.content
+                        : JSON.stringify(expandedResponse.content, null, 2)
+                    )
+                    antdMessage.success({ content: t('message.copied'), key: 'copy-expanded' })
+                  }}
+                  aria-label={t('common.copy')}>
+                  <i className="iconfont icon-copy"></i>
+                </ActionButton>
+              }
+              items={[
+                {
+                  key: 'preview',
+                  label: t('message.tools.preview'),
+                  children: renderPreview(expandedResponse.content)
+                },
+                {
+                  key: 'raw',
+                  label: t('message.tools.raw'),
+                  children: (
+                    <CodeBlock>
+                      {typeof expandedResponse.content === 'string'
+                        ? expandedResponse.content
+                        : JSON.stringify(expandedResponse.content, null, 2)}
+                    </CodeBlock>
+                  )
                 }
-              }}
-              aria-label={t('common.copy')}>
-              <i className="iconfont icon-copy"></i>
-            </ActionButton>
-            <pre>{expandedResponse.content}</pre>
+              ]}
+            />
           </ExpandedResponseContainer>
         )}
       </Modal>
@@ -157,7 +204,6 @@ const CollapseContainer = styled(Collapse)`
   margin-bottom: 15px;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
   .ant-collapse-header {
     background-color: var(--color-bg-2);
@@ -197,8 +243,12 @@ const ToolName = styled.span`
   font-size: 13px;
 `
 
-const StatusIndicator = styled.span<{ $isInvoking: boolean }>`
-  color: ${(props) => (props.$isInvoking ? 'var(--color-primary)' : 'var(--color-success, #52c41a)')};
+const StatusIndicator = styled.span<{ $isInvoking: boolean; $hasError?: boolean }>`
+  color: ${(props) => {
+    if (props.$hasError) return 'var(--color-error, #ff4d4f)'
+    if (props.$isInvoking) return 'var(--color-primary)'
+    return 'var(--color-success, #52c41a)'
+  }};
   font-size: 11px;
   display: flex;
   align-items: center;
@@ -255,15 +305,24 @@ const ToolResponseContainer = styled.div`
   padding: 12px 16px;
   overflow: auto;
   max-height: 300px;
-  border-top: 1px solid var(--color-border);
+  border-top: none;
   position: relative;
+`
 
-  pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: var(--color-text);
-  }
+const PreviewBlock = styled.div`
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text);
+  user-select: text;
+`
+
+const CodeBlock = styled.pre`
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text);
+  font-family: ubuntu;
 `
 
 const ExpandedResponseContainer = styled.div`

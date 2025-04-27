@@ -1,4 +1,4 @@
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -12,17 +12,18 @@ export default defineConfig({
     plugins: [
       externalizeDepsPlugin({
         exclude: [
-          '@llm-tools/embedjs',
-          '@llm-tools/embedjs-openai',
-          '@llm-tools/embedjs-loader-web',
-          '@llm-tools/embedjs-loader-markdown',
-          '@llm-tools/embedjs-loader-msoffice',
-          '@llm-tools/embedjs-loader-xml',
-          '@llm-tools/embedjs-loader-pdf',
-          '@llm-tools/embedjs-loader-sitemap',
-          '@llm-tools/embedjs-libsql',
-          '@llm-tools/embedjs-loader-image',
-          'p-queue'
+          '@cherrystudio/embedjs',
+          '@cherrystudio/embedjs-openai',
+          '@cherrystudio/embedjs-loader-web',
+          '@cherrystudio/embedjs-loader-markdown',
+          '@cherrystudio/embedjs-loader-msoffice',
+          '@cherrystudio/embedjs-loader-xml',
+          '@cherrystudio/embedjs-loader-pdf',
+          '@cherrystudio/embedjs-loader-sitemap',
+          '@cherrystudio/embedjs-libsql',
+          '@cherrystudio/embedjs-loader-image',
+          'p-queue',
+          'webdav'
         ]
       }),
       ...visualizerPlugin('main')
@@ -41,24 +42,27 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@shared': resolve('packages/shared')
+      }
+    }
   },
   renderer: {
     plugins: [
       react({
-        babel: {
-          plugins: [
-            [
-              'styled-components',
-              {
-                displayName: true, // 开发环境下启用组件名称
-                fileName: false, // 不在类名中包含文件名
-                pure: true, // 优化性能
-                ssr: false // 不需要服务端渲染
-              }
-            ]
+        plugins: [
+          [
+            '@swc/plugin-styled-components',
+            {
+              displayName: true, // 开发环境下启用组件名称
+              fileName: false, // 不在类名中包含文件名
+              pure: true, // 优化性能
+              ssr: false // 不需要服务端渲染
+            }
           ]
-        }
+        ]
       }),
       ...visualizerPlugin('renderer')
     ],
@@ -69,7 +73,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['chunk-PZ64DZKH.js', 'chunk-JMKENWIY.js', 'chunk-UXYB6GHG.js', 'chunk-ALDIEZMG.js']
+      exclude: []
     }
   }
 })

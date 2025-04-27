@@ -1,5 +1,6 @@
-import { isReasoningModel } from '@renderer/config/models'
-import { Message } from '@renderer/types'
+import { isOpenAIWebSearch, isReasoningModel } from '@renderer/config/models'
+import { getAssistantById } from '@renderer/services/AssistantService'
+import { Citation, Message, Model } from '@renderer/types'
 
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
@@ -37,11 +38,20 @@ $$
 }
 
 export function extractTitle(html: string): string | null {
+  // 处理标准闭合的标题标签
   const titleRegex = /<title>(.*?)<\/title>/i
   const match = html.match(titleRegex)
 
-  if (match && match[1]) {
-    return match[1].trim()
+  if (match) {
+    return match[1] ? match[1].trim() : ''
+  }
+
+  // 处理未闭合的标题标签
+  const malformedTitleRegex = /<title>(.*?)($|<(?!\/title))/i
+  const malformedMatch = html.match(malformedTitleRegex)
+
+  if (malformedMatch) {
+    return malformedMatch[1] ? malformedMatch[1].trim() : ''
   }
 
   return null
@@ -70,12 +80,16 @@ export function withGeminiGrounding(message: Message) {
   let content = message.content
 
   groundingSupports.forEach((support) => {
-    const text = support.segment.text
-    const indices = support.groundingChunkIndices
-    const nodes = indices.reduce((acc, index) => {
+    const text = support?.segment?.text
+    const indices = support?.groundingChunkIndices
+
+    if (!text || !indices) return
+
+    const nodes = indices.reduce<string[]>((acc, index) => {
       acc.push(`<sup>${index + 1}</sup>`)
       return acc
     }, [])
+
     content = content.replace(text, `${text} ${nodes.join(' ')}`)
   })
 
@@ -91,11 +105,8 @@ const glmZeroPreviewProcessor: ThoughtProcessor = {
   canProcess: (content: string, message?: Message) => {
     if (!message) return false
 
-    const model = message.model
-    if (!model || !isReasoningModel(model)) return false
-
     const modelId = message.modelId || ''
-    const modelName = model.name || ''
+    const modelName = message.model?.name || ''
     const isGLMZeroPreview =
       modelId.toLowerCase().includes('glm-zero-preview') || modelName.toLowerCase().includes('glm-zero-preview')
 
@@ -116,9 +127,6 @@ const glmZeroPreviewProcessor: ThoughtProcessor = {
 const thinkTagProcessor: ThoughtProcessor = {
   canProcess: (content: string, message?: Message) => {
     if (!message) return false
-
-    const model = message.model
-    if (!model || !isReasoningModel(model)) return false
 
     return content.startsWith('<think>') || content.includes('</think>')
   },
@@ -162,6 +170,15 @@ export function withMessageThought(message: Message) {
     return message
   }
 
+  const model = message.model
+  if (!model || !isReasoningModel(model)) return message
+
+  const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
+  if (isClaude37Sonnet) {
+    const assistant = getAssistantById(message.assistantId)
+    if (!assistant?.settings?.reasoning_effort) return message
+  }
+
   const content = message.content.trim()
   const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor]
 
@@ -173,4 +190,128 @@ export function withMessageThought(message: Message) {
   }
 
   return message
+}
+
+export function withGenerateImage(message: Message) {
+  const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
+  const imageMatches = message.content.match(imagePattern)
+
+  if (!imageMatches || imageMatches[1] === null) {
+    return message
+  }
+
+  // 替换图片语法，保留其他内容
+  let cleanContent = message.content.replace(imagePattern, '').trim()
+
+  // 检查是否有下载链接
+  const downloadPattern = new RegExp(`\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
+  const downloadMatches = cleanContent.match(downloadPattern)
+
+  // 如果有下载链接，只保留图片前的内容
+  if (downloadMatches) {
+    const contentBeforeImage = message.content.split(imageMatches[0])[0].trim()
+    cleanContent = contentBeforeImage
+  }
+
+  message = {
+    ...message,
+    content: cleanContent,
+    metadata: {
+      ...message.metadata,
+      generateImage: {
+        type: 'url',
+        images: [imageMatches[1]]
+      }
+    }
+  }
+  return message
+}
+
+export function addImageFileToContents(messages: Message[]) {
+  const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
+  if (!lastAssistantMessage || !lastAssistantMessage.metadata || !lastAssistantMessage.metadata.generateImage) {
+    return messages
+  }
+
+  const imageFiles = lastAssistantMessage.metadata.generateImage.images
+  const updatedAssistantMessage = {
+    ...lastAssistantMessage,
+    images: imageFiles
+  }
+
+  return messages.map((message) => (message.id === lastAssistantMessage.id ? updatedAssistantMessage : message))
+}
+
+/**
+ * 格式化 citations
+ * @param metadata 消息的 metadata
+ * @param model 模型
+ * @param urlCache url 缓存
+ * @returns citations
+ */
+export const formatCitations = (
+  metadata: Message['metadata'],
+  model: Model | undefined,
+  urlCache: Map<string, URL>
+): Citation[] | null => {
+  if (!metadata?.citations?.length && !metadata?.annotations?.length) {
+    return null
+  }
+
+  interface UrlInfo {
+    hostname: string
+    url: string
+  }
+
+  // 提取 URL 处理函数到组件外
+  const getUrlInfo = (url: string, urlCache: Map<string, URL>): UrlInfo => {
+    try {
+      let urlObj = urlCache.get(url)
+      if (!urlObj) {
+        urlObj = new URL(url)
+        urlCache.set(url, urlObj)
+      }
+      return { hostname: urlObj.hostname, url }
+    } catch {
+      return { hostname: url, url }
+    }
+  }
+
+  // 使用 Set 提前去重，减少后续处理
+  const uniqueUrls = new Set<string>()
+  let citations: Citation[] = []
+
+  if (model && isOpenAIWebSearch(model)) {
+    citations =
+      metadata.annotations
+        ?.filter((annotation) => {
+          const url = annotation.url_citation?.url
+          if (!url || uniqueUrls.has(url)) return false
+          uniqueUrls.add(url)
+          return true
+        })
+        .map((annotation, index) => ({
+          number: index + 1,
+          url: annotation.url_citation.url,
+          hostname: annotation.url_citation.title,
+          title: annotation.url_citation.title
+        })) || []
+  } else {
+    citations = (metadata?.citations || [])
+      .filter((url) => {
+        if (!url || uniqueUrls.has(url)) return false
+        uniqueUrls.add(url)
+        return true
+      })
+      .map((url, index) => {
+        const { hostname } = getUrlInfo(url, urlCache)
+        return {
+          number: index + 1,
+          url,
+          hostname
+        }
+      })
+  }
+
+  return citations
 }

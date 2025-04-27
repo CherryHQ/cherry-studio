@@ -1,22 +1,25 @@
-import db from '@renderer/databases'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { estimateMessageUsage } from '@renderer/services/TokenService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   clearStreamMessage,
   clearTopicMessages,
   commitStreamMessage,
+  deleteMessageAction,
   resendMessage,
   selectDisplayCount,
   selectTopicLoading,
   selectTopicMessages,
   setStreamMessage,
   setTopicLoading,
-  updateMessage,
-  updateMessages
+  updateMessages,
+  updateMessageThunk
 } from '@renderer/store/messages'
 import type { Assistant, Message, Topic } from '@renderer/types'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { useCallback } from 'react'
+
+import { TopicManager } from './useTopic'
 /**
  * 自定义Hook，提供消息操作相关的功能
  *
@@ -25,17 +28,15 @@ import { useCallback } from 'react'
  */
 export function useMessageOperations(topic: Topic) {
   const dispatch = useAppDispatch()
-  const messages = useAppSelector((state) => selectTopicMessages(state, topic.id))
 
   /**
    * 删除单个消息
    */
   const deleteMessage = useCallback(
-    async (message: Message) => {
-      const newMessages = messages.filter((m) => m.id !== message.id)
-      await dispatch(updateMessages(topic, newMessages))
+    async (id: string) => {
+      await dispatch(deleteMessageAction(topic, id))
     },
-    [dispatch, topic, messages]
+    [dispatch, topic]
   )
 
   /**
@@ -43,10 +44,9 @@ export function useMessageOperations(topic: Topic) {
    */
   const deleteGroupMessages = useCallback(
     async (askId: string) => {
-      const newMessages = messages.filter((m) => m.askId !== askId)
-      await dispatch(updateMessages(topic, newMessages))
+      await dispatch(deleteMessageAction(topic, askId, 'askId'))
     },
-    [dispatch, topic, messages]
+    [dispatch, topic]
   )
 
   /**
@@ -54,18 +54,19 @@ export function useMessageOperations(topic: Topic) {
    */
   const editMessage = useCallback(
     async (messageId: string, updates: Partial<Message>) => {
-      await dispatch(
-        updateMessage({
-          topicId: topic.id,
-          messageId,
-          updates
-        })
-      )
-      await db.topics.update(topic.id, {
-        messages: messages.map((m) => (m.id === messageId ? { ...m, ...updates } : m))
-      })
+      // 如果更新包含内容变更，重新计算 token
+      if ('content' in updates) {
+        const messages = store.getState().messages.messagesByTopic[topic.id]
+        const message = messages?.find((m) => m.id === messageId)
+        if (message) {
+          const updatedMessage = { ...message, ...updates }
+          const usage = await estimateMessageUsage(updatedMessage)
+          updates.usage = usage
+        }
+      }
+      await dispatch(updateMessageThunk(topic.id, messageId, updates))
     },
-    [dispatch, messages, topic.id]
+    [dispatch, topic.id]
   )
 
   /**
@@ -126,7 +127,9 @@ export function useMessageOperations(topic: Topic) {
    */
   const clearTopicMessagesAction = useCallback(
     async (_topicId?: string) => {
-      await dispatch(clearTopicMessages(_topicId || topic.id))
+      const topicId = _topicId || topic.id
+      await dispatch(clearTopicMessages(topicId))
+      await TopicManager.clearTopicMessages(topicId)
     },
     [dispatch, topic.id]
   )
@@ -148,7 +151,6 @@ export function useMessageOperations(topic: Topic) {
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [])
 
-  const loading = useAppSelector((state) => selectTopicLoading(state, topic.id))
   const displayCount = useAppSelector(selectDisplayCount)
   // /**
   //  * 获取当前消息列表
@@ -158,34 +160,35 @@ export function useMessageOperations(topic: Topic) {
   /**
    * 暂停消息生成
    */
-  const pauseMessage = useCallback(
-    // 存的是用户消息的id，也就是助手消息的askId
-    async (message: Message) => {
-      // 1. 调用 abort
-      message.askId && abortCompletion(message.askId)
+  // const pauseMessage = useCallback(
+  //   // 存的是用户消息的id，也就是助手消息的askId
+  //   async (message: Message) => {
+  //     // 1. 调用 abort
 
-      // 2. 更新消息状态
-      await editMessage(message.id, { status: 'paused', content: message.content })
+  //     // 2. 更新消息状态,
+  //     // await editMessage(message.id, { status: 'paused', content: message.content })
 
-      // 3.更改loading状态
-      dispatch(setTopicLoading({ topicId: message.topicId, loading: false }))
+  //     // 3.更改loading状态
+  //     dispatch(setTopicLoading({ topicId: message.topicId, loading: false }))
 
-      // 4. 清理流式消息
-      clearStreamMessageAction(message.id)
-    },
-    [editMessage, dispatch, clearStreamMessageAction]
-  )
+  //     // 4. 清理流式消息
+  //     // clearStreamMessageAction(message.id)
+  //   },
+  //   [editMessage, dispatch, clearStreamMessageAction]
+  // )
 
   const pauseMessages = useCallback(async () => {
+    // 暂停的消息不需要在这更改status,通过catch判断abort错误之后设置message.status
     const streamMessages = store.getState().messages.streamMessagesByTopic[topic.id]
+    if (!streamMessages) return
+    // 不需要重复暂停
+    const askIds = [...new Set(Object.values(streamMessages).map((m) => m?.askId))]
 
-    if (streamMessages) {
-      const streamMessagesList = Object.values(streamMessages).filter((msg) => msg?.askId && msg?.id)
-      for (const message of streamMessagesList) {
-        message && (await pauseMessage(message))
-      }
+    for (const askId of askIds) {
+      askId && abortCompletion(askId)
     }
-  }, [pauseMessage, topic.id])
+    dispatch(setTopicLoading({ topicId: topic.id, loading: false }))
+  }, [topic.id, dispatch])
 
   /**
    * 恢复/重发消息
@@ -199,8 +202,6 @@ export function useMessageOperations(topic: Topic) {
   )
 
   return {
-    messages,
-    loading,
     displayCount,
     updateMessages: updateMessagesAction,
     deleteMessage,
@@ -213,8 +214,18 @@ export function useMessageOperations(topic: Topic) {
     clearStreamMessage: clearStreamMessageAction,
     createNewContext,
     clearTopicMessages: clearTopicMessagesAction,
-    pauseMessage,
+    // pauseMessage,
     pauseMessages,
     resumeMessage
   }
+}
+
+export const useTopicMessages = (topic: Topic) => {
+  const messages = useAppSelector((state) => selectTopicMessages(state, topic.id))
+  return messages
+}
+
+export const useTopicLoading = (topic: Topic) => {
+  const loading = useAppSelector((state) => selectTopicLoading(state, topic.id))
+  return loading
 }

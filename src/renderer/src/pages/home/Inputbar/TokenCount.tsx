@@ -84,7 +84,7 @@ const Container = styled.div`
     font-size: 10px;
     margin-right: 3px;
   }
-  @media (max-width: 700px) {
+  @media (max-width: 800px) {
     display: none;
   }
 `

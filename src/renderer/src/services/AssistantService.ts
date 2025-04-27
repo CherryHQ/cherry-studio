@@ -12,7 +12,7 @@ export function getDefaultAssistant(): Assistant {
   return {
     id: 'default',
     name: i18n.t('chat.default.name'),
-    emoji: '⭐️',
+    emoji: '😀',
     prompt: '',
     topics: [getDefaultTopic('default')],
     messages: [],
@@ -47,7 +47,8 @@ export function getDefaultTopic(assistantId: string): Topic {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     name: i18n.t('chat.default.topic.name'),
-    messages: []
+    messages: [],
+    isNameManuallyEdited: false
   }
 }
 

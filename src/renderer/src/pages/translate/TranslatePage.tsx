@@ -1,12 +1,4 @@
-import {
-  CheckOutlined,
-  DeleteOutlined,
-  HistoryOutlined,
-  SendOutlined,
-  SettingOutlined,
-  SyncOutlined,
-  WarningOutlined
-} from '@ant-design/icons'
+import { CheckOutlined, DeleteOutlined, HistoryOutlined, SendOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { isLocalAi } from '@renderer/config/env'
@@ -22,6 +14,7 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
+import { Mouse, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -66,7 +59,6 @@ const TranslatePage: FC = () => {
       targetLanguage,
       createdAt: new Date().toISOString()
     }
-    console.log('🌟TEO🌟 ~ saveTranslateHistory ~ history:', history)
     await db.translate_history.add(history)
   }
 
@@ -112,8 +104,8 @@ const TranslatePage: FC = () => {
         message,
         assistant,
         onResponse: (text) => {
-          translatedText = text
-          setResult(text)
+          translatedText = text.replace(/^\s*\n+/g, '')
+          setResult(translatedText)
         }
       })
     } catch (error) {
@@ -168,18 +160,18 @@ const TranslatePage: FC = () => {
 
     if (translateModel) {
       return (
-        <Link to="/settings/model" style={{ color: 'var(--color-text-2)' }}>
-          <SettingOutlined />
+        <Link to="/settings/model" style={{ color: 'var(--color-text-2)', display: 'flex' }}>
+          <Settings2 size={18} />
         </Link>
       )
     }
 
     return (
-      <Link to="/settings/model" style={{ marginLeft: -10 }}>
+      <Link to="/settings/model" style={{ marginLeft: -10, display: 'flex' }}>
         <Button
           type="link"
           style={{ color: 'var(--color-error)', textDecoration: 'underline' }}
-          icon={<WarningOutlined />}>
+          icon={<TriangleAlert size={16} />}>
           {t('translate.error.not_configured')}
         </Button>
       </Link>
@@ -197,9 +189,7 @@ const TranslatePage: FC = () => {
 
     // Calculate scroll position by ratio
     const inputScrollRatio = inputEl.scrollTop / (inputEl.scrollHeight - inputEl.clientHeight || 1)
-    const outputScrollPosition = inputScrollRatio * (outputEl.scrollHeight - outputEl.clientHeight || 1)
-
-    outputEl.scrollTop = outputScrollPosition
+    outputEl.scrollTop = inputScrollRatio * (outputEl.scrollHeight - outputEl.clientHeight || 1)
 
     requestAnimationFrame(() => {
       isProgrammaticScroll.current = false
@@ -217,9 +207,7 @@ const TranslatePage: FC = () => {
 
     // Calculate scroll position by ratio
     const outputScrollRatio = outputEl.scrollTop / (outputEl.scrollHeight - outputEl.clientHeight || 1)
-    const inputScrollPosition = outputScrollRatio * (inputEl.scrollHeight - inputEl.clientHeight || 1)
-
-    inputEl.scrollTop = inputScrollPosition
+    inputEl.scrollTop = outputScrollRatio * (inputEl.scrollHeight - inputEl.clientHeight || 1)
 
     requestAnimationFrame(() => {
       isProgrammaticScroll.current = false
@@ -309,11 +297,11 @@ const TranslatePage: FC = () => {
               <Tooltip
                 mouseEnterDelay={0.5}
                 title={isScrollSyncEnabled ? t('translate.scroll_sync.disable') : t('translate.scroll_sync.enable')}>
-                <SyncOutlined
-                  style={{
-                    color: isScrollSyncEnabled ? 'var(--color-primary)' : 'var(--color-text-2)'
-                  }}
+                <Mouse
+                  size={16}
                   onClick={toggleScrollSync}
+                  style={{ cursor: 'pointer' }}
+                  color={isScrollSyncEnabled ? 'var(--color-primary)' : 'var(--color-icon)'}
                 />
               </Tooltip>
             </Flex>
@@ -381,7 +369,7 @@ const TranslatePage: FC = () => {
             />
           </OperationBar>
 
-          <OutputText ref={outputTextRef} onScroll={handleOutputScroll}>
+          <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className="selectable">
             {result || t('translate.output.placeholder')}
           </OutputText>
         </OutputContainer>

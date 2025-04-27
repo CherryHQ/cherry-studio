@@ -1,8 +1,7 @@
+import { Box } from '@renderer/components/Layout'
+import { TopView } from '@renderer/components/TopView'
 import { Modal } from 'antd'
 import { useState } from 'react'
-
-import { Box } from '../Layout'
-import { TopView } from '../TopView'
 
 interface ShowParams {
   title: string
@@ -36,7 +35,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      transitionName="ant-move-down"
+      transitionName="animation-move-down"
       centered>
       <Box mb={8}>Name</Box>
     </Modal>

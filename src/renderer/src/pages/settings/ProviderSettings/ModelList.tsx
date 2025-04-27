@@ -1,14 +1,15 @@
 import {
   CheckCircleFilled,
   CloseCircleFilled,
-  EditOutlined,
   ExclamationCircleFilled,
   LoadingOutlined,
   MinusCircleOutlined,
-  PlusOutlined,
-  SettingOutlined
+  MinusOutlined,
+  PlusOutlined
 } from '@ant-design/icons'
-import ModelTags from '@renderer/components/ModelTags'
+import CustomCollapse from '@renderer/components/CustomCollapse'
+import { HStack } from '@renderer/components/Layout'
+import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -16,11 +17,12 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
-import { Model, Provider } from '@renderer/types'
+import { Model } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { Avatar, Button, Card, Flex, Space, Tooltip, Typography } from 'antd'
+import { Avatar, Button, Flex, Tooltip, Typography } from 'antd'
 import { groupBy, sortBy, toPairs } from 'lodash'
-import React, { useCallback, useState } from 'react'
+import { Bolt, ListCheck } from 'lucide-react'
+import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -36,8 +38,9 @@ const STATUS_COLORS = {
 }
 
 interface ModelListProps {
-  provider: Provider
+  providerId: string
   modelStatuses?: ModelStatus[]
+  searchText?: string
 }
 
 export interface ModelStatus {
@@ -165,10 +168,9 @@ function useModelStatusRendering() {
   return { renderStatusIndicator, renderLatencyText }
 }
 
-const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuses = [] }) => {
+const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], searchText = '' }) => {
   const { t } = useTranslation()
-  const { provider } = useProvider(_provider.id)
-  const { updateProvider, models, removeModel } = useProvider(_provider.id)
+  const { provider, updateProvider, models, removeModel } = useProvider(providerId)
   const { assistants } = useAssistants()
   const dispatch = useAppDispatch()
   const { defaultModel, setDefaultModel } = useDefaultModel()
@@ -179,114 +181,158 @@ const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuse
   const modelsWebsite = providerConfig?.websites?.models
 
   const [editingModel, setEditingModel] = useState<Model | null>(null)
-  const modelGroups = groupBy(models, 'group')
-  const sortedModelGroups = sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
-    acc[key] = value
-    return acc
-  }, {})
 
-  const onManageModel = () => EditModelsPopup.show({ provider })
-  const onAddModel = () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
-  const onEditModel = (model: Model) => {
+  const modelGroups = useMemo(() => {
+    const filteredModels = searchText
+      ? models.filter((model) => model.name.toLowerCase().includes(searchText.toLowerCase()))
+      : models
+    return groupBy(filteredModels, 'group')
+  }, [searchText, models])
+
+  const sortedModelGroups = useMemo(() => {
+    return sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
+      acc[key] = value
+      return acc
+    }, {})
+  }, [modelGroups])
+
+  const onManageModel = useCallback(() => {
+    EditModelsPopup.show({ provider })
+  }, [provider])
+
+  const onAddModel = useCallback(
+    () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider }),
+    [provider, t]
+  )
+
+  const onEditModel = useCallback((model: Model) => {
     setEditingModel(model)
-  }
+  }, [])
 
-  const onUpdateModel = (updatedModel: Model) => {
-    const updatedModels = models.map((m) => {
-      if (m.id === updatedModel.id) {
-        return updatedModel
+  const onUpdateModel = useCallback(
+    (updatedModel: Model) => {
+      const updatedModels = models.map((m) => {
+        if (m.id === updatedModel.id) {
+          return updatedModel
+        }
+        return m
+      })
+
+      updateProvider({ ...provider, models: updatedModels })
+
+      // Update assistants using this model
+      assistants.forEach((assistant) => {
+        if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
+          dispatch(
+            setModel({
+              assistantId: assistant.id,
+              model: updatedModel
+            })
+          )
+        }
+      })
+
+      // Update default model if needed
+      if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
+        setDefaultModel(updatedModel)
       }
-      return m
-    })
-
-    updateProvider({ ...provider, models: updatedModels })
-
-    // Update assistants using this model
-    assistants.forEach((assistant) => {
-      if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
-        dispatch(
-          setModel({
-            assistantId: assistant.id,
-            model: updatedModel
-          })
-        )
-      }
-    })
-
-    // Update default model if needed
-    if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
-      setDefaultModel(updatedModel)
-    }
-  }
+    },
+    [models, updateProvider, provider, assistants, defaultModel?.id, defaultModel?.provider, dispatch, setDefaultModel]
+  )
 
   return (
     <>
-      {Object.keys(sortedModelGroups).map((group) => (
-        <Card
-          key={group}
-          type="inner"
-          title={group}
-          extra={
-            <Tooltip title={t('settings.models.manage.remove_whole_group')}>
-              <HoveredRemoveIcon
-                onClick={() =>
-                  modelGroups[group]
-                    .filter((model) => provider.models.some((m) => m.id === model.id))
-                    .forEach((model) => removeModel(model))
-                }
-              />
-            </Tooltip>
-          }
-          style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}
-          size="small">
-          {sortedModelGroups[group].map((model) => {
-            const modelStatus = modelStatuses.find((status) => status.model.id === model.id)
-            const isChecking = modelStatus?.checking === true
+      <Flex gap={12} vertical>
+        {Object.keys(sortedModelGroups).map((group, i) => (
+          <CustomCollapse
+            defaultActiveKey={i <= 5 ? ['1'] : []}
+            key={group}
+            label={
+              <Flex align="center" gap={10}>
+                <span style={{ fontWeight: 600 }}>{group}</span>
+              </Flex>
+            }
+            extra={
+              <Tooltip title={t('settings.models.manage.remove_whole_group')}>
+                <HoveredRemoveIcon
+                  onClick={() =>
+                    modelGroups[group]
+                      .filter((model) => provider.models.some((m) => m.id === model.id))
+                      .forEach((model) => removeModel(model))
+                  }
+                />
+              </Tooltip>
+            }>
+            <Flex gap={10} vertical style={{ marginTop: 10 }}>
+              {sortedModelGroups[group].map((model) => {
+                const modelStatus = modelStatuses.find((status) => status.model.id === model.id)
+                const isChecking = modelStatus?.checking === true
 
-            return (
-              <ModelListItem key={model.id}>
-                <ModelListHeader>
-                  <Avatar src={getModelLogo(model.id)} size={22} style={{ marginRight: '8px' }}>
-                    {model?.name?.[0]?.toUpperCase()}
-                  </Avatar>
-                  <ModelNameRow>
-                    <span>{model?.name}</span>
-                    <ModelTags model={model} />
-                  </ModelNameRow>
-                  <SettingIcon
-                    onClick={() => !isChecking && onEditModel(model)}
-                    style={{ cursor: isChecking ? 'not-allowed' : 'pointer', opacity: isChecking ? 0.5 : 1 }}
-                  />
-                  {renderLatencyText(modelStatus)}
-                </ModelListHeader>
-                <Space>
-                  {renderStatusIndicator(modelStatus)}
-                  <RemoveIcon
-                    onClick={() => !isChecking && removeModel(model)}
-                    style={{ cursor: isChecking ? 'not-allowed' : 'pointer', opacity: isChecking ? 0.5 : 1 }}
-                  />
-                </Space>
-              </ModelListItem>
-            )
-          })}
-        </Card>
-      ))}
-      {docsWebsite && (
-        <SettingHelpTextRow>
-          <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
-          <SettingHelpLink target="_blank" href={docsWebsite}>
-            {t(`provider.${provider.id}`) + ' '}
-            {t('common.docs')}
-          </SettingHelpLink>
-          <SettingHelpText>{t('common.and')}</SettingHelpText>
-          <SettingHelpLink target="_blank" href={modelsWebsite}>
-            {t('common.models')}
-          </SettingHelpLink>
-          <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
-        </SettingHelpTextRow>
-      )}
+                return (
+                  <ListItem key={model.id}>
+                    <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
+                      <Avatar src={getModelLogo(model.id)} style={{ width: 26, height: 26 }}>
+                        {model?.name?.[0]?.toUpperCase()}
+                      </Avatar>
+                      <ListItemName>
+                        <Tooltip
+                          styles={{
+                            root: {
+                              width: 'auto',
+                              maxWidth: '500px'
+                            }
+                          }}
+                          destroyTooltipOnHide
+                          title={
+                            <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
+                              {model.id}
+                            </Typography.Text>
+                          }
+                          placement="top">
+                          <NameSpan>{model.name}</NameSpan>
+                        </Tooltip>
+                        <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
+                      </ListItemName>
+                    </HStack>
+                    <Flex gap={4} align="center">
+                      {renderLatencyText(modelStatus)}
+                      {renderStatusIndicator(modelStatus)}
+                      <Button
+                        type="text"
+                        onClick={() => !isChecking && onEditModel(model)}
+                        disabled={isChecking}
+                        icon={<Bolt size={16} />}
+                      />
+                      <Button
+                        type="text"
+                        onClick={() => !isChecking && removeModel(model)}
+                        disabled={isChecking}
+                        icon={<MinusOutlined />}
+                      />
+                    </Flex>
+                  </ListItem>
+                )
+              })}
+            </Flex>
+          </CustomCollapse>
+        ))}
+        {docsWebsite && (
+          <SettingHelpTextRow>
+            <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
+            <SettingHelpLink target="_blank" href={docsWebsite}>
+              {t(`provider.${provider.id}`) + ' '}
+              {t('common.docs')}
+            </SettingHelpLink>
+            <SettingHelpText>{t('common.and')}</SettingHelpText>
+            <SettingHelpLink target="_blank" href={modelsWebsite}>
+              {t('common.models')}
+            </SettingHelpLink>
+            <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
+          </SettingHelpTextRow>
+        )}
+      </Flex>
       <Flex gap={10} style={{ marginTop: '10px' }}>
-        <Button type="primary" onClick={onManageModel} icon={<EditOutlined />}>
+        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={18} />}>
           {t('button.manage')}
         </Button>
         <Button type="default" onClick={onAddModel} icon={<PlusOutlined />}>
@@ -306,25 +352,39 @@ const ModelList: React.FC<ModelListProps> = ({ provider: _provider, modelStatuse
   )
 }
 
-const ModelListItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 0;
-`
-
-const ModelListHeader = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-`
-
-const ModelNameRow = styled.div`
+const ListItem = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 10px;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1;
+`
+
+const ListItemName = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+  width: 0;
+`
+
+const NameSpan = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+  font-family: 'Ubuntu';
+  line-height: 30px;
+  font-size: 14px;
 `
 
 const RemoveIcon = styled(MinusCircleOutlined)`
@@ -345,21 +405,11 @@ const HoveredRemoveIcon = styled(RemoveIcon)`
   }
 `
 
-const SettingIcon = styled(SettingOutlined)`
-  margin-left: 2px;
-  color: var(--color-text);
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  &:hover {
-    color: var(--color-text-2);
-  }
-`
-
 const StatusIndicator = styled.div<{ type: string }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 14px;
   cursor: pointer;
   color: ${(props) => {
     switch (props.type) {
@@ -378,6 +428,7 @@ const StatusIndicator = styled.div<{ type: string }>`
 const ModelLatencyText = styled(Typography.Text)`
   margin-left: 10px;
   color: var(--color-text-secondary);
+  font-size: 12px;
 `
 
-export default ModelList
+export default memo(ModelList)

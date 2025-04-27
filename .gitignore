@@ -35,7 +35,6 @@ Thumbs.db
 node_modules
 dist
 out
-build/icons
 stats.html
 
 # ENV
@@ -47,3 +46,8 @@ local
 .aider*
 .cursorrules
 .cursor/rules
+
+# test
+coverage
+.vitest-cache
+vitest.config.*.timestamp-*

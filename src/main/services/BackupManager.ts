@@ -1,10 +1,13 @@
+import { IpcChannel } from '@shared/IpcChannel'
 import { WebDavConfig } from '@types'
-import AdmZip from 'adm-zip'
+import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
 import Logger from 'electron-log'
+import extract from 'extract-zip'
 import * as fs from 'fs-extra'
 import * as path from 'path'
+import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
 
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -14,10 +17,13 @@ class BackupManager {
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
 
   constructor() {
+    this.checkConnection = this.checkConnection.bind(this)
     this.backup = this.backup.bind(this)
     this.restore = this.restore.bind(this)
     this.backupToWebdav = this.backupToWebdav.bind(this)
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
+    this.listWebdavFiles = this.listWebdavFiles.bind(this)
+    this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
@@ -76,7 +82,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('backup-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
       Logger.log('[BackupManager] backup progress', processData)
     }
 
@@ -84,9 +90,18 @@ class BackupManager {
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
-      // 将 data 写入临时文件
+      // 使用流的方式写入 data.json
       const tempDataPath = path.join(this.tempDir, 'data.json')
-      await fs.writeFile(tempDataPath, data)
+
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(tempDataPath)
+        writeStream.write(data)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
+
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
       // 复制 Data 目录到临时目录
@@ -100,27 +115,103 @@ class BackupManager {
       // 使用流式复制
       await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
         copiedSize += size
-        const progress = Math.min(80, 20 + Math.floor((copiedSize / totalSize) * 60))
+        const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
         onProgress({ stage: 'copying_files', progress, total: 100 })
       })
 
       await this.setWritableRecursive(tempDataDir)
-      onProgress({ stage: 'compressing', progress: 80, total: 100 })
+      onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
 
-      // 使用 adm-zip 创建压缩文件
-      const zip = new AdmZip()
-      zip.addLocalFolder(this.tempDir)
+      // 创建输出文件流
       const backupedFilePath = path.join(destinationPath, fileName)
-      zip.writeZip(backupedFilePath)
+      const output = fs.createWriteStream(backupedFilePath)
+
+      // 创建 archiver 实例，启用 ZIP64 支持
+      const archive = archiver('zip', {
+        zlib: { level: 1 }, // 使用最低压缩级别以提高速度
+        zip64: true // 启用 ZIP64 支持以处理大文件
+      })
+
+      let lastProgress = 50
+      let totalEntries = 0
+      let processedEntries = 0
+      let totalBytes = 0
+      let processedBytes = 0
+
+      // 首先计算总文件数和总大小
+      const calculateTotals = async (dirPath: string) => {
+        const items = await fs.readdir(dirPath, { withFileTypes: true })
+        for (const item of items) {
+          const fullPath = path.join(dirPath, item.name)
+          if (item.isDirectory()) {
+            await calculateTotals(fullPath)
+          } else {
+            totalEntries++
+            const stats = await fs.stat(fullPath)
+            totalBytes += stats.size
+          }
+        }
+      }
+
+      await calculateTotals(this.tempDir)
+
+      // 监听文件添加事件
+      archive.on('entry', () => {
+        processedEntries++
+        if (totalEntries > 0) {
+          const progressPercent = Math.min(55, 50 + Math.floor((processedEntries / totalEntries) * 5))
+          if (progressPercent > lastProgress) {
+            lastProgress = progressPercent
+            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
+          }
+        }
+      })
+
+      // 监听数据写入事件
+      archive.on('data', (chunk) => {
+        processedBytes += chunk.length
+        if (totalBytes > 0) {
+          const progressPercent = Math.min(99, 55 + Math.floor((processedBytes / totalBytes) * 44))
+          if (progressPercent > lastProgress) {
+            lastProgress = progressPercent
+            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
+          }
+        }
+      })
+
+      // 使用 Promise 等待压缩完成
+      await new Promise<void>((resolve, reject) => {
+        output.on('close', () => {
+          onProgress({ stage: 'compressing', progress: 100, total: 100 })
+          resolve()
+        })
+        archive.on('error', reject)
+        archive.on('warning', (err: any) => {
+          if (err.code !== 'ENOENT') {
+            Logger.warn('[BackupManager] Archive warning:', err)
+          }
+        })
+
+        // 将输出流连接到压缩器
+        archive.pipe(output)
+
+        // 添加整个临时目录到压缩文件
+        archive.directory(this.tempDir, false)
+
+        // 完成压缩
+        archive.finalize()
+      })
 
       // 清理临时目录
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      Logger.log('Backup completed successfully')
+      Logger.log('[BackupManager] Backup completed successfully')
       return backupedFilePath
     } catch (error) {
-      Logger.error('Backup failed:', error)
+      Logger.error('[BackupManager] Backup failed:', error)
+      // 确保清理临时目录
+      await fs.remove(this.tempDir).catch(() => {})
       throw error
     }
   }
@@ -129,7 +220,7 @@ class BackupManager {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send('restore-progress', processData)
+      mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
       Logger.log('[BackupManager] restore progress', processData)
     }
 
@@ -139,16 +230,22 @@ class BackupManager {
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       Logger.log('[backup] step 1: unzip backup file', this.tempDir)
-      // 使用 adm-zip 解压
-      const zip = new AdmZip(backupPath)
-      zip.extractAllTo(this.tempDir, true) // true 表示覆盖已存在的文件
-      onProgress({ stage: 'extracting', progress: 20, total: 100 })
+
+      // 使用 extract-zip 解压
+      await extract(backupPath, {
+        dir: this.tempDir,
+        onEntry: () => {
+          // 这里可以处理进度，但 extract-zip 不提供总条目数信息
+          onProgress({ stage: 'extracting', progress: 15, total: 100 })
+        }
+      })
+      onProgress({ stage: 'extracting', progress: 25, total: 100 })
 
       Logger.log('[backup] step 2: read data.json')
       // 读取 data.json
       const dataPath = path.join(this.tempDir, 'data.json')
       const data = await fs.readFile(dataPath, 'utf-8')
-      onProgress({ stage: 'reading_data', progress: 40, total: 100 })
+      onProgress({ stage: 'reading_data', progress: 35, total: 100 })
 
       Logger.log('[backup] step 3: restore Data directory')
       // 恢复 Data 目录
@@ -165,7 +262,7 @@ class BackupManager {
       // 使用流式复制
       await this.copyDirWithProgress(sourcePath, destPath, (size) => {
         copiedSize += size
-        const progress = Math.min(90, 40 + Math.floor((copiedSize / totalSize) * 50))
+        const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
         onProgress({ stage: 'copying_files', progress, total: 100 })
       })
 
@@ -186,7 +283,7 @@ class BackupManager {
   }
 
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, data: string, webdavConfig: WebDavConfig) {
-    const filename = 'cherry-studio.backup.zip'
+    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const backupedFilePath = await this.backup(_, filename, data)
     const webdavClient = new WebDav(webdavConfig)
     return await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
@@ -195,18 +292,55 @@ class BackupManager {
   }
 
   async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const filename = 'cherry-studio.backup.zip'
+    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const webdavClient = new WebDav(webdavConfig)
-    const retrievedFile = await webdavClient.getFileContents(filename)
-    const backupedFilePath = path.join(this.backupDir, filename)
+    try {
+      const retrievedFile = await webdavClient.getFileContents(filename)
+      const backupedFilePath = path.join(this.backupDir, filename)
 
-    if (!fs.existsSync(this.backupDir)) {
-      fs.mkdirSync(this.backupDir, { recursive: true })
+      if (!fs.existsSync(this.backupDir)) {
+        fs.mkdirSync(this.backupDir, { recursive: true })
+      }
+
+      // 使用流的方式写入文件
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(backupedFilePath)
+        writeStream.write(retrievedFile as Buffer)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
+
+      return await this.restore(_, backupedFilePath)
+    } catch (error: any) {
+      Logger.error('[backup] Failed to restore from WebDAV:', error)
+      throw new Error(error.message || 'Failed to restore backup file')
     }
+  }
 
-    await fs.writeFileSync(backupedFilePath, retrievedFile as Buffer)
+  listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
+    try {
+      const client = createClient(config.webdavHost, {
+        username: config.webdavUser,
+        password: config.webdavPass
+      })
 
-    return await this.restore(_, backupedFilePath)
+      const response = await client.getDirectoryContents(config.webdavPath)
+      const files = Array.isArray(response) ? response : response.data
+
+      return files
+        .filter((file: FileStat) => file.type === 'file' && file.basename.endsWith('.zip'))
+        .map((file: FileStat) => ({
+          fileName: file.basename,
+          modifiedTime: file.lastmod,
+          size: file.size
+        }))
+        .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error: any) {
+      Logger.error('Failed to list WebDAV files:', error)
+      throw new Error(error.message || 'Failed to list backup files')
+    }
   }
 
   private async getDirSize(dirPath: string): Promise<number> {
@@ -244,6 +378,31 @@ class BackupManager {
         await fs.copy(sourcePath, destPath)
         onProgress(stats.size)
       }
+    }
+  }
+
+  async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
+    const webdavClient = new WebDav(webdavConfig)
+    return await webdavClient.checkConnection()
+  }
+
+  async createDirectory(
+    _: Electron.IpcMainInvokeEvent,
+    webdavConfig: WebDavConfig,
+    path: string,
+    options?: CreateDirectoryOptions
+  ) {
+    const webdavClient = new WebDav(webdavConfig)
+    return await webdavClient.createDirectory(path, options)
+  }
+
+  async deleteWebdavFile(_: Electron.IpcMainInvokeEvent, fileName: string, webdavConfig: WebDavConfig) {
+    try {
+      const webdavClient = new WebDav(webdavConfig)
+      return await webdavClient.deleteFile(fileName)
+    } catch (error: any) {
+      Logger.error('Failed to delete WebDAV file:', error)
+      throw new Error(error.message || 'Failed to delete backup file')
     }
   }
 }

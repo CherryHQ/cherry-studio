@@ -1,22 +1,11 @@
+import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
-import { setDefaultProvider } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import { setDefaultProvider, WebSearchState } from '@renderer/store/websearch'
+import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import WebSearchEngineProvider from '@renderer/webSearchProvider/WebSearchEngineProvider'
+import { ExtractResults } from '@renderer/utils/extract'
+import { fetchWebContents } from '@renderer/utils/fetch'
 import dayjs from 'dayjs'
-
-interface WebSearchState {
-  // 默认搜索提供商的ID
-  defaultProvider: string
-  // 所有可用的搜索提供商列表
-  providers: WebSearchProvider[]
-  // 是否在搜索查询中添加当前日期
-  searchWithTime: boolean
-  // 搜索结果的最大数量
-  maxResults: number
-  // 要排除的域名列表
-  excludeDomains: string[]
-}
 
 /**
  * 提供网络搜索相关功能的服务类
@@ -44,6 +33,10 @@ class WebSearchService {
       return false
     }
 
+    if (provider.id.startsWith('local-')) {
+      return true
+    }
+
     if (hasObjectKey(provider, 'apiKey')) {
       return provider.apiKey !== ''
     }
@@ -53,6 +46,16 @@ class WebSearchService {
     }
 
     return false
+  }
+
+  /**
+   * 检查是否启用覆盖搜索
+   * @public
+   * @returns 如果启用覆盖搜索则返回true，否则返回false
+   */
+  public isOverwriteEnabled(): boolean {
+    const { overwrite } = this.getWebSearchState()
+    return overwrite
   }
 
   /**
@@ -86,21 +89,20 @@ class WebSearchService {
    * @returns 搜索响应
    */
   public async search(provider: WebSearchProvider, query: string): Promise<WebSearchResponse> {
-    const { searchWithTime, maxResults, excludeDomains } = this.getWebSearchState()
+    const websearch = this.getWebSearchState()
     const webSearchEngine = new WebSearchEngineProvider(provider)
 
     let formattedQuery = query
-    if (searchWithTime) {
+    // 有待商榷，效果一般
+    if (websearch.searchWithTime) {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
 
     try {
-      return await webSearchEngine.search(formattedQuery, maxResults, excludeDomains)
+      return await webSearchEngine.search(formattedQuery, websearch)
     } catch (error) {
       console.error('Search failed:', error)
-      return {
-        results: []
-      }
+      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -113,11 +115,54 @@ class WebSearchService {
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
-
+      console.log('Search response:', response)
       // 优化的判断条件：检查结果是否有效且没有错误
-      return { valid: response.results.length > 0, error: undefined }
+      return { valid: response.results !== undefined, error: undefined }
     } catch (error) {
       return { valid: false, error }
+    }
+  }
+
+  public async processWebsearch(
+    webSearchProvider: WebSearchProvider,
+    extractResults: ExtractResults
+  ): Promise<WebSearchResponse> {
+    try {
+      // 检查 websearch 和 question 是否有效
+      if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
+        console.log('No valid question found in extractResults.websearch')
+        return { results: [] }
+      }
+
+      const questions = extractResults.websearch.question
+      const links = extractResults.websearch.links
+      const firstQuestion = questions[0]
+
+      if (firstQuestion === 'summarize' && links && links.length > 0) {
+        const contents = await fetchWebContents(links)
+        return {
+          query: 'summaries',
+          results: contents
+        }
+      }
+      const searchPromises = questions.map((q) => this.search(webSearchProvider, q))
+      const searchResults = await Promise.allSettled(searchPromises)
+      const aggregatedResults: WebSearchResult[] = []
+
+      searchResults.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          if (result.value.results) {
+            aggregatedResults.push(...result.value.results)
+          }
+        }
+      })
+      return {
+        query: questions.join(' | '),
+        results: aggregatedResults
+      }
+    } catch (error) {
+      console.error('Failed to process enhanced search:', error)
+      return { results: [] }
     }
   }
 }

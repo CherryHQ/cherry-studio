@@ -47,7 +47,7 @@ const MessageItem: FC<Props> = ({
   const { isBubbleStyle } = useMessageStyle()
   const { showMessageDivider, messageFont, fontSize } = useSettings()
   const messageContainerRef = useRef<HTMLDivElement>(null)
-  // const topic = useTopic(assistant, _topic?.id)
+
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
   const [selectedText, setSelectedText] = useState<string>('')
@@ -149,7 +149,7 @@ const MessageItem: FC<Props> = ({
               ? 'message-content-container message-content-container-assistant'
               : 'message-content-container'
         }
-        style={{ fontFamily, fontSize, background: messageBackground }}>
+        style={{ fontFamily, fontSize, background: messageBackground, overflowY: 'visible' }}>
         <MessageErrorBoundary>
           <MessageContent message={message} model={model} />
         </MessageErrorBoundary>
@@ -170,7 +170,7 @@ const MessageItem: FC<Props> = ({
               isLastMessage={isLastMessage}
               isAssistantMessage={isAssistantMessage}
               isGrouped={isGrouped}
-              messageContainerRef={messageContainerRef}
+              messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
               setModel={setModel}
             />
           </MessageFooter>
@@ -220,6 +220,8 @@ const MessageContainer = styled.div`
   .menubar {
     opacity: 0;
     transition: opacity 0.2s ease;
+    transform: translateZ(0);
+    will-change: opacity;
     &.show {
       opacity: 1;
     }

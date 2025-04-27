@@ -1,4 +1,5 @@
-import { UserOutlined } from '@ant-design/icons'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { User } from 'lucide-react'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
@@ -104,7 +105,9 @@ const Chat: FC<Props> = (props) => {
           onComponentUpdate={messagesComponentUpdateHandler}
           onFirstUpdate={messagesComponentFirstUpdateHandler}
         />
-        <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+        <QuickPanelProvider>
+          <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+        </QuickPanelProvider>
         <ContentSearch ref={contentSearchRef} searchTarget={mainRef} filter={contentSearchFilter}>
           <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
             <UserOutlinedItem className={filterIncludeUser ? 'active' : ''} onClick={userOutlinedItemClickHandler} />
@@ -134,10 +137,12 @@ const Container = styled.div`
 
 const Main = styled(Flex)`
   height: calc(100vh - var(--navbar-height));
+  // 设置为containing block，方便子元素fixed定位
+  transform: translateZ(0);
   position: relative;
 `
 
-const UserOutlinedItem = styled(UserOutlined)`
+const UserOutlinedItem = styled(User)`
   margin-right: 4px;
   padding: 0 6px;
   border-radius: 6px;

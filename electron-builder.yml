@@ -1,5 +1,14 @@
 appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
+electronLanguages:
+  - zh-CN
+  - zh-TW
+  - en-US
+  - ja # macOS/linux/win
+  - ru # macOS/linux/win
+  - zh_CN # for macOS
+  - zh_TW # for macOS
+  - en # for macOS
 directories:
   buildResources: build
 files:
@@ -29,21 +38,24 @@ files:
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
 asarUnpack:
   - resources/**
-  - '**/*.{node,dll,metal,exp,lib}'
+  - '**/*.{metal,exp,lib}'
 win:
   executableName: Cherry Studio
-  artifactName: ${productName}-${version}-portable.${ext}
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
     - target: portable
 nsis:
-  artifactName: ${productName}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
   allowToChangeInstallationDirectory: true
   oneClick: false
   include: build/nsis-installer.nsh
+  buildUniversalInstaller: false
+portable:
+  artifactName: ${productName}-${version}-${arch}-portable.${ext}
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
@@ -55,29 +67,31 @@ mac:
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   target:
     - target: dmg
-      arch:
-        - arm64
-        - x64
     - target: zip
-      arch:
-        - arm64
-        - x64
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   target:
     - target: AppImage
-      arch:
-        - arm64
-        - x64
   maintainer: electronjs.org
   category: Utility
+  desktop:
+    entry:
+      StartupWMClass: CherryStudio
+  mimeTypes:
+    - x-scheme-handler/cherrystudio
 publish:
   provider: generic
-  url: https://cherrystudio.ocool.online
+  url: https://releases.cherry-ai.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
+artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    修复公式渲染问题
+    新增对 grok-2-image 和 gpt-4o-image 图像支持
+    支持 Windows 便携版使用 data 目录存储数据
+    MCP 界面改版，新增描述信息显示
+    Mermaid 渲染逻辑优化
+    支持关闭公示渲染
+    修复 OpenAI 类型渲染错误
