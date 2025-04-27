@@ -254,7 +254,7 @@ const McpSettings: React.FC = () => {
         description: values.description,
         isActive: values.isActive,
         registryUrl: values.registryUrl,
-        timeout: values.timeout ? values.timeout : undefined,
+        timeout: values.timeout || server.timeout,
         // Preserve existing advanced properties if not set in the form
         provider: values.provider || server.provider,
         providerUrl: values.providerUrl || server.providerUrl,
@@ -663,7 +663,7 @@ const McpSettings: React.FC = () => {
               'settings.mcp.timeoutTooltip',
               'Timeout in seconds for requests to this server, default is 60 seconds'
             )}>
-            <Input type="number" min={1000} placeholder="60" addonAfter="s" />
+            <Input type="number" min={1} placeholder="60" addonAfter="s" />
           </Form.Item>
 
           <Collapse
