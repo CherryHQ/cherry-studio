@@ -317,7 +317,7 @@ export default class OpenAIProvider extends BaseProvider {
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     messages = addImageFileToContents(messages)
     let systemMessage = { role: 'system', content: assistant.prompt || '' }
-    if (isOpenAIoSeries(model)) {
+    if (isOpenAIoSeries(model) && !['o1-preview', 'o1-mini'].includes(model.id)) {
       systemMessage = {
         role: 'developer',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
