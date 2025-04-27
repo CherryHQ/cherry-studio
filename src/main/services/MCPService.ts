@@ -394,6 +394,13 @@ class McpService {
   ): Promise<MCPCallToolResponse> {
     try {
       Logger.info('[MCP] Calling:', server.name, name, args)
+      if (typeof args === 'string') {
+        try {
+          args = JSON.parse(args)
+        } catch (e) {
+          Logger.error('[MCP] args parse error', args)
+        }
+      }
       const client = await this.initClient(server)
       const result = await client.callTool({ name, arguments: args }, undefined, {
         timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute

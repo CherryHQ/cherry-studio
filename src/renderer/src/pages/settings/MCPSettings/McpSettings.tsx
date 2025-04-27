@@ -68,7 +68,7 @@ const PipRegistry: Registry[] = [
   { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
-type TabKey = 'settings' | 'tools' | 'prompts' | 'resources'
+type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
 
 const parseKeyValueString = (str: string): Record<string, string> => {
   const result: Record<string, string> = {}
