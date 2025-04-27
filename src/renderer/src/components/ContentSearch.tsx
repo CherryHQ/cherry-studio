@@ -265,7 +265,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(({ childr
           case SearchCompletedState.NotSearched: {
             setSearchCompleted(SearchCompletedState.FirstSearched)
             const index = findWindowVerticalCenterElementIndex(highlightTextList)
-            if (index) {
+            if (index !== null) {
               setSearchResultIndex(index)
               return index
             } else {
@@ -469,6 +469,7 @@ const Container = styled.div`
   border-radius: 8px;
   user-select: none;
   gap: 8px;
+  z-index: 999;
 
   box-shadow:
     1px 1px 4px 1px rgba(0, 0, 0, 0.04),
