@@ -36,3 +36,16 @@ index 9829dff7e95aa9baa0bfdf29f52e6f761c9b7243..6ecaade9e294c87c03bb42e77ff5463f
      if (result != null) {
          return result;
      }
+diff --git a/out/differentialDownloader/multipleRangeDownloader.js b/out/differentialDownloader/multipleRangeDownloader.js
+index bf7d3a2982c62b94054fed4ef60455b20b26d622..3a924eddc946ec446654a112a33be4e2cea311d2 100644
+--- a/out/differentialDownloader/multipleRangeDownloader.js
++++ b/out/differentialDownloader/multipleRangeDownloader.js
+@@ -75,7 +75,7 @@ function doExecuteTasks(differentialDownloader, options, out, resolve, reject) {
+             return;
+         }
+         const contentType = (0, builder_util_runtime_1.safeGetHeader)(response, "content-type");
+-        const m = /^multipart\/.+?(?:; boundary=(?:(?:"(.+)")|(?:([^\s]+))))$/i.exec(contentType);
++        const m = /^multipart\/.+?\s*;\s*boundary=(?:"([^"]+)"|([^\s";]+))\s*$/i.exec(contentType);
+         if (m == null) {
+             reject(new Error(`Content-Type "multipart/byteranges" is expected, but got "${contentType}"`));
+             return;

@@ -7061,7 +7061,7 @@ __metadata:
 
 "electron-updater@patch:electron-updater@npm%3A6.6.3#~/.yarn/patches/electron-updater-npm-6.6.3-9269dbaf84.patch":
   version: 6.6.3
-  resolution: "electron-updater@patch:electron-updater@npm%3A6.6.3#~/.yarn/patches/electron-updater-npm-6.6.3-9269dbaf84.patch::version=6.6.3&hash=4a31aa"
+  resolution: "electron-updater@patch:electron-updater@npm%3A6.6.3#~/.yarn/patches/electron-updater-npm-6.6.3-9269dbaf84.patch::version=6.6.3&hash=4f329d"
   dependencies:
     builder-util-runtime: "npm:9.3.2"
     fs-extra: "npm:^10.1.0"
@@ -7071,7 +7071,7 @@ __metadata:
     lodash.isequal: "npm:^4.5.0"
     semver: "npm:^7.6.3"
     tiny-typed-emitter: "npm:^2.1.0"
-  checksum: 10c0/6c9540bfaca6a9f4f73ce665f104d5954feb237950c59a73497b8e49b61820735276008c483eb5a7216b0b4c2fc4ca1a5474064645e5b52daa76b43661b3ced1
+  checksum: 10c0/31ca459c2589243e4553531927d9d7c5a99e2395683278b3d4639ebef39963f9fdd0bcf8dda42efecec4d5899dd4e3431473b4b95e72a5813132a1b19fea04e2
   languageName: node
   linkType: hard
 
