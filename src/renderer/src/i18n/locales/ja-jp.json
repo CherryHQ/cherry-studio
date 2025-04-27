@@ -1185,7 +1185,16 @@
           "success": "MCPサーバーの同期成功",
           "unauthorized": "同期が許可されていません",
           "noServersAvailable": "利用可能な MCP サーバーがありません"
-        }
+        },
+        "timeout": "タイムアウト",
+        "timeoutTooltip": "このサーバーへのリクエストのタイムアウト時間（秒）、デフォルトは60秒です",
+        "provider": "プロバイダー",
+        "providerUrl": "プロバイダーURL",
+        "logoUrl": "ロゴURL",
+        "tags": "タグ",
+        "tagsPlaceholder": "タグを入力",
+        "providerPlaceholder": "プロバイダー名",
+        "advancedSettings": "詳細設定"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",

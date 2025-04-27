@@ -59,7 +59,8 @@ export const builtinMCPServers: MCPServer[] = [
     type: 'stdio',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
-    isActive: false
+    isActive: false,
+    provider: 'CherryAI'
   },
   {
     id: nanoid(),
@@ -70,14 +71,16 @@ export const builtinMCPServers: MCPServer[] = [
     isActive: true,
     env: {
       MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH'
-    }
+    },
+    provider: 'CherryAI'
   },
   {
     id: nanoid(),
     name: '@cherry/sequentialthinking',
     type: 'inMemory',
     description: '一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具',
-    isActive: true
+    isActive: true,
+    provider: 'CherryAI'
   },
   {
     id: nanoid(),
@@ -88,21 +91,24 @@ export const builtinMCPServers: MCPServer[] = [
     isActive: false,
     env: {
       BRAVE_API_KEY: 'YOUR_API_KEY'
-    }
+    },
+    provider: 'CherryAI'
   },
   {
     id: nanoid(),
     name: '@cherry/fetch',
     type: 'inMemory',
     description: '用于获取 URL 网页内容的 MCP 服务器',
-    isActive: true
+    isActive: true,
+    provider: 'CherryAI'
   },
   {
     id: nanoid(),
     name: '@cherry/filesystem',
     type: 'inMemory',
     description: '实现文件系统操作的模型上下文协议（MCP）的 Node.js 服务器',
-    isActive: false
+    isActive: false,
+    provider: 'CherryAI'
   },
   {
     id: nanoid(),
@@ -112,7 +118,8 @@ export const builtinMCPServers: MCPServer[] = [
     isActive: false,
     env: {
       DIFY_KEY: 'YOUR_DIFY_KEY'
-    }
+    },
+    provider: 'CherryAI'
   }
 ]
 

@@ -404,6 +404,11 @@ export interface MCPServer {
   configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
   searchKey?: string
+  provider?: string // Provider name for this server like ModelScope, Higress, etc.
+  providerUrl?: string // URL of the MCP server in provider's website or documentation
+  logoUrl?: string // URL of the MCP server's logo
+  tags?: string[] // List of tags associated with this server
+  timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
 }
 
 export interface MCPToolInputSchema {

@@ -1187,7 +1187,16 @@
           "success": "同步MCP服务器成功",
           "unauthorized": "同步未授权",
           "noServersAvailable": "无可用的 MCP 服务器"
-        }
+        },
+        "timeout": "超时",
+        "timeoutTooltip": "对该服务器请求的超时时间（秒），默认为60秒",
+        "provider": "提供者",
+        "providerUrl": "提供者网址",
+        "logoUrl": "标志网址",
+        "tags": "标签",
+        "tagsPlaceholder": "输入标签",
+        "providerPlaceholder": "提供者名称",
+        "advancedSettings": "高级设置"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",

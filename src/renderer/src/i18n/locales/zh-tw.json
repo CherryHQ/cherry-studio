@@ -1186,7 +1186,16 @@
           "success": "同步MCP伺服器成功",
           "unauthorized": "同步未授權",
           "noServersAvailable": "無可用的 MCP 伺服器"
-        }
+        },
+        "timeout": "超時",
+        "timeoutTooltip": "對該伺服器請求的超時時間（秒），預設為60秒",
+        "provider": "提供者",
+        "providerUrl": "提供者網址",
+        "logoUrl": "標誌網址",
+        "tags": "標籤",
+        "tagsPlaceholder": "輸入標籤",
+        "providerPlaceholder": "提供者名稱",
+        "advancedSettings": "高級設定"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",

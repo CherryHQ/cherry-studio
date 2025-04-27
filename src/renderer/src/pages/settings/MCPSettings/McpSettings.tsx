@@ -3,8 +3,28 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
-import { Button, Flex, Form, Input, Radio, Switch, Tabs } from 'antd'
+import { Button, Collapse, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import {
+  AlignLeft,
+  Building2,
+  Clock,
+  Code,
+  Database,
+  FileText,
+  Globe,
+  Image,
+  Link,
+  ListPlus,
+  MessageSquare,
+  Package,
+  Server,
+  Settings,
+  Tag,
+  Terminal,
+  Type,
+  Wrench
+} from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -26,6 +46,12 @@ interface MCPFormValues {
   env?: string
   isActive: boolean
   headers?: string
+  timeout?: number
+
+  provider?: string
+  providerUrl?: string
+  logoUrl?: string
+  tags?: string[]
 }
 
 interface Registry {
@@ -61,7 +87,11 @@ const parseKeyValueString = (str: string): Record<string, string> => {
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const { server } = useLocation().state as { server: MCPServer }
+  const {
+    server: { id: serverId }
+  } = useLocation().state as { server: MCPServer }
+  const { mcpServers } = useMCPServers()
+  const server = mcpServers.find((it) => it.id === serverId) as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
@@ -80,6 +110,7 @@ const McpSettings: React.FC = () => {
 
   const navigate = useNavigate()
 
+  // Initialize form values whenever the server changes
   useEffect(() => {
     const serverType: MCPServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
     setServerType(serverType)
@@ -105,6 +136,7 @@ const McpSettings: React.FC = () => {
       }
     }
 
+    // Initialize basic fields
     form.setFieldsValue({
       name: server.name,
       description: server.description,
@@ -113,6 +145,7 @@ const McpSettings: React.FC = () => {
       command: server.command || '',
       registryUrl: server.registryUrl || '',
       isActive: server.isActive,
+      timeout: server.timeout,
       args: server.args ? server.args.join('\n') : '',
       env: server.env
         ? Object.entries(server.env)
@@ -125,8 +158,18 @@ const McpSettings: React.FC = () => {
             .join('\n')
         : ''
     })
+
+    // Initialize advanced fields separately to ensure they're captured
+    // even if the Collapse panel is closed
+    form.setFieldsValue({
+      provider: server.provider || '',
+      providerUrl: server.providerUrl || '',
+      logoUrl: server.logoUrl || '',
+      tags: server.tags || []
+    })
   }, [server, form])
 
+  // Watch for serverType changes
   useEffect(() => {
     const currentServerType = form.getFieldValue('serverType')
     if (currentServerType) {
@@ -214,7 +257,14 @@ const McpSettings: React.FC = () => {
         type: values.serverType || server.type,
         description: values.description,
         isActive: values.isActive,
-        registryUrl: values.registryUrl
+        registryUrl: values.registryUrl,
+        searchKey: server.searchKey,
+        timeout: values.timeout || server.timeout,
+        // Preserve existing advanced properties if not set in the form
+        provider: values.provider || server.provider,
+        providerUrl: values.providerUrl || server.providerUrl,
+        logoUrl: values.logoUrl || server.logoUrl,
+        tags: values.tags || server.tags
       }
 
       // set stdio or sse server
@@ -387,7 +437,12 @@ const McpSettings: React.FC = () => {
   const tabs = [
     {
       key: 'settings',
-      label: t('settings.mcp.tabs.general'),
+      label: (
+        <Flex align="center" gap={8}>
+          <Settings size={16} />
+          {t('settings.mcp.tabs.general')}
+        </Flex>
+      ),
       children: (
         <Form
           form={form}
@@ -398,16 +453,36 @@ const McpSettings: React.FC = () => {
             width: 'calc(100% + 10px)',
             paddingRight: '10px'
           }}>
-          <Form.Item name="name" label={t('settings.mcp.name')} rules={[{ required: true, message: '' }]}>
+          <Form.Item
+            name="name"
+            label={
+              <FormLabelWithIcon>
+                <Type size={16} />
+                {t('settings.mcp.name')}
+              </FormLabelWithIcon>
+            }
+            rules={[{ required: true, message: '' }]}>
             <Input placeholder={t('common.name')} disabled={server.type === 'inMemory'} />
           </Form.Item>
-          <Form.Item name="description" label={t('settings.mcp.description')}>
+          <Form.Item
+            name="description"
+            label={
+              <FormLabelWithIcon>
+                <AlignLeft size={16} />
+                {t('settings.mcp.description')}
+              </FormLabelWithIcon>
+            }>
             <TextArea rows={2} placeholder={t('common.description')} />
           </Form.Item>
           {server.type !== 'inMemory' && (
             <Form.Item
               name="serverType"
-              label={t('settings.mcp.type')}
+              label={
+                <FormLabelWithIcon>
+                  <Server size={16} />
+                  {t('settings.mcp.type')}
+                </FormLabelWithIcon>
+              }
               rules={[{ required: true }]}
               initialValue="stdio">
               <Radio.Group
@@ -424,12 +499,25 @@ const McpSettings: React.FC = () => {
             <>
               <Form.Item
                 name="baseUrl"
-                label={t('settings.mcp.url')}
+                label={
+                  <FormLabelWithIcon>
+                    <Link size={16} />
+                    {t('settings.mcp.url')}
+                  </FormLabelWithIcon>
+                }
                 rules={[{ required: serverType === 'sse', message: '' }]}
                 tooltip={t('settings.mcp.baseUrlTooltip')}>
                 <Input placeholder="http://localhost:3000/sse" />
               </Form.Item>
-              <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
+              <Form.Item
+                name="headers"
+                label={
+                  <FormLabelWithIcon>
+                    <Code size={16} />
+                    {t('settings.mcp.headers')}
+                  </FormLabelWithIcon>
+                }
+                tooltip={t('settings.mcp.headersTooltip')}>
                 <TextArea
                   rows={3}
                   placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
@@ -442,12 +530,25 @@ const McpSettings: React.FC = () => {
             <>
               <Form.Item
                 name="baseUrl"
-                label={t('settings.mcp.url')}
+                label={
+                  <FormLabelWithIcon>
+                    <Link size={16} />
+                    {t('settings.mcp.url')}
+                  </FormLabelWithIcon>
+                }
                 rules={[{ required: serverType === 'streamableHttp', message: '' }]}
                 tooltip={t('settings.mcp.baseUrlTooltip')}>
                 <Input placeholder="http://localhost:3000/mcp" />
               </Form.Item>
-              <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
+              <Form.Item
+                name="headers"
+                label={
+                  <FormLabelWithIcon>
+                    <Code size={16} />
+                    {t('settings.mcp.headers')}
+                  </FormLabelWithIcon>
+                }
+                tooltip={t('settings.mcp.headersTooltip')}>
                 <TextArea
                   rows={3}
                   placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
@@ -460,7 +561,12 @@ const McpSettings: React.FC = () => {
             <>
               <Form.Item
                 name="command"
-                label={t('settings.mcp.command')}
+                label={
+                  <FormLabelWithIcon>
+                    <Terminal size={16} />
+                    {t('settings.mcp.command')}
+                  </FormLabelWithIcon>
+                }
                 rules={[{ required: serverType === 'stdio', message: '' }]}>
                 <Input placeholder="uvx or npx" onChange={(e) => handleCommandChange(e.target.value)} />
               </Form.Item>
@@ -468,7 +574,12 @@ const McpSettings: React.FC = () => {
               {isShowRegistry && registry && (
                 <Form.Item
                   name="registryUrl"
-                  label={t('settings.mcp.registry')}
+                  label={
+                    <FormLabelWithIcon>
+                      <Package size={16} />
+                      {t('settings.mcp.registry')}
+                    </FormLabelWithIcon>
+                  }
                   tooltip={t('settings.mcp.registryTooltip')}>
                   <Radio.Group>
                     <Radio
@@ -493,26 +604,136 @@ const McpSettings: React.FC = () => {
                 </Form.Item>
               )}
 
-              <Form.Item name="args" label={t('settings.mcp.args')} tooltip={t('settings.mcp.argsTooltip')}>
+              <Form.Item
+                name="args"
+                label={
+                  <FormLabelWithIcon>
+                    <ListPlus size={16} />
+                    {t('settings.mcp.args')}
+                  </FormLabelWithIcon>
+                }
+                tooltip={t('settings.mcp.argsTooltip')}>
                 <TextArea rows={3} placeholder={`arg1\narg2`} style={{ fontFamily: 'monospace' }} />
               </Form.Item>
 
-              <Form.Item name="env" label={t('settings.mcp.env')} tooltip={t('settings.mcp.envTooltip')}>
+              <Form.Item
+                name="env"
+                label={
+                  <FormLabelWithIcon>
+                    <Settings size={16} />
+                    {t('settings.mcp.env')}
+                  </FormLabelWithIcon>
+                }
+                tooltip={t('settings.mcp.envTooltip')}>
                 <TextArea rows={3} placeholder={`KEY1=value1\nKEY2=value2`} style={{ fontFamily: 'monospace' }} />
               </Form.Item>
             </>
           )}
           {serverType === 'inMemory' && (
             <>
-              <Form.Item name="args" label={t('settings.mcp.args')} tooltip={t('settings.mcp.argsTooltip')}>
+              <Form.Item
+                name="args"
+                label={
+                  <FormLabelWithIcon>
+                    <ListPlus size={16} />
+                    {t('settings.mcp.args')}
+                  </FormLabelWithIcon>
+                }
+                tooltip={t('settings.mcp.argsTooltip')}>
                 <TextArea rows={3} placeholder={`arg1\narg2`} style={{ fontFamily: 'monospace' }} />
               </Form.Item>
 
-              <Form.Item name="env" label={t('settings.mcp.env')} tooltip={t('settings.mcp.envTooltip')}>
+              <Form.Item
+                name="env"
+                label={
+                  <FormLabelWithIcon>
+                    <Settings size={16} />
+                    {t('settings.mcp.env')}
+                  </FormLabelWithIcon>
+                }
+                tooltip={t('settings.mcp.envTooltip')}>
                 <TextArea rows={3} placeholder={`KEY1=value1\nKEY2=value2`} style={{ fontFamily: 'monospace' }} />
               </Form.Item>
             </>
           )}
+          <Form.Item
+            name="timeout"
+            label={
+              <FormLabelWithIcon>
+                <Clock size={16} />
+                {t('settings.mcp.timeout', 'Timeout')}
+              </FormLabelWithIcon>
+            }
+            tooltip={t(
+              'settings.mcp.timeoutTooltip',
+              'Timeout in seconds for requests to this server, default is 60 seconds'
+            )}>
+            <Input type="number" min={1} placeholder="60" addonAfter="s" />
+          </Form.Item>
+
+          <Collapse
+            ghost
+            style={{ marginBottom: 16 }}
+            defaultActiveKey={[]}
+            items={[
+              {
+                key: 'advanced',
+                label: t('settings.mcp.advancedSettings', 'Advanced Settings'),
+                children: (
+                  <>
+                    <Form.Item
+                      name="provider"
+                      label={
+                        <FormLabelWithIcon>
+                          <Building2 size={16} />
+                          {t('settings.mcp.provider', 'Provider')}
+                        </FormLabelWithIcon>
+                      }>
+                      <Input placeholder={t('settings.mcp.providerPlaceholder', 'Provider name')} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="providerUrl"
+                      label={
+                        <FormLabelWithIcon>
+                          <Globe size={16} />
+                          {t('settings.mcp.providerUrl', 'Provider URL')}
+                        </FormLabelWithIcon>
+                      }>
+                      <Input placeholder={t('settings.mcp.providerUrlPlaceholder', 'https://provider-website.com')} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="logoUrl"
+                      label={
+                        <FormLabelWithIcon>
+                          <Image size={16} />
+                          {t('settings.mcp.logoUrl', 'Logo URL')}
+                        </FormLabelWithIcon>
+                      }>
+                      <Input placeholder={t('settings.mcp.logoUrlPlaceholder', 'https://example.com/logo.png')} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="tags"
+                      label={
+                        <FormLabelWithIcon>
+                          <Tag size={16} />
+                          {t('settings.mcp.tags', 'Tags')}
+                        </FormLabelWithIcon>
+                      }>
+                      <Select
+                        mode="tags"
+                        style={{ width: '100%' }}
+                        placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
+                        tokenSeparators={[',']}
+                      />
+                    </Form.Item>
+                  </>
+                )
+              }
+            ]}
+          />
         </Form>
       )
     }
@@ -520,7 +741,12 @@ const McpSettings: React.FC = () => {
   if (server.searchKey) {
     tabs.push({
       key: 'description',
-      label: t('settings.mcp.tabs.description'),
+      label: (
+        <Flex align="center" gap={8}>
+          <FileText size={16} />
+          {t('settings.mcp.tabs.description')}
+        </Flex>
+      ),
       children: <MCPDescription searchKey={server.searchKey} />
     })
   }
@@ -529,17 +755,32 @@ const McpSettings: React.FC = () => {
     tabs.push(
       {
         key: 'tools',
-        label: t('settings.mcp.tabs.tools'),
+        label: (
+          <Flex align="center" gap={8}>
+            <Wrench size={16} />
+            {t('settings.mcp.tabs.tools')}
+          </Flex>
+        ),
         children: <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />
       },
       {
         key: 'prompts',
-        label: t('settings.mcp.tabs.prompts'),
+        label: (
+          <Flex align="center" gap={8}>
+            <MessageSquare size={16} />
+            {t('settings.mcp.tabs.prompts')}
+          </Flex>
+        ),
         children: <MCPPromptsSection prompts={prompts} />
       },
       {
         key: 'resources',
-        label: t('settings.mcp.tabs.resources'),
+        label: (
+          <Flex align="center" gap={8}>
+            <Database size={16} />
+            {t('settings.mcp.tabs.resources')}
+          </Flex>
+        ),
         children: <MCPResourcesSection resources={resources} />
       }
     )
@@ -586,6 +827,11 @@ const McpSettings: React.FC = () => {
 const ServerName = styled.span`
   font-size: 14px;
   font-weight: 500;
+`
+
+const FormLabelWithIcon = styled(Flex)`
+  align-items: center;
+  gap: 8px;
 `
 
 export default McpSettings

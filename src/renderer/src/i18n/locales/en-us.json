@@ -1187,7 +1187,16 @@
           "success": "Sync MCP Servers successful",
           "unauthorized": "Sync Unauthorized",
           "noServersAvailable": "No MCP servers available"
-        }
+        },
+        "timeout": "Timeout",
+        "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
+        "provider": "Provider",
+        "providerUrl": "Provider URL",
+        "logoUrl": "Logo URL",
+        "tags": "Tags",
+        "tagsPlaceholder": "Enter tags",
+        "providerPlaceholder": "Provider name",
+        "advancedSettings": "Advanced Settings"
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",

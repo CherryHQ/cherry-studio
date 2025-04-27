@@ -1185,7 +1185,16 @@
           "success": "Синхронизация серверов MCP успешна",
           "unauthorized": "Синхронизация не разрешена",
           "noServersAvailable": "Нет доступных серверов MCP"
-        }
+        },
+        "timeout": "Тайм-аут",
+        "timeoutTooltip": "Тайм-аут в секундах для запросов к этому серверу, по умолчанию 60 секунд",
+        "provider": "Провайдер",
+        "providerUrl": "URL провайдера",
+        "logoUrl": "URL логотипа",
+        "tags": "Теги",
+        "tagsPlaceholder": "Введите теги",
+        "providerPlaceholder": "Имя провайдера",
+        "advancedSettings": "Расширенные настройки"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",

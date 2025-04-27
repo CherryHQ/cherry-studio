@@ -2149,6 +2149,8 @@ export const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-exp',
   'grok-2-image-1212',
+  'grok-2-image',
+  'grok-2-image-latest',
   'gpt-4o-image',
   'gpt-image-1'
 ]
@@ -2167,6 +2169,8 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.5-flash-preview',
   'gemini-2.5-flash-preview-04-17'
 ]
+
+export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
 
 export const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reasoning', 'sonar-reasoning-pro']
 
@@ -2202,7 +2206,7 @@ export function isVisionModel(model: Model): boolean {
   if (!model) {
     return false
   }
-  // 新添字段 copilot-vision-request 后可使用 vision 
+  // 新添字段 copilot-vision-request 后可使用 vision
   // if (model.provider === 'copilot') {
   //   return false
   // }
