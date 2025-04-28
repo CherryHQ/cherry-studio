@@ -275,12 +275,18 @@ export default class GeminiProvider extends BaseProvider {
       })
     }
 
+    const canGenerateImage = isGenerateImageModel(model)
+      ? model.id === 'gemini-2.0-flash-exp'
+        ? assistant.enableGenerateImage
+        : true
+      : false
+
     const generateContentConfig: GenerateContentConfig = {
-      responseModalities: isGenerateImageModel(model) ? [Modality.TEXT, Modality.IMAGE] : undefined,
-      responseMimeType: isGenerateImageModel(model) ? 'text/plain' : undefined,
+      responseModalities: canGenerateImage ? [Modality.TEXT, Modality.IMAGE] : undefined,
+      responseMimeType: canGenerateImage ? 'text/plain' : undefined,
       safetySettings: this.getSafetySettings(model.id),
       // generate image don't need system instruction
-      systemInstruction: isGemmaModel(model) || isGenerateImageModel(model) ? undefined : systemInstruction,
+      systemInstruction: isGemmaModel(model) || canGenerateImage ? undefined : systemInstruction,
       temperature: assistant?.settings?.temperature,
       topP: assistant?.settings?.topP,
       maxOutputTokens: maxTokens,
