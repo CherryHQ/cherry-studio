@@ -175,6 +175,10 @@
       "settings.max_tokens.confirm": "最大トークン制限を有効にする",
       "settings.max_tokens.confirm_content": "最大トークン制限を有効にすると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
       "settings.max_tokens.tip": "モデルが生成できる最大トークン数。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
+      "settings.models.enable_prompt_cache": "提示語キャッシュを有効にする",
+      "settings.models.enable_prompt_cache.tip": "提示語キャッシュを有効にすると、モデルは提示語キャッシュを使用して応答を生成できます。これにより、トークンの消費を減らすことができますが、応答の多様性に影響を与える可能性があります。Geminiは有料層級のみサポートしています",
+      "settings.models.cache_ttl": "キャッシュ時間",
+      "settings.models.cache_ttl.tip": "提示語キャッシュの有効期間（秒）、キャッシュ時間が長いほど費用が高くなります",
       "settings.reset": "リセット",
       "settings.set_as_default": "デフォルトのアシスタントに適用",
       "settings.show_line_numbers": "コードに行番号を表示",
@@ -1321,6 +1325,7 @@
         "docs_more_details": "詳細を確認",
         "get_api_key": "APIキーを取得",
         "is_not_support_array_content": "互換モードを有効にする",
+        "is_support_prompt_cache": "提示詞キャッシュをサポート",
         "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
         "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
@@ -1451,7 +1456,7 @@
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
       },
-      "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"
+      "input.show_translate_confirm": "翻訳確認ダイアログを表示"
     },
     "translate": {
       "any.language": "任意の言語",

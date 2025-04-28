@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
+import { MessageCreateParamsNonStreaming, MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { isReasoningModel, isVisionModel } from '@renderer/config/models'
+import { getPromptCacheParams, isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -49,13 +49,16 @@ export default class AnthropicProvider extends BaseProvider {
   /**
    * Get the message parameter
    * @param message - The message
+   * @param assistant - The assistant
    * @returns The message parameter
    */
-  private async getMessageParam(message: Message): Promise<MessageParam> {
+  private async getMessageParam(message: Message, assistant: Assistant): Promise<MessageParam> {
+    const model = assistant.model || getDefaultModel()
     const parts: MessageParam['content'] = [
       {
         type: 'text',
-        text: await this.getMessageContent(message)
+        text: await this.getMessageContent(message),
+        ...getPromptCacheParams(assistant, model)
       }
     ]
 
@@ -76,7 +79,8 @@ export default class AnthropicProvider extends BaseProvider {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
         parts.push({
           type: 'text',
-          text: file.origin_name + '\n' + fileContent
+          text: file.origin_name + '\n' + fileContent,
+          ...getPromptCacheParams(assistant, model)
         })
       }
     }
@@ -168,7 +172,7 @@ export default class AnthropicProvider extends BaseProvider {
     onFilterMessages(_messages)
 
     for (const message of _messages) {
-      userMessagesParams.push(await this.getMessageParam(message))
+      userMessagesParams.push(await this.getMessageParam(message, assistant))
     }
 
     const userMessages = flatten(userMessagesParams)
@@ -180,6 +184,15 @@ export default class AnthropicProvider extends BaseProvider {
       systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
     }
 
+    let systemMessage: TextBlockParam | undefined = undefined
+    if (systemPrompt) {
+      systemMessage = {
+        type: 'text',
+        text: systemPrompt,
+        ...getPromptCacheParams(assistant, model)
+      }
+    }
+
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
@@ -187,7 +200,7 @@ export default class AnthropicProvider extends BaseProvider {
       max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
       temperature: this.getTemperature(assistant, model),
       top_p: this.getTopP(assistant, model),
-      system: systemPrompt,
+      system: systemMessage ? [systemMessage] : undefined,
       // @ts-ignore thinking
       thinking: this.getReasoningEffort(assistant, model),
       ...this.getCustomParameters(assistant)

@@ -16,6 +16,7 @@ interface Props extends ShowParams {
 const PopupContainer: React.FC<Props> = ({ resolve, ...props }) => {
   const [open, setOpen] = useState(true)
   const [isNotSupportArrayContent, setIsNotSupportArrayContent] = useState(props.provider.isNotSupportArrayContent)
+  const [isSupportPromptCache, setIsSupportPromptCache] = useState(props.provider.isSupportPromptCache)
 
   const { provider, updateProvider } = useProvider(props.provider.id)
 
@@ -51,6 +52,14 @@ const PopupContainer: React.FC<Props> = ({ resolve, ...props }) => {
           updateProvider({ ...provider, isNotSupportArrayContent: e.target.checked })
         }}>
         {t('settings.provider.is_not_support_array_content')}
+      </Checkbox>
+      <Checkbox
+        checked={isSupportPromptCache}
+        onChange={(e) => {
+          setIsSupportPromptCache(e.target.checked)
+          updateProvider({ ...provider, isSupportPromptCache: e.target.checked })
+        }}>
+        {t('settings.provider.is_support_prompt_cache')}
       </Checkbox>
     </Modal>
   )

@@ -13,6 +13,7 @@ import {
   ThinkingConfig,
   ToolListUnion
 } from '@google/genai'
+import { MIN_GEMINI_CACHE_TOKEN } from '@renderer/config/constant'
 import {
   isGemini25ReasoningModel,
   isGemmaModel,
@@ -29,6 +30,7 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
+import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
@@ -243,7 +245,7 @@ export default class GeminiProvider extends BaseProvider {
   }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, enablePromptCache, cacheTTL, streamOutput } = getAssistantSettings(assistant)
 
     const userMessages = filterUserRoleStartMessages(
       filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
@@ -257,6 +259,8 @@ export default class GeminiProvider extends BaseProvider {
     for (const message of userMessages) {
       history.push(await this.getMessageContents(message))
     }
+
+    let generateContentConfig: GenerateContentConfig
 
     let systemInstruction = assistant.prompt
 
@@ -274,19 +278,43 @@ export default class GeminiProvider extends BaseProvider {
         googleSearch: {}
       })
     }
+    const estimtateToken = await estimateHistoryTokens(assistant, userMessages)
+    if (enablePromptCache && estimtateToken > MIN_GEMINI_CACHE_TOKEN) {
+      const cache = await this.sdk.caches.create({
+        model: model.id,
+        config: {
+          ttl: `${cacheTTL}s`,
+          contents: history,
+          systemInstruction: systemInstruction,
+          tools: tools
+        }
+      })
 
-    const generateContentConfig: GenerateContentConfig = {
-      responseModalities: isGenerateImageModel(model) ? [Modality.TEXT, Modality.IMAGE] : undefined,
-      responseMimeType: isGenerateImageModel(model) ? 'text/plain' : undefined,
-      safetySettings: this.getSafetySettings(model.id),
-      // generate image don't need system instruction
-      systemInstruction: isGemmaModel(model) || isGenerateImageModel(model) ? undefined : systemInstruction,
-      temperature: assistant?.settings?.temperature,
-      topP: assistant?.settings?.topP,
-      maxOutputTokens: maxTokens,
-      tools: tools,
-      ...this.getReasoningEffort(assistant, model),
-      ...this.getCustomParameters(assistant)
+      generateContentConfig = {
+        responseModalities: isGenerateImageModel(model) ? [Modality.TEXT, Modality.IMAGE] : undefined,
+        responseMimeType: isGenerateImageModel(model) ? 'text/plain' : undefined,
+        safetySettings: this.getSafetySettings(model.id),
+        cachedContent: cache.name,
+        temperature: assistant?.settings?.temperature,
+        topP: assistant?.settings?.topP,
+        maxOutputTokens: maxTokens,
+        ...this.getReasoningEffort(assistant, model),
+        ...this.getCustomParameters(assistant)
+      }
+    } else {
+      generateContentConfig = {
+        responseModalities: isGenerateImageModel(model) ? [Modality.TEXT, Modality.IMAGE] : undefined,
+        responseMimeType: isGenerateImageModel(model) ? 'text/plain' : undefined,
+        safetySettings: this.getSafetySettings(model.id),
+        // generate image don't need system instruction
+        systemInstruction: isGemmaModel(model) || isGenerateImageModel(model) ? undefined : systemInstruction,
+        temperature: assistant?.settings?.temperature,
+        topP: assistant?.settings?.topP,
+        maxOutputTokens: maxTokens,
+        tools: tools,
+        ...this.getReasoningEffort(assistant, model),
+        ...this.getCustomParameters(assistant)
+      }
     }
 
     const messageContents: Content = await this.getMessageContents(userLastMessage!)

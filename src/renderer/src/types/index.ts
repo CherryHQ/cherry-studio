@@ -43,6 +43,8 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: 'low' | 'medium' | 'high'
+  enablePromptCache?: boolean
+  cacheTTL?: number
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -140,6 +142,7 @@ export type Provider = {
   isAuthed?: boolean
   rateLimit?: number
   isNotSupportArrayContent?: boolean
+  isSupportPromptCache?: boolean
   notes?: string
 }
 

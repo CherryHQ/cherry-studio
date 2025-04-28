@@ -247,7 +247,11 @@
       "topics.export.title_naming_success": "Title generated successfully",
       "topics.export.title_naming_failed": "Failed to generate title, using default title",
       "input.translating": "Translating...",
-      "input.upload.upload_from_local": "Upload local file..."
+      "input.upload.upload_from_local": "Upload local file...",
+      "settings.models.enable_prompt_cache": "Enable prompt cache",
+      "settings.models.enable_prompt_cache.tip": "Enable prompt cache, the model will generate replies based on the prompt cache, which can reduce the consumption of tokens, but it will affect the diversity of replies, Gemini only supports paid tiers",
+      "settings.models.cache_ttl": "Cache TTL",
+      "settings.models.cache_ttl.tip": "Prompt cache TTL, unit is seconds, the cost increases with the cache duration"
     },
     "code_block": {
       "collapse": "Collapse",
@@ -1323,6 +1327,7 @@
         "docs_more_details": "for more details",
         "get_api_key": "Get API Key",
         "is_not_support_array_content": "Enable compatible mode",
+        "is_support_prompt_cache": "Support prompt cache",
         "no_models_for_check": "No models available for checking (e.g. chat models)",
         "not_checked": "Not Checked",
         "remove_duplicate_keys": "Remove Duplicate Keys",
