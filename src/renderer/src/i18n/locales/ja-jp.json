@@ -1338,6 +1338,7 @@
         "providerPlaceholder": "プロバイダー名",
         "advancedSettings": "詳細設定"
       },
+      "messages.prompt": "プロンプト表示",
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
       "messages.grid_popover_trigger": "グリッド詳細トリガー",

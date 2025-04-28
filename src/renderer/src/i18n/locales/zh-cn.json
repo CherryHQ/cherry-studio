@@ -1340,6 +1340,7 @@
         "providerPlaceholder": "提供者名称",
         "advancedSettings": "高级设置"
       },
+      "messages.prompt": "提示词显示",
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
       "messages.grid_popover_trigger": "网格详情触发",
