@@ -39,7 +39,7 @@ import { Dropdown, MenuProps, Tooltip } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, startTransition, useCallback, useMemo, useRef, useState } from 'react'
+import { FC, startTransition, useCallback, useDeferredValue, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -158,7 +158,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
 
-  const [targetTopic, setTargetTopic] = useState<Topic | null>(null)
+  const [_targetTopic, setTargetTopic] = useState<Topic | null>(null)
+  const targetTopic = useDeferredValue(_targetTopic)
   const getTopicMenuItems = useMemo(() => {
     const topic = targetTopic
     if (!topic) return []
