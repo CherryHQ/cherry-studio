@@ -1,10 +1,11 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
 import { nanoid } from '@reduxjs/toolkit'
-import npmLogo from '@renderer/assets/images/mcp/npm.svg'
+import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { Center, HStack } from '@renderer/components/Layout'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { builtinMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
+import { getMcpConfigSampleFromReadme } from '@renderer/utils'
 import { Button, Card, Flex, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
@@ -19,15 +20,14 @@ interface SearchResult {
   npmLink: string
   fullName: string
   type: MCPServer['type']
+  configSample?: MCPServer['configSample']
 }
 
 const npmScopes = ['@cherry', '@modelcontextprotocol', '@gongrzhe', '@mcpmarket']
 
 let _searchResults: SearchResult[] = []
 
-const NpxSearch: FC<{
-  setSelectedMcpServer: (server: MCPServer) => void
-}> = ({ setSelectedMcpServer }) => {
+const NpxSearch: FC = () => {
   const { t } = useTranslation()
   const { Text, Link } = Typography
 
@@ -73,9 +73,13 @@ const NpxSearch: FC<{
     try {
       // Call npxFinder to search for packages
       const packages = await npxFinder(searchScope)
-
       // Map the packages to our desired format
       const formattedResults: SearchResult[] = packages.map((pkg) => {
+        let configSample
+        if (pkg.original?.readme) {
+          configSample = getMcpConfigSampleFromReadme(pkg.original.readme)
+        }
+
         return {
           key: pkg.name,
           name: pkg.name?.split('/')[1] || '',
@@ -84,7 +88,8 @@ const NpxSearch: FC<{
           usage: `npx ${pkg.name}`,
           npmLink: pkg.links?.npm || `https://www.npmjs.com/package/${pkg.name}`,
           fullName: pkg.name || '',
-          type: 'stdio'
+          type: 'stdio',
+          configSample
         }
       })
 
@@ -119,7 +124,7 @@ const NpxSearch: FC<{
       <Center>
         <Space direction="vertical" style={{ marginBottom: 25, width: 500 }}>
           <Center style={{ marginBottom: 15 }}>
-            <img src={npmLogo} alt="npm" width={100} />
+            <img src={logo} alt="npm" width={120} />
           </Center>
           <Space.Compact style={{ width: '100%' }}>
             <Input
@@ -135,7 +140,6 @@ const NpxSearch: FC<{
             {npmScopes.map((scope) => (
               <Tag
                 key={scope}
-                bordered={false}
                 onClick={() => {
                   setNpmScope(scope)
                   handleNpmSearch(scope)
@@ -164,6 +168,7 @@ const NpxSearch: FC<{
               <Card
                 size="small"
                 key={record.name}
+                style={{ borderRadius: 'var(--list-item-border-radius)' }}
                 title={
                   <Typography.Title level={5} style={{ margin: 0 }} className="selectable">
                     {record.name}
@@ -171,7 +176,7 @@ const NpxSearch: FC<{
                 }
                 extra={
                   <Flex>
-                    <Tag bordered={false} color="processing">
+                    <Tag color="success" style={{ borderRadius: 100 }}>
                       v{record.version}
                     </Tag>
                     <Button
@@ -190,7 +195,6 @@ const NpxSearch: FC<{
                         if (buildInServer) {
                           addMCPServer(buildInServer)
                           window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-server' })
-                          setSelectedMcpServer(buildInServer)
                           return
                         }
 
@@ -199,14 +203,15 @@ const NpxSearch: FC<{
                           name: record.name,
                           description: `${record.description}\n\n${t('settings.mcp.npx_list.usage')}: ${record.usage}\n${t('settings.mcp.npx_list.npm')}: ${record.npmLink}`,
                           command: 'npx',
-                          args: ['-y', record.fullName],
+                          args: record.configSample?.args ?? ['-y', record.fullName],
+                          env: record.configSample?.env,
                           isActive: false,
-                          type: record.type
+                          type: record.type,
+                          searchKey: record.fullName
                         }
 
                         addMCPServer(newServer)
                         window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-server' })
-                        setSelectedMcpServer(newServer)
                       }}
                     />
                   </Flex>
@@ -234,6 +239,7 @@ const Container = styled.div`
   flex: 1;
   flex-direction: column;
   gap: 8px;
+  padding-top: 20px;
 `
 
 const ResultList = styled.div`

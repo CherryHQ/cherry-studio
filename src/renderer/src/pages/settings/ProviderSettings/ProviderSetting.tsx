@@ -1,22 +1,19 @@
-import { ApiOutlined } from '@ant-design/icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
-import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
-import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
+import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
-import { providerCharge } from '@renderer/utils/oauth'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
-import { Settings, SquareArrowOutUpRight } from 'lucide-react'
-import { FC, useDeferredValue, useEffect, useState } from 'react'
+import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -35,7 +32,7 @@ import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
 import ModelList, { ModelStatus } from './ModelList'
 import ModelListSearchBar from './ModelListSearchBar'
-import OllamSettings from './OllamaSettings'
+import ProviderOAuth from './ProviderOAuth'
 import ProviderSettingsPopup from './ProviderSettingsPopup'
 
 interface Props {
@@ -44,6 +41,8 @@ interface Props {
 
 const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { provider } = useProvider(_provider.id)
+  const allProviders = useAllProviders()
+  const { updateProviders } = useProviders()
   const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
@@ -62,6 +61,21 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
+
+  const moveProviderToTop = useCallback(
+    (providerId: string) => {
+      const reorderedProviders = [...allProviders]
+      const index = reorderedProviders.findIndex((p) => p.id === providerId)
+
+      if (index !== -1) {
+        const updatedProvider = { ...reorderedProviders[index], enabled: true }
+        reorderedProviders.splice(index, 1)
+        reorderedProviders.unshift(updatedProvider)
+        updateProviders(reorderedProviders)
+      }
+    },
+    [allProviders, updateProviders]
+  )
 
   const onUpdateApiHost = () => {
     if (apiHost.trim()) {
@@ -91,15 +105,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    let keys: string[] = []
-    if (apiKey.includes(',')) {
-      keys = apiKey
-        .split(',')
-        .map((k) => k.trim())
-        .filter((k) => k)
-    } else {
-      keys = [apiKey]
-    }
+    const keys = apiKey
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k)
 
     // Add an empty key to enable health checks for local models.
     // Error messages will be shown for each model if a valid key is needed.
@@ -207,45 +216,38 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex align="center" gap={5}>
           <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
-          {officialWebsite! && (
+          {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
-              <SquareArrowOutUpRight size={14} color="var(--color-text)" />
+              <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
           {!provider.isSystem && (
-            <Settings
+            <Button
               type="text"
-              size={16}
-              style={{ cursor: 'pointer' }}
+              size="small"
               onClick={() => ProviderSettingsPopup.show({ provider })}
+              icon={<Settings2 size={14} />}
             />
           )}
         </Flex>
         <Switch
           value={provider.enabled}
           key={provider.id}
-          onChange={(enabled) => updateProvider({ ...provider, apiKey, apiHost, enabled })}
+          onChange={(enabled) => {
+            updateProvider({ ...provider, apiKey, apiHost, enabled })
+            if (enabled) {
+              moveProviderToTop(provider.id)
+            }
+          }}
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
+      {isProviderSupportAuth(provider) && <ProviderOAuth provider={provider} setApiKey={handleApiKeyChange} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Space>
-            <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-          </Space>
-          {isProviderSupportAuth(provider) && (
-            <Tooltip title={t('auth.get_key')} mouseEnterDelay={0.5}>
-              <OAuthButton
-                provider={provider}
-                onSuccess={handleApiKeyChange}
-                type="text"
-                size="small"
-                icon={<ApiOutlined />}
-              />
-            </Tooltip>
-          )}
+          <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.api_key')}</SettingSubtitle>
         </Space>
       </SettingSubtitle>
       <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="provider" />
@@ -255,11 +257,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>
-            {isProviderSupportCharge(provider) && (
-              <SettingHelpLink onClick={() => providerCharge(provider.id)}>
-                {t('settings.provider.charge')}
-              </SettingHelpLink>
-            )}
           </HStack>
         </SettingHelpTextRow>
       )}
@@ -299,7 +296,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           </Space.Compact>
         </>
       )}
-      {provider.id === 'ollama' && <OllamSettings />}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
@@ -330,6 +326,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
+  margin-right: -2px;
 `
 
 export default ProviderSetting

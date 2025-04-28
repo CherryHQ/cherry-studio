@@ -328,7 +328,7 @@
       "no_api_key": "Ключ API не настроен",
       "provider_disabled": "Провайдер моделей не включен",
       "render": {
-        "description": "Не удалось рендерить формулу. Пожалуйста, проверьте, правильно ли формат формулы",
+        "description": "Не удалось рендерить содержимое сообщения. Пожалуйста, проверьте, правильно ли формат содержимого сообщения",
         "title": "Ошибка рендеринга"
       },
       "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
@@ -445,7 +445,11 @@
       "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает.",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "dimensions": "векторное пространство",
+      "dimensions_size_tooltip": "Размерность вложения, чем больше значение, тем больше размерность вложения, но и потребляемых токенов также становится больше.",
+      "dimensions_size_placeholder": "Значение по умолчанию (не рекомендуется изменять)",
+      "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})"
     },
     "languages": {
       "arabic": "Арабский",
@@ -548,7 +552,7 @@
       "restore.failed": "Восстановление не удалось",
       "restore.success": "Успешно восстановлено",
       "save.success.title": "Успешно сохранено",
-      "searching": "Поиск в Интернете...",
+      "searching": "Идет поиск...",
       "success.joplin.export": "Успешный экспорт в Joplin",
       "success.markdown.export.preconf": "Файл Markdown успешно экспортирован в предуказанный путь",
       "success.markdown.export.specified": "Файл Markdown успешно экспортирован",
@@ -558,7 +562,9 @@
       "tools": {
         "completed": "Завершено",
         "invoking": "Вызов",
-        "error": "Произошла ошибка"
+        "error": "Произошла ошибка",
+        "raw": "Исходный",
+        "preview": "Предпросмотр"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -579,7 +585,9 @@
         "minimize": "Свернуть встроенное приложение",
         "devtools": "Инструменты разработчика",
         "openExternal": "Открыть в браузере",
-        "rightclick_copyurl": "ПКМ → Копировать URL"
+        "rightclick_copyurl": "ПКМ → Копировать URL",
+        "open_link_external_on": "Текущий: Открыть ссылки в браузере",
+        "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию"
       },
       "sidebar.add.title": "Добавить в боковую панель",
       "sidebar.remove.title": "Удалить из боковой панели",
@@ -919,7 +927,9 @@
           "syncError": "Ошибка резервного копирования",
           "syncStatus": "Статус резервного копирования",
           "title": "WebDAV",
-          "user": "Пользователь WebDAV"
+          "user": "Пользователь WebDAV",
+          "maxBackups": "Максимальное количество резервных копий",
+          "maxBackups.unlimited": "Без ограничений"
         },
         "yuque": {
           "check": {
@@ -1012,6 +1022,9 @@
         "disabled": "Скрытые мини-приложения",
         "empty": "Перетащите мини-приложения слева, чтобы скрыть их",
         "visible": "Отображаемые мини-приложения",
+        "open_link_external": {
+          "title": "Открывать новые окна в браузере"
+        },
         "cache_settings": "Настройки кэша",
         "cache_title": "Количество кэшируемых мини-приложений",
         "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
@@ -1114,6 +1127,7 @@
         "installHelp": "Получить помощь по установке",
         "tabs": {
           "general": "Общие",
+          "description": "Описание",
           "tools": "Инструменты",
           "prompts": "Подсказки",
           "resources": "Ресурсы"
@@ -1149,7 +1163,38 @@
         "registryDefault": "По умолчанию",
         "not_support": "Модель не поддерживается",
         "user": "Пользователь",
-        "system": "Система"
+        "system": "Система",
+        "types": {
+          "inMemory": "Встроенный",
+          "sse": "SSE",
+          "streamableHttp": "Потоковый HTTP",
+          "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "Синхронизация серверов",
+          "selectProvider": "Выберите провайдера:",
+          "discoverMcpServers": "Обнаружить серверы MCP",
+          "discoverMcpServersDescription": "Посетите платформу, чтобы обнаружить доступные серверы MCP",
+          "getToken": "Получить API токен",
+          "getTokenDescription": "Получите персональный API токен из вашей учетной записи",
+          "setToken": "Введите ваш токен",
+          "tokenRequired": "Требуется API токен",
+          "tokenPlaceholder": "Введите API токен здесь",
+          "button": "Синхронизировать",
+          "error": "Ошибка синхронизации серверов MCP",
+          "success": "Синхронизация серверов MCP успешна",
+          "unauthorized": "Синхронизация не разрешена",
+          "noServersAvailable": "Нет доступных серверов MCP"
+        },
+        "timeout": "Тайм-аут",
+        "timeoutTooltip": "Тайм-аут в секундах для запросов к этому серверу, по умолчанию 60 секунд",
+        "provider": "Провайдер",
+        "providerUrl": "URL провайдера",
+        "logoUrl": "URL логотипа",
+        "tags": "Теги",
+        "tagsPlaceholder": "Введите теги",
+        "providerPlaceholder": "Имя провайдера",
+        "advancedSettings": "Расширенные настройки"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
@@ -1165,6 +1210,7 @@
       "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
+      "messages.math_engine.none": "Нет",
       "messages.metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
       "messages.model.title": "Настройки модели",
       "messages.navigation": "Навигация сообщений",
@@ -1228,10 +1274,22 @@
         "api_host": "Хост API",
         "api_key": "Ключ API",
         "api_version": "Версия API",
-        "charge": "Пополнить",
+        "basic_auth": "HTTP аутентификация",
+        "basic_auth.tip": "Применимо к экземплярам, развернутым через сервер (см. документацию). В настоящее время поддерживается только схема Basic (RFC7617).",
+        "basic_auth.user_name": "Имя пользователя",
+        "basic_auth.user_name.tip": "Оставить пустым для отключения",
+        "basic_auth.password": "Пароль",
+        "basic_auth.password.tip": "",
+        "charge": "Пополнить баланс",
+        "bills": "Счета за услуги",
         "check": "Проверить",
         "check_all_keys": "Проверить все ключи",
         "check_multiple_keys": "Проверить несколько ключей API",
+        "oauth": {
+          "button": "Войти с {{provider}}",
+          "description": "Сервис предоставляется <website>{{provider}}</website>",
+          "official_website": "Официальный сайт"
+        },
         "copilot": {
           "auth_failed": "Github Copilot认证失败",
           "auth_success": "Github Copilot认证成功",
@@ -1269,6 +1327,11 @@
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
         "title": "Провайдеры моделей",
+        "notes": {
+          "title": "Заметки модели",
+          "placeholder": "Введите содержимое в формате Markdown...",
+          "markdown_editor_default_value": "Область предварительного просмотра"
+        },
         "enter_new_api_key": "Введите новый API ключ",
         "key_already_exists": "API ключ уже существует",
         "check_tooltip.latency": "Задержка"
@@ -1334,8 +1397,6 @@
         "check": "проверка",
         "check_failed": "Проверка не прошла",
         "check_success": "Проверка успешна",
-        "enhance_mode": "Режим улучшения поиска",
-        "enhance_mode_tooltip": "Используйте модель по умолчанию для извлечения ключевых слов из проблемы и поиска",
         "get_api_key": "Получить ключ API",
         "no_provider_selected": "Пожалуйста, выберите поставщика поисковых услуг, затем проверьте.",
         "search_max_result": "Количество результатов поиска",
@@ -1350,21 +1411,23 @@
           "title": "Tavily"
         },
         "title": "Поиск в Интернете",
-        "blacklist_tooltip": "Соответствующий шаблон: *://*.example.com/*\nРегулярное выражение: /example\\.(net|org)/",
-        "subscribe": "Черный список подписки",
-        "subscribe_update": "Обновить сейчас",
-        "subscribe_add": "Добавить подписку",
-        "subscribe_url": "Адрес источника подписки",
-        "subscribe_name": "альтернативное имя",
-        "subscribe_name.placeholder": "替代名称, используемый, когда загружаемый подписочный источник не имеет названия",
-        "subscribe_add_success": "Подписка добавлена успешно!",
-        "subscribe_delete": "Удалить источник подписки",
-        "overwrite": "Переопределить поставщика поиска",
-        "overwrite_tooltip": "Использовать поставщика поиска вместо LLM",
-        "apikey": "Ключ API",
-        "free": "Бесплатно"
+        "blacklist_tooltip": "Шаблон: *://*.example.com/*\nРегулярное выражение: /example\\.(net|org)/",
+        "subscribe": "Подписка на черный список",
+        "subscribe_update": "Обновить",
+        "subscribe_add": "Добавить",
+        "subscribe_url": "URL подписки",
+        "subscribe_name": "Альтернативное имя",
+        "subscribe_name.placeholder": "Альтернативное имя, если в подписке нет названия.",
+        "subscribe_add_success": "Подписка успешно добавлена!",
+        "subscribe_delete": "Удалить",
+        "overwrite": "Переопределить провайдера поиска",
+        "overwrite_tooltip": "Использовать провайдера поиска вместо LLM",
+        "apikey": "API ключ",
+        "free": "Бесплатно",
+        "content_limit": "Ограничение длины текста",
+        "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
       },
-      "general.auto_check_update.title": "Включить автоматическую проверку обновлений",
+      "general.auto_check_update.title": "Включить автообновление",
       "quickPhrase": {
         "title": "Быстрые фразы",
         "add": "Добавить фразу",
@@ -1389,7 +1452,8 @@
       "privacy": {
         "title": "Настройки приватности",
         "enable_privacy_mode": "Анонимная отправка отчетов об ошибках и статистики"
-      }
+      },
+      "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"
     },
     "translate": {
       "any.language": "Любой язык",

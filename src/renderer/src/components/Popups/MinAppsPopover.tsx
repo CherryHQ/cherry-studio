@@ -48,7 +48,7 @@ const MinAppsPopover: FC<Props> = ({ children }) => {
         ))}
         {isEmpty(minapps) && (
           <Center>
-            <Empty />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </Center>
         )}
       </AppsContainer>

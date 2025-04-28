@@ -69,7 +69,7 @@ const PopupContainer: React.FC<Props> = ({ text, textareaProps, modalProps, reso
       title={t('common.edit')}
       width="60vw"
       style={{ maxHeight: '70vh' }}
-      transitionName="ant-move-down"
+      transitionName="animation-move-down"
       okText={t('common.save')}
       {...modalProps}
       open={open}

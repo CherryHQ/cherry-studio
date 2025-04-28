@@ -1,4 +1,4 @@
-import { GroundingMetadata } from '@google/generative-ai'
+import { GroundingMetadata } from '@google/genai'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
@@ -63,7 +63,7 @@ export type Message = {
   model?: Model
   files?: FileType[]
   images?: string[]
-  usage?: OpenAI.Completions.CompletionUsage
+  usage?: Usage
   metrics?: Metrics
   knowledgeBaseIds?: string[]
   type: 'text' | '@' | 'clear'
@@ -88,11 +88,17 @@ export type Message = {
     mcpTools?: MCPToolResponse[]
     // Generate Image
     generateImage?: GenerateImageResponse
+    // knowledge
+    knowledge?: KnowledgeReference[]
   }
   // 多模型消息样式
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
   // fold时是否选中
   foldSelected?: boolean
+}
+
+export type Usage = OpenAI.Completions.CompletionUsage & {
+  thoughts_tokens?: number
 }
 
 export type Metrics = {
@@ -134,6 +140,7 @@ export type Provider = {
   isAuthed?: boolean
   rateLimit?: number
   isNotSupportArrayContent?: boolean
+  notes?: string
 }
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
@@ -240,6 +247,7 @@ export type AppInfo = {
   filesPath: string
   logsPath: string
   arch: string
+  isPortable: boolean
 }
 
 export interface Shortcut {
@@ -340,6 +348,8 @@ export type WebSearchProvider = {
   apiHost?: string
   engines?: string[]
   url?: string
+  basicAuthUsername?: string
+  basicAuthPassword?: string
   contentLimit?: number
   usingBrowser?: boolean
 }
@@ -374,6 +384,12 @@ export interface MCPServerParameter {
   description: string
 }
 
+export interface MCPConfigSample {
+  command: string
+  args: string[]
+  env?: Record<string, string> | undefined
+}
+
 export interface MCPServer {
   id: string
   name: string
@@ -386,7 +402,14 @@ export interface MCPServer {
   env?: Record<string, string>
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
+  configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
+  searchKey?: string
+  provider?: string // Provider name for this server like ModelScope, Higress, etc.
+  providerUrl?: string // URL of the MCP server in provider's website or documentation
+  logoUrl?: string // URL of the MCP server's logo
+  tags?: string[] // List of tags associated with this server
+  timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
 }
 
 export interface MCPToolInputSchema {
@@ -486,3 +509,13 @@ export interface QuickPhrase {
   updatedAt: number
   order?: number
 }
+
+export interface Citation {
+  number: number
+  url: string
+  hostname: string
+  title?: string
+  content?: string
+}
+
+export type MathEngine = 'KaTeX' | 'MathJax' | 'none'

@@ -31,11 +31,18 @@ export default class ExaProvider extends BaseWebSearchProvider {
 
       return {
         query: response.autopromptString,
-        results: response.results.map((result) => ({
-          title: result.title || 'No title',
-          content: result.text || '',
-          url: result.url || ''
-        }))
+        results: response.results.slice(0, websearch.maxResults).map((result) => {
+          let content = result.text || ''
+          if (websearch.contentLimit && content.length > websearch.contentLimit) {
+            content = content.slice(0, websearch.contentLimit) + '...'
+          }
+
+          return {
+            title: result.title || 'No title',
+            content: content,
+            url: result.url || ''
+          }
+        })
       }
     } catch (error) {
       console.error('Exa search failed:', error)

@@ -62,6 +62,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
                 {first(m.name)}
               </Avatar>
             ),
+            filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
             action: () => onMentionModel(m),
             isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
           }))
@@ -89,6 +90,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
               {first(m.name)}
             </Avatar>
           ),
+          filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
           action: () => onMentionModel(m),
           isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
         }))

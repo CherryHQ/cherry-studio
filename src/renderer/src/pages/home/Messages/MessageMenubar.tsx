@@ -11,7 +11,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import { RootState } from '@renderer/store'
 import type { Message, Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
-import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, removeTrailingDoubleSpaces } from '@renderer/utils'
+import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToNotion,
@@ -21,6 +21,7 @@ import {
   messageToMarkdown
 } from '@renderer/utils/export'
 import { withMessageThought } from '@renderer/utils/formats'
+import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { clone } from 'lodash'
