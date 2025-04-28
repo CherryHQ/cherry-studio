@@ -278,8 +278,8 @@ export default class GeminiProvider extends BaseProvider {
         googleSearch: {}
       })
     }
-    const estimtateToken = await estimateHistoryTokens(assistant, userMessages)
-    if (enablePromptCache && estimtateToken > MIN_GEMINI_CACHE_TOKEN) {
+    const estimateToken = await estimateHistoryTokens(assistant, userMessages)
+    if (enablePromptCache && estimateToken > MIN_GEMINI_CACHE_TOKEN) {
       const cache = await this.sdk.caches.create({
         model: model.id,
         config: {
