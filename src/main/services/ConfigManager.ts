@@ -37,7 +37,7 @@ export class ConfigManager {
   }
 
   getTheme(): ThemeMode {
-    return this.get(ConfigKeys.Theme, ThemeMode.light)
+    return this.get(ConfigKeys.Theme, ThemeMode.auto)
   }
 
   setTheme(theme: ThemeMode) {

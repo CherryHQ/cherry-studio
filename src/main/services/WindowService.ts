@@ -2,7 +2,8 @@ import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
+import { ThemeMode } from '@types'
+import { app, BrowserWindow, ipcMain, Menu, MenuItem, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
@@ -47,6 +48,11 @@ export class WindowService {
     })
 
     const theme = configManager.getTheme()
+    if (theme === ThemeMode.auto) {
+      nativeTheme.themeSource = 'system'
+    } else {
+      nativeTheme.themeSource = theme
+    }
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
@@ -61,8 +67,9 @@ export class WindowService {
       vibrancy: 'sidebar',
       visualEffectState: 'active',
       titleBarStyle: isLinux ? 'default' : 'hidden',
-      titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,
-      backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
+      titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+      backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
+      darkTheme: nativeTheme.shouldUseDarkColors,
       trafficLightPosition: { x: 8, y: 12 },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
