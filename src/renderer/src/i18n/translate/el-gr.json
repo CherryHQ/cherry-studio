@@ -194,6 +194,8 @@
       "topics.export.yuque": "Εξαγωγή στο Yuque",
       "topics.list": "Λίστα θεμάτων",
       "topics.move_to": "Μετακίνηση στο",
+      "topics.batch_move": "Μαζική μετακίνηση",
+      "topics.select_target_assistant": "Επιλεγμένος βοηθός",
       "topics.new": "Ξεκινήστε νέα συζήτηση",
       "topics.pinned": "Σταθερά θέματα",
       "topics.prompt": "Προσδοκώμενα όρια",

@@ -194,6 +194,8 @@
       "topics.export.yuque": "Exportar para Yuque",
       "topics.list": "Lista de tópicos",
       "topics.move_to": "Mover para",
+      "topics.batch_move": "Movimento em Lote",
+      "topics.select_target_assistant": "Assistente Alvo",
       "topics.new": "Começar nova conversa",
       "topics.pinned": "Fixar tópico",
       "topics.prompt": "Prompt do tópico",
