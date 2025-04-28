@@ -275,11 +275,14 @@ export default class GeminiProvider extends BaseProvider {
       })
     }
 
-    const canGenerateImage = isGenerateImageModel(model)
-      ? model.id === 'gemini-2.0-flash-exp'
-        ? assistant.enableGenerateImage
-        : true
-      : false
+    let canGenerateImage = false
+    if (isGenerateImageModel(model)) {
+      if (model.id === 'gemini-2.0-flash-exp') {
+        canGenerateImage = assistant.enableGenerateImage!
+      } else {
+        canGenerateImage = true
+      }
+    }
 
     const generateContentConfig: GenerateContentConfig = {
       responseModalities: canGenerateImage ? [Modality.TEXT, Modality.IMAGE] : undefined,
