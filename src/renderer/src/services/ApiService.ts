@@ -60,7 +60,7 @@ export async function fetchChatCompletion({
   const provider = getAssistantProvider(assistant)
   const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
-  store.dispatch(setGenerating(true))
+
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
   const hasKnowledgeBase = !isEmpty(lastUserMessage?.knowledgeBaseIds)

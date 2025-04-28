@@ -1,8 +1,7 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { Input as AntdInput } from 'antd'
 import { InputRef } from 'rc-input/lib/interface'
-import React, { useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
 interface InputBarProps {
@@ -10,39 +9,39 @@ interface InputBarProps {
   model: any
   referenceText: string
   placeholder: string
+  disabled?: boolean
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }
 
-const InputBar = ({
-  ref,
-  text,
-  model,
-  placeholder,
-  handleKeyDown,
-  handleChange
-}: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
-  const { generating } = useRuntime()
-  const inputRef = useRef<InputRef>(null)
-  if (!generating) {
-    setTimeout(() => inputRef.current?.input?.focus(), 0)
+const InputBar = React.forwardRef<HTMLDivElement, InputBarProps>(
+  ({ text, model, placeholder, handleKeyDown, handleChange, disabled = false }, ref) => {
+    const inputRef = useRef<InputRef>(null)
+
+    useEffect(() => {
+      if (!disabled) {
+        inputRef.current?.focus()
+      }
+    }, [disabled])
+
+    return (
+      <InputWrapper ref={ref}>
+        <ModelAvatar model={model} size={30} />
+        <Input
+          value={text}
+          placeholder={placeholder}
+          variant="borderless"
+          autoFocus
+          onKeyDown={handleKeyDown}
+          onChange={handleChange}
+          disabled={disabled}
+          ref={inputRef}
+        />
+      </InputWrapper>
+    )
   }
-  return (
-    <InputWrapper ref={ref}>
-      <ModelAvatar model={model} size={30} />
-      <Input
-        value={text}
-        placeholder={placeholder}
-        variant="borderless"
-        autoFocus
-        onKeyDown={handleKeyDown}
-        onChange={handleChange}
-        // disabled={generating}
-        ref={inputRef}
-      />
-    </InputWrapper>
-  )
-}
+)
+
 InputBar.displayName = 'InputBar'
 
 const InputWrapper = styled.div`

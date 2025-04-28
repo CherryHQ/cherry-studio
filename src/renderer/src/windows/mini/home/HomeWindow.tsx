@@ -1,22 +1,24 @@
 import { isMac } from '@renderer/config/constant'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import store from '@renderer/store'
+import { setGenerating } from '@renderer/store/runtime'
 import { uuid } from '@renderer/utils'
+import { abortCompletion } from '@renderer/utils/abortController'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
+import { Button, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
+import { CirclePause, SendIcon } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import store from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { addAbortController,abortCompletion } from '@renderer/utils/abortController'
 
 import ChatWindow from '../chat/ChatWindow'
 import TranslateWindow from '../translate/TranslateWindow'
@@ -24,9 +26,6 @@ import ClipboardPreview from './components/ClipboardPreview'
 import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
-import SendMessageButton from '../../../pages/home/Inputbar/SendMessageButton'
-import { Button, Tooltip } from 'antd'
-import { CirclePause } from 'lucide-react'
 
 const HomeWindow: FC = () => {
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
@@ -42,7 +41,7 @@ const HomeWindow: FC = () => {
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
-  const messageIdRef = useRef<string>(null)//message id
+  const messageIdRef = useRef<string>(null) //message id
 
   const referenceText = selectedText || clipboardText || text
 
@@ -149,17 +148,13 @@ const HomeWindow: FC = () => {
     setText(e.target.value)
   }
 
-  const controller = new AbortController()
   const { generating } = useRuntime()
   const onSendMessage = useCallback(
     async (prompt?: string) => {
-      if (isEmpty(content)) {
+      if (isEmpty(content) || generating) {
         return
       }
-      
-      if (generating) {
-        return
-      }
+      store.dispatch(setGenerating(true))
 
       setTimeout(() => {
         const message = {
@@ -173,13 +168,12 @@ const HomeWindow: FC = () => {
           status: 'success'
         }
         EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
-        messageIdRef.current=message.id
-        addAbortController(messageIdRef.current, () => controller.abort())//注册messageid
+        messageIdRef.current = message.id
         setIsFirstMessage(false)
-        setText('') // ✅ 清除输入框内容
+        setText('')
       }, 0)
     },
-    [content, defaultAssistant.id, defaultAssistant.topics]
+    [content, defaultAssistant.id, defaultAssistant.topics, generating]
   )
 
   const clearClipboard = () => {
@@ -251,28 +245,38 @@ const HomeWindow: FC = () => {
         {route === 'chat' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <div style={{ flex: 1, marginRight: 10 }}>
-            <InputBar
-              text={text}
-              model={model}
-              referenceText={referenceText}
-              placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
-              handleKeyDown={handleKeyDown}
-              handleChange={handleChange}
-              ref={inputBarRef}
-            />
+              <div style={{ flex: 1, marginRight: 10 }}>
+                <InputBar
+                  text={text}
+                  model={model}
+                  referenceText={referenceText}
+                  placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
+                  handleKeyDown={handleKeyDown}
+                  handleChange={handleChange}
+                  disabled={generating}
+                  ref={inputBarRef}
+                />
+              </div>
+              <ToolbarMenu>
+                {generating && (
+                  <Tooltip placement="top" title={t('chat.input.pause')} arrow>
+                    <ToolbarButton type="text" onClick={onPause}>
+                      <CirclePause style={{ color: 'var(--color-error)', fontSize: 20 }} />
+                    </ToolbarButton>
+                  </Tooltip>
+                )}
+                {!generating && (
+                  <Tooltip placement="top" title={t('chat.input.send')} arrow>
+                    <ToolbarButton
+                      type="text"
+                      onClick={() => onSendMessage()}
+                      disabled={generating || isEmpty(content)}>
+                      <SendIcon style={{ color: 'var(--color-primary)', fontSize: 20 }} />
+                    </ToolbarButton>
+                  </Tooltip>
+                )}
+              </ToolbarMenu>
             </div>
-            <ToolbarMenu>
-              {generating && (
-                <Tooltip placement="top" title={t('chat.input.pause')} arrow>
-                  <ToolbarButton type="text" onClick={onPause} >
-                    <CirclePause style={{ color: 'var(--color-error)', fontSize: 20 }} />
-                  </ToolbarButton>
-                </Tooltip>
-              )}
-              {!generating && <SendMessageButton sendMessage={() => onSendMessage()} disabled={generating || isEmpty(content)} />}
-             </ToolbarMenu>
-             </div> 
             <Divider style={{ margin: '10px 0' }} />
           </>
         )}
@@ -311,6 +315,7 @@ const HomeWindow: FC = () => {
         }
         handleKeyDown={handleKeyDown}
         handleChange={handleChange}
+        disabled={false}
         ref={inputBarRef}
       />
       <Divider style={{ margin: '10px 0' }} />
@@ -396,6 +401,5 @@ const ToolbarButton = styled(Button)`
     }
   }
 `
-
 
 export default HomeWindow
