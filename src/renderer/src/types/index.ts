@@ -2,6 +2,8 @@ import { GroundingMetadata } from '@google/generative-ai'
 import OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
+
+import { Flow } from './flow'
 export * from './flow'
 
 export type Assistant = {
@@ -421,4 +423,14 @@ export interface QuickPhrase {
   createdAt: number
   updatedAt: number
   order?: number
+}
+
+export type ModelOrFlowItem = Model | Flow
+
+export function isFlow(item: ModelOrFlowItem): item is Flow {
+  return 'type' in item && (item.type === 'chatflow' || item.type === 'workflow')
+}
+
+export function isModel(item: ModelOrFlowItem): item is Model {
+  return !isFlow(item)
 }

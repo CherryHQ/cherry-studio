@@ -4,7 +4,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
 import { check } from '@renderer/services/FlowEngineService'
 // Import FlowType and update FlowConfig import if necessary
-import { ChatflowSpecificConfig, FlowConfig, FlowType, WorkflowSpecificConfig } from '@renderer/types' // Import WorkflowSpecificConfig
+import { Chatflow, Flow, FlowType, Workflow } from '@renderer/types' // Import WorkflowSpecificConfig
 import { Button, Flex, Form, Input, Radio, Switch } from 'antd' // Add Radio
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -14,7 +14,7 @@ import styled from 'styled-components'
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
 
 interface Props {
-  flow: FlowConfig
+  flow: Flow
 }
 
 // Update form values to include type and url
@@ -33,7 +33,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
   const { theme } = useTheme()
   const [form] = Form.useForm<WorkflowFormValues>()
   // Initialize workflow state with the passed flow, including its type
-  const [flow, setFlow] = useState<FlowConfig>(_flow)
+  const [flow, setFlow] = useState<Flow>(_flow)
   // Remove apiValid state
   const [apiChecking, setApiChecking] = useState(false)
   const { updateFlow, removeFlow } = useFlowEngineProvider(flow.providerId)
@@ -80,7 +80,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
       console.log('Saving workflow settings', values)
 
       // Construct the newWorkflow object based on the selected type
-      let newWorkflow: FlowConfig
+      let newWorkflow: Flow
       if (flowType === 'workflow') {
         newWorkflow = {
           // Common fields
@@ -97,7 +97,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
             url: values.url || '',
             logo: getFlowEngineProviderLogo(flow.providerId)
           }
-        } as WorkflowSpecificConfig // Type assertion
+        } as Workflow // Type assertion
       } else {
         // flowType === 'chatflow'
         newWorkflow = {
@@ -110,7 +110,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
           type: 'chatflow',
           apiKey: values.apiKey || '',
           apiHost: values.apiHost || ''
-        } as ChatflowSpecificConfig // Type assertion
+        } as Chatflow // Type assertion
       }
 
       // Update the state and call the provider update function

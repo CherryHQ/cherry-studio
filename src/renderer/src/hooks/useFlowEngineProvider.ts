@@ -9,7 +9,7 @@ import {
   updateFlowEngineProvider,
   updateFlowEngineProviders
 } from '@renderer/store/flow'
-import { FlowConfig, FlowEngine, WorkflowSpecificConfig } from '@renderer/types'
+import { Flow, FlowEngine, Workflow } from '@renderer/types'
 
 const selectEnabledFlowEngineProviders = createSelector(
   (state) => state.flow.providers,
@@ -41,14 +41,14 @@ export function useFlowEngineProvider(id: string) {
     flowEngineProvider,
     flows,
     updateFlowEngineProvider: (provider: FlowEngine) => dispatch(updateFlowEngineProvider(provider)),
-    addFlow: (flow: FlowConfig) => dispatch(addFlow(flow)),
-    updateFlow: (flow: FlowConfig) => dispatch(updateFlow(flow)),
-    removeFlow: (flow: FlowConfig) => dispatch(removeFlow(flow))
+    addFlow: (flow: Flow) => dispatch(addFlow(flow)),
+    updateFlow: (flow: Flow) => dispatch(updateFlow(flow)),
+    removeFlow: (flow: Flow) => dispatch(removeFlow(flow))
   }
 }
 
 export function useWorkflows() {
-  const workflows: WorkflowSpecificConfig[] = useAppSelector(selectEnabledFlowEngineProviders)
+  const workflows: Workflow[] = useAppSelector(selectEnabledFlowEngineProviders)
     .map((provider) => provider.flows)
     .flat()
     .filter((flow) => flow.type === 'workflow' && flow.enabled)
@@ -59,7 +59,7 @@ export function useWorkflows() {
 }
 
 export function useChatflows() {
-  const chatflows: WorkflowSpecificConfig[] = useAppSelector(selectEnabledFlowEngineProviders)
+  const chatflows: Workflow[] = useAppSelector(selectEnabledFlowEngineProviders)
     .map((provider) => provider.flows)
     .flat()
     .filter((flow) => flow.type === 'chat' && flow.enabled)

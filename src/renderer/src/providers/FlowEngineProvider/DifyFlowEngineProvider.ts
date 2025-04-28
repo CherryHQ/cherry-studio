@@ -1,6 +1,6 @@
 import { XStream } from '@ant-design/x'
 import { createDifyApiInstance, EventEnum, IChunkChatCompletionResponse, IWorkflowNode } from '@renderer/dify/api'
-import { FlowConfig, FlowEngine } from '@renderer/types'
+import { Flow, FlowEngine } from '@renderer/types'
 
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
 
@@ -9,7 +9,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     super(provider)
   }
 
-  public async completion(flow: FlowConfig): Promise<void> {
+  public async completion(flow: Flow): Promise<void> {
     if (!this.isChatflow(flow)) {
       throw new Error('Dify completion only supports Chatflow')
     }
@@ -79,7 +79,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     return
   }
 
-  public async check(flow: FlowConfig): Promise<{ valid: boolean; error: Error | null }> {
+  public async check(flow: Flow): Promise<{ valid: boolean; error: Error | null }> {
     if (this.isChatflow(flow)) {
       await this.completion(flow)
       return { valid: true, error: null }

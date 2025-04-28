@@ -1,4 +1,4 @@
-import { FlowConfig, FlowEngine } from '@renderer/types'
+import { Flow, FlowEngine } from '@renderer/types'
 
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
 import FlowEngineProviderFactory from './FlowEngineProviderFactory'
@@ -11,11 +11,11 @@ export default class FlowEngineProvider {
     this.sdk = FlowEngineProviderFactory.create(provider)
   }
 
-  public async completion(flow: FlowConfig): Promise<void> {
+  public async completion(flow: Flow): Promise<void> {
     return await this.sdk.completion(flow)
   }
 
-  public async check(flow: FlowConfig): Promise<{ valid: boolean; error: Error | null }> {
+  public async check(flow: Flow): Promise<{ valid: boolean; error: Error | null }> {
     return await this.sdk.check(flow)
   }
 }

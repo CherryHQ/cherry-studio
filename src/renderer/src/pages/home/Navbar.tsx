@@ -18,7 +18,7 @@ import { t } from 'i18next'
 import { FC } from 'react'
 import styled from 'styled-components'
 
-import SelectModelButton from './components/SelectModelButton'
+import SelectModelOrFlowButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
@@ -82,7 +82,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
               </NavbarIcon>
             </Tooltip>
           )}
-          <SelectModelButton assistant={assistant} />
+          <SelectModelOrFlowButton assistant={assistant} />
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />

@@ -5,7 +5,7 @@ import { HStack, VStack } from '@renderer/components/Layout'
 import { FLOW_ENGINE_PROVIDER_CONFIG } from '@renderer/config/workflowProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
-import { FlowConfig, FlowEngine } from '@renderer/types'
+import { Flow, FlowEngine } from '@renderer/types'
 import { Divider, Flex, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { FC, useEffect, useMemo, useState } from 'react'
@@ -22,13 +22,13 @@ interface Props {
 const WorkflowProviderSetting: FC<Props> = ({ flowEngineProvider: _flowEngineProvider }) => {
   const { theme } = useTheme()
   const { flowEngineProvider, flows, updateFlowEngineProvider, addFlow } = useFlowEngineProvider(_flowEngineProvider.id)
-  const [selectedFlow, setSelectedFlow] = useState<FlowConfig | null>(null)
+  const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null)
   const { t } = useTranslation()
   const providerConfig = FLOW_ENGINE_PROVIDER_CONFIG[flowEngineProvider.id]
   const officialWebsite = providerConfig?.websites?.official
 
   const onAddFlow = async () => {
-    const newFlow: FlowConfig = {
+    const newFlow: Flow = {
       id: nanoid(),
       type: 'workflow',
       providerId: flowEngineProvider.id,

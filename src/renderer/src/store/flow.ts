@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { FlowConfig, FlowEngine } from '@renderer/types'
+import { Flow, FlowEngine } from '@renderer/types'
 
 /**
  * 定义 Workflow 功能的整体状态
@@ -50,7 +50,7 @@ const flowSlice = createSlice({
         state.providers.splice(providerIndex, 1)
       }
     },
-    addFlow: (state, action: PayloadAction<FlowConfig>) => {
+    addFlow: (state, action: PayloadAction<Flow>) => {
       state.providers = state.providers.map((p) =>
         p.id === action.payload.providerId
           ? {
@@ -60,7 +60,7 @@ const flowSlice = createSlice({
           : p
       )
     },
-    removeFlow: (state, action: PayloadAction<FlowConfig>) => {
+    removeFlow: (state, action: PayloadAction<Flow>) => {
       state.providers = state.providers.map((p) =>
         p.id === action.payload.providerId
           ? {
@@ -70,7 +70,7 @@ const flowSlice = createSlice({
           : p
       )
     },
-    updateFlow: (state, action: PayloadAction<FlowConfig>) => {
+    updateFlow: (state, action: PayloadAction<Flow>) => {
       const provider = state.providers.find((p) => p.id === action.payload.providerId)
       if (provider) {
         const workflowIndex = provider.flows.findIndex((w) => w.id === action.payload.id)

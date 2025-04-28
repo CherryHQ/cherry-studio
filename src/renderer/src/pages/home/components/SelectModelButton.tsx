@@ -1,10 +1,10 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ModelTags from '@renderer/components/ModelTags'
-import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
+import SelectItemPopup from '@renderer/components/Popups/SelectItemPopup'
 import { isLocalAi } from '@renderer/config/env'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { Assistant } from '@renderer/types'
+import { Assistant, isFlow, isModel, ModelOrFlowItem } from '@renderer/types'
 import { Button } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +14,7 @@ interface Props {
   assistant: Assistant
 }
 
-const SelectModelButton: FC<Props> = ({ assistant }) => {
+const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
   const { model, setModel } = useAssistant(assistant.id)
   const { t } = useTranslation()
 
@@ -22,18 +22,24 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
     return null
   }
 
-  const onSelectModel = async (event: React.MouseEvent<HTMLElement>) => {
+  const onSelectModelOrFlow = async (event: React.MouseEvent<HTMLElement>) => {
     event.currentTarget.blur()
-    const selectedModel = await SelectModelPopup.show({ model })
-    if (selectedModel) {
-      setModel(selectedModel)
+    const selectedItem: ModelOrFlowItem | undefined = await SelectItemPopup.show({ item: model })
+
+    if (selectedItem === undefined) return
+
+    if (isModel(selectedItem)) {
+      setModel(selectedItem)
+    }
+    if (isFlow(selectedItem)) {
+      console.log('Selected item is a flow:', selectedItem)
     }
   }
 
   const providerName = getProviderName(model?.provider)
 
   return (
-    <DropdownButton size="small" type="default" onClick={onSelectModel}>
+    <DropdownButton size="small" type="default" onClick={onSelectModelOrFlow}>
       <ButtonContent>
         <ModelAvatar model={model} size={20} />
         <ModelName>
@@ -65,4 +71,4 @@ const ModelName = styled.span`
   font-weight: 500;
 `
 
-export default SelectModelButton
+export default SelectModelOrFlowButton
