@@ -1,4 +1,5 @@
 import { ArrowLeftOutlined, EnterOutlined } from '@ant-design/icons'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Message, Topic } from '@renderer/types'
 import { Input, InputRef } from 'antd'
 import { last } from 'lodash'
@@ -60,9 +61,22 @@ const TopicsPage: FC = () => {
 
   const isShow = (route: Route) => (last(stack) === route ? 'flex' : 'none')
 
-  useEffect(() => {
+  const focusSearchInput = () => {
     if (inputRef.current) {
       inputRef.current.focus()
+    }
+  }
+
+  useEffect(() => {
+    focusSearchInput()
+
+    // 监听 FOCUS_SEARCH_INPUT 事件
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.FOCUS_SEARCH_INPUT, () => {
+      focusSearchInput()
+    })
+
+    return () => {
+      unsubscribe()
     }
   }, [])
 
