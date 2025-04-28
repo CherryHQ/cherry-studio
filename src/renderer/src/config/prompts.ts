@@ -60,7 +60,7 @@ export const SEARCH_SUMMARY_PROMPT = `
   4. Websearch: Always return the rephrased question inside the 'question' XML block. If there are no links in the follow-up question, do not insert a 'links' XML block in your response.
   5. Knowledge: Always return the rephrased question inside the 'question' XML block.
   6. Always wrap the rephrased question in the appropriate XML blocks to specify the tool(s) for retrieving information: use <websearch></websearch> for queries requiring real-time or external information, <knowledge></knowledge> for queries that can be answered from a pre-existing knowledge base, or both if the question could be applicable to either tool. Ensure that the rephrased question is always contained within a <question></question> block inside these wrappers.
-  7. If you are not sure to use knowledge or websearch, you need use both of them.
+  7. *use {tools} to rephrase the question*
 
   There are several examples attached for your reference inside the below 'examples' XML block.
 

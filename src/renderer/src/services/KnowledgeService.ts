@@ -131,11 +131,10 @@ export const processKnowledgeSearch = async (
 
       const searchResults = Array.from(
         new Map(allSearchResults.flat().map((item) => [item.metadata.uniqueId || item.pageContent, item])).values()
-      )
-        .sort((a, b) => b.score - a.score)
-        .slice(0, documentCount)
+      ).sort((a, b) => b.score - a.score)
 
       console.log(`Knowledge base ${base.name} search results:`, searchResults)
+
       let rerankResults = searchResults
       if (base.rerankModel && searchResults.length > 0) {
         rerankResults = await window.api.knowledgeBase.rerank({
@@ -143,6 +142,10 @@ export const processKnowledgeSearch = async (
           base: baseParams,
           results: searchResults
         })
+      }
+
+      if (rerankResults.length > 0) {
+        rerankResults = rerankResults.slice(0, documentCount)
       }
 
       const processdResults = await Promise.all(

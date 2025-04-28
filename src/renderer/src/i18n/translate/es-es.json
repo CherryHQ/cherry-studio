@@ -503,7 +503,9 @@
       "switch.disabled": "Espere a que se complete la respuesta actual antes de realizar la operación",
       "tools": {
         "completed": "Completado",
-        "invoking": "En llamada"
+        "invoking": "En llamada",
+        "raw": "Crudo",
+        "preview": "Vista previa"
       },
       "topic.added": "Tema agregado con éxito",
       "upgrade.success.button": "Reiniciar",

@@ -109,6 +109,15 @@ export default class AiProvider {
     return this.sdk.generateImage(params)
   }
 
+  public async generateImageByChat({
+    messages,
+    assistant,
+    onChunk,
+    onFilterMessages
+  }: CompletionsParams): Promise<void> {
+    return this.sdk.generateImageByChat({ messages, assistant, onChunk, onFilterMessages })
+  }
+
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     return this.sdk.getEmbeddingDimensions(model)
   }

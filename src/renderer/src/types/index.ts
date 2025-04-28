@@ -140,6 +140,7 @@ export type Provider = {
   isAuthed?: boolean
   rateLimit?: number
   isNotSupportArrayContent?: boolean
+  notes?: string
 }
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
@@ -246,6 +247,7 @@ export type AppInfo = {
   filesPath: string
   logsPath: string
   arch: string
+  isPortable: boolean
 }
 
 export interface Shortcut {
@@ -402,6 +404,12 @@ export interface MCPServer {
   disabledTools?: string[] // List of tool names that are disabled for this server
   configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
+  searchKey?: string
+  provider?: string // Provider name for this server like ModelScope, Higress, etc.
+  providerUrl?: string // URL of the MCP server in provider's website or documentation
+  logoUrl?: string // URL of the MCP server's logo
+  tags?: string[] // List of tags associated with this server
+  timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
 }
 
 export interface MCPToolInputSchema {
@@ -501,3 +509,13 @@ export interface QuickPhrase {
   updatedAt: number
   order?: number
 }
+
+export interface Citation {
+  number: number
+  url: string
+  hostname: string
+  title?: string
+  content?: string
+}
+
+export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
