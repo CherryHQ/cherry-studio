@@ -12,7 +12,7 @@ Tool use is formatted using XML-style tags. The tool name is enclosed in opening
   <arguments>{json_arguments}</arguments>
 </tool_use>
 
-The tool name should be the exact name of the tool you are using, and the arguments should be a JSON object containing the parameters required by that tool. For example:
+The tool name should be the exact name of the tool you are using, and the arguments should be a JSON object containing the parameters required by that tool(please strictly output the parsable json_arguments inside the arguments tag). For example:
 <tool_use>
   <name>python_interpreter</name>
   <arguments>{"code": "5 + 3 + 1294.678"}</arguments>
