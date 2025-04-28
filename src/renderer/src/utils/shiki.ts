@@ -10,6 +10,7 @@ const defaultOptions = {
   },
   defaultColor: 'light'
 }
+
 const initHighlighter = async (options: MarkdownItShikiOptions) => {
   const themeNames = ('themes' in options ? Object.values(options.themes) : [options.theme]).filter(
     Boolean

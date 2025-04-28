@@ -565,7 +565,9 @@
       "tools": {
         "completed": "已完成",
         "invoking": "調用中",
-        "error": "發生錯誤"
+        "error": "發生錯誤",
+        "raw": "原始碼",
+        "preview": "預覽"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
@@ -586,7 +588,9 @@
         "minimize": "最小化小工具",
         "devtools": "開發者工具",
         "openExternal": "在瀏覽器中開啟",
-        "rightclick_copyurl": "右鍵複製URL"
+        "rightclick_copyurl": "右鍵複製URL",
+        "open_link_external_on": "当前：在瀏覽器中開啟連結",
+        "open_link_external_off": "当前：使用預設視窗開啟連結"
       },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
@@ -1021,6 +1025,9 @@
         "disabled": "隱藏的小程式",
         "empty": "把要隱藏的小程式從左側拖拽到這裡",
         "visible": "顯示的小程式",
+        "open_link_external": {
+          "title": "在瀏覽器中打開新視窗連結"
+        },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",
         "cache_description": "設置同時保持活躍狀態的小程式最大數量",
@@ -1046,6 +1053,7 @@
       "general.user_name.placeholder": "輸入您的名稱",
       "general.view_webdav_settings": "檢視 WebDAV 設定",
       "input.auto_translate_with_space": "快速敲擊 3 次空格翻譯",
+      "input.show_translate_confirm": "顯示翻譯確認對話框",
       "input.target_language": "目標語言",
       "input.target_language.chinese": "簡體中文",
       "input.target_language.chinese-traditional": "繁體中文",
@@ -1165,7 +1173,32 @@
           "sse": "SSE",
           "streamableHttp": "流式",
           "stdio": "STDIO"
-        }
+        },
+        "sync": {
+          "title": "同步伺服器",
+          "selectProvider": "選擇提供者：",
+          "discoverMcpServers": "發現MCP伺服器",
+          "discoverMcpServersDescription": "訪問平台以發現可用的MCP伺服器",
+          "getToken": "獲取 API 令牌",
+          "getTokenDescription": "從您的帳戶獲取個人 API 令牌",
+          "setToken": "輸入您的令牌",
+          "tokenRequired": "需要 API 令牌",
+          "tokenPlaceholder": "在此輸入 API 令牌",
+          "button": "同步",
+          "error": "同步MCP伺服器出錯",
+          "success": "同步MCP伺服器成功",
+          "unauthorized": "同步未授權",
+          "noServersAvailable": "無可用的 MCP 伺服器"
+        },
+        "timeout": "超時",
+        "timeoutTooltip": "對該伺服器請求的超時時間（秒），預設為60秒",
+        "provider": "提供者",
+        "providerUrl": "提供者網址",
+        "logoUrl": "標誌網址",
+        "tags": "標籤",
+        "tagsPlaceholder": "輸入標籤",
+        "providerPlaceholder": "提供者名稱",
+        "advancedSettings": "高級設定"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -1252,10 +1285,16 @@
         "basic_auth.user_name.tip": "留空以停用",
         "basic_auth.password": "密碼",
         "basic_auth.password.tip": "",
-        "charge": "儲值",
+        "charge": "餘額充值",
+        "bills": "費用帳單",
         "check": "檢查",
         "check_all_keys": "檢查所有金鑰",
         "check_multiple_keys": "檢查多個 API 金鑰",
+        "oauth": {
+          "button": "使用{{provider}}帳號登入",
+          "description": "本服務由<website>{{provider}}</website>提供",
+          "official_website": "官方網站"
+        },
         "copilot": {
           "auth_failed": "Github Copilot認證失敗",
           "auth_success": "Github Copilot 認證成功",
@@ -1292,7 +1331,12 @@
         "remove_invalid_keys": "刪除無效金鑰",
         "search": "搜尋模型平臺...",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "notes": {
+          "title": "模型備註",
+          "placeholder": "輸入Markdown格式內容...",
+          "markdown_editor_default_value": "預覽區域"
+        }
       },
       "proxy": {
         "mode": {

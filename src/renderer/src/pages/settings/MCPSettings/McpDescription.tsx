@@ -3,7 +3,7 @@ import { getShikiInstance } from '@renderer/utils/shiki'
 import { Card } from 'antd'
 import MarkdownIt from 'markdown-it'
 import { npxFinder } from 'npx-scope-finder'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface McpDescriptionProps {
@@ -22,18 +22,18 @@ const MCPDescription = ({ searchKey }: McpDescriptionProps) => {
   )
   const { theme } = useTheme()
 
-  useEffect(() => {
-    const sk = getShikiInstance(theme)
-    md.current.use(sk)
-    getMcpInfo()
-  }, [theme, searchKey])
-
-  const getMcpInfo = async () => {
+  const getMcpInfo = useCallback(async () => {
     setLoading(true)
     const packages = await npxFinder(searchKey).finally(() => setLoading(false))
     const readme = packages[0]?.original?.readme ?? '暂无描述'
     setRenderedMarkdown(md.current.render(readme))
-  }
+  }, [md, searchKey])
+
+  useEffect(() => {
+    const sk = getShikiInstance(theme)
+    md.current.use(sk)
+    getMcpInfo()
+  }, [getMcpInfo, theme])
 
   return (
     <Section>

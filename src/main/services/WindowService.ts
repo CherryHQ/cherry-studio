@@ -11,6 +11,7 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
+import { initSessionUserAgent } from './WebviewService'
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -41,7 +42,8 @@ export class WindowService {
     const mainWindowState = windowStateKeeper({
       defaultWidth: 1080,
       defaultHeight: 670,
-      fullScreen: false
+      fullScreen: false,
+      maximize: false
     })
 
     const theme = configManager.getTheme()
@@ -80,17 +82,32 @@ export class WindowService {
       this.miniWindow = this.createMiniWindow(true)
     }
 
+    //init the MinApp webviews' useragent
+    initSessionUserAgent()
+
     return this.mainWindow
   }
 
   private setupMainWindow(mainWindow: BrowserWindow, mainWindowState: any) {
     mainWindowState.manage(mainWindow)
 
+    this.setupMaximize(mainWindow, mainWindowState.isMaximized)
     this.setupContextMenu(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
     this.loadMainWindowContent(mainWindow)
+  }
+
+  private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {
+    if (isMaximized) {
+      // 如果是从托盘启动，则需要延迟最大化，否则显示的就不是重启前的最大化窗口了
+      configManager.getLaunchToTray()
+        ? mainWindow.once('show', () => {
+            mainWindow.maximize()
+          })
+        : mainWindow.maximize()
+    }
   }
 
   private setupContextMenu(mainWindow: BrowserWindow) {
@@ -191,9 +208,11 @@ export class WindowService {
 
       const oauthProviderUrls = [
         'https://account.siliconflow.cn/oauth',
+        'https://cloud.siliconflow.cn/bills',
         'https://cloud.siliconflow.cn/expensebill',
         'https://aihubmix.com/token',
-        'https://aihubmix.com/topup'
+        'https://aihubmix.com/topup',
+        'https://aihubmix.com/statistics'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {

@@ -5,7 +5,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { Button, Empty, Tag } from 'antd'
-import { MonitorCheck, Plus, Settings2 } from 'lucide-react'
+import { MonitorCheck, Plus, RefreshCw, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -13,6 +13,8 @@ import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
+import SyncServersPopup from './SyncServersPopup'
+
 const McpServersList: FC = () => {
   const { mcpServers, addMCPServer, updateMcpServers } = useMCPServers()
   const { t } = useTranslation()
@@ -34,6 +36,10 @@ const McpServersList: FC = () => {
     window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
   }, [addMCPServer, navigate, t])
 
+  const onSyncServers = useCallback(() => {
+    SyncServersPopup.show(mcpServers)
+  }, [mcpServers])
+
   return (
     <Container>
       <ListHeader>
@@ -41,16 +47,31 @@ const McpServersList: FC = () => {
           <span>{t('settings.mcp.newServer')}</span>
           <Button icon={<EditOutlined />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
         </SettingTitle>
-        <Button icon={<Plus size={16} />} type="default" onClick={onAddMcpServer} shape="round">
-          {t('settings.mcp.addServer')}
-        </Button>
+        <ButtonGroup>
+          <Button icon={<Plus size={16} />} type="default" onClick={onAddMcpServer} shape="round">
+            {t('settings.mcp.addServer')}
+          </Button>
+          <Button icon={<RefreshCw size={16} />} type="default" onClick={onSyncServers} shape="round">
+            {t('settings.mcp.sync.title', 'Sync Servers')}
+          </Button>
+        </ButtonGroup>
       </ListHeader>
       <DragableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
         {(server: MCPServer) => (
           <ServerCard key={server.id} onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}>
             <ServerHeader>
               <ServerName>
+                {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
                 <ServerNameText>{server.name}</ServerNameText>
+                {server.providerUrl && (
+                  <Button
+                    size="small"
+                    type="text"
+                    onClick={() => window.open(server.providerUrl, '_blank')}
+                    icon={<SquareArrowOutUpRight size={14} />}
+                    className="nodrag"
+                    style={{ fontSize: 13, height: 28, borderRadius: 20 }}></Button>
+                )}
                 <ServerIcon>
                   <MonitorCheck size={16} color={server.isActive ? 'var(--color-primary)' : 'var(--color-text-3)'} />
                 </ServerIcon>
@@ -65,9 +86,20 @@ const McpServersList: FC = () => {
             </ServerHeader>
             <ServerDescription>{server.description}</ServerDescription>
             <ServerFooter>
-              <Tag color="default" style={{ borderRadius: 20, margin: 0 }}>
+              <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
                 {t(`settings.mcp.types.${server.type || 'stdio'}`)}
               </Tag>
+              {server.provider && (
+                <Tag color="success" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
+                  {server.provider}
+                </Tag>
+              )}
+              {server.tags &&
+                server.tags.map((tag) => (
+                  <Tag key={tag} color="default" style={{ borderRadius: 20, margin: 0 }}>
+                    {tag}
+                  </Tag>
+                ))}
             </ServerFooter>
           </ServerCard>
         )}
@@ -125,6 +157,14 @@ const ServerCard = styled.div`
   }
 `
 
+const ServerLogo = styled.img`
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  object-fit: cover;
+  margin-right: 8px;
+`
+
 const ServerHeader = styled.div`
   display: flex;
   align-items: center;
@@ -144,7 +184,7 @@ const ServerName = styled.div`
   text-overflow: ellipsis;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
 `
 
 const ServerNameText = styled.span`
@@ -172,8 +212,14 @@ const ServerDescription = styled.div`
 const ServerFooter = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 4px;
+  justify-content: flex-start;
   margin-top: 10px;
+`
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 8px;
 `
 
 export default McpServersList

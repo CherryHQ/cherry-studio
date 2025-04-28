@@ -40,7 +40,8 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
-  setThoughtAutoCollapse
+  setThoughtAutoCollapse,
+  setShowTranslateConfirm
 } from '@renderer/store/settings'
 import {
   Assistant,
@@ -100,7 +101,8 @@ const SettingsTab: FC<Props> = (props) => {
     thoughtAutoCollapse,
     messageNavigation,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel
+    enableBackspaceDeleteModel,
+    showTranslateConfirm
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -609,6 +611,15 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingDivider />
           </>
         )}
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.input.show_translate_confirm')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={showTranslateConfirm}
+            onChange={(checked) => dispatch(setShowTranslateConfirm(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.input.enable_quick_triggers')}</SettingRowTitleSmall>
           <Switch

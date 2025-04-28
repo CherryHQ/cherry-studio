@@ -787,8 +787,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant.id, model])
+    if (isGenerateImageModel(model) && !assistant.enableGenerateImage && model.id !== 'gemini-2.0-flash-exp') {
+      updateAssistant({ ...assistant, enableGenerateImage: true })
+    }
+  }, [assistant, model, updateAssistant])
 
   const onMentionModel = (model: Model) => {
     setMentionModels((prev) => {
@@ -927,6 +929,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setInputValue={setText}
                 resizeTextArea={resizeTextArea}
               />
+
               <GenerateImageButton
                 model={model}
                 assistant={assistant}

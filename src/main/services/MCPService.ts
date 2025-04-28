@@ -394,8 +394,17 @@ class McpService {
   ): Promise<MCPCallToolResponse> {
     try {
       Logger.info('[MCP] Calling:', server.name, name, args)
+      if (typeof args === 'string') {
+        try {
+          args = JSON.parse(args)
+        } catch (e) {
+          Logger.error('[MCP] args parse error', args)
+        }
+      }
       const client = await this.initClient(server)
-      const result = await client.callTool({ name, arguments: args })
+      const result = await client.callTool({ name, arguments: args }, undefined, {
+        timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
+      })
       return result as MCPCallToolResponse
     } catch (error) {
       Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
@@ -565,13 +574,26 @@ class McpService {
     return await cachedGetResource(server, uri)
   }
 
+  private findPowerShellExecutable() {
+    const psPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' // Standard WinPS path
+    const pwshPath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+
+    if (fs.existsSync(psPath)) {
+      return psPath
+    }
+    if (fs.existsSync(pwshPath)) {
+      return pwshPath
+    }
+    return 'powershell.exe'
+  }
+
   private getSystemPath = memoize(async (): Promise<string> => {
     return new Promise((resolve, reject) => {
       let command: string
       let shell: string
 
       if (process.platform === 'win32') {
-        shell = 'powershell.exe'
+        shell = this.findPowerShellExecutable()
         command = '$env:PATH'
       } else {
         // 尝试获取当前用户的默认 shell
@@ -621,6 +643,10 @@ class McpService {
 
       child.stderr.on('data', (data: Buffer) => {
         console.error('Error getting PATH:', data.toString())
+      })
+
+      child.on('error', (error: Error) => {
+        reject(new Error(`Failed to get system PATH, ${error.message}`))
       })
 
       child.on('close', (code: number) => {

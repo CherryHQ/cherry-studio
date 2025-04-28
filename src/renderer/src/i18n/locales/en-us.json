@@ -565,7 +565,9 @@
       "tools": {
         "completed": "Completed",
         "invoking": "Invoking",
-        "error": "Error occurred"
+        "error": "Error occurred",
+        "raw": "Raw",
+        "preview": "Preview"
       },
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
@@ -586,7 +588,9 @@
         "minimize": "Minimize MinApp",
         "devtools": "Developer Tools",
         "openExternal": "Open in Browser",
-        "rightclick_copyurl": "Right-click to copy URL"
+        "rightclick_copyurl": "Right-click to copy URL",
+        "open_link_external_on": "Current: Open links in browser",
+        "open_link_external_off": "Current: Open links in default window"
       },
       "sidebar.add.title": "Add to sidebar",
       "sidebar.remove.title": "Remove from sidebar",
@@ -1021,6 +1025,9 @@
         "disabled": "Hidden Mini Apps",
         "empty": "Drag mini apps from the left to hide them",
         "visible": "Visible Mini Apps",
+        "open_link_external": {
+          "title": "Open new-window links in browser"
+        },
         "cache_settings": "Cache Settings",
         "cache_title": "Mini App Cache Limit",
         "cache_description": "Set the maximum number of active mini apps to keep in memory",
@@ -1047,6 +1054,7 @@
       "general.user_name.placeholder": "Enter your name",
       "general.view_webdav_settings": "View WebDAV settings",
       "input.auto_translate_with_space": "Quickly translate with 3 spaces",
+      "input.show_translate_confirm": "Show translation confirmation dialog",
       "input.target_language": "Target language",
       "input.target_language.chinese": "Simplified Chinese",
       "input.target_language.chinese-traditional": "Traditional Chinese",
@@ -1166,7 +1174,32 @@
           "sse": "SSE",
           "streamableHttp": "Streamable HTTP",
           "stdio": "STDIO"
-        }
+        },
+        "sync": {
+          "title": "Sync Servers",
+          "selectProvider": "Select Provider:",
+          "discoverMcpServers": "Discover MCP Servers",
+          "discoverMcpServersDescription": "Visit the platform to discover available MCP servers",
+          "getToken": "Get API Token",
+          "getTokenDescription": "Retrieve your personal API token from your account",
+          "setToken": "Enter Your Token",
+          "tokenRequired": "API Token is required",
+          "tokenPlaceholder": "Enter API token here",
+          "button": "Sync",
+          "error": "Sync MCP Servers error",
+          "success": "Sync MCP Servers successful",
+          "unauthorized": "Sync Unauthorized",
+          "noServersAvailable": "No MCP servers available"
+        },
+        "timeout": "Timeout",
+        "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
+        "provider": "Provider",
+        "providerUrl": "Provider URL",
+        "logoUrl": "Logo URL",
+        "tags": "Tags",
+        "tagsPlaceholder": "Enter tags",
+        "providerPlaceholder": "Provider name",
+        "advancedSettings": "Advanced Settings"
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
@@ -1253,10 +1286,16 @@
         "basic_auth.user_name.tip": "Left empty to disable",
         "basic_auth.password": "Password",
         "basic_auth.password.tip": "",
-        "charge": "Charge",
+        "charge": "Balance Recharge",
+        "bills": "Fee Bills",
         "check": "Check",
         "check_all_keys": "Check All Keys",
         "check_multiple_keys": "Check Multiple API Keys",
+        "oauth": {
+          "button": "Login with {{provider}}",
+          "description": "This service is provided by <website>{{provider}}</website>",
+          "official_website": "Official Website"
+        },
         "copilot": {
           "auth_failed": "Github Copilot authentication failed.",
           "auth_success": "GitHub Copilot authentication successful.",
@@ -1293,7 +1332,12 @@
         "remove_invalid_keys": "Remove Invalid Keys",
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "notes": {
+          "title": "Model Notes",
+          "placeholder": "Enter Markdown content...",
+          "markdown_editor_default_value": "Preview area"
+        }
       },
       "proxy": {
         "mode": {
@@ -1353,7 +1397,7 @@
       "websearch": {
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
-        "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",

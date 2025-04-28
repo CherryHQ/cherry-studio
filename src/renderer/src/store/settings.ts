@@ -75,6 +75,7 @@ export interface SettingsState {
   webdavMaxBackups: number
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
+  showTranslateConfirm: boolean
   enableTopicNaming: boolean
   customCss: string
   topicNamingPrompt: string
@@ -109,8 +110,10 @@ export interface SettingsState {
   siyuanToken: string | null
   siyuanBoxId: string | null
   siyuanRootPath: string | null
+  // MinApps
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
+  minappsOpenLinkExternal: boolean
   // 隐私设置
   enableDataCollection: boolean
   enableQuickPanelTriggers: boolean
@@ -147,7 +150,7 @@ export const initialState: SettingsState = {
   trayOnClose: true,
   tray: true,
   theme: ThemeMode.auto,
-  windowStyle: 'transparent',
+  windowStyle: 'opaque',
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
@@ -180,6 +183,7 @@ export const initialState: SettingsState = {
   webdavMaxBackups: 0,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
+  showTranslateConfirm: true,
   enableTopicNaming: true,
   customCss: '',
   topicNamingPrompt: '',
@@ -211,8 +215,10 @@ export const initialState: SettingsState = {
   siyuanToken: null,
   siyuanBoxId: null,
   siyuanRootPath: null,
+  // MinApps
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
+  minappsOpenLinkExternal: false,
   enableDataCollection: false,
   enableQuickPanelTriggers: false,
   enableBackspaceDeleteModel: true,
@@ -384,6 +390,9 @@ const settingsSlice = createSlice({
     setAutoTranslateWithSpace: (state, action: PayloadAction<boolean>) => {
       state.autoTranslateWithSpace = action.payload
     },
+    setShowTranslateConfirm: (state, action: PayloadAction<boolean>) => {
+      state.showTranslateConfirm = action.payload
+    },
     setEnableTopicNaming: (state, action: PayloadAction<boolean>) => {
       state.enableTopicNaming = action.payload
     },
@@ -482,6 +491,9 @@ const settingsSlice = createSlice({
     setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
       state.showOpenedMinappsInSidebar = action.payload
     },
+    setMinappsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
+      state.minappsOpenLinkExternal = action.payload
+    },
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
@@ -547,6 +559,7 @@ export const {
   setCodeStyle,
   setTranslateModelPrompt,
   setAutoTranslateWithSpace,
+  setShowTranslateConfirm,
   setEnableTopicNaming,
   setPasteLongTextThreshold,
   setCustomCss,
@@ -579,6 +592,7 @@ export const {
   setSiyuanRootPath,
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,
+  setMinappsOpenLinkExternal,
   setEnableDataCollection,
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
