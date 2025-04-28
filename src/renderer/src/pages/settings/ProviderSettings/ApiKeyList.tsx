@@ -11,6 +11,7 @@ import {
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
+import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
@@ -48,8 +49,9 @@ const formatAndConvertKeysToArray = (apiKeys: string): KeyStatus[] => {
   const formattedApiKeys = formatApiKeys(apiKeys)
   if (formattedApiKeys.includes(',')) {
     const keys = formattedApiKeys
-      .split(',')
+      .split(/(?<!\\),/)
       .map((k) => k.trim())
+      .map((k) => k.replace(/\\,/g, ','))
       .filter((k) => k)
     const uniqueKeys = new Set(keys)
     return Array.from(uniqueKeys).map((key) => ({ key }))
@@ -290,6 +292,15 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     )
   }
 
+  const shouldAutoFocus = () => {
+    if (type === 'provider') {
+      return (provider as Provider).enabled && apiKeys === '' && !isProviderSupportAuth(provider as Provider)
+    } else if (type === 'websearch') {
+      return apiKeys === ''
+    }
+    return false
+  }
+
   return (
     <>
       <Card
@@ -388,7 +399,13 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
         {!isCopilot && (
           <>
             <Space>
-              <Button key="add" type="primary" onClick={handleAddNewKey} icon={<PlusOutlined />} disabled={isAddingNew}>
+              <Button
+                key="add"
+                type="primary"
+                onClick={handleAddNewKey}
+                icon={<PlusOutlined />}
+                disabled={isAddingNew}
+                autoFocus={shouldAutoFocus()}>
                 {t('common.add')}
               </Button>
             </Space>
