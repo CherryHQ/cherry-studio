@@ -148,7 +148,7 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.siliconflow.cn'
     },
     websites: {
-      official: 'https://www.siliconflow.cn/',
+      official: 'https://www.siliconflow.cn',
       apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
       docs: 'https://docs.siliconflow.cn/',
       models: 'https://docs.siliconflow.cn/docs/model-names'

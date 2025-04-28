@@ -1,6 +1,6 @@
-import { isReasoningModel } from '@renderer/config/models'
+import { isOpenAIWebSearch, isReasoningModel } from '@renderer/config/models'
 import { getAssistantById } from '@renderer/services/AssistantService'
-import { Message } from '@renderer/types'
+import { Citation, Message, Model } from '@renderer/types'
 
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
@@ -38,11 +38,20 @@ $$
 }
 
 export function extractTitle(html: string): string | null {
+  // 处理标准闭合的标题标签
   const titleRegex = /<title>(.*?)<\/title>/i
   const match = html.match(titleRegex)
 
-  if (match && match[1]) {
-    return match[1].trim()
+  if (match) {
+    return match[1] ? match[1].trim() : ''
+  }
+
+  // 处理未闭合的标题标签
+  const malformedTitleRegex = /<title>(.*?)($|<(?!\/title))/i
+  const malformedMatch = html.match(malformedTitleRegex)
+
+  if (malformedMatch) {
+    return malformedMatch[1] ? malformedMatch[1].trim() : ''
   }
 
   return null
@@ -191,20 +200,17 @@ export function withGenerateImage(message: Message) {
     return message
   }
 
-  const cleanImgContent = message.content
-    .replace(imagePattern, '')
-    .replace(/\n\s*\n/g, '\n')
-    .trim()
+  // 替换图片语法，保留其他内容
+  let cleanContent = message.content.replace(imagePattern, '').trim()
 
+  // 检查是否有下载链接
   const downloadPattern = new RegExp(`\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
-  const downloadMatches = cleanImgContent.match(downloadPattern)
+  const downloadMatches = cleanContent.match(downloadPattern)
 
-  let cleanContent = cleanImgContent
+  // 如果有下载链接，只保留图片前的内容
   if (downloadMatches) {
-    cleanContent = cleanImgContent
-      .replace(downloadPattern, '')
-      .replace(/\n\s*\n/g, '\n')
-      .trim()
+    const contentBeforeImage = message.content.split(imageMatches[0])[0].trim()
+    cleanContent = contentBeforeImage
   }
 
   message = {
@@ -233,5 +239,79 @@ export function addImageFileToContents(messages: Message[]) {
     images: imageFiles
   }
 
-  return messages.map((message) => (message.role === 'assistant' ? updatedAssistantMessage : message))
+  return messages.map((message) => (message.id === lastAssistantMessage.id ? updatedAssistantMessage : message))
+}
+
+/**
+ * 格式化 citations
+ * @param metadata 消息的 metadata
+ * @param model 模型
+ * @param urlCache url 缓存
+ * @returns citations
+ */
+export const formatCitations = (
+  metadata: Message['metadata'],
+  model: Model | undefined,
+  urlCache: Map<string, URL>
+): Citation[] | null => {
+  if (!metadata?.citations?.length && !metadata?.annotations?.length) {
+    return null
+  }
+
+  interface UrlInfo {
+    hostname: string
+    url: string
+  }
+
+  // 提取 URL 处理函数到组件外
+  const getUrlInfo = (url: string, urlCache: Map<string, URL>): UrlInfo => {
+    try {
+      let urlObj = urlCache.get(url)
+      if (!urlObj) {
+        urlObj = new URL(url)
+        urlCache.set(url, urlObj)
+      }
+      return { hostname: urlObj.hostname, url }
+    } catch {
+      return { hostname: url, url }
+    }
+  }
+
+  // 使用 Set 提前去重，减少后续处理
+  const uniqueUrls = new Set<string>()
+  let citations: Citation[] = []
+
+  if (model && isOpenAIWebSearch(model)) {
+    citations =
+      metadata.annotations
+        ?.filter((annotation) => {
+          const url = annotation.url_citation?.url
+          if (!url || uniqueUrls.has(url)) return false
+          uniqueUrls.add(url)
+          return true
+        })
+        .map((annotation, index) => ({
+          number: index + 1,
+          url: annotation.url_citation.url,
+          hostname: annotation.url_citation.title,
+          title: annotation.url_citation.title
+        })) || []
+  } else {
+    citations = (metadata?.citations || [])
+      .filter((url) => {
+        if (!url || uniqueUrls.has(url)) return false
+        uniqueUrls.add(url)
+        return true
+      })
+      .map((url, index) => {
+        const { hostname } = getUrlInfo(url, urlCache)
+        return {
+          number: index + 1,
+          url,
+          hostname
+        }
+      })
+  }
+
+  return citations
 }

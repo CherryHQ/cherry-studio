@@ -3,9 +3,12 @@ productName: Cherry Studio
 electronLanguages:
   - zh-CN
   - zh-TW
-  - en-GB
   - en-US
-  - ru
+  - ja # macOS/linux/win
+  - ru # macOS/linux/win
+  - zh_CN # for macOS
+  - zh_TW # for macOS
+  - en # for macOS
 directories:
   buildResources: build
 files:
@@ -71,6 +74,11 @@ linux:
     - target: AppImage
   maintainer: electronjs.org
   category: Utility
+  desktop:
+    entry:
+      StartupWMClass: CherryStudio
+  mimeTypes:
+    - x-scheme-handler/cherrystudio
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
@@ -81,6 +89,9 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    全新图标风格
-    新的智能体界面
-    WebDAV 增加文件管理功能
+    新增对 grok-2-image 和 gpt-4o-image 图像支持
+    支持 Windows 便携版使用 data 目录存储数据
+    MCP 界面改版，新增描述信息显示
+    Mermaid 渲染逻辑优化
+    支持关闭公示渲染
+    修复 OpenAI 类型渲染错误

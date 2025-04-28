@@ -289,9 +289,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                             </Typography.Text>
                           }
                           placement="top">
-                          <span>{model.name}</span>
+                          <NameSpan>{model.name}</NameSpan>
                         </Tooltip>
-                        <ModelTagsWithLabel model={model} size={11} />
+                        <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
                       </ListItemName>
                     </HStack>
                     <Flex gap={4} align="center">
@@ -371,15 +371,20 @@ const ListItemName = styled.div`
   font-size: 14px;
   line-height: 1;
   font-weight: 600;
-  span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    cursor: help;
-    font-family: 'Ubuntu';
-    line-height: 30px;
-    font-size: 14px;
-  }
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+  width: 0;
+`
+
+const NameSpan = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+  font-family: 'Ubuntu';
+  line-height: 30px;
+  font-size: 14px;
 `
 
 const RemoveIcon = styled(MinusCircleOutlined)`

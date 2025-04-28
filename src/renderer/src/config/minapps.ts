@@ -1,5 +1,6 @@
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
+import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
@@ -310,6 +311,12 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: false
   },
   {
+    id: 'aistudio',
+    name: 'AI Studio',
+    logo: AIStudioLogo,
+    url: 'https://aistudio.google.com/'
+  },
+  {
     id: 'xiaoyi',
     name: '小艺',
     logo: XiaoYiAppLogo,
@@ -399,6 +406,9 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: `Z.ai`,
     logo: ZaiAppLogo,
     url: `https://chat.z.ai/`,
-    bodered: true
+    bodered: true,
+    style: {
+      padding: 10
+    }
   }
 ]

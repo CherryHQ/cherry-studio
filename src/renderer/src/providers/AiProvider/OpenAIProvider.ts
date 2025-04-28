@@ -8,7 +8,8 @@ import {
   isReasoningModel,
   isSupportedModel,
   isVisionModel,
-  isZhipuModel
+  isZhipuModel,
+  OPENAI_NO_SUPPORT_DEV_ROLE_MODELS
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -19,6 +20,7 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
+import { processReqMessages } from '@renderer/services/ModelMessageService'
 import store from '@renderer/store'
 import {
   Assistant,
@@ -45,7 +47,7 @@ import {
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
 
-type ReasoningEffort = 'high' | 'medium' | 'low'
+type ReasoningEffort = 'low' | 'medium' | 'high'
 
 export default class OpenAIProvider extends BaseProvider {
   private sdk: OpenAI
@@ -69,7 +71,8 @@ export default class OpenAIProvider extends BaseProvider {
       baseURL: this.getBaseURL(),
       defaultHeaders: {
         ...this.defaultHeaders(),
-        ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {})
+        ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {}),
+        ...(this.provider.id === 'copilot' ? { 'copilot-vision-request': 'true' } : {})
       }
     })
   }
@@ -306,12 +309,16 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The completions
    */
   async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
+    if (assistant.enableGenerateImage) {
+      await this.generateImageByChat({ messages, assistant, onChunk } as CompletionsParams)
+      return
+    }
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     messages = addImageFileToContents(messages)
     let systemMessage = { role: 'system', content: assistant.prompt || '' }
-    if (isOpenAIoSeries(model)) {
+    if (isOpenAIoSeries(model) && !OPENAI_NO_SUPPORT_DEV_ROLE_MODELS.includes(model.id)) {
       systemMessage = {
         role: 'developer',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
@@ -407,6 +414,9 @@ export default class OpenAIProvider extends BaseProvider {
         } as ChatCompletionMessageParam)
         toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
 
+        console.debug('[tool] reqMessages before processing', model.id, reqMessages)
+        reqMessages = processReqMessages(model, reqMessages)
+        console.debug('[tool] reqMessages', model.id, reqMessages)
         const newStream = await this.sdk.chat.completions
           // @ts-ignore key is not typed
           .create(
@@ -504,7 +514,10 @@ export default class OpenAIProvider extends BaseProvider {
 
       await processToolUses(content, idx)
     }
-    // console.log('reqMessages', reqMessages)
+
+    console.debug('[completions] reqMessages before processing', model.id, reqMessages)
+    reqMessages = processReqMessages(model, reqMessages)
+    console.debug('[completions] reqMessages', model.id, reqMessages)
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
@@ -567,6 +580,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
+    console.debug('[translate] reqMessages', model.id, messages)
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -642,6 +656,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
+    console.debug('[summaries] reqMessages', model.id, [systemMessage, userMessage])
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
@@ -676,6 +691,7 @@ export default class OpenAIProvider extends BaseProvider {
       role: 'user',
       content: messages.map((m) => m.content).join('\n')
     }
+    console.debug('[summaryForSearch] reqMessages', model.id, [systemMessage, userMessage])
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create(
       {
@@ -767,6 +783,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     try {
       await this.checkIsCopilot()
+      console.debug('[checkModel] body', model.id, body)
       const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
 
       return {
@@ -881,5 +898,31 @@ export default class OpenAIProvider extends BaseProvider {
     // copilot每次请求前需要重新获取token，因为token中附带时间戳
     const { token } = await window.api.copilot.getToken(defaultHeaders)
     this.sdk.apiKey = token
+  }
+
+  public async generateImageByChat({ messages, assistant, onChunk }: CompletionsParams): Promise<void> {
+    const defaultModel = getDefaultModel()
+    const model = assistant.model || defaultModel
+    const lastUserMessage = messages.findLast((m) => m.role === 'user')
+    const { abortController } = this.createAbortController(lastUserMessage?.id, true)
+    const { signal } = abortController
+    const response = await this.sdk.images.generate(
+      {
+        model: model.id,
+        prompt: lastUserMessage?.content || '',
+        response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
+      },
+      {
+        signal
+      }
+    )
+
+    return onChunk({
+      text: '',
+      generateImage: {
+        type: 'base64',
+        images: response.data.map((item) => `data:image/png;base64,${item.b64_json}`)
+      }
+    })
   }
 }

@@ -10,9 +10,16 @@ import {
   Part,
   PartUnion,
   SafetySetting,
+  ThinkingConfig,
   ToolListUnion
 } from '@google/genai'
-import { isGemmaModel, isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import {
+  isGemini25ReasoningModel,
+  isGemmaModel,
+  isGenerateImageModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -34,6 +41,8 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+
+type ReasoningEffort = 'low' | 'medium' | 'high'
 
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenAI
@@ -183,6 +192,41 @@ export default class GeminiProvider extends BaseProvider {
   }
 
   /**
+   * Get the reasoning effort for the assistant
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The reasoning effort
+   */
+  private getReasoningEffort(assistant: Assistant, model: Model) {
+    if (isGemini25ReasoningModel(model)) {
+      const effortRatios: Record<ReasoningEffort, number> = {
+        high: 1,
+        medium: 0.5,
+        low: 0.2
+      }
+      const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
+      const effortRatio = effortRatios[effort]
+      const maxBudgetToken = 24576 // https://ai.google.dev/gemini-api/docs/thinking
+      const budgetTokens = Math.max(1024, Math.trunc(maxBudgetToken * effortRatio))
+      if (!effortRatio) {
+        return {
+          thinkingConfig: {
+            thinkingBudget: 0
+          } as ThinkingConfig
+        }
+      }
+
+      return {
+        thinkingConfig: {
+          thinkingBudget: budgetTokens,
+          includeThoughts: true
+        } as ThinkingConfig
+      }
+    }
+    return {}
+  }
+
+  /**
    * Generate completions
    * @param messages - The messages
    * @param assistant - The assistant
@@ -241,6 +285,7 @@ export default class GeminiProvider extends BaseProvider {
       topP: assistant?.settings?.topP,
       maxOutputTokens: maxTokens,
       tools: tools,
+      ...this.getReasoningEffort(assistant, model),
       ...this.getCustomParameters(assistant)
     }
 
@@ -275,32 +320,12 @@ export default class GeminiProvider extends BaseProvider {
     const start_time_millsec = new Date().getTime()
 
     const { cleanup, abortController } = this.createAbortController(userLastMessage?.id, true)
-    const signalProxy = {
-      _originalSignal: abortController.signal,
-
-      addEventListener: (eventName: string, listener: () => void) => {
-        if (eventName === 'abort') {
-          abortController.signal.addEventListener('abort', listener)
-        }
-      },
-      removeEventListener: (eventName: string, listener: () => void) => {
-        if (eventName === 'abort') {
-          abortController.signal.removeEventListener('abort', listener)
-        }
-      },
-      get aborted() {
-        return abortController.signal.aborted
-      }
-    }
-
     if (!streamOutput) {
       const response = await chat.sendMessage({
         message: messageContents as PartUnion,
         config: {
           ...generateContentConfig,
-          httpOptions: {
-            signal: signalProxy as any
-          }
+          abortSignal: abortController.signal
         }
       })
       const time_completion_millsec = new Date().getTime() - start_time_millsec
@@ -308,6 +333,7 @@ export default class GeminiProvider extends BaseProvider {
         text: response.text,
         usage: {
           prompt_tokens: response.usageMetadata?.promptTokenCount || 0,
+          thoughts_tokens: response.usageMetadata?.thoughtsTokenCount || 0,
           completion_tokens: response.usageMetadata?.candidatesTokenCount || 0,
           total_tokens: response.usageMetadata?.totalTokenCount || 0
         },
@@ -325,9 +351,7 @@ export default class GeminiProvider extends BaseProvider {
       message: messageContents as PartUnion,
       config: {
         ...generateContentConfig,
-        httpOptions: {
-          signal: signalProxy as any
-        }
+        abortSignal: abortController.signal
       }
     })
     let time_first_token_millsec = 0
@@ -353,9 +377,7 @@ export default class GeminiProvider extends BaseProvider {
           message: flatten(toolResults.map((ts) => (ts as Content).parts)) as PartUnion,
           config: {
             ...generateContentConfig,
-            httpOptions: {
-              signal: signalProxy as any
-            }
+            abortSignal: abortController.signal
           }
         })
         await processStream(newStream, idx + 1)
@@ -364,37 +386,43 @@ export default class GeminiProvider extends BaseProvider {
 
     const processStream = async (stream: AsyncGenerator<GenerateContentResponse>, idx: number) => {
       let content = ''
-      for await (const chunk of stream) {
-        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
+      try {
+        for await (const chunk of stream) {
+          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
 
-        if (time_first_token_millsec == 0) {
-          time_first_token_millsec = new Date().getTime() - start_time_millsec
+          if (time_first_token_millsec == 0) {
+            time_first_token_millsec = new Date().getTime() - start_time_millsec
+          }
+
+          const time_completion_millsec = new Date().getTime() - start_time_millsec
+
+          if (chunk.text !== undefined) {
+            content += chunk.text
+          }
+          await processToolUses(content, idx)
+          const generateImage = this.processGeminiImageResponse(chunk)
+
+          onChunk({
+            text: chunk.text !== undefined ? chunk.text : '',
+            usage: {
+              prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
+              completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
+              thoughts_tokens: chunk.usageMetadata?.thoughtsTokenCount || 0,
+              total_tokens: chunk.usageMetadata?.totalTokenCount || 0
+            },
+            metrics: {
+              completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
+              time_completion_millsec,
+              time_first_token_millsec
+            },
+            search: chunk.candidates?.[0]?.groundingMetadata,
+            mcpToolResponse: toolResponses,
+            generateImage: generateImage
+          })
         }
-
-        const time_completion_millsec = new Date().getTime() - start_time_millsec
-
-        if (chunk.text !== undefined) {
-          content += chunk.text
-        }
-        await processToolUses(content, idx)
-        const generateImage = this.processGeminiImageResponse(chunk)
-
-        onChunk({
-          text: chunk.text !== undefined ? chunk.text : '',
-          usage: {
-            prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
-            completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
-            total_tokens: chunk.usageMetadata?.totalTokenCount || 0
-          },
-          metrics: {
-            completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
-            time_completion_millsec,
-            time_first_token_millsec
-          },
-          search: chunk.candidates?.[0]?.groundingMetadata,
-          mcpToolResponse: toolResponses,
-          generateImage: generateImage
-        })
+      } catch (error) {
+        console.error('Error processing stream chunk:', error)
+        throw error
       }
     }
 
@@ -689,5 +717,9 @@ export default class GeminiProvider extends BaseProvider {
       contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
     })
     return data.embeddings?.[0]?.values?.length || 0
+  }
+
+  public generateImageByChat(): Promise<void> {
+    throw new Error('Method not implemented.')
   }
 }

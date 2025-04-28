@@ -57,6 +57,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   RestorePopup.hide = onCancel
 
+  const isDisabled = progressData ? progressData.stage !== 'completed' : false
+
   return (
     <Modal
       title={t('restore.title')}
@@ -64,8 +66,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      transitionName="ant-move-down"
       okText={t('restore.confirm.button')}
+      okButtonProps={{ disabled: isDisabled }}
+      cancelButtonProps={{ disabled: isDisabled }}
+      maskClosable={false}
       centered>
       {!progressData && <div>{t('restore.content')}</div>}
       {progressData && (

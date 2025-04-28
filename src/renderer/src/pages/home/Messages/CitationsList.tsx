@@ -1,7 +1,8 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
-import { FileSearch } from 'lucide-react'
+import { FileSearch, Info } from 'lucide-react'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Citation {
@@ -19,11 +20,16 @@ interface CitationsListProps {
 }
 
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
-  console.log('CitationsList', citations)
+  const { t } = useTranslation()
+
   if (!citations || citations.length === 0) return null
 
   return (
     <CitationsContainer className="footnotes">
+      <CitationsTitle>
+        <span>{t('message.citations')}</span>
+        <Info size={14} style={{ opacity: 0.6 }} />
+      </CitationsTitle>
       {citations.map((citation) => (
         <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{citation.number}.</span>
@@ -83,7 +89,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 
 const CitationsContainer = styled.div`
   background-color: rgb(242, 247, 253);
-  border-radius: 4px;
+  border-radius: 10px;
   padding: 8px 12px;
   margin: 12px 0;
   display: flex;
@@ -93,6 +99,15 @@ const CitationsContainer = styled.div`
   body[theme-mode='dark'] & {
     background-color: rgba(255, 255, 255, 0.05);
   }
+`
+
+const CitationsTitle = styled.div`
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--color-text-1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 `
 
 const CitationLink = styled.a`

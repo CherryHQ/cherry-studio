@@ -22,9 +22,12 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   const { t } = useTranslation()
   const { translateModel } = useDefaultModel()
   const [isTranslating, setIsTranslating] = useState(false)
-  const { targetLanguage } = useSettings()
+  const { targetLanguage, showTranslateConfirm } = useSettings()
 
   const translateConfirm = () => {
+    if (!showTranslateConfirm) {
+      return Promise.resolve(true)
+    }
     return window?.modal?.confirm({
       title: t('translate.confirm.title'),
       content: t('translate.confirm.content'),

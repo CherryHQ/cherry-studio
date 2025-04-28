@@ -11,14 +11,15 @@ import type {
   Metrics,
   Model,
   Provider,
-  Suggestion
+  Suggestion,
+  Usage
 } from '@renderer/types'
 import OpenAI from 'openai'
 
 export interface ChunkCallbackData {
   text?: string
   reasoning_content?: string
-  usage?: OpenAI.Completions.CompletionUsage
+  usage?: Usage
   metrics?: Metrics
   // Zhipu web search
   webSearch?: any[]
@@ -106,6 +107,15 @@ export default class AiProvider {
 
   public async generateImage(params: GenerateImageParams): Promise<string[]> {
     return this.sdk.generateImage(params)
+  }
+
+  public async generateImageByChat({
+    messages,
+    assistant,
+    onChunk,
+    onFilterMessages
+  }: CompletionsParams): Promise<void> {
+    return this.sdk.generateImageByChat({ messages, assistant, onChunk, onFilterMessages })
   }
 
   public async getEmbeddingDimensions(model: Model): Promise<number> {
