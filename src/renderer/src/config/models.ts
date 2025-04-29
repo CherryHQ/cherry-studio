@@ -135,6 +135,7 @@ import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
+import { SUPPORTED_PROMPT_CACHE_PROVIDERS } from './providers'
 import { getWebSearchTools } from './tools'
 
 // Vision models
@@ -2390,6 +2391,41 @@ export function isGenerateImageModel(model: Model): boolean {
     return true
   }
   return false
+}
+
+export const SUPPORTED_PROMPT_CACHE_GEMINI_MODELS = ['gemini-2.5-pro-preview', 'gemini-2.0-flash(?:-[\\w-]+)?']
+export const SUPPORTED_PROMPT_CACHE_GEMINI_MODELS_REGEX = new RegExp(SUPPORTED_PROMPT_CACHE_GEMINI_MODELS.join('|'))
+
+export function isSupportedPromptCacheModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  const provider = getProviderByModel(model)
+  if (provider?.isSupportPromptCache) {
+    return true
+  }
+  if (SUPPORTED_PROMPT_CACHE_PROVIDERS.includes(model.provider)) {
+    if (model.id.includes('claude') || SUPPORTED_PROMPT_CACHE_GEMINI_MODELS_REGEX.test(model.id)) {
+      return true
+    }
+  }
+  return false
+}
+
+export function getPromptCacheParams(assistant: Assistant, model: Model): Record<string, any> {
+  if (!assistant.settings?.enablePromptCache) {
+    return {}
+  }
+  if (isSupportedPromptCacheModel(model)) {
+    if (model.provider !== 'gemini') {
+      return {
+        cache_control: {
+          type: 'ephemeral'
+        }
+      }
+    }
+  }
+  return {}
 }
 
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {

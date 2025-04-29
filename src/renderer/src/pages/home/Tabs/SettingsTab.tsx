@@ -8,7 +8,11 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
-import { isGrokReasoningModel, isSupportedReasoningEffortModel } from '@renderer/config/models'
+import {
+  isGrokReasoningModel,
+  isSupportedPromptCacheModel,
+  isSupportedReasoningEffortModel
+} from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -40,8 +44,8 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
-  setThoughtAutoCollapse,
-  setShowTranslateConfirm
+  setShowTranslateConfirm,
+  setThoughtAutoCollapse
 } from '@renderer/store/settings'
 import {
   Assistant,
@@ -69,6 +73,8 @@ const SettingsTab: FC<Props> = (props) => {
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
+  const [enablePromptCache, setEnablePromptCache] = useState(assistant?.settings?.enablePromptCache ?? false)
+  const [cacheTTL, setCacheTTL] = useState(assistant?.settings?.cacheTTL ?? 0)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
@@ -127,6 +133,12 @@ const SettingsTab: FC<Props> = (props) => {
     }
   }
 
+  const onCacheTTLChange = (value) => {
+    if (!isNaN(value as number)) {
+      onUpdateAssistantSettings({ cacheTTL: value })
+    }
+  }
+
   const onReasoningEffortChange = useCallback(
     (value?: 'low' | 'medium' | 'high') => {
       updateAssistantSettings({ reasoning_effort: value })
@@ -161,6 +173,7 @@ const SettingsTab: FC<Props> = (props) => {
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
     setReasoningEffort(assistant?.settings?.reasoning_effort)
+    setEnablePromptCache(assistant?.settings?.enablePromptCache ?? false)
   }, [assistant])
 
   useEffect(() => {
@@ -239,6 +252,55 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </Col>
         </Row>
+        <SettingDivider />
+        {isSupportedPromptCacheModel(assistant?.model || getDefaultModel()) && (
+          <>
+            <Row align="middle" justify="space-between" style={{ marginBottom: 10 }}>
+              <HStack alignItems="center">
+                <Label>{t('chat.settings.models.enable_prompt_cache')}</Label>
+                <Tooltip title={t('chat.settings.models.enable_prompt_cache.tip')}>
+                  <CircleHelp size={14} color="var(--color-text-2)" />
+                </Tooltip>
+              </HStack>
+              <Switch
+                size="small"
+                checked={enablePromptCache}
+                onChange={(checked) => {
+                  setEnablePromptCache(checked)
+                  onUpdateAssistantSettings({ enablePromptCache: checked })
+                }}
+              />
+            </Row>
+            {enablePromptCache && assistant.model?.provider == 'gemini' && (
+              <>
+                <SettingDivider />
+                <Row align="middle" style={{ marginBottom: 10 }}>
+                  <HStack alignItems="center">
+                    <Label>{t('chat.settings.models.cache_ttl')}</Label>
+                    <Tooltip title={t('chat.settings.models.cache_ttl.tip')}>
+                      <CircleHelp size={14} color="var(--color-text-2)" />
+                    </Tooltip>
+                  </HStack>
+                </Row>
+                <Row align="middle" gutter={10}>
+                  <InputNumber
+                    min={30}
+                    max={24 * 60 * 60}
+                    step={30}
+                    value={typeof cacheTTL === 'number' ? cacheTTL : 0}
+                    changeOnBlur
+                    onChange={(value) => {
+                      setCacheTTL(value ?? 0)
+                    }}
+                    onBlur={() => onCacheTTLChange(cacheTTL)}
+                    style={{ width: '100%' }}
+                  />
+                </Row>
+              </>
+            )}
+            <SettingDivider />
+          </>
+        )}
         <SettingRow>
           <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
           <Switch
