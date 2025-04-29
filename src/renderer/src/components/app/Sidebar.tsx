@@ -21,7 +21,8 @@ import {
   Palette,
   Settings,
   Sparkle,
-  Sun
+  Sun,
+  SunMoon
 } from 'lucide-react'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -98,7 +99,13 @@ const Sidebar: FC = () => {
           mouseEnterDelay={0.8}
           placement="right">
           <Icon theme={theme} onClick={() => toggleTheme()}>
-            {theme === 'dark' ? <Moon size={20} className="icon" /> : <Sun size={20} className="icon" />}
+            {settingTheme === 'dark' ? (
+              <Moon size={20} className="icon" />
+            ) : settingTheme === 'light' ? (
+              <Sun size={20} className="icon" />
+            ) : (
+              <SunMoon size={20} className="icon" />
+            )}
           </Icon>
         </Tooltip>
         <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
@@ -248,7 +255,7 @@ const SidebarOpenedMinappTabs: FC = () => {
                       theme={theme}
                       onClick={() => handleOnClick(app)}
                       className={`${isActive ? 'opened-active' : ''}`}>
-                      <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} />
+                      <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
                     </Icon>
                   </Dropdown>
                 </StyledLink>
@@ -290,7 +297,7 @@ const PinnedApps: FC = () => {
                   theme={theme}
                   onClick={() => openMinappKeepAlive(app)}
                   className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
-                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} />
+                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
                 </Icon>
               </Dropdown>
             </StyledLink>

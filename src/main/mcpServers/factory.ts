@@ -2,6 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import Logger from 'electron-log'
 
 import BraveSearchServer from './brave-search'
+import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
 import MemoryServer from './memory'
@@ -25,6 +26,10 @@ export function createInMemoryMCPServer(name: string, args: string[] = [], envs:
     }
     case '@cherry/filesystem': {
       return new FileSystemServer(args).server
+    }
+    case '@cherry/dify-knowledge': {
+      const difyKey = envs.DIFY_KEY
+      return new DifyKnowledgeServer(difyKey, args).server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

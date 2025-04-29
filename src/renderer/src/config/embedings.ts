@@ -245,18 +245,6 @@ export const EMBEDDING_MODELS = [
   },
   {
     id: 'voyage-3-large',
-    max_context: 1024
-  },
-  {
-    id: 'voyage-3-large',
-    max_context: 256
-  },
-  {
-    id: 'voyage-3-large',
-    max_context: 512
-  },
-  {
-    id: 'voyage-3-large',
     max_context: 2048
   },
   {

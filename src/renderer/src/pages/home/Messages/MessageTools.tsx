@@ -1,7 +1,7 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Message } from '@renderer/types'
-import { Collapse, message as antdMessage, Modal, Tooltip } from 'antd'
+import { Collapse, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -116,6 +116,24 @@ const MessageTools: FC<Props> = ({ message }) => {
     return items
   }
 
+  const renderPreview = (content: string) => {
+    if (!content) return null
+
+    try {
+      const parsedResult = JSON.parse(content)
+      switch (parsedResult.content[0]?.type) {
+        case 'text':
+          return <PreviewBlock>{parsedResult.content[0].text}</PreviewBlock>
+        // TODO: support other types
+        default:
+          return <PreviewBlock>{content}</PreviewBlock>
+      }
+    } catch (e) {
+      console.error('failed to render the preview of mcp results:', e)
+      return <PreviewBlock>{content}</PreviewBlock>
+    }
+  }
+
   return (
     <>
       <CollapseContainer
@@ -139,18 +157,42 @@ const MessageTools: FC<Props> = ({ message }) => {
         styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
         {expandedResponse && (
           <ExpandedResponseContainer style={{ fontFamily, fontSize }}>
-            <ActionButton
-              className="copy-expanded-button"
-              onClick={() => {
-                if (expandedResponse) {
-                  navigator.clipboard.writeText(expandedResponse.content)
-                  antdMessage.success({ content: t('message.copied'), key: 'copy-expanded' })
+            {/* mode swtich tabs */}
+            <Tabs
+              tabBarExtraContent={
+                <ActionButton
+                  className="copy-expanded-button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      typeof expandedResponse.content === 'string'
+                        ? expandedResponse.content
+                        : JSON.stringify(expandedResponse.content, null, 2)
+                    )
+                    antdMessage.success({ content: t('message.copied'), key: 'copy-expanded' })
+                  }}
+                  aria-label={t('common.copy')}>
+                  <i className="iconfont icon-copy"></i>
+                </ActionButton>
+              }
+              items={[
+                {
+                  key: 'preview',
+                  label: t('message.tools.preview'),
+                  children: renderPreview(expandedResponse.content)
+                },
+                {
+                  key: 'raw',
+                  label: t('message.tools.raw'),
+                  children: (
+                    <CodeBlock>
+                      {typeof expandedResponse.content === 'string'
+                        ? expandedResponse.content
+                        : JSON.stringify(expandedResponse.content, null, 2)}
+                    </CodeBlock>
+                  )
                 }
-              }}
-              aria-label={t('common.copy')}>
-              <i className="iconfont icon-copy"></i>
-            </ActionButton>
-            <CodeBlock>{expandedResponse.content}</CodeBlock>
+              ]}
+            />
           </ExpandedResponseContainer>
         )}
       </Modal>
@@ -265,6 +307,14 @@ const ToolResponseContainer = styled.div`
   max-height: 300px;
   border-top: none;
   position: relative;
+`
+
+const PreviewBlock = styled.div`
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text);
+  user-select: text;
 `
 
 const CodeBlock = styled.pre`

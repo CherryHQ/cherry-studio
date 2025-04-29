@@ -1,0 +1,76 @@
+name: 🤔 Other Questions (English)
+description: Submit questions that don't fit into bug reports or feature requests
+title: '[Other]: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to ask a question!
+        Before submitting this issue, please make sure you've reviewed the [FAQ](https://docs.cherry-ai.com/question-contact/questions) and [Knowledge Base](https://docs.cherry-ai.com/question-contact/knowledge)
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: |
+        Please ensure you've completed all the steps below before submitting your issue
+      options:
+        - label: I understand that Issues are for feedback and problem-solving, not for complaints, and I will provide as much information as possible to help resolve the issue.
+          required: true
+        - label: I have checked the pinned Issues and searched through existing [open Issues](https://github.com/CherryHQ/cherry-studio/issues) and [closed Issues](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed%20) and didn't find similar questions.
+          required: true
+        - label: I have written a short and clear title that helps developers quickly understand the nature of my question, rather than vague titles like "A question" or "Help needed".
+          required: true
+        - label: My question doesn't fall under bug reports or feature requests categories.
+          required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Which platform are you using?
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version of Cherry Studio are you running?
+      placeholder: e.g., v1.0.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question Description
+      description: Please describe your question or inquiry in detail
+      placeholder: I would like to know more about...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant Context
+      description: Please provide any background information or context related to your question
+      placeholder: I encountered this question while trying to implement...
+    validations:
+      required: true
+
+  - type: textarea
+    id: attempts
+    attributes:
+      label: Attempted Solutions
+      description: Please describe any methods you've already tried to resolve your question (if applicable)
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other information that could help us better understand your question, including screenshots or relevant links

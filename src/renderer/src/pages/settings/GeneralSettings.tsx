@@ -185,7 +185,13 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
-          <Switch value={enableDataCollection} onChange={(v) => dispatch(setEnableDataCollection(v))} />
+          <Switch
+            value={enableDataCollection}
+            onChange={(v) => {
+              dispatch(setEnableDataCollection(v))
+              window.api.config.set('enableDataCollection', v)
+            }}
+          />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

@@ -86,7 +86,7 @@ export const SettingHelpLink = styled(Link)`
 
 export const SettingGroup = styled.div<{ theme?: ThemeMode; css?: CSSProp }>`
   margin-bottom: 20px;
-  border-radius: 8px;
+  border-radius: var(--list-item-border-radius);
   border: 0.5px solid var(--color-border);
   padding: 16px;
   background: ${(props) => (props.theme === 'dark' ? '#00000010' : 'var(--color-background)')};

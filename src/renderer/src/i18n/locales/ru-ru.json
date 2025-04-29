@@ -445,7 +445,11 @@
       "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает.",
       "url_added": "URL добавлен",
       "url_placeholder": "Введите URL, несколько URL через Enter",
-      "urls": "URL-адреса"
+      "urls": "URL-адреса",
+      "dimensions": "векторное пространство",
+      "dimensions_size_tooltip": "Размерность вложения, чем больше значение, тем больше размерность вложения, но и потребляемых токенов также становится больше.",
+      "dimensions_size_placeholder": "Значение по умолчанию (не рекомендуется изменять)",
+      "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})"
     },
     "languages": {
       "arabic": "Арабский",
@@ -558,7 +562,9 @@
       "tools": {
         "completed": "Завершено",
         "invoking": "Вызов",
-        "error": "Произошла ошибка"
+        "error": "Произошла ошибка",
+        "raw": "Исходный",
+        "preview": "Предпросмотр"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -579,7 +585,9 @@
         "minimize": "Свернуть встроенное приложение",
         "devtools": "Инструменты разработчика",
         "openExternal": "Открыть в браузере",
-        "rightclick_copyurl": "ПКМ → Копировать URL"
+        "rightclick_copyurl": "ПКМ → Копировать URL",
+        "open_link_external_on": "Текущий: Открыть ссылки в браузере",
+        "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию"
       },
       "sidebar.add.title": "Добавить в боковую панель",
       "sidebar.remove.title": "Удалить из боковой панели",
@@ -1014,6 +1022,9 @@
         "disabled": "Скрытые мини-приложения",
         "empty": "Перетащите мини-приложения слева, чтобы скрыть их",
         "visible": "Отображаемые мини-приложения",
+        "open_link_external": {
+          "title": "Открывать новые окна в браузере"
+        },
         "cache_settings": "Настройки кэша",
         "cache_title": "Количество кэшируемых мини-приложений",
         "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
@@ -1116,6 +1127,7 @@
         "installHelp": "Получить помощь по установке",
         "tabs": {
           "general": "Общие",
+          "description": "Описание",
           "tools": "Инструменты",
           "prompts": "Подсказки",
           "resources": "Ресурсы"
@@ -1151,7 +1163,38 @@
         "registryDefault": "По умолчанию",
         "not_support": "Модель не поддерживается",
         "user": "Пользователь",
-        "system": "Система"
+        "system": "Система",
+        "types": {
+          "inMemory": "Встроенный",
+          "sse": "SSE",
+          "streamableHttp": "Потоковый HTTP",
+          "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "Синхронизация серверов",
+          "selectProvider": "Выберите провайдера:",
+          "discoverMcpServers": "Обнаружить серверы MCP",
+          "discoverMcpServersDescription": "Посетите платформу, чтобы обнаружить доступные серверы MCP",
+          "getToken": "Получить API токен",
+          "getTokenDescription": "Получите персональный API токен из вашей учетной записи",
+          "setToken": "Введите ваш токен",
+          "tokenRequired": "Требуется API токен",
+          "tokenPlaceholder": "Введите API токен здесь",
+          "button": "Синхронизировать",
+          "error": "Ошибка синхронизации серверов MCP",
+          "success": "Синхронизация серверов MCP успешна",
+          "unauthorized": "Синхронизация не разрешена",
+          "noServersAvailable": "Нет доступных серверов MCP"
+        },
+        "timeout": "Тайм-аут",
+        "timeoutTooltip": "Тайм-аут в секундах для запросов к этому серверу, по умолчанию 60 секунд",
+        "provider": "Провайдер",
+        "providerUrl": "URL провайдера",
+        "logoUrl": "URL логотипа",
+        "tags": "Теги",
+        "tagsPlaceholder": "Введите теги",
+        "providerPlaceholder": "Имя провайдера",
+        "advancedSettings": "Расширенные настройки"
       },
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
@@ -1167,6 +1210,7 @@
       "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
+      "messages.math_engine.none": "Нет",
       "messages.metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
       "messages.model.title": "Настройки модели",
       "messages.navigation": "Навигация сообщений",
@@ -1237,10 +1281,16 @@
         "basic_auth.user_name.tip": "Оставить пустым для отключения",
         "basic_auth.password": "Пароль",
         "basic_auth.password.tip": "",
-        "charge": "Пополнить",
+        "charge": "Пополнить баланс",
+        "bills": "Счета за услуги",
         "check": "Проверить",
         "check_all_keys": "Проверить все ключи",
         "check_multiple_keys": "Проверить несколько ключей API",
+        "oauth": {
+          "button": "Войти с {{provider}}",
+          "description": "Сервис предоставляется <website>{{provider}}</website>",
+          "official_website": "Официальный сайт"
+        },
         "copilot": {
           "auth_failed": "Github Copilot认证失败",
           "auth_success": "Github Copilot认证成功",
@@ -1277,7 +1327,12 @@
         "remove_invalid_keys": "Удалить недействительные ключи",
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
-        "title": "Провайдеры моделей"
+        "title": "Провайдеры моделей",
+        "notes": {
+          "title": "Заметки модели",
+          "placeholder": "Введите содержимое в формате Markdown...",
+          "markdown_editor_default_value": "Область предварительного просмотра"
+        }
       },
       "proxy": {
         "mode": {
@@ -1395,7 +1450,8 @@
       "privacy": {
         "title": "Настройки приватности",
         "enable_privacy_mode": "Анонимная отправка отчетов об ошибках и статистики"
-      }
+      },
+      "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"
     },
     "translate": {
       "any.language": "Любой язык",

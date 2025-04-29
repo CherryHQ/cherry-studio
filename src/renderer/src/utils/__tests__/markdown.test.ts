@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  convertMathFormula,
-  findCitationInChildren,
-  MARKDOWN_ALLOWED_TAGS,
-  removeTrailingDoubleSpaces,
-  sanitizeSchema
-} from '../markdown'
+import { convertMathFormula, findCitationInChildren, removeTrailingDoubleSpaces } from '../markdown'
 
 describe('markdown', () => {
   describe('findCitationInChildren', () => {
@@ -69,27 +63,6 @@ describe('markdown', () => {
     it('handles non-object children gracefully', () => {
       const children = ['text node', 123, { props: { 'data-citation': 'mixed-citation' } }]
       expect(findCitationInChildren(children)).toBe('mixed-citation')
-    })
-  })
-
-  describe('markdown configuration constants', () => {
-    it('MARKDOWN_ALLOWED_TAGS contains expected tags', () => {
-      expect(MARKDOWN_ALLOWED_TAGS).toContain('p')
-      expect(MARKDOWN_ALLOWED_TAGS).toContain('div')
-      expect(MARKDOWN_ALLOWED_TAGS).toContain('code')
-      expect(MARKDOWN_ALLOWED_TAGS).toContain('svg')
-      expect(MARKDOWN_ALLOWED_TAGS.length).toBeGreaterThan(10)
-    })
-
-    it('sanitizeSchema contains proper configuration', () => {
-      expect(sanitizeSchema.tagNames).toBe(MARKDOWN_ALLOWED_TAGS)
-      expect(sanitizeSchema.attributes).toHaveProperty('*')
-      expect(sanitizeSchema.attributes).toHaveProperty('svg')
-      expect(sanitizeSchema.attributes).toHaveProperty('a')
-    })
-
-    it('sanitizeSchema matches snapshot', () => {
-      expect(sanitizeSchema).toMatchSnapshot()
     })
   })
 

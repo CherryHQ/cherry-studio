@@ -21,7 +21,7 @@ export class CallBackServer {
       if (req.url?.startsWith(path)) {
         try {
           // Parse the URL to extract the authorization code
-          const url = new URL(req.url, `http://localhost:${port}`)
+          const url = new URL(req.url, `http://127.0.0.1:${port}`)
           const code = url.searchParams.get('code')
           if (code) {
             // Emit the code event

@@ -445,7 +445,11 @@
       "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
       "url_added": "URLが追加されました",
       "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-      "urls": "URL"
+      "urls": "URL",
+      "dimensions": "埋め込み次元",
+      "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど埋め込み次元も大きくなりますが、消費するトークンも増えます。",
+      "dimensions_size_placeholder": "デフォルト値（変更はお勧めしません）",
+      "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -557,7 +561,9 @@
       "tools": {
         "completed": "完了",
         "invoking": "呼び出し中",
-        "error": "エラーが発生しました"
+        "error": "エラーが発生しました",
+        "raw": "生データ",
+        "preview": "プレビュー"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
@@ -579,7 +585,9 @@
         "minimize": "ミニアプリを最小化",
         "devtools": "開発者ツール",
         "openExternal": "ブラウザで開く",
-        "rightclick_copyurl": "右クリックでURLをコピー"
+        "rightclick_copyurl": "右クリックでURLをコピー",
+        "open_link_external_on": "現在：ブラウザで開く",
+        "open_link_external_off": "現在：デフォルトのウィンドウで開く"
       },
       "sidebar.add.title": "サイドバーに追加",
       "sidebar.remove.title": "サイドバーから削除",
@@ -1014,6 +1022,9 @@
         "disabled": "非表示のミニアプリ",
         "empty": "非表示にするミニアプリを左側からここにドラッグしてください",
         "visible": "表示するミニアプリ",
+        "open_link_external": {
+          "title": "新視窗のリンクをブラウザで開く"
+        },
         "cache_settings": "キャッシュ設定",
         "cache_title": "ミニアプリのキャッシュ数",
         "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
@@ -1116,6 +1127,7 @@
         "installHelp": "インストールヘルプを取得",
         "tabs": {
           "general": "一般",
+          "description": "説明",
           "tools": "ツール",
           "prompts": "プロンプト",
           "resources": "リソース"
@@ -1151,7 +1163,38 @@
         "registryDefault": "デフォルト",
         "not_support": "モデルはサポートされていません",
         "user": "ユーザー",
-        "system": "システム"
+        "system": "システム",
+        "types": {
+          "inMemory": "組み込み",
+          "sse": "SSE",
+          "streamableHttp": "ストリーミング",
+          "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "サーバーの同期",
+          "selectProvider": "プロバイダーを選択：",
+          "discoverMcpServers": "MCPサーバーを発見",
+          "discoverMcpServersDescription": "プラットフォームを訪れて利用可能なMCPサーバーを発見",
+          "getToken": "API トークンを取得する",
+          "getTokenDescription": "アカウントから個人用 API トークンを取得します",
+          "setToken": "トークンを入力してください",
+          "tokenRequired": "API トークンは必須です",
+          "tokenPlaceholder": "ここに API トークンを入力してください",
+          "button": "同期する",
+          "error": "MCPサーバーの同期エラー",
+          "success": "MCPサーバーの同期成功",
+          "unauthorized": "同期が許可されていません",
+          "noServersAvailable": "利用可能な MCP サーバーがありません"
+        },
+        "timeout": "タイムアウト",
+        "timeoutTooltip": "このサーバーへのリクエストのタイムアウト時間（秒）、デフォルトは60秒です",
+        "provider": "プロバイダー",
+        "providerUrl": "プロバイダーURL",
+        "logoUrl": "ロゴURL",
+        "tags": "タグ",
+        "tagsPlaceholder": "タグを入力",
+        "providerPlaceholder": "プロバイダー名",
+        "advancedSettings": "詳細設定"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -1167,6 +1210,7 @@
       "messages.input.enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
       "messages.markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "messages.math_engine": "数式エンジン",
+      "messages.math_engine.none": "なし",
       "messages.metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
       "messages.model.title": "モデル設定",
       "messages.navigation": "メッセージナビゲーション",
@@ -1237,10 +1281,16 @@
         "basic_auth.user_name.tip": "空欄で無効化",
         "basic_auth.password": "パスワード",
         "basic_auth.password.tip": "",
-        "charge": "充電",
+        "charge": "残高充電",
+        "bills": "費用帳單",
         "check": "チェック",
         "check_all_keys": "すべてのキーをチェック",
         "check_multiple_keys": "複数のAPIキーをチェック",
+        "oauth": {
+          "button": "{{provider}} アカウントでログイン",
+          "description": "本サービスは<website>{{provider}}</website>によって提供されます",
+          "official_website": "公式サイト"
+        },
         "copilot": {
           "auth_failed": "Github Copilotの認証に失敗しました。",
           "auth_success": "Github Copilotの認証が成功しました",
@@ -1277,7 +1327,12 @@
         "remove_invalid_keys": "無効なキーを削除",
         "search": "プロバイダーを検索...",
         "search_placeholder": "モデルIDまたは名前を検索",
-        "title": "モデルプロバイダー"
+        "title": "モデルプロバイダー",
+        "notes": {
+          "title": "モデルノート",
+          "placeholder": "Markdown形式の内容を入力してください...",
+          "markdown_editor_default_value": "プレビュー領域"
+        }
       },
       "proxy": {
         "mode": {
@@ -1395,7 +1450,8 @@
       "privacy": {
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
-      }
+      },
+      "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"
     },
     "translate": {
       "any.language": "任意の言語",

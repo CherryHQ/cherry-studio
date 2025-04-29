@@ -70,10 +70,16 @@ export async function fetchChatCompletion({
 
   // 网络搜索/知识库 关键词提取
   const extract = async () => {
+    const tools: string[] = []
+
+    if (assistant.enableWebSearch) tools.push('websearch')
+    if (hasKnowledgeBase) tools.push('knowledge')
+
     const summaryAssistant = {
       ...assistant,
-      prompt: SEARCH_SUMMARY_PROMPT
+      prompt: SEARCH_SUMMARY_PROMPT.replace('{tools}', tools.join(', '))
     }
+
     const keywords = await fetchSearchSummary({
       messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
       assistant: summaryAssistant
@@ -222,7 +228,7 @@ export async function fetchChatCompletion({
         if (generateImage && generateImage.images.length > 0) {
           const existingImages = message.metadata?.generateImage?.images || []
           generateImage.images = [...existingImages, ...generateImage.images]
-          console.log('generateImage', generateImage)
+          // console.log('generateImage', generateImage)
           message.metadata = {
             ...message.metadata,
             generateImage: generateImage

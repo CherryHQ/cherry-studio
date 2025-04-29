@@ -8,7 +8,8 @@ import {
   isReasoningModel,
   isSupportedModel,
   isVisionModel,
-  isZhipuModel
+  isZhipuModel,
+  OPENAI_NO_SUPPORT_DEV_ROLE_MODELS
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -70,7 +71,8 @@ export default class OpenAIProvider extends BaseProvider {
       baseURL: this.getBaseURL(),
       defaultHeaders: {
         ...this.defaultHeaders(),
-        ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {})
+        ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {}),
+        ...(this.provider.id === 'copilot' ? { 'copilot-vision-request': 'true' } : {})
       }
     })
   }
@@ -307,12 +309,16 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The completions
    */
   async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
+    if (assistant.enableGenerateImage) {
+      await this.generateImageByChat({ messages, assistant, onChunk } as CompletionsParams)
+      return
+    }
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     messages = addImageFileToContents(messages)
     let systemMessage = { role: 'system', content: assistant.prompt || '' }
-    if (isOpenAIoSeries(model)) {
+    if (isOpenAIoSeries(model) && !OPENAI_NO_SUPPORT_DEV_ROLE_MODELS.includes(model.id)) {
       systemMessage = {
         role: 'developer',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
@@ -892,5 +898,31 @@ export default class OpenAIProvider extends BaseProvider {
     // copilot每次请求前需要重新获取token，因为token中附带时间戳
     const { token } = await window.api.copilot.getToken(defaultHeaders)
     this.sdk.apiKey = token
+  }
+
+  public async generateImageByChat({ messages, assistant, onChunk }: CompletionsParams): Promise<void> {
+    const defaultModel = getDefaultModel()
+    const model = assistant.model || defaultModel
+    const lastUserMessage = messages.findLast((m) => m.role === 'user')
+    const { abortController } = this.createAbortController(lastUserMessage?.id, true)
+    const { signal } = abortController
+    const response = await this.sdk.images.generate(
+      {
+        model: model.id,
+        prompt: lastUserMessage?.content || '',
+        response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
+      },
+      {
+        signal
+      }
+    )
+
+    return onChunk({
+      text: '',
+      generateImage: {
+        type: 'base64',
+        images: response.data.map((item) => `data:image/png;base64,${item.b64_json}`)
+      }
+    })
   }
 }

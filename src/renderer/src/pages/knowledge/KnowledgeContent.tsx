@@ -13,7 +13,7 @@ import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
-import { ChevronsDown, ChevronsUp, Plus, Settings2 } from 'lucide-react'
+import { ChevronsDown, ChevronsUp, Plus, Search, Settings2 } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +21,8 @@ import styled from 'styled-components'
 
 import CustomCollapse from '../../components/CustomCollapse'
 import FileItem from '../files/FileItem'
+import { NavbarIcon } from '../home/Navbar'
+import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'
 
@@ -248,6 +250,10 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </div>
         </ModelInfo>
         <HStack gap={8} alignItems="center">
+          {/* 使用selected base导致修改设置后没有响应式更新 */}
+          <NarrowIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
+            <Search size={18} />
+          </NarrowIcon>
           <Tooltip title={expandAll ? t('common.collapse') : t('common.expand')}>
             <Button
               size="small"
@@ -692,6 +698,12 @@ const StatusIconWrapper = styled.div`
 const RefreshIcon = styled(RedoOutlined)`
   font-size: 15px !important;
   color: var(--color-text-2);
+`
+
+const NarrowIcon = styled(NavbarIcon)`
+  @media (max-width: 1000px) {
+    display: none;
+  }
 `
 
 export default KnowledgeContent

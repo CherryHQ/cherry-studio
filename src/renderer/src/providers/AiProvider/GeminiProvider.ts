@@ -275,12 +275,21 @@ export default class GeminiProvider extends BaseProvider {
       })
     }
 
+    let canGenerateImage = false
+    if (isGenerateImageModel(model)) {
+      if (model.id === 'gemini-2.0-flash-exp') {
+        canGenerateImage = assistant.enableGenerateImage!
+      } else {
+        canGenerateImage = true
+      }
+    }
+
     const generateContentConfig: GenerateContentConfig = {
-      responseModalities: isGenerateImageModel(model) ? [Modality.TEXT, Modality.IMAGE] : undefined,
-      responseMimeType: isGenerateImageModel(model) ? 'text/plain' : undefined,
+      responseModalities: canGenerateImage ? [Modality.TEXT, Modality.IMAGE] : undefined,
+      responseMimeType: canGenerateImage ? 'text/plain' : undefined,
       safetySettings: this.getSafetySettings(model.id),
       // generate image don't need system instruction
-      systemInstruction: isGemmaModel(model) || isGenerateImageModel(model) ? undefined : systemInstruction,
+      systemInstruction: isGemmaModel(model) || canGenerateImage ? undefined : systemInstruction,
       temperature: assistant?.settings?.temperature,
       topP: assistant?.settings?.topP,
       maxOutputTokens: maxTokens,
@@ -320,32 +329,12 @@ export default class GeminiProvider extends BaseProvider {
     const start_time_millsec = new Date().getTime()
 
     const { cleanup, abortController } = this.createAbortController(userLastMessage?.id, true)
-    const signalProxy = {
-      _originalSignal: abortController.signal,
-
-      addEventListener: (eventName: string, listener: () => void) => {
-        if (eventName === 'abort') {
-          abortController.signal.addEventListener('abort', listener)
-        }
-      },
-      removeEventListener: (eventName: string, listener: () => void) => {
-        if (eventName === 'abort') {
-          abortController.signal.removeEventListener('abort', listener)
-        }
-      },
-      get aborted() {
-        return abortController.signal.aborted
-      }
-    }
-
     if (!streamOutput) {
       const response = await chat.sendMessage({
         message: messageContents as PartUnion,
         config: {
           ...generateContentConfig,
-          httpOptions: {
-            signal: signalProxy as any
-          }
+          abortSignal: abortController.signal
         }
       })
       const time_completion_millsec = new Date().getTime() - start_time_millsec
@@ -371,9 +360,7 @@ export default class GeminiProvider extends BaseProvider {
       message: messageContents as PartUnion,
       config: {
         ...generateContentConfig,
-        httpOptions: {
-          signal: signalProxy as any
-        }
+        abortSignal: abortController.signal
       }
     })
     let time_first_token_millsec = 0
@@ -399,9 +386,7 @@ export default class GeminiProvider extends BaseProvider {
           message: flatten(toolResults.map((ts) => (ts as Content).parts)) as PartUnion,
           config: {
             ...generateContentConfig,
-            httpOptions: {
-              signal: signalProxy as any
-            }
+            abortSignal: abortController.signal
           }
         })
         await processStream(newStream, idx + 1)
@@ -410,38 +395,43 @@ export default class GeminiProvider extends BaseProvider {
 
     const processStream = async (stream: AsyncGenerator<GenerateContentResponse>, idx: number) => {
       let content = ''
-      for await (const chunk of stream) {
-        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
+      try {
+        for await (const chunk of stream) {
+          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
 
-        if (time_first_token_millsec == 0) {
-          time_first_token_millsec = new Date().getTime() - start_time_millsec
+          if (time_first_token_millsec == 0) {
+            time_first_token_millsec = new Date().getTime() - start_time_millsec
+          }
+
+          const time_completion_millsec = new Date().getTime() - start_time_millsec
+
+          if (chunk.text !== undefined) {
+            content += chunk.text
+          }
+          await processToolUses(content, idx)
+          const generateImage = this.processGeminiImageResponse(chunk)
+
+          onChunk({
+            text: chunk.text !== undefined ? chunk.text : '',
+            usage: {
+              prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
+              completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
+              thoughts_tokens: chunk.usageMetadata?.thoughtsTokenCount || 0,
+              total_tokens: chunk.usageMetadata?.totalTokenCount || 0
+            },
+            metrics: {
+              completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
+              time_completion_millsec,
+              time_first_token_millsec
+            },
+            search: chunk.candidates?.[0]?.groundingMetadata,
+            mcpToolResponse: toolResponses,
+            generateImage: generateImage
+          })
         }
-
-        const time_completion_millsec = new Date().getTime() - start_time_millsec
-
-        if (chunk.text !== undefined) {
-          content += chunk.text
-        }
-        await processToolUses(content, idx)
-        const generateImage = this.processGeminiImageResponse(chunk)
-
-        onChunk({
-          text: chunk.text !== undefined ? chunk.text : '',
-          usage: {
-            prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
-            completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
-            thoughts_tokens: chunk.usageMetadata?.thoughtsTokenCount || 0,
-            total_tokens: chunk.usageMetadata?.totalTokenCount || 0
-          },
-          metrics: {
-            completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
-            time_completion_millsec,
-            time_first_token_millsec
-          },
-          search: chunk.candidates?.[0]?.groundingMetadata,
-          mcpToolResponse: toolResponses,
-          generateImage: generateImage
-        })
+      } catch (error) {
+        console.error('Error processing stream chunk:', error)
+        throw error
       }
     }
 
@@ -736,5 +726,9 @@ export default class GeminiProvider extends BaseProvider {
       contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
     })
     return data.embeddings?.[0]?.values?.length || 0
+  }
+
+  public generateImageByChat(): Promise<void> {
+    throw new Error('Method not implemented.')
   }
 }

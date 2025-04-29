@@ -19,6 +19,17 @@ interface Props {
   message: Message
 }
 
+const StyledUpload = styled(Upload)`
+  .ant-upload-list-item-name {
+    max-width: 220px;
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+`
+
 const MessageAttachments: FC<Props> = ({ message }) => {
   const handleCopyImage = async (image: FileType) => {
     const data = await FileManager.readFile(image)
@@ -65,17 +76,6 @@ const MessageAttachments: FC<Props> = ({ message }) => {
       </Container>
     )
   }
-
-  const StyledUpload = styled(Upload)`
-    .ant-upload-list-item-name {
-      max-width: 220px;
-      display: inline-block;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      vertical-align: bottom;
-    }
-  `
 
   return (
     <Container style={{ marginTop: 2, marginBottom: 8 }} className="message-attachments">

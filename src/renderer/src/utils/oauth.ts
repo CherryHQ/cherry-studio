@@ -80,3 +80,26 @@ export const providerCharge = async (provider: string) => {
     `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`
   )
 }
+
+export const providerBills = async (provider: string) => {
+  const billsUrlMap = {
+    silicon: {
+      url: 'https://cloud.siliconflow.cn/bills',
+      width: 900,
+      height: 700
+    },
+    aihubmix: {
+      url: `https://aihubmix.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      width: 900,
+      height: 700
+    }
+  }
+
+  const { url, width, height } = billsUrlMap[provider]
+
+  window.open(
+    url,
+    'oauth',
+    `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`
+  )
+}

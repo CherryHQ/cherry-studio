@@ -1,4 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import { ThemeMode } from '@renderer/types'
+import { runAsyncFunction } from '@renderer/utils'
 import { download } from '@renderer/utils/download'
 import { Button, Modal, Space, Tabs } from 'antd'
 import { useEffect, useState } from 'react'
@@ -16,6 +19,7 @@ interface Props extends ShowParams {
 const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const mermaidId = `mermaid-popup-${Date.now()}`
   const [activeTab, setActiveTab] = useState('preview')
   const [scale, setScale] = useState(1)
@@ -97,19 +101,21 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
       if (!element) return
 
       const timestamp = Date.now()
+      const backgroundColor = theme === ThemeMode.dark ? '#1F1F1F' : '#fff'
+      const svgElement = element.querySelector('svg')
+
+      if (!svgElement) return
 
       if (format === 'svg') {
-        const svgElement = element.querySelector('svg')
-        if (!svgElement) return
+        // Add background color to SVG
+        svgElement.style.backgroundColor = backgroundColor
+
         const svgData = new XMLSerializer().serializeToString(svgElement)
         const blob = new Blob([svgData], { type: 'image/svg+xml' })
         const url = URL.createObjectURL(blob)
         download(url, `mermaid-diagram-${timestamp}.svg`)
         URL.revokeObjectURL(url)
       } else if (format === 'png') {
-        const svgElement = element.querySelector('svg')
-        if (!svgElement) return
-
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d')
         const img = new Image()
@@ -118,6 +124,9 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
         const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
         const width = viewBox[2] || svgElement.clientWidth || svgElement.getBoundingClientRect().width
         const height = viewBox[3] || svgElement.clientHeight || svgElement.getBoundingClientRect().height
+
+        // Add background color to SVG before converting to image
+        svgElement.style.backgroundColor = backgroundColor
 
         const svgData = new XMLSerializer().serializeToString(svgElement)
         const svgBase64 = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`
@@ -129,6 +138,9 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
 
           if (ctx) {
             ctx.scale(scale, scale)
+            // Fill background
+            ctx.fillStyle = backgroundColor
+            ctx.fillRect(0, 0, width, height)
             ctx.drawImage(img, 0, 0, width, height)
           }
 
@@ -142,6 +154,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
         }
         img.src = svgBase64
       }
+      svgElement.style.backgroundColor = 'transparent'
     } catch (error) {
       console.error('Download failed:', error)
     }
@@ -153,8 +166,30 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
   }
 
   useEffect(() => {
-    window?.mermaid?.contentLoaded()
-  }, [])
+    runAsyncFunction(async () => {
+      if (!window.mermaid) return
+
+      try {
+        const element = document.getElementById(mermaidId)
+        if (!element) return
+
+        // Clear previous content
+        element.innerHTML = chart
+        element.removeAttribute('data-processed')
+
+        await window.mermaid.initialize({
+          startOnLoad: false,
+          theme: theme === ThemeMode.dark ? 'dark' : 'default'
+        })
+
+        await window.mermaid.run({
+          nodes: [element]
+        })
+      } catch (error) {
+        console.error('Failed to render mermaid chart in popup:', error)
+      }
+    })
+  }, [activeTab, theme, mermaidId, chart])
 
   return (
     <Modal

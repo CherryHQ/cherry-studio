@@ -26,7 +26,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, fs }) => {
     <Modal
       open={open}
       title={t('settings.data.nutstore.pathSelector.title')}
-      transitionName="ant-move-down"
+      transitionName="animation-move-down"
       afterClose={onClose}
       onCancel={onClose}
       footer={null}

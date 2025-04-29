@@ -27,7 +27,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   get redirectUrl(): string {
-    return `http://localhost:${this.config.callbackPort}${this.config.callbackPath}`
+    return `http://127.0.0.1:${this.config.callbackPort}${this.config.callbackPath}`
   }
 
   get clientMetadata() {

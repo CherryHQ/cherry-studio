@@ -54,7 +54,7 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
             <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />
           </div>
         ))}
-        {isEmpty && <Empty />}
+        {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
         {!isEmpty && (
           <HStack justifyContent="center">
             <Button onClick={() => onContinueChat(topic)} icon={<MessageOutlined />}>

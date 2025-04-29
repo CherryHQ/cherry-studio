@@ -127,7 +127,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      transitionName="ant-move-down"
+      transitionName="animation-move-down"
       centered>
       <Center mt="30px">
         <VStack alignItems="center" gap="10px">

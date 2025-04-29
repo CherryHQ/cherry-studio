@@ -7,12 +7,13 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider } from '@renderer/types'
 import { droppableReorder, generateColorFromChar, getFirstCharacter, uuid } from '@renderer/utils'
 import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
-import { Search } from 'lucide-react'
+import { Search, UserPen } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AddProviderPopup from './AddProviderPopup'
+import ModelNotesPopup from './ModelNotesPopup'
 import ProviderSetting from './ProviderSetting'
 
 const ProvidersList: FC = () => {
@@ -93,6 +94,13 @@ const ProvidersList: FC = () => {
   }
 
   const getDropdownMenus = (provider: Provider): MenuProps['items'] => {
+    const noteMenu = {
+      label: t('settings.provider.notes.title'),
+      key: 'notes',
+      icon: <UserPen size={14} />,
+      onClick: () => ModelNotesPopup.show({ provider })
+    }
+
     const menus = [
       {
         label: t('common.edit'),
@@ -131,6 +139,7 @@ const ProvidersList: FC = () => {
           }
         }
       },
+      noteMenu,
       {
         label: t('common.delete'),
         key: 'delete',
@@ -171,7 +180,7 @@ const ProvidersList: FC = () => {
     }
 
     if (provider.isSystem) {
-      return []
+      return [noteMenu]
     }
 
     return menus

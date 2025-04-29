@@ -26,7 +26,7 @@ export interface WebSearchState {
 }
 
 const initialState: WebSearchState = {
-  defaultProvider: '',
+  defaultProvider: 'local-bing',
   providers: [
     {
       id: 'tavily',
@@ -135,7 +135,7 @@ const websearchSlice = createSlice({
         state.providers.push(action.payload)
       }
     },
-    setContentLimit: (state, action: PayloadAction<number>) => {
+    setContentLimit: (state, action: PayloadAction<number | undefined>) => {
       state.contentLimit = action.payload
     }
   }

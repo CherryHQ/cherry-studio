@@ -11,6 +11,7 @@ interface Props extends ButtonProps {
 
 const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
   const { t } = useTranslation()
+
   const onAuth = () => {
     const handleSuccess = (key: string) => {
       if (key.trim()) {
@@ -29,8 +30,8 @@ const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
   }
 
   return (
-    <Button onClick={onAuth} {...buttonProps}>
-      {t('auth.get_key')}
+    <Button type="primary" onClick={onAuth} shape="round" {...buttonProps}>
+      {t('settings.provider.oauth.button', { provider: t(`provider.${provider.id}`) })}
     </Button>
   )
 }

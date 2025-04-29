@@ -18,7 +18,7 @@ import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss } = useSettings()
+  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -103,4 +103,8 @@ export function useAppInit() {
       document.head.appendChild(style)
     }
   }, [customCss])
+
+  useEffect(() => {
+    // TODO: init data collection
+  }, [enableDataCollection])
 }

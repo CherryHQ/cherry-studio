@@ -1,6 +1,7 @@
 import { SearxngClient } from '@agentic/searxng'
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
+import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 import axios from 'axios'
 import ky from 'ky'
 
@@ -112,20 +113,28 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       if (!result || !Array.isArray(result.results)) {
         throw new Error('Invalid search results from SearxNG')
       }
-      return {
-        query: result.query,
-        results: result.results.slice(0, websearch.maxResults).map((result) => {
-          let content = result.content || ''
-          if (websearch.contentLimit && content.length > websearch.contentLimit) {
-            content = content.slice(0, websearch.contentLimit) + '...'
-          }
 
-          return {
-            title: result.title || 'No title',
-            content: content,
-            url: result.url || ''
-          }
-        })
+      const validItems = result.results
+        .filter((item) => item.url.startsWith('http') || item.url.startsWith('https'))
+        .slice(0, websearch.maxResults)
+      // console.log('Valid search items:', validItems)
+
+      // Fetch content for each URL concurrently
+      const fetchPromises = validItems.map(async (item) => {
+        // console.log(`Fetching content for ${item.url}...`)
+        const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
+        if (websearch.contentLimit && result.content.length > websearch.contentLimit) {
+          result.content = result.content.slice(0, websearch.contentLimit) + '...'
+        }
+        return result
+      })
+
+      // Wait for all fetches to complete
+      const results: WebSearchResult[] = await Promise.all(fetchPromises)
+      
+      return {
+        query: query,
+        results: results.filter((result) => result.content != noContent)
       }
     } catch (error) {
       console.error('Searxng search failed:', error)

@@ -114,7 +114,7 @@ https://docs.cherry-ai.com
 3. **提交更改**：提交并推送您的更改。
 4. **打开 Pull Request**：描述您的更改和原因。
 
-有关更详细的指南，请参阅我们的 [贡献指南](../CONTRIBUTING.md)。
+有关更详细的指南，请参阅我们的 [贡献指南](./CONTRIBUTING.zh.md)。
 
 感谢您的支持和贡献！
 

@@ -3,6 +3,7 @@
 import type KeyvStorage from '@kangfenmao/keyv-storage'
 import { MessageInstance } from 'antd/es/message/interface'
 import { HookAPI } from 'antd/es/modal/useModal'
+import { NavigateFunction } from 'react-router-dom'
 
 interface ImportMetaEnv {
   VITE_RENDERER_INTEGRATED_MODEL: string
@@ -20,5 +21,6 @@ declare global {
     keyv: KeyvStorage
     mermaid: any
     store: any
+    navigate: NavigateFunction
   }
 }

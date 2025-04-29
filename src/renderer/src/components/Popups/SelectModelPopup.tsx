@@ -368,7 +368,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       width={600}
-      transitionName="ant-move-down"
+      transitionName="animation-move-down"
       styles={{
         content: {
           borderRadius: 20,
