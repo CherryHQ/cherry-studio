@@ -1,6 +1,6 @@
 import { SearxngClient } from '@agentic/searxng'
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
+import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 import axios from 'axios'
 import ky from 'ky'
@@ -93,7 +93,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
     }
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
     try {
       if (!query) {
         throw new Error('Search query cannot be empty')
@@ -130,8 +130,8 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       })
 
       // Wait for all fetches to complete
-      const results: WebSearchResult[] = await Promise.all(fetchPromises)
-      
+      const results = await Promise.all(fetchPromises)
+
       return {
         query: query,
         results: results.filter((result) => result.content != noContent)

@@ -20,9 +20,10 @@ import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
-import { sendMessage as _sendMessage } from '@renderer/store/messages'
 import { setSearching } from '@renderer/store/runtime'
-import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Message, Model, Topic } from '@renderer/types'
+import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
+import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
+import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -47,6 +48,7 @@ import {
   Upload,
   Zap
 } from 'lucide-react'
+// import { CompletionUsage } from 'openai/resources'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -174,41 +176,45 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       return
     }
 
+    console.log('[DEBUG] Starting to send message')
+
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
 
     try {
       // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
-      const userMessage = getUserMessage({ assistant, topic, type: 'text', content: text })
 
+      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
+
+      // getUserMessage()
       if (uploadedFiles) {
-        userMessage.files = uploadedFiles
+        baseUserMessage.files = uploadedFiles
       }
-
       const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
 
       if (knowledgeBaseIds) {
-        userMessage.knowledgeBaseIds = knowledgeBaseIds
+        baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
       }
 
       if (mentionModels) {
-        userMessage.mentions = mentionModels
+        baseUserMessage.mentions = mentionModels
       }
 
       if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
-        userMessage.enabledMCPs = activedMcpServers.filter((server) =>
+        baseUserMessage.enabledMCPs = activedMcpServers.filter((server) =>
           assistant.mcpServers?.some((s) => s.id === server.id)
         )
       }
 
-      userMessage.usage = await estimateMessageUsage(userMessage)
-      currentMessageId.current = userMessage.id
+      baseUserMessage.usage = await estimateMessageUsage(baseUserMessage)
 
-      dispatch(
-        _sendMessage(userMessage, assistant, topic, {
-          mentions: mentionModels
-        })
-      )
+      const { message, blocks } = getUserMessage(baseUserMessage)
+
+      currentMessageId.current = message.id
+      console.log('[DEBUG] Created message and blocks:', message, blocks)
+      console.log('[DEBUG] Dispatching _sendMessage')
+      dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      console.log('[DEBUG] _sendMessage dispatched')
 
       // Clear input
       setText('')
@@ -694,11 +700,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
     const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (message: Message) => {
-        setText(message.content)
-        textareaRef.current?.focus()
-        setTimeout(() => resizeTextArea(), 0)
-      }),
+      // EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (message: Message) => {
+      //   setText(message.content)
+      //   textareaRef.current?.focus()
+      //   setTimeout(() => resizeTextArea(), 0)
+      // }),
       EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount }) => {
         _setEstimateTokenCount(tokensCount)
         setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值

@@ -544,6 +544,7 @@
       "message.style": "メッセージスタイル",
       "message.style.bubble": "バブル",
       "message.style.plain": "プレーン",
+      "processing": "処理中...",
       "regenerate.confirm": "再生成すると現在のメッセージが置き換えられます",
       "reset.confirm.content": "すべてのデータをリセットしてもよろしいですか？",
       "reset.double.confirm.content": "すべてのデータが失われます。続行しますか？",
@@ -689,7 +690,59 @@
       "regenerate.confirm": "これにより、既存の生成画像が置き換えられます。続行しますか？",
       "seed": "シード",
       "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
-      "title": "画像"
+      "title": "画像",
+      "magic_prompt_option": "プロンプト強化",
+      "model": "モデルバージョン",
+      "aspect_ratio": "画幅比例",
+      "style_type": "スタイル",
+      "learn_more": "詳しくはこちら",
+      "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
+      "proxy_required": "現在、プロキシを開く必要があります。これは、将来サポートされる予定です",
+      "image_file_required": "画像を先にアップロードしてください",
+      "image_file_retry": "画像を先にアップロードしてください",
+      "mode": {
+        "generate": "画像生成",
+        "edit": "部分編集",
+        "remix": "混合",
+        "upscale": "拡大"
+      },
+      "generate": {
+        "model_tip": "モデルバージョン：V2 は最新 API モデル、V2A は高速モデル、V_1 は初代モデル、_TURBO は高速処理版です",
+        "number_images_tip": "一度に生成する画像の枚数",
+        "seed_tip": "画像生成のランダム性を制御して、同じ生成結果を再現します",
+        "negative_prompt_tip": "画像に含めたくない内容を説明します",
+        "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
+        "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用"
+      },
+      "edit": {
+        "image_file": "編集画像",
+        "model_tip": "部分編集は V_2 と V_2_TURBO のバージョンのみサポートします",
+        "number_images_tip": "生成される編集結果の数",
+        "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用",
+        "seed_tip": "編集結果のランダム性を制御します",
+        "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します"
+      },
+      "remix": {
+        "model_tip": "リミックスに使用する AI モデルのバージョンを選択します",
+        "image_file": "参照画像",
+        "image_weight": "参照画像の重み",
+        "image_weight_tip": "参照画像の影響度を調整します",
+        "number_images_tip": "生成されるリミックス結果の数",
+        "seed_tip": "リミックス結果のランダム性を制御します",
+        "style_type_tip": "リミックス後の画像スタイル、V_2 以上のバージョンでのみ適用",
+        "negative_prompt_tip": "リミックス結果に含めたくない内容を説明します",
+        "magic_prompt_option_tip": "リミックス効果を向上させるための提示詞を最適化します"
+      },
+      "upscale": {
+        "image_file": "拡大する画像",
+        "resemblance": "類似度",
+        "resemblance_tip": "拡大結果と原画像の類似度を制御します",
+        "detail": "詳細度",
+        "detail_tip": "拡大画像の詳細度を制御します",
+        "number_images_tip": "生成される拡大結果の数",
+        "seed_tip": "拡大結果のランダム性を制御します",
+        "magic_prompt_option_tip": "拡大効果を向上させるための提示詞を最適化します"
+      }
     },
     "plantuml": {
       "download": {

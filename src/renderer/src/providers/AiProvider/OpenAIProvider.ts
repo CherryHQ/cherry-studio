@@ -27,14 +27,24 @@ import {
   FileTypes,
   GenerateImageParams,
   MCPToolResponse,
-  Message,
   Model,
   Provider,
-  Suggestion
+  Suggestion,
+  Usage,
+  WebSearchSource
 } from '@renderer/types'
+import { ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
+import { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
+import {
+  convertLinks,
+  convertLinksToHunyuan,
+  convertLinksToOpenRouter,
+  convertLinksToZhipu
+} from '@renderer/utils/linkConverter'
 import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -97,14 +107,18 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The file content
    */
   private async extractFileContent(message: Message) {
-    if (message.files && message.files.length > 0) {
-      const textFiles = message.files.filter((file) => [FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type))
+    const fileBlocks = findFileBlocks(message)
+    if (fileBlocks.length > 0) {
+      const textFileBlocks = fileBlocks.filter(
+        (fb) => fb.file && [FileTypes.TEXT, FileTypes.DOCUMENT].includes(fb.file.type)
+      )
 
-      if (textFiles.length > 0) {
+      if (textFileBlocks.length > 0) {
         let text = ''
         const divider = '\n\n---\n\n'
 
-        for (const file of textFiles) {
+        for (const fileBlock of textFileBlocks) {
+          const file = fileBlock.file
           const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
           const fileNameRow = 'file: ' + file.origin_name + '\n\n'
           text = text + fileNameRow + fileContent + divider
@@ -129,11 +143,12 @@ export default class OpenAIProvider extends BaseProvider {
   ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
     const isVision = isVisionModel(model)
     const content = await this.getMessageContent(message)
+    const fileBlocks = findFileBlocks(message)
+    const imageBlocks = findImageBlocks(message)
 
-    // If the message does not have files, return the message
-    if (isEmpty(message.files)) {
+    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
       return {
-        role: message.role,
+        role: message.role === 'system' ? 'user' : message.role,
         content
       }
     }
@@ -143,7 +158,7 @@ export default class OpenAIProvider extends BaseProvider {
       const fileContent = await this.extractFileContent(message)
 
       return {
-        role: message.role,
+        role: message.role === 'system' ? 'user' : message.role,
         content: content + '\n\n---\n\n' + fileContent
       }
     }
@@ -155,14 +170,21 @@ export default class OpenAIProvider extends BaseProvider {
       parts.push({ type: 'text', text: content })
     }
 
-    for (const file of message.files || []) {
-      if (file.type === FileTypes.IMAGE && isVision) {
-        const image = await window.api.file.base64Image(file.id + file.ext)
-        parts.push({
-          type: 'image_url',
-          image_url: { url: image.data }
-        })
+    for (const imageBlock of imageBlocks) {
+      if (isVision) {
+        if (imageBlock.file) {
+          const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
+          parts.push({ type: 'image_url', image_url: { url: image.data } })
+        } else if (imageBlock.url && imageBlock.url.startsWith('data:')) {
+          parts.push({ type: 'image_url', image_url: { url: imageBlock.url } })
+        }
       }
+    }
+
+    for (const fileBlock of fileBlocks) {
+      const file = fileBlock.file
+      if (!file) continue
+
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
         parts.push({
@@ -173,7 +195,7 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     return {
-      role: message.role,
+      role: message.role === 'system' ? 'user' : message.role,
       content: parts
     } as ChatCompletionMessageParam
   }
@@ -377,10 +399,21 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     let time_first_token_millsec = 0
+    let time_first_token_millsec_delta = 0
     let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
+    console.log(
+      `completions start_time_millsec ${new Date(start_time_millsec).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        fractionalSecondDigits: 3
+      })}`
+    )
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-
     const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
     await this.checkIsCopilot()
@@ -394,7 +427,6 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     const toolResponses: MCPToolResponse[] = []
-    let firstChunk = true
 
     const processToolUses = async (content: string, idx: number) => {
       const toolResults = await parseAndCallTools(
@@ -443,81 +475,222 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     const processStream = async (stream: any, idx: number) => {
+      // Handle non-streaming case (already returns early, no change needed here)
       if (!isSupportStreamOutput()) {
         const time_completion_millsec = new Date().getTime() - start_time_millsec
-        return onChunk({
-          text: stream.choices[0].message?.content || '',
-          usage: stream.usage,
-          metrics: {
-            completion_tokens: stream.usage?.completion_tokens,
-            time_completion_millsec,
-            time_first_token_millsec: 0
-          }
-        })
+        // Calculate final metrics once
+        const finalMetrics = {
+          completion_tokens: stream.usage?.completion_tokens,
+          time_completion_millsec,
+          time_first_token_millsec: 0 // Non-streaming, first token time is not relevant
+        }
+
+        // Create a synthetic usage object if stream.usage is undefined
+        const finalUsage = stream.usage
+        // Separate onChunk calls for text and usage/metrics
+        if (stream.choices[0].message?.content) {
+          onChunk({ type: ChunkType.TEXT_COMPLETE, text: stream.choices[0].message.content })
+        }
+
+        // Always send usage and metrics data
+        onChunk({ type: ChunkType.BLOCK_COMPLETE, response: { usage: finalUsage, metrics: finalMetrics } })
+        return
       }
 
-      let content = ''
+      let content = '' // Accumulate content for tool processing if needed
+      let thinkingContent = ''
+      // 记录最终的完成时间差
+      let final_time_completion_millsec_delta = 0
+      let final_time_thinking_millsec_delta = 0
+      // Variable to store the last received usage object
+      let lastUsage: Usage | undefined = undefined
+      // let isThinkingInContent: ThoughtProcessor | undefined = undefined
+      // const processThinkingChunk = this.handleThinkingTags()
+      let isFirstChunk = true
       for await (const chunk of stream) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
           break
         }
 
         const delta = chunk.choices[0]?.delta
-        if (delta?.content) {
-          content += delta.content
-        }
-
-        if (delta?.reasoning_content || delta?.reasoning) {
-          hasReasoningContent = true
-        }
-
-        if (time_first_token_millsec == 0) {
-          time_first_token_millsec = new Date().getTime() - start_time_millsec
-        }
-
-        if (time_first_content_millsec == 0 && isReasoningJustDone(delta)) {
-          time_first_content_millsec = new Date().getTime()
-        }
-
-        const time_completion_millsec = new Date().getTime() - start_time_millsec
-        const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
-
-        // Extract citations from the raw response if available
-        const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
-
         const finishReason = chunk.choices[0]?.finish_reason
 
-        let webSearch: any[] | undefined = undefined
-        if (assistant.enableWebSearch && isZhipuModel(model) && finishReason === 'stop') {
-          webSearch = chunk?.web_search
-        }
-        if (firstChunk && assistant.enableWebSearch && isHunyuanSearchModel(model)) {
-          webSearch = chunk?.search_info?.search_results
-          firstChunk = true
-        }
-        onChunk({
-          text: delta?.content || '',
-          reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
-          usage: chunk.usage,
-          metrics: {
-            completion_tokens: chunk.usage?.completion_tokens,
-            time_completion_millsec,
-            time_first_token_millsec,
-            time_thinking_millsec
-          },
-          webSearch,
-          annotations: delta?.annotations,
-          citations,
-          mcpToolResponse: toolResponses
-        })
-      }
+        // --- Incremental onChunk calls ---
 
+        // 1. Reasoning Content
+        const reasoningContent = delta?.reasoning_content || delta?.reasoning
+        const currentTime = new Date().getTime() // Get current time for each chunk
+
+        if (
+          time_first_token_millsec === 0 &&
+          isEmpty(reasoningContent) &&
+          isEmpty(delta?.content) &&
+          isEmpty(finishReason)
+        ) {
+          // 记录第一个token的时间
+          time_first_token_millsec = currentTime
+          // 记录第一个token的时间差
+          time_first_token_millsec_delta = currentTime - start_time_millsec
+          console.log(
+            `completions time_first_token_millsec ${new Date(currentTime).toLocaleString(undefined, {
+              year: 'numeric',
+              month: 'numeric',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: 'numeric',
+              second: 'numeric',
+              fractionalSecondDigits: 3
+            })}`
+          )
+        }
+        if (reasoningContent) {
+          thinkingContent += reasoningContent
+          hasReasoningContent = true // Keep track if reasoning occurred
+
+          // Calculate thinking time as time elapsed since start until this chunk
+          const thinking_time = currentTime - time_first_token_millsec
+          onChunk({ type: ChunkType.THINKING_DELTA, text: reasoningContent, thinking_millsec: thinking_time })
+        }
+
+        if (isReasoningJustDone(delta)) {
+          if (time_first_content_millsec === 0) {
+            time_first_content_millsec = currentTime
+            final_time_thinking_millsec_delta = time_first_content_millsec - time_first_token_millsec
+            onChunk({
+              type: ChunkType.THINKING_COMPLETE,
+              text: thinkingContent,
+              thinking_millsec: final_time_thinking_millsec_delta
+            })
+          }
+        }
+
+        // 2. Text Content
+        if (delta?.content) {
+          if (assistant.enableWebSearch) {
+            if (delta?.annotations) {
+              delta.content = convertLinks(delta.content || '', isFirstChunk)
+            } else if (assistant.model?.provider === 'openrouter') {
+              delta.content = convertLinksToOpenRouter(delta.content || '', isFirstChunk)
+            } else if (isZhipuModel(assistant.model)) {
+              delta.content = convertLinksToZhipu(delta.content || '', isFirstChunk)
+            } else if (isHunyuanSearchModel(assistant.model)) {
+              delta.content = convertLinksToHunyuan(
+                delta.content || '',
+                chunk.search_info.search_results || [],
+                isFirstChunk
+              )
+            }
+          }
+          if (isFirstChunk) {
+            isFirstChunk = false
+          }
+          content += delta.content // Still accumulate for processToolUses
+
+          // isThinkingInContent = this.findThinkingProcessor(content, model)
+          // if (isThinkingInContent) {
+          //   processThinkingChunk(content, isThinkingInContent, onChunk)
+          onChunk({ type: ChunkType.TEXT_DELTA, text: delta.content })
+          // } else {
+          // }
+        }
+        // console.log('delta?.finish_reason', delta?.finish_reason)
+        if (!isEmpty(finishReason)) {
+          onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+          final_time_completion_millsec_delta = currentTime - start_time_millsec
+          console.log(
+            `completions final_time_completion_millsec ${new Date(currentTime).toLocaleString(undefined, {
+              year: 'numeric',
+              month: 'numeric',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: 'numeric',
+              second: 'numeric',
+              fractionalSecondDigits: 3
+            })}`
+          )
+          // 6. Usage (If provided per chunk) - Capture the last known usage
+          if (chunk.usage) {
+            // console.log('chunk.usage', chunk.usage)
+            lastUsage = chunk.usage // Update with the latest usage info
+            // Send incremental usage update if needed by UI (optional, keep if useful)
+            // onChunk({ type: 'block_in_progress', response: { usage: chunk.usage } })
+          }
+
+          // 3. Web Search
+          if (delta?.annotations) {
+            onChunk({
+              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+              llm_web_search: {
+                results: delta.annotations,
+                source: WebSearchSource.OPENAI
+              }
+            } as LLMWebSearchCompleteChunk)
+          }
+
+          if (assistant.model?.provider === 'perplexity') {
+            const citations = chunk.citations
+            if (citations) {
+              onChunk({
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: {
+                  results: citations,
+                  source: WebSearchSource.PERPLEXITY
+                }
+              } as LLMWebSearchCompleteChunk)
+            }
+          }
+          if (assistant.enableWebSearch && isZhipuModel(model) && finishReason === 'stop' && chunk?.web_search) {
+            onChunk({
+              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+              llm_web_search: {
+                results: chunk.web_search,
+                source: WebSearchSource.ZHIPU
+              }
+            } as LLMWebSearchCompleteChunk)
+          }
+          if (assistant.enableWebSearch && isHunyuanSearchModel(model) && chunk?.search_info?.search_results) {
+            onChunk({
+              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+              llm_web_search: {
+                results: chunk.search_info.search_results,
+                source: WebSearchSource.HUNYUAN
+              }
+            } as LLMWebSearchCompleteChunk)
+          }
+        }
+
+        // --- End of Incremental onChunk calls ---
+      } // End of for await loop
+
+      // Call processToolUses AFTER the loop finishes processing the main stream content
+      // Note: parseAndCallTools inside processToolUses should handle its own onChunk for tool responses
       await processToolUses(content, idx)
+
+      // Send the final block_complete chunk with accumulated data
+      onChunk({
+        type: ChunkType.BLOCK_COMPLETE,
+        response: {
+          // Use the enhanced usage object
+          usage: lastUsage,
+          metrics: {
+            // Get completion tokens from the last usage object if available
+            completion_tokens: lastUsage?.completion_tokens,
+            time_completion_millsec: final_time_completion_millsec_delta,
+            time_first_token_millsec: time_first_token_millsec_delta,
+            time_thinking_millsec: final_time_thinking_millsec_delta
+          }
+        }
+      })
+
+      // OpenAI stream typically doesn't provide a final summary chunk easily.
+      // We are sending per-chunk usage if available.
     }
 
     console.debug('[completions] reqMessages before processing', model.id, reqMessages)
     reqMessages = processReqMessages(model, reqMessages)
     console.debug('[completions] reqMessages', model.id, reqMessages)
+    // 等待接口返回流
+    onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
@@ -541,6 +714,7 @@ export default class OpenAIProvider extends BaseProvider {
       )
 
     await processStream(stream, 0).finally(cleanup)
+
     // 捕获signal的错误
     await signalPromise?.promise?.catch((error) => {
       throw error
@@ -554,13 +728,13 @@ export default class OpenAIProvider extends BaseProvider {
    * @param onResponse - The onResponse callback
    * @returns The translated message
    */
-  async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
+  async translate(content: string, assistant: Assistant, onResponse?: (text: string, isComplete: boolean) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const messages = message.content
+    const messagesForApi = content
       ? [
           { role: 'system', content: assistant.prompt },
-          { role: 'user', content: message.content }
+          { role: 'user', content }
         ]
       : [{ role: 'user', content: assistant.prompt }]
 
@@ -580,11 +754,11 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
-    console.debug('[translate] reqMessages', model.id, messages)
+    // console.debug('[translate] reqMessages', model.id, message)
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
-      messages: messages as ChatCompletionMessageParam[],
+      messages: messagesForApi as ChatCompletionMessageParam[],
       stream,
       keep_alive: this.keepAliveTime,
       temperature: assistant?.settings?.temperature
@@ -608,7 +782,7 @@ export default class OpenAIProvider extends BaseProvider {
 
         if (!isThinking) {
           text += deltaContent
-          onResponse?.(text)
+          onResponse?.(text, false)
         }
 
         if (deltaContent.includes('</think>')) {
@@ -616,9 +790,11 @@ export default class OpenAIProvider extends BaseProvider {
         }
       } else {
         text += deltaContent
-        onResponse?.(text)
+        onResponse?.(text, false)
       }
     }
+
+    onResponse?.(text, true)
 
     return text
   }
@@ -636,7 +812,7 @@ export default class OpenAIProvider extends BaseProvider {
       .filter((message) => !message.isPreset)
       .map((message) => ({
         role: message.role,
-        content: message.content
+        content: getMainTextContent(message)
       }))
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
@@ -687,24 +863,36 @@ export default class OpenAIProvider extends BaseProvider {
       content: assistant.prompt
     }
 
+    const messageContents = messages.map((m) => getMainTextContent(m))
+    const userMessageContent = messageContents.join('\n')
+
     const userMessage = {
       role: 'user',
-      content: messages.map((m) => m.content).join('\n')
+      content: userMessageContent
     }
     console.debug('[summaryForSearch] reqMessages', model.id, [systemMessage, userMessage])
-    // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create(
-      {
-        model: model.id,
-        messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
-        stream: false,
-        keep_alive: this.keepAliveTime,
-        max_tokens: 1000
-      },
-      {
-        timeout: 20 * 1000
-      }
-    )
+
+    const lastUserMessage = messages[messages.length - 1]
+    console.log('lastUserMessage?.id', lastUserMessage?.id)
+    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { signal } = abortController
+
+    const response = await this.sdk.chat.completions
+      // @ts-ignore key is not typed
+      .create(
+        {
+          model: model.id,
+          messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
+          stream: false,
+          keep_alive: this.keepAliveTime,
+          max_tokens: 1000
+        },
+        {
+          timeout: 20 * 1000,
+          signal: signal
+        }
+      )
+      .finally(cleanup)
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''
@@ -751,11 +939,18 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
+    const userMessagesForApi = messages
+      .filter((m) => m.role === 'user')
+      .map((m) => ({
+        role: m.role,
+        content: getMainTextContent(m)
+      }))
+
     const response: any = await this.sdk.request({
       method: 'post',
       path: '/advice_questions',
       body: {
-        messages: messages.filter((m) => m.role === 'user').map((m) => ({ role: m.role, content: m.content })),
+        messages: userMessagesForApi,
         model: model.id,
         max_tokens: 0,
         temperature: 0,
@@ -906,10 +1101,15 @@ export default class OpenAIProvider extends BaseProvider {
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
     const { abortController } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
+
+    onChunk({
+      type: ChunkType.IMAGE_CREATED
+    })
+    const start_time_millsec = new Date().getTime()
     const response = await this.sdk.images.generate(
       {
         model: model.id,
-        prompt: lastUserMessage?.content || '',
+        prompt: getMainTextContent(lastUserMessage!) || '',
         response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
       },
       {
@@ -917,12 +1117,31 @@ export default class OpenAIProvider extends BaseProvider {
       }
     )
 
-    return onChunk({
-      text: '',
-      generateImage: {
+    onChunk({
+      type: ChunkType.IMAGE_COMPLETE,
+      image: {
         type: 'base64',
-        images: response.data.map((item) => `data:image/png;base64,${item.b64_json}`)
+        images: response.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || []
       }
     })
+
+    // Create synthetic usage and metrics data for image generation
+    const time_completion_millsec = new Date().getTime() - start_time_millsec
+    onChunk({
+      type: ChunkType.BLOCK_COMPLETE,
+      response: {
+        usage: {
+          completion_tokens: response.usage?.output_tokens || 0,
+          prompt_tokens: response.usage?.input_tokens || 0,
+          total_tokens: response.usage?.total_tokens || 0
+        },
+        metrics: {
+          completion_tokens: response.usage?.output_tokens || 0,
+          time_first_token_millsec: 0, // Non-streaming, first token time is not relevant
+          time_completion_millsec
+        }
+      }
+    })
+    return
   }
 }

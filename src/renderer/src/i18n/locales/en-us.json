@@ -545,6 +545,7 @@
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
+      "processing": "Processing...",
       "regenerate.confirm": "Regenerating will replace current message",
       "reset.confirm.content": "Are you sure you want to clear all data?",
       "reset.double.confirm.content": "All data will be lost, do you want to continue?",
@@ -689,7 +690,59 @@
       "regenerate.confirm": "This will replace your existing generated images. Do you want to continue?",
       "seed": "Seed",
       "seed_tip": "The same seed and prompt can produce similar images",
-      "title": "Images"
+      "title": "Images",
+      "magic_prompt_option": "Magic Prompt",
+      "model": "Model Version",
+      "aspect_ratio": "Aspect Ratio",
+      "style_type": "Style",
+      "learn_more": "Learn More",
+      "prompt_placeholder_edit": "Enter your image description, text drawing uses “double quotes” to wrap",
+      "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
+      "image_file_required": "Please upload an image first",
+      "image_file_retry": "Please re-upload an image first",
+      "mode": {
+        "generate": "Draw",
+        "edit": "Edit",
+        "remix": "Remix",
+        "upscale": "Upscale"
+      },
+      "generate": {
+        "model_tip": "Model version: V2 is the latest model of the interface, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
+        "number_images_tip": "Number of images to generate",
+        "seed_tip": "Controls image generation randomness for reproducible results",
+        "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
+        "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
+        "style_type_tip": "Image generation style for V_2 and above"
+      },
+      "edit": {
+        "image_file": "Edited Image",
+        "model_tip": "Only supports V_2 and V_2_TURBO versions",
+        "number_images_tip": "Number of edited results to generate",
+        "style_type_tip": "Style for edited image, only for V_2 and above",
+        "seed_tip": "Controls editing randomness",
+        "magic_prompt_option_tip": "Intelligently enhances editing prompts"
+      },
+      "remix": {
+        "model_tip": "Select AI model version for remixing",
+        "image_file": "Reference Image",
+        "image_weight": "Reference Image Weight",
+        "image_weight_tip": "Adjust reference image influence",
+        "number_images_tip": "Number of remix results to generate",
+        "seed_tip": "Control the randomness of the mixed result",
+        "style_type_tip": "Style for remixed image, only for V_2 and above",
+        "negative_prompt_tip": "Describe unwanted elements in remix results",
+        "magic_prompt_option_tip": "Intelligently enhances remix prompts"
+      },
+      "upscale": {
+        "image_file": "Image to upscale",
+        "resemblance": "Similarity",
+        "resemblance_tip": "Controls similarity to original image",
+        "detail": "Detail",
+        "detail_tip": "Controls detail enhancement level",
+        "number_images_tip": "Number of upscaled results to generate",
+        "seed_tip": "Controls upscaling randomness",
+        "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
+      }
     },
     "plantuml": {
       "download": {
