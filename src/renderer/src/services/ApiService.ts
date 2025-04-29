@@ -59,9 +59,9 @@ async function fetchExternalTool(
 
     let prompt = ''
 
-    if (assistant.enableWebSearch && !hasKnowledgeBase) {
+    if (shouldWebSearch && !hasKnowledgeBase) {
       prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
-    } else if (!assistant.enableWebSearch && hasKnowledgeBase) {
+    } else if (!shouldWebSearch && hasKnowledgeBase) {
       prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
     } else {
       prompt = SEARCH_SUMMARY_PROMPT
