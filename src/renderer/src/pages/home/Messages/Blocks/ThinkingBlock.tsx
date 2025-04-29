@@ -38,10 +38,17 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
 
   const copyThought = useCallback(() => {
     if (block.content) {
-      navigator.clipboard.writeText(block.content)
-      antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      navigator.clipboard
+        .writeText(block.content)
+        .then(() => {
+          antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        })
+        .catch((error) => {
+          console.error('Failed to copy text:', error)
+          antdMessage.error({ content: t('message.copy.failed'), key: 'copy-message-error' })
+        })
     }
   }, [block.content, t])
 
