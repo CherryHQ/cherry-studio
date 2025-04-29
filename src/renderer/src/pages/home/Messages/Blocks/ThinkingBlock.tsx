@@ -19,10 +19,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
 
   const isThinking = useMemo(
-    () =>
-      block.status === MessageBlockStatus.PROCESSING ||
-      block.status === MessageBlockStatus.STREAMING ||
-      block.status === MessageBlockStatus.PENDING,
+    () => block.status === MessageBlockStatus.PROCESSING || block.status === MessageBlockStatus.STREAMING,
     [block.status]
   )
 
