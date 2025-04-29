@@ -909,18 +909,14 @@ export default class OpenAIProvider extends BaseProvider {
     messages = addImageFileToContents(messages)
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
     const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
-    // 使用现有的 createAbortController，它可能包含清理逻辑
-    const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
-    const { signal } = abortController
+    // 5 minutes
+    const timeoutSignal = AbortSignal.timeout(300_000)
+    const { abortController } = this.createAbortController(lastUserMessage?.id, true)
+    // 合并自定义终止信号和超时信号
+    const signal = AbortSignal.any([abortController.signal, timeoutSignal])
+
     let response: OpenAI.Images.ImagesResponse | null = null
     let images: FileLike[] = []
-    let timeoutId: NodeJS.Timeout | null = null
-
-    // 设置 5 分钟超时
-    const timeoutMilliseconds = 300_000
-    timeoutId = setTimeout(() => {
-      abortController.abort(new Error('Image generation timed out after 5 minutes.'))
-    }, timeoutMilliseconds)
 
     try {
       // 收集用户上传的图片
@@ -962,6 +958,7 @@ export default class OpenAIProvider extends BaseProvider {
         images = images.concat(assistantImages)
       }
 
+      // 如果有任何图片（来自用户或助手），则使用 edit API
       if (images.length > 0) {
         response = await this.sdk.images.edit(
           {
@@ -978,7 +975,6 @@ export default class OpenAIProvider extends BaseProvider {
           {
             model: model.id,
             prompt: lastUserMessage?.content || '',
-            // gpt-image-1 don't need response_format
             response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
           },
           {
@@ -987,42 +983,18 @@ export default class OpenAIProvider extends BaseProvider {
         )
       }
 
-      // 清除超时计时器，因为请求已成功完成
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-        timeoutId = null
-      }
-
-      onChunk({
+      return onChunk({
         text: '',
         generateImage: {
           type: 'base64',
-          images: response?.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || [] // 处理 b64_json 和 url 两种情况
+          images: response?.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || []
         }
       })
     } catch (error: any) {
-      // 如果错误是由 AbortController 中断引起的（包括超时），则重新抛出
-      if (error.name === 'AbortError') {
-        console.error('Image generation aborted:', error.message)
-        throw error // 可以选择性地向上层抛出或处理
+      if (error.name === 'TimeoutError') {
+        throw new Error('Image generation request timed out after 30 seconds')
       }
-      // 处理其他可能的错误
-      console.error('Error generating image:', error)
-      throw error // 向上层抛出错误
-    } finally {
-      // 确保无论成功、失败还是超时，都清除计时器并执行清理
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-      }
-      cleanup() // 调用从 createAbortController 获取的清理函数
+      throw error
     }
-    // 捕获 signal 的错误（如果 createAbortController 返回了 signalPromise）
-    await signalPromise?.promise?.catch((error) => {
-      // 避免重复处理 AbortError
-      if (error.name !== 'AbortError') {
-        console.error('Error from signal promise:', error)
-        throw error
-      }
-    })
   }
 }
