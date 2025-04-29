@@ -4,9 +4,9 @@ import 'katex/dist/contrib/mhchem'
 
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { Message } from '@renderer/types'
+import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
-import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
+import { escapeBrackets, removeSvgEmptyLines } from '@renderer/utils/formats'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, useMemo } from 'react'
@@ -29,12 +29,13 @@ const ALLOWED_ELEMENTS =
 const DISALLOWED_ELEMENTS = ['iframe']
 
 interface Props {
-  message: Message
+  // message: Message & { content: string }
+  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
 }
 
-const Markdown: FC<Props> = ({ message }) => {
+const Markdown: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
-  const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
+  const { mathEngine } = useSettings()
 
   const remarkPlugins = useMemo(() => {
     const plugins = [remarkGfm, remarkCjkFriendly]
@@ -45,11 +46,11 @@ const Markdown: FC<Props> = ({ message }) => {
   }, [mathEngine])
 
   const messageContent = useMemo(() => {
-    const empty = isEmpty(message.content)
-    const paused = message.status === 'paused'
-    const content = empty && paused ? t('message.chat.completion.paused') : withGeminiGrounding(message)
+    const empty = isEmpty(block.content)
+    const paused = block.status === 'paused'
+    const content = empty && paused ? t('message.chat.completion.paused') : block.content
     return removeSvgEmptyLines(escapeBrackets(content))
-  }, [message, t])
+  }, [block, t])
 
   const rehypePlugins = useMemo(() => {
     const plugins: any[] = []
@@ -74,9 +75,9 @@ const Markdown: FC<Props> = ({ message }) => {
     return baseComponents
   }, [])
 
-  if (message.role === 'user' && !renderInputMessageAsMarkdown) {
-    return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
-  }
+  // if (role === 'user' && !renderInputMessageAsMarkdown) {
+  //   return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
+  // }
 
   if (messageContent.includes('<style>')) {
     components.style = MarkdownShadowDOMRenderer as any

@@ -1,6 +1,6 @@
 import { CheckOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Message } from '@renderer/types'
+import { ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
 import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,7 +10,7 @@ import styled from 'styled-components'
 import Markdown from '../Markdown/Markdown'
 
 interface Props {
-  message: Message
+  message: ThinkingMessageBlock
 }
 
 const MessageThought: FC<Props> = ({ message }) => {
@@ -29,20 +29,20 @@ const MessageThought: FC<Props> = ({ message }) => {
     if (!isThinking && thoughtAutoCollapse) setActiveKey('')
   }, [isThinking, thoughtAutoCollapse])
 
-  if (!message.reasoning_content) {
+  if (!message.content) {
     return null
   }
 
   const copyThought = () => {
-    if (message.reasoning_content) {
-      navigator.clipboard.writeText(message.reasoning_content)
+    if (message.content) {
+      navigator.clipboard.writeText(message.content)
       antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
   }
 
-  const thinkingTime = message.metrics?.time_thinking_millsec || 0
+  const thinkingTime = message.thinking_millsec || 0
   const thinkingTimeSeconds = (thinkingTime / 1000).toFixed(1)
   const isPaused = message.status === 'paused'
 
@@ -78,8 +78,9 @@ const MessageThought: FC<Props> = ({ message }) => {
             </MessageTitleLabel>
           ),
           children: (
+            //  FIXME: 临时兼容
             <div style={{ fontFamily, fontSize }}>
-              <Markdown message={{ ...message, content: message.reasoning_content }} />
+              <Markdown block={{ ...message, content: message.content }} />
             </div>
           )
         }
