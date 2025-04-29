@@ -78,6 +78,17 @@ const HomeWindow: FC = () => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
+  useEffect(() => {
+    const handleMessageEnd = () => {
+      setGenerating(false)
+    }
+
+    EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, handleMessageEnd)
+    return () => {
+      EventEmitter.off(EVENT_NAMES.RECEIVE_MESSAGE, handleMessageEnd)
+    }
+  }, [])
+
   const onCloseWindow = () => window.api.miniWindow.hide()
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -185,6 +196,7 @@ const HomeWindow: FC = () => {
       onCloseWindow()
     } else {
       stopMessageGeneration()
+      setGenerating(false)
       setRoute('home')
       setText('')
     }
@@ -268,7 +280,9 @@ const HomeWindow: FC = () => {
                       type="text"
                       onClick={() => onSendMessage()}
                       disabled={generating || isEmpty(content)}>
-                      <SendIcon style={{ color: 'var(--color-primary)', fontSize: 20 }} />
+                      <SendIcon
+                        style={{ color: 'var(--color-primary)', fontSize: 14, verticalAlign: 'middle', marginLeft: 2 }}
+                      />
                     </ToolbarButton>
                   </Tooltip>
                 )}
