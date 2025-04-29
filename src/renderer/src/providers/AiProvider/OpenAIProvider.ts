@@ -15,6 +15,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
+import FileManager from '@renderer/services/FileManager'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -908,58 +909,119 @@ export default class OpenAIProvider extends BaseProvider {
     messages = addImageFileToContents(messages)
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
     const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
-    const { abortController } = this.createAbortController(lastUserMessage?.id, true)
+    // 使用现有的 createAbortController，它可能包含清理逻辑
+    const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
     let response: OpenAI.Images.ImagesResponse | null = null
     let images: FileLike[] = []
+    let timeoutId: NodeJS.Timeout | null = null
 
-    if (lastAssistantMessage?.images && lastAssistantMessage?.images?.length > 0) {
-      images = await Promise.all(
-        lastAssistantMessage?.images.map(async (base64ImageString) => {
-          // 移除可能存在的 data URI 前缀 (例如 "data:image/png;base64,")
-          const base64Data = base64ImageString.replace(/^data:image\/\w+;base64,/, '')
+    // 设置 5 分钟超时
+    const timeoutMilliseconds = 300_000
+    timeoutId = setTimeout(() => {
+      abortController.abort(new Error('Image generation timed out after 5 minutes.'))
+    }, timeoutMilliseconds)
 
-          const binary = atob(base64Data)
-          const bytes = new Uint8Array(binary.length)
-          for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i)
-          }
+    try {
+      // 收集用户上传的图片
+      if (lastUserMessage?.files && lastUserMessage?.files?.length > 0) {
+        const userImages = await Promise.all(
+          lastUserMessage.files
+            .filter((f) => f.type === FileTypes.IMAGE)
+            .map(async (f) => {
+              const binaryData = await FileManager.readFile(f)
+              const file = await toFile(binaryData, f.origin_name || 'image.png', {
+                type: 'image/png'
+              })
+              return file
+            })
+        )
+        images = images.concat(userImages)
+      }
 
-          // 使用 toFile 将 Uint8Array 转换为 FileLike 对象
-          const file = await toFile(bytes, 'image.png', {
-            type: 'image/png'
+      // 收集助手上次生成的图片
+      if (lastAssistantMessage?.images && lastAssistantMessage?.images?.length > 0) {
+        const assistantImages = await Promise.all(
+          lastAssistantMessage.images.map(async (base64ImageString) => {
+            // 移除可能存在的 data URI 前缀 (例如 "data:image/png;base64,")
+            const base64Data = base64ImageString.replace(/^data:image\/\w+;base64,/, '')
+
+            const binary = atob(base64Data)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) {
+              bytes[i] = binary.charCodeAt(i)
+            }
+
+            // 使用 toFile 将 Uint8Array 转换为 FileLike 对象
+            const file = await toFile(bytes, 'assistant_image.png', {
+              type: 'image/png'
+            })
+            return file
           })
-          return file
-        })
-      )
-      response = await this.sdk.images.edit(
-        {
-          model: model.id,
-          image: images,
-          prompt: lastUserMessage?.content || ''
-        },
-        {
-          signal
-        }
-      )
-    } else {
-      response = await this.sdk.images.generate(
-        {
-          model: model.id,
-          prompt: lastUserMessage?.content || '',
-          response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
-        },
-        {
-          signal
-        }
-      )
-    }
+        )
+        images = images.concat(assistantImages)
+      }
 
-    return onChunk({
-      text: '',
-      generateImage: {
-        type: 'base64',
-        images: response?.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || []
+      if (images.length > 0) {
+        response = await this.sdk.images.edit(
+          {
+            model: model.id,
+            image: images,
+            prompt: lastUserMessage?.content || ''
+          },
+          {
+            signal
+          }
+        )
+      } else {
+        response = await this.sdk.images.generate(
+          {
+            model: model.id,
+            prompt: lastUserMessage?.content || '',
+            // gpt-image-1 don't need response_format
+            response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
+          },
+          {
+            signal
+          }
+        )
+      }
+
+      // 清除超时计时器，因为请求已成功完成
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+
+      onChunk({
+        text: '',
+        generateImage: {
+          type: 'base64',
+          images: response?.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || [] // 处理 b64_json 和 url 两种情况
+        }
+      })
+    } catch (error: any) {
+      // 如果错误是由 AbortController 中断引起的（包括超时），则重新抛出
+      if (error.name === 'AbortError') {
+        console.error('Image generation aborted:', error.message)
+        throw error // 可以选择性地向上层抛出或处理
+      }
+      // 处理其他可能的错误
+      console.error('Error generating image:', error)
+      throw error // 向上层抛出错误
+    } finally {
+      // 确保无论成功、失败还是超时，都清除计时器并执行清理
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      cleanup() // 调用从 createAbortController 获取的清理函数
+    }
+    // 捕获 signal 的错误（如果 createAbortController 返回了 signalPromise）
+    await signalPromise?.promise?.catch((error) => {
+      // 避免重复处理 AbortError
+      if (error.name !== 'AbortError') {
+        console.error('Error from signal promise:', error)
+        throw error
       }
     })
   }
