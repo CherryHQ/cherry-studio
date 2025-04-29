@@ -28,6 +28,6 @@ export const extractInfoFromXML = (text: string): ExtractResults => {
     }
   })
   const extractResults: ExtractResults = parser.parse(text)
-  // console.log('Extracted results:', extractResults)
+  console.log('Extracted results:', extractResults)
   return extractResults
 }

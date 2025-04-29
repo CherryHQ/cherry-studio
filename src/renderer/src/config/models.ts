@@ -2393,7 +2393,7 @@ export function isGenerateImageModel(model: Model): boolean {
 }
 
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
-  if (WebSearchService.isWebSearchEnabled() && WebSearchService.isOverwriteEnabled()) {
+  if (WebSearchService.isWebSearchEnabled()) {
     return {}
   }
   if (isWebSearchModel(model)) {

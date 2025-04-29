@@ -7,7 +7,7 @@ import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Message, TranslateHistory } from '@renderer/types'
+import type { Assistant, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
@@ -85,23 +85,11 @@ const TranslatePage: FC = () => {
 
     const assistant: Assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
-    const message: Message = {
-      id: uuid(),
-      role: 'user',
-      content: '',
-      assistantId: assistant.id,
-      topicId: uuid(),
-      model: translateModel,
-      createdAt: new Date().toISOString(),
-      type: 'text',
-      status: 'sending'
-    }
-
     setLoading(true)
     let translatedText = ''
     try {
       await fetchTranslate({
-        message,
+        content: text,
         assistant,
         onResponse: (text) => {
           translatedText = text.replace(/^\s*\n+/g, '')

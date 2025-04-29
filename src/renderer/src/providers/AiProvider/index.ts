@@ -1,53 +1,14 @@
-import type { GroundingMetadata } from '@google/genai'
 import BaseProvider from '@renderer/providers/AiProvider/BaseProvider'
 import ProviderFactory from '@renderer/providers/AiProvider/ProviderFactory'
-import type {
-  Assistant,
-  GenerateImageParams,
-  GenerateImageResponse,
-  MCPTool,
-  MCPToolResponse,
-  Message,
-  Metrics,
-  Model,
-  Provider,
-  Suggestion,
-  Usage
-} from '@renderer/types'
+import type { Assistant, GenerateImageParams, MCPTool, Model, Provider, Suggestion } from '@renderer/types'
+import { Chunk } from '@renderer/types/chunk'
+import type { Message } from '@renderer/types/newMessage'
 import OpenAI from 'openai'
-
-export interface ChunkCallbackData {
-  text?: string
-  reasoning_content?: string
-  usage?: Usage
-  metrics?: Metrics
-  // Zhipu web search
-  webSearch?: any[]
-  // Gemini web search
-  search?: GroundingMetadata
-  // Openai web search
-  annotations?: OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[]
-  // Openrouter web search or Knowledge base
-  citations?: string[]
-  mcpToolResponse?: MCPToolResponse[]
-  generateImage?: GenerateImageResponse
-}
 
 export interface CompletionsParams {
   messages: Message[]
   assistant: Assistant
-  onChunk: ({
-    text,
-    reasoning_content,
-    usage,
-    metrics,
-    webSearch,
-    search,
-    annotations,
-    citations,
-    mcpToolResponse,
-    generateImage
-  }: ChunkCallbackData) => void
+  onChunk: (chunk: Chunk) => void
   onFilterMessages: (messages: Message[]) => void
   mcpTools?: MCPTool[]
 }
@@ -70,11 +31,16 @@ export default class AiProvider {
     onChunk,
     onFilterMessages
   }: CompletionsParams): Promise<void> {
+    console.log('[DEBUG] AiProvider.completions called')
     return this.sdk.completions({ messages, assistant, mcpTools, onChunk, onFilterMessages })
   }
 
-  public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void): Promise<string> {
-    return this.sdk.translate(message, assistant, onResponse)
+  public async translate(
+    content: string,
+    assistant: Assistant,
+    onResponse?: (text: string, isComplete: boolean) => void
+  ): Promise<string> {
+    return this.sdk.translate(content, assistant, onResponse)
   }
 
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {

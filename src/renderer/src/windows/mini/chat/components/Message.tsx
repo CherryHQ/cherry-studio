@@ -6,8 +6,12 @@ import MessageErrorBoundary from '@renderer/pages/home/Messages/MessageErrorBoun
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
-import { Message } from '@renderer/types'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
+// import { LegacyMessage } from '@renderer/types'
+import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { isMiniWindow } from '@renderer/utils'
+import { createAssistantMessage, createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { Dispatch, FC, memo, SetStateAction, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
@@ -25,6 +29,7 @@ const getMessageBackground = (isBubbleStyle: boolean, isAssistantMessage: boolea
 
 const MessageItem: FC<Props> = ({ message: _message, index, total, route, onSetMessages, onGetMessages }) => {
   const [message, setMessage] = useState(_message)
+  const [textBlock, setTextBlock] = useState<MainTextMessageBlock | null>(null)
   const model = useModel(getMessageModelId(message))
   const isBubbleStyle = true
   const { messageFont, fontSize } = useSettings()
@@ -42,29 +47,40 @@ const MessageItem: FC<Props> = ({ message: _message, index, total, route, onSetM
 
   useEffect(() => {
     if (onGetMessages && onSetMessages) {
-      if (message.status === 'sending') {
+      if (message.status === AssistantMessageStatus.PROCESSING) {
         const messages = onGetMessages()
+        const assistant = getDefaultAssistant()
         fetchChatCompletion({
-          message,
           messages: messages
             .filter((m) => !m.status.includes('ing'))
             .slice(
               0,
               messages.findIndex((m) => m.id === message.id)
             ),
-          assistant: { ...getDefaultAssistant(), model: getDefaultModel() },
-          onResponse: (msg) => {
-            setMessage(msg)
-            if (msg.status !== 'pending') {
-              const _messages = messages.map((m) => (m.id === msg.id ? msg : m))
-              onSetMessages(_messages)
+          assistant: { ...assistant, model: getDefaultModel() },
+          onChunkReceived: (chunk: Chunk) => {
+            if (chunk.type === ChunkType.TEXT_DELTA) {
+              if (!textBlock) {
+                const block = createMainTextBlock(message.id, chunk.text, { status: MessageBlockStatus.STREAMING })
+                const assistantMessage = createAssistantMessage(assistant.id, message.topicId, {
+                  blocks: [block.id]
+                })
+                setTextBlock(block)
+                setMessage(assistantMessage)
+              } else {
+                setTextBlock((prev) => {
+                  if (prev) {
+                    return { ...prev, content: (prev?.content ?? '') + chunk.text }
+                  }
+                  return null
+                })
+              }
             }
           }
         })
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message.status])
+  }, [message.status, message.topicId, textBlock, message.id, onGetMessages, onSetMessages])
 
   if (['summary', 'explanation'].includes(route) && index === total - 1) {
     return null

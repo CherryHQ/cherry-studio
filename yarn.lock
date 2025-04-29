@@ -4402,7 +4402,7 @@ __metadata:
     node-stream-zip: "npm:^1.15.0"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
-    openai: "patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch"
+    openai: "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
@@ -12875,9 +12875,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:4.87.3":
-  version: 4.87.3
-  resolution: "openai@npm:4.87.3"
+"openai@npm:4.96.0":
+  version: 4.96.0
+  resolution: "openai@npm:4.96.0"
   dependencies:
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.4"
@@ -12896,13 +12896,13 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/e647456030f44b0c90cf35367676a7a2d8ed8a3cfa4bdd8785553519e1092699915e9a6a0c714b1f3ee59f6c116203422dc1d8f60ec2d7ba416dac0e343d0f62
+  checksum: 10c0/d4c3fa76374730c856f774e07f375b51041b8e8429ae2cbd8605b168bf81673017f5dd1c0e42419ca54d8d3fd7cd93d57830d6bc6b9dcd317e70109018d599ea
   languageName: node
   linkType: hard
 
-"openai@npm:^4.87.3":
-  version: 4.94.0
-  resolution: "openai@npm:4.94.0"
+"openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch":
+  version: 4.96.0
+  resolution: "openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch::version=4.96.0&hash=17e659"
   dependencies:
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.4"
@@ -12921,32 +12921,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/4b9bf824b2ad07645b98c448e667986ac7bbc4aa319e48d577db7dab3ca9f8aadb3f7732447b33453ed25d0f4040a0dccbb0ddc1801b163fd6cfcdd6f60e92d2
-  languageName: node
-  linkType: hard
-
-"openai@patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch":
-  version: 4.87.3
-  resolution: "openai@patch:openai@npm%3A4.87.3#~/.yarn/patches/openai-npm-4.87.3-2b30a7685f.patch::version=4.87.3&hash=7dcff7"
-  dependencies:
-    "@types/node": "npm:^18.11.18"
-    "@types/node-fetch": "npm:^2.6.4"
-    abort-controller: "npm:^3.0.0"
-    agentkeepalive: "npm:^4.2.1"
-    form-data-encoder: "npm:1.7.2"
-    formdata-node: "npm:^4.3.2"
-    node-fetch: "npm:^2.6.7"
-  peerDependencies:
-    ws: ^8.18.0
-    zod: ^3.23.8
-  peerDependenciesMeta:
-    ws:
-      optional: true
-    zod:
-      optional: true
-  bin:
-    openai: bin/cli
-  checksum: 10c0/e23ddf28487ab0fdd72fb3c429500986651f1204cba5e778e1aa02ba5b382a2a68de8ca81d717d8d0fdbea985f07b0476b2e4a86d57bf71bf1d65aa141d7d7de
+  checksum: 10c0/b1f6162017ede2e0c3338ca94ea0e0c6ababc39ef8abea9e1a04d747725cf6ca3fbd0e4682c231af03a6473228b25a16ce52aac03c3cc4feb302d03b9603e06b
   languageName: node
   linkType: hard
 

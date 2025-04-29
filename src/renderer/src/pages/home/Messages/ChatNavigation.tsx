@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { RootState } from '@renderer/store'
-import { selectCurrentTopicId } from '@renderer/store/messages'
+// import { selectCurrentTopicId } from '@renderer/store/newMessage'
 import { Button, Drawer, Tooltip } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,7 +28,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [hideTimer, setHideTimer] = useState<NodeJS.Timeout | null>(null)
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
-  const currentTopicId = useSelector((state: RootState) => selectCurrentTopicId(state))
+  const currentTopicId = useSelector((state: RootState) => state.messages.currentTopicId)
   const lastMoveTime = useRef(0)
   const { topicPosition, showTopics } = useSettings()
   const showRightTopics = topicPosition === 'right' && showTopics

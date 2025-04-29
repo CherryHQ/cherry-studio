@@ -1,24 +1,25 @@
 import { CheckOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Message } from '@renderer/types'
+import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
-import { FC, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
 import styled from 'styled-components'
 
-import Markdown from '../Markdown/Markdown'
-
+import Markdown from '../../Markdown/Markdown'
 interface Props {
-  message: Message
+  block: ThinkingMessageBlock
 }
 
-const MessageThought: FC<Props> = ({ message }) => {
-  const [activeKey, setActiveKey] = useState<'thought' | ''>('thought')
+const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const [copied, setCopied] = useState(false)
-  const isThinking = !message.content
   const { t } = useTranslation()
   const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
+  const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
+
+  const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
+
   const fontFamily = useMemo(() => {
     return messageFont === 'serif'
       ? 'serif'
@@ -26,25 +27,35 @@ const MessageThought: FC<Props> = ({ message }) => {
   }, [messageFont])
 
   useEffect(() => {
-    if (!isThinking && thoughtAutoCollapse) setActiveKey('')
+    if (!isThinking && thoughtAutoCollapse) {
+      setActiveKey('')
+    } else {
+      setActiveKey('thought')
+    }
   }, [isThinking, thoughtAutoCollapse])
 
-  if (!message.reasoning_content) {
+  const copyThought = useCallback(() => {
+    if (block.content) {
+      navigator.clipboard
+        .writeText(block.content)
+        .then(() => {
+          antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        })
+        .catch((error) => {
+          console.error('Failed to copy text:', error)
+          antdMessage.error({ content: t('message.copy.failed'), key: 'copy-message-error' })
+        })
+    }
+  }, [block.content, t])
+
+  if (!block.content) {
     return null
   }
 
-  const copyThought = () => {
-    if (message.reasoning_content) {
-      navigator.clipboard.writeText(message.reasoning_content)
-      antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  const thinkingTime = message.metrics?.time_thinking_millsec || 0
+  const thinkingTime = block.thinking_millsec || 0
   const thinkingTimeSeconds = (thinkingTime / 1000).toFixed(1)
-  const isPaused = message.status === 'paused'
 
   return (
     <CollapseContainer
@@ -57,11 +68,13 @@ const MessageThought: FC<Props> = ({ message }) => {
           key: 'thought',
           label: (
             <MessageTitleLabel>
-              <TinkingText>
-                {isThinking ? t('chat.thinking') : t('chat.deeply_thought', { secounds: thinkingTimeSeconds })}
-              </TinkingText>
-              {isThinking && !isPaused && <BarLoader color="#9254de" />}
-              {(!isThinking || isPaused) && (
+              <ThinkingText>
+                {t(isThinking ? 'chat.thinking' : 'chat.deeply_thought', {
+                  seconds: thinkingTimeSeconds
+                })}
+              </ThinkingText>
+              {isThinking && <BarLoader color="#9254de" />}
+              {!isThinking && (
                 <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
                   <ActionButton
                     className="message-action-button"
@@ -78,8 +91,9 @@ const MessageThought: FC<Props> = ({ message }) => {
             </MessageTitleLabel>
           ),
           children: (
+            //  FIXME: 临时兼容
             <div style={{ fontFamily, fontSize }}>
-              <Markdown message={{ ...message, content: message.reasoning_content }} />
+              <Markdown block={block} />
             </div>
           )
         }
@@ -100,7 +114,7 @@ const MessageTitleLabel = styled.div`
   gap: 15px;
 `
 
-const TinkingText = styled.span`
+const ThinkingText = styled.span`
   color: var(--color-text-2);
 `
 
@@ -132,4 +146,4 @@ const ActionButton = styled.button`
   }
 `
 
-export default MessageThought
+export default memo(ThinkingBlock)
