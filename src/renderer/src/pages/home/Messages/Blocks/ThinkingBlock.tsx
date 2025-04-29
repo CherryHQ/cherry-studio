@@ -63,11 +63,11 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
           key: 'thought',
           label: (
             <MessageTitleLabel>
-              <TinkingText>
+              <ThinkingText>
                 {t(isThinking ? 'chat.thinking' : 'chat.deeply_thought', {
-                  secounds: thinkingTimeSeconds
+                  seconds: thinkingTimeSeconds
                 })}
-              </TinkingText>
+              </ThinkingText>
               {isThinking && <BarLoader color="#9254de" />}
               {!isThinking && (
                 <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
@@ -109,7 +109,7 @@ const MessageTitleLabel = styled.div`
   gap: 15px;
 `
 
-const TinkingText = styled.span`
+const ThinkingText = styled.span`
   color: var(--color-text-2);
 `
 
