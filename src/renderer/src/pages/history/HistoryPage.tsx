@@ -1,7 +1,9 @@
-import { ArrowLeftOutlined, EnterOutlined, SearchOutlined } from '@ant-design/icons'
-import { Message, Topic } from '@renderer/types'
+import { ArrowLeftOutlined, EnterOutlined } from '@ant-design/icons'
+import { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { Input, InputRef } from 'antd'
 import { last } from 'lodash'
+import { Search } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -83,7 +85,7 @@ const TopicsPage: FC = () => {
           allowClear
           ref={inputRef}
           onChange={(e) => setSearch(e.target.value.trimStart())}
-          suffix={search.length >= 2 ? <EnterOutlined /> : <SearchOutlined />}
+          suffix={search.length >= 2 ? <EnterOutlined /> : <Search size={16} />}
           onPressEnter={onSearch}
         />
       </Header>

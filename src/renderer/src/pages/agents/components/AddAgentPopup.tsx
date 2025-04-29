@@ -118,7 +118,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         prompt: AGENT_PROMPT,
         content: promptText
       })
-      formRef.current?.setFieldValue('prompt', generatedText)
+      form.setFieldsValue({ prompt: generatedText })
     } catch (error) {
       console.error('Error fetching data:', error)
     }
@@ -170,11 +170,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             label={t('agents.add.prompt')}
             rules={[{ required: true }]}
             style={{ position: 'relative' }}>
-            <TextAreaContainer>
-              <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
-              <TokenCount>Tokens: {tokenCount}</TokenCount>
-            </TextAreaContainer>
+            <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
           </Form.Item>
+          <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
             icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
             onClick={handleButtonClick}
@@ -202,11 +200,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     </Modal>
   )
 }
-
-const TextAreaContainer = styled.div`
-  position: relative;
-  width: 100%;
-`
 
 const TokenCount = styled.div`
   position: absolute;

@@ -503,7 +503,9 @@
       "switch.disabled": "Aguarde a conclusão da resposta atual antes de operar",
       "tools": {
         "completed": "Completo",
-        "invoking": "Em execução"
+        "invoking": "Em execução",
+        "raw": "Bruto",
+        "preview": "Pré-visualização"
       },
       "topic.added": "Tópico adicionado com sucesso",
       "upgrade.success.button": "Reiniciar",
@@ -814,7 +816,9 @@
           "syncError": "Erro de backup",
           "syncStatus": "Status de backup",
           "title": "WebDAV",
-          "user": "Nome de usuário WebDAV"
+          "user": "Nome de usuário WebDAV",
+          "maxBackups": "Número máximo de backups",
+          "maxBackups.unlimited": "Sem limite"
         },
         "yuque": {
           "check": {
@@ -912,7 +916,6 @@
         "noServers": "Nenhum servidor configurado",
         "npx_list": {
           "actions": "Ações",
-          "desc": "Pesquise e adicione pacotes npm como serviço MCP",
           "description": "Descrição",
           "no_packages": "Nenhum pacote encontrado",
           "npm": "NPM",
@@ -921,7 +924,6 @@
           "scope_required": "Insira o escopo npm",
           "search": "Pesquisar",
           "search_error": "Falha na pesquisa",
-          "title": "Lista de Pacotes NPX",
           "usage": "Uso",
           "version": "Versão"
         },
@@ -1114,8 +1116,6 @@
         "check": "Verificar",
         "check_failed": "Verificação falhou",
         "check_success": "Verificação bem-sucedida",
-        "enhance_mode": "Modo de pesquisa avançada",
-        "enhance_mode_tooltip": "Use o modelo padrão para extrair palavras-chave e depois pesquise",
         "get_api_key": "Clique aqui para obter a chave",
         "no_provider_selected": "Selecione um provedor de pesquisa antes de verificar",
         "search_max_result": "Número de resultados da pesquisa",

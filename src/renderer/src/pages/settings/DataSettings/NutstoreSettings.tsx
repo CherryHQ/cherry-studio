@@ -1,12 +1,8 @@
 import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
-import {
-  useWebdavBackupModal,
-  useWebdavRestoreModal,
-  WebdavBackupModal,
-  WebdavRestoreModal
-} from '@renderer/components/WebdavModals'
+import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
+import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNutstoreSSO } from '@renderer/hooks/useNutstoreSSO'
 import {
@@ -53,6 +49,8 @@ const NutstoreSettings: FC = () => {
   const [syncInterval, setSyncInterval] = useState<number>(nutstoreSyncInterval)
 
   const nutstoreSSOHandler = useNutstoreSSO()
+
+  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const handleClickNutstoreSSO = useCallback(async () => {
     const ssoUrl = await window.api.nutstore.getSSOUrl()
@@ -117,24 +115,6 @@ const NutstoreSettings: FC = () => {
     useWebdavBackupModal({
       backupMethod: backupToNutstore
     })
-
-  const {
-    isRestoreModalVisible,
-    handleRestore,
-    handleCancel: handleCancelRestore,
-    restoring,
-    selectedFile,
-    setSelectedFile,
-    loadingFiles,
-    backupFiles,
-    showRestoreModal
-  } = useWebdavRestoreModal({
-    restoreMethod: restoreFromNutstore,
-    webdavHost: NUTSTORE_HOST,
-    webdavUser: nutstoreUsername,
-    webdavPass: nutstorePass,
-    webdavPath: storagePath
-  })
 
   const onSyncIntervalChange = (value: number) => {
     setSyncInterval(value)
@@ -205,6 +185,14 @@ const NutstoreSettings: FC = () => {
 
   const isLogin = nutstoreToken && nutstoreUsername
 
+  const showBackupManager = () => {
+    setBackupManagerVisible(true)
+  }
+
+  const closeBackupManager = () => {
+    setBackupManagerVisible(false)
+  }
+
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.nutstore.title')}</SettingTitle>
@@ -269,7 +257,7 @@ const NutstoreSettings: FC = () => {
               <Button onClick={showBackupModal} loading={backuping}>
                 {t('settings.data.nutstore.backup.button')}
               </Button>
-              <Button onClick={showRestoreModal} loading={restoring}>
+              <Button onClick={showBackupManager} disabled={!nutstoreToken}>
                 {t('settings.data.nutstore.restore.button')}
               </Button>
             </HStack>
@@ -311,15 +299,16 @@ const NutstoreSettings: FC = () => {
           setCustomFileName={setCustomFileName}
         />
 
-        <WebdavRestoreModal
-          isRestoreModalVisible={isRestoreModalVisible}
-          handleRestore={handleRestore}
-          handleCancel={handleCancelRestore}
-          restoring={restoring}
-          selectedFile={selectedFile}
-          setSelectedFile={setSelectedFile}
-          loadingFiles={loadingFiles}
-          backupFiles={backupFiles}
+        <WebdavBackupManager
+          visible={backupManagerVisible}
+          onClose={closeBackupManager}
+          webdavConfig={{
+            webdavHost: NUTSTORE_HOST,
+            webdavUser: nutstoreUsername,
+            webdavPass: nutstorePass,
+            webdavPath: storagePath
+          }}
+          restoreMethod={restoreFromNutstore}
         />
       </>
     </SettingGroup>

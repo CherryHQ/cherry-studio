@@ -1,7 +1,7 @@
-import { PictureOutlined } from '@ant-design/icons'
 import { isGenerateImageModel } from '@renderer/config/models'
 import { Assistant, Model } from '@renderer/types'
 import { Tooltip } from 'antd'
+import { Image } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,7 +27,7 @@ const GenerateImageButton: FC<Props> = ({ model, ToolbarButton, assistant, onEna
       }
       arrow>
       <ToolbarButton type="text" disabled={!isGenerateImageModel(model)} onClick={onEnableGenerateImage}>
-        <PictureOutlined style={{ color: assistant.enableGenerateImage ? 'var(--color-link)' : 'var(--color-icon)' }} />
+        <Image size={18} color={assistant.enableGenerateImage ? 'var(--color-link)' : 'var(--color-icon)'} />
       </ToolbarButton>
     </Tooltip>
   )

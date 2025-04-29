@@ -47,32 +47,12 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'o3',
-    name: 'O3',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.o3.fan',
-    models: SYSTEM_MODELS.o3,
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'ocoolai',
     name: 'ocoolAI',
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.ocoolai.com',
     models: SYSTEM_MODELS.ocoolai,
-    isSystem: true,
-    enabled: false
-  },
-  {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://openrouter.ai/api/v1/',
-    models: SYSTEM_MODELS.openrouter,
     isSystem: true,
     enabled: false
   },
@@ -87,22 +67,12 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'ollama',
-    name: 'Ollama',
+    id: 'openrouter',
+    name: 'OpenRouter',
     type: 'openai',
     apiKey: '',
-    apiHost: 'http://localhost:11434',
-    models: SYSTEM_MODELS.ollama,
-    isSystem: true,
-    enabled: false
-  },
-  {
-    id: 'lmstudio',
-    name: 'LM Studio',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'http://localhost:1234',
-    models: SYSTEM_MODELS.lmstudio,
+    apiHost: 'https://openrouter.ai/api/v1/',
+    models: SYSTEM_MODELS.openrouter,
     isSystem: true,
     enabled: false
   },
@@ -147,12 +117,42 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'baidu-cloud',
-    name: 'Baidu Cloud',
+    id: 'dmxapi',
+    name: 'DMXAPI',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://qianfan.baidubce.com/v2/',
-    models: SYSTEM_MODELS['baidu-cloud'],
+    apiHost: 'https://www.dmxapi.cn',
+    models: SYSTEM_MODELS.dmxapi,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'o3',
+    name: 'O3',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.o3.fan',
+    models: SYSTEM_MODELS.o3,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://localhost:11434',
+    models: SYSTEM_MODELS.ollama,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'lmstudio',
+    name: 'LM Studio',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://localhost:1234',
+    models: SYSTEM_MODELS.lmstudio,
     isSystem: true,
     enabled: false
   },
@@ -198,6 +198,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'zhipu',
+    name: 'ZhiPu',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
+    models: SYSTEM_MODELS.zhipu,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'github',
     name: 'Github Models',
     type: 'openai',
@@ -219,32 +229,12 @@ export const INITIAL_PROVIDERS: Provider[] = [
     isAuthed: false
   },
   {
-    id: 'dmxapi',
-    name: 'DMXAPI',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://www.dmxapi.cn',
-    models: SYSTEM_MODELS.dmxapi,
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'yi',
     name: 'Yi',
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.lingyiwanwu.com',
     models: SYSTEM_MODELS.yi,
-    isSystem: true,
-    enabled: false
-  },
-  {
-    id: 'zhipu',
-    name: 'ZhiPu',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
-    models: SYSTEM_MODELS.zhipu,
     isSystem: true,
     enabled: false
   },
@@ -455,6 +445,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiKey: '',
     apiHost: 'https://api.lkeap.cloud.tencent.com',
     models: SYSTEM_MODELS['tencent-cloud-ti'],
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'baidu-cloud',
+    name: 'Baidu Cloud',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://qianfan.baidubce.com/v2/',
+    models: SYSTEM_MODELS['baidu-cloud'],
     isSystem: true,
     enabled: false
   },

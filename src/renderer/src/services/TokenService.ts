@@ -1,6 +1,7 @@
-import { Assistant, FileType, FileTypes, Message } from '@renderer/types'
+import { Assistant, FileType, FileTypes, Usage } from '@renderer/types'
+import type { Message, MessageInputBaseParams } from '@renderer/types/newMessage'
+import { findFileBlocks, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { flatten, takeRight } from 'lodash'
-import { CompletionUsage } from 'openai/resources'
 import { approximateTokenSize } from 'tokenx'
 
 import { getAssistantSettings } from './AssistantService'
@@ -27,16 +28,19 @@ async function getFileContent(file: FileType) {
 async function getMessageParam(message: Message): Promise<MessageItem[]> {
   const param: MessageItem[] = []
 
+  const content = getMainTextContent(message)
+  const files = findFileBlocks(message)
+
   param.push({
     role: message.role,
-    content: message.content
+    content
   })
 
-  if (message.files) {
-    for (const file of message.files) {
+  if (files.length > 0) {
+    for (const file of files) {
       param.push({
         role: 'assistant',
-        content: await getFileContent(file)
+        content: await getFileContent(file.file)
       })
     }
   }
@@ -52,19 +56,35 @@ export function estimateImageTokens(file: FileType) {
   return Math.floor(file.size / 100)
 }
 
-export async function estimateMessageUsage(message: Message): Promise<CompletionUsage> {
+export async function estimateMessageUsage(message: Partial<Message>, params?: MessageInputBaseParams): Promise<Usage> {
   let imageTokens = 0
+  let files: FileType[] = []
+  if (params?.files) {
+    files = params.files
+  } else {
+    const fileBlocks = findFileBlocks(message as Message)
+    files = fileBlocks.map((f) => f.file)
+  }
 
-  if (message.files) {
-    const images = message.files.filter((f) => f.type === FileTypes.IMAGE)
+  if (files.length > 0) {
+    const images = files.filter((f) => f.type === FileTypes.IMAGE)
     if (images.length > 0) {
       for (const image of images) {
         imageTokens = estimateImageTokens(image) + imageTokens
       }
     }
   }
-
-  const combinedContent = [message.content, message.reasoning_content].filter((s) => s !== undefined).join(' ')
+  let content = ''
+  if (params?.content) {
+    content = params.content
+  } else {
+    content = getMainTextContent(message as Message)
+  }
+  let reasoningContent = ''
+  if (!params) {
+    reasoningContent = getThinkingContent(message as Message)
+  }
+  const combinedContent = [content, reasoningContent].filter((s) => s !== undefined).join(' ')
   const tokens = estimateTextTokens(combinedContent)
 
   return {
@@ -80,17 +100,17 @@ export async function estimateMessagesUsage({
 }: {
   assistant: Assistant
   messages: Message[]
-}): Promise<CompletionUsage> {
+}): Promise<Usage> {
   const outputMessage = messages.pop()!
 
   const prompt_tokens = await estimateHistoryTokens(assistant, messages)
   const { completion_tokens } = await estimateMessageUsage(outputMessage)
 
   return {
-    prompt_tokens: await estimateHistoryTokens(assistant, messages),
+    prompt_tokens,
     completion_tokens,
     total_tokens: prompt_tokens + completion_tokens
-  } as CompletionUsage
+  } as Usage
 }
 
 export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[]) {

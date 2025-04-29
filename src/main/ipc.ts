@@ -1,10 +1,11 @@
 import fs from 'node:fs'
+import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, ipcMain, session, shell } from 'electron'
+import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
@@ -24,6 +25,7 @@ import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { searchService } from './services/SearchService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
+import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
@@ -46,7 +48,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configPath: getConfigDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
-    logsPath: log.transports.file.getFile().path
+    logsPath: log.transports.file.getFile().path,
+    arch: arch(),
+    isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env
   }))
 
   ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
@@ -98,6 +102,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setTrayOnClose(isActive)
   })
 
+  // auto update
+  ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
+    appUpdater.setAutoUpdate(isActive)
+    configManager.setAutoUpdate(isActive)
+  })
+
   ipcMain.handle(IpcChannel.App_RestartTray, () => TrayService.getInstance().restartTray())
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any) => {
@@ -109,23 +119,42 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // theme
-  ipcMain.handle(IpcChannel.App_SetTheme, (event, theme: ThemeMode) => {
-    if (theme === configManager.getTheme()) return
+  ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+    const notifyThemeChange = () => {
+      const windows = BrowserWindow.getAllWindows()
+      windows.forEach((win) =>
+        win.webContents.send(IpcChannel.ThemeChange, nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light)
+      )
+    }
 
+    if (theme === ThemeMode.auto) {
+      nativeTheme.themeSource = 'system'
+      nativeTheme.on('updated', notifyThemeChange)
+    } else {
+      nativeTheme.themeSource = theme
+      nativeTheme.removeAllListeners('updated')
+    }
+
+    mainWindow?.setTitleBarOverlay &&
+      mainWindow.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
     configManager.setTheme(theme)
+    notifyThemeChange()
+  })
 
-    // should sync theme change to all windows
+  // custom css
+  ipcMain.handle(IpcChannel.App_SetCustomCss, (event, css: string) => {
+    if (css === configManager.getCustomCss()) return
+    configManager.setCustomCss(css)
+
+    // Broadcast to all windows including the mini window
     const senderWindowId = event.sender.id
     const windows = BrowserWindow.getAllWindows()
     // 向其他窗口广播主题变化
     windows.forEach((win) => {
       if (win.webContents.id !== senderWindowId) {
-        win.webContents.send(IpcChannel.ThemeChange, theme)
+        win.webContents.send('custom-css:update', css)
       }
     })
-
-    mainWindow?.setTitleBarOverlay &&
-      mainWindow.setTitleBarOverlay(theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight)
   })
 
   // clear cache
@@ -152,11 +181,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
-    const update = await appUpdater.autoUpdater.checkForUpdates()
-    return {
-      currentVersion: appUpdater.autoUpdater.currentVersion,
-      updateInfo: update?.updateInfo
-    }
+    await appUpdater.checkForUpdates()
   })
 
   // zip
@@ -171,6 +196,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles)
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
+  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)
@@ -262,6 +288,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_StopServer, mcpService.stopServer)
   ipcMain.handle(IpcChannel.Mcp_ListTools, mcpService.listTools)
   ipcMain.handle(IpcChannel.Mcp_CallTool, mcpService.callTool)
+  ipcMain.handle(IpcChannel.Mcp_ListPrompts, mcpService.listPrompts)
+  ipcMain.handle(IpcChannel.Mcp_GetPrompt, mcpService.getPrompt)
+  ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
+  ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
@@ -303,4 +333,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
     return await searchService.openUrlInSearchWindow(uid, url)
   })
+
+  // webview
+  ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
+    setOpenLinkExternal(webviewId, isExternal)
+  )
 }

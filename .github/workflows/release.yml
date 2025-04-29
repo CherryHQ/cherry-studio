@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag (e.g. v1.0.0)'
         required: true
-        default: 'v0.9.18'
+        default: 'v1.0.0'
   push:
     tags:
       - v*.*.*
@@ -42,6 +42,11 @@ jobs:
         with:
           node-version: 20
 
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install python-setuptools
+
       - name: Install corepack
         run: corepack enable && corepack prepare yarn@4.6.0 --activate
 
@@ -71,10 +76,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build Mac
         if: matrix.os == 'macos-latest'
         run: |
+          sudo -H pip install setuptools
           yarn build:npm mac
           yarn build:mac
         env:
@@ -85,6 +92,7 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
@@ -94,9 +102,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
-
-      - name: Replace spaces in filenames
-        run: node scripts/replace-spaces.js
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Release
         uses: ncipollo/release-action@v1

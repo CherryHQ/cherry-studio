@@ -1,7 +1,7 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import ModelTags from '@renderer/components/ModelTags'
 import SelectItemPopup from '@renderer/components/Popups/SelectItemPopup'
 import { isLocalAi } from '@renderer/config/env'
+import { isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { Assistant, isFlow, isModel, ModelOrFlowItem } from '@renderer/types'
@@ -15,7 +15,7 @@ interface Props {
 }
 
 const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
-  const { model, setModel } = useAssistant(assistant.id)
+  const { model, setModel, updateAssistant } = useAssistant(assistant.id)
   const { t } = useTranslation()
 
   if (isLocalAi) {
@@ -30,6 +30,15 @@ const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
 
     if (isModel(selectedItem)) {
       setModel(selectedItem)
+      // 避免更新数据造成关闭弹框的卡顿
+      setTimeout(() => {
+        const enabledWebSearch = isWebSearchModel(selectedItem)
+        updateAssistant({
+          ...assistant,
+          model: selectedItem,
+          enableWebSearch: enabledWebSearch && assistant.enableWebSearch
+        })
+      }, 200)
     }
     if (isFlow(selectedItem)) {
       console.log('Selected item is a flow:', selectedItem)
@@ -39,13 +48,12 @@ const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
   const providerName = getProviderName(model?.provider)
 
   return (
-    <DropdownButton size="small" type="default" onClick={onSelectModelOrFlow}>
+    <DropdownButton size="small" type="text" onClick={onSelectModelOrFlow}>
       <ButtonContent>
         <ModelAvatar model={model} size={20} />
         <ModelName>
           {model ? model.name : t('button.select_model')} {providerName ? '| ' + providerName : ''}
         </ModelName>
-        <ModelTags model={model} showFree={false} showReasoning={false} showToolsCalling={false} />
       </ButtonContent>
     </DropdownButton>
   )

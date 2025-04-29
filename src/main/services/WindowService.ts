@@ -2,7 +2,8 @@ import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } from 'electron'
+import { ThemeMode } from '@types'
+import { app, BrowserWindow, ipcMain, Menu, MenuItem, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
@@ -11,6 +12,7 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
+import { initSessionUserAgent } from './WebviewService'
 
 export class WindowService {
   private static instance: WindowService | null = null
@@ -41,10 +43,16 @@ export class WindowService {
     const mainWindowState = windowStateKeeper({
       defaultWidth: 1080,
       defaultHeight: 670,
-      fullScreen: false
+      fullScreen: false,
+      maximize: false
     })
 
     const theme = configManager.getTheme()
+    if (theme === ThemeMode.auto) {
+      nativeTheme.themeSource = 'system'
+    } else {
+      nativeTheme.themeSource = theme
+    }
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
@@ -59,8 +67,9 @@ export class WindowService {
       vibrancy: 'sidebar',
       visualEffectState: 'active',
       titleBarStyle: isLinux ? 'default' : 'hidden',
-      titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,
-      backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
+      titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+      backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
+      darkTheme: nativeTheme.shouldUseDarkColors,
       trafficLightPosition: { x: 8, y: 12 },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
@@ -80,17 +89,32 @@ export class WindowService {
       this.miniWindow = this.createMiniWindow(true)
     }
 
+    //init the MinApp webviews' useragent
+    initSessionUserAgent()
+
     return this.mainWindow
   }
 
   private setupMainWindow(mainWindow: BrowserWindow, mainWindowState: any) {
     mainWindowState.manage(mainWindow)
 
+    this.setupMaximize(mainWindow, mainWindowState.isMaximized)
     this.setupContextMenu(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
     this.loadMainWindowContent(mainWindow)
+  }
+
+  private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {
+    if (isMaximized) {
+      // 如果是从托盘启动，则需要延迟最大化，否则显示的就不是重启前的最大化窗口了
+      configManager.getLaunchToTray()
+        ? mainWindow.once('show', () => {
+            mainWindow.maximize()
+          })
+        : mainWindow.maximize()
+    }
   }
 
   private setupContextMenu(mainWindow: BrowserWindow) {
@@ -191,9 +215,11 @@ export class WindowService {
 
       const oauthProviderUrls = [
         'https://account.siliconflow.cn/oauth',
+        'https://cloud.siliconflow.cn/bills',
         'https://cloud.siliconflow.cn/expensebill',
         'https://aihubmix.com/token',
-        'https://aihubmix.com/topup'
+        'https://aihubmix.com/topup',
+        'https://aihubmix.com/statistics'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
@@ -243,6 +269,7 @@ export class WindowService {
   private loadMainWindowContent(mainWindow: BrowserWindow) {
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
       mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      // mainWindow.webContents.openDevTools()
     } else {
       mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
     }
@@ -272,9 +299,14 @@ export class WindowService {
         }
       }
 
-      //上述逻辑以下，是“开启托盘+设置关闭时最小化到托盘”的情况
+      /**
+       * 上述逻辑以下:
+       * win/linux: 是“开启托盘+设置关闭时最小化到托盘”的情况
+       * mac: 任何情况都会到这里，因此需要单独处理mac
+       */
 
       event.preventDefault()
+
       mainWindow.hide()
 
       //for mac users, should hide dock icon if close to tray
@@ -320,10 +352,14 @@ export class WindowService {
         this.mainWindow.setVisibleOnAllWorkspaces(true)
       }
 
-      //[macOS] After being closed in fullscreen, the fullscreen behavior will become strange when window shows again
-      // So we need to set it to FALSE explicitly.
-      // althougle other platforms don't have the issue, but it's a good practice to do so
-      if (this.mainWindow.isFullScreen()) {
+      /**
+       * [macOS] After being closed in fullscreen, the fullscreen behavior will become strange when window shows again
+       * So we need to set it to FALSE explicitly.
+       * althougle other platforms don't have the issue, but it's a good practice to do so
+       *
+       *  Check if window is visible to prevent interrupting fullscreen state when clicking dock icon
+       */
+      if (this.mainWindow.isFullScreen() && !this.mainWindow.isVisible()) {
         this.mainWindow.setFullScreen(false)
       }
 

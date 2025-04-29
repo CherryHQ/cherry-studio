@@ -4,7 +4,7 @@ import styled from 'styled-components'
 interface ListItemProps {
   active?: boolean
   icon?: ReactNode
-  title: string
+  title: ReactNode
   subtitle?: string
   titleStyle?: React.CSSProperties
   onClick?: () => void
@@ -52,7 +52,7 @@ const ListItemContainer = styled.div`
 const ListItemContent = styled.div`
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 2px;
   overflow: hidden;
   font-size: 13px;
 `
@@ -65,6 +65,7 @@ const IconWrapper = styled.span`
 `
 
 const TextContainer = styled.div`
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;

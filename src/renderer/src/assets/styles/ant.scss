@@ -16,6 +16,10 @@
   outline: none;
 }
 
+.ant-tabs-tab-btn {
+  outline: none;
+}
+
 .ant-segmented-group {
   gap: 4px;
 }
@@ -198,4 +202,12 @@
   width: max-content;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.ant-collapse {
+  border: 1px solid var(--color-border);
+}
+
+.ant-collapse-content {
+  border-top: 1px solid var(--color-border) !important;
 }

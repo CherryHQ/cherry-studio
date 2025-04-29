@@ -1,10 +1,3 @@
-import {
-  FileSearchOutlined,
-  FolderOutlined,
-  PictureOutlined,
-  QuestionCircleOutlined,
-  TranslationOutlined
-} from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -17,6 +10,20 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Avatar, Dropdown, Tooltip } from 'antd'
+import {
+  CircleHelp,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  MessageSquareQuote,
+  Moon,
+  Palette,
+  Settings,
+  Sparkle,
+  Sun,
+  SunMoon
+} from 'lucide-react'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -84,7 +91,7 @@ const Sidebar: FC = () => {
       <Menus>
         <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
           <Icon theme={theme} onClick={onOpenDocs} className={minappShow && currentMinappId === docsId ? 'active' : ''}>
-            <QuestionCircleOutlined />
+            <CircleHelp size={20} className="icon" />
           </Icon>
         </Tooltip>
         <Tooltip
@@ -92,10 +99,12 @@ const Sidebar: FC = () => {
           mouseEnterDelay={0.8}
           placement="right">
           <Icon theme={theme} onClick={() => toggleTheme()}>
-            {theme === 'dark' ? (
-              <i className="iconfont icon-theme icon-dark1" />
+            {settingTheme === 'dark' ? (
+              <Moon size={20} className="icon" />
+            ) : settingTheme === 'light' ? (
+              <Sun size={20} className="icon" />
             ) : (
-              <i className="iconfont icon-theme icon-theme-light" />
+              <SunMoon size={20} className="icon" />
             )}
           </Icon>
         </Tooltip>
@@ -103,11 +112,10 @@ const Sidebar: FC = () => {
           <StyledLink
             onClick={async () => {
               hideMinappPopup()
-              await modelGenerating()
               await to('/settings/provider')
             }}>
             <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
-              <i className="iconfont icon-setting" />
+              <Settings size={20} className="icon" />
             </Icon>
           </StyledLink>
         </Tooltip>
@@ -129,13 +137,13 @@ const MainMenus: FC = () => {
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
 
   const iconMap = {
-    assistants: <i className="iconfont icon-chat" />,
-    agents: <i className="iconfont icon-business-smart-assistant" />,
-    paintings: <PictureOutlined style={{ fontSize: 16 }} />,
-    translate: <TranslationOutlined />,
-    minapp: <i className="iconfont icon-appstore" />,
-    knowledge: <FileSearchOutlined />,
-    files: <FolderOutlined />
+    assistants: <MessageSquareQuote size={18} className="icon" />,
+    agents: <Sparkle size={18} className="icon" />,
+    paintings: <Palette size={18} className="icon" />,
+    translate: <Languages size={18} className="icon" />,
+    minapp: <LayoutGrid size={18} className="icon" />,
+    knowledge: <FileSearch size={18} className="icon" />,
+    files: <Folder size={17} className="icon" />
   }
 
   const pathMap = {
@@ -247,7 +255,7 @@ const SidebarOpenedMinappTabs: FC = () => {
                       theme={theme}
                       onClick={() => handleOnClick(app)}
                       className={`${isActive ? 'opened-active' : ''}`}>
-                      <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} />
+                      <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
                     </Icon>
                   </Dropdown>
                 </StyledLink>
@@ -289,7 +297,7 @@ const PinnedApps: FC = () => {
                   theme={theme}
                   onClick={() => openMinappKeepAlive(app)}
                   className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
-                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} />
+                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
                 </Icon>
               </Dropdown>
             </StyledLink>
@@ -364,30 +372,19 @@ const Icon = styled.div<{ theme: string }>`
   box-sizing: border-box;
   -webkit-app-region: none;
   border: 0.5px solid transparent;
-  .iconfont,
-  .anticon {
-    color: var(--color-icon);
-    font-size: 20px;
-    text-decoration: none;
-  }
-  .anticon {
-    font-size: 17px;
-  }
   &:hover {
     background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     opacity: 0.8;
     cursor: pointer;
-    .iconfont,
-    .anticon {
+    .icon {
       color: var(--color-icon-white);
     }
   }
   &.active {
     background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     border: 0.5px solid var(--color-border);
-    .iconfont,
-    .anticon {
-      color: var(--color-icon-white);
+    .icon {
+      color: var(--color-primary);
     }
   }
 

@@ -1,11 +1,7 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
-import {
-  useWebdavBackupModal,
-  useWebdavRestoreModal,
-  WebdavBackupModal,
-  WebdavRestoreModal
-} from '@renderer/components/WebdavModals'
+import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
+import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
@@ -13,6 +9,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setWebdavAutoSync,
   setWebdavHost as _setWebdavHost,
+  setWebdavMaxBackups as _setWebdavMaxBackups,
   setWebdavPass as _setWebdavPass,
   setWebdavPath as _setWebdavPath,
   setWebdavSyncInterval as _setWebdavSyncInterval,
@@ -31,15 +28,18 @@ const WebDavSettings: FC = () => {
     webdavUser: webDAVUser,
     webdavPass: webDAVPass,
     webdavPath: webDAVPath,
-    webdavSyncInterval: webDAVSyncInterval
+    webdavSyncInterval: webDAVSyncInterval,
+    webdavMaxBackups: webDAVMaxBackups
   } = useSettings()
 
   const [webdavHost, setWebdavHost] = useState<string | undefined>(webDAVHost)
   const [webdavUser, setWebdavUser] = useState<string | undefined>(webDAVUser)
   const [webdavPass, setWebdavPass] = useState<string | undefined>(webDAVPass)
   const [webdavPath, setWebdavPath] = useState<string | undefined>(webDAVPath)
+  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [syncInterval, setSyncInterval] = useState<number>(webDAVSyncInterval)
+  const [maxBackups, setMaxBackups] = useState<number>(webDAVMaxBackups)
 
   const dispatch = useAppDispatch()
   const { theme } = useTheme()
@@ -60,6 +60,11 @@ const WebDavSettings: FC = () => {
       dispatch(setWebdavAutoSync(true))
       startAutoSync()
     }
+  }
+
+  const onMaxBackupsChange = (value: number) => {
+    setMaxBackups(value)
+    dispatch(_setWebdavMaxBackups(value))
   }
 
   const renderSyncStatus = () => {
@@ -89,17 +94,13 @@ const WebDavSettings: FC = () => {
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
     useWebdavBackupModal()
 
-  const {
-    isRestoreModalVisible,
-    handleRestore,
-    handleCancel: handleCancelRestore,
-    restoring,
-    selectedFile,
-    setSelectedFile,
-    loadingFiles,
-    backupFiles,
-    showRestoreModal
-  } = useWebdavRestoreModal({ webdavHost, webdavUser, webdavPass, webdavPath })
+  const showBackupManager = () => {
+    setBackupManagerVisible(true)
+  }
+
+  const closeBackupManager = () => {
+    setBackupManagerVisible(false)
+  }
 
   return (
     <SettingGroup theme={theme}>
@@ -156,7 +157,10 @@ const WebDavSettings: FC = () => {
           <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button onClick={showRestoreModal} icon={<FolderOpenOutlined />} loading={restoring}>
+          <Button
+            onClick={showBackupManager}
+            icon={<FolderOpenOutlined />}
+            disabled={!webdavHost || !webdavUser || !webdavPass || !webdavPath}>
             {t('settings.data.webdav.restore.button')}
           </Button>
         </HStack>
@@ -175,6 +179,19 @@ const WebDavSettings: FC = () => {
           <Select.Option value={360}>{t('settings.data.webdav.hour_interval', { count: 6 })}</Select.Option>
           <Select.Option value={720}>{t('settings.data.webdav.hour_interval', { count: 12 })}</Select.Option>
           <Select.Option value={1440}>{t('settings.data.webdav.hour_interval', { count: 24 })}</Select.Option>
+        </Select>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
+        <Select value={maxBackups} onChange={onMaxBackupsChange} disabled={!webdavHost} style={{ width: 120 }}>
+          <Select.Option value={0}>{t('settings.data.webdav.maxBackups.unlimited')}</Select.Option>
+          <Select.Option value={1}>1</Select.Option>
+          <Select.Option value={3}>3</Select.Option>
+          <Select.Option value={5}>5</Select.Option>
+          <Select.Option value={10}>10</Select.Option>
+          <Select.Option value={20}>20</Select.Option>
+          <Select.Option value={50}>50</Select.Option>
         </Select>
       </SettingRow>
       {webdavSync && syncInterval > 0 && (
@@ -196,15 +213,15 @@ const WebDavSettings: FC = () => {
           setCustomFileName={setCustomFileName}
         />
 
-        <WebdavRestoreModal
-          isRestoreModalVisible={isRestoreModalVisible}
-          handleRestore={handleRestore}
-          handleCancel={handleCancelRestore}
-          restoring={restoring}
-          selectedFile={selectedFile}
-          setSelectedFile={setSelectedFile}
-          loadingFiles={loadingFiles}
-          backupFiles={backupFiles}
+        <WebdavBackupManager
+          visible={backupManagerVisible}
+          onClose={closeBackupManager}
+          webdavConfig={{
+            webdavHost,
+            webdavUser,
+            webdavPass,
+            webdavPath
+          }}
         />
       </>
     </SettingGroup>
