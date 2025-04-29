@@ -453,11 +453,13 @@ export default class GeminiProvider extends BaseProvider {
           onChunk({ type: ChunkType.IMAGE_COMPLETE, image: generateImage })
         }
 
-        if (chunk.candidates?.[0]?.finishReason && chunk.text) {
-          onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-          // 3. Grounding/Search Metadata
-          const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata
-          if (groundingMetadata) {
+        if (chunk.candidates?.[0]?.finishReason) {
+          if (chunk.text) {
+            onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+          }
+          if (chunk.candidates?.[0]?.groundingMetadata) {
+            // 3. Grounding/Search Metadata
+            const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata
             onChunk({
               type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
               llm_web_search: {
