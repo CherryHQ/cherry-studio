@@ -13,10 +13,10 @@ interface Props {
 }
 
 const ThinkingBlock: React.FC<Props> = ({ block }) => {
-  const [activeKey, setActiveKey] = useState<'thought' | ''>('')
   const [copied, setCopied] = useState(false)
   const { t } = useTranslation()
   const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
+  const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
   const isThinking = useMemo(
     () => block.status === MessageBlockStatus.PROCESSING || block.status === MessageBlockStatus.STREAMING,
@@ -30,7 +30,11 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   }, [messageFont])
 
   useEffect(() => {
-    if (!isThinking && thoughtAutoCollapse) setActiveKey('')
+    if (!isThinking && thoughtAutoCollapse) {
+      setActiveKey('')
+    } else {
+      setActiveKey('thought')
+    }
   }, [isThinking, thoughtAutoCollapse])
 
   const copyThought = useCallback(() => {
