@@ -185,7 +185,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "デフォルト値は1で、値が小さいほど回答の多様性が減り、理解しやすくなります。値が大きいほど、AIの語彙範囲が広がり、多様性が増します",
       "suggestions.title": "提案された質問",
-      "thinking": "思考中...",
+      "thinking": "思考中（用時 {{secounds}} 秒）",
       "topics.auto_rename": "自動リネーム",
       "topics.clear.title": "メッセージをクリア",
       "topics.copy.image": "画像としてコピー",

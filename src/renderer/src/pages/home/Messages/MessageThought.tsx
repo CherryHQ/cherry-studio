@@ -1,8 +1,8 @@
 import { CheckOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { ThinkingMessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
-import { FC, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BarLoader from 'react-spinners/BarLoader'
 import styled from 'styled-components'
@@ -10,15 +10,23 @@ import styled from 'styled-components'
 import Markdown from '../Markdown/Markdown'
 
 interface Props {
-  message: ThinkingMessageBlock
+  block: ThinkingMessageBlock
 }
 
-const MessageThought: FC<Props> = ({ message }) => {
+const MessageThought: FC<Props> = ({ block }) => {
   const [activeKey, setActiveKey] = useState<'thought' | ''>('thought')
   const [copied, setCopied] = useState(false)
-  const isThinking = !message.content
   const { t } = useTranslation()
   const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
+
+  const isThinking = useMemo(
+    () =>
+      block.status === MessageBlockStatus.PROCESSING ||
+      block.status === MessageBlockStatus.STREAMING ||
+      block.status === MessageBlockStatus.PENDING,
+    [block.status]
+  )
+
   const fontFamily = useMemo(() => {
     return messageFont === 'serif'
       ? 'serif'
@@ -29,22 +37,21 @@ const MessageThought: FC<Props> = ({ message }) => {
     if (!isThinking && thoughtAutoCollapse) setActiveKey('')
   }, [isThinking, thoughtAutoCollapse])
 
-  if (!message.content) {
-    return null
-  }
-
-  const copyThought = () => {
-    if (message.content) {
-      navigator.clipboard.writeText(message.content)
+  const copyThought = useCallback(() => {
+    if (block.content) {
+      navigator.clipboard.writeText(block.content)
       antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
+  }, [block.content, t])
+
+  if (!block.content) {
+    return null
   }
 
-  const thinkingTime = message.thinking_millsec || 0
+  const thinkingTime = block.thinking_millsec || 0
   const thinkingTimeSeconds = (thinkingTime / 1000).toFixed(1)
-  const isPaused = message.status === 'paused'
 
   return (
     <CollapseContainer
@@ -58,10 +65,12 @@ const MessageThought: FC<Props> = ({ message }) => {
           label: (
             <MessageTitleLabel>
               <TinkingText>
-                {isThinking ? t('chat.thinking') : t('chat.deeply_thought', { secounds: thinkingTimeSeconds })}
+                {t(isThinking ? 'chat.thinking' : 'chat.deeply_thought', {
+                  secounds: thinkingTimeSeconds
+                })}
               </TinkingText>
-              {isThinking && !isPaused && <BarLoader color="#9254de" />}
-              {(!isThinking || isPaused) && (
+              {isThinking && <BarLoader color="#9254de" />}
+              {!isThinking && (
                 <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
                   <ActionButton
                     className="message-action-button"
@@ -80,7 +89,7 @@ const MessageThought: FC<Props> = ({ message }) => {
           children: (
             //  FIXME: 临时兼容
             <div style={{ fontFamily, fontSize }}>
-              <Markdown block={{ ...message, content: message.content }} />
+              <Markdown block={block} />
             </div>
           )
         }

@@ -8,7 +8,7 @@ interface Props {
 
 const ThinkingBlock: React.FC<Props> = ({ block }) => {
   // 创建思考过程的显示组件
-  return <MessageThought message={block} />
+  return <MessageThought block={block} />
 }
 
 export default React.memo(ThinkingBlock)

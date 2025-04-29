@@ -185,7 +185,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
       "suggestions.title": "Suggested Questions",
-      "thinking": "Thinking",
+      "thinking": "Thinking ({{secounds}} seconds)",
       "topics.auto_rename": "Auto Rename",
       "topics.clear.title": "Clear Messages",
       "topics.copy.image": "Copy as image",

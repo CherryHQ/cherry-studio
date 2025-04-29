@@ -190,7 +190,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇围越大，越多样化",
       "suggestions.title": "建议的问题",
-      "thinking": "思考中",
+      "thinking": "思考中（用时 {{secounds}} 秒）",
       "topics.auto_rename": "生成话题名",
       "topics.clear.title": "清空消息",
       "topics.copy.image": "复制为图片",
