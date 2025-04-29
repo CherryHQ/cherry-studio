@@ -116,8 +116,9 @@ export default abstract class BaseProvider {
     const allReferences = [...webSearchReferences, ...reindexedKnowledgeReferences]
 
     console.log(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
-    if (!isEmpty(webSearchReferences)) {
-      const referenceContent = `\`\`\`json\n${JSON.stringify(webSearchReferences, null, 2)}\n\`\`\``
+
+    if (!isEmpty(allReferences)) {
+      const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
       return REFERENCE_PROMPT.replace('{question}', content).replace('{references}', referenceContent)
     }
 
