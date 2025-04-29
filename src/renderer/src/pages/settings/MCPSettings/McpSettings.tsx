@@ -342,7 +342,7 @@ const McpSettings: React.FC = () => {
 
         // 设置 stdio 或 sse 服务器
         if (serverConfig.type === 'sse' || serverConfig.type === 'streamableHttp') {
-          mcpServer.baseUrl = serverConfig.baseUrl || server.baseUrl
+          mcpServer.baseUrl = serverConfig.baseUrl || server.baseUrl || serverConfig.url
         } else {
           mcpServer.command = serverConfig.command || server.command
           mcpServer.args = serverConfig.args || server.args
