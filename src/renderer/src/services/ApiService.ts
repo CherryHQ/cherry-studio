@@ -157,7 +157,7 @@ async function fetchExternalTool(
     }
   }
 
-  const shouldWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
+  const shouldWebSearch = !!assistant.webSearchProviderId
 
   // --- Execute Extraction and Searches ---
   const extractResults = await extract()
