@@ -9,6 +9,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setWebdavAutoSync,
   setWebdavHost as _setWebdavHost,
+  setWebdavMaxBackups as _setWebdavMaxBackups,
   setWebdavPass as _setWebdavPass,
   setWebdavPath as _setWebdavPath,
   setWebdavSyncInterval as _setWebdavSyncInterval,
@@ -27,7 +28,8 @@ const WebDavSettings: FC = () => {
     webdavUser: webDAVUser,
     webdavPass: webDAVPass,
     webdavPath: webDAVPath,
-    webdavSyncInterval: webDAVSyncInterval
+    webdavSyncInterval: webDAVSyncInterval,
+    webdavMaxBackups: webDAVMaxBackups
   } = useSettings()
 
   const [webdavHost, setWebdavHost] = useState<string | undefined>(webDAVHost)
@@ -37,6 +39,7 @@ const WebDavSettings: FC = () => {
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [syncInterval, setSyncInterval] = useState<number>(webDAVSyncInterval)
+  const [maxBackups, setMaxBackups] = useState<number>(webDAVMaxBackups)
 
   const dispatch = useAppDispatch()
   const { theme } = useTheme()
@@ -57,6 +60,11 @@ const WebDavSettings: FC = () => {
       dispatch(setWebdavAutoSync(true))
       startAutoSync()
     }
+  }
+
+  const onMaxBackupsChange = (value: number) => {
+    setMaxBackups(value)
+    dispatch(_setWebdavMaxBackups(value))
   }
 
   const renderSyncStatus = () => {
@@ -171,6 +179,19 @@ const WebDavSettings: FC = () => {
           <Select.Option value={360}>{t('settings.data.webdav.hour_interval', { count: 6 })}</Select.Option>
           <Select.Option value={720}>{t('settings.data.webdav.hour_interval', { count: 12 })}</Select.Option>
           <Select.Option value={1440}>{t('settings.data.webdav.hour_interval', { count: 24 })}</Select.Option>
+        </Select>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
+        <Select value={maxBackups} onChange={onMaxBackupsChange} disabled={!webdavHost} style={{ width: 120 }}>
+          <Select.Option value={0}>{t('settings.data.webdav.maxBackups.unlimited')}</Select.Option>
+          <Select.Option value={1}>1</Select.Option>
+          <Select.Option value={3}>3</Select.Option>
+          <Select.Option value={5}>5</Select.Option>
+          <Select.Option value={10}>10</Select.Option>
+          <Select.Option value={20}>20</Select.Option>
+          <Select.Option value={50}>50</Select.Option>
         </Select>
       </SettingRow>
       {webdavSync && syncInterval > 0 && (

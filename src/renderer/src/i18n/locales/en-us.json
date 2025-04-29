@@ -445,7 +445,11 @@
       "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
       "url_added": "URL added",
       "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "dimensions": "Embedding dimension",
+      "dimensions_size_tooltip": "The size of the embedding dimension; the larger the value, the larger the embedding dimension, but it also consumes more tokens.",
+      "dimensions_size_placeholder": "Default value (modification not recommended)",
+      "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}})."
     },
     "languages": {
       "arabic": "Arabic",
@@ -541,6 +545,7 @@
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
+      "processing": "Processing...",
       "regenerate.confirm": "Regenerating will replace current message",
       "reset.confirm.content": "Are you sure you want to clear all data?",
       "reset.double.confirm.content": "All data will be lost, do you want to continue?",
@@ -558,7 +563,9 @@
       "tools": {
         "completed": "Completed",
         "invoking": "Invoking",
-        "error": "Error occurred"
+        "error": "Error occurred",
+        "raw": "Raw",
+        "preview": "Preview"
       },
       "topic.added": "New topic added",
       "translation.copied": "Translation copied",
@@ -580,7 +587,9 @@
         "minimize": "Minimize MinApp",
         "devtools": "Developer Tools",
         "openExternal": "Open in Browser",
-        "rightclick_copyurl": "Right-click to copy URL"
+        "rightclick_copyurl": "Right-click to copy URL",
+        "open_link_external_on": "Current: Open links in browser",
+        "open_link_external_off": "Current: Open links in default window"
       },
       "sidebar.add.title": "Add to sidebar",
       "sidebar.remove.title": "Remove from sidebar",
@@ -682,7 +691,59 @@
       "regenerate.confirm": "This will replace your existing generated images. Do you want to continue?",
       "seed": "Seed",
       "seed_tip": "The same seed and prompt can produce similar images",
-      "title": "Images"
+      "title": "Images",
+      "magic_prompt_option": "Magic Prompt",
+      "model": "Model Version",
+      "aspect_ratio": "Aspect Ratio",
+      "style_type": "Style",
+      "learn_more": "Learn More",
+      "prompt_placeholder_edit": "Enter your image description, text drawing uses “double quotes” to wrap",
+      "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
+      "image_file_required": "Please upload an image first",
+      "image_file_retry": "Please re-upload an image first",
+      "mode": {
+        "generate": "Draw",
+        "edit": "Edit",
+        "remix": "Remix",
+        "upscale": "Upscale"
+      },
+      "generate": {
+        "model_tip": "Model version: V2 is the latest model of the interface, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
+        "number_images_tip": "Number of images to generate",
+        "seed_tip": "Controls image generation randomness for reproducible results",
+        "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
+        "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
+        "style_type_tip": "Image generation style for V_2 and above"
+      },
+      "edit": {
+        "image_file": "Edited Image",
+        "model_tip": "Only supports V_2 and V_2_TURBO versions",
+        "number_images_tip": "Number of edited results to generate",
+        "style_type_tip": "Style for edited image, only for V_2 and above",
+        "seed_tip": "Controls editing randomness",
+        "magic_prompt_option_tip": "Intelligently enhances editing prompts"
+      },
+      "remix": {
+        "model_tip": "Select AI model version for remixing",
+        "image_file": "Reference Image",
+        "image_weight": "Reference Image Weight",
+        "image_weight_tip": "Adjust reference image influence",
+        "number_images_tip": "Number of remix results to generate",
+        "seed_tip": "Control the randomness of the mixed result",
+        "style_type_tip": "Style for remixed image, only for V_2 and above",
+        "negative_prompt_tip": "Describe unwanted elements in remix results",
+        "magic_prompt_option_tip": "Intelligently enhances remix prompts"
+      },
+      "upscale": {
+        "image_file": "Image to upscale",
+        "resemblance": "Similarity",
+        "resemblance_tip": "Controls similarity to original image",
+        "detail": "Detail",
+        "detail_tip": "Controls detail enhancement level",
+        "number_images_tip": "Number of upscaled results to generate",
+        "seed_tip": "Controls upscaling randomness",
+        "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
+      }
     },
     "plantuml": {
       "download": {
@@ -920,7 +981,9 @@
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",
           "title": "WebDAV",
-          "user": "WebDAV User"
+          "user": "WebDAV User",
+          "maxBackups": "Maximum Backups",
+          "maxBackups.unlimited": "Unlimited"
         },
         "yuque": {
           "check": {
@@ -1013,6 +1076,9 @@
         "disabled": "Hidden Mini Apps",
         "empty": "Drag mini apps from the left to hide them",
         "visible": "Visible Mini Apps",
+        "open_link_external": {
+          "title": "Open new-window links in browser"
+        },
         "cache_settings": "Cache Settings",
         "cache_title": "Mini App Cache Limit",
         "cache_description": "Set the maximum number of active mini apps to keep in memory",
@@ -1030,7 +1096,7 @@
       "general.display.title": "Display Settings",
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
-      "general.auto_check_update.title": "Auto update checking",
+      "general.auto_check_update.title": "Auto Update",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
@@ -1039,6 +1105,7 @@
       "general.user_name.placeholder": "Enter your name",
       "general.view_webdav_settings": "View WebDAV settings",
       "input.auto_translate_with_space": "Quickly translate with 3 spaces",
+      "input.show_translate_confirm": "Show translation confirmation dialog",
       "input.target_language": "Target language",
       "input.target_language.chinese": "Simplified Chinese",
       "input.target_language.chinese-traditional": "Traditional Chinese",
@@ -1116,6 +1183,7 @@
         "installHelp": "Get Installation Help",
         "tabs": {
           "general": "General",
+          "description": "Description",
           "tools": "Tools",
           "prompts": "Prompts",
           "resources": "Resources"
@@ -1151,7 +1219,38 @@
         "registryDefault": "Default",
         "not_support": "Model not supported",
         "user": "User",
-        "system": "System"
+        "system": "System",
+        "types": {
+          "inMemory": "In Memory",
+          "sse": "SSE",
+          "streamableHttp": "Streamable HTTP",
+          "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "Sync Servers",
+          "selectProvider": "Select Provider:",
+          "discoverMcpServers": "Discover MCP Servers",
+          "discoverMcpServersDescription": "Visit the platform to discover available MCP servers",
+          "getToken": "Get API Token",
+          "getTokenDescription": "Retrieve your personal API token from your account",
+          "setToken": "Enter Your Token",
+          "tokenRequired": "API Token is required",
+          "tokenPlaceholder": "Enter API token here",
+          "button": "Sync",
+          "error": "Sync MCP Servers error",
+          "success": "Sync MCP Servers successful",
+          "unauthorized": "Sync Unauthorized",
+          "noServersAvailable": "No MCP servers available"
+        },
+        "timeout": "Timeout",
+        "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
+        "provider": "Provider",
+        "providerUrl": "Provider URL",
+        "logoUrl": "Logo URL",
+        "tags": "Tags",
+        "tagsPlaceholder": "Enter tags",
+        "providerPlaceholder": "Provider name",
+        "advancedSettings": "Advanced Settings"
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
@@ -1167,6 +1266,7 @@
       "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
+      "messages.math_engine.none": "None",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.model.title": "Model Settings",
       "messages.navigation": "Message Navigation",
@@ -1231,10 +1331,22 @@
         "api_key": "API Key",
         "api_key.tip": "Multiple keys separated by commas",
         "api_version": "API Version",
-        "charge": "Charge",
+        "basic_auth": "HTTP authentication",
+        "basic_auth.tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
+        "basic_auth.user_name": "Username",
+        "basic_auth.user_name.tip": "Left empty to disable",
+        "basic_auth.password": "Password",
+        "basic_auth.password.tip": "",
+        "charge": "Balance Recharge",
+        "bills": "Fee Bills",
         "check": "Check",
         "check_all_keys": "Check All Keys",
         "check_multiple_keys": "Check Multiple API Keys",
+        "oauth": {
+          "button": "Login with {{provider}}",
+          "description": "This service is provided by <website>{{provider}}</website>",
+          "official_website": "Official Website"
+        },
         "copilot": {
           "auth_failed": "Github Copilot authentication failed.",
           "auth_success": "GitHub Copilot authentication successful.",
@@ -1271,7 +1383,12 @@
         "remove_invalid_keys": "Remove Invalid Keys",
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "notes": {
+          "title": "Model Notes",
+          "placeholder": "Enter Markdown content...",
+          "markdown_editor_default_value": "Preview area"
+        }
       },
       "proxy": {
         "mode": {
@@ -1331,12 +1448,10 @@
       "websearch": {
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
-        "blacklist_tooltip": "Please use the following format (separated by line breaks)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+        "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
-        "enhance_mode": "Search enhance mode",
-        "enhance_mode_tooltip": "Use the default model to extract search keywords from the problem and search",
         "get_api_key": "Get API Key",
         "no_provider_selected": "Please select a search service provider before checking.",
         "search_max_result": "Number of search results",

@@ -2,8 +2,7 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { getUserMessage } from '@renderer/services/MessagesService'
+import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { Button, Tooltip } from 'antd'
 import { Languages } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -22,9 +21,12 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   const { t } = useTranslation()
   const { translateModel } = useDefaultModel()
   const [isTranslating, setIsTranslating] = useState(false)
-  const { targetLanguage } = useSettings()
+  const { targetLanguage, showTranslateConfirm } = useSettings()
 
   const translateConfirm = () => {
+    if (!showTranslateConfirm) {
+      return Promise.resolve(true)
+    }
     return window?.modal?.confirm({
       title: t('translate.confirm.title'),
       content: t('translate.confirm.content'),
@@ -33,6 +35,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   }
 
   const handleTranslate = async () => {
+    console.log('handleTranslate', text)
     if (!text?.trim()) return
 
     if (!(await translateConfirm())) {
@@ -53,14 +56,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
     setIsTranslating(true)
     try {
       const assistant = getDefaultTranslateAssistant(targetLanguage, text)
-      const message = getUserMessage({
-        assistant,
-        topic: getDefaultTopic('default'),
-        type: 'text',
-        content: ''
-      })
-
-      const translatedText = await fetchTranslate({ message, assistant })
+      const translatedText = await fetchTranslate({ content: text, assistant })
       onTranslated(translatedText)
     } catch (error) {
       console.error('Translation failed:', error)

@@ -1,17 +1,15 @@
 import { DeleteOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import DragableList from '@renderer/components/DragableList'
-import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { NavbarIcon } from '@renderer/pages/home/Navbar'
 import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
 import { KnowledgeBase } from '@renderer/types'
 import { Dropdown, Empty, MenuProps } from 'antd'
-import { Book, Plus, Search } from 'lucide-react'
+import { Book, Plus } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -96,13 +94,6 @@ const KnowledgePage: FC = () => {
     <Container>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
-        <NavbarRight>
-          <HStack alignItems="center">
-            <NarrowIcon onClick={() => selectedBase && KnowledgeSearchPopup.show({ base: selectedBase })}>
-              <Search size={18} />
-            </NarrowIcon>
-          </HStack>
-        </NavbarRight>
       </Navbar>
       <ContentContainer id="content-container">
         <SideNav>
@@ -241,12 +232,6 @@ const AddKnowledgeName = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 8px;
-`
-
-const NarrowIcon = styled(NavbarIcon)`
-  @media (max-width: 1000px) {
-    display: none;
-  }
 `
 
 export default KnowledgePage

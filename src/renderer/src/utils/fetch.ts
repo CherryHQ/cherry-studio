@@ -1,6 +1,6 @@
 import { Readability } from '@mozilla/readability'
 import { nanoid } from '@reduxjs/toolkit'
-import { WebSearchResult } from '@renderer/types'
+import { WebSearchProviderResult } from '@renderer/types'
 import TurndownService from 'turndown'
 
 const turndownService = new TurndownService()
@@ -23,10 +23,11 @@ function isValidUrl(urlString: string): boolean {
 export async function fetchWebContents(
   urls: string[],
   format: ResponseFormat = 'markdown',
-  usingBrowser: boolean = false
-): Promise<WebSearchResult[]> {
+  usingBrowser: boolean = false,
+  signal: AbortSignal | null = null
+): Promise<WebSearchProviderResult[]> {
   // parallel using fetchWebContent
-  const results = await Promise.allSettled(urls.map((url) => fetchWebContent(url, format, usingBrowser)))
+  const results = await Promise.allSettled(urls.map((url) => fetchWebContent(url, format, usingBrowser, signal)))
   return results.map((result, index) => {
     if (result.status === 'fulfilled') {
       return result.value
@@ -43,16 +44,17 @@ export async function fetchWebContents(
 export async function fetchWebContent(
   url: string,
   format: ResponseFormat = 'markdown',
-  usingBrowser: boolean = false
-): Promise<WebSearchResult> {
+  usingBrowser: boolean = false,
+  signal: AbortSignal | null = null
+): Promise<WebSearchProviderResult> {
   try {
     // Validate URL before attempting to fetch
     if (!isValidUrl(url)) {
       throw new Error(`Invalid URL format: ${url}`)
     }
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+    // const controller = new AbortController()
+    // const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
 
     let html: string
     if (usingBrowser) {
@@ -63,7 +65,7 @@ export async function fetchWebContent(
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
-        signal: controller.signal
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000)
       })
       if (!response.ok) {
         throw new Error(`HTTP error: ${response.status}`)
@@ -71,7 +73,7 @@ export async function fetchWebContent(
       html = await response.text()
     }
 
-    clearTimeout(timeoutId) // Clear the timeout if fetch completes successfully
+    // clearTimeout(timeoutId) // Clear the timeout if fetch completes successfully
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
     const article = new Readability(doc).parse()

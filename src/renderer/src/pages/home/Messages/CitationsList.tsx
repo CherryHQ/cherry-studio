@@ -1,14 +1,17 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
-import { FileSearch } from 'lucide-react'
-import React from 'react'
+import { Collapse, theme } from 'antd'
+import { FileSearch, Info } from 'lucide-react'
+import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-interface Citation {
+export interface Citation {
   number: number
   url: string
   title?: string
   hostname?: string
+  content?: string
   showFavicon?: boolean
   type?: string
 }
@@ -19,21 +22,47 @@ interface CitationsListProps {
 }
 
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
-  console.log('CitationsList', citations)
+  const { t } = useTranslation()
+
+  const { token } = theme.useToken()
+  const items = useMemo(() => {
+    return !citations || citations.length === 0
+      ? []
+      : [
+          {
+            key: '1',
+            label: (
+              <CitationsTitle>
+                <span>{t('message.citations')}</span>
+                <Info size={14} style={{ opacity: 0.6 }} />
+              </CitationsTitle>
+            ),
+            style: {
+              backgroundColor: token.colorFillAlter
+            },
+            children: (
+              <>
+                {citations.map((citation) => (
+                  <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{citation.number}.</span>
+                    {citation.type === 'websearch' ? (
+                      <WebSearchCitation citation={citation} />
+                    ) : (
+                      <KnowledgeCitation citation={citation} />
+                    )}
+                  </HStack>
+                ))}
+              </>
+            )
+          }
+        ]
+  }, [citations, t])
+
   if (!citations || citations.length === 0) return null
 
   return (
-    <CitationsContainer className="footnotes">
-      {citations.map((citation) => (
-        <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{citation.number}.</span>
-          {citation.type === 'websearch' ? (
-            <WebSearchCitation citation={citation} />
-          ) : (
-            <KnowledgeCitation citation={citation} />
-          )}
-        </HStack>
-      ))}
+    <CitationsContainer>
+      <Collapse items={items} size="small" bordered={false} style={{ background: token.colorBgContainer }} />
     </CitationsContainer>
   )
 }
@@ -83,16 +112,26 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 
 const CitationsContainer = styled.div`
   background-color: rgb(242, 247, 253);
-  border-radius: 4px;
+  border-radius: 10px;
   padding: 8px 12px;
   margin: 12px 0;
-  display: flex;
-  flex-direction: column;
+  display: inline-block;
+  /* display: flex; */
+  /* flex-direction: column; */
   gap: 4px;
 
   body[theme-mode='dark'] & {
     background-color: rgba(255, 255, 255, 0.05);
   }
+`
+
+const CitationsTitle = styled.div`
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--color-text-1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 `
 
 const CitationLink = styled.a`

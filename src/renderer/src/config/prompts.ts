@@ -52,6 +52,7 @@ export const SUMMARIZE_PROMPT =
 // https://github.com/ItzCrazyKns/Perplexica/blob/master/src/lib/prompts/webSearch.ts
 export const SEARCH_SUMMARY_PROMPT = `
   You are an AI question rephraser. Your role is to rephrase follow-up queries from a conversation into standalone queries that can be used by another LLM to retrieve information, either through web search or from a knowledge base.
+  **Use user's language to rephrase the question.**
   Follow these guidelines:
   1. If the question is a simple writing task, greeting (e.g., Hi, Hello, How are you), or does not require searching for information (unless the greeting contains a follow-up question), return 'not_needed' in the 'question' XML block. This indicates that no search is required.
   2. If the user asks a question related to a specific URL, PDF, or webpage, include the links in the 'links' XML block and the question in the 'question' XML block. If the request is to summarize content from a URL or PDF, return 'summarize' in the 'question' XML block and include the relevant links in the 'links' XML block.
@@ -59,7 +60,7 @@ export const SEARCH_SUMMARY_PROMPT = `
   4. Websearch: Always return the rephrased question inside the 'question' XML block. If there are no links in the follow-up question, do not insert a 'links' XML block in your response.
   5. Knowledge: Always return the rephrased question inside the 'question' XML block.
   6. Always wrap the rephrased question in the appropriate XML blocks to specify the tool(s) for retrieving information: use <websearch></websearch> for queries requiring real-time or external information, <knowledge></knowledge> for queries that can be answered from a pre-existing knowledge base, or both if the question could be applicable to either tool. Ensure that the rephrased question is always contained within a <question></question> block inside these wrappers.
-  7. If you are not sure to use knowledge or websearch, you need use both of them.
+  7. *use {tools} to rephrase the question*
 
   There are several examples attached for your reference inside the below 'examples' XML block.
 
@@ -193,6 +194,7 @@ export const SEARCH_SUMMARY_PROMPT = `
   {chat_history}
   </conversation>
 
+  **Use user's language to rephrase the question.**
   Follow up question: {question}
   Rephrased question:
 `
