@@ -164,11 +164,6 @@ const MoreCount = styled.span`
   margin-left: -8px;
 `
 
-const Number = styled.span`
-  font-size: 13px;
-  color: var(--color-text-2);
-`
-
 const CitationContent = styled.div`
   margin-left: 24px;
   margin-top: 4px;
