@@ -18,7 +18,9 @@ export type Assistant = {
   defaultModel?: Model
   settings?: Partial<AssistantSettings>
   messages?: AssistantMessage[]
+  /** enableWebSearch 代表使用模型内置网络搜索功能 */
   enableWebSearch?: boolean
+  webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
 }

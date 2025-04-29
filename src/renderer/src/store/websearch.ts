@@ -9,6 +9,7 @@ export interface SubscribeSource {
 
 export interface WebSearchState {
   // 默认搜索提供商的ID
+  /** @deprecated 支持在快捷菜单中自选搜索供应商，所以这个不再适用 */
   defaultProvider: string
   // 所有可用的搜索提供商列表
   providers: WebSearchProvider[]
@@ -21,6 +22,7 @@ export interface WebSearchState {
   // 订阅源列表
   subscribeSources: SubscribeSource[]
   // 是否覆盖服务商搜索
+  /** @deprecated 支持在快捷菜单中自选搜索供应商，所以这个不再适用 */
   overwrite: boolean
   contentLimit?: number
 }

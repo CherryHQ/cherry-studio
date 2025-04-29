@@ -136,7 +136,7 @@
       "input.translate": "Translate to {{target_language}}",
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
-      "input.web_search": "Enable web search",
+      "input.web_search": "Web search",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Need to check web search connectivity in settings first",
@@ -247,7 +247,10 @@
       "topics.export.title_naming_success": "Title generated successfully",
       "topics.export.title_naming_failed": "Failed to generate title, using default title",
       "input.translating": "Translating...",
-      "input.upload.upload_from_local": "Upload local file..."
+      "input.upload.upload_from_local": "Upload local file...",
+      "input.web_search.builtin": "Model Built-in",
+      "input.web_search.builtin.enabled_content": "Use the built-in web search function of the model",
+      "input.web_search.builtin.disabled_content": "The current model does not support web search"
     },
     "code_block": {
       "collapse": "Collapse",

@@ -51,7 +51,6 @@ import {
 // import { CompletionUsage } from 'openai/resources'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
@@ -67,6 +66,7 @@ import NewContextButton from './NewContextButton'
 import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
+import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 
 interface Props {
   assistant: Assistant
@@ -116,7 +116,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const currentMessageId = useRef<string>('')
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const navigate = useNavigate()
   const { activedMcpServers } = useMCPServers()
   const { bases: knowledgeBases } = useKnowledgeBases()
 
@@ -131,6 +130,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
+  const webSearchButtonRef = useRef<WebSearchButtonRef>(null)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -377,6 +377,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openResourcesList()
+        }
+      },
+      {
+        label: t('chat.input.web_search'),
+        description: '',
+        icon: <Globe />,
+        isMenu: true,
+        action: () => {
+          webSearchButtonRef.current?.openQuickPanel()
         }
       },
       {
@@ -770,45 +779,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(newKnowledgeBases ?? [])
   }
 
-  const showWebSearchEnableModal = () => {
-    window.modal.confirm({
-      title: t('chat.input.web_search.enable'),
-      content: t('chat.input.web_search.enable_content'),
-      centered: true,
-      okText: t('chat.input.web_search.button.ok'),
-      onOk: () => {
-        navigate('/settings/web-search')
-      }
-    })
-  }
-
-  const shouldShowEnableModal = () => {
-    // 网络搜索功能是否未启用
-    const webSearchNotEnabled = !WebSearchService.isWebSearchEnabled()
-    // 非网络搜索模型：仅当网络搜索功能未启用时显示启用提示
-    if (!isWebSearchModel(model)) {
-      return webSearchNotEnabled
-    }
-    // 网络搜索模型：当允许覆盖但网络搜索功能未启用时显示启用提示
-    return WebSearchService.isOverwriteEnabled() && webSearchNotEnabled
-  }
-
-  const onEnableWebSearch = () => {
-    if (shouldShowEnableModal()) {
-      showWebSearchEnableModal()
-      return
-    }
-
-    updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
-  }
-
   const onEnableGenerateImage = () => {
     updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
   }
 
   useEffect(() => {
-    if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
+    if (!isWebSearchModel(model) && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
+    }
+    if (assistant.webSearchProviderId && !WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId)) {
+      updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
@@ -938,14 +918,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setFiles={setFiles}
                 ToolbarButton={ToolbarButton}
               />
-              <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
-                <ToolbarButton type="text" onClick={onEnableWebSearch}>
-                  <Globe
-                    size={18}
-                    style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
-                  />
-                </ToolbarButton>
-              </Tooltip>
+              <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
               {showKnowledgeIcon && (
                 <KnowledgeBaseButton
                   ref={knowledgeBaseButtonRef}
