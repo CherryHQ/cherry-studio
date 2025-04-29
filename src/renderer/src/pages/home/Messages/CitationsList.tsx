@@ -20,6 +20,11 @@ interface CitationsListProps {
   citations: Citation[]
 }
 
+const truncateText = (text: string, maxLength = 100) => {
+  if (!text) return ''
+  return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
+}
+
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -72,7 +77,6 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
         }}>
         {citations.map((citation) => (
           <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Number>{citation.number}.</Number>
             {citation.type === 'websearch' ? (
               <WebSearchCitation citation={citation} />
             ) : (
@@ -92,14 +96,17 @@ const handleLinkClick = (url: string, event: React.MouseEvent) => {
 }
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
-  <>
-    {citation.showFavicon && citation.url && (
-      <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
-    )}
-    <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-      {citation.title || <span className="hostname">{citation.hostname}</span>}
-    </CitationLink>
-  </>
+  <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {citation.showFavicon && citation.url && (
+        <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
+      )}
+      <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+        {citation.title || <span className="hostname">{citation.hostname}</span>}
+      </CitationLink>
+    </div>
+    {citation.content && <CitationContent>{truncateText(citation.content, 100)}</CitationContent>}
+  </div>
 )
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
@@ -160,6 +167,14 @@ const MoreCount = styled.span`
 const Number = styled.span`
   font-size: 13px;
   color: var(--color-text-2);
+`
+
+const CitationContent = styled.div`
+  margin-left: 24px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--color-text-2);
+  line-height: 1.5;
 `
 
 const CitationLink = styled.a`
