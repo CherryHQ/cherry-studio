@@ -14,33 +14,39 @@ interface InputBarProps {
   handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }
 
-const InputBar = React.forwardRef<HTMLDivElement, InputBarProps>(
-  ({ text, model, placeholder, handleKeyDown, handleChange, disabled = false }, ref) => {
-    const inputRef = useRef<InputRef>(null)
+const InputBar = ({
+  ref,
+  text,
+  model,
+  placeholder,
+  handleKeyDown,
+  handleChange,
+  disabled = false
+}: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
+  const inputRef = useRef<InputRef>(null)
 
-    useEffect(() => {
-      if (!disabled) {
-        inputRef.current?.focus()
-      }
-    }, [disabled])
+  useEffect(() => {
+    if (!disabled) {
+      inputRef.current?.focus()
+    }
+  }, [disabled])
 
-    return (
-      <InputWrapper ref={ref}>
-        <ModelAvatar model={model} size={30} />
-        <Input
-          value={text}
-          placeholder={placeholder}
-          variant="borderless"
-          autoFocus
-          onKeyDown={handleKeyDown}
-          onChange={handleChange}
-          disabled={disabled}
-          ref={inputRef}
-        />
-      </InputWrapper>
-    )
-  }
-)
+  return (
+    <InputWrapper ref={ref}>
+      <ModelAvatar model={model} size={30} />
+      <Input
+        value={text}
+        placeholder={placeholder}
+        variant="borderless"
+        autoFocus
+        onKeyDown={handleKeyDown}
+        onChange={handleChange}
+        disabled={disabled}
+        ref={inputRef}
+      />
+    </InputWrapper>
+  )
+}
 
 InputBar.displayName = 'InputBar'
 
