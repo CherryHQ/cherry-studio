@@ -91,7 +91,8 @@
       "manage": "Manage",
       "select_model": "Select Model",
       "show.all": "Show All",
-      "update_available": "Update Available"
+      "update_available": "Update Available",
+      "includes_user_questions": "包含用户提问"
     },
     "chat": {
       "add.assistant.title": "Add Assistant",
@@ -1366,6 +1367,7 @@
         "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
         "reset_to_default": "Reset to Default",
         "search_message": "Search Message",
+        "search_message_in_chat": "Search Message in Current Chat",
         "show_app": "Show/Hide App",
         "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",

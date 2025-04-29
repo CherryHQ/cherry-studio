@@ -91,7 +91,8 @@
       "manage": "管理",
       "select_model": "モデルを選択",
       "show.all": "すべて表示",
-      "update_available": "更新可能"
+      "update_available": "更新可能",
+      "includes_user_questions": "ユーザーからの質問を含む"
     },
     "chat": {
       "add.assistant.title": "アシスタントを追加",
@@ -1364,6 +1365,7 @@
         "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
         "reset_to_default": "デフォルトにリセット",
         "search_message": "メッセージを検索",
+        "search_message_in_chat": "現在のチャットでメッセージを検索",
         "show_app": "アプリを表示/非表示",
         "show_settings": "設定を開く",
         "title": "ショートカット",

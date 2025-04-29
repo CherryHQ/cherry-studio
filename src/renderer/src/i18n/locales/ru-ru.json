@@ -91,7 +91,8 @@
       "manage": "Редактировать",
       "select_model": "Выбрать модель",
       "show.all": "Показать все",
-      "update_available": "Доступно обновление"
+      "update_available": "Доступно обновление",
+      "includes_user_questions": "Включает вопросы пользователей"
     },
     "chat": {
       "add.assistant.title": "Добавить ассистента",
@@ -1364,6 +1365,7 @@
         "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
         "reset_to_default": "Сбросить настройки по умолчанию",
         "search_message": "Поиск сообщения",
+        "search_message_in_chat": "Поиск сообщения в текущем диалоге",
         "show_app": "Показать/скрыть приложение",
         "show_settings": "Открыть настройки",
         "title": "Горячие клавиши",
