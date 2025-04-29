@@ -18,10 +18,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
-  const isThinking = useMemo(
-    () => block.status === MessageBlockStatus.PROCESSING || block.status === MessageBlockStatus.STREAMING,
-    [block.status]
-  )
+  const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
 
   const fontFamily = useMemo(() => {
     return messageFont === 'serif'
