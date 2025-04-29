@@ -1093,6 +1093,8 @@
         "install": "安装",
         "installError": "安装依赖项失败",
         "installSuccess": "依赖项安装成功",
+        "invalidJsonFormat": "JSON解析错误",
+        "jsonInput": "在此处粘贴JSON",
         "jsonFormatError": "JSON格式化错误",
         "jsonModeHint": "编辑MCP服务器配置的JSON表示。保存前请确保格式正确。",
         "jsonSaveError": "保存JSON配置失败",
@@ -1129,6 +1131,7 @@
         "installHelp": "获取安装帮助",
         "tabs": {
           "general": "通用",
+          "json": "一键导入",
           "description": "描述",
           "tools": "工具",
           "prompts": "提示",

@@ -1092,6 +1092,8 @@
         "install": "安裝",
         "installError": "安裝相依套件失敗",
         "installSuccess": "相依套件安裝成功",
+        "invalidJsonFormat": "JSON 格式錯誤",
+        "jsonInput": "在此處粘貼 JSON",
         "jsonFormatError": "JSON格式錯誤",
         "jsonModeHint": "編輯MCP伺服器配置的JSON表示。保存前請確保格式正確。",
         "jsonSaveError": "保存JSON配置失敗",
@@ -1128,6 +1130,7 @@
         "installHelp": "獲取安裝幫助",
         "tabs": {
           "general": "通用",
+          "json": "一鍵導入",
           "description": "描述",
           "tools": "工具",
           "prompts": "提示",

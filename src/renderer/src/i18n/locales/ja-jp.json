@@ -1091,6 +1091,8 @@
         "install": "インストール",
         "installError": "依存関係のインストールに失敗しました",
         "installSuccess": "依存関係のインストールに成功しました",
+        "invalidJsonFormat": "JSONの解析エラー",
+        "jsonInput": "ここにJSONを貼り付けてください",
         "jsonFormatError": "JSONフォーマットエラー",
         "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
         "jsonSaveError": "JSON設定の保存に失敗しました",
@@ -1127,6 +1129,7 @@
         "installHelp": "インストールヘルプを取得",
         "tabs": {
           "general": "一般",
+          "json": "ワンクリックでインポート",
           "description": "説明",
           "tools": "ツール",
           "prompts": "プロンプト",
