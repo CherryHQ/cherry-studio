@@ -5,7 +5,7 @@ import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Type } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -704,12 +704,7 @@ const McpSettings: React.FC = () => {
   } else {
     tabs.push({
       key: 'json',
-      label: (
-        <Flex align="center" gap={8}>
-          <FileText size={16} />
-          {t('settings.mcp.tabs.json')}
-        </Flex>
-      ),
+      label: t('settings.mcp.tabs.json'),
       children: (
         <Form
           form={jsonForm}
@@ -723,46 +718,14 @@ const McpSettings: React.FC = () => {
           <Form.Item
             name="jsonInput"
             label={
-              <FormLabelWithIcon>
+              <Flex align="center" gap={5}>
                 <Type size={16} />
-                {t('settings.mcp.jsonInput')}
-              </FormLabelWithIcon>
+                <span>{t('settings.mcp.jsonInput')}</span>
+              </Flex>
             }
             rules={[{ required: true, message: '' }]}>
             <TextArea rows={12} disabled={server.type === 'inMemory'} />
           </Form.Item>
-          {isShowRegistry && registry && (
-            <Form.Item
-              name="registryUrl"
-              label={
-                <FormLabelWithIcon>
-                  <Package size={16} />
-                  {t('settings.mcp.registry')}
-                </FormLabelWithIcon>
-              }
-              tooltip={t('settings.mcp.registryTooltip')}>
-              <Radio.Group>
-                <Radio
-                  key="no-proxy"
-                  value=""
-                  onChange={(e) => {
-                    onSelectRegistry(e.target.value)
-                  }}>
-                  {t('settings.mcp.registryDefault')}
-                </Radio>
-                {registry.map((reg) => (
-                  <Radio
-                    key={reg.url}
-                    value={reg.url}
-                    onChange={(e) => {
-                      onSelectRegistry(e.target.value)
-                    }}>
-                    {reg.name}
-                  </Radio>
-                ))}
-              </Radio.Group>
-            </Form.Item>
-          )}
         </Form>
       )
     })
