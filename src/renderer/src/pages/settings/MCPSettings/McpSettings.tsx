@@ -1,6 +1,6 @@
 import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { Button, Collapse, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
@@ -90,8 +90,7 @@ const McpSettings: React.FC = () => {
   const {
     server: { id: serverId }
   } = useLocation().state as { server: MCPServer }
-  const { mcpServers } = useMCPServers()
-  const server = mcpServers.find((it) => it.id === serverId) as MCPServer
+  const server = useMCPServer(serverId).server as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
