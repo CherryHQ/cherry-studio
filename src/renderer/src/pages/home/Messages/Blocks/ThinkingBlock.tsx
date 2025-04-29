@@ -13,7 +13,7 @@ interface Props {
 }
 
 const ThinkingBlock: React.FC<Props> = ({ block }) => {
-  const [activeKey, setActiveKey] = useState<'thought' | ''>('thought')
+  const [activeKey, setActiveKey] = useState<'thought' | ''>('')
   const [copied, setCopied] = useState(false)
   const { t } = useTranslation()
   const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
