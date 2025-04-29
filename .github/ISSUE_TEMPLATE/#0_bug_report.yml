@@ -1,7 +1,7 @@
 name: 🐛 错误报告 (中文)
 description: 创建一个报告以帮助我们改进
 title: '[错误]: '
-labels: ['bug']
+labels: ['kind/bug']
 body:
   - type: markdown
     attributes:

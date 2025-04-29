@@ -1,5 +1,3 @@
-import './utils/analytics'
-
 import KeyvStorage from '@kangfenmao/keyv-storage'
 
 import { startAutoSync } from './services/BackupService'
@@ -28,7 +26,7 @@ function initAutoSync() {
     if (nutstoreAutoSync) {
       startNutstoreAutoSync()
     }
-  }, 2000)
+  }, 8000)
 }
 
 initSpinner()

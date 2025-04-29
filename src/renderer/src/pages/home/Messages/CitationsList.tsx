@@ -2,17 +2,18 @@ import { CheckOutlined } from '@ant-design/icons'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Collapse, message as antdMessage, Tooltip } from 'antd'
-import { FileSearch } from 'lucide-react'
+import { Collapse, theme, message as antdMessage, Tooltip } from 'antd'
+import { FileSearch, Info } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-interface Citation {
+export interface Citation {
   number: number
   url: string
   title?: string
   hostname?: string
+  content?: string
   showFavicon?: boolean
   type?: string
 }
@@ -32,6 +33,40 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations, citationCount 
       ? 'serif'
       : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans","Helvetica Neue", sans-serif'
   }, [messageFont])
+
+  const { token } = theme.useToken()
+  const items = useMemo(() => {
+    return !citations || citations.length === 0
+      ? []
+      : [
+          {
+            key: '1',
+            label: (
+              <CitationsTitle>
+                <span>{t('message.citations')}</span>
+                <Info size={14} style={{ opacity: 0.6 }} />
+              </CitationsTitle>
+            ),
+            style: {
+              backgroundColor: token.colorFillAlter
+            },
+            children: (
+              <>
+                {citations.map((citation) => (
+                  <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{citation.number}.</span>
+                    {citation.type === 'websearch' ? (
+                      <WebSearchCitation citation={citation} />
+                    ) : (
+                      <KnowledgeCitation citation={citation} />
+                    )}
+                  </HStack>
+                ))}
+              </>
+            )
+          }
+        ]
+  }, [citations, t])
 
   if (!citations || citations.length === 0) return null
 

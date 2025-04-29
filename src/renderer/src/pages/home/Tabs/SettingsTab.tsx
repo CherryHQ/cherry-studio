@@ -40,9 +40,17 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
+  setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
-import { Assistant, AssistantSettings, CodeStyleVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import {
+  Assistant,
+  AssistantSettings,
+  CodeStyleVarious,
+  MathEngine,
+  ThemeMode,
+  TranslateLanguageVarious
+} from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
@@ -93,7 +101,8 @@ const SettingsTab: FC<Props> = (props) => {
     thoughtAutoCollapse,
     messageNavigation,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel
+    enableBackspaceDeleteModel,
+    showTranslateConfirm
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -512,11 +521,12 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingRowTitleSmall>{t('settings.messages.math_engine')}</SettingRowTitleSmall>
           <StyledSelect
             value={mathEngine}
-            onChange={(value) => dispatch(setMathEngine(value as 'MathJax' | 'KaTeX'))}
+            onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
             style={{ width: 135 }}
             size="small">
             <Select.Option value="KaTeX">KaTeX</Select.Option>
             <Select.Option value="MathJax">MathJax</Select.Option>
+            <Select.Option value="none">{t('settings.messages.math_engine.none')}</Select.Option>
           </StyledSelect>
         </SettingRow>
         <SettingDivider />
@@ -601,6 +611,15 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingDivider />
           </>
         )}
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.input.show_translate_confirm')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={showTranslateConfirm}
+            onChange={(checked) => dispatch(setShowTranslateConfirm(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.input.enable_quick_triggers')}</SettingRowTitleSmall>
           <Switch

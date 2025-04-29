@@ -1,9 +1,12 @@
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
-import { Form, Input, Modal, Tooltip } from 'antd'
+import { EventEmitter } from '@renderer/services/EventService'
+import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import { Form, Input, Tooltip } from 'antd'
 import { Plus, SquareTerminal } from 'lucide-react'
-import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -14,40 +17,152 @@ export interface MCPToolsButtonRef {
 }
 
 interface Props {
+  assistant: Assistant
   ref?: React.RefObject<MCPToolsButtonRef | null>
-  enabledMCPs: MCPServer[]
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
-  toggelEnableMCP: (server: MCPServer) => void
   ToolbarButton: any
 }
 
-const MCPToolsButton: FC<Props> = ({
-  ref,
-  setInputValue,
-  resizeTextArea,
-  enabledMCPs,
-  toggelEnableMCP,
-  ToolbarButton
-}) => {
+// 添加类型定义
+interface PromptArgument {
+  name: string
+  description?: string
+  required?: boolean
+}
+
+interface MCPPromptWithArgs extends MCPPrompt {
+  arguments?: PromptArgument[]
+}
+
+interface ResourceData {
+  blob?: string
+  mimeType?: string
+  name?: string
+  text?: string
+  uri?: string
+}
+
+// 提取到组件外的工具函数
+const extractPromptContent = (response: any): string | null => {
+  // Handle string response (backward compatibility)
+  if (typeof response === 'string') {
+    return response
+  }
+
+  // Handle GetMCPPromptResponse format
+  if (response && Array.isArray(response.messages)) {
+    let formattedContent = ''
+
+    for (const message of response.messages) {
+      if (!message.content) continue
+
+      // Add role prefix if available
+      const rolePrefix = message.role ? `**${message.role.charAt(0).toUpperCase() + message.role.slice(1)}:** ` : ''
+
+      // Process different content types
+      switch (message.content.type) {
+        case 'text':
+          formattedContent += `${rolePrefix}${message.content.text}\n\n`
+          break
+
+        case 'image':
+          if (message.content.data && message.content.mimeType) {
+            if (rolePrefix) {
+              formattedContent += `${rolePrefix}\n`
+            }
+            formattedContent += `![Image](data:${message.content.mimeType};base64,${message.content.data})\n\n`
+          }
+          break
+
+        case 'audio':
+          formattedContent += `${rolePrefix}[Audio content available]\n\n`
+          break
+
+        case 'resource':
+          if (message.content.text) {
+            formattedContent += `${rolePrefix}${message.content.text}\n\n`
+          } else {
+            formattedContent += `${rolePrefix}[Resource content available]\n\n`
+          }
+          break
+
+        default:
+          if (message.content.text) {
+            formattedContent += `${rolePrefix}${message.content.text}\n\n`
+          }
+      }
+    }
+
+    return formattedContent.trim()
+  }
+
+  // Fallback handling for single message format
+  if (response && response.messages && response.messages.length > 0) {
+    const message = response.messages[0]
+    if (message.content && message.content.text) {
+      const rolePrefix = message.role ? `**${message.role.charAt(0).toUpperCase() + message.role.slice(1)}:** ` : ''
+      return `${rolePrefix}${message.content.text}`
+    }
+  }
+
+  return null
+}
+
+const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, ToolbarButton, ...props }) => {
   const { activedMcpServers } = useMCPServers()
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const navigate = useNavigate()
-  // Create form instance at the top level
   const [form] = Form.useForm()
 
-  const availableMCPs = activedMcpServers.filter((server) => enabledMCPs.some((s) => s.id === server.id))
+  const { updateAssistant, assistant } = useAssistant(props.assistant.id)
 
-  const buttonEnabled = availableMCPs.length > 0
+  // 使用 useRef 存储不需要触发重渲染的值
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  const mcpServers = useMemo(() => assistant.mcpServers || [], [assistant.mcpServers])
+  const assistantMcpServers = useMemo(
+    () => activedMcpServers.filter((server) => mcpServers.some((s) => s.id === server.id)),
+    [activedMcpServers, mcpServers]
+  )
+
+  const buttonEnabled = assistantMcpServers.length > 0
+
+  const handleMcpServerSelect = useCallback(
+    (server: MCPServer) => {
+      if (assistantMcpServers.some((s) => s.id === server.id)) {
+        updateAssistant({ ...assistant, mcpServers: mcpServers?.filter((s) => s.id !== server.id) })
+      } else {
+        updateAssistant({ ...assistant, mcpServers: [...mcpServers, server] })
+      }
+    },
+    [assistant, assistantMcpServers, mcpServers, updateAssistant]
+  )
+
+  // 使用 useRef 缓存事件处理函数
+  const handleMcpServerSelectRef = useRef(handleMcpServerSelect)
+  handleMcpServerSelectRef.current = handleMcpServerSelect
+
+  useEffect(() => {
+    const handler = (server: MCPServer) => handleMcpServerSelectRef.current(server)
+    EventEmitter.on('mcp-server-select', handler)
+    return () => EventEmitter.off('mcp-server-select', handler)
+  }, [])
 
   const menuItems = useMemo(() => {
     const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
       label: server.name,
       description: server.description || server.baseUrl,
       icon: <SquareTerminal />,
-      action: () => toggelEnableMCP(server),
-      isSelected: enabledMCPs.some((s) => s.id === server.id)
+      action: () => EventEmitter.emit('mcp-server-select', server),
+      isSelected: assistantMcpServers.some((s) => s.id === server.id)
     }))
 
     newList.push({
@@ -55,8 +170,9 @@ const MCPToolsButton: FC<Props> = ({
       icon: <Plus />,
       action: () => navigate('/settings/mcp')
     })
+
     return newList
-  }, [activedMcpServers, t, enabledMCPs, toggelEnableMCP, navigate])
+  }, [activedMcpServers, t, assistantMcpServers, navigate])
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
@@ -69,97 +185,25 @@ const MCPToolsButton: FC<Props> = ({
       }
     })
   }, [menuItems, quickPanel, t])
-  // Extract and format all content from the prompt response
-  const extractPromptContent = useCallback((response: any): string | null => {
-    // Handle string response (backward compatibility)
-    if (typeof response === 'string') {
-      return response
-    }
 
-    // Handle GetMCPPromptResponse format
-    if (response && Array.isArray(response.messages)) {
-      let formattedContent = ''
-
-      for (const message of response.messages) {
-        if (!message.content) continue
-
-        // Add role prefix if available
-        const rolePrefix = message.role ? `**${message.role.charAt(0).toUpperCase() + message.role.slice(1)}:** ` : ''
-
-        // Process different content types
-        switch (message.content.type) {
-          case 'text':
-            // Add formatted text content with role
-            formattedContent += `${rolePrefix}${message.content.text}\n\n`
-            break
-
-          case 'image':
-            // Format image as markdown with proper attribution
-            if (message.content.data && message.content.mimeType) {
-              const imageData = message.content.data
-              const mimeType = message.content.mimeType
-              // Include role if available
-              if (rolePrefix) {
-                formattedContent += `${rolePrefix}\n`
-              }
-              formattedContent += `![Image](data:${mimeType};base64,${imageData})\n\n`
-            }
-            break
-
-          case 'audio':
-            // Add indicator for audio content with role
-            formattedContent += `${rolePrefix}[Audio content available]\n\n`
-            break
-
-          case 'resource':
-            // Add indicator for resource content with role
-            if (message.content.text) {
-              formattedContent += `${rolePrefix}${message.content.text}\n\n`
-            } else {
-              formattedContent += `${rolePrefix}[Resource content available]\n\n`
-            }
-            break
-
-          default:
-            // Add text content if available with role, otherwise show placeholder
-            if (message.content.text) {
-              formattedContent += `${rolePrefix}${message.content.text}\n\n`
-            }
-        }
-      }
-
-      return formattedContent.trim()
-    }
-
-    // Fallback handling for single message format
-    if (response && response.messages && response.messages.length > 0) {
-      const message = response.messages[0]
-      if (message.content && message.content.text) {
-        const rolePrefix = message.role ? `**${message.role.charAt(0).toUpperCase() + message.role.slice(1)}:** ` : ''
-        return `${rolePrefix}${message.content.text}`
-      }
-    }
-
-    return null
-  }, [])
-
-  // Helper function to insert prompt into text area
+  // 使用 useCallback 优化 insertPromptIntoTextArea
   const insertPromptIntoTextArea = useCallback(
     (promptText: string) => {
       setInputValue((prev) => {
         const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
-        if (!textArea) return prev + promptText // Fallback if we can't find the textarea
+        if (!textArea) return prev + promptText
 
         const cursorPosition = textArea.selectionStart
         const selectionStart = cursorPosition
         const selectionEndPosition = cursorPosition + promptText.length
         const newText = prev.slice(0, cursorPosition) + promptText + prev.slice(cursorPosition)
 
-        setTimeout(() => {
+        // 使用 requestAnimationFrame 优化 DOM 操作
+        requestAnimationFrame(() => {
           textArea.focus()
           textArea.setSelectionRange(selectionStart, selectionEndPosition)
           resizeTextArea()
-        }, 10)
+        })
         return newText
       })
     },
@@ -167,102 +211,104 @@ const MCPToolsButton: FC<Props> = ({
   )
 
   const handlePromptSelect = useCallback(
-    (prompt: MCPPrompt) => {
-      // Using a 10ms delay to ensure the modal or UI updates are fully rendered before executing the logic.
-      setTimeout(async () => {
-        const server = enabledMCPs.find((s) => s.id === prompt.serverId)
-        if (server) {
-          try {
-            // Check if the prompt has arguments
-            if (prompt.arguments && prompt.arguments.length > 0) {
-              // Reset form when opening a new modal
-              form.resetFields()
+    (prompt: MCPPromptWithArgs) => {
+      const server = activedMcpServers.find((s) => s.id === prompt.serverId)
+      if (!server) return
 
-              Modal.confirm({
-                title: `${t('settings.mcp.prompts.arguments')}: ${prompt.name}`,
-                content: (
-                  <Form form={form} layout="vertical">
-                    {prompt.arguments.map((arg, index) => (
-                      <Form.Item
-                        key={index}
-                        name={arg.name}
-                        label={`${arg.name}${arg.required ? ' *' : ''}`}
-                        tooltip={arg.description}
-                        rules={
-                          arg.required ? [{ required: true, message: t('settings.mcp.prompts.requiredField') }] : []
-                        }>
-                        <Input placeholder={arg.description || arg.name} />
-                      </Form.Item>
-                    ))}
-                  </Form>
-                ),
-                onOk: async () => {
-                  try {
-                    // Validate and get form values
-                    const values = await form.validateFields()
+      const handlePromptResponse = async (response: any) => {
+        const promptContent = extractPromptContent(response)
+        if (promptContent) {
+          insertPromptIntoTextArea(promptContent)
+        } else {
+          throw new Error('Invalid prompt response format')
+        }
+      }
 
-                    const response = await window.api.mcp.getPrompt({
-                      server,
-                      name: prompt.name,
-                      args: values
-                    })
+      const handlePromptWithArgs = async () => {
+        try {
+          form.resetFields()
 
-                    // Extract and format prompt content from the response
-                    const promptContent = extractPromptContent(response)
-                    if (promptContent) {
-                      insertPromptIntoTextArea(promptContent)
-                    } else {
-                      throw new Error('Invalid prompt response format')
-                    }
+          const result = await new Promise<Record<string, string>>((resolve, reject) => {
+            window.modal.confirm({
+              title: `${t('settings.mcp.prompts.arguments')}: ${prompt.name}`,
+              content: (
+                <Form form={form} layout="vertical">
+                  {prompt.arguments?.map((arg, index) => (
+                    <Form.Item
+                      key={index}
+                      name={arg.name}
+                      label={`${arg.name}${arg.required ? ' *' : ''}`}
+                      tooltip={arg.description}
+                      rules={
+                        arg.required ? [{ required: true, message: t('settings.mcp.prompts.requiredField') }] : []
+                      }>
+                      <Input placeholder={arg.description || arg.name} />
+                    </Form.Item>
+                  ))}
+                </Form>
+              ),
+              onOk: async () => {
+                try {
+                  const values = await form.validateFields()
+                  resolve(values)
+                } catch (error) {
+                  reject(error)
+                }
+              },
+              onCancel: () => reject(new Error('cancelled')),
+              okText: t('common.confirm'),
+              cancelText: t('common.cancel')
+            })
+          })
 
-                    return Promise.resolve()
-                  } catch (error: Error | any) {
-                    if (error.errorFields) {
-                      // This is a form validation error, handled by Ant Design
-                      return Promise.reject(error)
-                    }
+          const response = await window.api.mcp.getPrompt({
+            server,
+            name: prompt.name,
+            args: result
+          })
 
-                    Modal.error({
-                      title: t('common.error'),
-                      content: error.message || t('settings.mcp.prompts.genericError')
-                    })
-                    return Promise.reject(error)
-                  }
-                },
-                okText: t('common.confirm'),
-                cancelText: t('common.cancel')
-              })
-            } else {
-              // If no arguments, get the prompt directly
-              const response = await window.api.mcp.getPrompt({
-                server,
-                name: prompt.name
-              })
-
-              // Extract and format prompt content from the response
-              const promptContent = extractPromptContent(response)
-              if (promptContent) {
-                insertPromptIntoTextArea(promptContent)
-              } else {
-                throw new Error('Invalid prompt response format')
-              }
-            }
-          } catch (error: Error | any) {
-            Modal.error({
+          await handlePromptResponse(response)
+        } catch (error: Error | any) {
+          if (error.message !== 'cancelled') {
+            window.modal.error({
               title: t('common.error'),
-              content: error.message || t('settings.mcp.prompt.genericError')
+              content: error.message || t('settings.mcp.prompts.genericError')
             })
           }
         }
-      }, 10)
+      }
+
+      const handlePromptWithoutArgs = async () => {
+        try {
+          const response = await window.api.mcp.getPrompt({
+            server,
+            name: prompt.name
+          })
+          await handlePromptResponse(response)
+        } catch (error: Error | any) {
+          window.modal.error({
+            title: t('common.error'),
+            content: error.message || t('settings.mcp.prompt.genericError')
+          })
+        }
+      }
+
+      requestAnimationFrame(() => {
+        const hasArguments = prompt.arguments && prompt.arguments.length > 0
+        if (hasArguments) {
+          handlePromptWithArgs()
+        } else {
+          handlePromptWithoutArgs()
+        }
+      })
     },
-    [enabledMCPs, form, t, extractPromptContent, insertPromptIntoTextArea] // Add form to dependencies
+    [activedMcpServers, form, t, insertPromptIntoTextArea]
   )
 
   const promptList = useMemo(async () => {
     const prompts: MCPPrompt[] = []
 
-    for (const server of enabledMCPs) {
+    for (const server of activedMcpServers) {
       const serverPrompts = await window.api.mcp.listPrompts(server)
       prompts.push(...serverPrompts)
     }
@@ -271,9 +317,9 @@ const MCPToolsButton: FC<Props> = ({
       label: prompt.name,
       description: prompt.description,
       icon: <SquareTerminal />,
-      action: () => handlePromptSelect(prompt)
+      action: () => handlePromptSelect(prompt as MCPPromptWithArgs)
     }))
-  }, [handlePromptSelect, enabledMCPs])
+  }, [handlePromptSelect, activedMcpServers])
 
   const openPromptList = useCallback(async () => {
     const prompts = await promptList
@@ -287,99 +333,80 @@ const MCPToolsButton: FC<Props> = ({
 
   const handleResourceSelect = useCallback(
     (resource: MCPResource) => {
-      setTimeout(async () => {
-        const server = enabledMCPs.find((s) => s.id === resource.serverId)
-        if (server) {
-          try {
-            // Fetch the resource data
-            const response = await window.api.mcp.getResource({
-              server,
-              uri: resource.uri
-            })
-            console.log('Resource Data:', response)
+      const server = activedMcpServers.find((s) => s.id === resource.serverId)
+      if (!server) return
 
-            // Check if the response has the expected structure
-            if (response && response.contents && Array.isArray(response.contents)) {
-              // Process each resource in the contents array
-              for (const resourceData of response.contents) {
-                // Determine how to handle the resource based on its MIME type
-                if (resourceData.blob) {
-                  // Handle binary data (images, etc.)
-                  if (resourceData.mimeType?.startsWith('image/')) {
-                    // Insert image as markdown
-                    const imageMarkdown = `![${resourceData.name || 'Image'}](data:${resourceData.mimeType};base64,${resourceData.blob})`
-                    insertPromptIntoTextArea(imageMarkdown)
-                  } else {
-                    // For other binary types, just mention it's available
-                    const resourceInfo = `[${resourceData.name || resource.name} - ${resourceData.mimeType || t('settings.mcp.resources.blobInvisible')}]`
-                    insertPromptIntoTextArea(resourceInfo)
-                  }
-                } else if (resourceData.text) {
-                  // Handle text data
-                  insertPromptIntoTextArea(resourceData.text)
-                } else {
-                  // Fallback for resources without content
-                  const resourceInfo = `[${resourceData.name || resource.name} - ${resourceData.uri || resource.uri}]`
-                  insertPromptIntoTextArea(resourceInfo)
-                }
-              }
-            } else {
-              // Handle legacy format or direct resource data
-              const resourceData = response
-
-              // Determine how to handle the resource based on its MIME type
-              if (resourceData.blob) {
-                // Handle binary data (images, etc.)
-                if (resourceData.mimeType?.startsWith('image/')) {
-                  // Insert image as markdown
-                  const imageMarkdown = `![${resourceData.name || resource.name}](data:${resourceData.mimeType};base64,${resourceData.blob})`
-                  insertPromptIntoTextArea(imageMarkdown)
-                } else {
-                  // For other binary types, just mention it's available
-                  const resourceInfo = `[${resourceData.name || resource.name} - ${resourceData.mimeType || t('settings.mcp.resources.blobInvisible')}]`
-                  insertPromptIntoTextArea(resourceInfo)
-                }
-              } else if (resourceData.text) {
-                // Handle text data
-                insertPromptIntoTextArea(resourceData.text)
-              } else {
-                // Fallback for resources without content
-                const resourceInfo = `[${resourceData.name || resource.name} - ${resourceData.uri || resource.uri}]`
-                insertPromptIntoTextArea(resourceInfo)
-              }
-            }
-          } catch (error: Error | any) {
-            Modal.error({
-              title: t('common.error'),
-              content: error.message || t('settings.mcp.resources.genericError')
-            })
+      const processResourceContent = (resourceData: ResourceData) => {
+        if (resourceData.blob) {
+          if (resourceData.mimeType?.startsWith('image/')) {
+            const imageMarkdown = `![${resourceData.name || 'Image'}](data:${resourceData.mimeType};base64,${resourceData.blob})`
+            insertPromptIntoTextArea(imageMarkdown)
+          } else {
+            const resourceInfo = `[${resourceData.name || resource.name} - ${resourceData.mimeType || t('settings.mcp.resources.blobInvisible')}]`
+            insertPromptIntoTextArea(resourceInfo)
           }
+        } else if (resourceData.text) {
+          insertPromptIntoTextArea(resourceData.text)
+        } else {
+          const resourceInfo = `[${resourceData.name || resource.name} - ${resourceData.uri || resource.uri}]`
+          insertPromptIntoTextArea(resourceInfo)
         }
-      }, 10)
+      }
+
+      requestAnimationFrame(async () => {
+        try {
+          const response = await window.api.mcp.getResource({
+            server,
+            uri: resource.uri
+          })
+
+          if (response?.contents && Array.isArray(response.contents)) {
+            response.contents.forEach((content: ResourceData) => processResourceContent(content))
+          } else {
+            processResourceContent(response as ResourceData)
+          }
+        } catch (error: Error | any) {
+          window.modal.error({
+            title: t('common.error'),
+            content: error.message || t('settings.mcp.resources.genericError')
+          })
+        }
+      })
     },
-    [enabledMCPs, t, insertPromptIntoTextArea]
+    [activedMcpServers, t, insertPromptIntoTextArea]
   )
+
+  // 优化 resourcesList 的状态更新
   const [resourcesList, setResourcesList] = useState<QuickPanelListItem[]>([])
 
   useEffect(() => {
+    let isMounted = true
+
     const fetchResources = async () => {
       const resources: MCPResource[] = []
-      for (const server of enabledMCPs) {
+      for (const server of activedMcpServers) {
         const serverResources = await window.api.mcp.listResources(server)
         resources.push(...serverResources)
       }
-      setResourcesList(
-        resources.map((resource) => ({
-          label: resource.name,
-          description: resource.description,
-          icon: <SquareTerminal />,
-          action: () => handleResourceSelect(resource)
-        }))
-      )
+
+      if (isMounted) {
+        setResourcesList(
+          resources.map((resource) => ({
+            label: resource.name,
+            description: resource.description,
+            icon: <SquareTerminal />,
+            action: () => handleResourceSelect(resource)
+          }))
+        )
+      }
     }
 
     fetchResources()
-  }, [handleResourceSelect, enabledMCPs])
+
+    return () => {
+      isMounted = false
+    }
+  }, [activedMcpServers, handleResourceSelect])
 
   const openResourcesList = useCallback(async () => {
     const resources = resourcesList
@@ -418,4 +445,5 @@ const MCPToolsButton: FC<Props> = ({
   )
 }
 
-export default MCPToolsButton
+// 使用 React.memo 包装组件
+export default React.memo(MCPToolsButton)

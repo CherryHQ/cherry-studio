@@ -1661,34 +1661,28 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   openrouter: [
     {
-      id: 'google/gemma-2-9b-it:free',
+      id: 'google/gemini-2.5-flash-preview',
       provider: 'openrouter',
-      name: 'Google: Gemma 2 9B',
-      group: 'Gemma'
+      name: 'Google: Gemini 2.5 Flash Preview',
+      group: 'google'
     },
     {
-      id: 'microsoft/phi-3-mini-128k-instruct:free',
+      id: 'qwen/qwen-2.5-7b-instruct:free',
       provider: 'openrouter',
-      name: 'Phi-3 Mini 128K Instruct',
-      group: 'Phi'
+      name: 'Qwen: Qwen-2.5-7B Instruct',
+      group: 'qwen'
     },
     {
-      id: 'microsoft/phi-3-medium-128k-instruct:free',
+      id: 'deepseek/deepseek-chat',
       provider: 'openrouter',
-      name: 'Phi-3 Medium 128K Instruct',
-      group: 'Phi'
-    },
-    {
-      id: 'meta-llama/llama-3-8b-instruct:free',
-      provider: 'openrouter',
-      name: 'Meta: Llama 3 8B Instruct',
-      group: 'Llama3'
+      name: 'DeepSeek: V3',
+      group: 'deepseek'
     },
     {
       id: 'mistralai/mistral-7b-instruct:free',
       provider: 'openrouter',
       name: 'Mistral: Mistral 7B Instruct',
-      group: 'Mistral'
+      group: 'mistralai'
     }
   ],
   groq: [
@@ -2151,7 +2145,15 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
   'stabilityai/stable-diffusion-xl-base-1.0'
 ]
 
-export const GENERATE_IMAGE_MODELS = ['gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-exp']
+export const GENERATE_IMAGE_MODELS = [
+  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash-exp',
+  'grok-2-image-1212',
+  'grok-2-image',
+  'grok-2-image-latest',
+  'gpt-4o-image',
+  'gpt-image-1'
+]
 
 export const GEMINI_SEARCH_MODELS = [
   'gemini-2.0-flash',
@@ -2161,8 +2163,16 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.0-pro-exp-02-05',
   'gemini-2.0-pro-exp',
   'gemini-2.5-pro-exp',
-  'gemini-2.5-pro-exp-03-25'
+  'gemini-2.5-pro-exp-03-25',
+  'gemini-2.5-pro-preview',
+  'gemini-2.5-pro-preview-03-25',
+  'gemini-2.5-flash-preview',
+  'gemini-2.5-flash-preview-04-17'
 ]
+
+export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
+
+export const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reasoning', 'sonar-reasoning-pro']
 
 export function isTextToImageModel(model: Model): boolean {
   return TEXT_TO_IMAGE_REGEX.test(model.id)
@@ -2196,9 +2206,10 @@ export function isVisionModel(model: Model): boolean {
   if (!model) {
     return false
   }
-  if (model.provider === 'copilot') {
-    return false
-  }
+  // 新添字段 copilot-vision-request 后可使用 vision
+  // if (model.provider === 'copilot') {
+  //   return false
+  // }
 
   if (model.provider === 'doubao') {
     return VISION_REGEX.test(model.name) || model.type?.includes('vision') || false
@@ -2319,6 +2330,10 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  if (provider.id === 'perplexity') {
+    return PERPLEXITY_SEARCH_MODELS.includes(model?.id)
+  }
+
   if (provider.id === 'aihubmix') {
     const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
     return models.includes(model?.id)
@@ -2378,7 +2393,7 @@ export function isGenerateImageModel(model: Model): boolean {
 }
 
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
-  if (WebSearchService.isWebSearchEnabled() && WebSearchService.isOverwriteEnabled()) {
+  if (WebSearchService.isWebSearchEnabled()) {
     return {}
   }
   if (isWebSearchModel(model)) {

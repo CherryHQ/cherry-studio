@@ -23,13 +23,11 @@ https://docs.cherry-ai.com
 
 # 🌠 Screenshot
 
-![](https://github.com/user-attachments/assets/28585d83-4bf0-4714-b561-8c7bf57cc600)
-![](https://github.com/user-attachments/assets/8576863a-f632-4776-bc12-657eeced9da3)
-![](https://github.com/user-attachments/assets/790790d7-b462-48dd-bde1-91c1697a4648)
+![](https://github.com/user-attachments/assets/082efa42-c4df-4863-a9cb-80435cecce0f)
+![](https://github.com/user-attachments/assets/f8411a65-c51f-47d3-9273-62ae384cc6f1)
+![](https://github.com/user-attachments/assets/0d235b3e-65ae-45ab-987f-8dbe003c52be)
 
 # 🌟 Key Features
-
-![](https://github.com/user-attachments/assets/7b4f2f78-5cbe-4be8-9aec-f98d8405a505)
 
 1. **Diverse LLM Provider Support**:
 

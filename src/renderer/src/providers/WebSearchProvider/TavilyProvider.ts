@@ -1,6 +1,6 @@
 import { TavilyClient } from '@agentic/tavily'
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
@@ -15,7 +15,7 @@ export default class TavilyProvider extends BaseWebSearchProvider {
     this.tvly = new TavilyClient({ apiKey: this.apiKey })
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')

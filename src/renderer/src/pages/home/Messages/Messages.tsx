@@ -1,6 +1,5 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
-import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -11,14 +10,17 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import { useAppDispatch } from '@renderer/store'
-import type { Assistant, Message, Topic } from '@renderer/types'
+import { newMessagesActions } from '@renderer/store/newMessage'
+import type { Assistant, Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import {
   captureScrollableDivAsBlob,
   captureScrollableDivAsDataURL,
   removeSpecialCharactersForFileName,
   runAsyncFunction
 } from '@renderer/utils'
-import { flatten, last, take } from 'lodash'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
@@ -48,7 +50,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
   const messages = useTopicMessages(topic)
-  const { displayCount, updateMessages, clearTopicMessages, deleteMessage } = useMessageOperations(topic)
+  const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
 
   useEffect(() => {
@@ -143,9 +145,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
             return
           }
 
-          const clearMessage = getUserMessage({ assistant, topic, type: 'clear' })
-          const newMessages = [...messages, clearMessage]
-          await updateMessages(newMessages)
+          const { message: clearMessage } = getUserMessage({ assistant, topic, type: 'clear' })
+          dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: clearMessage }))
 
           scrollToBottom()
         } finally {
@@ -157,26 +158,29 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         newTopic.name = topic.name
         const currentMessages = messagesRef.current
 
-        // 复制消息并且更新 topicId
-        const branchMessages = take(currentMessages, currentMessages.length - index).map((msg) => ({
-          ...msg,
-          topicId: newTopic.id
-        }))
+        if (index < 0 || index > currentMessages.length) {
+          console.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
+          return
+        }
 
-        // 将分支的消息放入数据库
-        await db.topics.add({ id: newTopic.id, messages: branchMessages })
+        // 1. Add the new topic to Redux store FIRST
         addTopic(newTopic)
-        setActiveTopic(newTopic)
-        autoRenameTopic(assistant, newTopic.id)
 
-        // 由于复制了消息，消息中附带的文件的总数变了，需要更新
-        const filesArr = branchMessages.map((m) => m.files)
-        const files = flatten(filesArr).filter(Boolean)
+        // 2. Call the thunk to clone messages and update DB
+        const success = await createTopicBranch(topic.id, currentMessages.length - index, newTopic)
 
-        files.map(async (f) => {
-          const file = await db.files.get({ id: f?.id })
-          file && db.files.update(file.id, { count: file.count + 1 })
-        })
+        if (success) {
+          // 3. Set the new topic as active
+          setActiveTopic(newTopic)
+          // 4. Trigger auto-rename for the new topic
+          autoRenameTopic(assistant, newTopic.id)
+        } else {
+          // Optional: Handle cloning failure (e.g., show an error message)
+          // You might want to remove the added topic if cloning fails
+          // removeTopic(newTopic.id); // Assuming you have a removeTopic function
+          console.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
+          window.message.error(t('message.branch.error')) // Example error message
+        }
       })
     ]
 
@@ -210,11 +214,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   useShortcut('copy_last_message', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
-      navigator.clipboard.writeText(lastMessage.content)
+      navigator.clipboard.writeText(getMainTextContent(lastMessage))
       window.message.success(t('message.copy.success'))
     }
   })
 
+  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
   return (
     <Container
       id="messages"
@@ -235,7 +240,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
             <LoaderContainer $loading={isLoadingMore}>
               <BeatLoader size={8} color="var(--color-text-2)" />
             </LoaderContainer>
-            {Object.entries(getGroupedMessages(displayMessages)).map(([key, groupMessages]) => (
+            {groupedMessages.map(([key, groupMessages]) => (
               <MessageGroup
                 key={key}
                 messages={groupMessages}

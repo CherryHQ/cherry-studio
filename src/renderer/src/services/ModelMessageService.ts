@@ -9,40 +9,33 @@ export function processReqMessages(
     return reqMessages
   }
 
-  return mergeSameRoleMessages(reqMessages)
+  return interleaveUserAndAssistantMessages(reqMessages)
 }
 
 function needStrictlyInterleaveUserAndAssistantMessages(model: Model) {
   return model.id === 'deepseek-reasoner'
 }
 
-/**
- * Merge successive messages with the same role
- */
-function mergeSameRoleMessages(messages: ChatCompletionMessageParam[]): ChatCompletionMessageParam[] {
-  const split = '\n'
-  const processedMessages: ChatCompletionMessageParam[] = []
-  let currentGroup: ChatCompletionMessageParam[] = []
-
-  for (const message of messages) {
-    if (currentGroup.length === 0 || currentGroup[0].role === message.role) {
-      currentGroup.push(message)
-    } else {
-      // merge the current group and add to processed messages
-      processedMessages.push({
-        ...currentGroup[0],
-        content: currentGroup.map((m) => m.content).join(split)
-      })
-      currentGroup = [message]
-    }
+function interleaveUserAndAssistantMessages(messages: ChatCompletionMessageParam[]): ChatCompletionMessageParam[] {
+  if (!messages || messages.length === 0) {
+    return []
   }
 
-  // process the last group
-  if (currentGroup.length > 0) {
-    processedMessages.push({
-      ...currentGroup[0],
-      content: currentGroup.map((m) => m.content).join(split)
-    })
+  const processedMessages: ChatCompletionMessageParam[] = []
+
+  for (let i = 0; i < messages.length; i++) {
+    const currentMessage = { ...messages[i] }
+
+    if (i > 0 && currentMessage.role === messages[i - 1].role) {
+      // insert an empty message with the opposite role in between
+      const emptyMessageRole = currentMessage.role === 'user' ? 'assistant' : 'user'
+      processedMessages.push({
+        role: emptyMessageRole,
+        content: ''
+      })
+    }
+
+    processedMessages.push(currentMessage)
   }
 
   return processedMessages

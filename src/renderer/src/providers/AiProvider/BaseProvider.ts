@@ -1,19 +1,22 @@
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
-import { getOllamaKeepAliveTime } from '@renderer/hooks/useOllama'
 import type {
   Assistant,
   GenerateImageParams,
   KnowledgeReference,
-  Message,
   Model,
   Provider,
   Suggestion,
+  WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
+import { ChunkType } from '@renderer/types/chunk'
+import type { Message } from '@renderer/types/newMessage'
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
+import { glmZeroPreviewProcessor, thinkTagProcessor, ThoughtProcessor } from '@renderer/utils/formats'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
 
@@ -31,7 +34,11 @@ export default abstract class BaseProvider {
   }
 
   abstract completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
-  abstract translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void): Promise<string>
+  abstract translate(
+    content: string,
+    assistant: Assistant,
+    onResponse?: (text: string, isComplete: boolean) => void
+  ): Promise<string>
   abstract summaries(messages: Message[], assistant: Assistant): Promise<string>
   abstract summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null>
   abstract suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]>
@@ -39,6 +46,7 @@ export default abstract class BaseProvider {
   abstract check(model: Model): Promise<{ valid: boolean; error: Error | null }>
   abstract models(): Promise<OpenAI.Models.Model[]>
   abstract generateImage(params: GenerateImageParams): Promise<string[]>
+  abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
   abstract getEmbeddingDimensions(model: Model): Promise<number>
 
   public getBaseURL(): string {
@@ -77,23 +85,23 @@ export default abstract class BaseProvider {
   }
 
   public get keepAliveTime() {
-    return this.provider.id === 'ollama'
-      ? getOllamaKeepAliveTime()
-      : this.provider.id === 'lmstudio'
-        ? getLMStudioKeepAliveTime()
-        : undefined
+    return this.provider.id === 'lmstudio' ? getLMStudioKeepAliveTime() : undefined
   }
 
   public async fakeCompletions({ onChunk }: CompletionsParams) {
     for (let i = 0; i < 100; i++) {
       await delay(0.01)
-      onChunk({ text: i + '\n', usage: { completion_tokens: 0, prompt_tokens: 0, total_tokens: 0 } })
+      onChunk({
+        response: { text: i + '\n', usage: { completion_tokens: 0, prompt_tokens: 0, total_tokens: 0 } },
+        type: ChunkType.BLOCK_COMPLETE
+      })
     }
   }
 
-  public async getMessageContent(message: Message) {
-    if (isEmpty(message.content)) {
-      return message.content
+  public async getMessageContent(message: Message): Promise<string> {
+    const content = getMainTextContent(message)
+    if (isEmpty(content)) {
+      return ''
     }
 
     const webSearchReferences = await this.getWebSearchReferencesFromCache(message)
@@ -111,20 +119,21 @@ export default abstract class BaseProvider {
 
     if (!isEmpty(allReferences)) {
       const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
-      return REFERENCE_PROMPT.replace('{question}', message.content).replace('{references}', referenceContent)
+      return REFERENCE_PROMPT.replace('{question}', content).replace('{references}', referenceContent)
     }
 
-    return message.content
+    return content
   }
 
   private async getWebSearchReferencesFromCache(message: Message) {
-    if (isEmpty(message.content)) {
+    const content = getMainTextContent(message)
+    if (isEmpty(content)) {
       return []
     }
     const webSearch: WebSearchResponse = window.keyv.get(`web-search-${message.id}`)
 
     if (webSearch) {
-      return webSearch.results.map(
+      return (webSearch.results as WebSearchProviderResponse).results.map(
         (result, index) =>
           ({
             id: index + 1,
@@ -142,16 +151,17 @@ export default abstract class BaseProvider {
    * 从缓存中获取知识库引用
    */
   private async getKnowledgeBaseReferencesFromCache(message: Message): Promise<KnowledgeReference[]> {
-    if (isEmpty(message.content)) {
+    const content = getMainTextContent(message)
+    if (isEmpty(content)) {
       return []
     }
     const knowledgeReferences: KnowledgeReference[] = window.keyv.get(`knowledge-search-${message.id}`)
 
     if (!isEmpty(knowledgeReferences)) {
-      console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
+      // console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }
-    console.log(`No knowledge base references found in cache for ID: ${message.id}`)
+    // console.log(`No knowledge base references found in cache for ID: ${message.id}`)
     return []
   }
 
@@ -218,6 +228,53 @@ export default abstract class BaseProvider {
     return {
       abortController,
       cleanup
+    }
+  }
+
+  /**
+   * Finds the appropriate thinking processor for a given text chunk and model.
+   * Returns the processor if found, otherwise undefined.
+   */
+  protected findThinkingProcessor(chunkText: string, model: Model | undefined): ThoughtProcessor | undefined {
+    if (!model) return undefined
+
+    const processors: ThoughtProcessor[] = [thinkTagProcessor, glmZeroPreviewProcessor]
+    return processors.find((p) => p.canProcess(chunkText, model))
+  }
+
+  /**
+   * Returns a function closure that handles incremental reasoning text for a specific stream.
+   * The returned function processes a chunk, emits THINKING_DELTA for new reasoning,
+   * and returns the associated content part.
+   */
+  protected handleThinkingTags() {
+    let memoizedReasoning = ''
+    // Returns a function that handles a single chunk potentially containing thinking tags
+    return (chunkText: string, processor: ThoughtProcessor, onChunk: (chunk: any) => void): string => {
+      // Returns the processed content part
+      const { reasoning, content } = processor.process(chunkText)
+      let deltaReasoning = ''
+
+      if (reasoning && reasoning.trim()) {
+        // Check if the new reasoning starts with the previous one
+        if (reasoning.startsWith(memoizedReasoning)) {
+          deltaReasoning = reasoning.substring(memoizedReasoning.length)
+        } else {
+          // If not a continuation, send the whole new reasoning
+          deltaReasoning = reasoning
+          // console.warn("Thinking content did not start with previous memoized version. Sending full content.")
+        }
+        memoizedReasoning = reasoning // Update memoized state
+      } else {
+        // If no reasoning, reset memoized state? Let's reset.
+        memoizedReasoning = ''
+      }
+
+      if (deltaReasoning) {
+        onChunk({ type: ChunkType.THINKING_DELTA, text: deltaReasoning })
+      }
+
+      return content // Return the content part for TEXT_DELTA emission
     }
   }
 }

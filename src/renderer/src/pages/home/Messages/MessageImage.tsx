@@ -8,17 +8,16 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined
 } from '@ant-design/icons'
-import { Message } from '@renderer/types'
+import type { ImageMessageBlock } from '@renderer/types/newMessage'
 import { Image as AntdImage, Space } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
 interface Props {
-  message: Message
+  block: ImageMessageBlock
 }
 
-const MessageImage: FC<Props> = ({ message }) => {
+const MessageImage: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
 
   const onDownload = (imageBase64: string, index: number) => {
@@ -88,9 +87,13 @@ const MessageImage: FC<Props> = ({ message }) => {
     }
   }
 
+  const images = block.metadata?.generateImageResponse?.images?.length
+    ? block.metadata?.generateImageResponse?.images
+    : // TODO 加file是否合适？
+      [`file://${block?.file?.path}`]
   return (
     <Container style={{ marginBottom: 8 }}>
-      {message.metadata?.generateImage!.images.map((image, index) => (
+      {images.map((image, index) => (
         <Image
           src={image}
           key={`image-${index}`}
@@ -111,7 +114,7 @@ const MessageImage: FC<Props> = ({ message }) => {
                 <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
                 <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
                 <UndoOutlined onClick={onReset} />
-                <CopyOutlined onClick={() => onCopy(message.metadata?.generateImage?.type!, image)} />
+                <CopyOutlined onClick={() => onCopy(block.metadata?.generateImageResponse?.type!, image)} />
                 <DownloadOutlined onClick={() => onDownload(image, index)} />
               </ToobarWrapper>
             )
