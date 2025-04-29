@@ -87,7 +87,7 @@ export type LegacyMessage = {
     // Zhipu or Hunyuan
     webSearchInfo?: any[]
     // Web search
-    webSearch?: WebSearchResponse
+    webSearch?: WebSearchProviderResponse
     // MCP Tools
     mcpTools?: MCPToolResponse[]
     // Generate Image

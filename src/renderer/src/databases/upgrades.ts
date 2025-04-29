@@ -222,7 +222,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
       if (oldMessage.metadata?.webSearch) {
         hasCitationData = true
         citationDataToCreate.response = {
-          results: oldMessage.metadata.webSearch?.results,
+          results: oldMessage.metadata.webSearch,
           source: WebSearchSource.WEBSEARCH
         }
       }
