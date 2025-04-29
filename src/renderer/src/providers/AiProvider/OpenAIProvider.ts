@@ -507,6 +507,7 @@ export default class OpenAIProvider extends BaseProvider {
       // let isThinkingInContent: ThoughtProcessor | undefined = undefined
       // const processThinkingChunk = this.handleThinkingTags()
       let isFirstChunk = true
+      let isFirstThinkingChunk = true
       for await (const chunk of stream) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
           break
@@ -521,12 +522,7 @@ export default class OpenAIProvider extends BaseProvider {
         const reasoningContent = delta?.reasoning_content || delta?.reasoning
         const currentTime = new Date().getTime() // Get current time for each chunk
 
-        if (
-          time_first_token_millsec === 0 &&
-          isEmpty(reasoningContent) &&
-          isEmpty(delta?.content) &&
-          isEmpty(finishReason)
-        ) {
+        if (time_first_token_millsec === 0 && isFirstThinkingChunk && reasoningContent) {
           // 记录第一个token的时间
           time_first_token_millsec = currentTime
           // 记录第一个token的时间差
@@ -542,6 +538,7 @@ export default class OpenAIProvider extends BaseProvider {
               fractionalSecondDigits: 3
             })}`
           )
+          isFirstThinkingChunk = false
         }
         if (reasoningContent) {
           thinkingContent += reasoningContent
