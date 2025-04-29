@@ -1,11 +1,8 @@
 import { isMac } from '@renderer/config/constant'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import store from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import { uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { defaultLanguage } from '@shared/config/constant'
@@ -34,6 +31,7 @@ const HomeWindow: FC = () => {
   const [selectedText, setSelectedText] = useState('')
   const [text, setText] = useState('')
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const { defaultModel: model } = useDefaultModel()
@@ -148,13 +146,12 @@ const HomeWindow: FC = () => {
     setText(e.target.value)
   }
 
-  const { generating } = useRuntime()
   const onSendMessage = useCallback(
     async (prompt?: string) => {
       if (isEmpty(content) || generating) {
         return
       }
-      store.dispatch(setGenerating(true))
+      setGenerating(true)
 
       setTimeout(() => {
         const message = {
@@ -194,7 +191,7 @@ const HomeWindow: FC = () => {
   })
 
   const stopMessageGeneration = () => {
-    store.dispatch(setGenerating(false))
+    setGenerating(false)
     if (messageIdRef.current) {
       abortCompletion(messageIdRef.current) // 停止输出
     }
