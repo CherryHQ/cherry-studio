@@ -3,9 +3,11 @@ import { MessageParam } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part } from '@google/genai'
 import store from '@renderer/store'
 import { MCPCallToolResponse, MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
+import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { ChatCompletionContentPart, ChatCompletionMessageParam, ChatCompletionMessageToolCall } from 'openai/resources'
 
-import { ChunkCallbackData, CompletionsParams } from '../providers/AiProvider'
+import { CompletionsParams } from '../providers/AiProvider'
 
 // const ensureValidSchema = (obj: Record<string, any>) => {
 //   // Filter out unsupported keys for Gemini
@@ -304,23 +306,22 @@ export function geminiFunctionCallToMcpTool(
 export function upsertMCPToolResponse(
   results: MCPToolResponse[],
   resp: MCPToolResponse,
-  onChunk: ({ mcpToolResponse }: ChunkCallbackData) => void
+  onChunk: (chunk: MCPToolInProgressChunk | MCPToolCompleteChunk) => void
 ) {
-  try {
-    for (const ret of results) {
-      if (ret.id === resp.id) {
-        ret.response = resp.response
-        ret.status = resp.status
-        return
-      }
+  const index = results.findIndex((ret) => ret.id === resp.id)
+  if (index !== -1) {
+    results[index] = {
+      ...results[index],
+      response: resp.response,
+      status: resp.status
     }
+  } else {
     results.push(resp)
-  } finally {
-    onChunk({
-      text: '\n',
-      mcpToolResponse: results
-    })
   }
+  onChunk({
+    type: resp.status === 'invoking' ? ChunkType.MCP_TOOL_IN_PROGRESS : ChunkType.MCP_TOOL_COMPLETE,
+    responses: results
+  })
 }
 
 export function filterMCPTools(
@@ -427,13 +428,15 @@ export async function parseAndCallTools(
       }
     }
 
-    onChunk({
-      text: '\n',
-      generateImage: {
-        type: 'base64',
-        images: images
-      }
-    })
+    if (images.length) {
+      onChunk({
+        type: ChunkType.IMAGE_COMPLETE,
+        image: {
+          type: 'base64',
+          images: images
+        }
+      })
+    }
 
     return convertToMessage(tool.tool.id, toolCallResponse, isVisionModel)
   })

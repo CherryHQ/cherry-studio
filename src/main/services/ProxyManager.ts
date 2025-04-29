@@ -1,5 +1,6 @@
 import { ProxyConfig as _ProxyConfig, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
+import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent as GeneralProxyAgent } from 'proxy-agent'
 import { ProxyAgent, setGlobalDispatcher } from 'undici'
 
@@ -70,15 +71,14 @@ export class ProxyManager {
 
   private async setSystemProxy(): Promise<void> {
     try {
-      await this.setSessionsProxy({ mode: 'system' })
-      const proxyString = await session.defaultSession.resolveProxy('https://dummy.com')
-      const [protocol, address] = proxyString.split(';')[0].split(' ')
-      const url = protocol === 'PROXY' ? `http://${address}` : null
-      if (url && url !== this.config.url) {
-        this.config.url = url.toLowerCase()
-        this.setEnvironment(this.config.url)
-        this.proxyAgent = new GeneralProxyAgent()
+      const currentProxy = await getSystemProxy()
+      if (!currentProxy || currentProxy.proxyUrl === this.config.url) {
+        return
       }
+      await this.setSessionsProxy({ mode: 'system' })
+      this.config.url = currentProxy.proxyUrl.toLowerCase()
+      this.setEnvironment(this.config.url)
+      this.proxyAgent = new GeneralProxyAgent()
     } catch (error) {
       console.error('Failed to set system proxy:', error)
       throw error

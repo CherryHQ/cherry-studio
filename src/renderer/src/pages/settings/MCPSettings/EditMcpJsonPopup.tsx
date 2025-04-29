@@ -111,7 +111,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       width={800}
       height="80vh"
       loading={jsonSaving}
-      transitionName="ant-move-down"
+      transitionName="animation-move-down"
       centered>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Typography.Text type="secondary">

@@ -14,7 +14,9 @@ enum ConfigKeys {
   ZoomFactor = 'ZoomFactor',
   Shortcuts = 'shortcuts',
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
-  EnableQuickAssistant = 'enableQuickAssistant'
+  EnableQuickAssistant = 'enableQuickAssistant',
+  AutoUpdate = 'autoUpdate',
+  EnableDataCollection = 'enableDataCollection'
 }
 
 export class ConfigManager {
@@ -35,7 +37,7 @@ export class ConfigManager {
   }
 
   getTheme(): ThemeMode {
-    return this.get(ConfigKeys.Theme, ThemeMode.light)
+    return this.get(ConfigKeys.Theme, ThemeMode.auto)
   }
 
   setTheme(theme: ThemeMode) {
@@ -134,6 +136,22 @@ export class ConfigManager {
 
   setEnableQuickAssistant(value: boolean) {
     this.set(ConfigKeys.EnableQuickAssistant, value)
+  }
+
+  getAutoUpdate(): boolean {
+    return this.get<boolean>(ConfigKeys.AutoUpdate, true)
+  }
+
+  setAutoUpdate(value: boolean) {
+    this.set(ConfigKeys.AutoUpdate, value)
+  }
+
+  getEnableDataCollection(): boolean {
+    return this.get<boolean>(ConfigKeys.EnableDataCollection, true)
+  }
+
+  setEnableDataCollection(value: boolean) {
+    this.set(ConfigKeys.EnableDataCollection, value)
   }
 
   set(key: string, value: unknown) {
