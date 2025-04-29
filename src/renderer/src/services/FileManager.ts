@@ -29,7 +29,7 @@ class FileManager {
   }
 
   static async readFile(file: FileType): Promise<Buffer> {
-    return (await window.api.file.binaryFile(file.id + file.ext)).data
+    return (await window.api.file.binaryImage(file.id + file.ext)).data
   }
 
   static async uploadFile(file: FileType): Promise<FileType> {

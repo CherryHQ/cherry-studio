@@ -40,8 +40,8 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
-  setThoughtAutoCollapse,
-  setShowTranslateConfirm
+  setShowTranslateConfirm,
+  setThoughtAutoCollapse
 } from '@renderer/store/settings'
 import {
   Assistant,

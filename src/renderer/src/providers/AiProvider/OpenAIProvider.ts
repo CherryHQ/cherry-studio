@@ -15,6 +15,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
+import FileManager from '@renderer/services/FileManager'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -37,12 +38,13 @@ import { addImageFileToContents } from '@renderer/utils/formats'
 import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { isEmpty, takeRight } from 'lodash'
-import OpenAI, { AzureOpenAI } from 'openai'
+import OpenAI, { AzureOpenAI, toFile } from 'openai'
 import {
   ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam
 } from 'openai/resources'
+import { FileLike } from 'openai/uploads'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
@@ -906,22 +908,48 @@ export default class OpenAIProvider extends BaseProvider {
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
     const { abortController } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
-    const response = await this.sdk.images.generate(
-      {
-        model: model.id,
-        prompt: lastUserMessage?.content || '',
-        response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
-      },
-      {
-        signal
-      }
-    )
+    let response: OpenAI.Images.ImagesResponse | null = null
+    let images: FileLike[] = []
+    if (lastUserMessage?.files && lastUserMessage?.files?.length > 0) {
+      images = await Promise.all(
+        lastUserMessage?.files
+          .filter((f) => f.type === FileTypes.IMAGE)
+          .map(async (f) => {
+            const binaryData = await FileManager.readFile(f)
+            const file = await toFile(binaryData, null, {
+              type: 'image/png'
+            })
+            return file
+          })
+      )
+      response = await this.sdk.images.edit(
+        {
+          model: model.id,
+          image: images,
+          prompt: lastUserMessage?.content || ''
+        },
+        {
+          signal
+        }
+      )
+    } else {
+      response = await this.sdk.images.generate(
+        {
+          model: model.id,
+          prompt: lastUserMessage?.content || '',
+          response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
+        },
+        {
+          signal
+        }
+      )
+    }
 
     return onChunk({
       text: '',
       generateImage: {
         type: 'base64',
-        images: response.data.map((item) => `data:image/png;base64,${item.b64_json}`)
+        images: response?.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || []
       }
     })
   }
