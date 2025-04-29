@@ -52,12 +52,15 @@ const MCPToolsSection = ({ tools, server, onToggleTool }: MCPToolsSectionProps) 
               key={key}
               label={
                 <Flex vertical gap={4}>
-                  <Typography.Text strong>{key}</Typography.Text>
-                  {tool.inputSchema.required?.includes(key) && (
-                    <Tooltip title="Required field">
-                      <Tag color="red">Required</Tag>
-                    </Tooltip>
-                  )}
+                  <Typography.Text strong>
+                    {key}
+                    <br />
+                    {tool.inputSchema.required?.includes(key) && (
+                      <Tooltip title="Required field">
+                        <Tag color="red">Required</Tag>
+                      </Tooltip>
+                    )}
+                  </Typography.Text>
                 </Flex>
               }>
               <Flex vertical gap={4}>
