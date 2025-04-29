@@ -15,7 +15,6 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
-import FileManager from '@renderer/services/FileManager'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -905,22 +904,33 @@ export default class OpenAIProvider extends BaseProvider {
   public async generateImageByChat({ messages, assistant, onChunk }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+    // save image data from the last assistant message
+    messages = addImageFileToContents(messages)
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
+    const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
     const { abortController } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
     let response: OpenAI.Images.ImagesResponse | null = null
     let images: FileLike[] = []
-    if (lastUserMessage?.files && lastUserMessage?.files?.length > 0) {
+
+    if (lastAssistantMessage?.images && lastAssistantMessage?.images?.length > 0) {
       images = await Promise.all(
-        lastUserMessage?.files
-          .filter((f) => f.type === FileTypes.IMAGE)
-          .map(async (f) => {
-            const binaryData = await FileManager.readFile(f)
-            const file = await toFile(binaryData, null, {
-              type: 'image/png'
-            })
-            return file
+        lastAssistantMessage?.images.map(async (base64ImageString) => {
+          // 移除可能存在的 data URI 前缀 (例如 "data:image/png;base64,")
+          const base64Data = base64ImageString.replace(/^data:image\/\w+;base64,/, '')
+
+          const binary = atob(base64Data)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i)
+          }
+
+          // 使用 toFile 将 Uint8Array 转换为 FileLike 对象
+          const file = await toFile(bytes, 'image.png', {
+            type: 'image/png'
           })
+          return file
+        })
       )
       response = await this.sdk.images.edit(
         {
