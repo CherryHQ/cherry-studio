@@ -1,4 +1,5 @@
 import db from '@renderer/databases'
+import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
@@ -589,6 +590,9 @@ const fetchAndProcessAssistantResponseImpl = async (
           const userMsgIndex = orderedMsgs.findIndex((m) => m.id === userMsgId)
           const contextForUsage = userMsgIndex !== -1 ? orderedMsgs.slice(0, userMsgIndex + 1) : []
           const finalContextWithAssistant = [...contextForUsage, finalAssistantMsg]
+
+          // 更新topic的name
+          autoRenameTopic(assistant, topicId)
 
           const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
           response.usage = usage
