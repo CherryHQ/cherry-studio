@@ -4,7 +4,11 @@ import {
   isOpenAIWebSearch,
   isZhipuModel
 } from '@renderer/config/models'
-import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
+import {
+  SEARCH_SUMMARY_PROMPT,
+  SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
+  SEARCH_SUMMARY_PROMPT_WEB_ONLY
+} from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -70,14 +74,19 @@ export async function fetchChatCompletion({
 
   // 网络搜索/知识库 关键词提取
   const extract = async () => {
-    const tools: string[] = []
+    let prompt = ''
 
-    if (assistant.enableWebSearch) tools.push('websearch')
-    if (hasKnowledgeBase) tools.push('knowledge')
+    if (assistant.enableWebSearch && !hasKnowledgeBase) {
+      prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
+    } else if (!assistant.enableWebSearch && hasKnowledgeBase) {
+      prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
+    } else {
+      prompt = SEARCH_SUMMARY_PROMPT
+    }
 
     const summaryAssistant = {
       ...assistant,
-      prompt: SEARCH_SUMMARY_PROMPT.replace('{tools}', tools.join(', '))
+      prompt: prompt
     }
 
     const keywords = await fetchSearchSummary({
