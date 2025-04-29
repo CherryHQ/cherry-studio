@@ -1,6 +1,6 @@
 import { getFilesDir, getFileType, getTempDir } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
-import { FileType } from '@types'
+import { FileType, FileTypes } from '@types'
 import * as crypto from 'crypto'
 import {
   dialog,
@@ -260,6 +260,29 @@ class FileStorage {
       mime,
       base64,
       data: `data:${mime};base64,${base64}`
+    }
+  }
+
+  public writeBase64Image = async (_: Electron.IpcMainInvokeEvent, bytes: string): Promise<FileType> => {
+    const fileName = `${uuidv4()}.png`
+    const filePath = path.join(this.storageDir, fileName)
+    const data = Buffer.from(bytes, 'base64')
+    try {
+      await fs.promises.writeFile(filePath, data)
+    } catch (error: any) {
+      logger.error(`Error writing file at ${filePath}:`, error)
+      throw new Error(`Error writing file at ${filePath}: ${error.message}`)
+    }
+    return {
+      id: uuidv4(),
+      origin_name: fileName,
+      name: fileName,
+      path: filePath,
+      created_at: new Date().toISOString(),
+      size: data.length,
+      ext: '.png',
+      type: FileTypes.IMAGE,
+      count: 1
     }
   }
 

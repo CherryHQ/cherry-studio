@@ -163,8 +163,9 @@ export type Suggestion = {
 
 export interface Painting {
   id: string
-  model?: string
-  urls: string[]
+  provider: string
+  model: string
+  urls?: string[]
   files: FileType[]
   prompt?: string
   negativePrompt?: string

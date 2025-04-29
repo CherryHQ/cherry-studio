@@ -14,7 +14,8 @@ export function usePaintings() {
     paintings,
     addPainting: () => {
       const newPainting: Painting = {
-        model: TEXT_TO_IMAGES_MODELS[0].id,
+        provider: 'silicon',
+        model: TEXT_TO_IMAGES_MODELS.silicon[0].id,
         id: uuid(),
         urls: [],
         files: [],

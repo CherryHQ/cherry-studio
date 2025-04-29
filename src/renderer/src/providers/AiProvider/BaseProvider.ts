@@ -37,7 +37,7 @@ export default abstract class BaseProvider {
   abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>
   abstract check(model: Model): Promise<{ valid: boolean; error: Error | null }>
   abstract models(): Promise<OpenAI.Models.Model[]>
-  abstract generateImage(params: GenerateImageParams): Promise<string[]>
+  abstract generateImage(params: GenerateImageParams): Promise<any[]>
   abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
   abstract getEmbeddingDimensions(model: Model): Promise<number>
 

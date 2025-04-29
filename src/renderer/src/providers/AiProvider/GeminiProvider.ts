@@ -30,7 +30,17 @@ import {
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
+import {
+  Assistant,
+  FileType,
+  FileTypes,
+  GenerateImageParams,
+  MCPToolResponse,
+  Message,
+  Model,
+  Provider,
+  Suggestion
+} from '@renderer/types'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { mcpToolCallResponseToGeminiMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
@@ -629,8 +639,17 @@ export default class GeminiProvider extends BaseProvider {
    * Generate an image
    * @returns The generated image
    */
-  public async generateImage(): Promise<string[]> {
-    return []
+  public async generateImage(params: GenerateImageParams): Promise<any[]> {
+    const response = await this.sdk.models.generateImages({
+      model: params.model,
+      prompt: params.prompt,
+      config: {
+        abortSignal: params.signal,
+        numberOfImages: params.batchSize,
+        aspectRatio: params.imageSize
+      }
+    })
+    return response.generatedImages || []
   }
 
   /**

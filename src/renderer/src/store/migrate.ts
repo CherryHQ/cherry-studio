@@ -1240,6 +1240,17 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '98': (state: RootState) => {
+    try {
+      state.paintings.paintings = state.paintings.paintings.map((painting) => ({
+        ...painting,
+        provider: 'silicon'
+      }))
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

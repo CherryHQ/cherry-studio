@@ -1,4 +1,5 @@
 import { PlusOutlined, QuestionCircleOutlined, RedoOutlined } from '@ant-design/icons'
+import { GeneratedImage } from '@google/genai'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
 import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
 import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'
@@ -11,21 +12,21 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { TEXT_TO_IMAGES_MODELS } from '@renderer/config/models'
+import { SUPPORTED_TEXT_TO_IMAGE_PROVIDERS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AiProvider from '@renderer/providers/AiProvider'
-import { getProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
 import { DEFAULT_PAINTING } from '@renderer/store/paintings'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileType, Painting } from '@renderer/types'
+import type { FileType, Painting, Provider } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { Button, Input, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Cascader, Input, InputNumber, Radio, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -78,7 +79,8 @@ const PaintingsPage: FC = () => {
   const [painting, setPainting] = useState<Painting>(_painting || paintings[0])
   const { theme } = useTheme()
   const providers = useAllProviders()
-  const siliconProvider = providers.find((p) => p.id === 'silicon')!
+  const providerIds = SUPPORTED_TEXT_TO_IMAGE_PROVIDERS
+  const availableProviders = providers.filter((p) => providerIds.includes(p.id))
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
@@ -86,9 +88,13 @@ const PaintingsPage: FC = () => {
   const dispatch = useAppDispatch()
   const { generating } = useRuntime()
 
-  const modelOptions = TEXT_TO_IMAGES_MODELS.map((model) => ({
-    label: model.name,
-    value: model.id
+  const providerModelOptions = availableProviders.map((provider) => ({
+    value: provider.id,
+    label: t(`provider.${provider.id}`),
+    children: TEXT_TO_IMAGES_MODELS[provider.id].map((model) => ({
+      value: model.id,
+      label: model.name
+    }))
   }))
 
   const textareaRef = useRef<any>(null)
@@ -100,14 +106,17 @@ const PaintingsPage: FC = () => {
     updatePainting(updatedPainting)
   }
 
-  const onSelectModel = (modelId: string) => {
-    const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === modelId)
-    if (model) {
-      updatePaintingState({ model: modelId })
+  const onProviderModelChange = (value: (string | number)[]) => {
+    if (value && value.length === 2) {
+      const [providerId, modelId] = value
+      updatePaintingState({ provider: providerId as string, model: modelId as string })
+    } else {
+      updatePaintingState({ provider: value?.[0] as string | undefined, model: undefined })
     }
   }
 
   const onGenerate = async () => {
+    console.log(painting)
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -125,41 +134,43 @@ const PaintingsPage: FC = () => {
 
     updatePaintingState({ prompt })
 
-    const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
-    const provider = getProviderByModel(model)
+    const selectedProvider = availableProviders.find((p) => p.id === painting.provider)
 
-    if (!provider.enabled) {
-      window.modal.error({
-        content: t('error.provider_disabled'),
-        centered: true
-      })
-      return
+    const validateProvider = (provider: Provider, t: (key: string) => string): boolean => {
+      if (!provider) {
+        window.modal.error({ content: t('error.provider_not_found'), centered: true })
+        return false
+      }
+      if (!provider.enabled) {
+        window.modal.error({ content: t('error.provider_disabled'), centered: true })
+        return false
+      }
+      if (!provider.apiKey) {
+        window.modal.error({ content: t('error.no_api_key'), centered: true })
+        return false
+      }
+      return true
     }
 
-    if (!provider.apiKey) {
-      window.modal.error({
-        content: t('error.no_api_key'),
-        centered: true
-      })
-      return
-    }
+    if (!validateProvider(selectedProvider!, t)) return
 
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
     dispatch(setGenerating(true))
-    const AI = new AiProvider(provider)
+    const AI = new AiProvider(selectedProvider!)
 
     if (!painting.model) {
       return
     }
 
     try {
+      console.log(`[PaintingsPage] onGenerate`, painting)
       const urls = await AI.generateImage({
         model: painting.model,
         prompt,
         negativePrompt: painting.negativePrompt || '',
-        imageSize: painting.imageSize || '1024x1024',
+        imageSize: painting.imageSize || painting.provider === 'gemini' ? '1:1' : '1024x1024',
         batchSize: painting.numImages || 1,
         seed: painting.seed || undefined,
         numInferenceSteps: painting.steps || 25,
@@ -168,23 +179,41 @@ const PaintingsPage: FC = () => {
         promptEnhancement: painting.promptEnhancement || false
       })
 
-      if (urls.length > 0) {
-        const downloadedFiles = await Promise.all(
-          urls.map(async (url) => {
-            try {
-              return await window.api.file.download(url)
-            } catch (error) {
-              console.error('Failed to download image:', error)
-              return null
-            }
-          })
+      if (painting.model === 'imagen-3.0-generate-002') {
+        const files = await Promise.all(
+          (urls as GeneratedImage[])
+            .filter(
+              (img): img is GeneratedImage & { image: { imageBytes: string } } =>
+                img.image !== undefined && img.image.imageBytes !== undefined
+            )
+            .map(async (img) => {
+              const file = await window.api.file.writeBase64Image(img.image.imageBytes)
+              return file
+            })
         )
 
-        const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+        updatePaintingState({
+          files: files
+        })
+      } else {
+        if (urls.length > 0) {
+          const downloadedFiles = await Promise.all(
+            urls.map(async (url) => {
+              try {
+                return await window.api.file.download(url)
+              } catch (error) {
+                console.error('Failed to download image:', error)
+                return null
+              }
+            })
+          )
 
-        await FileManager.addFiles(validFiles)
+          const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
 
-        updatePaintingState({ files: validFiles, urls })
+          await FileManager.addFiles(validFiles)
+
+          updatePaintingState({ files: validFiles, urls })
+        }
       }
     } catch (error: unknown) {
       if (error instanceof Error && error.name !== 'AbortError') {
@@ -204,9 +233,14 @@ const PaintingsPage: FC = () => {
     abortController?.abort()
   }
 
-  const onSelectImageSize = (v: string) => {
-    const size = IMAGE_SIZES.find((i) => i.value === v)
-    size && updatePaintingState({ imageSize: size.value })
+  const onSelectImageSize = (v: string, provider: string) => {
+    if (provider === 'gemini') {
+      const size = IMAGE_SIZES.find((i) => i.value === v)
+      size && updatePaintingState({ imageSize: size.label })
+    } else {
+      const size = IMAGE_SIZES.find((i) => i.value === v)
+      size && updatePaintingState({ imageSize: size.value })
+    }
   }
 
   const nextImage = () => {
@@ -231,7 +265,7 @@ const PaintingsPage: FC = () => {
     removePainting(paintingToDelete)
 
     if (paintings.length === 1) {
-      setPainting(DEFAULT_PAINTING)
+      setPainting(DEFAULT_PAINTING[0])
     }
   }
 
@@ -309,17 +343,17 @@ const PaintingsPage: FC = () => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-          <Select
-            value={siliconProvider.id}
-            disabled={true}
-            options={[{ label: t(`provider.${siliconProvider.id}`), value: siliconProvider.id }]}
+          <Cascader
+            options={providerModelOptions}
+            value={painting.provider && painting.model ? [painting.provider, painting.model] : []}
+            onChange={onProviderModelChange}
+            placeholder={t('paintings.select_provider_model_placeholder')}
+            expandTrigger="hover"
           />
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
-          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
           <Radio.Group
             value={painting.imageSize}
-            onChange={(e) => onSelectImageSize(e.target.value)}
+            onChange={(e) => onSelectImageSize(e.target.value, painting.provider)}
             style={{ display: 'flex' }}>
             {IMAGE_SIZES.map((size) => (
               <RadioButton value={size.value} key={size.value}>
@@ -463,7 +497,10 @@ const PaintingsPage: FC = () => {
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
-          onNewPainting={() => setPainting(addPainting())}
+          onNewPainting={() => {
+            const newPainting = addPainting()
+            setPainting(newPainting)
+          }}
         />
       </ContentContainer>
     </Container>

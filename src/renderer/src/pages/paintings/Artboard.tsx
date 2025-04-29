@@ -44,7 +44,7 @@ const Artboard: FC<ArtboardProps> = ({
         label: t('common.copy'),
         icon: <CopyOutlined />,
         onClick: () => {
-          navigator.clipboard.writeText(painting.urls[currentImageIndex])
+          navigator.clipboard.writeText(getCurrentImageUrl())
         }
       },
       {

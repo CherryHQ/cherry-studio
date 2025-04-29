@@ -97,6 +97,8 @@ export function getProviderLogo(providerId: string) {
 
 export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai']
 
+export const SUPPORTED_TEXT_TO_IMAGE_PROVIDERS = ['silicon', 'gemini']
+
 export const PROVIDER_CONFIG = {
   openai: {
     api: {
