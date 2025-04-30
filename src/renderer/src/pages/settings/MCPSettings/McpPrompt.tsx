@@ -22,16 +22,13 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
             <Descriptions.Item
               key={index}
               label={
-                <Flex vertical gap={4}>
-                  <Typography.Text strong>
-                    {arg.name}
-                    <br />
-                    {arg.required && (
-                      <Tooltip title="Required field">
-                        <Tag color="red">Required</Tag>
-                      </Tooltip>
-                    )}
-                  </Typography.Text>
+                <Flex gap={4}>
+                  <Typography.Text strong>{arg.name}</Typography.Text>
+                  {arg.required && (
+                    <Tooltip title="Required field">
+                      <span style={{ color: '#f5222d' }}>*</span>
+                    </Tooltip>
+                  )}
                 </Flex>
               }>
               <Flex vertical gap={4}>
