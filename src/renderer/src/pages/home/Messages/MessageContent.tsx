@@ -1,5 +1,4 @@
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { Flex } from 'antd'
 import React from 'react'
@@ -8,10 +7,9 @@ import styled from 'styled-components'
 import MessageBlockRenderer from './Blocks'
 interface Props {
   message: Message
-  model?: Model
 }
 
-const MessageContent: React.FC<Props> = ({ message, model }) => {
+const MessageContent: React.FC<Props> = ({ message }) => {
   // const { t } = useTranslation()
   // if (message.status === 'pending') {
   //   return (
@@ -46,7 +44,7 @@ const MessageContent: React.FC<Props> = ({ message, model }) => {
       <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
         {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
       </Flex>
-      <MessageBlockRenderer blocks={message.blocks} model={model} message={message} />
+      <MessageBlockRenderer blocks={message.blocks} message={message} />
     </>
   )
 }

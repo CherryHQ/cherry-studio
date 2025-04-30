@@ -88,6 +88,7 @@ export function useDefaultAssistant() {
   return {
     defaultAssistant: {
       ...defaultAssistant,
+      // 这么实现有些问题,每次rerender的时候都会有一个新的topic
       topics: [getDefaultTopic(defaultAssistant.id)]
     },
     updateDefaultAssistant: (assistant: Assistant) => dispatch(updateDefaultAssistant({ assistant }))
