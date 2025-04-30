@@ -9,6 +9,7 @@ import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
 import { Button, Col, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { isNil } from 'lodash'
 import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -31,6 +32,7 @@ const AssistantSettings: FC = () => {
   const { t } = useTranslation()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettingsType>) => {
+    console.log(settings.temperature ?? temperature)
     updateDefaultAssistant({
       ...defaultAssistant,
       settings: {
@@ -47,7 +49,7 @@ const AssistantSettings: FC = () => {
 
   const handleChange =
     (setter: Dispatch<SetStateAction<number>>, updater: (value: number) => void) => (value: number | null) => {
-      if (!!value && !isNaN(value)) {
+      if (!isNil(value) && !isNaN(value)) {
         setter(value)
         updater(value)
       }
