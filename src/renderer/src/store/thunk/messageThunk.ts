@@ -600,7 +600,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         const finalStateOnComplete = getState()
         const finalAssistantMsg = finalStateOnComplete.messages.entities[assistantMsgId]
 
-        if (status === 'success' && finalAssistantMsg && response && !response?.usage) {
+        if (status === 'success' && finalAssistantMsg && response) {
           const userMsgId = finalAssistantMsg.askId
           const orderedMsgs = selectMessagesForTopic(finalStateOnComplete, topicId)
           const userMsgIndex = orderedMsgs.findIndex((m) => m.id === userMsgId)
@@ -610,8 +610,10 @@ const fetchAndProcessAssistantResponseImpl = async (
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
 
-          const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
-          response.usage = usage
+          if (!response.usage) {
+            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
+            response.usage = usage
+          }
         }
         if (response && response.metrics) {
           if (!response.metrics.completion_tokens && response.usage) {
