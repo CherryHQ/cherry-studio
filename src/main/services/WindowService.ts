@@ -103,7 +103,19 @@ export class WindowService {
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
+    this.setupMainWindowMonitor(mainWindow)
     this.loadMainWindowContent(mainWindow)
+  }
+
+  private setupMainWindowMonitor(mainWindow: BrowserWindow) {
+    mainWindow.webContents.on('render-process-gone', (_, details) => {
+      Logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      app.exit(1)
+    })
+
+    mainWindow.webContents.on('unresponsive', () => {
+      Logger.error('Renderer process unresponsive')
+    })
   }
 
   private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {
