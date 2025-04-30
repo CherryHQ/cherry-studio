@@ -1,10 +1,7 @@
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { Agent } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
 import { useEffect, useState } from 'react'
-import store from '@renderer/store'
-import { useSelector } from 'react-redux'
-import { RootState } from '@renderer/store'
 let _agents: Agent[] = []
 
 export const getAgentsFromSystemAgents = (systemAgents: any) => {
@@ -19,55 +16,45 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
 }
 
 export function useSystemAgents() {
-  const defaultaides = useSelector((state: RootState) => state.settings.defaultaides)
-  if (defaultaides === null || defaultaides === undefined) {
-    console.error('defaultaides is null or undefined');
-    return useLocalSystemAgents();
-  }
-  if (!defaultaides.startsWith('http')) {
-    return useLocalSystemAgents();
-  } else {
-    return useRemoteSystemAgents();
-  }
-}
+  const { defaultaides } = useSettings()
+  const [agents, setAgents] = useState<Agent[]>([])
+  const { resourcesPath } = useRuntime()
 
-const useRemoteSystemAgents = () => {
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const defaultaides = useSelector((state: RootState) => state.settings.defaultaides)
-  const resourcesPath = `${defaultaides}`;
-  
   useEffect(() => {
     const loadAgents = async () => {
       try {
-        const response = await fetch(resourcesPath);
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+        // Handle null/undefined case or non-http case - use local agents
+        if (!defaultaides || !defaultaides.startsWith('http')) {
+          if (!resourcesPath || _agents.length > 0) {
+            setAgents(_agents)
+            return
+          }
+          const agentsData = await window.api.fs.read(resourcesPath + '/data/agents.json')
+          _agents = JSON.parse(agentsData) as Agent[]
+          setAgents(_agents)
+          return
         }
-        const agentsData = await response.json() as Agent[];
-        setAgents(agentsData);
+
+        // Handle remote agents
+        const response = await fetch(defaultaides)
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`)
+        }
+        const agentsData = await response.json()
+        setAgents(agentsData)
       } catch (error) {
-        console.error("Failed to load agents:", error);
+        console.error('Failed to load agents:', error)
+        // Fallback to local agents on error
+        if (resourcesPath && _agents.length === 0) {
+          const agentsData = await window.api.fs.read(resourcesPath + '/data/agents.json')
+          _agents = JSON.parse(agentsData) as Agent[]
+        }
+        setAgents(_agents)
       }
-    };
+    }
 
-    loadAgents();
-  }, [resourcesPath]);
-
-  return agents;
-};
-
-const useLocalSystemAgents = () => {
-  const [agents, setAgents] = useState<Agent[]>(_agents);
-  const { resourcesPath } = useRuntime();
-
-  useEffect(() => {
-    runAsyncFunction(async () => {
-      if (!resourcesPath || _agents.length > 0) return
-      const agents = await window.api.fs.read(resourcesPath + '/data/agents.json')
-      _agents = JSON.parse(agents) as Agent[]
-      setAgents(_agents)
-    })
-  }, [resourcesPath])
+    loadAgents()
+  }, [defaultaides, resourcesPath])
 
   return agents
 }

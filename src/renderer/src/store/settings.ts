@@ -212,8 +212,7 @@ export const initialState: SettingsState = {
   joplinToken: '',
   joplinUrl: '',
   defaultObsidianVault: null,
-  
-  defaultaides: 'settings.defaultaides', // 默认智能体
+  defaultaides: null, // 默认智能体
   siyuanApiUrl: null,
   siyuanToken: null,
   siyuanBoxId: null,
