@@ -716,6 +716,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@dify-chat/api@npm:^0.1.0":
+  version: 0.1.0
+  resolution: "@dify-chat/api@npm:0.1.0"
+  dependencies:
+    "@dify-chat/helpers": "npm:^0.0.1"
+  peerDependencies:
+    react: ">=16.9.0"
+    react-dom: ">=16.9.0"
+  checksum: 10c0/b154abb1fdd23e641dba8eaae5b97fc82c70cb5c0b00775c58d0af65497088e78bafde10325685b0ceaaa1e7689b32487a414449da3ef739da1cf10046b1aac7
+  languageName: node
+  linkType: hard
+
+"@dify-chat/helpers@npm:^0.0.1":
+  version: 0.0.1
+  resolution: "@dify-chat/helpers@npm:0.0.1"
+  dependencies:
+    ahooks: "npm:^3.8.4"
+    pako: "npm:^2.1.0"
+  checksum: 10c0/83ce9e5f71a1d14cd2644fa61fefa57b4c4f34ff56f01ac3dad9fdde2bac3a6f6354a386c32bdae3a7c10ccec370b50b35b449715d342f41571a801afc678513
+  languageName: node
+  linkType: hard
+
 "@electron-toolkit/eslint-config-prettier@npm:^3.0.0":
   version: 3.0.0
   resolution: "@electron-toolkit/eslint-config-prettier@npm:3.0.0"
@@ -4346,6 +4368,7 @@ __metadata:
     "@cherrystudio/embedjs-loader-web": "npm:^0.1.28"
     "@cherrystudio/embedjs-loader-xml": "npm:^0.1.28"
     "@cherrystudio/embedjs-openai": "npm:^0.1.28"
+    "@dify-chat/api": "npm:^0.1.0"
     "@electron-toolkit/eslint-config-prettier": "npm:^3.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^3.0.0"
     "@electron-toolkit/preload": "npm:^3.0.0"
@@ -4571,6 +4594,25 @@ __metadata:
     clean-stack: "npm:^2.0.0"
     indent-string: "npm:^4.0.0"
   checksum: 10c0/a42f67faa79e3e6687a4923050e7c9807db3848a037076f791d10e092677d65c1d2d863b7848560699f40fc0502c19f40963fb1cd1fb3d338a7423df8e45e039
+  languageName: node
+  linkType: hard
+
+"ahooks@npm:^3.8.4":
+  version: 3.8.4
+  resolution: "ahooks@npm:3.8.4"
+  dependencies:
+    "@babel/runtime": "npm:^7.21.0"
+    dayjs: "npm:^1.9.1"
+    intersection-observer: "npm:^0.12.0"
+    js-cookie: "npm:^3.0.5"
+    lodash: "npm:^4.17.21"
+    react-fast-compare: "npm:^3.2.2"
+    resize-observer-polyfill: "npm:^1.5.1"
+    screenfull: "npm:^5.0.0"
+    tslib: "npm:^2.4.1"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0
+  checksum: 10c0/a26747f11ac9dceb9dd9e8946ae647bd4e0a4eb5d4fc1c4a3f5698507c031d631ec1a89b1bf59475f9cbe23bd53071ffb9d203fb9cb84c31b907f8a4fac1a327
   languageName: node
   linkType: hard
 
@@ -6396,7 +6438,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dayjs@npm:^1.11.11":
+"dayjs@npm:^1.11.11, dayjs@npm:^1.9.1":
   version: 1.11.13
   resolution: "dayjs@npm:1.11.13"
   checksum: 10c0/a3caf6ac8363c7dade9d1ee797848ddcf25c1ace68d9fe8678ecf8ba0675825430de5d793672ec87b24a69bf04a1544b176547b2539982275d5542a7955f35b7
@@ -9867,6 +9909,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"intersection-observer@npm:^0.12.0":
+  version: 0.12.2
+  resolution: "intersection-observer@npm:0.12.2"
+  checksum: 10c0/9591f46b2b742f5801ed69dbc8860f487771b4af8361e7a5dcb28a377beff2ba56336a2b090af261825430d225dae9417121496d2e6925e000e4a469958843ff
+  languageName: node
+  linkType: hard
+
 "invert-kv@npm:^1.0.0":
   version: 1.0.0
   resolution: "invert-kv@npm:1.0.0"
@@ -10325,6 +10374,13 @@ __metadata:
   version: 3.7.7
   resolution: "js-base64@npm:3.7.7"
   checksum: 10c0/3c905a7e78b601e4751b5e710edd0d6d045ce2d23eb84c9df03515371e1b291edc72808dc91e081cb9855aef6758292a2407006f4608ec3705373dd8baf2f80f
+  languageName: node
+  linkType: hard
+
+"js-cookie@npm:^3.0.5":
+  version: 3.0.5
+  resolution: "js-cookie@npm:3.0.5"
+  checksum: 10c0/04a0e560407b4489daac3a63e231d35f4e86f78bff9d792011391b49c59f721b513411cd75714c418049c8dc9750b20fcddad1ca5a2ca616c3aca4874cce5b3a
   languageName: node
   linkType: hard
 
@@ -13430,6 +13486,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pako@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "pako@npm:2.1.0"
+  checksum: 10c0/8e8646581410654b50eb22a5dfd71159cae98145bd5086c9a7a816ec0370b5f72b4648d08674624b3870a521e6a3daffd6c2f7bc00fdefc7063c9d8232ff5116
+  languageName: node
+  linkType: hard
+
 "parent-module@npm:^1.0.0":
   version: 1.0.1
   resolution: "parent-module@npm:1.0.1"
@@ -14735,6 +14798,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-fast-compare@npm:^3.2.2":
+  version: 3.2.2
+  resolution: "react-fast-compare@npm:3.2.2"
+  checksum: 10c0/0bbd2f3eb41ab2ff7380daaa55105db698d965c396df73e6874831dbafec8c4b5b08ba36ff09df01526caa3c61595247e3269558c284e37646241cba2b90a367
+  languageName: node
+  linkType: hard
+
 "react-hotkeys-hook@npm:^4.6.1":
   version: 4.6.1
   resolution: "react-hotkeys-hook@npm:4.6.1"
@@ -15669,6 +15739,13 @@ __metadata:
   version: 0.25.0
   resolution: "scheduler@npm:0.25.0"
   checksum: 10c0/a4bb1da406b613ce72c1299db43759526058fdcc413999c3c3e0db8956df7633acf395cb20eb2303b6a65d658d66b6585d344460abaee8080b4aa931f10eaafe
+  languageName: node
+  linkType: hard
+
+"screenfull@npm:^5.0.0":
+  version: 5.2.0
+  resolution: "screenfull@npm:5.2.0"
+  checksum: 10c0/86fd49983e2edc153ee2e674a570c711cb0961a9cacca659309f79636ccc8ca8a0b830ea4dacdae7403a8bb7ba6affd5bcdce053aa97782961247a49bfd2ba68
   languageName: node
   linkType: hard
 
@@ -17035,7 +17112,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tslib@npm:^2.0.1, tslib@npm:^2.1.0, tslib@npm:^2.4.0, tslib@npm:^2.6.2":
+"tslib@npm:^2.0.1, tslib@npm:^2.1.0, tslib@npm:^2.4.0, tslib@npm:^2.4.1, tslib@npm:^2.6.2":
   version: 2.8.1
   resolution: "tslib@npm:2.8.1"
   checksum: 10c0/9c4759110a19c53f992d9aae23aac5ced636e99887b51b9e61def52611732872ff7668757d4e4c61f19691e36f4da981cd9485e869b4a7408d689f6bf1f14e62

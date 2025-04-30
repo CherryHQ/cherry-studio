@@ -1,5 +1,3 @@
-import { MinAppType } from '@types'
-
 export type FlowType = 'workflow' | 'chatflow'
 
 /**
@@ -11,12 +9,12 @@ interface FlowBase {
   name: string // 工作流名称
   description?: string // 工作流描述
   enabled: boolean // 是否启用
+  apiKey: string
+  apiHost: string
 }
 
 export interface Workflow extends FlowBase {
   type: 'workflow'
-  url: string
-  miniAppConfig?: MinAppType
 }
 
 /**
@@ -24,8 +22,6 @@ export interface Workflow extends FlowBase {
  */
 export interface Chatflow extends FlowBase {
   type: 'chatflow'
-  apiKey: string // 此工作流专属的 API Key
-  apiHost: string // 此工作流专属的 API Host
 }
 
 /**

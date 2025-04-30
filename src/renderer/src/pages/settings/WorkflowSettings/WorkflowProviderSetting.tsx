@@ -34,7 +34,8 @@ const WorkflowProviderSetting: FC<Props> = ({ flowEngineProvider: _flowEnginePro
       providerId: flowEngineProvider.id,
       name: t('settings.workflow.newWorkflow'),
       description: '',
-      url: '',
+      apiKey: '',
+      apiHost: providerConfig.apiHost,
       enabled: false
     }
     addFlow(newFlow)
@@ -160,7 +161,6 @@ const WorkflowsGrid = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 16px;
   width: 100%;
-  height: 100%;
   overflow-y: auto; /* 只有当内容超出时才会滚动 */
   padding: 2px;
 `

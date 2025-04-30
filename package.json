@@ -68,6 +68,7 @@
     "@cherrystudio/embedjs-loader-web": "^0.1.28",
     "@cherrystudio/embedjs-loader-xml": "^0.1.28",
     "@cherrystudio/embedjs-openai": "^0.1.28",
+    "@dify-chat/api": "^0.1.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
     "@langchain/community": "^0.3.36",

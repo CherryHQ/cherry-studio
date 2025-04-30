@@ -1,6 +1,7 @@
 import { XStream } from '@ant-design/x'
-import { createDifyApiInstance, EventEnum, IChunkChatCompletionResponse, IWorkflowNode } from '@renderer/dify/api'
+import { createDifyApiInstance, EventEnum, IChunkChatCompletionResponse, IWorkflowNode } from '@dify-chat/api'
 import { Flow, FlowEngine } from '@renderer/types'
+import { v4 as uuidv4 } from 'uuid'
 
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
 
@@ -13,8 +14,8 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     if (!this.isChatflow(flow)) {
       throw new Error('Dify completion only supports Chatflow')
     }
-    // TODO: 替换为发布的包
-    const client = createDifyApiInstance({ user: '123', apiKey: flow.apiKey, apiBase: flow.apiHost })
+
+    const client = createDifyApiInstance({ user: uuidv4(), apiKey: flow.apiKey, apiBase: flow.apiHost })
     const response = await client.sendMessage({
       inputs: {},
       files: [],
@@ -80,29 +81,19 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
   }
 
   public async check(flow: Flow): Promise<{ valid: boolean; error: Error | null }> {
-    if (this.isChatflow(flow)) {
-      await this.completion(flow)
-      return { valid: true, error: null }
-    }
-
     try {
-      // const checkUrl = this.isChatflow(flow) ? flow.apiHost : flow.url
-      const checkUrl = flow.url
-
-      const response = await fetch(checkUrl, {
-        method: 'GET',
-        headers: this.defaultHeaders(flow)
+      const difyApi = createDifyApiInstance({
+        user: uuidv4(),
+        apiKey: flow.apiKey,
+        apiBase: flow.apiHost
       })
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        const statusText = response.statusText || 'Unknown Error'
-        const errorMessage = errorData?.message || `Request failed with status ${response.status}: ${statusText}`
-        return { valid: false, error: new Error(errorMessage) }
-      }
 
-      return { valid: true, error: null }
+      const response = await difyApi.getAppInfo()
+
+      return { valid: response.name !== undefined, error: null }
     } catch (error) {
-      return { valid: false, error: error as Error }
+      console.error('检查工作流失败', error)
+      return { valid: false, error: new Error('检查工作流失败') }
     }
   }
 

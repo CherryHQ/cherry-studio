@@ -66,7 +66,7 @@ const SettingsPage: FC = () => {
           </MenuItemLink>
           <MenuItemLink to="/settings/workflow">
             <MenuItem className={isRoute('/settings/workflow')}>
-              <GitCompare />
+              <GitCompare size={18} />
               {t('settings.workflow.title')}
             </MenuItem>
           </MenuItemLink>
