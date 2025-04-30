@@ -3,7 +3,7 @@ import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssista
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getDefaultAssistant, getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { upsertManyBlocks } from '@renderer/store/messageBlock'
@@ -39,7 +39,7 @@ const HomeWindow: FC = () => {
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
-  const topic = useRef(getDefaultTopic(defaultAssistant.id))
+  const topic = defaultAssistant.topics[0]
   const { defaultModel: model } = useDefaultModel()
   const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
@@ -160,11 +160,11 @@ const HomeWindow: FC = () => {
         role: 'user',
         content: prompt ? `${prompt}\n\n${content}` : content,
         assistant: defaultAssistant,
-        topic: topic.current,
+        topic,
         createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
         status: 'success'
       }
-      const topicId = topic.current.id
+      const topicId = topic.id
       const { message: userMessage, blocks } = getUserMessage(messageParams)
 
       store.dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
@@ -294,7 +294,7 @@ const HomeWindow: FC = () => {
             <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
           </div>
         )}
-        <ChatWindow route={route} assistant={{ ...defaultAssistant, topics: [topic.current] }} />
+        <ChatWindow route={route} assistant={defaultAssistant} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
       </Container>
