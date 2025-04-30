@@ -17,12 +17,13 @@ import { reset } from '@renderer/services/BackupService'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput } from 'lucide-react'
+import { FileText, FolderCog, FolderInput, Star } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import DefaultaidesSettings from './DefaultaidesSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
@@ -32,7 +33,6 @@ import ObsidianSettings from './ObsidianSettings'
 import SiyuanSettings from './SiyuanSettings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
-import DefaultaidesSettings from './DefaultaidesSettings'
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -63,14 +63,6 @@ const DataSettings: FC = () => {
         p-id="2965"></path>
     </svg>
   )
-  const AidesIcon = () => (
-    <svg viewBox="0 0 100 100" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1234" width="16" height="16">
-      <path
-        d="M50 10 L61.2 37.3 L87.9 38.2 L66 57.3 L71.2 84.7 L50 66.1 L28.8 84.7 L34 57.3 L12.1 38.2 L38.8 37.3 Z"
-        fill="#FFD700"
-        p-id="1235"></path>
-    </svg>
-  );
 
   const menuItems = [
     { key: 'divider_0', isDivider: true, text: t('settings.data.divider.basic') },
@@ -114,7 +106,7 @@ const DataSettings: FC = () => {
     {
       key: 'default_aides',
       title: 'settings.data.default_aides.title',
-      icon: <AidesIcon />
+      icon: <Star size={16} />
     }
   ]
 
