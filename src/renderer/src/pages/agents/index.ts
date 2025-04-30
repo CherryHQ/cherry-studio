@@ -23,32 +23,29 @@ export function useSystemAgents() {
   useEffect(() => {
     const loadAgents = async () => {
       try {
-        // Handle null/undefined case or non-http case - use local agents
-        if (!defaultaides || !defaultaides.startsWith('http')) {
-          if (!resourcesPath || _agents.length > 0) {
-            setAgents(_agents)
-            return
-          }
-          const agentsData = await window.api.fs.read(resourcesPath + '/data/agents.json')
-          _agents = JSON.parse(agentsData) as Agent[]
-          setAgents(_agents)
-          return
+        // 始终加载本地 agents
+        if (resourcesPath && _agents.length === 0) {
+          const localAgentsData = await window.api.fs.read(resourcesPath + '/data/agents.json')
+          _agents = JSON.parse(localAgentsData) as Agent[]
         }
 
-        // Handle remote agents
-        const response = await fetch(defaultaides)
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`)
+        // 如果有远程配置，尝试获取远程 agents
+        if (defaultaides && defaultaides.startsWith('http')) {
+          const response = await fetch(defaultaides)
+          if (response.ok) {
+            const remoteAgents = await response.json()
+            // 合并本地和远程 agents
+            const mergedAgents = [..._agents, ...remoteAgents]
+            setAgents(mergedAgents)
+            return
+          }
         }
-        const agentsData = await response.json()
-        setAgents(agentsData)
+
+        // 如果没有远程配置或获取失败，使用本地 agents
+        setAgents(_agents)
       } catch (error) {
         console.error('Failed to load agents:', error)
-        // Fallback to local agents on error
-        if (resourcesPath && _agents.length === 0) {
-          const agentsData = await window.api.fs.read(resourcesPath + '/data/agents.json')
-          _agents = JSON.parse(agentsData) as Agent[]
-        }
+        // 发生错误时使用本地 agents
         setAgents(_agents)
       }
     }
