@@ -709,17 +709,11 @@ export const loadTopicMessagesThunk =
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState()
     const topicMessagesExist = !!state.messages.messageIdsByTopic[topicId]
-    const isLoading = state.messages.loadingByTopic[topicId]
 
-    if ((topicMessagesExist && !forceReload) || isLoading) {
-      if (topicMessagesExist && isLoading) {
-        dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
-      }
+    if (topicMessagesExist && !forceReload) {
       return
     }
 
-    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
-    dispatch(newMessagesActions.setCurrentTopicId(topicId))
     try {
       const topic = await db.topics.get(topicId)
       const messagesFromDB = topic?.messages || []
@@ -741,7 +735,7 @@ export const loadTopicMessagesThunk =
       }
     } catch (error: any) {
       console.error(`[loadTopicMessagesThunk] Failed to load messages for topic ${topicId}:`, error)
-      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+      // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     }
   }
 
