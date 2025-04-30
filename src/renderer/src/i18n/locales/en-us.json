@@ -1387,7 +1387,8 @@
       "privacy": {
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
-      }
+      },
+      "defaultaides": "Built-in"
     },
     "translate": {
       "any.language": "Any language",

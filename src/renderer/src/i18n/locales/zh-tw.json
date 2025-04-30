@@ -1387,7 +1387,8 @@
       "privacy": {
         "title": "隱私設定",
         "enable_privacy_mode": "匿名發送錯誤報告和資料統計"
-      }
+      },
+      "defaultaides": "內建"
     },
     "translate": {
       "any.language": "任意語言",
