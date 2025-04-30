@@ -37,6 +37,7 @@ import {
   CirclePause,
   FileSearch,
   FileText,
+  GitCompare,
   Globe,
   Languages,
   LucideSquareTerminal,
@@ -67,6 +68,7 @@ import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
+import WorkflowButton, { WorkflowButtonRef } from './WorkflowButton'
 
 interface Props {
   assistant: Assistant
@@ -131,6 +133,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
   const webSearchButtonRef = useRef<WebSearchButtonRef>(null)
+  const workflowButtonRef = useRef<WorkflowButtonRef>(null)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -402,6 +405,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         action: () => {
           if (!text) return
           translate()
+        }
+      },
+      {
+        label: t('workflow.title'),
+        description: '',
+        icon: <GitCompare />,
+        isMenu: true,
+        action: () => {
+          workflowButtonRef.current?.openQuickPanel()
         }
       }
     ]
@@ -954,6 +966,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 resizeTextArea={resizeTextArea}
                 ToolbarButton={ToolbarButton}
               />
+              <WorkflowButton ref={workflowButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <ToolbarButton type="text" onClick={clearTopic}>
                   <PaintbrushVertical size={18} />

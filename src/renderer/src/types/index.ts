@@ -3,7 +3,7 @@ import type OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
 
-import { Flow } from './flow'
+import { Flow, Workflow } from './flow'
 export * from './flow'
 import type { Message } from './newMessage'
 
@@ -25,6 +25,7 @@ export type Assistant = {
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
+  workflow?: Workflow
 }
 
 export type AssistantMessage = {
