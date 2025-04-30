@@ -12,6 +12,7 @@ import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
 import { FileType, FileTypes } from '@renderer/types'
+import { Message } from '@renderer/types/newMessage'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
@@ -71,6 +72,7 @@ const FilesPage: FC = () => {
 
   const handleDelete = async (fileId: string) => {
     const file = await FileManager.getFile(fileId)
+    if (!file) return
 
     const paintings = await store.getState().paintings.paintings
     const paintingsFiles = paintings.flatMap((p) => p.files)
@@ -79,23 +81,81 @@ const FilesPage: FC = () => {
       window.modal.warning({ content: t('files.delete.paintings.warning'), centered: true })
       return
     }
-
     if (file) {
       await FileManager.deleteFile(fileId, true)
     }
 
-    const topics = await db.topics
-      .filter((topic) => topic.messages.some((message) => message.files?.some((f) => f.id === fileId)))
-      .toArray()
+    const relatedBlocks = await db.message_blocks.where('file.id').equals(fileId).toArray()
 
-    if (topics.length > 0) {
-      for (const topic of topics) {
-        const updatedMessages = topic.messages.map((message) => ({
-          ...message,
-          files: message.files?.filter((f) => f.id !== fileId)
-        }))
-        await db.topics.update(topic.id, { messages: updatedMessages })
+    const blockIdsToDelete = relatedBlocks.map((block) => block.id)
+
+    const blocksByMessageId: Record<string, string[]> = {}
+    for (const block of relatedBlocks) {
+      if (!blocksByMessageId[block.messageId]) {
+        blocksByMessageId[block.messageId] = []
       }
+      blocksByMessageId[block.messageId].push(block.id)
+    }
+
+    try {
+      const affectedMessageIds = [...new Set(relatedBlocks.map((b) => b.messageId))]
+
+      if (affectedMessageIds.length === 0 && blockIdsToDelete.length > 0) {
+        // This case should ideally not happen if relatedBlocks were found,
+        // but handle it just in case: only delete blocks.
+        await db.message_blocks.bulkDelete(blockIdsToDelete)
+        console.log(
+          `Deleted ${blockIdsToDelete.length} blocks related to file ${fileId}. No associated messages found (unexpected).`
+        )
+        return
+      }
+
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
+        // Fetch all topics (potential performance bottleneck if many topics)
+        const allTopics = await db.topics.toArray()
+        const topicsToUpdate: Record<string, { messages: Message[] }> = {} // Store updates keyed by topicId
+
+        for (const topic of allTopics) {
+          let topicModified = false
+          // Ensure topic.messages exists and is an array before mapping
+          const currentMessages = Array.isArray(topic.messages) ? topic.messages : []
+          const updatedMessages = currentMessages.map((message) => {
+            // Check if this message is affected
+            if (affectedMessageIds.includes(message.id)) {
+              // Ensure message.blocks exists and is an array
+              const currentBlocks = Array.isArray(message.blocks) ? message.blocks : []
+              const originalBlockCount = currentBlocks.length
+              // Filter out the blocks marked for deletion
+              const newBlocks = currentBlocks.filter((blockId) => !blockIdsToDelete.includes(blockId))
+              if (newBlocks.length < originalBlockCount) {
+                topicModified = true
+                return { ...message, blocks: newBlocks } // Return updated message
+              }
+            }
+            return message // Return original message
+          })
+
+          if (topicModified) {
+            // Store the update for this topic
+            topicsToUpdate[topic.id] = { messages: updatedMessages }
+          }
+        }
+
+        // Apply updates to topics
+        const updatePromises = Object.entries(topicsToUpdate).map(([topicId, updateData]) =>
+          db.topics.update(topicId, updateData)
+        )
+        await Promise.all(updatePromises)
+
+        // Finally, delete the MessageBlocks
+        await db.message_blocks.bulkDelete(blockIdsToDelete)
+      })
+
+      console.log(`Deleted ${blockIdsToDelete.length} blocks and updated relevant topic messages for file ${fileId}.`)
+    } catch (error) {
+      console.error(`Error updating topics or deleting blocks for file ${fileId}:`, error)
+      window.modal.error({ content: t('files.delete.db_error'), centered: true }) // 提示数据库操作失败
+      // Consider whether to attempt to restore the physical file (usually difficult)
     }
   }
 

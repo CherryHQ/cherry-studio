@@ -4,99 +4,45 @@ import { getTopicById } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
-import { Assistant, Message, Model, Topic } from '@renderer/types'
+import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import type { Assistant, FileType, MCPServer, Model, Topic } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { getTitleFromString } from '@renderer/utils/export'
+import {
+  createAssistantMessage,
+  createFileBlock,
+  createImageBlock,
+  createMainTextBlock,
+  createMessage,
+  resetMessage
+} from '@renderer/utils/messageUtils/create'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
-import { isEmpty, remove, takeRight } from 'lodash'
+import { takeRight } from 'lodash'
 import { NavigateFunction } from 'react-router'
 
 import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
 import FileManager from './FileManager'
 
-export const filterMessages = (messages: Message[]) => {
-  return messages
-    .filter((message) => !['@', 'clear'].includes(message.type!))
-    .filter((message) => !isEmpty(message.content.trim()))
-}
-
-export function filterContextMessages(messages: Message[]): Message[] {
-  const clearIndex = messages.findLastIndex((message) => message.type === 'clear')
-
-  if (clearIndex === -1) {
-    return messages
-  }
-
-  return messages.slice(clearIndex + 1)
-}
-
-export function filterUserRoleStartMessages(messages: Message[]): Message[] {
-  const firstUserMessageIndex = messages.findIndex((message) => message.role === 'user')
-
-  if (firstUserMessageIndex === -1) {
-    return messages
-  }
-
-  return messages.slice(firstUserMessageIndex)
-}
-
-export function filterEmptyMessages(messages: Message[]): Message[] {
-  return messages.filter((message) => {
-    const content = message.content as string | any[]
-    if (typeof content === 'string' && isEmpty(message.files)) {
-      return !isEmpty(content.trim())
-    }
-    if (Array.isArray(content)) {
-      return content.some((c) => !isEmpty(c.text.trim()))
-    }
-    return true
-  })
-}
-
-export function filterUsefulMessages(messages: Message[]): Message[] {
-  let _messages = [...messages]
-  const groupedMessages = getGroupedMessages(messages)
-
-  Object.entries(groupedMessages).forEach(([key, messages]) => {
-    if (key.startsWith('assistant')) {
-      const usefulMessage = messages.find((m) => m.useful === true)
-      if (usefulMessage) {
-        messages.forEach((m) => {
-          if (m.id !== usefulMessage.id) {
-            remove(_messages, (o) => o.id === m.id)
-          }
-        })
-      } else {
-        messages?.slice(0, -1).forEach((m) => {
-          remove(_messages, (o) => o.id === m.id)
-        })
-      }
-    }
-  })
-
-  while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
-    _messages.pop()
-  }
-
-  // 过滤两条及以上 user 类型消息相邻的情况，只保留最新一条 user 消息
-  _messages = _messages.filter((message, index, origin) => {
-    if (message.role === 'user' && index + 1 < origin.length && origin[index + 1].role === 'user') {
-      return false
-    }
-    return true
-  })
-
-  return _messages
-}
+export {
+  filterContextMessages,
+  filterEmptyMessages,
+  filterMessages,
+  filterUsefulMessages,
+  filterUserRoleStartMessages,
+  getGroupedMessages
+} from '@renderer/utils/messageUtils/filters'
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
   const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  // 使用与 getAssistantSettings 相同的逻辑处理无限上下文
   const maxContextCount = rawContextCount === 20 ? 100000 : rawContextCount
 
-  // 在无限模式下，设置一个合理的高上限而不是处理所有消息
   const _messages = rawContextCount === 20 ? takeRight(messages, 1000) : takeRight(messages, maxContextCount)
 
   const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
@@ -115,7 +61,16 @@ export function getContextCount(assistant: Assistant, messages: Message[]) {
 }
 
 export function deleteMessageFiles(message: Message) {
-  message.files && FileManager.deleteFiles(message.files)
+  const state = store.getState()
+  message.blocks?.forEach((blockId) => {
+    const block = messageBlocksSelectors.selectById(state, blockId)
+    if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
+      const fileData = (block as any).file as FileType | undefined
+      if (fileData) {
+        FileManager.deleteFiles([fileData])
+      }
+    }
+  })
 }
 
 export function isGenerating() {
@@ -139,62 +94,91 @@ export async function locateToMessage(navigate: NavigateFunction, message: Messa
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)
 }
 
+/**
+ * Creates a user message object and associated blocks based on input.
+ * This is a pure function and does not dispatch to the store.
+ *
+ * @param params - The parameters for creating the message.
+ * @returns An object containing the created message and its blocks.
+ */
 export function getUserMessage({
   assistant,
   topic,
   type,
-  content
+  content,
+  files,
+  // Keep other potential params if needed by createMessage
+  knowledgeBaseIds,
+  mentions,
+  enabledMCPs
 }: {
   assistant: Assistant
   topic: Topic
-  type: Message['type']
+  type?: Message['type']
   content?: string
-}): Message {
+  files?: FileType[]
+  knowledgeBaseIds?: string[]
+  mentions?: Model[]
+  enabledMCPs?: MCPServer[]
+}): { message: Message; blocks: MessageBlock[] } {
   const defaultModel = getDefaultModel()
   const model = assistant.model || defaultModel
+  const messageId = uuid() // Generate ID here
+  const blocks: MessageBlock[] = []
+  const blockIds: string[] = []
 
-  return {
-    id: uuid(),
-    role: 'user',
-    content: content || '',
-    assistantId: assistant.id,
-    topicId: topic.id,
-    model,
-    createdAt: new Date().toISOString(),
-    type,
-    status: 'success'
+  if (content?.trim()) {
+    // Pass messageId when creating blocks
+    const textBlock = createMainTextBlock(messageId, content, {
+      status: MessageBlockStatus.SUCCESS,
+      knowledgeBaseIds
+    })
+    blocks.push(textBlock)
+    blockIds.push(textBlock.id)
   }
+  if (files?.length) {
+    files.forEach((file) => {
+      if (file.type === FileTypes.IMAGE) {
+        const imgBlock = createImageBlock(messageId, { file, status: MessageBlockStatus.SUCCESS })
+        blocks.push(imgBlock)
+        blockIds.push(imgBlock.id)
+      } else {
+        const fileBlock = createFileBlock(messageId, file, { status: MessageBlockStatus.SUCCESS })
+        blocks.push(fileBlock)
+        blockIds.push(fileBlock.id)
+      }
+    })
+  }
+
+  // 直接在createMessage中传入id
+  const message = createMessage(
+    'user',
+    topic.id, // topic.id已经是string类型
+    assistant.id,
+    {
+      id: messageId, // 直接传入ID，避免冲突
+      modelId: model?.id,
+      model: model,
+      blocks: blockIds,
+      // 移除knowledgeBaseIds
+      mentions,
+      enabledMCPs,
+      type
+    }
+  )
+
+  // 不再需要手动合并ID
+  return { message, blocks }
 }
 
 export function getAssistantMessage({ assistant, topic }: { assistant: Assistant; topic: Topic }): Message {
   const defaultModel = getDefaultModel()
   const model = assistant.model || defaultModel
 
-  return {
-    id: uuid(),
-    role: 'assistant',
-    content: '',
-    assistantId: assistant.id,
-    topicId: topic.id,
-    model,
-    createdAt: new Date().toISOString(),
-    type: 'text',
-    status: 'sending'
-  }
-}
-
-export function getGroupedMessages(messages: Message[]): { [key: string]: (Message & { index: number })[] } {
-  const groups: { [key: string]: (Message & { index: number })[] } = {}
-
-  messages.forEach((message, index) => {
-    const key = message.askId ? 'assistant' + message.askId : 'user' + message.id
-    if (key && !groups[key]) {
-      groups[key] = []
-    }
-    groups[key].unshift({ ...message, index })
+  return createAssistantMessage(assistant.id, topic.id, {
+    modelId: model?.id,
+    model: model
   })
-
-  return groups
 }
 
 export function getMessageModelId(message: Message) {
@@ -202,26 +186,44 @@ export function getMessageModelId(message: Message) {
 }
 
 export function resetAssistantMessage(message: Message, model?: Model): Message {
+  const blockIdsToRemove = message.blocks
+  if (blockIdsToRemove.length > 0) {
+    store.dispatch(removeManyBlocks(blockIdsToRemove))
+  }
+
   return {
     ...message,
     model: model || message.model,
-    content: '',
-    status: 'sending',
-    translatedContent: undefined,
-    reasoning_content: undefined,
-    usage: undefined,
-    metrics: undefined,
-    metadata: undefined,
-    useful: undefined
+    modelId: model?.id || message.modelId,
+    status: AssistantMessageStatus.PENDING,
+    useful: undefined,
+    askId: undefined,
+    mentions: undefined,
+    enabledMCPs: undefined,
+    blocks: [],
+    createdAt: new Date().toISOString()
   }
 }
 
 export async function getMessageTitle(message: Message, length = 30): Promise<string> {
-  // 检查 Redux 设置，若开启话题命名则调用 summaries 方法
+  const content = getMainTextContent(message)
+
   if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
     try {
       window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
-      const title = await fetchMessagesSummary({ messages: [message], assistant: {} as Assistant })
+
+      const tempTextBlock = createMainTextBlock(message.id, content, { status: MessageBlockStatus.SUCCESS })
+      const tempMessage = resetMessage(message, {
+        status: AssistantMessageStatus.SUCCESS,
+        blocks: [tempTextBlock.id]
+      })
+
+      const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
+
+      // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
+
+      // store.dispatch(messageBlocksActions.removeOneBlock(tempTextBlock.id))
+
       if (title) {
         window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
         return title
@@ -232,7 +234,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
     }
   }
 
-  let title = getTitleFromString(message.content, length)
+  let title = getTitleFromString(content, length)
 
   if (!title) {
     title = dayjs(message.createdAt).format('YYYYMMDDHHmm')
@@ -249,7 +251,7 @@ export function checkRateLimit(assistant: Assistant): boolean {
   }
 
   const topicId = assistant.topics[0].id
-  const messages = store.getState().messages.messagesByTopic[topicId]
+  const messages = selectMessagesForTopic(store.getState(), topicId)
 
   if (!messages || messages.length <= 1) {
     return false

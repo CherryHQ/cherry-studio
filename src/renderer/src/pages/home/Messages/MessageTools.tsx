@@ -1,17 +1,17 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Message } from '@renderer/types'
+import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
-import { isEmpty } from 'lodash'
 import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
-  message: Message
+  blocks: ToolMessageBlock
 }
 
-const MessageTools: FC<Props> = ({ message }) => {
+const MessageTools: FC<Props> = ({ blocks }) => {
+  console.log('blocks', blocks)
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
@@ -23,9 +23,9 @@ const MessageTools: FC<Props> = ({ message }) => {
       : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans","Helvetica Neue", sans-serif'
   }, [messageFont])
 
-  const toolResponses = message.metadata?.mcpTools || []
+  const toolResponse = blocks.metadata?.rawMcpToolResponse
 
-  if (isEmpty(toolResponses)) {
+  if (!toolResponse) {
     return null
   }
 
@@ -44,74 +44,74 @@ const MessageTools: FC<Props> = ({ message }) => {
   const getCollapseItems = () => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
     // Add tool responses
-    for (const toolResponse of toolResponses) {
-      const { id, tool, status, response } = toolResponse
-      const isInvoking = status === 'invoking'
-      const isDone = status === 'done'
-      const hasError = isDone && response?.isError === true
-      const result = {
-        params: tool.inputSchema,
-        response: toolResponse.response
-      }
-
-      items.push({
-        key: id,
-        label: (
-          <MessageTitleLabel>
-            <TitleContent>
-              <ToolName>{tool.name}</ToolName>
-              <StatusIndicator $isInvoking={isInvoking} $hasError={hasError}>
-                {isInvoking
-                  ? t('message.tools.invoking')
-                  : hasError
-                    ? t('message.tools.error')
-                    : t('message.tools.completed')}
-                {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
-                {isDone && !hasError && <CheckOutlined style={{ marginLeft: 6 }} />}
-                {hasError && <WarningOutlined style={{ marginLeft: 6 }} />}
-              </StatusIndicator>
-            </TitleContent>
-            <ActionButtonsContainer>
-              {isDone && response && (
-                <>
-                  <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
-                    <ActionButton
-                      className="message-action-button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setExpandedResponse({
-                          content: JSON.stringify(response, null, 2),
-                          title: tool.name
-                        })
-                      }}
-                      aria-label={t('common.expand')}>
-                      <ExpandOutlined />
-                    </ActionButton>
-                  </Tooltip>
-                  <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
-                    <ActionButton
-                      className="message-action-button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        copyContent(JSON.stringify(result, null, 2), id)
-                      }}
-                      aria-label={t('common.copy')}>
-                      {!copiedMap[id] && <i className="iconfont icon-copy"></i>}
-                      {copiedMap[id] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
-                    </ActionButton>
-                  </Tooltip>
-                </>
-              )}
-            </ActionButtonsContainer>
-          </MessageTitleLabel>
-        ),
-        children: isDone && result && (
-          <ToolResponseContainer style={{ fontFamily, fontSize: '12px' }}>
-            <CodeBlock>{JSON.stringify(result, null, 2)}</CodeBlock>
-          </ToolResponseContainer>
-        )
-      })
+    // for (const toolResponse of toolResponses) {
+    const { id, tool, status, response } = toolResponse
+    const isInvoking = status === 'invoking'
+    const isDone = status === 'done'
+    const hasError = isDone && response?.isError === true
+    const result = {
+      params: tool.inputSchema,
+      response: toolResponse.response
     }
+
+    items.push({
+      key: id,
+      label: (
+        <MessageTitleLabel>
+          <TitleContent>
+            <ToolName>{tool.name}</ToolName>
+            <StatusIndicator $isInvoking={isInvoking} $hasError={hasError}>
+              {isInvoking
+                ? t('message.tools.invoking')
+                : hasError
+                  ? t('message.tools.error')
+                  : t('message.tools.completed')}
+              {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
+              {isDone && !hasError && <CheckOutlined style={{ marginLeft: 6 }} />}
+              {hasError && <WarningOutlined style={{ marginLeft: 6 }} />}
+            </StatusIndicator>
+          </TitleContent>
+          <ActionButtonsContainer>
+            {isDone && response && (
+              <>
+                <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
+                  <ActionButton
+                    className="message-action-button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setExpandedResponse({
+                        content: JSON.stringify(response, null, 2),
+                        title: tool.name
+                      })
+                    }}
+                    aria-label={t('common.expand')}>
+                    <ExpandOutlined />
+                  </ActionButton>
+                </Tooltip>
+                <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
+                  <ActionButton
+                    className="message-action-button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      copyContent(JSON.stringify(result, null, 2), id)
+                    }}
+                    aria-label={t('common.copy')}>
+                    {!copiedMap[id] && <i className="iconfont icon-copy"></i>}
+                    {copiedMap[id] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+                  </ActionButton>
+                </Tooltip>
+              </>
+            )}
+          </ActionButtonsContainer>
+        </MessageTitleLabel>
+      ),
+      children: isDone && result && (
+        <ToolResponseContainer style={{ fontFamily, fontSize: '12px' }}>
+          <CodeBlock>{JSON.stringify(result, null, 2)}</CodeBlock>
+        </ToolResponseContainer>
+      )
+    })
+    // }
 
     return items
   }

@@ -1,5 +1,5 @@
 import { TranslationOutlined } from '@ant-design/icons'
-import { Message } from '@renderer/types'
+import type { TranslationMessageBlock } from '@renderer/types/newMessage'
 import { Divider } from 'antd'
 import { FC, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,13 +8,13 @@ import BeatLoader from 'react-spinners/BeatLoader'
 import Markdown from '../Markdown/Markdown'
 
 interface Props {
-  message: Message
+  block: TranslationMessageBlock
 }
 
-const MessageTranslate: FC<Props> = ({ message }) => {
+const MessageTranslate: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
 
-  if (!message.translatedContent) {
+  if (!block.content) {
     return null
   }
 
@@ -23,10 +23,10 @@ const MessageTranslate: FC<Props> = ({ message }) => {
       <Divider style={{ margin: 0, marginBottom: 10 }}>
         <TranslationOutlined />
       </Divider>
-      {message.translatedContent === t('translate.processing') ? (
+      {block.content === t('translate.processing') ? (
         <BeatLoader color="var(--color-text-2)" size="10" style={{ marginBottom: 15 }} />
       ) : (
-        <Markdown message={{ ...message, content: message.translatedContent }} />
+        <Markdown block={block} />
       )}
     </Fragment>
   )

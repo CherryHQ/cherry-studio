@@ -19,10 +19,10 @@ import {
   MessageSquareQuote,
   Moon,
   Palette,
-  RefreshCcw,
   Settings,
   Sparkle,
-  Sun
+  Sun,
+  SunMoon
 } from 'lucide-react'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -104,7 +104,7 @@ const Sidebar: FC = () => {
             ) : settingTheme === 'light' ? (
               <Sun size={20} className="icon" />
             ) : (
-              <RefreshCcw size={20} className="icon" />
+              <SunMoon size={20} className="icon" />
             )}
           </Icon>
         </Tooltip>
