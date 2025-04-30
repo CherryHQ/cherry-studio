@@ -32,7 +32,6 @@ const AssistantSettings: FC = () => {
   const { t } = useTranslation()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettingsType>) => {
-    console.log(settings.temperature ?? temperature)
     updateDefaultAssistant({
       ...defaultAssistant,
       settings: {
