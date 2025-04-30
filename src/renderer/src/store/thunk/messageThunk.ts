@@ -119,7 +119,11 @@ const throttledBlockUpdate = throttle((id, blockUpdate) => {
   const state = store.getState()
   const block = state.messageBlocks.entities[id]
   // throttle是异步函数,可能会在complete事件触发后才执行
-  if (blockUpdate.status === MessageBlockStatus.STREAMING && block?.status === MessageBlockStatus.SUCCESS) return
+  if (
+    blockUpdate.status === MessageBlockStatus.STREAMING &&
+    (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
+  )
+    return
 
   store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
 }, 150)
@@ -135,7 +139,11 @@ export const throttledBlockDbUpdate = throttle(
     const state = store.getState()
     const block = state.messageBlocks.entities[blockId]
     // throttle是异步函数,可能会在complete事件触发后才执行
-    if (blockChanges.status === MessageBlockStatus.STREAMING && block?.status === MessageBlockStatus.SUCCESS) return
+    if (
+      blockChanges.status === MessageBlockStatus.STREAMING &&
+      (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
+    )
+      return
     console.log(`[DB Throttle Block Update] Updating block ${blockId} with changes:`, blockChanges)
     try {
       await db.message_blocks.update(blockId, blockChanges)
