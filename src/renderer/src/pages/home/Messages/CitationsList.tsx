@@ -25,6 +25,17 @@ const truncateText = (text: string, maxLength = 100) => {
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
 }
 
+const cleanMarkdownContent = (text: string): string => {
+  if (!text) return ''
+  let cleaned = text.replace(/!\[.*?]\(.*?\)/g, '')
+  cleaned = cleaned.replace(/\[(.*?)]\(.*?\)/g, '$1')
+  cleaned = cleaned.replace(/https?:\/\/\S+/g, '')
+  cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ')
+  cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '')
+  cleaned = cleaned.replace(/\s+/g, ' ').trim()
+  return cleaned
+}
+
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -96,8 +107,8 @@ const handleLinkClick = (url: string, event: React.MouseEvent) => {
 }
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
-  <div style={{ display: 'flex', flexDirection: 'column' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+  <WebSearchCard>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
       {citation.showFavicon && citation.url && (
         <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
       )}
@@ -105,8 +116,8 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
         {citation.title || <span className="hostname">{citation.hostname}</span>}
       </CitationLink>
     </div>
-    {citation.content && <CitationContent>{truncateText(citation.content, 100)}</CitationContent>}
-  </div>
+    {citation.content && <CitationContent>{truncateText(cleanMarkdownContent(citation.content), 200)}</CitationContent>}
+  </WebSearchCard>
 )
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
@@ -165,7 +176,6 @@ const MoreCount = styled.span`
 `
 
 const CitationContent = styled.div`
-  margin-left: 24px;
   margin-top: 4px;
   font-size: 13px;
   color: var(--color-text-2);
@@ -184,6 +194,25 @@ const CitationLink = styled.a`
 
   .hostname {
     color: var(--color-link);
+  }
+`
+
+const WebSearchCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-2);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background-color: var(--color-bg-3);
+    border-color: var(--color-primary-light);
+    transform: translateY(-2px);
   }
 `
 
