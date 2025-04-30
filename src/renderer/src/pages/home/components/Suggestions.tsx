@@ -1,8 +1,9 @@
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { fetchSuggestions } from '@renderer/services/ApiService'
 import { getUserMessage } from '@renderer/services/MessagesService'
 import { useAppDispatch } from '@renderer/store'
 import { sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, Suggestion } from '@renderer/types'
+import { Suggestion, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { last } from 'lodash'
 import { FC, memo, useEffect, useState } from 'react'
@@ -10,13 +11,13 @@ import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 interface Props {
-  assistant: Assistant
+  topic: Topic
   messages: Message[]
 }
 
 const suggestionsMap = new Map<string, Suggestion[]>()
 
-const Suggestions: FC<Props> = ({ assistant, messages }) => {
+const Suggestions: FC<Props> = ({ topic, messages }) => {
   const dispatch = useAppDispatch()
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>(
@@ -24,14 +25,20 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
   )
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
 
+  const { assistant, topics } = useAssistant(topic.assistantId)
+
   const handleSuggestionClick = async (content: string) => {
+    const topic = topics.length > 0 ? topics[0] : null
+
+    if (!topic) return
+
     const { message: userMessage, blocks } = getUserMessage({
       assistant,
-      topic: assistant.topics[0],
+      topic,
       content
     })
 
-    await dispatch(sendMessage(userMessage, blocks, assistant, assistant.topics[0].id))
+    await dispatch(sendMessage(userMessage, blocks, assistant, topic.id))
   }
 
   const suggestionsHandle = async () => {

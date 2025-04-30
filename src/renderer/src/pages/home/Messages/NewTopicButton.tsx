@@ -12,13 +12,14 @@ const NewTopicButton: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
 
-  const addNewTopic = () => {
-    EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
-  }
-
   return (
     <Container>
-      <Button size="small" color="primary" icon={<FormOutlined />} onClick={addNewTopic} $theme={theme}>
+      <Button
+        size="small"
+        color="primary"
+        icon={<FormOutlined />}
+        onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}
+        $theme={theme}>
         {t('chat.topics.new')}
       </Button>
     </Container>

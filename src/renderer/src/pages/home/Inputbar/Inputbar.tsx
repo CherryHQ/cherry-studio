@@ -11,7 +11,14 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
+import { useTopics } from '@renderer/hooks/useTopic'
+import {
+  addAssistantMessagesToTopic,
+  createMentionedAssistant,
+  getAssistantById,
+  getDefaultModel,
+  getDefaultTopic
+} from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
@@ -22,7 +29,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, KnowledgeItem, MentionedAssistant, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
@@ -34,6 +41,7 @@ import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
 import {
   AtSign,
+  Bot,
   CirclePause,
   FileSearch,
   FileText,
@@ -60,6 +68,8 @@ import GenerateImageButton from './GenerateImageButton'
 import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MCPToolsButton, { MCPToolsButtonRef } from './MCPToolsButton'
+import MentionAssistantsButton, { MentionAssistantsButtonRef } from './MentionAssistantsButton'
+import MentionAssistantsInput from './MentionAssistantsInput'
 import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
 import NewContextButton from './NewContextButton'
@@ -80,7 +90,8 @@ let _files: FileType[] = []
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
-  const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
+  const { assistant, model, setModel, updateAssistant } = useAssistant(_assistant.id)
+  const { addTopic } = useTopics()
   const {
     targetLanguage,
     sendMessageShortcut,
@@ -109,6 +120,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
+  const [mentionedAssistants, setMentionedAssistants] = useState<MentionedAssistant[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
@@ -127,6 +139,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const quickPhrasesButtonRef = useRef<QuickPhrasesButtonRef>(null)
   const mentionModelsButtonRef = useRef<MentionModelsButtonRef>(null)
+  const mentionAssistantsButtonRef = useRef<MentionAssistantsButtonRef>(null)
   const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
@@ -196,8 +209,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
       }
 
-      if (mentionModels) {
-        baseUserMessage.mentions = mentionModels
+      if (mentionModels.length > 0 || mentionedAssistants.length > 0) {
+        baseUserMessage.mentions = [
+          ...mentionModels.map((model) => createMentionedAssistant(assistant, model)),
+          ...mentionedAssistants
+        ]
       }
 
       if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
@@ -219,6 +235,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       // Clear input
       setText('')
       setFiles([])
+      setMentionedAssistants([])
       setTimeout(() => setText(''), 500)
       setTimeout(() => resizeTextArea(), 0)
       setExpend(false)
@@ -233,6 +250,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     inputEmpty,
     loading,
     mentionModels,
+    mentionedAssistants,
     resizeTextArea,
     selectedKnowledgeBases,
     text,
@@ -340,6 +358,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         isMenu: true,
         action: () => {
           mentionModelsButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
+        label: t('chat.input.mention_assistant'),
+        description: '',
+        icon: <Bot />,
+        isMenu: true,
+        action: () => {
+          mentionAssistantsButtonRef.current?.openQuickPanel()
         }
       },
       {
@@ -493,34 +520,47 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       return event.preventDefault()
     }
 
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionModels.length > 0) {
-      setMentionModels((prev) => prev.slice(0, -1))
-      return event.preventDefault()
-    }
+    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '') {
+      if (mentionModels.length > 0) {
+        setMentionModels((prev) => prev.slice(0, -1))
+        return event.preventDefault()
+      }
 
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
-      setFiles((prev) => prev.slice(0, -1))
-      return event.preventDefault()
+      if (mentionedAssistants.length > 0) {
+        setMentionedAssistants((prev) => prev.slice(0, -1))
+        return event.preventDefault()
+      }
+
+      if (files.length > 0) {
+        setFiles((prev) => prev.slice(0, -1))
+        return event.preventDefault()
+      }
     }
   }
 
-  const addNewTopic = useCallback(async () => {
-    await modelGenerating()
+  // 如果提供了特定的assistantId，使用该ID对应的助手创建话题
+  const addNewTopic = useCallback(
+    async (assistantId?: string) => {
+      await modelGenerating()
 
-    const topic = getDefaultTopic(assistant.id)
+      const targetAssistant = assistantId ? getAssistantById(assistantId) || assistant : assistant
 
-    await db.topics.add({ id: topic.id, messages: [] })
-    await addAssistantMessagesToTopic({ assistant, topic })
+      const topic = getDefaultTopic(targetAssistant.id)
 
-    // Clear previous state
-    // Reset to assistant default model
-    assistant.defaultModel && setModel(assistant.defaultModel)
+      await db.topics.add({ id: topic.id, messages: [] })
+      await addAssistantMessagesToTopic({ assistant: targetAssistant, topic })
 
-    addTopic(topic)
-    setActiveTopic(topic)
+      // Clear previous state
+      // Reset to assistant default model
+      assistant.defaultModel && setModel(assistant.defaultModel)
 
-    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant, setActiveTopic, setModel])
+      addTopic(topic, targetAssistant.id)
+      setActiveTopic(topic)
+
+      setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+    },
+    [addTopic, assistant, setActiveTopic, setModel]
+  )
 
   const onPause = async () => {
     await pauseMessages()
@@ -699,7 +739,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [isDragging, handleDrag, handleDragEnd])
 
   useShortcut('new_topic', () => {
-    addNewTopic()
+    addNewTopic(assistant.id)
     EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     textareaRef.current?.focus()
   })
@@ -770,6 +810,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setMentionModels(mentionModels.filter((m) => m.id !== model.id))
   }
 
+  const handleRemoveAssistant = (assistant: MentionedAssistant) => {
+    setMentionedAssistants((prev) => prev.filter((a) => a.id !== assistant.id))
+  }
+
   const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
     const newKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
     updateAssistant({
@@ -805,6 +849,26 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
     })
   }
+
+  const onMentionAssistant = useCallback((asst: Assistant) => {
+    setMentionedAssistants((prev) => {
+      const exists = prev.some((a) => a.id === asst.id)
+      if (exists) {
+        return prev.filter((a) => a.id !== asst.id)
+      } else {
+        return [
+          ...prev,
+          {
+            id: asst.id,
+            name: asst.name,
+            emoji: asst.emoji,
+            description: asst.description,
+            model: asst.model ?? asst.defaultModel ?? getDefaultModel()
+          }
+        ]
+      }
+    })
+  }, [])
 
   const onToggleExpended = () => {
     if (textareaHeight) {
@@ -871,6 +935,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           {mentionModels.length > 0 && (
             <MentionModelsInput selectedModels={mentionModels} onRemoveModel={handleRemoveModel} />
           )}
+          {mentionedAssistants.length > 0 && (
+            <MentionAssistantsInput
+              selectedAssistants={mentionedAssistants}
+              onRemoveAssistant={handleRemoveAssistant}
+            />
+          )}
           <Textarea
             value={text}
             onChange={onChange}
@@ -907,7 +977,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           <Toolbar>
             <ToolbarMenu>
               <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
-                <ToolbarButton type="text" onClick={addNewTopic}>
+                <ToolbarButton type="text" onClick={() => addNewTopic(assistant.id)}>
                   <MessageSquareDiff size={19} />
                 </ToolbarButton>
               </Tooltip>
@@ -946,6 +1016,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 ref={mentionModelsButtonRef}
                 mentionModels={mentionModels}
                 onMentionModel={onMentionModel}
+                ToolbarButton={ToolbarButton}
+              />
+              <MentionAssistantsButton
+                ref={mentionAssistantsButtonRef}
+                mentionedAssistants={mentionedAssistants}
+                onMentionAssistant={onMentionAssistant}
                 ToolbarButton={ToolbarButton}
               />
               <QuickPhrasesButton

@@ -10,7 +10,6 @@ export type Assistant = {
   name: string
   prompt: string
   knowledge_bases?: KnowledgeBase[]
-  topics: Topic[]
   type: string
   emoji?: string
   description?: string
@@ -23,6 +22,14 @@ export type Assistant = {
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
+}
+
+export type MentionedAssistant = {
+  id: string
+  name: string
+  emoji?: string
+  description?: string
+  model: Model
 }
 
 export type AssistantMessage = {

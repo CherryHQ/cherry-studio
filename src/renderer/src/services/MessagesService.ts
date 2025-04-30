@@ -6,7 +6,8 @@ import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { Assistant, FileType, MCPServer, Model, Topic } from '@renderer/types'
+import { selectTopicsByAssistantId } from '@renderer/store/topics'
+import type { Assistant, FileType, MCPServer, MentionedAssistant, Model, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -118,7 +119,7 @@ export function getUserMessage({
   content?: string
   files?: FileType[]
   knowledgeBaseIds?: string[]
-  mentions?: Model[]
+  mentions?: MentionedAssistant[]
   enabledMCPs?: MCPServer[]
 }): { message: Message; blocks: MessageBlock[] } {
   const defaultModel = getDefaultModel()
@@ -250,7 +251,13 @@ export function checkRateLimit(assistant: Assistant): boolean {
     return false
   }
 
-  const topicId = assistant.topics[0].id
+  const topics = selectTopicsByAssistantId(store.getState(), assistant.id)
+
+  if (!topics || topics.length === 0) {
+    return false
+  }
+
+  const topicId = topics[0].id
   const messages = selectMessagesForTopic(store.getState(), topicId)
 
   if (!messages || messages.length <= 1) {

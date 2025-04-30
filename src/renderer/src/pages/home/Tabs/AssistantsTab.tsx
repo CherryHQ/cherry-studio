@@ -11,15 +11,15 @@ import styled from 'styled-components'
 import AssistantItem from './AssistantItem'
 
 interface AssistantsTabProps {
-  activeAssistant: Assistant
-  setActiveAssistant: (assistant: Assistant) => void
+  selectedAssistant: Assistant | null
+  setSelectedAssistant: (assistant: Assistant | null) => void
   onCreateAssistant: () => void
   onCreateDefaultAssistant: () => void
 }
 
 const Assistants: FC<AssistantsTabProps> = ({
-  activeAssistant,
-  setActiveAssistant,
+  selectedAssistant,
+  setSelectedAssistant,
   onCreateAssistant,
   onCreateDefaultAssistant
 }) => {
@@ -31,14 +31,9 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   const onDelete = useCallback(
     (assistant: Assistant) => {
-      const remaining = assistants.filter((a) => a.id !== assistant.id)
-      if (assistant.id === activeAssistant?.id) {
-        const newActive = remaining[remaining.length - 1]
-        newActive ? setActiveAssistant(newActive) : onCreateDefaultAssistant()
-      }
       removeAssistant(assistant.id)
     },
-    [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
+    [removeAssistant]
   )
 
   return (
@@ -53,8 +48,8 @@ const Assistants: FC<AssistantsTabProps> = ({
           <AssistantItem
             key={assistant.id}
             assistant={assistant}
-            isActive={assistant.id === activeAssistant.id}
-            onSwitch={setActiveAssistant}
+            isActive={assistant.id === selectedAssistant?.id}
+            onSwitch={setSelectedAssistant}
             onDelete={onDelete}
             addAgent={addAgent}
             addAssistant={addAssistant}

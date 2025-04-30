@@ -4,7 +4,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
+import { autoRenameTopic, getTopic, useTopics } from '@renderer/hooks/useTopic'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
@@ -42,7 +42,8 @@ interface MessagesProps {
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
   const { t } = useTranslation()
   const { showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
-  const { updateTopic, addTopic } = useAssistant(assistant.id)
+  const { updateTopic } = useTopics()
+  const { addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const containerRef = useRef<HTMLDivElement>(null)
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])

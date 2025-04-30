@@ -3,7 +3,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
-import type { Agent, Assistant, AssistantSettings, Model, Provider, Topic } from '@renderer/types'
+import type { Agent, Assistant, AssistantSettings, MentionedAssistant, Model, Provider, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
@@ -15,7 +15,6 @@ export function getDefaultAssistant(): Assistant {
     name: i18n.t('chat.default.name'),
     emoji: '😀',
     prompt: '',
-    topics: [getDefaultTopic('default')],
     messages: [],
     type: 'assistant'
   }
@@ -41,7 +40,7 @@ export function getDefaultAssistantSettings() {
   return store.getState().assistants.defaultAssistant.settings
 }
 
-export function getDefaultTopic(assistantId: string): Topic {
+export function getDefaultTopic(assistantId: string = 'default'): Topic {
   return {
     id: uuid(),
     assistantId,
@@ -118,6 +117,10 @@ export function getAssistantById(id: string) {
   return assistants.find((a) => a.id === id)
 }
 
+export function getAssistantEmoji(assistant: Assistant) {
+  return assistant.emoji || '🤖'
+}
+
 export async function addAssistantMessagesToTopic({ assistant, topic }: { assistant: Assistant; topic: Topic }) {
   const newMessages: Message[] = []
   const newBlocks: MessageBlock[] = []
@@ -168,7 +171,6 @@ export async function createAssistantFromAgent(agent: Agent) {
     id: assistantId,
     name: agent.name,
     emoji: agent.emoji,
-    topics: [topic],
     model: agent.defaultModel,
     type: 'assistant'
   }
@@ -183,4 +185,25 @@ export async function createAssistantFromAgent(agent: Agent) {
   })
 
   return assistant
+}
+
+export function createMentionedAssistant(assistant: Assistant, model: Model): MentionedAssistant {
+  return {
+    id: assistant.id,
+    name: assistant.name,
+    emoji: assistant.emoji,
+    description: assistant.description,
+    model
+  }
+}
+
+export function consolidateMentionedAssistant(mentioned: MentionedAssistant): Assistant {
+  const assistant = getAssistantById(mentioned.id)
+  if (!assistant) {
+    throw new Error(`Failed to consolidate mentioned assistant: Assistant with id ${mentioned.id} not found`)
+  }
+  return {
+    ...assistant,
+    model: mentioned.model ?? assistant.model ?? assistant.defaultModel ?? getDefaultModel()
+  }
 }

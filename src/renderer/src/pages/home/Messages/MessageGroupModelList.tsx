@@ -1,13 +1,14 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setFoldDisplayMode } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
-import { FC } from 'react'
+import { FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -23,7 +24,39 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const { foldDisplayMode } = useSettings()
+  const { assistants } = useAssistants()
   const isCompact = foldDisplayMode === 'compact'
+
+  const renderLabel = useCallback(
+    (message: Message) => {
+      const asst = assistants.find((asst) => asst.id === message.assistantId)
+      const asstTip = asst ? `${asst?.emoji} ${asst?.name}` : ''
+
+      if (isCompact) {
+        return (
+          <Tooltip key={message.id} title={`${asstTip} ${message.model?.name}`} mouseEnterDelay={0.5}>
+            <AvatarWrapper
+              className="avatar-wrapper"
+              isSelected={message.id === selectMessageId}
+              onClick={() => {
+                setSelectedMessage(message)
+              }}>
+              <ModelAvatar model={message.model as Model} size={20} />
+            </AvatarWrapper>
+          </Tooltip>
+        )
+      }
+      return (
+        <Tooltip title={`${asstTip}`} mouseEnterDelay={0.5}>
+          <SegmentedLabel>
+            <ModelAvatar model={message.model as Model} size={20} />
+            <ModelName>{message.model?.name}</ModelName>
+          </SegmentedLabel>
+        </Tooltip>
+      )
+    },
+    [assistants, isCompact, selectMessageId, setSelectedMessage]
+  )
 
   return (
     <ModelsWrapper>
@@ -44,20 +77,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
       <ModelsContainer $displayMode={foldDisplayMode}>
         {foldDisplayMode === 'compact' ? (
           /* Compact style display */
-          <Avatar.Group className="avatar-group">
-            {messages.map((message, index) => (
-              <Tooltip key={index} title={message.model?.name} placement="top" mouseEnterDelay={0.2}>
-                <AvatarWrapper
-                  className="avatar-wrapper"
-                  isSelected={message.id === selectMessageId}
-                  onClick={() => {
-                    setSelectedMessage(message)
-                  }}>
-                  <ModelAvatar model={message.model as Model} size={28} />
-                </AvatarWrapper>
-              </Tooltip>
-            ))}
-          </Avatar.Group>
+          <Avatar.Group className="avatar-group">{messages.map((message) => renderLabel(message))}</Avatar.Group>
         ) : (
           /* Expanded style display */
           <Segmented
@@ -67,12 +87,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
               setSelectedMessage(message)
             }}
             options={messages.map((message) => ({
-              label: (
-                <SegmentedLabel>
-                  <ModelAvatar model={message.model as Model} size={20} />
-                  <ModelName>{message.model?.name}</ModelName>
-                </SegmentedLabel>
-              ),
+              label: renderLabel(message),
               value: message.id
             }))}
             size="small"
@@ -95,7 +110,6 @@ const DisplayModeToggle = styled.div<{ displayMode: DisplayMode }>`
   left: 4px; /* Add more space on the left */
   top: 50%;
   transform: translateY(-50%);
-  z-index: 5;
   width: 28px; /* Increase width */
   height: 28px; /* Add height */
   display: flex;
@@ -176,7 +190,7 @@ const AvatarWrapper = styled.div<{ isSelected: boolean }>`
   display: inline-flex;
   border-radius: 50%;
   /* Keep z-index separate from transitions to avoid rendering issues */
-  z-index: ${(props) => (props.isSelected ? 2 : 0)};
+  z-index: ${(props) => (props.isSelected ? 1 : 0)};
   background: var(--color-background);
   /* Simplify transitions to reduce jittering */
   transition:
@@ -193,7 +207,6 @@ const AvatarWrapper = styled.div<{ isSelected: boolean }>`
 
   &:hover {
     /* z-index is applied immediately, not part of the transition */
-    z-index: 10;
     transform: translateX(var(--hover-x-offset)) scale(var(--hover-scale));
     box-shadow: var(--hover-shadow);
     filter: brightness(1.02);

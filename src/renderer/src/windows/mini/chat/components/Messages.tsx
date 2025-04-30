@@ -1,4 +1,5 @@
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getAssistantMessage } from '@renderer/services/MessagesService'
 import { Assistant } from '@renderer/types'
@@ -20,25 +21,26 @@ interface ContainerProps {
   right?: boolean
 }
 
-const Messages: FC<Props> = ({ assistant, route }) => {
+const Messages: FC<Props> = ({ assistant: _assistant, route }) => {
   const [messages, setMessages] = useState<Message[]>([])
 
   const containerRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef(messages)
 
   const { t } = useTranslation()
+  const { assistant, topics } = useAssistant(_assistant.id)
 
   messagesRef.current = messages
 
   const onSendMessage = useCallback(
     async (message: Message) => {
       setMessages((prev) => {
-        const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
+        const assistantMessage = getAssistantMessage({ assistant, topic: topics[0] })
         const messages = prev.concat([message, assistantMessage])
         return messages
       })
     },
-    [assistant]
+    [assistant, topics]
   )
 
   const onGetMessages = useCallback(() => {

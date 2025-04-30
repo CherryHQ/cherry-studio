@@ -277,6 +277,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         isPreset: oldMessage.isPreset,
         useful: oldMessage.useful,
         askId: oldMessage.askId,
+        // @ts-ignore 下一个数据库版本修改了类型
         mentions: oldMessage.mentions,
         enabledMCPs: oldMessage.enabledMCPs,
         usage: oldMessage.usage,
@@ -301,4 +302,30 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
   }
 
   console.log('DB migration to version 7 finished successfully.')
+}
+
+// 把消息中的 Model[] 转换为 MentionedAssistant[]
+// 没有必要修复其中的 name 和 emoji 等属性
+export async function upgradeToV8(tx: Transaction): Promise<void> {
+  const topics = await tx.table('topics').toArray()
+
+  for (const topic of topics) {
+    let hasChanges = false
+
+    for (const message of topic.messages) {
+      if (message?.mentions && Array.isArray(message.mentions) && message.mentions.length > 0) {
+        hasChanges = true
+
+        message.mentions = message.mentions.map((model) => ({
+          id: message.assistantId,
+          name: '',
+          model: model
+        }))
+      }
+    }
+
+    if (hasChanges) {
+      await tx.table('topics').put(topic)
+    }
+  }
 }

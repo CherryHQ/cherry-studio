@@ -7,6 +7,7 @@ import type {
   KnowledgeReference,
   MCPServer,
   MCPToolResponse,
+  MentionedAssistant,
   Metrics,
   Model,
   Topic,
@@ -171,7 +172,7 @@ export type Message = {
   isPreset?: boolean
   useful?: boolean
   askId?: string // 关联的问题消息ID
-  mentions?: Model[]
+  mentions?: MentionedAssistant[]
   enabledMCPs?: MCPServer[]
 
   usage?: Usage
@@ -204,7 +205,7 @@ export interface MessageInputBaseParams {
   content?: string
   files?: FileType[]
   knowledgeBaseIds?: string[]
-  mentions?: Model[]
+  mentions?: MentionedAssistant[]
   enabledMCPs?: MCPServer[]
   usage?: CompletionUsage
 }
