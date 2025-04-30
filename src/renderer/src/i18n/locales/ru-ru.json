@@ -332,7 +332,8 @@
         "title": "Ошибка рендеринга"
       },
       "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
-      "unknown": "Неизвестная ошибка"
+      "unknown": "Неизвестная ошибка",
+      "pause_placeholder": "Получение ответа приостановлено"
     },
     "export": {
       "assistant": "Ассистент",
@@ -578,51 +579,6 @@
       "success.siyuan.export": "Успешный экспорт в Siyuan",
       "warn.yuque.exporting": "Экспортируется в Yuque, пожалуйста, не отправляйте повторные запросы!",
       "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!"
-    },
-    "minapp": {
-      "popup": {
-        "refresh": "Обновить",
-        "close": "Закрыть встроенное приложение",
-        "minimize": "Свернуть встроенное приложение",
-        "devtools": "Инструменты разработчика",
-        "openExternal": "Открыть в браузере",
-        "rightclick_copyurl": "ПКМ → Копировать URL",
-        "open_link_external_on": "Текущий: Открыть ссылки в браузере",
-        "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию"
-      },
-      "sidebar.add.title": "Добавить в боковую панель",
-      "sidebar.remove.title": "Удалить из боковой панели",
-      "sidebar.close.title": "Закрыть",
-      "sidebar.closeall.title": "Закрыть все",
-      "sidebar.hide.title": "Скрыть приложение",
-      "title": "Встроенные приложения"
-    },
-    "miniwindow": {
-      "clipboard": {
-        "empty": "Буфер обмена пуст"
-      },
-      "feature": {
-        "chat": "Ответить на этот вопрос",
-        "explanation": "Объяснение",
-        "summary": "Содержание",
-        "translate": "Текст перевод"
-      },
-      "footer": {
-        "copy_last_message": "Нажмите C для копирования",
-        "esc": "Нажмите ESC {{action}}",
-        "esc_back": "возвращения",
-        "esc_close": "закрытия окна",
-        "backspace_clear": "Нажмите Backspace, чтобы очистить"
-      },
-      "input": {
-        "placeholder": {
-          "empty": "Задайте вопрос {{model}}...",
-          "title": "Что вы хотите сделать с этим текстом?"
-        }
-      },
-      "tooltip": {
-        "pin": "Верхнее окно"
-      }
     },
     "models": {
       "add_parameter": "Добавить параметр",

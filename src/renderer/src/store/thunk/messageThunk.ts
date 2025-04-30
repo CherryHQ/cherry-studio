@@ -16,6 +16,7 @@ import type {
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { Response } from '@renderer/types/newMessage'
+import { isAbortError } from '@renderer/utils/error'
 import { extractUrlsFromMarkdown } from '@renderer/utils/linkConverter'
 import {
   createAssistantMessage,
@@ -555,12 +556,19 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onError: (error) => {
-        console.error('Stream processing error:', error)
+        console.dir(error, { depth: null })
+        let pauseErrorLanguagePlaceholder = ''
+        if (isAbortError(error)) {
+          pauseErrorLanguagePlaceholder = 'pause_placeholder'
+        }
+
         const serializableError = {
           name: error.name,
-          message: error.message || 'Stream processing error',
+          message: pauseErrorLanguagePlaceholder || error.message || 'Stream processing error',
           originalMessage: error.message,
-          stack: error.stack
+          stack: error.stack,
+          status: error.status,
+          requestId: error.request_id
         }
         if (lastBlockId) {
           // 更改上一个block的状态为ERROR

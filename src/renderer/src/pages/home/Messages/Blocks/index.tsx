@@ -39,7 +39,6 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   return (
     <>
       {renderedBlocks.map((block) => {
-        console.log('block', block)
         switch (block.type) {
           case MessageBlockType.UNKNOWN:
             if (block.status === MessageBlockStatus.PROCESSING) {
