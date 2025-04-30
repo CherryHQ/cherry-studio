@@ -1,6 +1,7 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
+import { isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { Assistant } from '@renderer/types'
@@ -14,7 +15,7 @@ interface Props {
 }
 
 const SelectModelButton: FC<Props> = ({ assistant }) => {
-  const { model, setModel } = useAssistant(assistant.id)
+  const { model, updateAssistant } = useAssistant(assistant.id)
   const { t } = useTranslation()
 
   if (isLocalAi) {
@@ -25,7 +26,15 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
     event.currentTarget.blur()
     const selectedModel = await SelectModelPopup.show({ model })
     if (selectedModel) {
-      setModel(selectedModel)
+      // 避免更新数据造成关闭弹框的卡顿
+      setTimeout(() => {
+        const enabledWebSearch = isWebSearchModel(selectedModel)
+        updateAssistant({
+          ...assistant,
+          model: selectedModel,
+          enableWebSearch: enabledWebSearch && assistant.enableWebSearch
+        })
+      }, 200)
     }
   }
 

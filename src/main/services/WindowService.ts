@@ -25,6 +25,7 @@ export class WindowService {
   private selectionMenuWindow: BrowserWindow | null = null
   private lastSelectedText: string = ''
   private contextMenu: Menu | null = null
+  private lastRendererProcessCrashTime: number = 0
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -103,7 +104,30 @@ export class WindowService {
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
+    this.setupMainWindowMonitor(mainWindow)
     this.loadMainWindowContent(mainWindow)
+  }
+
+  private setupMainWindowMonitor(mainWindow: BrowserWindow) {
+    mainWindow.webContents.on('render-process-gone', (_, details) => {
+      Logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      const currentTime = Date.now()
+      const lastCrashTime = this.lastRendererProcessCrashTime
+      this.lastRendererProcessCrashTime = currentTime
+      if (currentTime - lastCrashTime > 60 * 1000) {
+        // 如果大于1分钟，则重启渲染进程
+        mainWindow.webContents.reload()
+      } else {
+        // 如果小于1分钟，则退出应用, 可能是连续crash，需要退出应用
+        app.exit(1)
+      }
+    })
+
+    mainWindow.webContents.on('unresponsive', () => {
+      // 在升级到electron 34后，可以获取具体js stack trace,目前只打个日志监控下
+      // https://www.electronjs.org/blog/electron-34-0#unresponsive-renderer-javascript-call-stacks
+      Logger.error('Renderer process unresponsive')
+    })
   }
 
   private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {

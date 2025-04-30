@@ -100,7 +100,7 @@
       "artifacts.button.preview": "Предпросмотр",
       "artifacts.preview.openExternal.error.content": "Внешний браузер открылся с ошибкой",
       "assistant.search.placeholder": "Поиск",
-      "deeply_thought": "Мыслим ({{secounds}} секунд)",
+      "deeply_thought": "Мыслим ({{seconds}} секунд)",
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
       "default.name": "Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
@@ -136,7 +136,7 @@
       "input.translate": "Перевести на {{target_language}}",
       "input.upload": "Загрузить изображение или документ",
       "input.upload.document": "Загрузить документ (модель не поддерживает изображения)",
-      "input.web_search": "Включить веб-поиск",
+      "input.web_search": "Веб-поиск",
       "input.web_search.button.ok": "Перейти в Настройки",
       "input.web_search.enable": "Включить веб-поиск",
       "input.web_search.enable_content": "Необходимо предварительно проверить подключение к веб-поиску в настройках",
@@ -185,7 +185,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Значение по умолчанию 1, чем меньше значение, тем меньше вариативности в ответах, тем проще понять, чем больше значение, тем больше вариативности в ответах, тем больше разнообразие",
       "suggestions.title": "Предложенные вопросы",
-      "thinking": "Мыслим",
+      "thinking": "Мыслим ({{seconds}} секунд)",
       "topics.auto_rename": "Автопереименование",
       "topics.clear.title": "Очистить сообщения",
       "topics.copy.image": "Скопировать как изображение",
@@ -248,6 +248,9 @@
       "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",
       "input.translating": "Перевод...",
       "input.upload.upload_from_local": "Загрузить локальный файл...",
+      "input.web_search.builtin": "Модель встроена",
+      "input.web_search.builtin.enabled_content": "Используйте встроенную функцию веб-поиска модели",
+      "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск",
       "aidebates": {
         "title": "AI Дебаты",
         "experimental": "Экспериментальная функция",
@@ -362,7 +365,8 @@
         "title": "Ошибка рендеринга"
       },
       "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
-      "unknown": "Неизвестная ошибка"
+      "unknown": "Неизвестная ошибка",
+      "pause_placeholder": "Получение ответа приостановлено"
     },
     "export": {
       "assistant": "Ассистент",

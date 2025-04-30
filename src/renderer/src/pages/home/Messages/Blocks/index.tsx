@@ -1,6 +1,5 @@
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { Model } from '@renderer/types'
 import type {
   ErrorMessageBlock,
   FileMessageBlock,
@@ -28,16 +27,13 @@ import TranslationBlock from './TranslationBlock'
 
 interface Props {
   blocks: MessageBlock[] | string[] // 可以接收块ID数组或MessageBlock数组
-  model?: Model
   messageStatus?: Message['status']
   message: Message
 }
 
-const MessageBlockRenderer: React.FC<Props> = ({ blocks, model, message }) => {
+const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   // 始终调用useSelector，避免条件调用Hook
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
-  // if (!blocks || blocks.length === 0) return null
-
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
   return (
@@ -61,7 +57,6 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, model, message }) => {
               <MainTextBlock
                 key={block.id}
                 block={mainTextBlock}
-                model={model}
                 // Pass only the ID string
                 citationBlockId={citationBlockId}
                 role={message.role}

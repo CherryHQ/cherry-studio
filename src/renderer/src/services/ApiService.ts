@@ -1,5 +1,9 @@
-import { getOpenAIWebSearchParams, isOpenAIWebSearch, isWebSearchModel } from '@renderer/config/models'
-import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
+import { getOpenAIWebSearchParams, isOpenAIWebSearch } from '@renderer/config/models'
+import {
+  SEARCH_SUMMARY_PROMPT,
+  SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
+  SEARCH_SUMMARY_PROMPT_WEB_ONLY
+} from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
 import {
   Assistant,
@@ -42,7 +46,7 @@ async function fetchExternalTool(
   // 可能会有重复？
   const knowledgeBaseIds = getKnowledgeBaseIds(lastUserMessage)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const webSearchProvider = WebSearchService.getWebSearchProvider()
+  const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
   // --- Keyword/Question Extraction Function ---
   const extract = async (): Promise<ExtractResults | undefined> => {
@@ -53,14 +57,19 @@ async function fetchExternalTool(
     // Notify UI that extraction/searching is starting
     onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
 
-    const tools: string[] = []
+    let prompt = ''
 
-    if (shouldWebSearch) tools.push('websearch')
-    if (hasKnowledgeBase) tools.push('knowledge')
+    if (shouldWebSearch && !hasKnowledgeBase) {
+      prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
+    } else if (!shouldWebSearch && hasKnowledgeBase) {
+      prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
+    } else {
+      prompt = SEARCH_SUMMARY_PROMPT
+    }
 
     const summaryAssistant = getDefaultAssistant()
     summaryAssistant.model = assistant.model || getDefaultModel()
-    summaryAssistant.prompt = SEARCH_SUMMARY_PROMPT.replace('{tools}', tools.join(', '))
+    summaryAssistant.prompt = prompt
 
     const getFallbackResult = (): ExtractResults => {
       const fallbackContent = getMainTextContent(lastUserMessage)
@@ -120,7 +129,7 @@ async function fetchExternalTool(
       // Use the consolidated processWebsearch function
       WebSearchService.createAbortSignal(lastUserMessage.id)
       return {
-        results: await WebSearchService.processWebsearch(webSearchProvider, extractResults),
+        results: await WebSearchService.processWebsearch(webSearchProvider!, extractResults),
         source: WebSearchSource.WEBSEARCH
       }
     } catch (error) {
@@ -157,8 +166,7 @@ async function fetchExternalTool(
     }
   }
 
-  const shouldWebSearch =
-    assistant.enableWebSearch && (!isWebSearchModel(assistant.model!) || WebSearchService.isOverwriteEnabled())
+  const shouldWebSearch = !!assistant.webSearchProviderId
 
   // --- Execute Extraction and Searches ---
   const extractResults = await extract()

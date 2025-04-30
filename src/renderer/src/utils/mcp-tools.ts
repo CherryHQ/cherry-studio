@@ -228,7 +228,7 @@ export async function callMCPTool(tool: MCPTool): Promise<MCPCallToolResponse> {
       content: [
         {
           type: 'text',
-          text: `Error calling tool ${tool.name}: ${JSON.stringify(e)}`
+          text: `Error calling tool ${tool.name}: ${e instanceof Error ? (e.stack || e.message || "No error details available") : JSON.stringify(e)}`
         }
       ]
     })

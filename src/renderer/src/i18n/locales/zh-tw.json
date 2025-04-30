@@ -100,7 +100,7 @@
       "artifacts.button.preview": "預覽",
       "artifacts.preview.openExternal.error.content": "外部瀏覽器開啟出錯",
       "assistant.search.placeholder": "搜尋",
-      "deeply_thought": "已深度思考（用時 {{secounds}} 秒）",
+      "deeply_thought": "已深度思考（用時 {{seconds}} 秒）",
       "default.description": "你好，我是預設助手。你可以立即開始與我聊天。",
       "default.name": "預設助手",
       "default.topic.name": "預設話題",
@@ -136,7 +136,7 @@
       "input.translate": "翻譯成{{target_language}}",
       "input.upload": "上傳圖片或文件",
       "input.upload.document": "上傳文件（模型不支援圖片）",
-      "input.web_search": "開啟網路搜尋",
+      "input.web_search": "網路搜尋",
       "input.web_search.button.ok": "去設定",
       "input.web_search.enable": "開啟網路搜尋",
       "input.web_search.enable_content": "需要先在設定中開啟網路搜尋",
@@ -185,7 +185,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "模型生成文字的隨機程度。值越小，AI 生成的內容越單調，也越容易理解；值越大，AI 回覆的詞彙範圍越大，越多樣化",
       "suggestions.title": "建議的問題",
-      "thinking": "思考中",
+      "thinking": "思考中（用時 {{seconds}} 秒）",
       "topics.auto_rename": "自動重新命名",
       "topics.clear.title": "清空訊息",
       "topics.copy.image": "複製為圖片",
@@ -248,6 +248,9 @@
       "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
       "input.translating": "翻譯中...",
       "input.upload.upload_from_local": "上傳本地文件...",
+      "input.web_search.builtin": "模型內置",
+      "input.web_search.builtin.enabled_content": "使用模型內置的網路搜尋功能",
+      "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能",
       "aidebates": {
         "title": "AI辯論",
         "experimental": "實驗性功能",
@@ -362,7 +365,8 @@
         "title": "渲染錯誤"
       },
       "user_message_not_found": "無法找到原始用戶訊息",
-      "unknown": "未知錯誤"
+      "unknown": "未知錯誤",
+      "pause_placeholder": "回應已暫停"
     },
     "export": {
       "assistant": "助手",
