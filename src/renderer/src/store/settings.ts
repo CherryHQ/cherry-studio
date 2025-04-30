@@ -470,7 +470,13 @@ const settingsSlice = createSlice({
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
     },
-    setefaultAides: (state, action: PayloadAction<string>) => {
+    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
+      state.messageNavigation = action.payload
+    },
+    setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
+      state.defaultObsidianVault = action.payload
+    },
+    setDefaultAides: (state, action: PayloadAction<string>) => {
       state.defaultaides = action.payload
     },
     setSiyuanApiUrl: (state, action: PayloadAction<string>) => {
@@ -484,12 +490,6 @@ const settingsSlice = createSlice({
     },
     setSiyuanRootPath: (state, action: PayloadAction<string>) => {
       state.siyuanRootPath = action.payload
-    },
-    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
-      state.messageNavigation = action.payload
-    },
-    setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
-      state.defaultObsidianVault = action.payload
     },
     setMaxKeepAliveMinapps: (state, action: PayloadAction<number>) => {
       state.maxKeepAliveMinapps = action.payload
@@ -592,7 +592,7 @@ export const {
   setJoplinUrl,
   setMessageNavigation,
   setDefaultObsidianVault,
-  setefaultAides,
+  setDefaultAides,
   setSiyuanApiUrl,
   setSiyuanToken,
   setSiyuanBoxId,

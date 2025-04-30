@@ -3,6 +3,8 @@ import { Agent } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { useEffect, useState } from 'react'
 import store from '@renderer/store'
+import { useSelector } from 'react-redux'
+import { RootState } from '@renderer/store'
 let _agents: Agent[] = []
 
 export const getAgentsFromSystemAgents = (systemAgents: any) => {
@@ -17,7 +19,7 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
 }
 
 export function useSystemAgents() {
-  const { defaultaides } = store.getState().settings
+  const defaultaides = useSelector((state: RootState) => state.settings.defaultaides)
   if (defaultaides === null || defaultaides === undefined) {
     console.error('defaultaides is null or undefined');
     return useLocalSystemAgents();
@@ -31,16 +33,12 @@ export function useSystemAgents() {
 
 const useRemoteSystemAgents = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
-  const { defaultaides } = store.getState().settings
+  const defaultaides = useSelector((state: RootState) => state.settings.defaultaides)
   const resourcesPath = `${defaultaides}`;
-  if (defaultaides === null || defaultaides === undefined) {
-    console.error('defaultaides is null or undefined');
-    return agents;
-  }
+  
   useEffect(() => {
     const loadAgents = async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 500));
         const response = await fetch(resourcesPath);
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);

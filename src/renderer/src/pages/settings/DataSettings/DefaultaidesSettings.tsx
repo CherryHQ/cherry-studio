@@ -1,7 +1,7 @@
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { RootState, useAppDispatch } from '@renderer/store'
-import { setefaultAides } from '@renderer/store/settings'
+import { setDefaultAides } from '@renderer/store/settings'
 import Input from 'antd/es/input/Input'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +16,7 @@ const DefaultaidesSettings: FC = () => {
   const Aides = useSelector((state: RootState) => state.settings.defaultaides)
 
   const handleAidesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setefaultAides(e.target.value))
+    dispatch(setDefaultAides(e.target.value))
   }
 
 
