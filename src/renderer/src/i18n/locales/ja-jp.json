@@ -335,7 +335,8 @@
         "title": "レンダリングエラー"
       },
       "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
-      "unknown": "不明なエラー"
+      "unknown": "不明なエラー",
+      "pause_placeholder": "応答を一時停止しました"
     },
     "export": {
       "assistant": "アシスタント",
