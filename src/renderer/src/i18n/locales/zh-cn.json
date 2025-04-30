@@ -1034,9 +1034,9 @@
           }
         },
         "default_aides": {
-          "repo_url": "助手URL",
-          "repo_url_placeholder": "助手URL",
-          "title": "助手配置"
+          "repo_url": "智能体 URL",
+          "repo_url_placeholder": "智能体 URL",
+          "title": "智能体 配置"
         },
         "nutstore": {
           "title": "坚果云配置",

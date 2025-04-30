@@ -1504,8 +1504,13 @@
         "multiple": "Множественный выбор"
       },
       "privacy": {
-        "title": "Настройки приватности",
-        "enable_privacy_mode": "Анонимная отправка отчетов об ошибках и статистики"
+        "title": "Настройки конфиденциальности",
+        "enable_privacy_mode": "Отправка анонимных отчетов об ошибках и статистики данных"
+      },
+      "default_aides": {
+        "repo_url": "URL агента",
+        "repo_url_placeholder": "URL агента",
+        "title": "Настройки агента"
       },
       "defaultaides": "Встроенный",
       "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"

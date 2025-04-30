@@ -1507,6 +1507,11 @@
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
       },
+      "default_aides": {
+        "repo_url": "エージェントURL",
+        "repo_url_placeholder": "エージェントURL",
+        "title": "エージェント設定"
+      },
       "defaultaides": "内蔵",
       "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"
     },

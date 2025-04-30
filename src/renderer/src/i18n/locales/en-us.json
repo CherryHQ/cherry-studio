@@ -1508,6 +1508,11 @@
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
       },
+      "default_aides": {
+        "repo_url": "Agent URL",
+        "repo_url_placeholder": "Agent URL",
+        "title": "Agent Configuration"
+      },
       "defaultaides": "Built-in"
     },
     "translate": {
