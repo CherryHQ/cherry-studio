@@ -1,25 +1,25 @@
 import {
-  ContentListUnion,
-  createPartFromBase64,
-  FinishReason,
-  GenerateContentResponse,
-  GoogleGenAI
-} from '@google/genai'
-import {
   Content,
-  FileDataPart,
-  GenerateContentStreamResult,
-  GoogleGenerativeAI,
+  File,
+  GenerateContentConfig,
+  GenerateContentResponse,
+  GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
-  InlineDataPart,
+  Modality,
   Part,
-  RequestOptions,
+  PartUnion,
   SafetySetting,
-  TextPart,
-  Tool
-} from '@google/generative-ai'
-import { isGemmaModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+  ThinkingConfig,
+  ToolListUnion
+} from '@google/genai'
+import {
+  isGemini25ReasoningModel,
+  isGemmaModel,
+  isGenerateImageModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -29,32 +29,39 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
-import WebSearchService from '@renderer/services/WebSearchService'
-import { Assistant, FileType, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
+import {
+  Assistant,
+  FileType,
+  FileTypes,
+  MCPToolResponse,
+  Model,
+  Provider,
+  Suggestion,
+  Usage,
+  WebSearchSource
+} from '@renderer/types'
+import { BlockCompleteChunk, ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
+import type { Message, Response } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { mcpToolCallResponseToGeminiMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
 import axios from 'axios'
 import { flatten, isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
-import { ChunkCallbackData, CompletionsParams } from '.'
+import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
 
+type ReasoningEffort = 'low' | 'medium' | 'high'
+
 export default class GeminiProvider extends BaseProvider {
-  private sdk: GoogleGenerativeAI
-  private requestOptions: RequestOptions
-  private imageSdk: GoogleGenAI
+  private sdk: GoogleGenAI
 
   constructor(provider: Provider) {
     super(provider)
-    this.sdk = new GoogleGenerativeAI(this.apiKey)
-    /// this sdk is experimental
-    this.imageSdk = new GoogleGenAI({ apiKey: this.apiKey, httpOptions: { baseUrl: this.getBaseURL() } })
-    this.requestOptions = {
-      baseUrl: this.getBaseURL()
-    }
+    this.sdk = new GoogleGenAI({ vertexai: false, apiKey: this.apiKey, httpOptions: { baseUrl: this.getBaseURL() } })
   }
 
   public getBaseURL(): string {
@@ -76,31 +83,31 @@ export default class GeminiProvider extends BaseProvider {
         inlineData: {
           data,
           mimeType
-        }
-      } as InlineDataPart
+        } as Part['inlineData']
+      }
     }
 
     // Retrieve file from Gemini uploaded files
-    const fileMetadata = await window.api.gemini.retrieveFile(file, this.apiKey)
+    const fileMetadata: File | undefined = await window.api.gemini.retrieveFile(file, this.apiKey)
 
     if (fileMetadata) {
       return {
         fileData: {
           fileUri: fileMetadata.uri,
           mimeType: fileMetadata.mimeType
-        }
-      } as FileDataPart
+        } as Part['fileData']
+      }
     }
 
     // If file is not found, upload it to Gemini
-    const uploadResult = await window.api.gemini.uploadFile(file, this.apiKey)
+    const result = await window.api.gemini.uploadFile(file, this.apiKey)
 
     return {
       fileData: {
-        fileUri: uploadResult.file.uri,
-        mimeType: uploadResult.file.mimeType
-      }
-    } as FileDataPart
+        fileUri: result.uri,
+        mimeType: result.mimeType
+      } as Part['fileData']
+    }
   }
 
   /**
@@ -109,56 +116,60 @@ export default class GeminiProvider extends BaseProvider {
    * @returns The message contents
    */
   private async getMessageContents(message: Message): Promise<Content> {
+    console.log('getMessageContents', message)
     const role = message.role === 'user' ? 'user' : 'model'
-
     const parts: Part[] = [{ text: await this.getMessageContent(message) }]
     // Add any generated images from previous responses
-    if (message.metadata?.generateImage?.images && message.metadata.generateImage.images.length > 0) {
-      for (const imageUrl of message.metadata.generateImage.images) {
-        if (imageUrl && imageUrl.startsWith('data:')) {
-          // Extract base64 data and mime type from the data URL
-          const matches = imageUrl.match(/^data:(.+);base64,(.*)$/)
-          if (matches && matches.length === 3) {
-            const mimeType = matches[1]
-            const base64Data = matches[2]
-            parts.push({
-              inlineData: {
-                data: base64Data,
-                mimeType: mimeType
-              }
-            } as InlineDataPart)
+    const imageBlocks = findImageBlocks(message)
+    for (const imageBlock of imageBlocks) {
+      if (imageBlock.metadata?.generateImage?.images && imageBlock.metadata.generateImage.images.length > 0) {
+        for (const imageUrl of imageBlock.metadata.generateImage.images) {
+          if (imageUrl && imageUrl.startsWith('data:')) {
+            // Extract base64 data and mime type from the data URL
+            const matches = imageUrl.match(/^data:(.+);base64,(.*)$/)
+            if (matches && matches.length === 3) {
+              const mimeType = matches[1]
+              const base64Data = matches[2]
+              parts.push({
+                inlineData: {
+                  data: base64Data,
+                  mimeType: mimeType
+                } as Part['inlineData']
+              })
+            }
           }
         }
       }
     }
 
-    for (const file of message.files || []) {
+    const fileBlocks = findFileBlocks(message)
+    for (const fileBlock of fileBlocks) {
+      const file = fileBlock.file
       if (file.type === FileTypes.IMAGE) {
         const base64Data = await window.api.file.base64Image(file.id + file.ext)
         parts.push({
           inlineData: {
             data: base64Data.base64,
             mimeType: base64Data.mime
-          }
-        } as InlineDataPart)
+          } as Part['inlineData']
+        })
       }
 
       if (file.ext === '.pdf') {
         parts.push(await this.handlePdfFile(file))
         continue
       }
-
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
         parts.push({
           text: file.origin_name + '\n' + fileContent
-        } as TextPart)
+        })
       }
     }
 
     return {
       role,
-      parts
+      parts: parts
     }
   }
 
@@ -197,6 +208,41 @@ export default class GeminiProvider extends BaseProvider {
   }
 
   /**
+   * Get the reasoning effort for the assistant
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The reasoning effort
+   */
+  private getReasoningEffort(assistant: Assistant, model: Model) {
+    if (isGemini25ReasoningModel(model)) {
+      const effortRatios: Record<ReasoningEffort, number> = {
+        high: 1,
+        medium: 0.5,
+        low: 0.2
+      }
+      const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
+      const effortRatio = effortRatios[effort]
+      const maxBudgetToken = 24576 // https://ai.google.dev/gemini-api/docs/thinking
+      const budgetTokens = Math.max(1024, Math.trunc(maxBudgetToken * effortRatio))
+      if (!effortRatio) {
+        return {
+          thinkingConfig: {
+            thinkingBudget: 0
+          } as ThinkingConfig
+        }
+      }
+
+      return {
+        thinkingConfig: {
+          thinkingBudget: budgetTokens,
+          includeThoughts: true
+        } as ThinkingConfig
+      }
+    }
+    return {}
+  }
+
+  /**
    * Generate completions
    * @param messages - The messages
    * @param assistant - The assistant
@@ -204,95 +250,119 @@ export default class GeminiProvider extends BaseProvider {
    * @param onChunk - The onChunk callback
    * @param onFilterMessages - The onFilterMessages callback
    */
-  public async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams) {
-    if (assistant.enableGenerateImage) {
-      await this.generateImageExp({ messages, assistant, onFilterMessages, onChunk })
-    } else {
-      const defaultModel = getDefaultModel()
-      const model = assistant.model || defaultModel
-      const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+  public async completions({
+    messages,
+    assistant,
+    mcpTools,
+    onChunk,
+    onFilterMessages
+  }: CompletionsParams): Promise<void> {
+    const defaultModel = getDefaultModel()
+    const model = assistant.model || defaultModel
+    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
-      const userMessages = filterUserRoleStartMessages(
-        filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
-      )
-      onFilterMessages(userMessages)
+    const userMessages = filterUserRoleStartMessages(
+      filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
+    )
+    onFilterMessages(userMessages)
 
-      const userLastMessage = userMessages.pop()
+    const userLastMessage = userMessages.pop()
 
-      const history: Content[] = []
+    const history: Content[] = []
 
-      for (const message of userMessages) {
-        history.push(await this.getMessageContents(message))
+    for (const message of userMessages) {
+      history.push(await this.getMessageContents(message))
+    }
+
+    let systemInstruction = assistant.prompt
+
+    if (mcpTools && mcpTools.length > 0) {
+      systemInstruction = buildSystemPrompt(assistant.prompt || '', mcpTools)
+    }
+
+    // const tools = mcpToolsToGeminiTools(mcpTools)
+    const tools: ToolListUnion = []
+    const toolResponses: MCPToolResponse[] = []
+
+    if (assistant.enableWebSearch && isWebSearchModel(model)) {
+      tools.push({
+        // @ts-ignore googleSearch is not a valid tool for Gemini
+        googleSearch: {}
+      })
+    }
+
+    let canGenerateImage = false
+    if (isGenerateImageModel(model)) {
+      if (model.id === 'gemini-2.0-flash-exp') {
+        canGenerateImage = assistant.enableGenerateImage!
+      } else {
+        canGenerateImage = true
       }
+    }
 
-      let systemInstruction = assistant.prompt
+    const generateContentConfig: GenerateContentConfig = {
+      responseModalities: canGenerateImage ? [Modality.TEXT, Modality.IMAGE] : undefined,
+      responseMimeType: canGenerateImage ? 'text/plain' : undefined,
+      safetySettings: this.getSafetySettings(model.id),
+      // generate image don't need system instruction
+      systemInstruction: isGemmaModel(model) || canGenerateImage ? undefined : systemInstruction,
+      temperature: assistant?.settings?.temperature,
+      topP: assistant?.settings?.topP,
+      maxOutputTokens: maxTokens,
+      tools: tools,
+      ...this.getReasoningEffort(assistant, model),
+      ...this.getCustomParameters(assistant)
+    }
 
-      if (mcpTools && mcpTools.length > 0) {
-        systemInstruction = buildSystemPrompt(assistant.prompt || '', mcpTools)
-      }
+    const messageContents: Content = await this.getMessageContents(userLastMessage!)
 
-      // const tools = mcpToolsToGeminiTools(mcpTools)
-      const tools: Tool[] = []
-      const toolResponses: MCPToolResponse[] = []
+    const chat = this.sdk.chats.create({
+      model: model.id,
+      config: generateContentConfig,
+      history: history
+    })
 
-      if (!WebSearchService.isOverwriteEnabled() && assistant.enableWebSearch && isWebSearchModel(model)) {
-        tools.push({
-          // @ts-ignore googleSearch is not a valid tool for Gemini
-          googleSearch: {}
-        })
-      }
-
-      const geminiModel = this.sdk.getGenerativeModel(
-        {
-          model: model.id,
-          ...(isGemmaModel(model) ? {} : { systemInstruction: systemInstruction }),
-          safetySettings: this.getSafetySettings(model.id),
-          tools: tools,
-          generationConfig: {
-            maxOutputTokens: maxTokens,
-            temperature: assistant?.settings?.temperature,
-            topP: assistant?.settings?.topP,
-            ...this.getCustomParameters(assistant)
+    if (isGemmaModel(model) && assistant.prompt) {
+      const isFirstMessage = history.length === 0
+      if (isFirstMessage && messageContents) {
+        const systemMessage = [
+          {
+            text:
+              '<start_of_turn>user\n' +
+              systemInstruction +
+              '<end_of_turn>\n' +
+              '<start_of_turn>user\n' +
+              (messageContents?.parts?.[0] as Part).text +
+              '<end_of_turn>'
           }
-        },
-        this.requestOptions
-      )
-
-      const chat = geminiModel.startChat({ history })
-      const messageContents = await this.getMessageContents(userLastMessage!)
-
-      if (isGemmaModel(model) && assistant.prompt) {
-        const isFirstMessage = history.length === 0
-        if (isFirstMessage) {
-          const systemMessage = {
-            role: 'user',
-            parts: [
-              {
-                text:
-                  '<start_of_turn>user\n' +
-                  systemInstruction +
-                  '<end_of_turn>\n' +
-                  '<start_of_turn>user\n' +
-                  messageContents.parts[0].text +
-                  '<end_of_turn>'
-              }
-            ]
-          }
-          messageContents.parts = systemMessage.parts
+        ] as Part[]
+        if (messageContents && messageContents.parts) {
+          messageContents.parts[0] = systemMessage[0]
         }
       }
+    }
 
-      const start_time_millsec = new Date().getTime()
-      const { abortController, cleanup } = this.createAbortController(userLastMessage?.id)
-      const { signal } = abortController
+    const start_time_millsec = new Date().getTime()
+    let time_first_token_millsec = 0
 
-      if (!streamOutput) {
-        const { response } = await chat.sendMessage(messageContents.parts, { signal })
-        const time_completion_millsec = new Date().getTime() - start_time_millsec
-        onChunk({
-          text: response.candidates?.[0].content.parts[0].text,
+    const { cleanup, abortController } = this.createAbortController(userLastMessage?.id, true)
+
+    if (!streamOutput) {
+      const response = await chat.sendMessage({
+        message: messageContents as PartUnion,
+        config: {
+          ...generateContentConfig,
+          abortSignal: abortController.signal
+        }
+      })
+      const time_completion_millsec = new Date().getTime() - start_time_millsec
+      onChunk({
+        type: ChunkType.BLOCK_COMPLETE,
+        response: {
+          text: response.text,
           usage: {
             prompt_tokens: response.usageMetadata?.promptTokenCount || 0,
+            thoughts_tokens: response.usageMetadata?.thoughtsTokenCount || 0,
             completion_tokens: response.usageMetadata?.candidatesTokenCount || 0,
             total_tokens: response.usageMetadata?.totalTokenCount || 0
           },
@@ -301,68 +371,136 @@ export default class GeminiProvider extends BaseProvider {
             time_completion_millsec,
             time_first_token_millsec: 0
           },
-          search: response.candidates?.[0]?.groundingMetadata
-        })
-        return
-      }
-
-      const userMessagesStream = await chat.sendMessageStream(messageContents.parts, { signal })
-      let time_first_token_millsec = 0
-
-      const processToolUses = async (content: string, idx: number) => {
-        const toolResults = await parseAndCallTools(
-          content,
-          toolResponses,
-          onChunk,
-          idx,
-          mcpToolCallResponseToGeminiMessage,
-          mcpTools,
-          isVisionModel(model)
-        )
-        if (toolResults && toolResults.length > 0) {
-          history.push(messageContents)
-          const newChat = geminiModel.startChat({ history })
-          const newStream = await newChat.sendMessageStream(flatten(toolResults.map((ts) => (ts as Content).parts)), {
-            signal
-          })
-          await processStream(newStream, idx + 1)
-        }
-      }
-
-      const processStream = async (stream: GenerateContentStreamResult, idx: number) => {
-        let content = ''
-        for await (const chunk of stream.stream) {
-          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
-
-          if (time_first_token_millsec == 0) {
-            time_first_token_millsec = new Date().getTime() - start_time_millsec
+          webSearch: {
+            results: response.candidates?.[0]?.groundingMetadata,
+            source: 'gemini'
           }
+        } as Response
+      } as BlockCompleteChunk)
+      return
+    }
 
-          const time_completion_millsec = new Date().getTime() - start_time_millsec
+    // 等待接口返回流
+    onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+    const userMessagesStream = await chat.sendMessageStream({
+      message: messageContents as PartUnion,
+      config: {
+        ...generateContentConfig,
+        abortSignal: abortController.signal
+      }
+    })
 
-          content += chunk.text()
-          processToolUses(content, idx)
+    const processToolUses = async (content: string, idx: number) => {
+      const toolResults = await parseAndCallTools(
+        content,
+        toolResponses,
+        onChunk,
+        idx,
+        mcpToolCallResponseToGeminiMessage,
+        mcpTools,
+        isVisionModel(model)
+      )
+      if (toolResults && toolResults.length > 0) {
+        history.push(messageContents)
+        const newChat = this.sdk.chats.create({
+          model: model.id,
+          config: generateContentConfig,
+          history: history as Content[]
+        })
+        const newStream = await newChat.sendMessageStream({
+          message: flatten(toolResults.map((ts) => (ts as Content).parts)) as PartUnion,
+          config: {
+            ...generateContentConfig,
+            abortSignal: abortController.signal
+          }
+        })
+        await processStream(newStream, idx + 1)
+      }
+    }
 
+    const processStream = async (stream: AsyncGenerator<GenerateContentResponse>, idx: number) => {
+      let content = ''
+      let final_time_completion_millsec = 0
+      let lastUsage: Usage | undefined = undefined
+      for await (const chunk of stream) {
+        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
+
+        // --- Calculate Metrics ---
+        if (time_first_token_millsec == 0 && chunk.text !== undefined) {
+          // Update based on text arrival
+          time_first_token_millsec = new Date().getTime() - start_time_millsec
+        }
+
+        // 1. Text Content
+        if (chunk.text !== undefined) {
+          content += chunk.text
+          onChunk({ type: ChunkType.TEXT_DELTA, text: chunk.text })
+        }
+
+        // 2. Usage Data
+        if (chunk.usageMetadata) {
+          lastUsage = {
+            prompt_tokens: chunk.usageMetadata.promptTokenCount || 0,
+            completion_tokens: chunk.usageMetadata.candidatesTokenCount || 0,
+            total_tokens: chunk.usageMetadata.totalTokenCount || 0
+          }
+          final_time_completion_millsec = new Date().getTime() - start_time_millsec
+        }
+
+        // 4. Image Generation
+        const generateImage = this.processGeminiImageResponse(chunk)
+        if (generateImage?.images?.length) {
+          onChunk({ type: ChunkType.IMAGE_COMPLETE, image: generateImage })
+        }
+
+        if (chunk.candidates?.[0]?.finishReason) {
+          if (chunk.text) {
+            onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+          }
+          if (chunk.candidates?.[0]?.groundingMetadata) {
+            // 3. Grounding/Search Metadata
+            const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata
+            onChunk({
+              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+              llm_web_search: {
+                results: groundingMetadata,
+                source: WebSearchSource.GEMINI
+              }
+            } as LLMWebSearchCompleteChunk)
+          }
           onChunk({
-            text: chunk.text(),
-            usage: {
-              prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
-              completion_tokens: chunk.usageMetadata?.candidatesTokenCount || 0,
-              total_tokens: chunk.usageMetadata?.totalTokenCount || 0
-            },
-            metrics: {
-              completion_tokens: chunk.usageMetadata?.candidatesTokenCount,
-              time_completion_millsec,
-              time_first_token_millsec
-            },
-            search: chunk.candidates?.[0]?.groundingMetadata,
-            mcpToolResponse: toolResponses
+            type: ChunkType.BLOCK_COMPLETE,
+            response: {
+              metrics: {
+                completion_tokens: lastUsage?.completion_tokens,
+                time_completion_millsec: final_time_completion_millsec,
+                time_first_token_millsec
+              },
+              usage: lastUsage
+            }
           })
         }
-      }
+        // --- End Incremental onChunk calls ---
 
-      await processStream(userMessagesStream, 0).finally(cleanup)
+        // Call processToolUses AFTER potentially processing text content in this chunk
+        // This assumes tools might be specified within the text stream
+        // Note: parseAndCallTools inside should handle its own onChunk for tool responses
+        await processToolUses(content, idx)
+      }
     }
+
+    await processStream(userMessagesStream, 0).finally(cleanup)
+
+    const final_time_completion_millsec = new Date().getTime() - start_time_millsec
+    onChunk({
+      type: ChunkType.BLOCK_COMPLETE,
+      response: {
+        metrics: {
+          time_completion_millsec: final_time_completion_millsec,
+          time_first_token_millsec
+        }
+      }
+    })
   }
 
   /**
@@ -372,41 +510,59 @@ export default class GeminiProvider extends BaseProvider {
    * @param onResponse - The onResponse callback
    * @returns The translated message
    */
-  async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
+  public async translate(
+    content: string,
+    assistant: Assistant,
+    onResponse?: (text: string, isComplete: boolean) => void
+  ) {
     const defaultModel = getDefaultModel()
     const { maxTokens } = getAssistantSettings(assistant)
     const model = assistant.model || defaultModel
 
-    const geminiModel = this.sdk.getGenerativeModel(
-      {
-        model: model.id,
-        ...(isGemmaModel(model) ? {} : { systemInstruction: assistant.prompt }),
-        generationConfig: {
-          maxOutputTokens: maxTokens,
-          temperature: assistant?.settings?.temperature
-        }
-      },
-      this.requestOptions
-    )
-
-    const content =
+    const _content =
       isGemmaModel(model) && assistant.prompt
-        ? `<start_of_turn>user\n${assistant.prompt}<end_of_turn>\n<start_of_turn>user\n${message.content}<end_of_turn>`
-        : message.content
-
+        ? `<start_of_turn>user\n${assistant.prompt}<end_of_turn>\n<start_of_turn>user\n${content}<end_of_turn>`
+        : content
     if (!onResponse) {
-      const { response } = await geminiModel.generateContent(content)
-      return response.text()
+      const response = await this.sdk.models.generateContent({
+        model: model.id,
+        config: {
+          maxOutputTokens: maxTokens,
+          temperature: assistant?.settings?.temperature,
+          systemInstruction: isGemmaModel(model) ? undefined : assistant.prompt
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: _content }]
+          }
+        ]
+      })
+      return response.text || ''
     }
 
-    const response = await geminiModel.generateContentStream(content)
-
+    const response = await this.sdk.models.generateContentStream({
+      model: model.id,
+      config: {
+        maxOutputTokens: maxTokens,
+        temperature: assistant?.settings?.temperature,
+        systemInstruction: isGemmaModel(model) ? undefined : assistant.prompt
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: content }]
+        }
+      ]
+    })
     let text = ''
 
-    for await (const chunk of response.stream) {
-      text += chunk.text()
-      onResponse(text)
+    for await (const chunk of response) {
+      text += chunk.text
+      onResponse?.(text, false)
     }
+
+    onResponse?.(text, true)
 
     return text
   }
@@ -424,7 +580,8 @@ export default class GeminiProvider extends BaseProvider {
       .filter((message) => !message.isPreset)
       .map((message) => ({
         role: message.role,
-        content: message.content
+        // Get content using helper
+        content: getMainTextContent(message)
       }))
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
@@ -442,25 +599,24 @@ export default class GeminiProvider extends BaseProvider {
       content: userMessageContent
     }
 
-    const geminiModel = this.sdk.getGenerativeModel(
-      {
-        model: model.id,
-        ...(isGemmaModel(model) ? {} : { systemInstruction: systemMessage.content }),
-        generationConfig: {
-          temperature: assistant?.settings?.temperature
-        }
-      },
-      this.requestOptions
-    )
-
-    const chat = await geminiModel.startChat()
     const content = isGemmaModel(model)
       ? `<start_of_turn>user\n${systemMessage.content}<end_of_turn>\n<start_of_turn>user\n${userMessage.content}<end_of_turn>`
       : userMessage.content
 
-    const { response } = await chat.sendMessage(content)
+    const response = await this.sdk.models.generateContent({
+      model: model.id,
+      config: {
+        systemInstruction: isGemmaModel(model) ? undefined : systemMessage.content
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: content }]
+        }
+      ]
+    })
 
-    return removeSpecialCharactersForTopicName(response.text())
+    return removeSpecialCharactersForTopicName(response.text || '')
   }
 
   /**
@@ -471,24 +627,23 @@ export default class GeminiProvider extends BaseProvider {
    */
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
     const model = getDefaultModel()
-    const systemMessage = { role: 'system', content: prompt }
-
-    const geminiModel = this.sdk.getGenerativeModel(
-      {
-        model: model.id,
-        ...(isGemmaModel(model) ? {} : { systemInstruction: systemMessage.content })
-      },
-      this.requestOptions
-    )
-
-    const chat = await geminiModel.startChat()
-    const messageContent = isGemmaModel(model)
+    const MessageContent = isGemmaModel(model)
       ? `<start_of_turn>user\n${prompt}<end_of_turn>\n<start_of_turn>user\n${content}<end_of_turn>`
       : content
+    const response = await this.sdk.models.generateContent({
+      model: model.id,
+      config: {
+        systemInstruction: isGemmaModel(model) ? undefined : prompt
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: MessageContent }]
+        }
+      ]
+    })
 
-    const { response } = await chat.sendMessage(messageContent)
-
-    return response.text()
+    return response.text || ''
   }
 
   /**
@@ -513,29 +668,38 @@ export default class GeminiProvider extends BaseProvider {
       content: assistant.prompt
     }
 
-    const userMessage = {
-      role: 'user',
-      content: messages.map((m) => m.content).join('\n')
-    }
+    // Get content using helper
+    const userMessageContent = messages.map(getMainTextContent).join('\n')
 
-    const geminiModel = this.sdk.getGenerativeModel(
-      {
+    const content = isGemmaModel(model)
+      ? `<start_of_turn>user\n${systemMessage.content}<end_of_turn>\n<start_of_turn>user\n${userMessageContent}<end_of_turn>`
+      : userMessageContent
+
+    const lastUserMessage = messages[messages.length - 1]
+    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { signal } = abortController
+
+    const response = await this.sdk.models
+      .generateContent({
         model: model.id,
-        systemInstruction: systemMessage.content,
-        generationConfig: {
-          temperature: assistant?.settings?.temperature
-        }
-      },
-      {
-        ...this.requestOptions,
-        timeout: 20 * 1000
-      }
-    )
+        config: {
+          systemInstruction: isGemmaModel(model) ? undefined : systemMessage.content,
+          temperature: assistant?.settings?.temperature,
+          httpOptions: {
+            timeout: 20 * 1000
+          },
+          abortSignal: signal
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: content }]
+          }
+        ]
+      })
+      .finally(cleanup)
 
-    const chat = await geminiModel.startChat()
-    const { response } = await chat.sendMessage(userMessage.content)
-
-    return response.text()
+    return response.text || ''
   }
 
   /**
@@ -547,143 +711,12 @@ export default class GeminiProvider extends BaseProvider {
   }
 
   /**
-   * 生成图像
-   * @param messages - 消息列表
-   * @param assistant - 助手配置
-   * @param onChunk - 处理生成块的回调
-   * @param onFilterMessages - 过滤消息的回调
-   * @returns Promise<void>
-   */
-  private async generateImageExp({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
-    const defaultModel = getDefaultModel()
-    const model = assistant.model || defaultModel
-    const { contextCount, streamOutput, maxTokens } = getAssistantSettings(assistant)
-
-    const userMessages = filterUserRoleStartMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
-    onFilterMessages(userMessages)
-
-    const userLastMessage = userMessages.pop()
-    if (!userLastMessage) {
-      throw new Error('No user message found')
-    }
-
-    const history: Content[] = []
-
-    for (const message of userMessages) {
-      history.push(await this.getMessageContents(message))
-    }
-
-    const userLastMessageContent = await this.getMessageContents(userLastMessage)
-    const allContents = [...history, userLastMessageContent]
-
-    let contents: ContentListUnion = allContents.length > 0 ? (allContents as ContentListUnion) : []
-
-    contents = await this.addImageFileToContents(userLastMessage, contents)
-
-    if (!streamOutput) {
-      const response = await this.callGeminiGenerateContent(model.id, contents, maxTokens)
-
-      const { isValid, message } = this.isValidGeminiResponse(response)
-      if (!isValid) {
-        throw new Error(`Gemini API error: ${message}`)
-      }
-
-      this.processGeminiImageResponse(response, onChunk)
-      return
-    }
-    const response = await this.callGeminiGenerateContentStream(model.id, contents, maxTokens)
-
-    for await (const chunk of response) {
-      this.processGeminiImageResponse(chunk, onChunk)
-    }
-  }
-
-  /**
-   * 添加图片文件到内容列表
-   * @param message - 用户消息
-   * @param contents - 内容列表
-   * @returns 更新后的内容列表
-   */
-  private async addImageFileToContents(message: Message, contents: ContentListUnion): Promise<ContentListUnion> {
-    if (message.files && message.files.length > 0) {
-      const file = message.files[0]
-      const fileContent = await window.api.file.base64Image(file.id + file.ext)
-
-      if (fileContent && fileContent.base64) {
-        const contentsArray = Array.isArray(contents) ? contents : [contents]
-        return [...contentsArray, createPartFromBase64(fileContent.base64, fileContent.mime)]
-      }
-    }
-    return contents
-  }
-
-  /**
-   * 调用Gemini API生成内容
-   * @param modelId - 模型ID
-   * @param contents - 内容列表
-   * @returns 生成结果
-   */
-  private async callGeminiGenerateContent(
-    modelId: string,
-    contents: ContentListUnion,
-    maxTokens?: number
-  ): Promise<GenerateContentResponse> {
-    try {
-      return await this.imageSdk.models.generateContent({
-        model: modelId,
-        contents: contents,
-        config: {
-          responseModalities: ['Text', 'Image'],
-          responseMimeType: 'text/plain',
-          maxOutputTokens: maxTokens
-        }
-      })
-    } catch (error) {
-      console.error('Gemini API error:', error)
-      throw error
-    }
-  }
-
-  private async callGeminiGenerateContentStream(
-    modelId: string,
-    contents: ContentListUnion,
-    maxTokens?: number
-  ): Promise<AsyncGenerator<GenerateContentResponse>> {
-    try {
-      return await this.imageSdk.models.generateContentStream({
-        model: modelId,
-        contents: contents,
-        config: {
-          responseModalities: ['Text', 'Image'],
-          responseMimeType: 'text/plain',
-          maxOutputTokens: maxTokens
-        }
-      })
-    } catch (error) {
-      console.error('Gemini API error:', error)
-      throw error
-    }
-  }
-
-  /**
-   * 检查Gemini响应是否有效
-   * @param response - Gemini响应
-   * @returns 是否有效
-   */
-  private isValidGeminiResponse(response: GenerateContentResponse): { isValid: boolean; message: string } {
-    return {
-      isValid: response?.candidates?.[0]?.finishReason === FinishReason.STOP ? true : false,
-      message: response?.candidates?.[0]?.finishReason || ''
-    }
-  }
-
-  /**
    * 处理Gemini图像响应
    * @param response - Gemini响应
    * @param onChunk - 处理生成块的回调
    */
-  private processGeminiImageResponse(response: any, onChunk: (chunk: ChunkCallbackData) => void): void {
-    const parts = response.candidates[0].content.parts
+  private processGeminiImageResponse(chunk: GenerateContentResponse): { type: 'base64'; images: string[] } | undefined {
+    const parts = chunk.candidates?.[0]?.content?.parts
     if (!parts) {
       return
     }
@@ -695,31 +728,13 @@ export default class GeminiProvider extends BaseProvider {
           return null
         }
         const dataPrefix = `data:${part.inlineData.mimeType || 'image/png'};base64,`
-        return part.inlineData.data.startsWith('data:') ? part.inlineData.data : dataPrefix + part.inlineData.data
+        return part.inlineData.data?.startsWith('data:') ? part.inlineData.data : dataPrefix + part.inlineData.data
       })
 
-    // 提取文本数据
-    const text = parts
-      .filter((part: Part) => part.text !== undefined)
-      .map((part: Part) => part.text)
-      .join('')
-
-    // 返回结果
-    onChunk({
-      text,
-      generateImage: {
-        type: 'base64',
-        images
-      },
-      usage: {
-        prompt_tokens: response.usageMetadata?.promptTokenCount || 0,
-        completion_tokens: response.usageMetadata?.candidatesTokenCount || 0,
-        total_tokens: response.usageMetadata?.totalTokenCount || 0
-      },
-      metrics: {
-        completion_tokens: response.usageMetadata?.candidatesTokenCount
-      }
-    })
+    return {
+      type: 'base64',
+      images: images.filter((image) => image !== null)
+    }
   }
 
   /**
@@ -732,18 +747,16 @@ export default class GeminiProvider extends BaseProvider {
       return { valid: false, error: new Error('No model found') }
     }
 
-    const body = {
-      model: model.id,
-      messages: [{ role: 'user', content: 'hi' }],
-      max_tokens: 100,
-      stream: false
-    }
-
     try {
-      const geminiModel = this.sdk.getGenerativeModel({ model: body.model }, this.requestOptions)
-      const result = await geminiModel.generateContent(body.messages[0].content)
+      const result = await this.sdk.models.generateContent({
+        model: model.id,
+        contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
+        config: {
+          maxOutputTokens: 100
+        }
+      })
       return {
-        valid: !isEmpty(result.response.text()),
+        valid: !isEmpty(result.text),
         error: null
       }
     } catch (error: any) {
@@ -785,7 +798,14 @@ export default class GeminiProvider extends BaseProvider {
    * @returns The embedding dimensions
    */
   public async getEmbeddingDimensions(model: Model): Promise<number> {
-    const data = await this.sdk.getGenerativeModel({ model: model.id }, this.requestOptions).embedContent('hi')
-    return data.embedding.values.length
+    const data = await this.sdk.models.embedContent({
+      model: model.id,
+      contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
+    })
+    return data.embeddings?.[0]?.values?.length || 0
+  }
+
+  public generateImageByChat(): Promise<void> {
+    throw new Error('Method not implemented.')
   }
 }

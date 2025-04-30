@@ -1,5 +1,5 @@
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchResponse } from '@renderer/types'
+import { WebSearchProviderResponse } from '@renderer/types'
 
 /*
  * MIT License
@@ -202,13 +202,16 @@ export async function parseSubscribeContent(url: string): Promise<string[]> {
   }
 }
 export async function filterResultWithBlacklist(
-  response: WebSearchResponse,
+  response: WebSearchProviderResponse,
   websearch: WebSearchState
-): Promise<WebSearchResponse> {
+): Promise<WebSearchProviderResponse> {
   console.log('filterResultWithBlacklist', response)
 
   // 没有结果或者没有黑名单规则时，直接返回原始结果
-  if (!response.results?.length || (!websearch?.excludeDomains?.length && !websearch?.subscribeSources?.length)) {
+  if (
+    !(response.results as any[])?.length ||
+    (!websearch?.excludeDomains?.length && !websearch?.subscribeSources?.length)
+  ) {
     return response
   }
 
@@ -249,7 +252,7 @@ export async function filterResultWithBlacklist(
   })
 
   // 过滤搜索结果
-  const filteredResults = response.results.filter((result) => {
+  const filteredResults = (response.results as any[]).filter((result) => {
     try {
       const url = new URL(result.url)
 

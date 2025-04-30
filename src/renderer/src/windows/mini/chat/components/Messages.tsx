@@ -1,7 +1,9 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getAssistantMessage } from '@renderer/services/MessagesService'
-import { Assistant, Message } from '@renderer/types'
+import { Assistant } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { last } from 'lodash'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -9,7 +11,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import MessageItem from './Message'
-
 interface Props {
   assistant: Assistant
   route: string
@@ -52,7 +53,8 @@ const Messages: FC<Props> = ({ assistant, route }) => {
   useHotkeys('c', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
-      navigator.clipboard.writeText(lastMessage.content)
+      const content = getMainTextContent(lastMessage)
+      navigator.clipboard.writeText(content)
       window.message.success(t('message.copy.success'))
     }
   })

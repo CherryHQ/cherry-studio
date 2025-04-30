@@ -1,6 +1,6 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
+import { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
@@ -18,7 +18,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
     super(provider)
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
     const uid = nanoid()
     try {
       if (!query.trim()) {
@@ -44,18 +44,14 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       const fetchPromises = validItems.map(async (item) => {
         // console.log(`Fetching content for ${item.url}...`)
         const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
-        if (
-          this.provider.contentLimit &&
-          this.provider.contentLimit != -1 &&
-          result.content.length > this.provider.contentLimit
-        ) {
-          result.content = result.content.slice(0, this.provider.contentLimit) + '...'
+        if (websearch.contentLimit && result.content.length > websearch.contentLimit) {
+          result.content = result.content.slice(0, websearch.contentLimit) + '...'
         }
         return result
       })
 
       // Wait for all fetches to complete
-      const results: WebSearchResult[] = await Promise.all(fetchPromises)
+      const results: WebSearchProviderResult[] = await Promise.all(fetchPromises)
 
       return {
         query: query,

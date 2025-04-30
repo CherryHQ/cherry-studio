@@ -11,8 +11,8 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: ThemeMode.light,
-  settingTheme: ThemeMode.light,
+  theme: ThemeMode.auto,
+  settingTheme: ThemeMode.auto,
   toggleTheme: () => {}
 })
 
@@ -22,43 +22,37 @@ interface ThemeProviderProps extends PropsWithChildren {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultTheme }) => {
   const { theme, setTheme } = useSettings()
-  const [_theme, _setTheme] = useState(theme)
+  const [effectiveTheme, setEffectiveTheme] = useState(theme)
 
   const toggleTheme = () => {
-    setTheme(theme === ThemeMode.dark ? ThemeMode.light : ThemeMode.dark)
+    // 主题顺序是light, dark, auto, 所以需要先判断当前主题，然后取下一个主题
+    const nextTheme =
+      theme === ThemeMode.light ? ThemeMode.dark : theme === ThemeMode.dark ? ThemeMode.auto : ThemeMode.light
+    setTheme(nextTheme)
   }
 
-  useEffect((): any => {
-    if (theme === ThemeMode.auto || defaultTheme === ThemeMode.auto) {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      _setTheme(mediaQuery.matches ? ThemeMode.dark : ThemeMode.light)
-      const handleChange = (e: MediaQueryListEvent) => _setTheme(e.matches ? ThemeMode.dark : ThemeMode.light)
-      mediaQuery.addEventListener('change', handleChange)
-      return () => mediaQuery.removeEventListener('change', handleChange)
-    } else {
-      _setTheme(theme)
-    }
+  useEffect(() => {
+    window.api?.setTheme(defaultTheme || theme)
   }, [defaultTheme, theme])
 
   useEffect(() => {
-    document.body.setAttribute('theme-mode', _theme)
-    // 移除迷你窗口的条件判断，让所有窗口都能设置主题
-    window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
-  }, [_theme])
+    document.body.setAttribute('theme-mode', effectiveTheme)
+  }, [effectiveTheme])
 
   useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
-
-    // listen theme change from main process from other windows
-    const themeChangeListenerRemover = window.electron.ipcRenderer.on(IpcChannel.ThemeChange, (_, newTheme) => {
-      setTheme(newTheme)
-    })
+    const themeChangeListenerRemover = window.electron.ipcRenderer.on(
+      IpcChannel.ThemeChange,
+      (_, realTheam: ThemeMode) => {
+        setEffectiveTheme(realTheam)
+      }
+    )
     return () => {
       themeChangeListenerRemover()
     }
   })
 
-  return <ThemeContext value={{ theme: _theme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
+  return <ThemeContext value={{ theme: effectiveTheme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
 }
 
 export const useTheme = () => use(ThemeContext)

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,6 +10,10 @@ import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import {
+  StreamableHTTPClientTransport,
+  type StreamableHTTPClientTransportOptions
+} from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
 import {
@@ -22,10 +27,12 @@ import {
 } from '@types'
 import { app } from 'electron'
 import Logger from 'electron-log'
+import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
 
 import { CacheService } from './CacheService'
-import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
+import { CallBackServer } from './mcp/oauth/callback'
+import { McpOAuthClientProvider } from './mcp/oauth/provider'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -117,9 +124,17 @@ class McpService {
 
     const args = [...(server.args || [])]
 
-    let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
+    // let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
+    const authProvider = new McpOAuthClientProvider({
+      serverUrlHash: crypto
+        .createHash('md5')
+        .update(server.baseUrl || '')
+        .digest('hex')
+    })
 
-    try {
+    const initTransport = async (): Promise<
+      StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
+    > => {
       // Create appropriate transport based on configuration
       if (server.type === 'inMemory') {
         Logger.info(`[MCP] Using in-memory transport for server: ${server.name}`)
@@ -134,29 +149,34 @@ class McpService {
           throw new Error(`Failed to start in-memory server: ${error.message}`)
         }
         // set the client transport to the client
-        transport = clientTransport
+        return clientTransport
       } else if (server.baseUrl) {
         if (server.type === 'streamableHttp') {
           const options: StreamableHTTPClientTransportOptions = {
             requestInit: {
               headers: server.headers || {}
-            }
+            },
+            authProvider
           }
-          transport = new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+          return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
         } else if (server.type === 'sse') {
           const options: SSEClientTransportOptions = {
+            eventSourceInit: {
+              fetch: (url, init) => fetch(url, { ...init, headers: server.headers || {} })
+            },
             requestInit: {
               headers: server.headers || {}
-            }
+            },
+            authProvider
           }
-          transport = new SSEClientTransport(new URL(server.baseUrl!), options)
+          return new SSEClientTransport(new URL(server.baseUrl!), options)
         } else {
           throw new Error('Invalid server type')
         }
       } else if (server.command) {
         let cmd = server.command
 
-        if (server.command === 'npx' || server.command === 'bun' || server.command === 'bunx') {
+        if (server.command === 'npx') {
           cmd = await getBinaryPath('bun')
           Logger.info(`[MCP] Using command: ${cmd}`)
 
@@ -196,7 +216,7 @@ class McpService {
         Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
         // Logger.info(`[MCP] Environment variables for server:`, server.env)
 
-        transport = new StdioClientTransport({
+        const stdioTransport = new StdioClientTransport({
           command: cmd,
           args,
           env: {
@@ -206,14 +226,72 @@ class McpService {
           },
           stderr: 'pipe'
         })
-        transport.stderr?.on('data', (data) =>
+        stdioTransport.stderr?.on('data', (data) =>
           Logger.info(`[MCP] Stdio stderr for server: ${server.name} `, data.toString())
         )
+        return stdioTransport
       } else {
         throw new Error('Either baseUrl or command must be provided')
       }
+    }
 
-      await client.connect(transport)
+    const handleAuth = async (client: Client, transport: SSEClientTransport | StreamableHTTPClientTransport) => {
+      Logger.info(`[MCP] Starting OAuth flow for server: ${server.name}`)
+      // Create an event emitter for the OAuth callback
+      const events = new EventEmitter()
+
+      // Create a callback server
+      const callbackServer = new CallBackServer({
+        port: authProvider.config.callbackPort,
+        path: authProvider.config.callbackPath || '/oauth/callback',
+        events
+      })
+
+      // Set a timeout to close the callback server
+      const timeoutId = setTimeout(() => {
+        Logger.warn(`[MCP] OAuth flow timed out for server: ${server.name}`)
+        callbackServer.close()
+      }, 300000) // 5 minutes timeout
+
+      try {
+        // Wait for the authorization code
+        const authCode = await callbackServer.waitForAuthCode()
+        Logger.info(`[MCP] Received auth code: ${authCode}`)
+
+        // Complete the OAuth flow
+        await transport.finishAuth(authCode)
+
+        Logger.info(`[MCP] OAuth flow completed for server: ${server.name}`)
+
+        const newTransport = await initTransport()
+        // Try to connect again
+        await client.connect(newTransport)
+
+        Logger.info(`[MCP] Successfully authenticated with server: ${server.name}`)
+      } catch (oauthError) {
+        Logger.error(`[MCP] OAuth authentication failed for server ${server.name}:`, oauthError)
+        throw new Error(
+          `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
+        )
+      } finally {
+        // Clear the timeout and close the callback server
+        clearTimeout(timeoutId)
+        callbackServer.close()
+      }
+    }
+
+    try {
+      const transport = await initTransport()
+      try {
+        await client.connect(transport)
+      } catch (error: Error | any) {
+        if (error instanceof Error && (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))) {
+          Logger.info(`[MCP] Authentication required for server: ${server.name}`)
+          await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
+        } else {
+          throw error
+        }
+      }
 
       // Store the new client in the cache
       this.clients.set(serverKey, client)
@@ -316,8 +394,17 @@ class McpService {
   ): Promise<MCPCallToolResponse> {
     try {
       Logger.info('[MCP] Calling:', server.name, name, args)
+      if (typeof args === 'string') {
+        try {
+          args = JSON.parse(args)
+        } catch (e) {
+          Logger.error('[MCP] args parse error', args)
+        }
+      }
       const client = await this.initClient(server)
-      const result = await client.callTool({ name, arguments: args })
+      const result = await client.callTool({ name, arguments: args }, undefined, {
+        timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
+      })
       return result as MCPCallToolResponse
     } catch (error) {
       Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
@@ -487,13 +574,26 @@ class McpService {
     return await cachedGetResource(server, uri)
   }
 
+  private findPowerShellExecutable() {
+    const psPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' // Standard WinPS path
+    const pwshPath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+
+    if (fs.existsSync(psPath)) {
+      return psPath
+    }
+    if (fs.existsSync(pwshPath)) {
+      return pwshPath
+    }
+    return 'powershell.exe'
+  }
+
   private getSystemPath = memoize(async (): Promise<string> => {
     return new Promise((resolve, reject) => {
       let command: string
       let shell: string
 
       if (process.platform === 'win32') {
-        shell = 'powershell.exe'
+        shell = this.findPowerShellExecutable()
         command = '$env:PATH'
       } else {
         // 尝试获取当前用户的默认 shell
@@ -537,15 +637,19 @@ class McpService {
       })
 
       let path = ''
-      child.stdout.on('data', (data) => {
+      child.stdout.on('data', (data: Buffer) => {
         path += data.toString()
       })
 
-      child.stderr.on('data', (data) => {
+      child.stderr.on('data', (data: Buffer) => {
         console.error('Error getting PATH:', data.toString())
       })
 
-      child.on('close', (code) => {
+      child.on('error', (error: Error) => {
+        reject(new Error(`Failed to get system PATH, ${error.message}`))
+      })
+
+      child.on('close', (code: number) => {
         if (code === 0) {
           const trimmedPath = path.trim()
           resolve(trimmedPath)

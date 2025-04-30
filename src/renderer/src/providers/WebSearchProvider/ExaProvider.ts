@@ -1,6 +1,6 @@
 import { ExaClient } from '@agentic/exa'
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
@@ -15,7 +15,7 @@ export default class ExaProvider extends BaseWebSearchProvider {
     this.exa = new ExaClient({ apiKey: this.apiKey })
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
@@ -31,11 +31,18 @@ export default class ExaProvider extends BaseWebSearchProvider {
 
       return {
         query: response.autopromptString,
-        results: response.results.map((result) => ({
-          title: result.title || 'No title',
-          content: result.text || '',
-          url: result.url || ''
-        }))
+        results: response.results.slice(0, websearch.maxResults).map((result) => {
+          let content = result.text || ''
+          if (websearch.contentLimit && content.length > websearch.contentLimit) {
+            content = content.slice(0, websearch.contentLimit) + '...'
+          }
+
+          return {
+            title: result.title || 'No title',
+            content: content,
+            url: result.url || ''
+          }
+        })
       }
     } catch (error) {
       console.error('Exa search failed:', error)

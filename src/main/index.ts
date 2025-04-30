@@ -8,10 +8,16 @@ import Logger from 'electron-log'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
-import { CHERRY_STUDIO_PROTOCOL, handleProtocolUrl, registerProtocolClient } from './services/ProtocolClient'
+import {
+  CHERRY_STUDIO_PROTOCOL,
+  handleProtocolUrl,
+  registerProtocolClient,
+  setupAppImageDeepLink
+} from './services/ProtocolClient'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
+import { setUserDataDir } from './utils/file'
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -50,6 +56,11 @@ if (!app.requestSingleInstanceLock()) {
 
     replaceDevtoolsFont(mainWindow)
 
+    setUserDataDir()
+
+    // Setup deep link for AppImage on Linux
+    await setupAppImageDeepLink()
+
     if (process.env.NODE_ENV === 'development') {
       installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
         .then((name) => console.log(`Added Extension:  ${name}`))
@@ -58,14 +69,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
       return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
     })
-  })
 
-  registerProtocolClient(app)
-
-  // macOS specific: handle protocol when app is already running
-  app.on('open-url', (event, url) => {
-    event.preventDefault()
-    handleProtocolUrl(url)
+    ipcMain.handle(IpcChannel.System_GetHostname, () => {
+      return require('os').hostname()
+    })
   })
 
   registerProtocolClient(app)

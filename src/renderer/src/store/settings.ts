@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { CodeStyleVarious, LanguageVarious, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { CodeStyleVarious, LanguageVarious, MathEngine, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebDAVSyncState } from './backup'
@@ -58,7 +58,7 @@ export interface SettingsState {
   codeCacheMaxSize: number
   codeCacheTTL: number
   codeCacheThreshold: number
-  mathEngine: 'MathJax' | 'KaTeX'
+  mathEngine: MathEngine
   messageStyle: 'plain' | 'bubble'
   codeStyle: CodeStyleVarious
   foldDisplayMode: 'expanded' | 'compact'
@@ -72,8 +72,10 @@ export interface SettingsState {
   webdavPath: string
   webdavAutoSync: boolean
   webdavSyncInterval: number
+  webdavMaxBackups: number
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
+  showTranslateConfirm: boolean
   enableTopicNaming: boolean
   customCss: string
   topicNamingPrompt: string
@@ -109,8 +111,10 @@ export interface SettingsState {
   siyuanToken: string | null
   siyuanBoxId: string | null
   siyuanRootPath: string | null
+  // MinApps
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
+  minappsOpenLinkExternal: boolean
   // 隐私设置
   enableDataCollection: boolean
   enableQuickPanelTriggers: boolean
@@ -147,7 +151,7 @@ export const initialState: SettingsState = {
   trayOnClose: true,
   tray: true,
   theme: ThemeMode.auto,
-  windowStyle: 'transparent',
+  windowStyle: 'opaque',
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
@@ -177,8 +181,10 @@ export const initialState: SettingsState = {
   webdavPath: '/cherry-studio',
   webdavAutoSync: false,
   webdavSyncInterval: 0,
+  webdavMaxBackups: 0,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
+  showTranslateConfirm: true,
   enableTopicNaming: true,
   customCss: '',
   topicNamingPrompt: '',
@@ -212,8 +218,10 @@ export const initialState: SettingsState = {
   siyuanToken: null,
   siyuanBoxId: null,
   siyuanRootPath: null,
+  // MinApps
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
+  minappsOpenLinkExternal: false,
   enableDataCollection: false,
   enableQuickPanelTriggers: false,
   enableBackspaceDeleteModel: true,
@@ -289,6 +297,9 @@ const settingsSlice = createSlice({
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
       state.theme = action.payload
     },
+    setCustomCss: (state, action: PayloadAction<string>) => {
+      state.customCss = action.payload
+    },
     setFontSize: (state, action: PayloadAction<number>) => {
       state.fontSize = action.payload
     },
@@ -334,6 +345,9 @@ const settingsSlice = createSlice({
     setWebdavSyncInterval: (state, action: PayloadAction<number>) => {
       state.webdavSyncInterval = action.payload
     },
+    setWebdavMaxBackups: (state, action: PayloadAction<number>) => {
+      state.webdavMaxBackups = action.payload
+    },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
       state.codeShowLineNumbers = action.payload
     },
@@ -355,7 +369,7 @@ const settingsSlice = createSlice({
     setCodeCacheThreshold: (state, action: PayloadAction<number>) => {
       state.codeCacheThreshold = action.payload
     },
-    setMathEngine: (state, action: PayloadAction<'MathJax' | 'KaTeX'>) => {
+    setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
     },
     setFoldDisplayMode: (state, action: PayloadAction<'expanded' | 'compact'>) => {
@@ -379,14 +393,14 @@ const settingsSlice = createSlice({
     setAutoTranslateWithSpace: (state, action: PayloadAction<boolean>) => {
       state.autoTranslateWithSpace = action.payload
     },
+    setShowTranslateConfirm: (state, action: PayloadAction<boolean>) => {
+      state.showTranslateConfirm = action.payload
+    },
     setEnableTopicNaming: (state, action: PayloadAction<boolean>) => {
       state.enableTopicNaming = action.payload
     },
     setPasteLongTextThreshold: (state, action: PayloadAction<number>) => {
       state.pasteLongTextThreshold = action.payload
-    },
-    setCustomCss: (state, action: PayloadAction<string>) => {
-      state.customCss = action.payload
     },
     setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
       state.topicNamingPrompt = action.payload
@@ -483,6 +497,9 @@ const settingsSlice = createSlice({
     setShowOpenedMinappsInSidebar: (state, action: PayloadAction<boolean>) => {
       state.showOpenedMinappsInSidebar = action.payload
     },
+    setMinappsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
+      state.minappsOpenLinkExternal = action.payload
+    },
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
@@ -532,6 +549,7 @@ export const {
   setWebdavPath,
   setWebdavAutoSync,
   setWebdavSyncInterval,
+  setWebdavMaxBackups,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
@@ -547,6 +565,7 @@ export const {
   setCodeStyle,
   setTranslateModelPrompt,
   setAutoTranslateWithSpace,
+  setShowTranslateConfirm,
   setEnableTopicNaming,
   setPasteLongTextThreshold,
   setCustomCss,
@@ -580,6 +599,7 @@ export const {
   setSiyuanRootPath,
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,
+  setMinappsOpenLinkExternal,
   setEnableDataCollection,
   setEnableQuickPanelTriggers,
   setExportMenuOptions,

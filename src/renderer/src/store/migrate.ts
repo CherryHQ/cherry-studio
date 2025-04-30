@@ -1221,9 +1221,6 @@ const migrateConfig = {
       // @ts-ignore eslint-disable-next-line
       delete state.settings.showAssistantIcon
       state.settings.enableBackspaceDeleteModel = true
-      if (state.websearch) {
-        state.websearch.enhanceMode = true
-      }
       return state
     } catch (error) {
       return state
@@ -1232,6 +1229,13 @@ const migrateConfig = {
   '97': (state: RootState) => {
     try {
       addMiniApp(state, 'zai')
+      state.settings.webdavMaxBackups = 0
+      if (state.websearch && state.websearch.providers) {
+        state.websearch.providers.forEach((provider) => {
+          provider.basicAuthUsername = ''
+          provider.basicAuthPassword = ''
+        })
+      }
       return state
     } catch (error) {
       return state

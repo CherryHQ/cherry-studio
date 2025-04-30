@@ -1,14 +1,34 @@
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
-import { setDefaultProvider, WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import { WebSearchState } from '@renderer/store/websearch'
+import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
+import { addAbortController } from '@renderer/utils/abortController'
+import { ExtractResults } from '@renderer/utils/extract'
+import { fetchWebContents } from '@renderer/utils/fetch'
 import dayjs from 'dayjs'
-
 /**
  * 提供网络搜索相关功能的服务类
  */
 class WebSearchService {
+  /**
+   * 是否暂停
+   */
+  private signal: AbortSignal | null = null
+
+  isPaused = false
+
+  createAbortSignal(key: string) {
+    const controller = new AbortController()
+    this.signal = controller.signal
+    addAbortController(key, () => {
+      this.isPaused = true
+      this.signal = null
+      controller.abort()
+    })
+    return controller
+  }
+
   /**
    * 获取当前存储的网络搜索状态
    * @private
@@ -23,9 +43,9 @@ class WebSearchService {
    * @public
    * @returns 如果默认搜索提供商已启用则返回true，否则返回false
    */
-  public isWebSearchEnabled(): boolean {
-    const { defaultProvider, providers } = this.getWebSearchState()
-    const provider = providers.find((provider) => provider.id === defaultProvider)
+  public isWebSearchEnabled(providerId?: WebSearchProvider['id']): boolean {
+    const { providers } = this.getWebSearchState()
+    const provider = providers.find((provider) => provider.id === providerId)
 
     if (!provider) {
       return false
@@ -47,16 +67,8 @@ class WebSearchService {
   }
 
   /**
-   * 检查是否启用搜索增强模式
-   * @public
-   * @returns 如果启用搜索增强模式则返回true，否则返回false
-   */
-  public isEnhanceModeEnabled(): boolean {
-    const { enhanceMode } = this.getWebSearchState()
-    return enhanceMode
-  }
-
-  /**
+   * @deprecated 支持在快捷菜单中自选搜索供应商，所以这个不再适用
+   *
    * 检查是否启用覆盖搜索
    * @public
    * @returns 如果启用覆盖搜索则返回true，否则返回false
@@ -70,21 +82,10 @@ class WebSearchService {
    * 获取当前默认的网络搜索提供商
    * @public
    * @returns 网络搜索提供商
-   * @throws 如果找不到默认提供商则抛出错误
    */
-  public getWebSearchProvider(): WebSearchProvider {
-    const { defaultProvider, providers } = this.getWebSearchState()
-    let provider = providers.find((provider) => provider.id === defaultProvider)
-
-    if (!provider) {
-      provider = providers[0]
-      if (provider) {
-        // 可选：自动更新默认提供商
-        store.dispatch(setDefaultProvider(provider.id))
-      } else {
-        throw new Error(`No web search providers available`)
-      }
-    }
+  public getWebSearchProvider(providerId?: string): WebSearchProvider | undefined {
+    const { providers } = this.getWebSearchState()
+    const provider = providers.find((provider) => provider.id === providerId)
 
     return provider
   }
@@ -96,7 +97,7 @@ class WebSearchService {
    * @param query 搜索查询
    * @returns 搜索响应
    */
-  public async search(provider: WebSearchProvider, query: string): Promise<WebSearchResponse> {
+  public async search(provider: WebSearchProvider, query: string): Promise<WebSearchProviderResponse> {
     const websearch = this.getWebSearchState()
     const webSearchEngine = new WebSearchEngineProvider(provider)
 
@@ -131,34 +132,46 @@ class WebSearchService {
     }
   }
 
-  /**
-   * 从带有XML标签的文本中提取信息
-   * @public
-   * @param text 包含XML标签的文本
-   * @returns 提取的信息对象
-   * @throws 如果文本中没有question标签则抛出错误
-   */
-  public extractInfoFromXML(text: string): { question: string; links?: string[] } {
-    // 提取question标签内容
-    const questionMatch = text.match(/<question>([\s\S]*?)<\/question>/)
-    if (!questionMatch) {
-      throw new Error('Missing required <question> tag')
-    }
-    const question = questionMatch[1].trim()
+  public async processWebsearch(
+    webSearchProvider: WebSearchProvider,
+    extractResults: ExtractResults
+  ): Promise<WebSearchProviderResponse> {
+    try {
+      // 检查 websearch 和 question 是否有效
+      if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
+        console.log('No valid question found in extractResults.websearch')
+        return { results: [] }
+      }
 
-    // 提取links标签内容（可选）
-    const linksMatch = text.match(/<links>([\s\S]*?)<\/links>/)
-    const links = linksMatch
-      ? linksMatch[1]
-          .trim()
-          .split('\n')
-          .map((link) => link.trim())
-          .filter((link) => link !== '')
-      : undefined
+      const questions = extractResults.websearch.question
+      const links = extractResults.websearch.links
+      const firstQuestion = questions[0]
 
-    return {
-      question,
-      links
+      if (firstQuestion === 'summarize' && links && links.length > 0) {
+        const contents = await fetchWebContents(links, undefined, undefined, this.signal)
+        return {
+          query: 'summaries',
+          results: contents
+        }
+      }
+      const searchPromises = questions.map((q) => this.search(webSearchProvider, q))
+      const searchResults = await Promise.allSettled(searchPromises)
+      const aggregatedResults: any[] = []
+
+      searchResults.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          if (result.value.results) {
+            aggregatedResults.push(...result.value.results)
+          }
+        }
+      })
+      return {
+        query: questions.join(' | '),
+        results: aggregatedResults
+      }
+    } catch (error) {
+      console.error('Failed to process enhanced search:', error)
+      return { results: [] }
     }
   }
 }

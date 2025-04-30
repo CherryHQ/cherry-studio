@@ -100,7 +100,7 @@
       "artifacts.button.preview": "預覽",
       "artifacts.preview.openExternal.error.content": "外部瀏覽器開啟出錯",
       "assistant.search.placeholder": "搜尋",
-      "deeply_thought": "已深度思考（用時 {{secounds}} 秒）",
+      "deeply_thought": "已深度思考（用時 {{seconds}} 秒）",
       "default.description": "你好，我是預設助手。你可以立即開始與我聊天。",
       "default.name": "預設助手",
       "default.topic.name": "預設話題",
@@ -136,7 +136,7 @@
       "input.translate": "翻譯成{{target_language}}",
       "input.upload": "上傳圖片或文件",
       "input.upload.document": "上傳文件（模型不支援圖片）",
-      "input.web_search": "開啟網路搜尋",
+      "input.web_search": "網路搜尋",
       "input.web_search.button.ok": "去設定",
       "input.web_search.enable": "開啟網路搜尋",
       "input.web_search.enable_content": "需要先在設定中開啟網路搜尋",
@@ -185,7 +185,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "模型生成文字的隨機程度。值越小，AI 生成的內容越單調，也越容易理解；值越大，AI 回覆的詞彙範圍越大，越多樣化",
       "suggestions.title": "建議的問題",
-      "thinking": "思考中",
+      "thinking": "思考中（用時 {{seconds}} 秒）",
       "topics.auto_rename": "自動重新命名",
       "topics.clear.title": "清空訊息",
       "topics.copy.image": "複製為圖片",
@@ -247,7 +247,10 @@
       "topics.export.title_naming_success": "標題生成成功",
       "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
       "input.translating": "翻譯中...",
-      "input.upload.upload_from_local": "上傳本地文件..."
+      "input.upload.upload_from_local": "上傳本地文件...",
+      "input.web_search.builtin": "模型內置",
+      "input.web_search.builtin.enabled_content": "使用模型內置的網路搜尋功能",
+      "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能"
     },
     "code_block": {
       "collapse": "折疊",
@@ -328,7 +331,7 @@
       "no_api_key": "API 金鑰未設定",
       "provider_disabled": "模型供應商未啟用",
       "render": {
-        "description": "渲染公式失敗，請檢查公式格式是否正確",
+        "description": "消息內容渲染失敗，請檢查消息內容格式是否正確",
         "title": "渲染錯誤"
       },
       "user_message_not_found": "無法找到原始用戶訊息",
@@ -445,7 +448,11 @@
       "topN_tooltip": "返回的匹配結果數量，數值越大，匹配結果越多，但消耗的 Token 也越多",
       "url_added": "網址已新增",
       "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-      "urls": "網址"
+      "urls": "網址",
+      "dimensions": "嵌入維度",
+      "dimensions_size_tooltip": "嵌入維度大小，數值越大，嵌入維度越大，但消耗的 Token 也越多",
+      "dimensions_size_placeholder": "預設值（不建議修改）",
+      "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -541,6 +548,7 @@
       "message.style": "訊息樣式",
       "message.style.bubble": "氣泡",
       "message.style.plain": "簡潔",
+      "processing": "正在處理...",
       "regenerate.confirm": "重新生成會覆蓋目前訊息",
       "reset.confirm.content": "確定要清除所有資料嗎？",
       "reset.double.confirm.content": "所有資料將會被清除，您確定要繼續嗎？",
@@ -548,7 +556,7 @@
       "restore.failed": "恢復失敗",
       "restore.success": "恢復成功",
       "save.success.title": "儲存成功",
-      "searching": "正在網路上搜尋...",
+      "searching": "正在搜尋...",
       "success.joplin.export": "成功匯出到 Joplin",
       "success.markdown.export.preconf": "成功導出 Markdown 文件到預先設定的路徑",
       "success.markdown.export.specified": "成功導出 Markdown 文件",
@@ -558,7 +566,9 @@
       "tools": {
         "completed": "已完成",
         "invoking": "調用中",
-        "error": "發生錯誤"
+        "error": "發生錯誤",
+        "raw": "原始碼",
+        "preview": "預覽"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
@@ -579,7 +589,9 @@
         "minimize": "最小化小工具",
         "devtools": "開發者工具",
         "openExternal": "在瀏覽器中開啟",
-        "rightclick_copyurl": "右鍵複製URL"
+        "rightclick_copyurl": "右鍵複製URL",
+        "open_link_external_on": "当前：在瀏覽器中開啟連結",
+        "open_link_external_off": "当前：使用預設視窗開啟連結"
       },
       "sidebar.add.title": "新增到側邊欄",
       "sidebar.remove.title": "從側邊欄移除",
@@ -681,7 +693,59 @@
       "regenerate.confirm": "這將覆蓋已生成的圖片，是否繼續？",
       "seed": "隨機種子",
       "seed_tip": "相同的種子和提示詞可以生成相似的圖片",
-      "title": "繪圖"
+      "title": "繪圖",
+      "magic_prompt_option": "提示詞增強",
+      "model": "版本",
+      "aspect_ratio": "畫幅比例",
+      "style_type": "風格",
+      "learn_more": "了解更多",
+      "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 '雙引號' 包裹",
+      "proxy_required": "目前需要打開代理才能查看生成圖片，後續會支持國內直連",
+      "image_file_required": "請先上傳圖片",
+      "image_file_retry": "請重新上傳圖片",
+      "mode": {
+        "generate": "繪圖",
+        "edit": "編輯",
+        "remix": "混合",
+        "upscale": "放大"
+      },
+      "generate": {
+        "model_tip": "模型版本：V2 為接口最新模型，V2A 為快速模型、V_1 為初代模型，_TURBO 為加速版本",
+        "number_images_tip": "單次出圖數量",
+        "seed_tip": "控制圖像生成的隨機性，用於重現相同的生成結果",
+        "negative_prompt_tip": "描述不想在圖像中出現的元素，僅支援 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
+        "magic_prompt_option_tip": "智能優化提示詞以提升生成效果",
+        "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本"
+      },
+      "edit": {
+        "image_file": "編輯的圖像",
+        "model_tip": "局部編輯僅支援 V_2 和 V_2_TURBO 版本",
+        "number_images_tip": "生成的編輯結果數量",
+        "style_type_tip": "編輯後的圖像風格，僅適用於 V_2 及以上版本",
+        "seed_tip": "控制編輯結果的隨機性",
+        "magic_prompt_option_tip": "智能優化編輯提示詞"
+      },
+      "remix": {
+        "model_tip": "選擇重混使用的 AI 模型版本",
+        "image_file": "參考圖",
+        "image_weight": "參考圖權重",
+        "image_weight_tip": "調整參考圖像的影響程度",
+        "number_images_tip": "生成的重混結果數量",
+        "seed_tip": "控制重混結果的隨機性",
+        "style_type_tip": "重混後的圖像風格，僅適用於 V_2 及以上版本",
+        "negative_prompt_tip": "描述不想在重混結果中出現的元素",
+        "magic_prompt_option_tip": "智能優化重混提示詞"
+      },
+      "upscale": {
+        "image_file": "需要放大的圖片",
+        "resemblance": "相似度",
+        "resemblance_tip": "控制放大結果與原圖的相似程度",
+        "detail": "細節",
+        "detail_tip": "控制放大圖像的細節增強程度",
+        "number_images_tip": "生成的放大結果數量",
+        "seed_tip": "控制放大結果的隨機性",
+        "magic_prompt_option_tip": "智能優化放大提示詞"
+      }
     },
     "plantuml": {
       "download": {
@@ -919,7 +983,9 @@
           "syncError": "備份錯誤",
           "syncStatus": "備份狀態",
           "title": "WebDAV",
-          "user": "WebDAV 使用者名稱"
+          "user": "WebDAV 使用者名稱",
+          "maxBackups": "最大備份數量",
+          "maxBackups.unlimited": "無限制"
         },
         "yuque": {
           "check": {
@@ -1012,6 +1078,9 @@
         "disabled": "隱藏的小程式",
         "empty": "把要隱藏的小程式從左側拖拽到這裡",
         "visible": "顯示的小程式",
+        "open_link_external": {
+          "title": "在瀏覽器中打開新視窗連結"
+        },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",
         "cache_description": "設置同時保持活躍狀態的小程式最大數量",
@@ -1037,6 +1106,7 @@
       "general.user_name.placeholder": "輸入您的名稱",
       "general.view_webdav_settings": "檢視 WebDAV 設定",
       "input.auto_translate_with_space": "快速敲擊 3 次空格翻譯",
+      "input.show_translate_confirm": "顯示翻譯確認對話框",
       "input.target_language": "目標語言",
       "input.target_language.chinese": "簡體中文",
       "input.target_language.chinese-traditional": "繁體中文",
@@ -1114,6 +1184,7 @@
         "installHelp": "獲取安裝幫助",
         "tabs": {
           "general": "通用",
+          "description": "描述",
           "tools": "工具",
           "prompts": "提示",
           "resources": "資源"
@@ -1149,7 +1220,38 @@
         "registryDefault": "預設",
         "not_support": "不支援此模型",
         "user": "用戶",
-        "system": "系統"
+        "system": "系統",
+        "types": {
+          "inMemory": "內置",
+          "sse": "SSE",
+          "streamableHttp": "流式",
+          "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "同步伺服器",
+          "selectProvider": "選擇提供者：",
+          "discoverMcpServers": "發現MCP伺服器",
+          "discoverMcpServersDescription": "訪問平台以發現可用的MCP伺服器",
+          "getToken": "獲取 API 令牌",
+          "getTokenDescription": "從您的帳戶獲取個人 API 令牌",
+          "setToken": "輸入您的令牌",
+          "tokenRequired": "需要 API 令牌",
+          "tokenPlaceholder": "在此輸入 API 令牌",
+          "button": "同步",
+          "error": "同步MCP伺服器出錯",
+          "success": "同步MCP伺服器成功",
+          "unauthorized": "同步未授權",
+          "noServersAvailable": "無可用的 MCP 伺服器"
+        },
+        "timeout": "超時",
+        "timeoutTooltip": "對該伺服器請求的超時時間（秒），預設為60秒",
+        "provider": "提供者",
+        "providerUrl": "提供者網址",
+        "logoUrl": "標誌網址",
+        "tags": "標籤",
+        "tagsPlaceholder": "輸入標籤",
+        "providerPlaceholder": "提供者名稱",
+        "advancedSettings": "高級設定"
       },
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
@@ -1164,7 +1266,8 @@
       "messages.input.enable_quick_triggers": "啟用 '/' 和 '@' 觸發快捷選單",
       "messages.input.enable_delete_model": "啟用刪除鍵刪除模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息",
-      "messages.math_engine": "Markdown 渲染輸入訊息",
+      "messages.math_engine": "數學公式引擎",
+      "messages.math_engine.none": "無",
       "messages.metrics": "首字延遲 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
       "messages.model.title": "模型設定",
       "messages.navigation": "訊息導航",
@@ -1229,10 +1332,22 @@
         "api_key": "API 金鑰",
         "api_key.tip": "多個金鑰使用逗號分隔",
         "api_version": "API 版本",
-        "charge": "儲值",
+        "basic_auth": "HTTP 認證",
+        "basic_auth.tip": "適用於透過伺服器部署的實例（請參閱文檔）。目前僅支援 Basic 方案（RFC7617）。",
+        "basic_auth.user_name": "用戶",
+        "basic_auth.user_name.tip": "留空以停用",
+        "basic_auth.password": "密碼",
+        "basic_auth.password.tip": "",
+        "charge": "餘額充值",
+        "bills": "費用帳單",
         "check": "檢查",
         "check_all_keys": "檢查所有金鑰",
         "check_multiple_keys": "檢查多個 API 金鑰",
+        "oauth": {
+          "button": "使用{{provider}}帳號登入",
+          "description": "本服務由<website>{{provider}}</website>提供",
+          "official_website": "官方網站"
+        },
         "copilot": {
           "auth_failed": "Github Copilot認證失敗",
           "auth_success": "Github Copilot 認證成功",
@@ -1269,7 +1384,12 @@
         "remove_invalid_keys": "刪除無效金鑰",
         "search": "搜尋模型平臺...",
         "search_placeholder": "搜尋模型 ID 或名稱",
-        "title": "模型提供者"
+        "title": "模型提供者",
+        "notes": {
+          "title": "模型備註",
+          "placeholder": "輸入Markdown格式內容...",
+          "markdown_editor_default_value": "預覽區域"
+        }
       },
       "proxy": {
         "mode": {
@@ -1328,8 +1448,6 @@
       "tray.title": "系统匣",
       "websearch": {
         "check_success": "驗證成功",
-        "enhance_mode": "搜索增強模式",
-        "enhance_mode_tooltip": "使用預設模型提取關鍵詞後搜索",
         "get_api_key": "點選這裡取得金鑰",
         "search_with_time": "搜尋包含日期",
         "tavily": {
@@ -1360,9 +1478,11 @@
         "overwrite": "覆蓋搜尋服務商",
         "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋",
         "apikey": "API 金鑰",
-        "free": "免費"
+        "free": "免費",
+        "content_limit": "內容長度限制",
+        "content_limit_tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷。"
       },
-      "general.auto_check_update.title": "啟用自動更新檢查",
+      "general.auto_check_update.title": "啟用自動更新",
       "quickPhrase": {
         "title": "快捷短語",
         "add": "新增短語",
