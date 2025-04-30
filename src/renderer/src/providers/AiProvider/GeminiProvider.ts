@@ -740,25 +740,47 @@ export default class GeminiProvider extends BaseProvider {
   /**
    * Check if the model is valid
    * @param model - The model
+   * @param stream - Whether to use streaming interface
    * @returns The validity of the model
    */
-  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
+  public async check(model: Model, stream: boolean = false): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
 
     try {
-      const result = await this.sdk.models.generateContent({
-        model: model.id,
-        contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
-        config: {
-          maxOutputTokens: 100
+      if (!stream) {
+        const result = await this.sdk.models.generateContent({
+          model: model.id,
+          contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
+          config: {
+            maxOutputTokens: 100
+          }
+        })
+        if (isEmpty(result.text)) {
+          throw new Error('Empty response')
         }
-      })
-      return {
-        valid: !isEmpty(result.text),
-        error: null
+      } else {
+        const response = await this.sdk.models.generateContentStream({
+          model: model.id,
+          contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
+          config: {
+            maxOutputTokens: 100
+          }
+        })
+        // 等待整个流式响应结束
+        let hasContent = false
+        for await (const chunk of response) {
+          if (chunk.text && chunk.text.length > 0) {
+            hasContent = true
+            break
+          }
+        }
+        if (!hasContent) {
+          throw new Error('Empty streaming response')
+        }
       }
+      return { valid: true, error: null }
     } catch (error: any) {
       return {
         valid: false,

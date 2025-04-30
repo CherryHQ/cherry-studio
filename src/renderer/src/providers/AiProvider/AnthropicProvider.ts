@@ -531,25 +531,50 @@ export default class AnthropicProvider extends BaseProvider {
   /**
    * Check if the model is valid
    * @param model - The model
+   * @param stream - Whether to use streaming interface
    * @returns The validity of the model
    */
-  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
+  public async check(model: Model, stream: boolean = false): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
 
     const body = {
       model: model.id,
-      messages: [{ role: 'user', content: 'hi' }],
+      messages: [{ role: 'user' as const, content: 'hi' }],
       max_tokens: 100,
-      stream: false
+      stream
     }
 
     try {
-      const message = await this.sdk.messages.create(body as MessageCreateParamsNonStreaming)
-      return {
-        valid: message.content.length > 0,
-        error: null
+      if (!stream) {
+        const message = await this.sdk.messages.create(body as MessageCreateParamsNonStreaming)
+        return {
+          valid: message.content.length > 0,
+          error: null
+        }
+      } else {
+        return await new Promise((resolve, reject) => {
+          let hasContent = false
+          this.sdk.messages
+            .stream(body)
+            .on('text', (text) => {
+              if (!hasContent && text) {
+                hasContent = true
+                resolve({ valid: true, error: null })
+              }
+            })
+            .on('finalMessage', (message) => {
+              if (!hasContent && message.content && message.content.length > 0) {
+                hasContent = true
+                resolve({ valid: true, error: null })
+              }
+              if (!hasContent) {
+                reject(new Error('Empty streaming response'))
+              }
+            })
+            .on('error', (error) => reject(error))
+        })
       }
     } catch (error: any) {
       return {
