@@ -259,7 +259,17 @@ export default class AnthropicProvider extends BaseProvider {
           .on('text', (text) => {
             if (hasThinkingContent && !checkThinkingContent) {
               checkThinkingContent = true
-              onChunk({ type: ChunkType.THINKING_COMPLETE, text: thinking_content, thinking_millsec: 0 })
+              onChunk({
+                type: ChunkType.THINKING_COMPLETE,
+                text: thinking_content,
+                thinking_millsec: time_first_content_millsec - time_first_token_millsec
+              })
+              // FIXME: 临时方案，重置时间戳和思考内容
+              time_first_token_millsec = 0
+              time_first_content_millsec = 0
+              thinking_content = ''
+              checkThinkingContent = false
+              hasThinkingContent = false
             }
             if (time_first_token_millsec == 0) {
               time_first_token_millsec = new Date().getTime() - start_time_millsec

@@ -559,6 +559,12 @@ export default class OpenAIProvider extends BaseProvider {
               text: thinkingContent,
               thinking_millsec: final_time_thinking_millsec_delta
             })
+
+            // FIXME: 临时方案，重置时间戳和思考内容
+            time_first_token_millsec = 0
+            time_first_content_millsec = 0
+            thinkingContent = ''
+            isFirstThinkingChunk = true
           }
         }
 

@@ -280,6 +280,9 @@ const fetchAndProcessAssistantResponseImpl = async (
       if (newBlockType !== MessageBlockType.MAIN_TEXT) {
         accumulatedContent = ''
       }
+      if (newBlockType !== MessageBlockType.THINKING) {
+        accumulatedThinking = ''
+      }
       console.log(`[Transition] Adding/Updating new ${newBlockType} block ${newBlock.id}.`)
       dispatch(
         newMessagesActions.updateMessage({
