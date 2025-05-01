@@ -57,10 +57,10 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 
   return (
     <>
-      {groupedBlocks.map((block, index) => {
+      {groupedBlocks.map((block, _index) => {
         if (Array.isArray(block)) {
           return (
-            <ImageBlockGroup key={`group-${index}`}>
+            <ImageBlockGroup key={`group-${_index}`}>
               {block.map((imageBlock) => (
                 <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
               ))}
