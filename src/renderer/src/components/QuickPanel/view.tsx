@@ -6,6 +6,7 @@ import { theme } from 'antd'
 import Color from 'color'
 import { t } from 'i18next'
 import { Check } from 'lucide-react'
+import VirtualList, { ListRef } from 'rc-virtual-list'
 import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
@@ -47,7 +48,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
   const bodyRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<ListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
 
   const scrollBlock = useRef<ScrollLogicalPosition>('nearest')
@@ -252,17 +253,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.isVisible])
 
-  // 处理上下翻时滚动到选中的元素
   useEffect(() => {
-    if (!contentRef.current) return
-
-    const selectedElement = contentRef.current.children[index] as HTMLElement
-    if (selectedElement) {
-      selectedElement.scrollIntoView({
-        block: scrollBlock.current,
-        behavior: scrollBehavior.current
-      })
-      scrollBlock.current = 'nearest'
+    if (contentRef.current) {
+      contentRef.current.scrollTo({ index, align: 'auto' })
     }
   }, [index])
 
@@ -428,8 +421,26 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       $selectedColorHover={selectedColorHover}
       className={ctx.isVisible ? 'visible' : ''}>
       <QuickPanelBody ref={bodyRef} onMouseMove={() => setIsMouseOver(true)}>
-        <QuickPanelContent ref={contentRef} $pageSize={ctx.pageSize} $isMouseOver={isMouseOver}>
-          {list.map((item, i) => (
+        <VirtualList
+          ref={contentRef}
+          data={list}
+          itemKey="id"
+          height={ctx.pageSize * 31}
+          itemHeight={31}
+          styles={{
+            verticalScrollBar: { background: 'transparent', width: 3 },
+            verticalScrollBarThumb: {
+              background: 'var(--color-scrollbar-thumb)',
+              borderRadius: 4
+            }
+          }}
+          style={{
+            padding: '0 5px',
+            overflowX: 'hidden',
+            overflowY: 'auto',
+            pointerEvents: isMouseOver ? 'auto' : 'none'
+          }}>
+          {(item, i) => (
             <QuickPanelItem
               className={classNames({
                 focused: i === index,
@@ -460,8 +471,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 </QuickPanelItemSuffixIcon>
               </QuickPanelItemRight>
             </QuickPanelItem>
-          ))}
-        </QuickPanelContent>
+          )}
+        </VirtualList>
         <QuickPanelFooter ref={footerRef}>
           <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
           <QuickPanelFooterTips $footerWidth={footerWidth}>
@@ -588,19 +599,6 @@ const QuickPanelFooterTitle = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-`
-
-const QuickPanelContent = styled.div<{ $pageSize: number; $isMouseOver: boolean }>`
-  width: 100%;
-  max-height: ${(props) => props.$pageSize * 31}px;
-  padding: 0 5px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  pointer-events: ${(props) => (props.$isMouseOver ? 'auto' : 'none')};
-
-  &::-webkit-scrollbar {
-    width: 3px;
-  }
 `
 
 const QuickPanelItem = styled.div`
