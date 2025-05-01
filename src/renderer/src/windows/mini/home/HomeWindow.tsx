@@ -181,7 +181,6 @@ const HomeWindow: FC = () => {
         messages: [userMessage],
         assistant: { ...assistant, model: getDefaultModel() },
         onChunkReceived: (chunk: Chunk) => {
-          console.log('chunk', chunk)
           if (chunk.type === ChunkType.TEXT_DELTA) {
             blockContent += chunk.text
             if (!blockId) {
