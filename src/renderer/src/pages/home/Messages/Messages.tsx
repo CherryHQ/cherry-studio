@@ -1,3 +1,4 @@
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -24,7 +25,6 @@ import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
-import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import ChatNavigation from './ChatNavigation'
@@ -238,7 +238,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           style={{ overflow: 'visible' }}>
           <ScrollContainer>
             <LoaderContainer $loading={isLoadingMore}>
-              <BeatLoader size={8} color="var(--color-text-2)" />
+              <SvgSpinners180Ring color="var(--color-text-2)" />
             </LoaderContainer>
             {groupedMessages.map(([key, groupMessages]) => (
               <MessageGroup

@@ -1557,6 +1557,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@iconify-json/svg-spinners@npm:^1.2.2":
+  version: 1.2.2
+  resolution: "@iconify-json/svg-spinners@npm:1.2.2"
+  dependencies:
+    "@iconify/types": "npm:*"
+  checksum: 10c0/61869963c21bc03052d64cd19155f9d596ffc71b3934ccdb468f5b5a1d3f003089c87744bf76145d8b1e946c45a88e1439e1f9470fcfc3a847b88262f1d71c76
+  languageName: node
+  linkType: hard
+
+"@iconify/types@npm:*":
+  version: 2.0.0
+  resolution: "@iconify/types@npm:2.0.0"
+  checksum: 10c0/65a3be43500c7ccacf360e136d00e1717f050b7b91da644e94370256ac66f582d59212bdb30d00788aab4fc078262e91c95b805d1808d654b72f6d2072a7e4b2
+  languageName: node
+  linkType: hard
+
 "@isaacs/cliui@npm:^8.0.2":
   version: 8.0.2
   resolution: "@isaacs/cliui@npm:8.0.2"
@@ -4324,6 +4340,7 @@ __metadata:
     "@eslint/js": "npm:^9.22.0"
     "@google/genai": "npm:^0.10.0"
     "@hello-pangea/dnd": "npm:^16.6.0"
+    "@iconify-json/svg-spinners": "npm:^1.2.2"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.36"
     "@modelcontextprotocol/sdk": "npm:^1.10.2"

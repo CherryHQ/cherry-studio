@@ -335,7 +335,8 @@
         "title": "渲染错误"
       },
       "user_message_not_found": "无法找到原始用户消息",
-      "unknown": "未知错误"
+      "unknown": "未知错误",
+      "pause_placeholder": "已中断"
     },
     "export": {
       "assistant": "助手",

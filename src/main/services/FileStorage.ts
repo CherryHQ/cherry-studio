@@ -263,7 +263,7 @@ class FileStorage {
     }
   }
 
-  public binaryFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: Buffer; mime: string }> => {
+  public binaryImage = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: Buffer; mime: string }> => {
     const filePath = path.join(this.storageDir, id)
     const data = await fs.promises.readFile(filePath)
     const mime = `image/${path.extname(filePath).slice(1)}`

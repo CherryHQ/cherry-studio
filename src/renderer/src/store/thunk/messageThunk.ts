@@ -17,6 +17,7 @@ import type {
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { Response } from '@renderer/types/newMessage'
+import { isAbortError } from '@renderer/utils/error'
 import { extractUrlsFromMarkdown } from '@renderer/utils/linkConverter'
 import {
   createAssistantMessage,
@@ -118,7 +119,11 @@ const throttledBlockUpdate = throttle((id, blockUpdate) => {
   const state = store.getState()
   const block = state.messageBlocks.entities[id]
   // throttle是异步函数,可能会在complete事件触发后才执行
-  if (blockUpdate.status === MessageBlockStatus.STREAMING && block?.status === MessageBlockStatus.SUCCESS) return
+  if (
+    blockUpdate.status === MessageBlockStatus.STREAMING &&
+    (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
+  )
+    return
 
   store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
 }, 150)
@@ -134,7 +139,11 @@ export const throttledBlockDbUpdate = throttle(
     const state = store.getState()
     const block = state.messageBlocks.entities[blockId]
     // throttle是异步函数,可能会在complete事件触发后才执行
-    if (blockChanges.status === MessageBlockStatus.STREAMING && block?.status === MessageBlockStatus.SUCCESS) return
+    if (
+      blockChanges.status === MessageBlockStatus.STREAMING &&
+      (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
+    )
+      return
     console.log(`[DB Throttle Block Update] Updating block ${blockId} with changes:`, blockChanges)
     try {
       await db.message_blocks.update(blockId, blockChanges)
@@ -270,6 +279,9 @@ const fetchAndProcessAssistantResponseImpl = async (
       lastBlockType = newBlockType
       if (newBlockType !== MessageBlockType.MAIN_TEXT) {
         accumulatedContent = ''
+      }
+      if (newBlockType !== MessageBlockType.THINKING) {
+        accumulatedThinking = ''
       }
       console.log(`[Transition] Adding/Updating new ${newBlockType} block ${newBlock.id}.`)
       dispatch(
@@ -556,12 +568,19 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onError: (error) => {
-        console.error('Stream processing error:', error)
+        console.dir(error, { depth: null })
+        let pauseErrorLanguagePlaceholder = ''
+        if (isAbortError(error)) {
+          pauseErrorLanguagePlaceholder = 'pause_placeholder'
+        }
+
         const serializableError = {
           name: error.name,
-          message: error.message || 'Stream processing error',
+          message: pauseErrorLanguagePlaceholder || error.message || 'Stream processing error',
           originalMessage: error.message,
-          stack: error.stack
+          stack: error.stack,
+          status: error.status,
+          requestId: error.request_id
         }
         if (lastBlockId) {
           // 更改上一个block的状态为ERROR
@@ -584,7 +603,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         const finalStateOnComplete = getState()
         const finalAssistantMsg = finalStateOnComplete.messages.entities[assistantMsgId]
 
-        if (status === 'success' && finalAssistantMsg && response && !response?.usage) {
+        if (status === 'success' && finalAssistantMsg) {
           const userMsgId = finalAssistantMsg.askId
           const orderedMsgs = selectMessagesForTopic(finalStateOnComplete, topicId)
           const userMsgIndex = orderedMsgs.findIndex((m) => m.id === userMsgId)
@@ -594,8 +613,10 @@ const fetchAndProcessAssistantResponseImpl = async (
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
 
-          const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
-          response.usage = usage
+          if (response && !response.usage) {
+            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
+            response.usage = usage
+          }
         }
         if (response && response.metrics) {
           if (!response.metrics.completion_tokens && response.usage) {
@@ -705,17 +726,11 @@ export const loadTopicMessagesThunk =
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState()
     const topicMessagesExist = !!state.messages.messageIdsByTopic[topicId]
-    const isLoading = state.messages.loadingByTopic[topicId]
 
-    if ((topicMessagesExist && !forceReload) || isLoading) {
-      if (topicMessagesExist && isLoading) {
-        dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
-      }
+    if (topicMessagesExist && !forceReload) {
       return
     }
 
-    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
-    dispatch(newMessagesActions.setCurrentTopicId(topicId))
     try {
       const topic = await db.topics.get(topicId)
       const messagesFromDB = topic?.messages || []
@@ -737,7 +752,7 @@ export const loadTopicMessagesThunk =
       }
     } catch (error: any) {
       console.error(`[loadTopicMessagesThunk] Failed to load messages for topic ${topicId}:`, error)
-      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+      // dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     }
   }
 

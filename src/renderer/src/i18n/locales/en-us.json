@@ -335,7 +335,8 @@
         "title": "Render Error"
       },
       "user_message_not_found": "Cannot find original user message to resend",
-      "unknown": "Unknown error"
+      "unknown": "Unknown error",
+      "pause_placeholder": "Paused"
     },
     "export": {
       "assistant": "Assistant",

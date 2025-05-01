@@ -154,7 +154,7 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
         break
       case WebSearchSource.WEBSEARCH:
         formattedCitations =
-          (block.response.results as WebSearchProviderResponse)?.results.map((result, index) => ({
+          (block.response.results as WebSearchProviderResponse)?.results?.map((result, index) => ({
             number: index + 1,
             url: result.url,
             title: result.title,

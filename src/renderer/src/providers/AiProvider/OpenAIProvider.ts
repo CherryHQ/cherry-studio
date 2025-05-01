@@ -15,6 +15,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
+import FileManager from '@renderer/services/FileManager'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -47,12 +48,13 @@ import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { isEmpty, takeRight } from 'lodash'
-import OpenAI, { AzureOpenAI } from 'openai'
+import OpenAI, { AzureOpenAI, toFile } from 'openai'
 import {
   ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam
 } from 'openai/resources'
+import { FileLike } from 'openai/uploads'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
@@ -559,6 +561,13 @@ export default class OpenAIProvider extends BaseProvider {
               text: thinkingContent,
               thinking_millsec: final_time_thinking_millsec_delta
             })
+
+            // FIXME: 临时方案，重置时间戳和思考内容
+            time_first_token_millsec = 0
+            time_first_content_millsec = 0
+            thinkingContent = ''
+            isFirstThinkingChunk = true
+            hasReasoningContent = false
           }
         }
 
@@ -962,26 +971,41 @@ export default class OpenAIProvider extends BaseProvider {
   /**
    * Check if the model is valid
    * @param model - The model
+   * @param stream - Whether to use streaming interface
    * @returns The validity of the model
    */
-  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
+  public async check(model: Model, stream: boolean = false): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
     const body = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
-      stream: false
+      stream
     }
 
     try {
       await this.checkIsCopilot()
       console.debug('[checkModel] body', model.id, body)
-      const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
-
-      return {
-        valid: Boolean(response?.choices[0].message),
-        error: null
+      if (!stream) {
+        const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
+        if (!response?.choices[0].message) {
+          throw new Error('Empty response')
+        }
+        return { valid: true, error: null }
+      } else {
+        const response: any = await this.sdk.chat.completions.create(body as any)
+        // 等待整个流式响应结束
+        let hasContent = false
+        for await (const chunk of response) {
+          if (chunk.choices?.[0]?.delta?.content) {
+            hasContent = true
+          }
+        }
+        if (hasContent) {
+          return { valid: true, error: null }
+        }
+        throw new Error('Empty streaming response')
       }
     } catch (error: any) {
       return {
@@ -1096,50 +1120,119 @@ export default class OpenAIProvider extends BaseProvider {
   public async generateImageByChat({ messages, assistant, onChunk }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+    // save image data from the last assistant message
+    messages = addImageFileToContents(messages)
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
+    const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
+    if (!lastUserMessage) {
+      return
+    }
+
     const { abortController } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
+    const content = getMainTextContent(lastUserMessage!)
+    let response: OpenAI.Images.ImagesResponse | null = null
+    let images: FileLike[] = []
 
-    onChunk({
-      type: ChunkType.IMAGE_CREATED
-    })
-    const start_time_millsec = new Date().getTime()
-    const response = await this.sdk.images.generate(
-      {
-        model: model.id,
-        prompt: getMainTextContent(lastUserMessage!) || '',
-        response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
-      },
-      {
-        signal
+    try {
+      if (lastUserMessage) {
+        const UserFiles = findImageBlocks(lastUserMessage)
+        const validUserFiles = UserFiles.filter((f) => f.file) // Filter out files that are undefined first
+        const userImages = await Promise.all(
+          validUserFiles.map(async (f) => {
+            // f.file is guaranteed to exist here due to the filter above
+            const fileInfo = f.file!
+            const binaryData = await FileManager.readFile(fileInfo)
+            console.log('binaryData', binaryData)
+            const file = await toFile(binaryData, fileInfo.origin_name || 'image.png', {
+              type: 'image/png'
+            })
+            return file
+          })
+        )
+        images = images.concat(userImages)
       }
-    )
 
-    onChunk({
-      type: ChunkType.IMAGE_COMPLETE,
-      image: {
-        type: 'base64',
-        images: response.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || []
+      if (lastAssistantMessage) {
+        const assistantFiles = findImageBlocks(lastAssistantMessage)
+        const assistantImages = await Promise.all(
+          assistantFiles.filter(Boolean).map(async (f) => {
+            const base64Data = f?.url?.replace(/^data:image\/\w+;base64,/, '')
+            if (!base64Data) return null
+            const binary = atob(base64Data)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) {
+              bytes[i] = binary.charCodeAt(i)
+            }
+            const file = await toFile(bytes, 'assistant_image.png', {
+              type: 'image/png'
+            })
+            return file
+          })
+        )
+        images = images.concat(assistantImages.filter(Boolean) as FileLike[])
       }
-    })
+      onChunk({
+        type: ChunkType.IMAGE_CREATED
+      })
 
-    // Create synthetic usage and metrics data for image generation
-    const time_completion_millsec = new Date().getTime() - start_time_millsec
-    onChunk({
-      type: ChunkType.BLOCK_COMPLETE,
-      response: {
-        usage: {
-          completion_tokens: response.usage?.output_tokens || 0,
-          prompt_tokens: response.usage?.input_tokens || 0,
-          total_tokens: response.usage?.total_tokens || 0
-        },
-        metrics: {
-          completion_tokens: response.usage?.output_tokens || 0,
-          time_first_token_millsec: 0, // Non-streaming, first token time is not relevant
-          time_completion_millsec
+      const start_time_millsec = new Date().getTime()
+
+      if (images.length > 0) {
+        response = await this.sdk.images.edit(
+          {
+            model: model.id,
+            image: images,
+            prompt: content || ''
+          },
+          {
+            signal,
+            timeout: 300_000
+          }
+        )
+      } else {
+        response = await this.sdk.images.generate(
+          {
+            model: model.id,
+            prompt: content || '',
+            response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
+          },
+          {
+            signal,
+            timeout: 300_000
+          }
+        )
+      }
+
+      onChunk({
+        type: ChunkType.IMAGE_COMPLETE,
+        image: {
+          type: 'base64',
+          images: response?.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || []
         }
-      }
-    })
-    return
+      })
+
+      onChunk({
+        type: ChunkType.BLOCK_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: response.usage?.output_tokens || 0,
+            prompt_tokens: response.usage?.input_tokens || 0,
+            total_tokens: response.usage?.total_tokens || 0
+          },
+          metrics: {
+            completion_tokens: response.usage?.output_tokens || 0,
+            time_first_token_millsec: 0, // Non-streaming, first token time is not relevant
+            time_completion_millsec: new Date().getTime() - start_time_millsec
+          }
+        }
+      })
+    } catch (error: any) {
+      console.error('[generateImageByChat] error', error)
+      onChunk({
+        type: ChunkType.ERROR,
+        error
+      })
+    }
   }
 }

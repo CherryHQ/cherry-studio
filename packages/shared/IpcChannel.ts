@@ -109,7 +109,7 @@ export enum IpcChannel {
   File_Base64Image = 'file:base64Image',
   File_Download = 'file:download',
   File_Copy = 'file:copy',
-  File_BinaryFile = 'file:binaryFile',
+  File_BinaryImage = 'file:binaryImage',
 
   Fs_Read = 'fs:read',
 

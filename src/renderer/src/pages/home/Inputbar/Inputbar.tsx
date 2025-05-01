@@ -576,7 +576,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           event.preventDefault()
 
           if (file.path === '') {
-            if (file.type.startsWith('image/') && isVisionModel(model)) {
+            // 图像生成也支持图像编辑
+            if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
               const tempFilePath = await window.api.file.create(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
@@ -798,13 +799,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [assistant, model, updateAssistant])
 
-  const onMentionModel = (model: Model) => {
+  const onMentionModel = useCallback((model: Model) => {
     setMentionModels((prev) => {
       const modelId = getModelUniqId(model)
       const exists = prev.some((m) => getModelUniqId(m) === modelId)
       return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
     })
-  }
+  }, [])
 
   const onToggleExpended = () => {
     if (textareaHeight) {
