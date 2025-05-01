@@ -278,7 +278,7 @@ export default class OpenAIProvider extends BaseProvider {
       return {}
     }
     const effortRatio = EFFORT_RATIO[reasoningEffort]
-    const budgetTokens = (findTokenLimit(model.id)?.max || 0) * effortRatio
+    const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
     // OpenRouter models
     if (model.provider === 'openrouter') {
       if (isSupportedReasoningEffortModel(model)) {

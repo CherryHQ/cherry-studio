@@ -237,7 +237,7 @@ export default class GeminiProvider extends BaseProvider {
       // 如果thinking_budget是明确设置的值（包括0），使用该值
       return {
         thinkingConfig: {
-          thinkingBudget: max * effortRatio,
+          thinkingBudget: Math.floor(max * effortRatio),
           includeThoughts: true
         } as ThinkingConfig
       }
