@@ -1,4 +1,4 @@
-import { FC, memo, useEffect, useRef, useState } from 'react'
+import { FC, memo, useDeferredValue, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 const LazyItem: FC<{
@@ -11,7 +11,8 @@ const LazyItem: FC<{
   /** 滚动容器 */
   scrollContainer?: HTMLElement | null
 }> = ({ children, minHeight = 10, once = true, scrollContainer = null, rootMargin }) => {
-  const [isVisible, setIsVisible] = useState(false)
+  const [_isVisible, setIsVisible] = useState(false)
+  const isVisible = useDeferredValue(_isVisible)
   const itemRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -27,7 +28,7 @@ const LazyItem: FC<{
         }
       },
       {
-        threshold: 0.1,
+        threshold: 0.01,
         rootMargin,
         root: scrollContainer
       }
@@ -40,8 +41,7 @@ const LazyItem: FC<{
     return () => {
       observer.disconnect()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [scrollContainer, rootMargin, once])
 
   return (
     <LazyItemContainer ref={itemRef} style={{ minHeight }}>
@@ -60,7 +60,7 @@ const LazyItemContainer = styled.div`
     }
   }
   min-height: 10px;
-  animation: itemIn 0.2s ease;
+  animation: itemIn 0.15s ease;
 `
 
 export default memo(LazyItem)
