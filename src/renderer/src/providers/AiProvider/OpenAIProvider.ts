@@ -1164,8 +1164,7 @@ export default class OpenAIProvider extends BaseProvider {
           validUserFiles.map(async (f) => {
             // f.file is guaranteed to exist here due to the filter above
             const fileInfo = f.file!
-            const binaryData = await FileManager.readFile(fileInfo)
-            console.log('binaryData', binaryData)
+            const binaryData = await FileManager.readBinaryImage(fileInfo)
             const file = await toFile(binaryData, fileInfo.origin_name || 'image.png', {
               type: 'image/png'
             })

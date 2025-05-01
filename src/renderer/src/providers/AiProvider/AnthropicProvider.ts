@@ -76,20 +76,33 @@ export default class AnthropicProvider extends BaseProvider {
           }
         })
       }
-
-      // Get and process file blocks
-      const fileBlocks = findFileBlocks(message)
-      for (const fileBlock of fileBlocks) {
-        const file = fileBlock.file
-        if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-          const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
-          parts.push({
-            type: 'text',
-            text: file.origin_name + '\n' + fileContent
-          })
-        }
+    }
+    // Get and process file blocks
+    const fileBlocks = findFileBlocks(message)
+    for (const fileBlock of fileBlocks) {
+      const file = fileBlock.file
+      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+        // FIXME: 需要使用anthropic官key测试一下，先注释掉
+        // if (file.ext === '.pdf' && file.size < 32 * 1024 * 1024) {
+        //   const base64Data = await FileManager.readFile(file)
+        //   parts.push({
+        //     type: 'document',
+        //     source: {
+        //       type: 'base64',
+        //       media_type: 'application/pdf',
+        //       data: base64Data
+        //     }
+        //   })
+        // } else {
+        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+        parts.push({
+          type: 'text',
+          text: file.origin_name + '\n' + fileContent
+        })
+        // }
       }
     }
+
     return {
       role: message.role === 'system' ? 'user' : message.role,
       content: parts
@@ -252,14 +265,14 @@ export default class AnthropicProvider extends BaseProvider {
         onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
         let hasThinkingContent = false
         this.sdk.messages
-          .stream({ ...body, stream: true }, { signal })
+          .stream({ ...body, stream: true }, { signal, timeout: 5 * 60 * 1000 })
           .on('text', (text) => {
             if (hasThinkingContent && !checkThinkingContent) {
               checkThinkingContent = true
               onChunk({
                 type: ChunkType.THINKING_COMPLETE,
                 text: thinking_content,
-                thinking_millsec: time_first_content_millsec - time_first_token_millsec
+                thinking_millsec: new Date().getTime() - time_first_content_millsec
               })
               // FIXME: 临时方案，重置时间戳和思考内容
               time_first_token_millsec = 0
@@ -269,7 +282,7 @@ export default class AnthropicProvider extends BaseProvider {
               hasThinkingContent = false
             }
             if (time_first_token_millsec == 0) {
-              time_first_token_millsec = new Date().getTime() - start_time_millsec
+              time_first_token_millsec = new Date().getTime()
             }
 
             if (hasThinkingContent && time_first_content_millsec === 0) {
@@ -283,7 +296,7 @@ export default class AnthropicProvider extends BaseProvider {
             const currentTime = new Date().getTime() // Get current time for each chunk
 
             if (time_first_token_millsec == 0) {
-              time_first_token_millsec = currentTime - start_time_millsec
+              time_first_token_millsec = currentTime
             }
 
             // Set time_first_content_millsec ONLY when the first content (thinking or text) arrives
@@ -293,7 +306,6 @@ export default class AnthropicProvider extends BaseProvider {
 
             // Calculate thinking time as time elapsed since start until this chunk
             const thinking_time = currentTime - time_first_content_millsec
-
             onChunk({
               type: ChunkType.THINKING_DELTA,
               text: thinking,
@@ -340,7 +352,7 @@ export default class AnthropicProvider extends BaseProvider {
                 metrics: {
                   completion_tokens: message.usage.output_tokens,
                   time_completion_millsec,
-                  time_first_token_millsec
+                  time_first_token_millsec: time_first_token_millsec - start_time_millsec
                 }
               }
             })
