@@ -1,3 +1,5 @@
+import { IUserInputForm } from '@dify-chat/api'
+
 export type FlowType = 'workflow' | 'chatflow'
 
 /**
@@ -11,6 +13,7 @@ interface FlowBase {
   enabled: boolean // 是否启用
   apiKey: string
   apiHost: string
+  parameters?: IUserInputForm[]
 }
 
 export interface Workflow extends FlowBase {

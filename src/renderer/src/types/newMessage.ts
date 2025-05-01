@@ -25,7 +25,8 @@ export enum MessageBlockType {
   TOOL = 'tool', // Added unified tool block type
   FILE = 'file', // 文件内容
   ERROR = 'error', // 错误信息
-  CITATION = 'citation' // 引用类型 (Now includes web search, grounding, etc.)
+  CITATION = 'citation', // 引用类型 (Now includes web search, grounding, etc.)
+  FLOW = 'flow' // workflow
 }
 
 // 块状态定义
@@ -128,6 +129,11 @@ export interface FileMessageBlock extends BaseMessageBlock {
 export interface ErrorMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.ERROR
 }
+// flow 块
+export interface FlowMessageBlock extends BaseMessageBlock {
+  type: MessageBlockType.FLOW
+  // form data
+}
 
 // MessageBlock 联合类型
 export type MessageBlock =
@@ -141,6 +147,7 @@ export type MessageBlock =
   | FileMessageBlock
   | ErrorMessageBlock
   | CitationMessageBlock
+  | FlowMessageBlock
 
 export enum UserMessageStatus {
   SUCCESS = 'success'

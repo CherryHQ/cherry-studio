@@ -1,11 +1,12 @@
 import { DeleteOutlined, LoadingOutlined, SaveOutlined } from '@ant-design/icons'
+import WorkflowForm from '@renderer/components/WorkflowForm'
 // Remove getFlowEngineProviderLogo import if miniAppConfig is removed
 // import { getFlowEngineProviderLogo } from '@renderer/config/workflowProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
-import { check } from '@renderer/services/FlowEngineService'
+import { check, getAppParameters } from '@renderer/services/FlowEngineService'
 // Import FlowType and update FlowConfig import if necessary
-import { Flow, FlowType } from '@renderer/types' // Import WorkflowSpecificConfig, remove Chatflow, Workflow specific imports if not needed elsewhere
+import { Flow, FlowType, Workflow } from '@renderer/types' // Import WorkflowSpecificConfig, remove Chatflow, Workflow specific imports if not needed elsewhere
 import { Button, Flex, Form, Input, Radio, Switch } from 'antd' // Add Radio
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -157,6 +158,12 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
     // form.resetFields(['apiKey', 'apiHost', 'url']) // Remove this line
   }
 
+  const getParameters = async () => {
+    const parameters = await getAppParameters(flowEngineProvider, flow)
+    setFlow({ ...flow, parameters })
+    updateFlow({ ...flow, parameters })
+  }
+
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingGroup style={{ marginBottom: 0 }}>
@@ -233,6 +240,9 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
           </Form.Item>
         </Form>
       </SettingGroup>
+      <SettingDivider />
+      <Button onClick={getParameters}>获取参数</Button>
+      <WorkflowForm workflow={flow as Workflow} onSubmit={() => console.log('submit')} />
     </SettingContainer>
   )
 }

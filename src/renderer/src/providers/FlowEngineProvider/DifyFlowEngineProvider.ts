@@ -1,5 +1,11 @@
 import { XStream } from '@ant-design/x'
-import { createDifyApiInstance, EventEnum, IChunkChatCompletionResponse, IWorkflowNode } from '@dify-chat/api'
+import {
+  createDifyApiInstance,
+  EventEnum,
+  IChunkChatCompletionResponse,
+  IUserInputForm,
+  IWorkflowNode
+} from '@dify-chat/api'
 import { Flow, FlowEngine } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -94,6 +100,23 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     } catch (error) {
       console.error('检查工作流失败', error)
       return { valid: false, error: new Error('检查工作流失败') }
+    }
+  }
+
+  public async getAppParameters(flow: Flow): Promise<IUserInputForm[]> {
+    try {
+      const difyApi = createDifyApiInstance({
+        user: uuidv4(),
+        apiKey: flow.apiKey,
+        apiBase: flow.apiHost
+      })
+
+      const parameters = await difyApi.getAppParameters()
+
+      return parameters.user_input_form
+    } catch (error) {
+      console.error('获取工作流参数失败', error)
+      throw new Error('获取工作流参数失败')
     }
   }
 

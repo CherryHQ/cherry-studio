@@ -54,7 +54,7 @@ const WorkflowProviderList: FC = () => {
   }
 
   const getDropdownMenus = (provider: FlowEngine): MenuProps['items'] => {
-    console.log('getDropdownMenus', provider)
+    // console.log('getDropdownMenus', provider)
     const menus = []
 
     return menus
