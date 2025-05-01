@@ -1,4 +1,4 @@
-import { FC, memo, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { FC, memo, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 const LazyItem: FC<{
@@ -10,25 +10,27 @@ const LazyItem: FC<{
   once?: boolean
   /** 滚动容器 */
   scrollContainer?: HTMLElement | null
-}> = ({ children, minHeight = 10, once = true, scrollContainer = null, rootMargin }) => {
-  const [_isVisible, setIsVisible] = useState(false)
-  const isVisible = useDeferredValue(_isVisible)
+}> = ({ children, minHeight = 10, once = true, scrollContainer = null, rootMargin = '100px' }) => {
+  const [isVisible, setIsVisible] = useState(false)
   const itemRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    let timer: NodeJS.Timeout | null = null
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
+          timer && clearTimeout(timer)
+          once && observer.disconnect()
+
           setIsVisible(true)
-          if (once) {
-            observer.disconnect()
-          }
         } else {
-          setIsVisible(false)
+          timer = setTimeout(() => {
+            setIsVisible(false)
+          }, 200)
         }
       },
       {
-        threshold: 0.01,
+        threshold: 0.1,
         rootMargin,
         root: scrollContainer
       }

@@ -472,7 +472,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                   key={i}
                   minHeight={30}
                   once={false}
-                  rootMargin={`${14 * 30}px`}
+                  rootMargin={`${ctx.pageSize * 2 * 30}px`}
                   scrollContainer={contentRef.current}>
                   {renderItem}
                 </LazyItem>
@@ -639,7 +639,8 @@ const QuickPanelItem = styled.div`
       background-color: var(--selected-color-dark);
     }
   }
-  &.focused {
+  &.focused,
+  &:hover {
     background-color: var(--focused-color);
   }
   &.disabled {
