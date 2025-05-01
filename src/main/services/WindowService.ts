@@ -3,7 +3,7 @@ import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ThemeMode } from '@types'
-import { app, BrowserWindow, ipcMain, Menu, MenuItem, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, Menu, MenuItem, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
@@ -482,10 +482,6 @@ export class WindowService {
 
     this.miniWindow.on('show', () => {
       this.miniWindow?.webContents.send(IpcChannel.ShowMiniWindow)
-    })
-
-    ipcMain.on(IpcChannel.MiniWindowReload, () => {
-      this.miniWindow?.reload()
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {

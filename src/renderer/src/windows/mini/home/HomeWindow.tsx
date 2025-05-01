@@ -216,7 +216,7 @@ const HomeWindow: FC = () => {
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant]
+    [content, defaultAssistant, topic]
   )
 
   const clearClipboard = () => {

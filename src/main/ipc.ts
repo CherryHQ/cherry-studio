@@ -24,6 +24,7 @@ import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { searchService } from './services/SearchService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
+import storeSyncService from './services/StoreSyncService'
 import { TrayService } from './services/TrayService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
@@ -31,7 +32,6 @@ import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
-
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
@@ -338,4 +338,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
     setOpenLinkExternal(webviewId, isExternal)
   )
+
+  // store sync
+  storeSyncService.registerIpcHandler()
 }

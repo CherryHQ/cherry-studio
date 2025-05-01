@@ -151,7 +151,6 @@ export enum IpcChannel {
 
   HideMiniWindow = 'hide-mini-window',
   ShowMiniWindow = 'show-mini-window',
-  MiniWindowReload = 'miniwindow-reload',
 
   ReduxStateChange = 'redux-state-change',
   ReduxStoreReady = 'redux-store-ready',
@@ -159,5 +158,11 @@ export enum IpcChannel {
   // Search Window
   SearchWindow_Open = 'search-window:open',
   SearchWindow_Close = 'search-window:close',
-  SearchWindow_OpenUrl = 'search-window:open-url'
+  SearchWindow_OpenUrl = 'search-window:open-url',
+
+  //Store Sync
+  StoreSync_Subscribe = 'store-sync:subscribe',
+  StoreSync_Unsubscribe = 'store-sync:unsubscribe',
+  StoreSync_OnUpdate = 'store-sync:on-update',
+  StoreSync_BroadcastSync = 'store-sync:broadcast-sync'
 }
