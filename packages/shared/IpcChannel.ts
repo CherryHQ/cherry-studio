@@ -12,7 +12,8 @@ export enum IpcChannel {
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_RestartTray = 'app:restart-tray',
   App_SetTheme = 'app:set-theme',
-  App_SetCustomCss = 'app:set-custom-css',
+  App_SetCustomCss = 'app:set-custom-css', // invoke
+  App_UpdateCustomCss = 'app:update-custom-css', // on
   App_SetAutoUpdate = 'app:set-auto-update',
 
   App_IsBinaryExist = 'app:is-binary-exist',
@@ -151,6 +152,10 @@ export enum IpcChannel {
 
   HideMiniWindow = 'hide-mini-window',
   ShowMiniWindow = 'show-mini-window',
+
+  CSSEditor_Show = 'css-editor:open',
+  CSSEditor_Close = 'css-editor:close',
+  CSSEditor_TogglePin = 'css-editor:toggle-pin',
 
   ReduxStateChange = 'redux-state-change',
   ReduxStoreReady = 'redux-store-ready',

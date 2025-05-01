@@ -121,6 +121,11 @@ const api = {
     toggle: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Toggle),
     setPin: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.MiniWindow_SetPin, isPinned)
   },
+  cssEditor: {
+    open: () => ipcRenderer.invoke(IpcChannel.CSSEditor_Show),
+    close: () => ipcRenderer.invoke(IpcChannel.CSSEditor_Close),
+    pin: () => ipcRenderer.invoke(IpcChannel.CSSEditor_TogglePin)
+  },
   aes: {
     encrypt: (text: string, secretKey: string, iv: string) =>
       ipcRenderer.invoke(IpcChannel.Aes_Encrypt, text, secretKey, iv),

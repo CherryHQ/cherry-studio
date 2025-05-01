@@ -152,7 +152,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     // 向其他窗口广播主题变化
     windows.forEach((win) => {
       if (win.webContents.id !== senderWindowId) {
-        win.webContents.send('custom-css:update', css)
+        win.webContents.send(IpcChannel.App_UpdateCustomCss, css)
       }
     })
   })
@@ -273,6 +273,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.MiniWindow_Close, () => windowService.closeMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_Toggle, () => windowService.toggleMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_SetPin, (_, isPinned) => windowService.setPinMiniWindow(isPinned))
+
+  // css editor
+  ipcMain.handle(IpcChannel.CSSEditor_Show, () => windowService.showCSSEditorWindow())
+  ipcMain.handle(IpcChannel.CSSEditor_Close, () => windowService.closeCSSEditorWindow())
+  ipcMain.handle(IpcChannel.CSSEditor_TogglePin, () => windowService.togglePinCSSEditorWindow())
 
   // aes
   ipcMain.handle(IpcChannel.Aes_Encrypt, (_, text: string, secretKey: string, iv: string) =>
