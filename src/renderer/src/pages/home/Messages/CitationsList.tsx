@@ -117,13 +117,18 @@ const handleLinkClick = (url: string, event: React.MouseEvent) => {
 }
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
+  const { t } = useTranslation()
   const [fetchedContent, setFetchedContent] = React.useState('')
+  const [isLoading, setIsLoading] = React.useState(false)
   React.useEffect(() => {
     if (citation.url) {
-      fetchWebContent(citation.url, 'markdown').then((res) => {
-        const cleaned = cleanMarkdownContent(res.content)
-        setFetchedContent(truncateText(cleaned, 100))
-      })
+      setIsLoading(true)
+      fetchWebContent(citation.url, 'markdown')
+        .then((res) => {
+          const cleaned = cleanMarkdownContent(res.content)
+          setFetchedContent(truncateText(cleaned, 100))
+        })
+        .finally(() => setIsLoading(false))
     }
   }, [citation.url])
 
@@ -137,7 +142,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           {citation.title || <span className="hostname">{citation.hostname}</span>}
         </CitationLink>
       </div>
-      {fetchedContent}
+      {isLoading ? <div>{t('common.loading')}</div> : fetchedContent}
     </WebSearchCard>
   )
 }
