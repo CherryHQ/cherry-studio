@@ -3,15 +3,15 @@ import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ThemeMode } from '@types'
-import { app, BrowserWindow, ipcMain, Menu, MenuItem, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
-import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
+import { contextMenu } from './ContextMenu'
 import { initSessionUserAgent } from './WebviewService'
 
 export class WindowService {
@@ -24,7 +24,6 @@ export class WindowService {
   private wasMainWindowFocused: boolean = false
   private selectionMenuWindow: BrowserWindow | null = null
   private lastSelectedText: string = ''
-  private contextMenu: Menu | null = null
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -118,18 +117,9 @@ export class WindowService {
   }
 
   private setupContextMenu(mainWindow: BrowserWindow) {
-    if (!this.contextMenu) {
-      const locale = locales[configManager.getLanguage()]
-      const { common } = locale.translation
-
-      this.contextMenu = new Menu()
-      this.contextMenu.append(new MenuItem({ label: common.copy, role: 'copy' }))
-      this.contextMenu.append(new MenuItem({ label: common.paste, role: 'paste' }))
-      this.contextMenu.append(new MenuItem({ label: common.cut, role: 'cut' }))
-    }
-
-    mainWindow.webContents.on('context-menu', () => {
-      this.contextMenu?.popup()
+    contextMenu.contextMenu(mainWindow)
+    app.on('browser-window-created', (_, win) => {
+      contextMenu.contextMenu(win)
     })
 
     // Dangerous API
@@ -138,13 +128,6 @@ export class WindowService {
         webPreferences.preload = join(__dirname, '../preload/index.js')
       })
     }
-
-    // Handle webview context menu
-    mainWindow.webContents.on('did-attach-webview', (_, webContents) => {
-      webContents.on('context-menu', () => {
-        this.contextMenu?.popup()
-      })
-    })
   }
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
