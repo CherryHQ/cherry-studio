@@ -97,7 +97,6 @@ const MessageImage: FC<Props> = ({ block }) => {
         <Image
           src={image}
           key={`image-${index}`}
-          width="33%"
           preview={{
             toolbarRender: (
               _,
@@ -129,9 +128,12 @@ const Container = styled.div`
   flex-direction: row;
   gap: 10px;
   margin-top: 8px;
+  width: 100%;
 `
 const Image = styled(AntdImage)`
   border-radius: 10px;
+  width: 100%;
+  height: auto;
 `
 const ToobarWrapper = styled(Space)`
   padding: 0px 24px;
