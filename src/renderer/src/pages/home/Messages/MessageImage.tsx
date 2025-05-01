@@ -90,7 +90,9 @@ const MessageImage: FC<Props> = ({ block }) => {
   const images = block.metadata?.generateImageResponse?.images?.length
     ? block.metadata?.generateImageResponse?.images
     : // TODO 加file是否合适？
-      [`file://${block?.file?.path}`]
+      block?.file?.path
+      ? [`file://${block?.file?.path}`]
+      : []
   return (
     <Container style={{ marginBottom: 8 }}>
       {images.map((image, index) => (

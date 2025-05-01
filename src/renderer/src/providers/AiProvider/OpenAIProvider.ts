@@ -1114,11 +1114,15 @@ export default class OpenAIProvider extends BaseProvider {
 
     try {
       if (lastUserMessage) {
-        const UserFiles = findFileBlocks(lastUserMessage)
+        const UserFiles = findImageBlocks(lastUserMessage)
+        const validUserFiles = UserFiles.filter((f) => f.file) // Filter out files that are undefined first
         const userImages = await Promise.all(
-          UserFiles.map(async (f) => {
-            const binaryData = await FileManager.readFile(f.file)
-            const file = await toFile(binaryData, f.file.origin_name || 'image.png', {
+          validUserFiles.map(async (f) => {
+            // f.file is guaranteed to exist here due to the filter above
+            const fileInfo = f.file!
+            const binaryData = await FileManager.readFile(fileInfo)
+            console.log('binaryData', binaryData)
+            const file = await toFile(binaryData, fileInfo.origin_name || 'image.png', {
               type: 'image/png'
             })
             return file
@@ -1146,7 +1150,6 @@ export default class OpenAIProvider extends BaseProvider {
         )
         images = images.concat(assistantImages.filter(Boolean) as FileLike[])
       }
-
       onChunk({
         type: ChunkType.IMAGE_CREATED
       })
