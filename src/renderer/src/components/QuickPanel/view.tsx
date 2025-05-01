@@ -414,6 +414,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     return () => window.removeEventListener('resize', handleResize)
   }, [ctx.isVisible])
 
+  const listHeight = useMemo(() => {
+    return Math.min(ctx.pageSize, list.length) * 31
+  }, [ctx.pageSize, list.length])
+
   return (
     <QuickPanelContainer
       $pageSize={ctx.pageSize}
@@ -425,7 +429,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           ref={contentRef}
           data={list}
           itemKey="id"
-          height={ctx.pageSize * 31}
+          height={listHeight}
           itemHeight={31}
           styles={{
             verticalScrollBar: { background: 'transparent', width: 3 },
